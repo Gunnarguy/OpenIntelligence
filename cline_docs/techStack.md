@@ -1,4 +1,4 @@
-## Tech Stack – RAGMLCore (2025 Modernization)
+# Tech Stack – OpenIntelligence (2025 Modernization)
 
 Last updated: 2025-10-28
 

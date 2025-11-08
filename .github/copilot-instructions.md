@@ -1,4 +1,4 @@
-# RAGMLCore AI Guide
+# OpenIntelligence AI Guide
 
 - **Scope**: Privacy-first iOS 26 RAG app. Pipeline = PDFKit/Vision ingestion → `SemanticChunker` (target 400 · clamp 100–800 · 75 overlap) → `EmbeddingService` (`NLEmbedding` 512-dim, cached norms) → per-container `PersistentVectorDatabase` → hybrid retrieval → streaming LLM.
 
@@ -29,7 +29,7 @@
 
 ## Build & Validation
 
-- Preferred loop: `open RAGMLCore.xcodeproj` → ⌘B/⌘R on iPhone 17 Pro Max simulator. CLI: `xcodebuild -scheme RAGMLCore -project RAGMLCore.xcodeproj -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' build`.
+- Preferred loop: `open OpenIntelligence.xcodeproj` → ⌘B/⌘R on iPhone 17 Pro Max simulator. CLI: `xcodebuild -scheme OpenIntelligence -project OpenIntelligence.xcodeproj -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' build`.
 - If Xcode caches misbehave run `./clean_and_rebuild.sh`.
 - Smoke test: import from `TestDocuments/`, verify Documents overlay, run a chat query (check retrieval telemetry + citations), flip model + fallback toggles in Settings.
 

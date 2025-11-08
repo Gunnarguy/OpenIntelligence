@@ -1,4 +1,4 @@
-﻿# RAGMLCore
+﻿# OpenIntelligence
 
 **Privacy-first RAG for iOS 26**. Import documents, ask questions, get grounded answers that stay on your device whenever possible.
 
@@ -10,8 +10,8 @@
 
 ## Quick Start
 
-1. Clone the repo and open `RAGMLCore.xcodeproj` with Xcode 16 or newer.
-2. Select the `RAGMLCore` target and run the app (⌘R).
+1. Clone the repo and open `OpenIntelligence.xcodeproj` with Xcode 16 or newer.
+2. Select the `OpenIntelligence` target and run the app (⌘R).
 3. Head to **Settings → AI Model** and choose your primary pathway:
      - Apple Intelligence (on-device with automatic Private Cloud Compute escalation)
      - ChatGPT Extension (Apple Intelligence bridge to GPT on iOS 18.1+, user consent per query)
@@ -146,7 +146,7 @@ Shared models (e.g. `LLMModelType`, `RAGQuery`) live under `Models/`. Services r
 
 ## Build & Run
 
-1. Open `RAGMLCore.xcodeproj` in Xcode 16 or later.
+1. Open `OpenIntelligence.xcodeproj` in Xcode 16 or later.
 2. Select an iOS 26 simulator or device (A17 Pro or M-series recommended).
 3. `⌘ + R` to run. The app launches into the chat workspace.
 
@@ -176,7 +176,7 @@ Historical design docs, performance logs, and roadmap notes now live in `docs/re
 
 1. Branch from `main`.
 2. Implement your change using async/await, avoid blocking the main actor, and follow the protocol-first patterns.
-3. Run `xcodebuild -scheme RAGMLCore -project RAGMLCore.xcodeproj -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' build` (or use Xcode). Use `clean_and_rebuild.sh` if DerivedData gets noisy.
+3. Run `xcodebuild -scheme OpenIntelligence -project OpenIntelligence.xcodeproj -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' build` (or use Xcode). Use `clean_and_rebuild.sh` if DerivedData gets noisy.
 4. Update documentation if you touch architecture, privacy, or user-facing flows.
 5. Open a PR with screenshots or logs for any UI/UX changes.
 

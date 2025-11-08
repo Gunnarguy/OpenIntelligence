@@ -1,4 +1,4 @@
-## Project Roadmap – RAGMLCore AI Modernization (Apple 2025 + MLX)
+# Project Roadmap – OpenIntelligence AI Modernization (Apple 2025 + MLX)
 
 Last updated: 2025-10-29
 

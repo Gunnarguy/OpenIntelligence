@@ -1,8 +1,8 @@
 # Local Models Setup Guide (MLX, llama.cpp, Ollama)
 
-This guide explains how to run local LLMs on macOS and iOS and connect them to RAGMLCore. On macOS we use a unified OpenAI-compatible client; on iOS we provide an in-app embedded GGUF (llama.cpp) option.
+This guide explains how to run local LLMs on macOS and iOS and connect them to OpenIntelligence. On macOS we use a unified OpenAI-compatible client; on iOS we provide an in-app embedded GGUF (llama.cpp) option.
 
-RAGMLCore supports local backends:
+OpenIntelligence supports local backends:
 - MLX (Apple Silicon native, via mlx-lm server) [macOS]
 - llama.cpp (GGUF models; HTTP server mode) [macOS]
 - Ollama (model runtime with OpenAI-compatible endpoints) [macOS]
@@ -33,7 +33,7 @@ Run the server (default port 17860):
 python -m mlx_lm.server --model qwen2.5-7b-instruct --port 17860
 ```
 
-RAGMLCore configuration:
+OpenIntelligence configuration:
 - Settings → AI Model → "MLX Local (macOS)"
 - Optionally adjust:
   - Base URL: http://127.0.0.1:17860
@@ -59,7 +59,7 @@ Run the server (example defaults):
 ./server -m ./models/your-model.gguf -c 8192 -ngl 99 -a 127.0.0.1 -p 8080
 ```
 
-RAGMLCore configuration:
+OpenIntelligence configuration:
 - Settings → AI Model → "llama.cpp Local (macOS)"
 - Defaults:
   - Base URL: http://127.0.0.1:8080
@@ -84,7 +84,7 @@ Pull and run a model (example):
 ollama pull llama3.1
 ```
 
-RAGMLCore configuration:
+OpenIntelligence configuration:
 - Settings → AI Model → "Ollama Local (macOS)"
 - Defaults:
   - Base URL: http://127.0.0.1:11434
@@ -132,7 +132,7 @@ Use Developer & Diagnostics → Backend Health to:
   - Disable "Streaming (SSE)" and try again (some servers have partial SSE support).
 - If the model answers but Settings shows "unavailable":
   - Use Backend Health to test connectivity and verify base URL/ports.
-- If RAGMLCore reports "Embedding dimension mismatch":
+- If OpenIntelligence reports "Embedding dimension mismatch":
   - You changed embedding provider/dimensions. Use the container’s re-embed workflow (coming UI) or create a new container with the desired dimensions, then re‑ingest documents.
 
 ---
@@ -140,7 +140,7 @@ Use Developer & Diagnostics → Backend Health to:
 ## Security and Privacy
 
 - MLX/llama.cpp/Ollama modes keep data on your machine by default.
-- RAGMLCore will show execution badges and telemetry (model used, TTFT, tokens/sec) in the chat surfaces as available.
+- OpenIntelligence will show execution badges and telemetry (model used, TTFT, tokens/sec) in the chat surfaces as available.
 
 ---
 

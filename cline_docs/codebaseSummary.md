@@ -1,4 +1,4 @@
-## Codebase Summary – RAGMLCore
+# Codebase Summary – OpenIntelligence
 
 Last updated: 2025-11-01
 
@@ -88,7 +88,8 @@ Last updated: 2025-11-01
 
 ## Update: 2025-10-31 – Settings Modernization (SurfaceCard + Platform Gating + GGUF iOS)
 
-Summary
+### Settings Modernization Summary
+
 - Introduced card-based Settings UI using shared primitives:
   - SurfaceCard, SectionHeader, SectionFooter in Shared/DesignSystem/SurfaceCard.swift
 - Converted Settings-related screens to the new design system:
@@ -104,22 +105,25 @@ Summary
   - iOS gating: normalizeSelectedModelForPlatform() prevents macOS-only selections on iOS
   - Central “Developer & Diagnostics” tile from Settings routes to the consolidated hub
 
-Files Touched (Settings modernization)
-- RAGMLCore/Views/Settings/SettingsView.swift
-- RAGMLCore/Views/Settings/BackendHealthDiagnosticsView.swift
-- RAGMLCore/Views/Settings/DeveloperDiagnosticsHubView.swift
-- RAGMLCore/Views/Settings/DeveloperSettingsView.swift
-- RAGMLCore/Views/Settings/ContainerScopingSelfTestsView.swift
-- RAGMLCore/Views/Settings/AboutView.swift
-- RAGMLCore/Shared/DesignSystem/SurfaceCard.swift
+### Settings Modernization Files Touched
 
-iOS GGUF Local Path (current status)
-- Service scaffold: RAGMLCore/Services/LlamaCPPiOSLLMService.swift
+- OpenIntelligence/Views/Settings/SettingsView.swift
+- OpenIntelligence/Views/Settings/BackendHealthDiagnosticsView.swift
+- OpenIntelligence/Views/Settings/DeveloperDiagnosticsHubView.swift
+- OpenIntelligence/Views/Settings/DeveloperSettingsView.swift
+- OpenIntelligence/Views/Settings/ContainerScopingSelfTestsView.swift
+- OpenIntelligence/Views/Settings/AboutView.swift
+- OpenIntelligence/Shared/DesignSystem/SurfaceCard.swift
+
+### iOS GGUF Local Path (current status)
+
+- Service scaffold: OpenIntelligence/Services/LlamaCPPiOSLLMService.swift
 - Selection + import: SettingsView.ggufConfigurationSection
 - Diagnostics: BackendHealthDiagnosticsView.ggufCard (verify file + smoke test)
 - Note: Backend is a stub pending embedded llama.cpp runtime; UI and persistence flows are complete.
 
-Pending (short-term)
+### Settings Modernization Pending Tasks
+
 - Visual QA sweep across Settings: spacing, icon weight/size, dark mode, Dynamic Type
 - Documentation updates and screenshots once embedded runtime lands
 - Optional: message-level badges reflecting backend/execution path and per-message container
@@ -128,13 +132,15 @@ Pending (short-term)
 
 ## Update: 2025-11-01 – Hugging Face Integration for Model Downloads
 
-Summary
+### Hugging Face Summary
+
 - Added first-class Hugging Face support to the downloader: list repo files (GGUF, optional Core ML), resolve and download with background URLSession, pause/resume, Wi‑Fi‑only, ETA/speed, optional sha256 verification, and ModelRegistry install.
 
-Key Changes
+### Hugging Face Key Changes
+
 - Services/ModelDownloadService.swift
   - hf:// scheme parsing (hf://owner/repo[:revision]/path)
-  - Resolve via https://huggingface.co/{owner}/{repo}/resolve/{revision}/{path}?download=true
+  - Resolve via <https://huggingface.co/{owner}/{repo}/resolve/{revision}/{path}?download=true>
   - Repo listing via /api/models/{owner}/{repo}?expand[]=siblings; filter .gguf (+ optional Core ML artifacts)
   - Authorization header when @AppStorage("hfToken") present
   - Error mapping for gated/invalid/rate-limited repos (403/404/429)
@@ -144,21 +150,25 @@ Key Changes
 - Views/Settings/SettingsView.swift
   - Models & Downloads card: added SecureField for Hugging Face token (hfToken)
 
-Build
+### Hugging Face Build Notes
+
 - macOS Debug build succeeded.
 
 ---
 
 ## Update: 2025-11-01 – Developer Settings Makeover (Native Form)
 
-Summary
+### Developer Settings Summary
+
 - Simplified DeveloperSettingsView to a native Form with compact Sections; removed custom card chrome to “make it easy.”
 
-Key Changes
+### Developer Settings Key Changes
+
 - Views/Settings/DeveloperSettingsView.swift
   - Sections: Console Logging Level (Picker + contextual InfoBox), Logging Categories toggles, Presets (Production/Development/Debug), System Logs note, Current Configuration summary
   - applyLoggingSettings() updates LoggingConfiguration.currentLevel and enabledCategories on changes/presets
 
-Notes
+### Notes
+
 - Supersedes the earlier “Settings Modernization” note that listed DeveloperSettingsView under card-based screens; this view is now native Form for clarity and minimalism.
 - macOS Debug build succeeded; app launches and Developer & Diagnostics hub navigation to Developer Settings remains intact.
