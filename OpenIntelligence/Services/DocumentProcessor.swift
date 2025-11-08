@@ -19,6 +19,10 @@ import AppKit
 
 /// Service responsible for parsing documents and chunking them for embedding
 class DocumentProcessor {
+    struct ProcessedChunk: Sendable {
+        let text: String
+        let metadata: ChunkMetadata
+    }
     
     // MARK: - Configuration
     
@@ -29,7 +33,7 @@ class DocumentProcessor {
     /// Progress callback for real-time UI updates
     var progressHandler: ((String) -> Void)?
     
-    init(targetChunkSize: Int = 400, chunkOverlap: Int = 50) {
+    init(targetChunkSize: Int = 400, chunkOverlap: Int = 75) {
         self.targetChunkSize = targetChunkSize
         self.chunkOverlap = chunkOverlap
     }
@@ -37,7 +41,7 @@ class DocumentProcessor {
     // MARK: - Public API
     
     /// Process a document and extract text chunks
-    func processDocument(at url: URL) async throws -> (Document, [String]) {
+    func processDocument(at url: URL) async throws -> (Document, [ProcessedChunk]) {
         let filename = url.lastPathComponent
         let fileSize = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int64) ?? 0
         let fileSizeMB = Double(fileSize) / 1_048_576.0
@@ -45,9 +49,10 @@ class DocumentProcessor {
         print("\n📄 [DocumentProcessor] Processing document: \(filename)")
         print("   File size: \(String(format: "%.2f", fileSizeMB)) MB")
         
-        let startTime = Date()
-        var pagesProcessed: Int? = nil
-        var ocrPagesCount: Int? = nil
+    let startTime = Date()
+    let documentId = UUID()
+    var pagesProcessed: Int? = nil
+    var ocrPagesCount: Int? = nil
         
         // Determine document type
         let documentType = detectDocumentType(url: url)
@@ -83,9 +88,6 @@ class DocumentProcessor {
         
         let semanticChunker = SemanticChunker()
         
-        // Generate document ID for chunks
-        let documentId = UUID()
-        
         // Use semantic chunking (synchronous call, no page mapping for now)
         let enhancedChunks = semanticChunker.chunkText(
             extractedText,
@@ -94,35 +96,53 @@ class DocumentProcessor {
             pageNumbers: nil  // TODO: Map page numbers to text ranges
         )
         
-        // Extract text strings for compatibility with existing code
-        let textChunks = enhancedChunks.map { $0.content }
+        // Extract text strings and metadata for downstream use
+        let processedChunks: [ProcessedChunk] = enhancedChunks.enumerated().map { index, chunk in
+            let metadata = ChunkMetadata(
+                chunkIndex: index,
+                startPosition: chunk.metadata.startOffset,
+                endPosition: chunk.metadata.endOffset,
+                pageNumber: chunk.metadata.pageNumber,
+                sectionTitle: chunk.metadata.sectionTitle,
+                keywords: chunk.metadata.topKeywords,
+                semanticDensity: chunk.metadata.semanticDensity,
+                hasNumericData: chunk.metadata.hasNumericData,
+                hasListStructure: chunk.metadata.hasListStructure,
+                wordCount: chunk.metadata.wordCount,
+                characterCount: chunk.metadata.characterCount
+            )
+            return ProcessedChunk(text: chunk.content, metadata: metadata)
+        }
         
         let chunkingTime = Date().timeIntervalSince(chunkingStartTime)
         
-        print("   ✓ Created \(textChunks.count) semantic chunks")
+        print("   ✓ Created \(processedChunks.count) semantic chunks")
         print("   ⏱️  Semantic chunking took \(String(format: "%.3f", chunkingTime))s")
         
         // Log semantic features detected
-        let chunksWithSections = enhancedChunks.filter { $0.metadata.sectionTitle != nil }.count
-        let chunksWithKeywords = enhancedChunks.filter { !$0.metadata.topKeywords.isEmpty }.count
-        let chunksWithNumericData = enhancedChunks.filter { $0.metadata.hasNumericData }.count
-        let chunksWithLists = enhancedChunks.filter { $0.metadata.hasListStructure }.count
+        let chunksWithSections = processedChunks.filter { $0.metadata.sectionTitle != nil }.count
+        let chunksWithKeywords = processedChunks.filter { !$0.metadata.keywords.isEmpty }.count
+        let chunksWithNumericData = processedChunks.filter { $0.metadata.hasNumericData }.count
+        let chunksWithLists = processedChunks.filter { $0.metadata.hasListStructure }.count
         
-        print("   📑 Semantic features:")
-        print("      - Sections detected: \(chunksWithSections)/\(enhancedChunks.count)")
-        print("      - Keywords extracted: \(chunksWithKeywords)/\(enhancedChunks.count)")
-        print("      - Numeric data: \(chunksWithNumericData)/\(enhancedChunks.count)")
-        print("      - List structures: \(chunksWithLists)/\(enhancedChunks.count)")
+    print("   📑 Semantic features:")
+    print("      - Sections detected: \(chunksWithSections)/\(processedChunks.count)")
+    print("      - Keywords extracted: \(chunksWithKeywords)/\(processedChunks.count)")
+    print("      - Numeric data: \(chunksWithNumericData)/\(processedChunks.count)")
+    print("      - List structures: \(chunksWithLists)/\(processedChunks.count)")
         
         // Calculate average semantic density
-        let avgSemanticDensity = enhancedChunks.map { Double($0.metadata.semanticDensity) }.reduce(0.0, +) / Double(max(1, enhancedChunks.count))
+        let avgSemanticDensity = processedChunks
+            .map { Double($0.metadata.semanticDensity ?? 0) }
+            .reduce(0.0, +) / Double(max(1, processedChunks.count))
         print("      - Avg semantic density: \(String(format: "%.3f", avgSemanticDensity))")
         
         // Print chunk statistics
-        if !textChunks.isEmpty {
-            let avgChunkSize = textChunks.map { $0.count }.reduce(0, +) / textChunks.count
-            let minChunkSize = textChunks.map { $0.count }.min() ?? 0
-            let maxChunkSize = textChunks.map { $0.count }.max() ?? 0
+        if !processedChunks.isEmpty {
+            let chunkLengths = processedChunks.map { $0.metadata.characterCount }
+            let avgChunkSize = chunkLengths.reduce(0, +) / processedChunks.count
+            let minChunkSize = chunkLengths.min() ?? 0
+            let maxChunkSize = chunkLengths.max() ?? 0
             print("   📊 Chunk stats: avg=\(avgChunkSize), min=\(minChunkSize), max=\(maxChunkSize) chars")
             
             let chunkStats = ChunkStatistics(
@@ -150,14 +170,15 @@ class DocumentProcessor {
             
             // Create document metadata
             let document = Document(
+                id: documentId,
                 filename: filename,
                 fileURL: url,
                 contentType: documentType,
-                totalChunks: textChunks.count,
+                totalChunks: processedChunks.count,
                 processingMetadata: metadata
             )
             
-            return (document, textChunks)
+            return (document, processedChunks)
         }
         
         let totalTime = Date().timeIntervalSince(startTime)
@@ -165,13 +186,14 @@ class DocumentProcessor {
         
         // Create document metadata (no chunks case)
         let document = Document(
+            id: documentId,
             filename: filename,
             fileURL: url,
             contentType: documentType,
-            totalChunks: textChunks.count
+            totalChunks: processedChunks.count
         )
         
-        return (document, textChunks)
+        return (document, processedChunks)
     }
     
     // MARK: - Text Extraction

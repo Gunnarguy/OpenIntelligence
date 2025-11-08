@@ -1,6 +1,6 @@
 //
 //  RAGService.swift
-//  OpenIntelligence
+//  RAGMLCore
 //
 //  Created by Gunnar Hostetler on 10/9/25.
 //
@@ -165,7 +165,7 @@ class RAGService: ObservableObject {
         let fileManager = FileManager.default
         let appSupportURL = fileManager.urls(
             for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        let appDirectory = appSupportURL.appendingPathComponent("OpenIntelligence", isDirectory: true)
+        let appDirectory = appSupportURL.appendingPathComponent("RAGMLCore", isDirectory: true)
         try? fileManager.createDirectory(at: appDirectory, withIntermediateDirectories: true)
         return appDirectory.appendingPathComponent("documents_metadata.json")
     }
@@ -355,10 +355,14 @@ class RAGService: ObservableObject {
                     "\(filename) • Chunking (\(processedChunks.count) chunks, \(totalWords) words)"
             }
 
+            print("\n🔢 [RAGService] Chunking complete:")
+            print("   \(processedChunks.count) chunks, \(totalChars) chars, \(totalWords) words")
+
             // Small delay to show the chunking message
             try? await Task.sleep(nanoseconds: 200_000_000)  // 0.2s
 
             // Step 2: Generate embeddings with progress updates
+            print("\n🧠 [RAGService] Generating embeddings...")
             var embeddings: [[Float]] = []
             let embeddingStartTime = Date()
 
@@ -367,11 +371,21 @@ class RAGService: ObservableObject {
                     processingStatus = "\(filename) • Embedding (\(index + 1)/\(processedChunks.count))"
                 }
 
+                let chunkStartTime = Date()
                 let embedding = try await embeddingService.generateEmbedding(for: chunk.text)
+                let chunkTime = Date().timeIntervalSince(chunkStartTime)
+
                 embeddings.append(embedding)
+                print(
+                    "   ✓ Chunk \(index + 1)/\(processedChunks.count): \(embedding.count)-dim vector (\(String(format: "%.0f", chunkTime * 1000))ms)"
+                )
             }
 
             let embeddingTime = Date().timeIntervalSince(embeddingStartTime)
+            let avgTimePerChunk = processedChunks.isEmpty ? 0 : embeddingTime / Double(processedChunks.count)
+            print(
+                "   ✅ All embeddings generated in \(String(format: "%.2f", embeddingTime))s (avg \(String(format: "%.0f", avgTimePerChunk * 1000))ms/chunk)"
+            )
             TelemetryCenter.emit(
                 .embedding,
                 title: "Embeddings generated",
@@ -516,7 +530,7 @@ class RAGService: ObservableObject {
                 ocrPagesUsed: nil,  // TODO: Extract from DocumentProcessor
                 totalChars: totalChars,
                 totalWords: totalWords,
-                chunksCreated: processedChunks.count,
+                chunksCreated: textChunks.count,
                 extractionTime: extractionTime,
                 chunkingTime: chunkingTime,
                 embeddingTime: embeddingTime,
@@ -556,6 +570,11 @@ class RAGService: ObservableObject {
             await MainActor.run {
                 isProcessing = false
             }
+
+            print("✅ [RAGService] Document ingestion complete:")
+            print("   Filename: \(updatedDocument.filename)")
+            print("   Chunks created: \(textChunks.count)")
+            print("   Total chunks in database: \(totalChunksStored)")
 
         } catch {
             // Reset processing state on error

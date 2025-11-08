@@ -115,6 +115,8 @@ class SemanticChunker {
             let semanticDensity: Float  // How information-dense this chunk is
             let hasNumericData: Bool
             let hasListStructure: Bool
+            let startOffset: Int
+            let endOffset: Int
         }
     }
     
@@ -162,7 +164,7 @@ class SemanticChunker {
         var chunks: [EnhancedChunk] = []
         var currentPosition = text.startIndex
         var chunkIndex = 0
-        let maxChunks = 100 // Safety limit to prevent infinite loops
+        let maxChunks = 5000 // Safety limit to prevent runaway loops on malformed input
         
         while currentPosition < text.endIndex && chunkIndex < maxChunks {
             print("   📝 Processing chunk \(chunkIndex + 1)...")
@@ -181,6 +183,7 @@ class SemanticChunker {
                             chunkIndex: chunkIndex,
                             documentId: documentId,
                             range: currentPosition..<text.endIndex,
+                            in: text,
                             sections: sections,
                             pageNumbers: pageNumbers
                         )
@@ -218,6 +221,7 @@ class SemanticChunker {
                 chunkIndex: chunkIndex,
                 documentId: documentId,
                 range: chunkRange,
+                in: text,
                 sections: sections,
                 pageNumbers: pageNumbers
             )
@@ -418,11 +422,14 @@ class SemanticChunker {
         chunkIndex: Int,
         documentId: UUID,
         range: Range<String.Index>,
+        in fullText: String,
         sections: [(title: String, range: Range<String.Index>)],
         pageNumbers: [Int: Range<String.Index>]?
     ) -> EnhancedChunk.ChunkMetadata {
         let wordCount = tokenWordCount(chunkText)
         let keywords = extractKeywords(chunkText, topN: 5)
+        let startOffset = fullText.distance(from: fullText.startIndex, to: range.lowerBound)
+        let endOffset = fullText.distance(from: fullText.startIndex, to: range.upperBound)
         
         // Find section title
         let sectionTitle = sections.first { $0.range.contains(range.lowerBound) }?.title
@@ -449,7 +456,9 @@ class SemanticChunker {
             topKeywords: keywords,
             semanticDensity: density,
             hasNumericData: hasNumeric,
-            hasListStructure: hasList
+            hasListStructure: hasList,
+            startOffset: startOffset,
+            endOffset: endOffset
         )
     }
     
@@ -543,7 +552,9 @@ class SemanticChunker {
             topKeywords: keywords,
             semanticDensity: 0.5, // Default for single chunk
             hasNumericData: hasNumeric,
-            hasListStructure: hasList
+            hasListStructure: hasList,
+            startOffset: 0,
+            endOffset: text.count
         )
         
         return EnhancedChunk(
