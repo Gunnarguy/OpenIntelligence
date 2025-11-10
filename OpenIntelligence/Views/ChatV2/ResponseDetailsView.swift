@@ -13,6 +13,19 @@ struct ChatResponseDetailsView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: DSSpacing.md) {
+            // Execution and tool call badges
+            HStack(spacing: 8) {
+                InferenceLocationBadge(
+                    modelName: metadata.modelUsed,
+                    ttft: metadata.timeToFirstToken,
+                    metadata: metadata
+                )
+                
+                if let toolCalls = metadata.toolCallsMade, toolCalls > 0 {
+                    ToolCallBadge(count: toolCalls)
+                }
+            }
+            
             if metadata.strictModeEnabled {
                 strictModeBadge
             }

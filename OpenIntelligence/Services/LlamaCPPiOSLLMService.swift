@@ -2,6 +2,7 @@ import Foundation
 
 #if canImport(LocalLLMClient) && canImport(LocalLLMClientLlama)
     import LocalLLMClient
+    import LocalLLMClientCore
     import LocalLLMClientLlama
 
     /// iOS in-process GGUF backend
@@ -289,9 +290,34 @@ import Foundation
             if let cached, cached.url == url, cached.signature == signature {
                 return cached.client
             }
-            let client = try await LocalLLMClient.llama(url: url, parameter: parameter)
-            cached = CachedClient(url: url, signature: signature, client: client)
-            return client
+
+            do {
+                let client = try await LocalLLMClient.llama(url: url, parameter: parameter)
+                cached = CachedClient(url: url, signature: signature, client: client)
+                return client
+            } catch let runtimeError as LocalLLMClientCore.LLMError {
+                if case .invalidParameter(let reason) = runtimeError,
+                    reason.localizedCaseInsensitiveContains("template")
+                        || reason.localizedCaseInsensitiveContains("jinja")
+                {
+                    await MainActor.run {
+                        Log.warning(
+                            "⚠️  GGUF template invalid — retrying with ChatML processor",
+                            category: .llm
+                        )
+                    }
+
+                    let chatMLProcessor = MessageProcessorFactory.chatMLProcessor()
+                    let client = try await LocalLLMClient.llama(
+                        url: url,
+                        parameter: parameter,
+                        messageProcessor: chatMLProcessor
+                    )
+                    cached = CachedClient(url: url, signature: signature, client: client)
+                    return client
+                }
+                throw runtimeError
+            }
         }
 
         private func tokenEstimate(for text: String) -> Int {

@@ -76,6 +76,7 @@ struct ResponseMetadata: Sendable {
     let retrievalTime: TimeInterval
     let strictModeEnabled: Bool
     let gatingDecision: String?
+    let toolCallsMade: Int?
     
     init(timeToFirstToken: TimeInterval? = nil,
          totalGenerationTime: TimeInterval,
@@ -84,7 +85,8 @@ struct ResponseMetadata: Sendable {
          modelUsed: String,
          retrievalTime: TimeInterval,
          strictModeEnabled: Bool = false,
-         gatingDecision: String? = nil) {
+         gatingDecision: String? = nil,
+         toolCallsMade: Int? = nil) {
         self.timeToFirstToken = timeToFirstToken
         self.totalGenerationTime = totalGenerationTime
         self.tokensGenerated = tokensGenerated
@@ -93,5 +95,6 @@ struct ResponseMetadata: Sendable {
         self.retrievalTime = retrievalTime
         self.strictModeEnabled = strictModeEnabled
         self.gatingDecision = gatingDecision
+        self.toolCallsMade = toolCallsMade
     }
 }

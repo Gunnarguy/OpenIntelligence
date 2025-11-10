@@ -13,6 +13,15 @@ import NaturalLanguage
     import FoundationModels
 #endif
 
+struct RetrievalLogEntry: Identifiable, Sendable {
+    let id = UUID()
+    let timestamp: Date
+    let query: String
+    let containerId: UUID
+    let containerName: String
+    let chunks: [RetrievedChunk]
+}
+
 /// Main orchestrator for the RAG (Retrieval-Augmented Generation) pipeline
 /// Coordinates document processing, embedding, retrieval, and generation
 class RAGService: ObservableObject {
@@ -60,8 +69,10 @@ class RAGService: ObservableObject {
     @MainActor @Published var processingStatus: String = ""
     @MainActor @Published var lastError: String? = nil  // User-facing error message
     @MainActor @Published var lastProcessingSummary: ProcessingSummary? = nil  // Detailed completion stats
+    @MainActor @Published private(set) var retrievalHistory: [RetrievalLogEntry] = []
 
     private(set) var totalChunksStored: Int = 0
+    private let retrievalHistoryLimit = 50
 
     // MARK: - Public Access (for Settings)
 
@@ -309,11 +320,24 @@ class RAGService: ObservableObject {
     func addDocument(at url: URL) async throws {
         let filename = url.lastPathComponent
         let activeContainerId = await MainActor.run { self.containerService.activeContainerId }
+        
+        // Get the active container to determine which embedding provider to use
+        let container = await MainActor.run {
+            self.containerService.containers.first { $0.id == activeContainerId }
+        }
+        let providerId = container?.embeddingProviderId ?? "nl_embedding"
+        
+        // Create container-specific embedding service
+        let containerEmbeddingService = EmbeddingService.forProvider(id: providerId)
+        
         let pipelineStartTime = Date()
         TelemetryCenter.emit(
             .ingestion,
             title: "Ingestion started",
-            metadata: ["file": filename]
+            metadata: [
+                "file": filename,
+                "embeddingProvider": providerId
+            ]
         )
 
         await MainActor.run {
@@ -367,7 +391,7 @@ class RAGService: ObservableObject {
                     processingStatus = "\(filename) • Embedding (\(index + 1)/\(processedChunks.count))"
                 }
 
-                let embedding = try await embeddingService.generateEmbedding(for: chunk.text)
+                let embedding = try await containerEmbeddingService.generateEmbedding(for: chunk.text)
                 embeddings.append(embedding)
             }
 
@@ -649,6 +673,20 @@ class RAGService: ObservableObject {
                 return self.containerService.activeContainer?.strictMode ?? false
             }
         }
+        
+        // Get container-specific embedding provider
+        let (embeddingProviderId, queryEmbeddingService) = await MainActor.run {
+            if let id = containerId,
+                let container = self.containerService.containers.first(where: { $0.id == id })
+            {
+                return (container.embeddingProviderId, EmbeddingService.forProvider(id: container.embeddingProviderId))
+            } else if let activeContainer = self.containerService.activeContainer {
+                return (activeContainer.embeddingProviderId, EmbeddingService.forProvider(id: activeContainer.embeddingProviderId))
+            } else {
+                return ("nl_embedding", EmbeddingService.forProvider(id: "nl_embedding"))
+            }
+        }
+        
         // Establish query-scoped container context for downstream tool calls and listings
         await MainActor.run {
             self.currentQueryContainerId = containerId ?? self.containerService.activeContainerId
@@ -729,13 +767,19 @@ class RAGService: ObservableObject {
                     "goodbye", "hola", "hiya",
                 ]
                 if smallTalkSet.contains(lowerQ) {
-                    return try await generateDirectChatResponse(
+                    let response = try await generateDirectChatResponse(
                         question: question,
                         ragQuery: ragQuery,
                         inferenceConfig: inferenceConfig,
                         pipelineStartTime: pipelineStartTime,
                         retrievalTime: 0,
                         fallbackNote: "Short greeting detected; replied without document retrieval."
+                    )
+                    return await self.finalizeResponse(
+                        query: question,
+                        containerId: selectedId,
+                        containerName: selectedName,
+                        response: response
                     )
                 }
             }
@@ -767,7 +811,7 @@ class RAGService: ObservableObject {
                 // Step 2: Embed the user's query (primary query only)
                 Log.section("Step 2: Query Embedding", level: .info, category: .pipeline)
                 let embeddingStartTime = Date()
-                let queryEmbedding = try await embeddingService.generateEmbedding(for: question)
+                let queryEmbedding = try await queryEmbeddingService.generateEmbedding(for: question)
                 let embeddingTime = Date().timeIntervalSince(embeddingStartTime)
 
                 let embeddingMagnitude = sqrt(queryEmbedding.map { $0 * $0 }.reduce(0, +))
@@ -784,7 +828,8 @@ class RAGService: ObservableObject {
                     .embedding,
                     title: "Query embedding",
                     metadata: [
-                        "dimensions": "\(queryEmbedding.count)"
+                        "dimensions": "\(queryEmbedding.count)",
+                        "provider": embeddingProviderId
                     ],
                     duration: embeddingTime
                 )
@@ -834,7 +879,7 @@ class RAGService: ObservableObject {
                         duration: retrievalTime
                     )
                     // Fallback to direct LLM chat mode
-                    return try await generateDirectChatResponse(
+                    let response = try await generateDirectChatResponse(
                         question: question,
                         ragQuery: ragQuery,
                         inferenceConfig: inferenceConfig,
@@ -842,6 +887,12 @@ class RAGService: ObservableObject {
                         retrievalTime: retrievalTime,
                         fallbackNote:
                             "No relevant document context found; replied without RAG context."
+                    )
+                    return await self.finalizeResponse(
+                        query: question,
+                        containerId: selectedId,
+                        containerName: selectedName,
+                        response: response
                     )
                 }
 
@@ -928,13 +979,19 @@ class RAGService: ObservableObject {
                     Log.warning(
                         "⚠️  [RAGService] Re-ranking yielded no candidates; falling back to direct chat",
                         category: .retrieval)
-                    return try await generateDirectChatResponse(
+                    let response = try await generateDirectChatResponse(
                         question: question,
                         ragQuery: ragQuery,
                         inferenceConfig: inferenceConfig,
                         pipelineStartTime: pipelineStartTime,
                         retrievalTime: retrievalTime,
                         fallbackNote: "No re-ranked candidates; replied without RAG context."
+                    )
+                    return await self.finalizeResponse(
+                        query: question,
+                        containerId: selectedId,
+                        containerName: selectedName,
+                        response: response
                     )
                 }
 
@@ -1046,10 +1103,11 @@ class RAGService: ObservableObject {
                             modelUsed: local.modelName,
                             retrievalTime: retrievalTime,
                             strictModeEnabled: strictMode,
-                            gatingDecision: "fallback_ondevice_low_confidence"
+                            gatingDecision: "fallback_ondevice_low_confidence",
+                            toolCallsMade: fallbackResp.toolCallsMade
                         )
 
-                        return RAGResponse(
+                        let response = RAGResponse(
                             queryId: ragQuery.id,
                             retrievedChunks: Array(
                                 rerankedChunks.prefix(usedCount > 0 ? usedCount : effectiveTopK)),
@@ -1059,6 +1117,12 @@ class RAGService: ObservableObject {
                             qualityWarnings: [
                                 "Low-confidence retrieval: answered using extractive on‑device analysis"
                             ]
+                        )
+                        return await self.finalizeResponse(
+                            query: question,
+                            containerId: selectedId,
+                            containerName: selectedName,
+                            response: response
                         )
                     }
                 }
@@ -1140,7 +1204,7 @@ class RAGService: ObservableObject {
                     Log.warning(
                         "⚠️  [RAGService] MMR returned no candidates; falling back to direct chat",
                         category: .retrieval)
-                    return try await generateDirectChatResponse(
+                    let response = try await generateDirectChatResponse(
                         question: question,
                         ragQuery: ragQuery,
                         inferenceConfig: inferenceConfig,
@@ -1148,6 +1212,12 @@ class RAGService: ObservableObject {
                         retrievalTime: retrievalTime,
                         fallbackNote:
                             "No diverse candidates after MMR; replied without RAG context."
+                    )
+                    return await self.finalizeResponse(
+                        query: question,
+                        containerId: selectedId,
+                        containerName: selectedName,
+                        response: response
                     )
                 }
 
@@ -1191,16 +1261,23 @@ class RAGService: ObservableObject {
                             modelUsed: llmService.modelName,
                             retrievalTime: retrievalTime,
                             strictModeEnabled: strictMode,
-                            gatingDecision: "strict_blocked"
+                            gatingDecision: "strict_blocked",
+                            toolCallsMade: 0
                         )
 
-                        return RAGResponse(
+                        let response = RAGResponse(
                             queryId: ragQuery.id,
                             retrievedChunks: diverseChunks,
                             generatedResponse: caution,
                             metadata: metadata,
                             confidenceScore: 0.0,
                             qualityWarnings: ["Strict mode: insufficient supporting evidence"]
+                        )
+                        return await self.finalizeResponse(
+                            query: question,
+                            containerId: selectedId,
+                            containerName: selectedName,
+                            response: response
                         )
                     }
                 }
@@ -1256,13 +1333,19 @@ class RAGService: ObservableObject {
                     Log.warning(
                         "⚠️  [RAGService] Empty context after assembly; falling back to direct chat",
                         category: .retrieval)
-                    return try await generateDirectChatResponse(
+                    let response = try await generateDirectChatResponse(
                         question: question,
                         ragQuery: ragQuery,
                         inferenceConfig: inferenceConfig,
                         pipelineStartTime: pipelineStartTime,
                         retrievalTime: retrievalTime,
                         fallbackNote: "Empty assembled context; replied without RAG context."
+                    )
+                    return await self.finalizeResponse(
+                        query: question,
+                        containerId: selectedId,
+                        containerName: selectedName,
+                        response: response
                     )
                 }
 
@@ -1438,7 +1521,8 @@ class RAGService: ObservableObject {
                         modelUsed: llmResponse.modelName ?? llmService.modelName,
                         retrievalTime: retrievalTime,
                         strictModeEnabled: strictMode,
-                        gatingDecision: gatingSummary
+                        gatingDecision: gatingSummary,
+                        toolCallsMade: llmResponse.toolCallsMade
                     )
 
                     let response = RAGResponse(
@@ -1454,9 +1538,13 @@ class RAGService: ObservableObject {
                     Log.info(
                         "✅ Enhanced RAG pipeline complete in \(String(format: "%.2f", totalTime))s",
                         category: .pipeline)
-                    await self.logQueryStats(query: question, response: response)
 
-                    return response
+                    return await self.finalizeResponse(
+                        query: question,
+                        containerId: selectedId,
+                        containerName: selectedName,
+                        response: response
+                    )
 
                 } catch {
                     print("❌ Error during response processing: \(error)")
@@ -1468,16 +1556,23 @@ class RAGService: ObservableObject {
                         tokensPerSecond: nil,
                         modelUsed: llmService.modelName,
                         retrievalTime: retrievalTime,
-                        strictModeEnabled: strictMode
+                        strictModeEnabled: strictMode,
+                        toolCallsMade: 0
                     )
 
-                    return RAGResponse(
+                    let response = RAGResponse(
                         queryId: ragQuery.id,
                         retrievedChunks: diverseChunks,
                         generatedResponse: "Error processing response",
                         metadata: metadata,
                         confidenceScore: 0.0,
                         qualityWarnings: ["Error occurred during response processing"]
+                    )
+                    return await self.finalizeResponse(
+                        query: question,
+                        containerId: selectedId,
+                        containerName: selectedName,
+                        response: response
                     )
                 }
 
@@ -1533,7 +1628,8 @@ class RAGService: ObservableObject {
                     tokensPerSecond: llmResponse.tokensPerSecond,
                     modelUsed: llmResponse.modelName ?? llmService.modelName,  // Use actual execution location if available
                     retrievalTime: 0,  // No retrieval in direct chat mode
-                    strictModeEnabled: strictMode
+                    strictModeEnabled: strictMode,
+                    toolCallsMade: llmResponse.toolCallsMade
                 )
 
                 let response = RAGResponse(
@@ -1559,7 +1655,12 @@ class RAGService: ObservableObject {
                     duration: totalTime
                 )
 
-                return response
+                return await self.finalizeResponse(
+                    query: question,
+                    containerId: selectedId,
+                    containerName: selectedName,
+                    response: response
+                )
             }
 
         } catch {
@@ -1643,7 +1744,8 @@ class RAGService: ObservableObject {
             tokensPerSecond: llmResponse.tokensPerSecond,
             modelUsed: llmService.modelName,
             retrievalTime: retrievalTime,
-            strictModeEnabled: strictMode
+            strictModeEnabled: strictMode,
+            toolCallsMade: llmResponse.toolCallsMade
         )
 
         var warnings: [String] = []
@@ -1728,9 +1830,23 @@ class RAGService: ObservableObject {
             }
             return response
         } catch {
-            Log.warning(
-                "Primary model \(_llmService.modelName) failed: \(error.localizedDescription)",
-                category: .llm)
+            let errorDesc = error.localizedDescription
+            
+            // Check if it's a Jinja template error (common with some GGUF models)
+            let isTemplateError = errorDesc.contains("Jinja") || errorDesc.contains("template")
+            
+            if isTemplateError {
+                Log.warning(
+                    "⚠️  \(_llmService.modelName) has a broken chat template (Jinja error)",
+                    category: .llm)
+                Log.info(
+                    "💡 Tip: Try a different GGUF model (Qwen2.5, Llama-3.2, or Phi-3)",
+                    category: .llm)
+            } else {
+                Log.warning(
+                    "Primary model \(_llmService.modelName) failed: \(errorDesc)",
+                    category: .llm)
+            }
 
             // Try fallbacks in order
             for (index, fallbackService) in _fallbackServices.enumerated() {
@@ -1758,7 +1874,15 @@ class RAGService: ObservableObject {
                 }
             }
 
-            // All fallbacks exhausted - rethrow original error
+            // All fallbacks exhausted - provide helpful error message
+            if isTemplateError {
+                throw LLMError.generationFailed("""
+                    Model has incompatible chat template. \
+                    Try: Settings → Primary Model → Select "Apple Intelligence" or "On-Device Analysis"
+                    """)
+            }
+            
+            // Rethrow original error
             throw error
         }
     }
@@ -1921,19 +2045,26 @@ class RAGService: ObservableObject {
     /// Builds an ordered list of fallback services, excluding the user's primary selection.
     private static func buildFallbackChain(excluding modelKey: String) -> [LLMService] {
         var fallbacks: [LLMService] = []
+        
+        // Try Apple Intelligence first (if available and not primary)
         #if canImport(FoundationModels)
             if modelKey != "apple_intelligence" {
                 if #available(iOS 26.0, *) {
                     let foundationService = AppleFoundationLLMService()
                     if foundationService.isAvailable {
                         fallbacks.append(foundationService)
+                        Log.debug("Added Apple Intelligence to fallback chain", category: .initialization)
                     }
                 }
             }
         #endif
+        
+        // ALWAYS add On-Device Analysis as ultimate fallback (works offline, no dependencies)
         if modelKey != "on_device_analysis" {
             fallbacks.append(OnDeviceAnalysisService())
+            Log.debug("Added On-Device Analysis as ultimate fallback", category: .initialization)
         }
+        
         return fallbacks
     }
 
@@ -2018,6 +2149,45 @@ class RAGService: ObservableObject {
                 "model": response.metadata.modelUsed,
             ]
         )
+    }
+
+    @MainActor
+    private func recordRetrievalHistory(
+        query: String,
+        containerId: UUID,
+        containerName: String,
+        chunks: [RetrievedChunk]
+    ) {
+        guard !chunks.isEmpty else { return }
+        let entry = RetrievalLogEntry(
+            timestamp: Date(),
+            query: query,
+            containerId: containerId,
+            containerName: containerName,
+            chunks: chunks
+        )
+        retrievalHistory.append(entry)
+        if retrievalHistory.count > retrievalHistoryLimit {
+            retrievalHistory.removeFirst(retrievalHistory.count - retrievalHistoryLimit)
+        }
+    }
+
+    private func finalizeResponse(
+        query: String,
+        containerId: UUID,
+        containerName: String,
+        response: RAGResponse
+    ) async -> RAGResponse {
+        await MainActor.run {
+            self.recordRetrievalHistory(
+                query: query,
+                containerId: containerId,
+                containerName: containerName,
+                chunks: response.retrievedChunks
+            )
+        }
+        await self.logQueryStats(query: query, response: response)
+        return response
     }
 
     nonisolated private func wordCount(of text: String) -> Int {

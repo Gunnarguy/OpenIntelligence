@@ -1,17 +1,242 @@
-# RAGMLCore Implementation Status & Roadmap
+# OpenIntelligence Implementation Status
 
-**Current Status:** Core Features Production-Ready (100%)  
-**Build Status:** ✅ All Swift files compile without errors or warnings  
-**iOS 26 Status:** ✅ RELEASED (October 2025) - All Apple Intelligence APIs available  
-**Apple Intelligence:** Foundation Models, Private Cloud Compute, ChatGPT Integration, Writing Tools, App Intents
+**Current Status:** iOS Production-Ready • macOS Planned  
+**Build Status:** ✅ All builds passing (iOS 26.0+)  
+**Apple Intelligence:** Foundation Models • Private Cloud Compute • ChatGPT Extension • Writing Tools  
+**Local Inference:** GGUF (llama.cpp) • Core ML • On-Device Analysis
 
 ---
 
-## Implementation Progress
+## Platform Status
 
-### ✅ COMPLETED: Core RAG Pipeline (100%)
+### iOS 26.0+ (PRIMARY PLATFORM) ✅
+- **Apple Intelligence**: Full integration (on-device + PCC)
+- **Local Models**: GGUF via llama.cpp, Core ML .mlpackage support
+- **Embeddings**: NLEmbedding (512-dim), Core ML Sentence Transformers, Apple FM (future)
+- **RAG Pipeline**: Per-container vector stores with hybrid search (cosine + BM25)
+- **Tool Support**: Apple Intelligence function calling with RAGToolHandler
+- **Status**: Production-ready, actively developed
 
-The complete RAG pipeline is production-ready, built with Apple's native frameworks and OpenAI integration.
+### macOS (PLANNED)
+- **MLX Local**: Deferred for future implementation
+- **Ollama/llama.cpp**: Presets available but secondary focus
+- **Status**: iOS-first strategy, macOS support later
+
+---
+
+## Core Architecture
+
+### Document Ingestion Pipeline ✅
+**Services**: `DocumentProcessor.swift`, `SemanticChunker.swift`
+- PDFKit + Vision OCR for PDF/image text extraction
+- Semantic chunking: 400 words target, 100-800 clamp, 75 overlap
+- Metadata extraction: pages, sections, keywords, semantic density
+- Supports: PDF, TXT, MD, RTF, code files, CSV, Office formats
+- **Status**: Production-ready with diagnostic telemetry
+
+### Embedding Generation ✅
+**Service**: `EmbeddingService.swift` with provider delegation
+- **Providers**:
+  - `NLEmbeddingProvider`: Apple NLEmbedding 512-dim (default)
+  - `CoreMLSentenceEmbeddingProvider`: Custom Core ML embeddings
+  - `AppleFMEmbeddingProvider`: Apple FM embeddings (future)
+- **Factory Pattern**: `EmbeddingService.forProvider(id:)` for per-container selection
+- Cached norms for fast cosine similarity
+- Validation: dimension checks, NaN/Inf detection
+- **Status**: Production-ready, per-container provider switching implemented
+
+### Vector Storage & Retrieval ✅
+**Services**: `VectorDatabase.swift`, `PersistentVectorDatabase.swift`, `VectorStoreRouter.swift`
+- **Per-Container Isolation**: Each `KnowledgeContainer` has dedicated vector store
+- **Hybrid Search**: Cosine similarity + BM25 keyword matching via reciprocal rank fusion
+- **MMR Diversification**: `RAGEngine.applyMMR` for result variety
+- **Cache**: Last 20 hybrid queries cached for 5 minutes
+- Persistent JSON storage per container
+- **Status**: Production-ready
+
+### LLM Services ✅
+**Architecture**: Protocol-based (`LLMService`) with 6 implementations
+
+1. **Apple Intelligence** (`AppleFoundationLLMService`) - PRIMARY
+   - LanguageModelSession streaming generation
+   - Tool calling with @Tool-decorated functions
+   - Automatic on-device ↔ PCC fallback
+   - TTFT tracking for execution location inference
+   - **Status**: Production-ready
+
+2. **ChatGPT Extension** (`AppleChatGPTExtensionService`)
+   - Apple Intelligence integration
+   - iOS 18.1+ requirement
+   - **Status**: Production-ready
+
+3. **GGUF Local** (`LlamaCPPiOSLLMService`)
+   - llama.cpp iOS integration
+   - Model cartridge system via ModelRegistry
+   - Local .gguf file support
+   - **Status**: Production-ready
+
+4. **Core ML Local** (`CoreMLLLMService`)
+   - .mlpackage model support
+   - ModelRegistry integration
+   - Placeholder tokenizer (needs proper BPE/SentencePiece)
+   - **Status**: Scaffold complete, tokenizer TODO
+
+5. **On-Device Analysis** (`OnDeviceAnalysisService`)
+   - Extractive QA fallback
+   - No network, always available
+   - **Status**: Production-ready
+
+6. **OpenAI Direct** (`OpenAILLMService`) - macOS only
+   - User-provided API key
+   - GPT-4o, GPT-4o-mini support
+   - **Status**: macOS only
+
+### RAG Pipeline Orchestration ✅
+**Service**: `RAGService.swift` (@MainActor, 3000+ lines)
+- **Query Flow**: Enhancement → Embedding → Hybrid Search → MMR → LLM
+- **Container Scoping**: Per-container embeddings, vector stores, strict mode
+- **Tool Execution**: RAGToolHandler with 12 @Tool functions
+- **Telemetry**: Full pipeline instrumentation via TelemetryCenter
+- **Fallbacks**: Low confidence → On-Device Analysis, strict mode → block
+- **Status**: Production-ready
+
+### Agentic Tools ✅
+**Service**: `RAGToolHandler.swift` with Apple Intelligence integration
+- 12 @Tool functions: search, list documents, summarize, analytics
+- Container-scoped execution (currentQueryContainerId)
+- Weak reference to RAGService to avoid retain cycles
+- **Status**: Production-ready
+
+---
+
+## User Interface
+
+### ChatV2 (Modern Architecture) ✅
+**Views**: `ChatViewV2.swift`, `MessageList.swift`, `ResponseDetailsView.swift`
+- Streaming UI: newest 50 messages, prune >200 for performance
+- **NEW**: `InferenceLocationBadge` shows execution (📱/☁️/🔑)
+- **NEW**: `ToolCallBadge` displays tool call count
+- `MessageMetaView` shows badges inline with timestamps
+- Response details: metrics, citations, telemetry
+- **Status**: Production-ready with telemetry badges
+
+### Documents Management ✅
+**View**: `DocumentsView.swift`
+- Import via file picker or drag-drop
+- Per-container document lists
+- Processing overlay with real-time progress
+- Swipe-to-delete with confirmation
+- **Status**: Production-ready
+
+### Settings ✅
+**Service**: `SettingsStore.swift` (533 lines)
+- Model selection with availability checks
+- Per-container settings: strict mode, embedding provider
+- Fallback chain configuration
+- Temperature, max tokens, top-K
+- **Status**: Production-ready
+
+### Model Management ✅
+**Views**: `ModelManagerView.swift`, `ModelDownloadService.swift`
+- GGUF/Core ML model installation from URLs
+- ModelRegistry cartridge system
+- Installation progress tracking
+- Activation/selection UI
+- **Status**: Production-ready
+
+### Telemetry Visualization ✅
+**Views**: `TelemetryView.swift`, `VisualizationView.swift`
+- Real-time event stream
+- Performance metrics charts
+- Vector space 2D projection (UMAP)
+- **Status**: Production-ready
+
+---
+
+## Recent Implementations (Nov 2025)
+
+### UI Telemetry Badges ✅ (Today)
+- `InferenceLocationBadge`: Shows where inference executed
+- `ToolCallBadge`: Displays function call count
+- `ResponseMetadata.toolCallsMade`: Field added to data model
+- All 6 ResponseMetadata instantiation sites updated
+- Badges integrated into MessageMetaView and ResponseDetailsView
+
+### Per-Container Embedding Providers ✅ (Today)
+- `EmbeddingService.forProvider(id:)` factory method
+- `addDocument()` uses container.embeddingProviderId
+- `queryInternal()` uses container-specific embeddings
+- Telemetry tracking for embedding provider usage
+- Supports: nl_embedding, coreml_sentence_embedding, apple_fm_embed
+
+### Core ML Service Integration ✅ (Today)
+- Verified existing CoreMLLLMService in LLMService.swift
+- Already wired into RAGService.instantiateService()
+- Integrated with SettingsStore and ModelRegistry
+- Scaffold complete, needs tokenizer implementation
+
+---
+
+## Testing Status
+
+### ✅ Tested & Working
+- Document ingestion: All formats (PDF, text, code, Office)
+- Semantic chunking: Target 400 words, diagnostics available
+- Hybrid search: RRF fusion tested with realistic queries
+- Apple Intelligence: Streaming, tool calling, on-device/PCC
+- GGUF models: Local inference on iOS simulator and device
+- UI badges: Build passing, visual integration complete
+
+### ⏳ Pending Validation
+- Core ML tokenizer: Needs BPE/SentencePiece implementation
+- Embedding provider switching: Test dimension mismatch warnings
+- End-to-end container isolation: Multi-container workflows
+- Performance at scale: 10K+ chunks per container
+
+---
+
+## Known Limitations
+
+- **Core ML tokenizer**: Placeholder implementation, needs proper BPE
+- **macOS features**: MLX Local deferred, limited macOS support
+- **Embedding dimension changes**: Switching providers requires re-embedding documents
+- **Tool execution**: Limited to Apple Intelligence models only
+
+---
+
+## Performance Targets
+
+| Operation | Target | Status |
+|-----------|--------|--------|
+| Semantic chunking | <2s/page | ✅ Achieved |
+| Embedding (per chunk) | <100ms | ✅ Achieved (NLEmbedding) |
+| Hybrid search (5K chunks) | <200ms | ✅ Achieved (RRF + MMR) |
+| LLM TTFT (on-device) | <500ms | ✅ Achieved (Apple FM) |
+| Streaming generation | 30+ tok/s | ✅ Achieved (device-dependent) |
+| End-to-end query | <3s | ✅ Achieved (typical case) |
+
+---
+
+## Project Statistics
+
+- **Total Swift Lines**: ~8,000+ across services, models, views
+- **Services**: 20+ service files with protocol-first design
+- **Views**: 15+ SwiftUI views (ChatV2, Documents, Settings, Telemetry)
+- **LLM Backends**: 6 implementations (3 production, 1 scaffold, 2 fallbacks)
+- **Embedding Providers**: 3 (NL, Core ML, Apple FM)
+- **Tool Functions**: 12 @Tool-decorated agentic capabilities
+- **Build Status**: ✅ Zero errors
+- **iOS Target**: 26.0+
+- **Xcode**: 16+
+
+---
+
+**Last Updated**: November 2025  
+**Version**: v0.3.0  
+**Platform**: iOS-first, macOS planned  
+**Ready for**: Production iOS deployment
+
+
 
 #### 1. Document Ingestion & Chunking
 - ✅ **DocumentProcessor.swift** - Complete

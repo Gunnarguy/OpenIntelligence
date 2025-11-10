@@ -163,29 +163,6 @@ struct MessageMetaView: View {
     let date: Date
     let metadata: ResponseMetadata?
 
-    private var executionBadge: (emoji: String, label: String)? {
-        guard let meta = metadata else { return nil }
-        let model = meta.modelUsed
-        if model.localizedCaseInsensitiveContains("On-Device") {
-            return ("📱", "On‑Device")
-        }
-        if model.localizedCaseInsensitiveContains("Private Cloud Compute") ||
-           model.localizedCaseInsensitiveContains("PCC") {
-            return ("☁️", "PCC")
-        }
-        if model.localizedCaseInsensitiveContains("OpenAI") {
-            return ("🔑", "OpenAI")
-        }
-        if model.localizedCaseInsensitiveContains("MLX") {
-            return ("🖥️", "MLX")
-        }
-        // Fallback: infer from TTFT if available
-        if let ttft = meta.timeToFirstToken {
-            return ttft < 1.0 ? ("📱", "On‑Device") : ("☁️", "PCC")
-        }
-        return nil
-    }
-
     var body: some View {
         HStack(spacing: DSSpacing.xxs) {
             Image(systemName: "clock")
@@ -195,15 +172,16 @@ struct MessageMetaView: View {
                 .font(DSTypography.meta)
                 .foregroundColor(DSColors.secondaryText)
 
-            if let badgeTuple: (emoji: String, label: String) = executionBadge {
-                let badgeText = "\(badgeTuple.emoji) \(badgeTuple.label)"
-                Text(badgeText)
-                    .font(DSTypography.meta)
-                    .foregroundColor(DSColors.secondaryText)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(DSColors.surface)
-                    .clipShape(Capsule())
+            if let meta = metadata {
+                InferenceLocationBadge(
+                    modelName: meta.modelUsed,
+                    ttft: meta.timeToFirstToken,
+                    metadata: meta
+                )
+                
+                if let toolCalls = meta.toolCallsMade, toolCalls > 0 {
+                    ToolCallBadge(count: toolCalls)
+                }
             }
         }
         .padding(.horizontal, DSSpacing.xs)

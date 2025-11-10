@@ -94,7 +94,7 @@
 					};
 				};
 			};
-				buildConfigurationList = B0D565D92E98AC50001274A2 /* Build configuration list for PBXProject "OpenIntelligence" */;
+			buildConfigurationList = B0D565D92E98AC50001274A2 /* Build configuration list for PBXProject "OpenIntelligence" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -266,8 +266,6 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = OpenIntelligence;
-				INFOPLIST_KEY_CFBundleName = OpenIntelligence;
 				INFOPLIST_KEY_CFBundleDisplayName = OpenIntelligence;
 				INFOPLIST_KEY_CFBundleName = OpenIntelligence;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;

@@ -26,6 +26,22 @@ class EmbeddingService {
         }
     }
     
+    /// Factory method to create an EmbeddingService based on provider ID
+    /// Used for per-container embedding provider selection
+    static func forProvider(id: String) -> EmbeddingService {
+        switch id {
+        case "nl_embedding":
+            return EmbeddingService(provider: NLEmbeddingProvider())
+        case "coreml_sentence_embedding":
+            return EmbeddingService(provider: CoreMLSentenceEmbeddingProvider())
+        case "apple_fm_embed":
+            return EmbeddingService(provider: AppleFMEmbeddingProvider())
+        default:
+            Log.warning("Unknown embedding provider '\(id)', falling back to NLEmbedding", category: .embedding)
+            return EmbeddingService(provider: NLEmbeddingProvider())
+        }
+    }
+    
     // MARK: - Public API
     
     /// Check if embedding generation is available on this device
