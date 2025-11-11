@@ -120,6 +120,9 @@ import Foundation
                 messages: messages
             )
 
+            let tokensPerSecond = result.totalTime > 0
+                ? Double(result.tokensGenerated) / result.totalTime
+                : 0
             TelemetryCenter.emit(
                 .generation,
                 title: "GGUF generation finished",
@@ -127,6 +130,7 @@ import Foundation
                     "model": installedModel.name,
                     "duration": String(format: "%.2f", result.totalTime),
                     "tokens": "\(result.tokensGenerated)",
+                    "tps": String(format: "%.2f", tokensPerSecond),
                 ],
                 duration: Date().timeIntervalSince(start)
             )
@@ -158,7 +162,15 @@ import Foundation
 
         private func makeParameter(from config: InferenceConfig) -> LlamaClient.Parameter {
             let contextTokens = installedModel.contextWindow ?? max(config.maxTokens * 2, 2048)
-            var parameter = LlamaClient.Parameter(
+            var parameter = baseParameter(contextTokens: contextTokens, config: config)
+            applyComputePreference(to: &parameter, contextTokens: contextTokens)
+            return parameter
+        }
+
+        private func baseParameter(contextTokens: Int, config: InferenceConfig)
+            -> LlamaClient.Parameter
+        {
+            LlamaClient.Parameter(
                 context: contextTokens,
                 seed: nil,
                 numberOfThreads: ProcessInfo.processInfo.activeProcessorCount,
@@ -176,19 +188,27 @@ import Foundation
                     disableAutoPause: false
                 )
             )
+        }
+
+        private func applyComputePreference(
+            to parameter: inout LlamaClient.Parameter,
+            contextTokens: Int
+        ) {
+            // Tune batch size and GPU usage so toggles actually impact llama.cpp throughput.
             switch computePreference {
             case .automatic:
-                parameter.numberOfThreads = ProcessInfo.processInfo.activeProcessorCount
+                parameter.numberOfThreads = nil
                 parameter.options.gpuLayerOverride = nil
             case .gpuPreferred:
-                parameter.numberOfThreads = ProcessInfo.processInfo.activeProcessorCount
-                parameter.options.gpuLayerOverride = nil
+                parameter.numberOfThreads = nil
+                parameter.options.gpuLayerOverride = -1
+                parameter.batch = min(contextTokens, 1024)
+                parameter.options.disableAutoPause = true
             case .cpuOnly:
-                parameter.numberOfThreads = ProcessInfo.processInfo.processorCount
+                parameter.numberOfThreads = max(1, ProcessInfo.processInfo.processorCount - 1)
                 parameter.options.gpuLayerOverride = 0
                 parameter.batch = min(parameter.batch, 256)
             }
-            return parameter
         }
 
         private func makeMessages(prompt: String, context: String?) -> [LLMInput.Message] {
@@ -259,21 +279,22 @@ import Foundation
             var firstToken: TimeInterval?
 
             let stream = try client.textStream(from: input)
+            // Stream only the incremental chunk to avoid re-rendering the full transcript on every token.
             for try await chunk in stream {
+                guard !chunk.isEmpty else { continue }
                 if firstToken == nil {
                     firstToken = Date().timeIntervalSince(start)
                 }
                 aggregated += chunk
-                let currentText = aggregated
+                let delta = chunk
                 await MainActor.run {
-                    LLMStreamingContext.emit(text: currentText, isFinal: false)
+                    LLMStreamingContext.emit(text: delta, isFinal: false)
                 }
             }
 
             let total = Date().timeIntervalSince(start)
-            let finalText = aggregated
             await MainActor.run {
-                LLMStreamingContext.emit(text: finalText, isFinal: true)
+                LLMStreamingContext.emit(text: "", isFinal: true)
             }
             return GenerationResult(
                 text: aggregated,

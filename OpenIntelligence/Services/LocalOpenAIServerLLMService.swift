@@ -165,9 +165,11 @@ final class LocalOpenAIServerLLMService: LLMService {
                 throw LLMError.generationFailed("HTTP \((resp as? HTTPURLResponse)?.statusCode ?? -1): stream request failed")
             }
 
-            var textOut = ""
+            var latestSnapshot = ""
             var firstTokenTTFT: TimeInterval?
             var tokenCountApprox = 0
+
+            defer { LLMStreamingContext.emit(text: "", isFinal: true) }
 
             do {
                 for try await line in bytes.lines {
@@ -184,43 +186,50 @@ final class LocalOpenAIServerLLMService: LLMService {
                     }
                     let rawPayload = line[range.upperBound...].trimmingCharacters(in: .whitespaces)
 
-                    // Detect first token arrival
-                    if firstTokenTTFT == nil {
-                        firstTokenTTFT = Date().timeIntervalSince(start)
-                        if let ttft = firstTokenTTFT {
-                            print("⚡ [Local LLM] First token in \(String(format: "%.2f", ttft))s")
-                        }
-                    }
+                    var explicitDelta: String?
+                    var snapshotCandidate: String?
 
-                    // Parse JSON chunk if possible; otherwise append raw
                     if let jsonData = rawPayload.data(using: .utf8),
                        let json = try? JSONSerialization.jsonObject(with: jsonData, options: []) as? [String: Any] {
-                        // Try OpenAI-like "choices[].delta.content"
                         if let choices = json["choices"] as? [[String: Any]],
                            let first = choices.first {
                             if let delta = first["delta"] as? [String: Any],
                                let content = delta["content"] as? String {
-                                textOut += content
-                                tokenCountApprox += content.split(separator: " ").count
+                                explicitDelta = content
                             } else if let message = first["message"] as? [String: Any],
                                       let content = message["content"] as? String {
-                                // Some servers may stream entire message content chunks
-                                textOut += content
-                                tokenCountApprox += content.split(separator: " ").count
+                                snapshotCandidate = content
                             } else if let text = first["text"] as? String {
-                                // llama.cpp sometimes streams "text"
-                                textOut += text
-                                tokenCountApprox += text.split(separator: " ").count
+                                snapshotCandidate = text
                             }
                         } else if let content = json["content"] as? String {
-                            textOut += content
-                            tokenCountApprox += content.split(separator: " ").count
+                            snapshotCandidate = content
                         }
                     } else {
-                        // Fallback: append raw payload
-                        textOut += rawPayload
-                        tokenCountApprox += rawPayload.split(separator: " ").count
+                        explicitDelta = rawPayload
                     }
+
+                    var addition = ""
+
+                    if let delta = explicitDelta {
+                        addition = delta
+                        latestSnapshot += delta
+                    } else if let snapshot = snapshotCandidate {
+                        let prefix = latestSnapshot.commonPrefix(with: snapshot)
+                        addition = String(snapshot.dropFirst(prefix.count))
+                        latestSnapshot = snapshot
+                    }
+
+                    guard !addition.isEmpty else { continue }
+
+                    if firstTokenTTFT == nil {
+                        let ttft = Date().timeIntervalSince(start)
+                        firstTokenTTFT = ttft
+                        print("⚡ [Local LLM] First token in \(String(format: "%.2f", ttft))s")
+                    }
+
+                    tokenCountApprox += addition.split(separator: " ").count
+                    LLMStreamingContext.emit(text: addition, isFinal: false)
                 }
             } catch {
                 print("⚠️ [Local LLM] Stream parsing error: \(error.localizedDescription)")
@@ -228,7 +237,7 @@ final class LocalOpenAIServerLLMService: LLMService {
 
             let total = Date().timeIntervalSince(start)
             return LLMResponse(
-                text: textOut,
+                text: latestSnapshot,
                 tokensGenerated: tokenCountApprox,
                 timeToFirstToken: firstTokenTTFT,
                 totalTime: total,
@@ -272,6 +281,11 @@ final class LocalOpenAIServerLLMService: LLMService {
 
             let total = Date().timeIntervalSince(start)
             let words = textOut.split(separator: " ").count
+
+            if !textOut.isEmpty {
+                LLMStreamingContext.emit(text: textOut, isFinal: false)
+            }
+            LLMStreamingContext.emit(text: "", isFinal: true)
 
             return LLMResponse(
                 text: textOut,

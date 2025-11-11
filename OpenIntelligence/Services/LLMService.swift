@@ -722,7 +722,6 @@ struct LLMResponse {
                     ],
                     duration: totalTime
                 )
-                LLMStreamingContext.emit(text: fallback.text, isFinal: true)
                 return LLMResponse(
                     text: fallback.text,
                     tokensGenerated: fallback.tokensGenerated,
@@ -884,7 +883,10 @@ class OnDeviceAnalysisService: LLMService {
         let totalTime = Date().timeIntervalSince(startTime)
         let tokensGenerated = responseText.split(separator: " ").count
 
-        LLMStreamingContext.emit(text: responseText, isFinal: true)
+        if !responseText.isEmpty {
+            LLMStreamingContext.emit(text: responseText, isFinal: false)
+        }
+        LLMStreamingContext.emit(text: "", isFinal: true)
 
         return LLMResponse(
             text: responseText,
@@ -1343,7 +1345,10 @@ class OnDeviceAnalysisService: LLMService {
             let totalTime = Date().timeIntervalSince(startTime)
             let tokensGenerated = response.split(separator: " ").count
 
-            LLMStreamingContext.emit(text: response, isFinal: true)
+            if !response.isEmpty {
+                LLMStreamingContext.emit(text: response, isFinal: false)
+            }
+            LLMStreamingContext.emit(text: "", isFinal: true)
 
             return LLMResponse(
                 text: response,
@@ -1634,7 +1639,10 @@ class CoreMLLLMService: LLMService {
 
         let totalTime = Date().timeIntervalSince(startTime)
 
-        LLMStreamingContext.emit(text: outputText, isFinal: true)
+        if !outputText.isEmpty {
+            LLMStreamingContext.emit(text: outputText, isFinal: false)
+        }
+        LLMStreamingContext.emit(text: "", isFinal: true)
 
         return LLMResponse(
             text: outputText,
@@ -1847,7 +1855,10 @@ class OpenAILLMService: LLMService {
         let totalTime = Date().timeIntervalSince(startTime)
         print("   ✅ [OpenAI] Generation complete in \(String(format: "%.2f", totalTime))s")
 
-        LLMStreamingContext.emit(text: content, isFinal: true)
+        if !content.isEmpty {
+            LLMStreamingContext.emit(text: content, isFinal: false)
+        }
+        LLMStreamingContext.emit(text: "", isFinal: true)
 
         return LLMResponse(
             text: content,

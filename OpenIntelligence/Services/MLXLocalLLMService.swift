@@ -143,6 +143,11 @@ final class MLXLocalLLMService: LLMService {
         
         let total = Date().timeIntervalSince(start)
         let words = textOut.split(separator: " ").count
+
+        if !textOut.isEmpty {
+            LLMStreamingContext.emit(text: textOut, isFinal: false)
+        }
+        LLMStreamingContext.emit(text: "", isFinal: true)
         
         return LLMResponse(
             text: textOut,
