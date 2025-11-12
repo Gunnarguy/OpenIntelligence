@@ -268,6 +268,12 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = OpenIntelligence;
 				INFOPLIST_KEY_CFBundleName = OpenIntelligence;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Used to capture images for document ingestion and OCR.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Needed to discover optional local model servers when the user enables them.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Used to capture audio queries when voice input is enabled.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Used to import documents or images for semantic search and on-device processing.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Used to transcribe voice queries into text when the user opts in.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -313,6 +319,12 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Used to capture images for document ingestion and OCR.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Needed to discover optional local model servers when the user enables them.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Used to capture audio queries when voice input is enabled.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Used to import documents or images for semantic search and on-device processing.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Used to transcribe voice queries into text when the user opts in.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;

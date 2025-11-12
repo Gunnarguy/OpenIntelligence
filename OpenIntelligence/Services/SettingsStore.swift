@@ -41,6 +41,11 @@ final class SettingsStore: ObservableObject {
         static let responsesIncludeVerbosity = "responsesIncludeVerbosity"
         static let responsesIncludeCoT = "responsesIncludeCoT"
         static let responsesIncludeMaxTokens = "responsesIncludeMaxTokens"
+
+        // Reviewer & consent
+        static let reviewerModeEnabled = "reviewerModeEnabled"
+        static let applePCCConsent = "cloudConsent.applePCC"
+        static let openAIConsent = "cloudConsent.openAI"
     }
 
     // MARK: - Published Settings (bind from UI)
@@ -50,6 +55,10 @@ final class SettingsStore: ObservableObject {
     @Published var openaiAPIKey: String
     /// Selected OpenAI model identifier.
     @Published var openaiModel: String
+    /// Normalised API key value used for availability checks.
+    private var trimmedAPIKey: String {
+        openaiAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 
     /// Whether Private Cloud Compute should be preferred when available.
     @Published var preferPrivateCloudCompute: Bool
@@ -90,6 +99,13 @@ final class SettingsStore: ObservableObject {
     /// Whether to explicitly enforce max token counts with the Responses API.
     @Published var responsesIncludeMaxTokens: Bool
 
+    /// Reviewer utilities toggle (exposes advanced controls in Settings).
+    @Published var reviewerModeEnabled: Bool
+    /// Saved consent preference for Apple PCC transmissions.
+    @Published var applePCCConsent: CloudConsentState
+    /// Saved consent preference for OpenAI Direct transmissions.
+    @Published var openAIConsent: CloudConsentState
+
 
     // MARK: - Infra
     private let defaults: UserDefaults
@@ -120,6 +136,9 @@ final class SettingsStore: ObservableObject {
                 || !ModelRegistry.shared.installed.filter({ $0.backend == .gguf }).isEmpty
             {
                 options.append(.ggufLocal)
+            }
+            if reviewerModeEnabled {
+                options.append(.openAIDirect)
             }
         #endif
 
@@ -169,6 +188,10 @@ final class SettingsStore: ObservableObject {
 
         #if os(macOS)
             append(.openAIDirect)
+        #elseif os(iOS)
+            if reviewerModeEnabled {
+                append(.openAIDirect)
+            }
         #endif
 
         return ordered
@@ -227,9 +250,17 @@ final class SettingsStore: ObservableObject {
             #else
                 return false
             #endif
+        case .openAIDirect:
+            #if os(macOS)
+                return !trimmedAPIKey.isEmpty
+            #elseif os(iOS)
+                return reviewerModeEnabled && !trimmedAPIKey.isEmpty
+            #else
+                return false
+            #endif
         case .onDeviceAnalysis:
             return true
-        default:
+        @unknown default:
             return true
         }
     }
@@ -249,7 +280,16 @@ final class SettingsStore: ObservableObject {
             self.selectedModel = .appleIntelligence
         }
 
-        self.openaiAPIKey = defaults.string(forKey: Keys.openaiAPIKey) ?? ""
+        if let stored = KeychainStorage.string(forKey: Keys.openaiAPIKey), !stored.isEmpty {
+            self.openaiAPIKey = stored
+        } else {
+            let legacy = defaults.string(forKey: Keys.openaiAPIKey) ?? ""
+            self.openaiAPIKey = legacy
+            if !legacy.isEmpty {
+                KeychainStorage.setString(legacy, forKey: Keys.openaiAPIKey)
+                defaults.removeObject(forKey: Keys.openaiAPIKey)
+            }
+        }
         self.openaiModel = defaults.string(forKey: Keys.openaiModel) ?? "gpt-4o-mini"
 
         self.preferPrivateCloudCompute = defaults.bool(forKey: Keys.preferPCC)
@@ -297,6 +337,15 @@ final class SettingsStore: ObservableObject {
             defaults.object(forKey: Keys.responsesIncludeCoT) as? Bool ?? true
         self.responsesIncludeMaxTokens =
             defaults.object(forKey: Keys.responsesIncludeMaxTokens) as? Bool ?? true
+
+        self.reviewerModeEnabled =
+            defaults.object(forKey: Keys.reviewerModeEnabled) as? Bool ?? false
+        let appleConsentRaw = defaults.string(forKey: Keys.applePCCConsent)
+        self.applePCCConsent =
+            CloudConsentState(rawValue: appleConsentRaw ?? "") ?? .notDetermined
+        let openAIConsentRaw = defaults.string(forKey: Keys.openAIConsent)
+        self.openAIConsent =
+            CloudConsentState(rawValue: openAIConsentRaw ?? "") ?? .notDetermined
         self.hasUserPrimaryOverride =
             defaults.object(forKey: Keys.primaryModelUserOverride) as? Bool ?? false
 
@@ -308,6 +357,7 @@ final class SettingsStore: ObservableObject {
         }
         sanitizeModelSelectionForPlatform()
         setupPipelines()
+        ragService.registerSettingsStore(self)
     }
 
     // MARK: - Pipelines
@@ -345,6 +395,9 @@ final class SettingsStore: ObservableObject {
             $responsesIncludeVerbosity.map { _ in () }.eraseToAnyPublisher(),
             $responsesIncludeCoT.map { _ in () }.eraseToAnyPublisher(),
             $responsesIncludeMaxTokens.map { _ in () }.eraseToAnyPublisher(),
+            $reviewerModeEnabled.map { _ in () }.eraseToAnyPublisher(),
+            $applePCCConsent.map { _ in () }.eraseToAnyPublisher(),
+            $openAIConsent.map { _ in () }.eraseToAnyPublisher(),
         ]
         Publishers.MergeMany(publishers)
             .sink { [weak self] in
@@ -392,7 +445,11 @@ final class SettingsStore: ObservableObject {
     /// Writes the current in-memory values to `UserDefaults`.
     private func persistAll() {
         defaults.set(selectedModel.rawValue, forKey: Keys.selectedModel)
-        defaults.set(openaiAPIKey, forKey: Keys.openaiAPIKey)
+        if openaiAPIKey.isEmpty {
+            KeychainStorage.removeValue(forKey: Keys.openaiAPIKey)
+        } else {
+            _ = KeychainStorage.setString(openaiAPIKey, forKey: Keys.openaiAPIKey)
+        }
         defaults.set(openaiModel, forKey: Keys.openaiModel)
 
         defaults.set(preferPrivateCloudCompute, forKey: Keys.preferPCC)
@@ -409,12 +466,15 @@ final class SettingsStore: ObservableObject {
         defaults.set(enableSecondFallback, forKey: Keys.enableFB2)
         defaults.set(firstFallback.rawValue, forKey: Keys.firstFB)
         defaults.set(secondFallback.rawValue, forKey: Keys.secondFB)
-    localComputePreference.persist(in: defaults, key: Keys.localComputePreference)
+        localComputePreference.persist(in: defaults, key: Keys.localComputePreference)
 
         defaults.set(responsesIncludeReasoning, forKey: Keys.responsesIncludeReasoning)
         defaults.set(responsesIncludeVerbosity, forKey: Keys.responsesIncludeVerbosity)
         defaults.set(responsesIncludeCoT, forKey: Keys.responsesIncludeCoT)
         defaults.set(responsesIncludeMaxTokens, forKey: Keys.responsesIncludeMaxTokens)
+        defaults.set(reviewerModeEnabled, forKey: Keys.reviewerModeEnabled)
+        defaults.set(applePCCConsent.rawValue, forKey: Keys.applePCCConsent)
+        defaults.set(openAIConsent.rawValue, forKey: Keys.openAIConsent)
         defaults.set(hasUserPrimaryOverride, forKey: Keys.primaryModelUserOverride)
     }
 
@@ -433,6 +493,35 @@ final class SettingsStore: ObservableObject {
                 "fallbacks":
                     "\(enableFirstFallback ? "1" : "0")\(enableSecondFallback ? "+1" : "")",
             ])
+    }
+}
+
+// MARK: - Consent Utilities
+
+extension SettingsStore {
+    func cloudConsent(for provider: CloudProvider) -> CloudConsentState {
+        switch provider {
+        case .applePCC:
+            return applePCCConsent
+        case .openAI:
+            return openAIConsent
+        }
+    }
+
+    func setCloudConsent(
+        _ state: CloudConsentState,
+        for provider: CloudProvider,
+        propagateToRAG: Bool = true
+    ) {
+        switch provider {
+        case .applePCC:
+            applePCCConsent = state
+        case .openAI:
+            openAIConsent = state
+        }
+        if propagateToRAG {
+            ragService.setCloudConsentState(state, for: provider, propagateToSettings: false)
+        }
     }
 }
 

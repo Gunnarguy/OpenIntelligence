@@ -6,6 +6,7 @@
 //
 
 import Combine
+import CryptoKit
 import Foundation
 import NaturalLanguage
 
@@ -33,6 +34,9 @@ class RAGService: ObservableObject {
     let containerService: ContainerService
     private let vectorRouter: VectorStoreRouter
     private var cancellables = Set<AnyCancellable>()
+    @MainActor private weak var settingsStore: SettingsStore?
+    @MainActor private var pendingConsentContinuation: CheckedContinuation<CloudConsentDecision, Never>?
+    @MainActor private var transientConsentGrants: Set<CloudProvider> = []
 
     /// Helper to get document name by ID
     @MainActor
@@ -70,6 +74,9 @@ class RAGService: ObservableObject {
     @MainActor @Published var lastError: String? = nil  // User-facing error message
     @MainActor @Published var lastProcessingSummary: ProcessingSummary? = nil  // Detailed completion stats
     @MainActor @Published private(set) var retrievalHistory: [RetrievalLogEntry] = []
+    @MainActor @Published var pendingCloudConsent: CloudTransmissionRecord?
+    @MainActor @Published private(set) var lastCloudTransmission: CloudTransmissionRecord?
+    @MainActor @Published private(set) var cloudConsent: [CloudProvider: CloudConsentState] = [:]
 
     private(set) var totalChunksStored: Int = 0
     private let retrievalHistoryLimit = 50
@@ -82,6 +89,15 @@ class RAGService: ObservableObject {
 
     private var _llmService: LLMService
     private var _fallbackServices: [LLMService] = []
+
+    private enum ConsentDefaults {
+        static func key(for provider: CloudProvider) -> String {
+            switch provider {
+            case .applePCC: return "cloudConsent.applePCC"
+            case .openAI: return "cloudConsent.openAI"
+            }
+        }
+    }
 
     // MARK: - Initialization
 
@@ -167,7 +183,251 @@ class RAGService: ObservableObject {
         }
 
         // Load persisted documents metadata
+        Task { @MainActor in
+            self.cloudConsent = self.loadPersistedConsentStates()
+        }
         loadDocumentsFromDisk()
+    }
+
+    // MARK: - Cloud Consent
+
+    private func loadPersistedConsentStates() -> [CloudProvider: CloudConsentState] {
+        var states: [CloudProvider: CloudConsentState] = [:]
+        states.reserveCapacity(CloudProvider.allCases.count)
+        for provider in CloudProvider.allCases {
+            let key = ConsentDefaults.key(for: provider)
+            if let raw = UserDefaults.standard.string(forKey: key),
+                let state = CloudConsentState(rawValue: raw)
+            {
+                states[provider] = state
+            } else {
+                states[provider] = .notDetermined
+            }
+        }
+        return states
+    }
+
+    private func persistConsentState(_ state: CloudConsentState, for provider: CloudProvider) {
+        let defaults = UserDefaults.standard
+        let key = ConsentDefaults.key(for: provider)
+        if state == .notDetermined {
+            defaults.removeObject(forKey: key)
+        } else {
+            defaults.set(state.rawValue, forKey: key)
+        }
+    }
+
+    @MainActor
+    func registerSettingsStore(_ store: SettingsStore) {
+        settingsStore = store
+        setCloudConsentState(store.applePCCConsent, for: .applePCC, propagateToSettings: false)
+        setCloudConsentState(store.openAIConsent, for: .openAI, propagateToSettings: false)
+    }
+
+    @MainActor
+    func setCloudConsentState(
+        _ state: CloudConsentState,
+        for provider: CloudProvider,
+        propagateToSettings: Bool = true
+    ) {
+        cloudConsent[provider] = state
+        transientConsentGrants.remove(provider)
+        persistConsentState(state, for: provider)
+        if propagateToSettings {
+            settingsStore?.setCloudConsent(state, for: provider, propagateToRAG: false)
+        }
+    }
+
+    @MainActor
+    func resolveCloudConsent(decision: CloudConsentDecision) async {
+        guard let record = pendingCloudConsent else {
+            Log.warning("resolveCloudConsent called with no pending record", category: .pipeline)
+            return
+        }
+        let provider = record.provider
+        let continuation = pendingConsentContinuation
+        pendingConsentContinuation = nil
+        pendingCloudConsent = nil
+
+        switch decision {
+        case .allowOnce:
+            await recordTransmission(record, grant: "allow_once")
+            continuation?.resume(returning: .allowOnce)
+        case .allowAndRemember:
+            setCloudConsentState(.allowed, for: provider)
+            await recordTransmission(record, grant: "remembered")
+            continuation?.resume(returning: .allowAndRemember)
+        case .deny:
+            setCloudConsentState(.denied, for: provider)
+            TelemetryCenter.emit(
+                .system,
+                severity: .warning,
+                title: "Cloud call denied",
+                metadata: [
+                    "provider": provider.shortName,
+                    "model": record.modelName,
+                    "chars": "\(record.promptCharacterCount)",
+                    "chunks": "\(record.contextChunkCount)"
+                ]
+            )
+            continuation?.resume(returning: .deny)
+        }
+    }
+
+    private func makeTransmissionRecord(
+        provider: CloudProvider,
+        modelName: String,
+        prompt: String,
+        context: String?,
+        chunks: [DocumentChunk]
+    ) -> CloudTransmissionRecord {
+        let sanitizedPrompt = prompt.replacingOccurrences(of: "\n", with: " ")
+        let preview = String(sanitizedPrompt.prefix(160))
+        let estimatedBytes = prompt.utf8.count + (context?.utf8.count ?? 0)
+
+        var hashes: [String] = []
+        hashes.reserveCapacity(min(chunks.count, 12))
+        for chunk in chunks.prefix(12) {
+            let data = Data(chunk.content.utf8)
+            let digest = SHA256.hash(data: data)
+            hashes.append(hexString(from: digest))
+        }
+
+        return CloudTransmissionRecord(
+            provider: provider,
+            modelName: modelName,
+            promptPreview: preview,
+            promptCharacterCount: prompt.count,
+            contextChunkCount: chunks.count,
+            contextHashes: hashes,
+            estimatedBytes: estimatedBytes
+        )
+    }
+
+    private func hexString(from digest: SHA256.Digest) -> String {
+        var result = String()
+        result.reserveCapacity(SHA256Digest.byteCount * 2)
+        for byte in digest {
+            result.append(String(format: "%02x", byte))
+        }
+        return result
+    }
+
+    private func cloudProvider(for service: LLMService) -> CloudProvider? {
+        switch service {
+        case is OpenAILLMService, is OpenAIResponsesAPIService:
+            return .openAI
+        #if canImport(FoundationModels)
+            case is AppleFoundationLLMService:
+                return .applePCC
+        #endif
+        default:
+            return nil
+        }
+    }
+
+    private func ensureCloudConsentIfNeeded(
+        service: LLMService,
+        prompt: String,
+        context: String?,
+        sourceChunks: [DocumentChunk]
+    ) async throws {
+        guard let provider = cloudProvider(for: service) else { return }
+        let record = makeTransmissionRecord(
+            provider: provider,
+            modelName: service.modelName,
+            prompt: prompt,
+            context: context,
+            chunks: sourceChunks
+        )
+
+        if await hasTransientGrant(for: provider) {
+            await recordTransmission(record, grant: "session")
+            return
+        }
+
+        let decision = await cloudConsentDecision(for: provider, record: record)
+
+        switch decision {
+        case .allowOnce:
+            await rememberTransientGrant(provider)
+            return
+        case .allowAndRemember:
+            return
+        case .deny:
+            throw RAGServiceError.cloudConsentDenied(provider: provider)
+        }
+    }
+
+    @MainActor
+    private func cloudConsentDecision(
+        for provider: CloudProvider,
+        record: CloudTransmissionRecord
+    ) async -> CloudConsentDecision {
+        let state = cloudConsent[provider] ?? .notDetermined
+        switch state {
+        case .allowed:
+            await recordTransmission(record, grant: "remembered")
+            return .allowAndRemember
+        case .denied:
+            TelemetryCenter.emit(
+                .system,
+                severity: .warning,
+                title: "Cloud call blocked (denied)",
+                metadata: [
+                    "provider": provider.shortName,
+                    "model": record.modelName
+                ]
+            )
+            return .deny
+        case .notDetermined:
+            if let continuation = pendingConsentContinuation {
+                continuation.resume(returning: .deny)
+                pendingConsentContinuation = nil
+            }
+            pendingCloudConsent = record
+            TelemetryCenter.emit(
+                .system,
+                title: "Cloud consent requested",
+                metadata: [
+                    "provider": provider.shortName,
+                    "model": record.modelName,
+                    "chars": "\(record.promptCharacterCount)",
+                    "chunks": "\(record.contextChunkCount)"
+                ]
+            )
+            return await withCheckedContinuation { continuation in
+                pendingConsentContinuation = continuation
+            }
+        }
+    }
+
+    @MainActor
+    private func recordTransmission(_ record: CloudTransmissionRecord, grant: String) async {
+        pendingCloudConsent = nil
+        lastCloudTransmission = record
+        TelemetryCenter.emit(
+            .system,
+            title: "Cloud call authorized",
+            metadata: [
+                "provider": record.provider.shortName,
+                "model": record.modelName,
+                "chars": "\(record.promptCharacterCount)",
+                "chunks": "\(record.contextChunkCount)",
+                "bytes": "\(record.estimatedBytes)",
+                "grant": grant
+            ]
+        )
+    }
+
+    @MainActor
+    private func hasTransientGrant(for provider: CloudProvider) async -> Bool {
+        transientConsentGrants.contains(provider)
+    }
+
+    @MainActor
+    private func rememberTransientGrant(_ provider: CloudProvider) async {
+        transientConsentGrants.insert(provider)
     }
 
     // MARK: - Document Persistence
@@ -690,6 +950,7 @@ class RAGService: ObservableObject {
         // Establish query-scoped container context for downstream tool calls and listings
         await MainActor.run {
             self.currentQueryContainerId = containerId ?? self.containerService.activeContainerId
+            self.transientConsentGrants.removeAll()
         }
         // Optional DB warmup to ensure the vector store is loaded (prevents first-touch latency)
         let _ = try? await (containerId != nil ? dbFor(containerId!) : dbForActiveContainer())
@@ -1312,6 +1573,7 @@ class RAGService: ObservableObject {
 
                 let contextSize = context.count
                 let contextWords = context.split(separator: " ").count
+                let includedChunks = Array(diverseChunks.prefix(actualChunksUsed).map(\.chunk))
 
                 Log.section("Step 5: Context Assembly Complete", level: .info, category: .pipeline)
                 Log.info(
@@ -1374,7 +1636,8 @@ class RAGService: ObservableObject {
                     llmResponse = try await generateWithFallback(
                         prompt: question,
                         context: context,
-                        config: genConfig
+                        config: genConfig,
+                        sourceChunks: includedChunks
                     )
                 } catch {
                     let message = error.localizedDescription.lowercased()
@@ -1383,10 +1646,11 @@ class RAGService: ObservableObject {
                     {
                         // Retry with halved context and smaller maxTokens
                         let reducedMax = max(512, genConfig.maxTokens / 2)
-                        let (context2, _) = await engine.assembleContext(
+                        let (context2, usedRetryChunks) = await engine.assembleContext(
                             chunks: diverseChunks,
                             maxChars: max(800, maxContextChars / 2)
                         )
+                        let retryChunks = Array(diverseChunks.prefix(usedRetryChunks).map(\.chunk))
                         var retryConfig = genConfig
                         retryConfig.maxTokens = reducedMax
                         TelemetryCenter.emit(
@@ -1401,7 +1665,8 @@ class RAGService: ObservableObject {
                         llmResponse = try await generateWithFallback(
                             prompt: question,
                             context: context2,
-                            config: retryConfig
+                            config: retryConfig,
+                            sourceChunks: retryChunks
                         )
                     } else {
                         throw error
@@ -1595,7 +1860,8 @@ class RAGService: ObservableObject {
                 let llmResponse = try await generateWithFallback(
                     prompt: question,
                     context: nil,  // No document context
-                    config: inferenceConfig
+                    config: inferenceConfig,
+                    sourceChunks: []
                 )
 
                 let generationTime = Date().timeIntervalSince(generationStartTime)
@@ -1714,7 +1980,8 @@ class RAGService: ObservableObject {
         let llmResponse = try await generateWithFallback(
             prompt: question,
             context: nil,  // No document context
-            config: inferenceConfig
+            config: inferenceConfig,
+            sourceChunks: []
         )
 
         let generationTime = Date().timeIntervalSince(generationStartTime)
@@ -1816,10 +2083,17 @@ class RAGService: ObservableObject {
     private func generateWithFallback(
         prompt: String,
         context: String?,
-        config: InferenceConfig
+        config: InferenceConfig,
+        sourceChunks: [DocumentChunk] = []
     ) async throws -> LLMResponse {
         // Try primary first
         do {
+            try await ensureCloudConsentIfNeeded(
+                service: _llmService,
+                prompt: prompt,
+                context: context,
+                sourceChunks: sourceChunks
+            )
             let response = try await _llmService.generate(
                 prompt: prompt,
                 context: context,
@@ -1854,6 +2128,12 @@ class RAGService: ObservableObject {
                     "Attempting fallback #\(index + 1): \(fallbackService.modelName)",
                     category: .llm)
                 do {
+                    try await ensureCloudConsentIfNeeded(
+                        service: fallbackService,
+                        prompt: prompt,
+                        context: context,
+                        sourceChunks: sourceChunks
+                    )
                     let response = try await fallbackService.generate(
                         prompt: prompt,
                         context: context,
@@ -2842,6 +3122,7 @@ enum RAGServiceError: LocalizedError {
     case retrievalFailed
     case modelNotAvailable
     case noRelevantContext
+    case cloudConsentDenied(provider: CloudProvider)
 
     var errorDescription: String? {
         switch self {
@@ -2855,6 +3136,8 @@ enum RAGServiceError: LocalizedError {
             return "Failed to retrieve relevant chunks"
         case .modelNotAvailable:
             return "The selected LLM model is not available"
+        case .cloudConsentDenied(let provider):
+            return "Cloud transmission denied for \(provider.shortName)"
         }
     }
 }

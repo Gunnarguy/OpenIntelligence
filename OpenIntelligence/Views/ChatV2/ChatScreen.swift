@@ -46,6 +46,9 @@ struct ChatScreen: View {
     // One-off per-message container override
     @State private var messageContainerOverride: UUID? = nil
 
+    // Cloud consent prompt state
+    @State private var activeCloudConsent: CloudTransmissionRecord? = nil
+
     // Settings (synchronized with SettingsView via @AppStorage)
     @AppStorage("llmTemperature") private var temperature: Double = 0.7
     @AppStorage("llmMaxTokens") private var maxTokens: Int = 500
@@ -172,6 +175,9 @@ struct ChatScreen: View {
         .onReceive(ragService.objectWillChange) { _ in
             Task { await recalcActiveCounts() }
         }
+        .onReceive(ragService.$pendingCloudConsent) { record in
+            activeCloudConsent = record
+        }
         .toolbar {
             #if os(iOS)
                 ToolbarItem(placement: .topBarTrailing) {
@@ -231,6 +237,15 @@ struct ChatScreen: View {
                 }
                 .padding()
             }
+        }
+        .sheet(item: $activeCloudConsent) { record in
+            CloudConsentPromptView(record: record) { decision in
+                Task { await ragService.resolveCloudConsent(decision: decision) }
+            }
+            .interactiveDismissDisabled(true)
+#if os(iOS)
+            .presentationDetents([.medium, .large])
+#endif
         }
     }
 

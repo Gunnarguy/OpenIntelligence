@@ -23,6 +23,7 @@ struct SettingsView: View {
             LazyVStack(spacing: 20) {
                 heroCard
                 executionCard
+                cloudConsentCard
                 modelSelectionCard
                 fallbackCard
                 pipelineCard
@@ -192,6 +193,133 @@ extension SettingsView {
             }
             SectionFooter(executionSummaryText)
         }
+    }
+
+    @ViewBuilder
+    fileprivate var cloudConsentCard: some View {
+        SurfaceCard {
+            SectionHeader(
+                icon: "shield.lefthalf.fill",
+                title: "Cloud Consent",
+                caption: "Review approvals and recent transmissions")
+
+            ForEach(CloudProvider.allCases, id: \.self) { provider in
+                providerRow(for: provider)
+                if provider != CloudProvider.allCases.last {
+                    Divider()
+                }
+            }
+
+            if let record = ragService.lastCloudTransmission {
+                Divider()
+                lastTransmissionView(record)
+            }
+
+            SectionFooter("Prompt previews stay on-device; only hashed chunks and counts are logged.")
+        }
+    }
+
+    @ViewBuilder
+    private func providerRow(for provider: CloudProvider) -> some View {
+        let state = ragService.cloudConsent[provider] ?? .notDetermined
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
+            HStack(alignment: .center, spacing: DSSpacing.sm) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(provider.displayName)
+                        .font(.subheadline.weight(.semibold))
+                    Text(stateDescription(for: state))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                Spacer(minLength: 8)
+                Text(state.displayName)
+                    .chipStyle(tint: stateTint(for: state))
+            }
+
+            Menu {
+                Button("Always Allow", systemImage: "checkmark.shield") {
+                    Task { @MainActor in ragService.setCloudConsentState(.allowed, for: provider) }
+                }
+                Button("Ask Each Time", systemImage: "questionmark.shield") {
+                    Task { @MainActor in ragService.setCloudConsentState(.notDetermined, for: provider) }
+                }
+                Button("Never Allow", systemImage: "xmark.shield") {
+                    Task { @MainActor in ragService.setCloudConsentState(.denied, for: provider) }
+                }
+            } label: {
+                Label("Change Decision", systemImage: "slider.horizontal.3")
+                    .font(.caption.weight(.semibold))
+            }
+            .menuOrder(.priority)
+        }
+    }
+
+    @ViewBuilder
+    private func lastTransmissionView(_ record: CloudTransmissionRecord) -> some View {
+        VStack(alignment: .leading, spacing: DSSpacing.sm) {
+            Text("Last Transmission")
+                .font(.subheadline.weight(.semibold))
+            HStack(spacing: DSSpacing.md) {
+                Label(record.provider.shortName, systemImage: "shield.checkerboard")
+                Text(record.timestamp.formatted(.relative(presentation: .named)))
+                    .foregroundColor(.secondary)
+                    .font(.caption)
+            }
+            .font(.caption.weight(.semibold))
+
+            Text(record.promptPreview)
+                .font(.system(.footnote, design: .monospaced))
+                .foregroundColor(DSColors.secondaryText)
+                .lineLimit(4)
+
+            HStack(spacing: DSSpacing.md) {
+                metricChip(label: "Prompt chars", value: "\(record.promptCharacterCount)")
+                metricChip(label: "Chunks", value: "\(record.contextChunkCount)")
+                metricChip(label: "Size", value: formattedKilobytes(record.estimatedBytes))
+            }
+        }
+    }
+
+    private func stateDescription(for state: CloudConsentState) -> String {
+        switch state {
+        case .allowed:
+            return "Approved without asking."
+        case .denied:
+            return "Blocked until you change this setting."
+        case .notDetermined:
+            return "Ask before sending each request."
+        }
+    }
+
+    private func stateTint(for state: CloudConsentState) -> Color {
+        switch state {
+        case .allowed:
+            return DSColors.success
+        case .denied:
+            return DSColors.danger
+        case .notDetermined:
+            return DSColors.warning
+        }
+    }
+
+    private func metricChip(label: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label.uppercased())
+                .font(.caption2.weight(.semibold))
+                .foregroundColor(.secondary)
+            Text(value)
+                .font(.caption.weight(.semibold))
+        }
+        .padding(.horizontal, DSSpacing.sm)
+        .padding(.vertical, 6)
+        .background(DSColors.surfaceElevated)
+        .cornerRadius(DSCorners.chip)
+    }
+
+    private func formattedKilobytes(_ bytes: Int) -> String {
+        let kb = Double(bytes) / 1024.0
+        if kb < 1 { return "<1 KB" }
+        return String(format: "%.1f KB", kb)
     }
 
     @ViewBuilder

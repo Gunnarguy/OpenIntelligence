@@ -1,0 +1,11 @@
+component,layer,data_in,data_out,notes
+DocumentProcessor,Ingestion,Local documents (PDF/TXT/Markdown),Parsed text chunks,"Runs on-device via PDFKit/Vision; emits chunk metadata (word counts, page numbers)."
+EmbeddingService,RAG Engine,Chunk text vectors,512-dimension embeddings,"Uses `NLEmbedding` locally; caches norms for cosine similarity."
+PersistentVectorDatabase,Storage,Chunks + embeddings,JSON storage per container,"Never leaves device; updates invalidate hybrid search cache."
+HybridSearchService,Retrieval,Query embeddings + BM25 index,Ranked chunk IDs,"Combines cosine similarity with BM25 using reciprocal-rank fusion."
+RAGEngine,RAG Pipeline,Ranked chunks + query,Context string + MMR-ranked chunks,"Applies MMR diversification before context assembly."
+AppleFoundationLLMService,Generation,Query + context,"Optional" cloud request,"Runs on-device first; Private Cloud Compute receives prompt + chunk text only when required."
+OpenAILLMService,Generation,Query + context,"HTTPS to OpenAI","Requires user-provided API key; payload limited to prompt + chunk excerpts."
+OnDeviceAnalysisService,Generation,Query + context,Extractive answer,"Extractive QA path; 100% local."
+ContainerService,State management,User selections,Active knowledge container ID,"Switches databases and invalidates caches on mutation."
+TelemetryCenter,Diagnostics,Event metadata,None (local log only),"No remote analytics; events exposed via Reviewer Mode."
