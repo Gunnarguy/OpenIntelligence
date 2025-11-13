@@ -1098,11 +1098,15 @@ extension SettingsView {
             #endif
         case .openAIDirect:
             #if os(macOS)
-                return trimmedAPIKey.isEmpty
-                    ? .requiresConfiguration(message: "Add your API key to enable this pathway.")
-                    : .available
+                guard settings.reviewerModeEnabled else {
+                    return .unavailable(reason: "Reviewer utilities disabled in production builds")
+                }
+                guard !trimmedAPIKey.isEmpty else {
+                    return .requiresConfiguration(message: "Add your API key to enable this pathway.")
+                }
+                return .available
             #else
-                return .unavailable(reason: "Disabled for Apple-native configuration")
+                return .unavailable(reason: "Hidden outside reviewer mode")
             #endif
         case .onDeviceAnalysis:
             return .available
@@ -1225,7 +1229,7 @@ extension SettingsView {
             #endif
         case .openAIDirect:
             #if os(macOS)
-                guard !trimmedAPIKey.isEmpty else { return nil }
+                guard settings.reviewerModeEnabled, !trimmedAPIKey.isEmpty else { return nil }
                 return OpenAILLMService(apiKey: trimmedAPIKey, model: settings.openaiModel)
             #else
                 return nil

@@ -78,10 +78,11 @@ struct SettingsRootView: View {
     }
 
     #if os(iOS)
+    @State private var path = NavigationPath()
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             List {
-                ForEach(Category.allCases) { cat in
+                ForEach(availableCategories) { cat in
                     NavigationLink(value: cat) {
                         Label(cat.rawValue, systemImage: cat.icon)
                     }
@@ -91,13 +92,18 @@ struct SettingsRootView: View {
             .navigationDestination(for: Category.self) { cat in
                 destination(for: cat)
             }
+            .onChange(of: settings.reviewerModeEnabled) { _, enabled in
+                if !enabled {
+                    path = NavigationPath()
+                }
+            }
         }
     }
     #elseif os(macOS)
     @State private var selection: Category? = .executionPrivacy
     var body: some View {
         NavigationSplitView {
-            List(Category.allCases, selection: $selection) { cat in
+            List(availableCategories, selection: $selection) { cat in
                 Label(cat.rawValue, systemImage: cat.icon)
             }
             .navigationTitle("Settings")
@@ -109,8 +115,58 @@ struct SettingsRootView: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .onChange(of: settings.reviewerModeEnabled) { _, enabled in
+            if !enabled, selection == .openAI {
+                selection = .executionPrivacy
+            }
+        }
     }
     #endif
+
+    private var availableCategories: [Category] {
+        #if os(iOS)
+            var categories: [Category] = [
+                .executionPrivacy,
+                .modelSelection,
+                .fallbacks,
+                .generation,
+                .retrieval,
+                .gallery,
+                .providers,
+                .systemStatus,
+                .developer,
+                .about
+            ]
+        #else
+            var categories: [Category] = [
+                .executionPrivacy,
+                .modelSelection,
+                .fallbacks,
+                .openAI,
+                .generation,
+                .retrieval,
+                .gallery,
+                .providers,
+                .systemStatus,
+                .developer,
+                .about
+            ]
+        #endif
+
+        if settings.reviewerModeEnabled {
+            if !categories.contains(.openAI) {
+                if let idx = categories.firstIndex(of: .modelSelection) {
+                    categories.insert(.openAI, at: idx + 1)
+                } else {
+                    categories.append(.openAI)
+                }
+            }
+        } else {
+            categories.removeAll { $0 == .openAI }
+        }
+
+        return categories
+    }
 
     @ViewBuilder
     private func destination(for cat: Category) -> some View {

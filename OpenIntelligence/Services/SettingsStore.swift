@@ -121,6 +121,7 @@ final class SettingsStore: ObservableObject {
     /// Models that can be shown in the primary picker given current hardware and installs.
     var primaryModelOptions: [LLMModelType] {
         var options: [LLMModelType] = []
+        let allowOpenAIDirect = reviewerModeEnabled && !trimmedAPIKey.isEmpty
 
         if deviceCapabilities.supportsAppleIntelligence
             || deviceCapabilities.supportsFoundationModels
@@ -137,7 +138,11 @@ final class SettingsStore: ObservableObject {
             {
                 options.append(.ggufLocal)
             }
-            if reviewerModeEnabled {
+            if allowOpenAIDirect {
+                options.append(.openAIDirect)
+            }
+        #elseif os(macOS)
+            if allowOpenAIDirect {
                 options.append(.openAIDirect)
             }
         #endif
@@ -187,9 +192,11 @@ final class SettingsStore: ObservableObject {
         #endif
 
         #if os(macOS)
-            append(.openAIDirect)
+            if reviewerModeEnabled && !trimmedAPIKey.isEmpty {
+                append(.openAIDirect)
+            }
         #elseif os(iOS)
-            if reviewerModeEnabled {
+            if reviewerModeEnabled && !trimmedAPIKey.isEmpty {
                 append(.openAIDirect)
             }
         #endif
@@ -252,7 +259,7 @@ final class SettingsStore: ObservableObject {
             #endif
         case .openAIDirect:
             #if os(macOS)
-                return !trimmedAPIKey.isEmpty
+                return reviewerModeEnabled && !trimmedAPIKey.isEmpty
             #elseif os(iOS)
                 return reviewerModeEnabled && !trimmedAPIKey.isEmpty
             #else
@@ -338,8 +345,13 @@ final class SettingsStore: ObservableObject {
         self.responsesIncludeMaxTokens =
             defaults.object(forKey: Keys.responsesIncludeMaxTokens) as? Bool ?? true
 
-        self.reviewerModeEnabled =
-            defaults.object(forKey: Keys.reviewerModeEnabled) as? Bool ?? false
+    self.reviewerModeEnabled =
+        defaults.object(forKey: Keys.reviewerModeEnabled) as? Bool ?? false
+#if !DEBUG
+    // Release builds must never persist reviewer mode; force-disable in case a debug build wrote it.
+    self.reviewerModeEnabled = false
+    defaults.set(false, forKey: Keys.reviewerModeEnabled)
+#endif
         let appleConsentRaw = defaults.string(forKey: Keys.applePCCConsent)
         self.applePCCConsent =
             CloudConsentState(rawValue: appleConsentRaw ?? "") ?? .notDetermined
@@ -404,6 +416,31 @@ final class SettingsStore: ObservableObject {
                 guard let self else { return }
                 self.persistAll()
                 self.applySubject.send()
+            }
+            .store(in: &cancellables)
+
+        $reviewerModeEnabled
+            .dropFirst()
+            .sink { [weak self] _ in
+                self?.sanitizeModelSelectionForPlatform()
+            }
+            .store(in: &cancellables)
+
+#if !DEBUG
+        // Guardrail: ignore any reviewer mode toggles in release builds to keep OpenAI Direct inaccessible.
+        $reviewerModeEnabled
+            .dropFirst()
+            .sink { [weak self] enabled in
+                guard let self, enabled else { return }
+                self.reviewerModeEnabled = false
+            }
+            .store(in: &cancellables)
+#endif
+
+        $openaiAPIKey
+            .dropFirst()
+            .sink { [weak self] _ in
+                self?.sanitizeModelSelectionForPlatform()
             }
             .store(in: &cancellables)
 

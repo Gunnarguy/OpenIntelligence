@@ -220,8 +220,29 @@ class RAGService: ObservableObject {
     @MainActor
     func registerSettingsStore(_ store: SettingsStore) {
         settingsStore = store
-        setCloudConsentState(store.applePCCConsent, for: .applePCC, propagateToSettings: false)
-        setCloudConsentState(store.openAIConsent, for: .openAI, propagateToSettings: false)
+        // Defer sync so SwiftUI finishes its current view update before we publish changes.
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            self.applyInitialCloudConsent(from: store)
+        }
+    }
+
+    @MainActor
+    private func applyInitialCloudConsent(from store: SettingsStore) {
+        if cloudConsent[.applePCC] != store.applePCCConsent {
+            setCloudConsentState(
+                store.applePCCConsent,
+                for: .applePCC,
+                propagateToSettings: false
+            )
+        }
+        if cloudConsent[.openAI] != store.openAIConsent {
+            setCloudConsentState(
+                store.openAIConsent,
+                for: .openAI,
+                propagateToSettings: false
+            )
+        }
     }
 
     @MainActor
