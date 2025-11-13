@@ -454,11 +454,127 @@ struct DeveloperDiagnosticsView: View {
 }
 
 struct AboutSettingsView: View {
+    private struct PricingPlan: Identifiable {
+        let id = UUID()
+        let name: String
+        let price: String
+        let allowances: String
+        let highlights: [String]
+    }
+
+    private var pricingPlans: [PricingPlan] {
+        [
+            .init(
+                name: "Free",
+                price: "$0",
+                allowances: "10 documents · 1 library",
+                highlights: [
+                    "Hybrid retrieval with on-device + PCC models",
+                    "Telemetry consent prompt on first run"
+                ]
+            ),
+            .init(
+                name: "Starter",
+                price: "$2.99/mo",
+                allowances: "40 documents · 3 libraries",
+                highlights: [
+                    "Faster ingestion queue",
+                    "Weekly rerank refresh"
+                ]
+            ),
+            .init(
+                name: "Pro",
+                price: "$8.99/mo or $89/yr",
+                allowances: "Unlimited docs & libraries",
+                highlights: [
+                    "Full hybrid retrieval with MMR tuning",
+                    "Automation hooks & sharing",
+                    "Priority compute lane"
+                ]
+            ),
+            .init(
+                name: "Lifetime",
+                price: "$59–$79 one-time",
+                allowances: "Unlimited on-device usage",
+                highlights: [
+                    "Local inference cartridges included",
+                    "No recurring charges"
+                ]
+            )
+        ]
+    }
+
+    private var supportURL: URL? {
+        URL(string: "https://openintelligence.app/support")
+    }
+
+    private var marketingURL: URL? {
+        URL(string: "https://openintelligence.app")
+    }
+
+    private var privacyURL: URL? {
+        URL(string: "https://openintelligence.app/privacy")
+    }
+
     var body: some View {
         List {
             Section("About") {
-                Text("About and app information.")
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("OpenIntelligence is a privacy-first RAG assistant. All inference stays on-device or within Apple's Private Cloud Compute unless you explicitly connect a reviewer-only provider.")
+                    Text("Version 1.0.0 · Build target iOS 26+")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            Section("Plans & Pricing") {
+                ForEach(pricingPlans) { plan in
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(plan.name)
+                                .font(.headline)
+                            Spacer()
+                            Text(plan.price)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                        Text(plan.allowances)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            ForEach(plan.highlights, id: \.self) { highlight in
+                                Label(highlight, systemImage: "checkmark.seal.fill")
+                                    .labelStyle(.titleAndIcon)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .padding(.vertical, 6)
+                }
+
+                Text("Pricing aligns with current App Store tiers and mirrors the submission collateral in Docs/reference/PRICING_STRATEGY.md. Actual availability may vary by region and promotion.")
+                    .font(.footnote)
                     .foregroundStyle(.secondary)
+            }
+
+            Section("Helpful Links") {
+                if let supportURL {
+                    Link(destination: supportURL) {
+                        Label("Support", systemImage: "lifepreserver")
+                    }
+                }
+                if let marketingURL {
+                    Link(destination: marketingURL) {
+                        Label("Marketing Site", systemImage: "globe")
+                    }
+                }
+                if let privacyURL {
+                    Link(destination: privacyURL) {
+                        Label("Privacy Policy", systemImage: "hand.raised")
+                    }
+                }
             }
         }
         .navigationTitle("About")
