@@ -198,15 +198,12 @@ import Foundation
             switch computePreference {
             case .automatic:
                 parameter.numberOfThreads = nil
-                parameter.options.gpuLayerOverride = nil
             case .gpuPreferred:
                 parameter.numberOfThreads = nil
-                parameter.options.gpuLayerOverride = -1
                 parameter.batch = min(contextTokens, 1024)
                 parameter.options.disableAutoPause = true
             case .cpuOnly:
                 parameter.numberOfThreads = max(1, ProcessInfo.processInfo.processorCount - 1)
-                parameter.options.gpuLayerOverride = 0
                 parameter.batch = min(parameter.batch, 256)
             }
         }
