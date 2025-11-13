@@ -1,41 +1,50 @@
 # OpenIntelligence AI Guide
 
-- **Scope**: Privacy-first iOS 26 RAG app. Pipeline = PDFKit/Vision ingestion → `SemanticChunker` (target 400 · clamp 100–800 · 75 overlap) → `EmbeddingService` (`NLEmbedding` 512-dim, cached norms) → per-container `PersistentVectorDatabase` → hybrid retrieval → streaming LLM.
+- **Scope**: iOS 26 privacy-first RAG app. Documents flow through `DocumentProcessor` → `SemanticChunker` (target 400 · clamp 100–800 · overlap 75) → `EmbeddingService` (NLEmbedding 512-dim with cached norms) → per-container `PersistentVectorDatabase` → `HybridSearchService` (cosine + BM25 via RRF) → streaming `LLMService` with fallbacks.
 
-## Architecture Snapshot
+## Core architecture
 
-- `RAGService` (@MainActor) orchestrates ingestion, hybrid search, tool calls, telemetry. Heavy math (vector search, BM25, MMR, context assembly) runs in `RAGEngine` background actor.
-- Services stay protocol-first: `DocumentProcessor`, `EmbeddingService`, `VectorDatabase`, `HybridSearchService`, `LLMService`. Register concrete implementations through `ContainerService` / `VectorStoreRouter` rather than touching views.
-- Retrieval flow: `QueryEnhancementService` expands prompts, `HybridSearchService` fuses cosine + BM25 via reciprocal-rank fusion, `RAGEngine.applyMMR` diversifies before context build.
-- Model routing lives in `LLMModelType` + `SettingsStore`; fallbacks = Apple Foundation Models (tool-enabled) → `OnDeviceAnalysisService`. GGUF/Core ML cartridges mount via `ModelRegistry`/`ModelManagerView`.
+- `RAGService` (@MainActor) orchestrates ingestion, querying, agent tool calls, and telemetry; CPU-heavy work (MMR, rerank, context assembly, BM25) lives in the `RAGEngine` actor.
+- Services are protocol-first (`DocumentProcessor`, `EmbeddingService`, `VectorDatabase`, `HybridSearchService`, `LLMService`). When swapping implementations, register them via `ContainerService` + `VectorStoreRouter`; SwiftUI views should never know storage details.
+- Knowledge containers (`ContainerService`) track vector DB kind, embedding provider, and stats. Use `VectorStoreRouter.db(for:)` for DB access and call `updateStats` after mutations to keep UI/telemetry accurate.
 
-## Coding Patterns
+## Retrieval details
 
-- Async/await everywhere; keep functions <≈50 lines. UI state updates stay on the main actor (`@Published` in `RAGService`, `@AppStorage` for settings).
-- Use `TelemetryCenter.emit` + `Log.section/info/error`; avoid raw `print` in new code paths.
-- Preallocate collections in hot loops (`reserveCapacity` in chunking/search) and respect cached embedding norms when computing cosine similarity.
-- SwiftUI `onChange` uses the iOS 17 zero-arg form; streaming UI renders the newest 50 messages and prunes >200.
+- `DocumentProcessor` handles PDFKit + Vision OCR, encodings, and chunk metadata; reuse its `ProcessedChunk.metadata` instead of recomputing pages/keywords.
+- Vector search expects 512-dim embeddings. Batch store with `VectorDatabase.storeBatch` so norms/cache stay valid; invalidate hybrid caches when altering stored chunks.
+- `HybridSearchService` limits vector candidates to `topK * 2`, then lets `RAGEngine.reciprocalRankFusion` blend vector and BM25 scores; reserve capacity on arrays when extending loops to avoid allocations.
+- `RAGEngine` already checks `Task.isCancelled` and yields; keep any new loops cooperative and under ≈50 lines.
 
-## Retrieval & Data
+## Concurrency & consent
 
-- `SemanticChunker` exposes diagnostics—update `ChunkingConfig` defaults from there if adjusting overlap/limits.
-- Persistent vectors: `PersistentVectorDatabase` stores JSON per knowledge container; mutate via `VectorStoreRouter` so caches + BM25 snapshots stay in sync.
-- Hybrid search cache: last 20 query results for 5 minutes. Bust cache when mutating embeddings or chunk payloads.
+- UI state (`@Published`, `@AppStorage`) stays on `@MainActor`; spawn CPU-bound work via `Task.detached` or calls into `RAGEngine`.
+- Any cloud-bound model must flow through `ensureCloudConsentIfNeeded` so `CloudConsentDecision` and telemetry (`recordTransmission`) remain consistent.
 
-## Agentic & Models
+## Telemetry, logging, diagnostics
 
-- Apple Foundation Models tools live under `Services/Tools`; each `@Tool` holds a weak reference back to `RAGService` (`RAGToolHandler`). Ensure tool work stays async and off the main actor.
-- When adding an LLM, conform to `LLMService`, wire telemetry metadata, and register inside `RAGService.instantiateService` + fallbacks. Local cartridges must update `ModelRegistry` and set `toolHandler` on activation.
+- Use `TelemetryCenter.emit` for surfaced metrics and `Log.info/warning/error/section` for console output—avoid new `print` statements.
+- Debug retrieval via `TelemetryDashboardView` (latest 50 events) and `RetrievalLogEntry`; keep added telemetry lightweight and structured.
 
-## Build & Validation
+## LLM routing & tools
 
-- Preferred loop: `open OpenIntelligence.xcodeproj` → ⌘B/⌘R on iPhone 17 Pro Max simulator. CLI: `xcodebuild -scheme OpenIntelligence -project OpenIntelligence.xcodeproj -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' build`.
-- If Xcode caches misbehave run `./clean_and_rebuild.sh`.
-- Smoke test: import from `TestDocuments/`, verify Documents overlay, run a chat query (check retrieval telemetry + citations), flip model + fallback toggles in Settings.
+- Extend models by conforming to `LLMService`, wiring telemetry metadata, and registering inside `RAGService.instantiateService` / `buildFallbackChain`. Remember to set `toolHandler` on activation.
+- Agent tools live in `Services/Tools`, keep weak references to `RAGService`, and execute asynchronously off the main actor.
+- Fallback ladder defaults to: selected primary → Apple Foundation Models (tool-enabled) → `OnDeviceAnalysisService`. Update the ladder whenever you add a new implementation.
+
+## SwiftUI patterns
+
+- Chat streams from `RAGService.messages`, trimmed to the latest 50; pruning happens in the service, not the view layer.
+- Settings mutate state through `SettingsStore` (bridged by `registerSettingsStore`); avoid writing defaults directly from views.
+- When touching badges or telemetry views, keep rendering logic declarative and pull data from published properties rather than direct service queries.
+
+## Build, test, validation
+
+- Preferred loop: open `OpenIntelligence.xcodeproj` and run on the iPhone 17 Pro Max simulator (`⌘B` / `⌘R`).
+- CLI build: `xcodebuild -scheme OpenIntelligence -project OpenIntelligence.xcodeproj -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' build`.
+- Reset derived data with `./clean_and_rebuild.sh` if builds get noisy.
+- After major retrieval/model changes, work through `smoke_test.md`: ingest sample docs, issue a chat query, exercise tool calling, and confirm telemetry badges.
 
 ## References
 
-- Deep dives: `Docs/reference/ARCHITECTURE.md`, `PERFORMANCE_OPTIMIZATIONS.md`, `ROADMAP.md`, `IMPLEMENTATION_STATUS.md`.
-- Sample corpora: `TestDocuments/`; telemetry UI under `Views/Telemetry/` for expected metrics.
-
-_Last reviewed: Nov 2025_
+- Architecture + performance: `Docs/reference/ARCHITECTURE.md`, `PERFORMANCE_OPTIMIZATIONS.md`, `ROADMAP.md`, `IMPLEMENTATION_STATUS.md`.
+- Sample corpora live in `TestDocuments/`; telemetry UI components sit under `Views/Telemetry/`.
