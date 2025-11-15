@@ -1747,7 +1747,8 @@ struct PipelineTimelineView: View {
             Stage(id: "query", name: "Query", detail: "Embed the question and expand with heuristics", icon: "magnifyingglass", category: .retrieval),
             Stage(id: "retrieve", name: "Retrieval", detail: "Run hybrid search + MMR diversification", icon: "arrow.down.circle.fill", category: .retrieval),
             Stage(id: "assemble", name: "Assembly", detail: "Build grounded context + metadata bundle", icon: "square.stack.3d.up.fill", category: .retrieval),
-            Stage(id: "generate", name: "Generation", detail: "Stream the answer with citations + tools", icon: "sparkles", category: .generation)
+            Stage(id: "generate", name: "Generation", detail: "Stream the answer with citations + tools", icon: "sparkles", category: .generation),
+            Stage(id: "billing", name: "Billing & Entitlements", detail: "StoreKit purchases, restores, and quota updates", icon: "creditcard.fill", category: .billing)
         ]
     }
 
@@ -1826,6 +1827,7 @@ struct PipelineTimelineView: View {
         case .generation: return .green
         case .storage: return .teal
         case .system: return .gray
+        case .billing: return .mint
         case .error: return .red
         }
     }

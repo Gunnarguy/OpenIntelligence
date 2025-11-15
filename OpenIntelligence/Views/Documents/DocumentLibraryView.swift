@@ -6,9 +6,12 @@
 //
 
 import SwiftUI
+import StoreKit
 import UniformTypeIdentifiers
 
 struct DocumentLibraryView: View {
+    @EnvironmentObject private var onboardingStore: OnboardingStateStore
+    @EnvironmentObject private var entitlementStore: EntitlementStore
     @ObservedObject var ragService: RAGService
     @ObservedObject var containerService: ContainerService
     @State private var showingFilePicker = false
@@ -16,7 +19,18 @@ struct DocumentLibraryView: View {
     @State private var lastProcessedSummary: ProcessingSummary?
     @State private var showingContainerSettings = false
     @State private var showingSemanticSearch = false
+    @State private var isImportingSamples = false
+    @State private var sampleImportError: String?
+    @State private var sampleImportStatusMessage: String?
+    @State private var showingPlanSheet = false
+    @State private var activePaywallEntryPoint: PlanUpgradeEntryPoint = .documents
     let onViewVisualizations: (() -> Void)?
+
+    private var documentLimit: Int { entitlementStore.documentLimit }
+    private var isAtDocumentLimit: Bool {
+        ragService.documents.count >= documentLimit
+    }
+    private var libraryLimit: Int { entitlementStore.libraryLimit }
 
     init(ragService: RAGService, containerService: ContainerService, onViewVisualizations: (() -> Void)? = nil) {
         self._ragService = ObservedObject(wrappedValue: ragService)
@@ -57,14 +71,53 @@ struct DocumentLibraryView: View {
             if filteredDocuments.isEmpty {
                 // Modern empty state
                 VStack(spacing: 12) {
-                    ContainerPickerStrip(containerService: containerService)
+                    ContainerPickerStrip(
+                        containerService: containerService,
+                        allowsCreation: true,
+                        onCreateLibrary: handleNewLibraryTapped
+                    )
                         .padding(.horizontal)
-                    EmptyDocumentsView()
+                    DocumentQuotaBanner(
+                        currentCount: ragService.documents.count,
+                        limit: documentLimit,
+                        tierName: entitlementStore.activeTier.displayName,
+                        addOnPacks: entitlementStore.addOnPacks,
+                        packCap: entitlementStore.documentPackCap,
+                        remainingPackCapacity: entitlementStore.remainingDocumentPackCapacity,
+                        hasReachedPackCap: entitlementStore.hasReachedDocumentPackCap,
+                        onUpgrade: { presentPlanSheet(for: .quotaBanner) }
+                    )
+                    .padding(.horizontal)
+                    EmptyDocumentsView(
+                        isImportingSamples: isImportingSamples,
+                        hasImportedSamples: onboardingStore.hasImportedSamples,
+                        isAtDocumentLimit: isAtDocumentLimit,
+                        documentLimit: documentLimit,
+                        statusMessage: sampleImportStatusMessage,
+                        onImportSamples: importSampleWorkspace,
+                        onPickFiles: presentDocumentPickerOrUpgrade
+                    )
+                    .padding(.horizontal)
                 }
             } else {
                 VStack(spacing: 12) {
-                    ContainerPickerStrip(containerService: containerService)
+                    ContainerPickerStrip(
+                        containerService: containerService,
+                        allowsCreation: true,
+                        onCreateLibrary: handleNewLibraryTapped
+                    )
                         .padding(.horizontal)
+                    DocumentQuotaBanner(
+                        currentCount: ragService.documents.count,
+                        limit: documentLimit,
+                        tierName: entitlementStore.activeTier.displayName,
+                        addOnPacks: entitlementStore.addOnPacks,
+                        packCap: entitlementStore.documentPackCap,
+                        remainingPackCapacity: entitlementStore.remainingDocumentPackCapacity,
+                        hasReachedPackCap: entitlementStore.hasReachedDocumentPackCap,
+                        onUpgrade: { presentPlanSheet(for: .quotaBanner) }
+                    )
+                    .padding(.horizontal)
                     // Document list with modern styling
                     ScrollView {
                     LazyVStack(spacing: 12) {
@@ -91,7 +144,7 @@ struct DocumentLibraryView: View {
         #endif
         .toolbar {
             ToolbarItem(placement: .automatic) {
-                Button(action: { showingFilePicker = true }) {
+                Button(action: presentDocumentPickerOrUpgrade) {
                     Label("Add Document", systemImage: "plus")
                 }
                 .disabled(ragService.isProcessing)
@@ -138,9 +191,17 @@ struct DocumentLibraryView: View {
         }
         .sheet(isPresented: $showingFilePicker) {
             DocumentPicker { url in
-                Task {
-                    try? await ragService.addDocument(at: url)
-                }
+                enqueueDocumentIngestion(at: url)
+            }
+        }
+        .alert("Sample Import Failed", isPresented: Binding(
+            get: { sampleImportError != nil },
+            set: { if !$0 { sampleImportError = nil } }
+        )) {
+            Button("OK", role: .cancel) { sampleImportError = nil }
+        } message: {
+            if let message = sampleImportError {
+                Text(message)
             }
         }
         .alert("Error Processing Document", isPresented: .constant(ragService.lastError != nil)) {
@@ -174,6 +235,97 @@ struct DocumentLibraryView: View {
                 containerService: containerService
             )
         }
+        .sheet(isPresented: $showingPlanSheet) {
+            PlanUpgradeSheet(entryPoint: activePaywallEntryPoint)
+                .environmentObject(entitlementStore)
+        }
+    }
+    /// Launches the file picker if the user still has document quota remaining.
+    @MainActor
+    private func presentDocumentPickerOrUpgrade() {
+        if !entitlementStore.canAddDocument(currentCount: ragService.documents.count) {
+            presentPlanSheet(for: .documentLimit)
+        } else {
+            showingFilePicker = true
+        }
+    }
+
+    /// Ingests a picked document and unlocks the onboarding step once any content exists.
+    private func enqueueDocumentIngestion(at url: URL) {
+        Task {
+            do {
+                try await ragService.addDocument(at: url)
+                await MainActor.run {
+                    onboardingStore.markSamplesImported()
+                }
+            } catch {
+                // Errors are surfaced through ragService.lastError; no extra handling required here.
+            }
+        }
+    }
+
+    /// Imports the curated onboarding workspace so the document list is not empty.
+    @MainActor
+    private func importSampleWorkspace() {
+        guard !isImportingSamples else { return }
+        sampleImportError = nil
+        sampleImportStatusMessage = nil
+
+        let currentCount = ragService.documents.count
+        let sampleCount = SampleDocumentManager.shared.sampleCount
+        let remainingSlots = documentLimit - currentCount
+
+        guard remainingSlots > 0 else {
+            sampleImportStatusMessage =
+                "Current workspace supports up to \(documentLimit) documents. Remove a document or upgrade to import the sample workspace."
+            presentPlanSheet(for: .sampleImport)
+            return
+        }
+
+        guard remainingSlots >= sampleCount else {
+            let needed = sampleCount - remainingSlots
+            sampleImportStatusMessage =
+                "Importing the curated workspace requires \(sampleCount) slots, but only \(remainingSlots) remain. Remove \(needed) document\(needed == 1 ? "" : "s") or upgrade to proceed."
+            presentPlanSheet(for: .sampleImport)
+            return
+        }
+
+        isImportingSamples = true
+
+        Task {
+            defer { isImportingSamples = false }
+            do {
+                try await SampleDocumentManager.shared.importSamples(into: ragService)
+                onboardingStore.markSamplesImported()
+                sampleImportStatusMessage = "Sample workspace imported successfully."
+            } catch {
+                sampleImportError = "Could not import the sample workspace. Please try again."
+            }
+        }
+    }
+
+    @MainActor
+    private func handleNewLibraryTapped() {
+        let currentCount = containerService.containers.count
+        guard entitlementStore.canAddLibrary(currentCount: currentCount) else {
+            presentPlanSheet(for: .libraryCreation)
+            return
+        }
+
+        let newIndex = currentCount + 1
+        let libraryName = "Library \(newIndex)"
+        let newContainer = containerService.createContainer(name: libraryName)
+        containerService.setActive(newContainer.id)
+    }
+
+    @MainActor
+    private func presentPlanSheet(for entryPoint: PlanUpgradeEntryPoint) {
+        activePaywallEntryPoint = entryPoint
+        showingPlanSheet = true
+        TelemetryCenter.emitBillingEvent(
+            "Paywall presented",
+            metadata: ["entryPoint": entryPoint.analyticsValue]
+        )
     }
 }
 
@@ -291,6 +443,14 @@ struct DocumentRow: View {
 // MARK: - Empty State
 
 struct EmptyDocumentsView: View {
+    let isImportingSamples: Bool
+    let hasImportedSamples: Bool
+    let isAtDocumentLimit: Bool
+    let documentLimit: Int
+    let statusMessage: String?
+    let onImportSamples: () -> Void
+    let onPickFiles: () -> Void
+
     var body: some View {
         VStack(spacing: 24) {
             Spacer()
@@ -331,7 +491,50 @@ struct EmptyDocumentsView: View {
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
             }
+
+            if isAtDocumentLimit {
+                Text("You've reached the free workspace limit of \(documentLimit) documents. Remove a document or upgrade to keep importing content.")
+                    .font(.footnote)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal)
+            }
             
+            VStack(spacing: 12) {
+                Button(action: onPickFiles) {
+                    Label("Add Your Documents", systemImage: "tray.and.arrow.down")
+                }
+                .buttonStyle(.borderedProminent)
+
+                Button(action: onImportSamples) {
+                    HStack {
+                        if isImportingSamples {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                        }
+                        Text(hasImportedSamples ? "Re-import Sample Workspace" : "Import Sample Workspace")
+                    }
+                }
+                .buttonStyle(.bordered)
+                .disabled(isImportingSamples)
+
+                if let statusMessage, !statusMessage.isEmpty {
+                    Text(statusMessage)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } else if isAtDocumentLimit {
+                    Text("Upgrade to unlock more slots or clear a few documents to try the curated workspace.")
+                        .font(.footnote)
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Sample documents never leave your device. They simply prime the RAG pipeline so your first chat feels grounded.")
+                        .font(.footnote)
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             // Features
             VStack(alignment: .leading, spacing: 12) {
                 DocumentFeatureRow(
@@ -357,6 +560,86 @@ struct EmptyDocumentsView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+/// Displays document usage versus the free-tier quota and nudges users toward upgrade flows.
+struct DocumentQuotaBanner: View {
+    let currentCount: Int
+    let limit: Int
+    let tierName: String
+    let addOnPacks: Int
+    let packCap: Int
+    let remainingPackCapacity: Int
+    let hasReachedPackCap: Bool
+    let onUpgrade: () -> Void
+
+    private var remaining: Int { max(limit - currentCount, 0) }
+    private var progress: Double {
+        guard limit > 0 else { return 0 }
+        return min(Double(currentCount) / Double(limit), 1)
+    }
+
+    private var addOnSummaryText: String {
+        if addOnPacks == 0 {
+            return "No document packs active. Each pack adds \(QuotaPolicy.addOnDocumentIncrement) more imports."
+        }
+        let bonusDocs = addOnPacks * QuotaPolicy.addOnDocumentIncrement
+        return "Add-on packs: \(addOnPacks)/\(packCap) — \(bonusDocs) extra docs."
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Document Quota")
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                Text("\(currentCount)/\(limit)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            ProgressView(value: progress)
+                .tint(progress >= 1 ? .orange : .accentColor)
+
+            Text(remaining > 0
+                ? "\(remaining) imports left on your \(tierName) plan."
+                : "You've reached the \(tierName) limit. Upgrade to keep adding documents.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    Image(systemName: hasReachedPackCap ? "exclamationmark.triangle.fill" : "shippingbox.fill")
+                        .font(.caption)
+                        .foregroundStyle(hasReachedPackCap ? .orange : .accentColor)
+                    Text(addOnSummaryText)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(hasReachedPackCap ? .orange : .secondary)
+                }
+
+                if hasReachedPackCap {
+                    Text("Maximum \(packCap) document packs active. Remove documents or upgrade tiers to unlock more space." )
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                } else if remainingPackCapacity > 0 {
+                    Text("You can add \(remainingPackCapacity) more pack\(remainingPackCapacity == 1 ? "" : "s") (\(remainingPackCapacity * QuotaPolicy.addOnDocumentIncrement) docs).")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Button(action: onUpgrade) {
+                Label(remaining > 0 ? "Explore Plans" : "See Upgrade Options", systemImage: "arrow.up.forward.app")
+            }
+            .buttonStyle(.bordered)
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color(.systemBackground).opacity(0.9))
+                .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 6)
+        )
     }
 }
 
@@ -387,6 +670,8 @@ struct DocumentFeatureRow: View {
 
 struct ContainerPickerStrip: View {
     @ObservedObject var containerService: ContainerService
+    var allowsCreation: Bool = false
+    var onCreateLibrary: (() -> Void)? = nil
     
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -409,22 +694,23 @@ struct ContainerPickerStrip: View {
                     .buttonStyle(.plain)
                 }
                 
-                Button {
-                    let new = containerService.createContainer(name: "Library \(containerService.containers.count + 1)")
-                    containerService.setActive(new.id)
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "plus")
-                        Text("New Library")
+                if allowsCreation {
+                    Button {
+                        onCreateLibrary?()
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "plus")
+                            Text("New Library")
+                        }
+                        .font(.caption)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(DSColors.surface)
+                        .foregroundColor(.primary)
+                        .clipShape(Capsule())
                     }
-                    .font(.caption)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(DSColors.surface)
-                    .foregroundColor(.primary)
-                    .clipShape(Capsule())
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
             .padding(.vertical, 8)
         }
@@ -1555,5 +1841,30 @@ private struct TechnicalRow: View {
 }
 
 #Preview {
-    DocumentLibraryView(ragService: RAGService(), containerService: ContainerService())
+    let containerService = ContainerService()
+    let billingService = PreviewBillingService()
+    let entitlementStore = EntitlementStore(billingService: billingService)
+    let ragService = RAGService(containerService: containerService, entitlementStore: entitlementStore)
+    return DocumentLibraryView(ragService: ragService, containerService: containerService)
+        .environmentObject(OnboardingStateStore())
+        .environmentObject(entitlementStore)
 }
+
+#if DEBUG
+@MainActor
+private final class PreviewBillingService: BillingService {
+    let events: AsyncStream<BillingEvent>
+
+    init() {
+        events = AsyncStream { continuation in
+            continuation.finish()
+        }
+    }
+
+    func refreshProducts() async {}
+
+    func purchase(_ product: BillingProduct) async throws -> StoreKit.Transaction? { nil }
+
+    func restorePurchases() async {}
+}
+#endif

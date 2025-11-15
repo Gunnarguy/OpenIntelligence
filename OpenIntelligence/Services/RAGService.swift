@@ -33,6 +33,7 @@ class RAGService: ObservableObject {
     private let embeddingService: EmbeddingService
     let containerService: ContainerService
     private let vectorRouter: VectorStoreRouter
+    private weak var entitlementStore: EntitlementStore?
     private var cancellables = Set<AnyCancellable>()
     @MainActor private weak var settingsStore: SettingsStore?
     @MainActor private var pendingConsentContinuation: CheckedContinuation<CloudConsentDecision, Never>?
@@ -107,13 +108,15 @@ class RAGService: ObservableObject {
         vectorDatabase: VectorDatabase? = nil,
         llmService: LLMService? = nil,
         containerService: ContainerService? = nil,
-        vectorRouter: VectorStoreRouter? = nil
+        vectorRouter: VectorStoreRouter? = nil,
+        entitlementStore: EntitlementStore? = nil
     ) {
         self.documentProcessor = documentProcessor ?? DocumentProcessor()
         self.embeddingService = embeddingService ?? EmbeddingService()
         // Container + Vector store routing
         self.containerService = containerService ?? ContainerService()
         self.vectorRouter = vectorRouter ?? VectorStoreRouter()
+        self.entitlementStore = entitlementStore
 
         // Priority order for LLM selection:
         // 1. Custom service provided by caller
@@ -600,6 +603,44 @@ class RAGService: ObservableObject {
     /// This performs the full ingestion pipeline: parse → chunk → embed → store
     func addDocument(at url: URL) async throws {
         let filename = url.lastPathComponent
+        let gating = await MainActor.run { () -> (limit: Int, canAdd: Bool, tier: WorkspaceTier, count: Int) in
+            let count = self.documents.count
+            if let store = self.entitlementStore {
+                return (store.documentLimit, store.canAddDocument(currentCount: count), store.activeTier, count)
+            } else {
+                let limit = QuotaPolicy.documentLimit()
+                return (limit, count < limit, .free, count)
+            }
+        }
+        let documentLimit = gating.limit
+        let currentDocumentCount = gating.count
+        if !gating.canAdd {
+            let quotaError = DocumentQuotaError(limit: documentLimit)
+            await MainActor.run {
+                self.lastError = quotaError.errorDescription
+            }
+            TelemetryCenter.emit(
+                .ingestion,
+                severity: .warning,
+                title: "Document quota reached",
+                metadata: [
+                    "file": filename,
+                    "limit": "\(documentLimit)",
+                    "currentCount": "\(currentDocumentCount)"
+                ]
+            )
+            TelemetryCenter.emitBillingEvent(
+                "Quota hit",
+                severity: .warning,
+                metadata: [
+                    "tier": gating.tier.rawValue,
+                    "limit": "\(documentLimit)",
+                    "currentCount": "\(currentDocumentCount)",
+                    "file": filename
+                ]
+            )
+            throw quotaError
+        }
         let activeContainerId = await MainActor.run { self.containerService.activeContainerId }
         
         // Get the active container to determine which embedding provider to use

@@ -231,6 +231,7 @@ private struct ModernTelemetryCard: View {
         case .generation: return .orange
         case .storage: return .cyan
         case .system: return .gray
+        case .billing: return .pink
         case .error: return .red
         }
     }

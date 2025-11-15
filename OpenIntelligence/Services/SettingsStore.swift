@@ -114,7 +114,7 @@ final class SettingsStore: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private let applySubject = PassthroughSubject<Void, Never>()
     /// Tracks whether the user manually picked a primary model (vs. auto-selection).
-    private var hasUserPrimaryOverride: Bool
+    @Published private(set) var hasUserPrimaryOverride: Bool
     private var isApplyingProgrammaticSelection = false
 
     // MARK: - Model Availability

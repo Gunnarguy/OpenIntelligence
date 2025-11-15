@@ -1,0 +1,144 @@
+{
+  "identifier": "com.openintelligence.storekit",
+  "description": "StoreKit configuration for local testing of OpenIntelligence monetization tiers.",
+  "version": 1,
+  "defaultLocale": "en_US",
+  "products": [
+    {
+      "id": "starter_monthly",
+      "type": "auto-renewable-subscription",
+      "referenceName": "Starter Monthly",
+      "familySharable": false,
+      "price": {
+        "currencyCode": "USD",
+        "value": 2.99
+      },
+      "subscription": {
+        "groupID": "com.openintelligence.subscriptions",
+        "duration": "P1M",
+        "localizations": [
+          {
+            "locale": "en_US",
+            "name": "Starter Monthly",
+            "description": "Unlock 40 documents, 3 libraries, and faster ingestion."
+          }
+        ],
+        "levels": [2]
+      }
+    },
+    {
+      "id": "starter_annual",
+      "type": "auto-renewable-subscription",
+      "referenceName": "Starter Annual",
+      "familySharable": false,
+      "price": {
+        "currencyCode": "USD",
+        "value": 24.99
+      },
+      "subscription": {
+        "groupID": "com.openintelligence.subscriptions",
+        "duration": "P1Y",
+        "localizations": [
+          {
+            "locale": "en_US",
+            "name": "Starter Annual",
+            "description": "Yearly billing for 40 documents, 3 libraries, and faster ingestion."
+          }
+        ],
+        "levels": [2],
+        "introductoryOffer": {
+          "mode": "free",
+          "period": "P7D"
+        }
+      }
+    },
+    {
+      "id": "pro_monthly",
+      "type": "auto-renewable-subscription",
+      "referenceName": "Pro Monthly",
+      "familySharable": false,
+      "price": {
+        "currencyCode": "USD",
+        "value": 8.99
+      },
+      "subscription": {
+        "groupID": "com.openintelligence.subscriptions",
+        "duration": "P1M",
+        "localizations": [
+          {
+            "locale": "en_US",
+            "name": "Pro Monthly",
+            "description": "Unlimited documents, automation hooks, and premium retrieval controls."
+          }
+        ],
+        "levels": [1]
+      }
+    },
+    {
+      "id": "pro_annual",
+      "type": "auto-renewable-subscription",
+      "referenceName": "Pro Annual",
+      "familySharable": false,
+      "price": {
+        "currencyCode": "USD",
+        "value": 89.99
+      },
+      "subscription": {
+        "groupID": "com.openintelligence.subscriptions",
+        "duration": "P1Y",
+        "localizations": [
+          {
+            "locale": "en_US",
+            "name": "Pro Annual",
+            "description": "Annual billing for unlimited documents and pro automation features."
+          }
+        ],
+        "levels": [1],
+        "introductoryOffer": {
+          "mode": "free",
+          "period": "P7D"
+        }
+      }
+    },
+    {
+      "id": "lifetime_cohort",
+      "type": "non-consumable",
+      "referenceName": "Lifetime Cohort",
+      "familySharable": false,
+      "price": {
+        "currencyCode": "USD",
+        "value": 59.99
+      },
+      "localizations": [
+        {
+          "locale": "en_US",
+          "name": "Lifetime Cohort",
+          "description": "One-time unlock for unlimited on-device documents and Core ML cartridges."
+        }
+      ]
+    },
+    {
+      "id": "doc_pack_addon",
+      "type": "consumable",
+      "referenceName": "Document Pack Add-on",
+      "familySharable": false,
+      "price": {
+        "currencyCode": "USD",
+        "value": 4.99
+      },
+      "localizations": [
+        {
+          "locale": "en_US",
+          "name": "Document Pack",
+          "description": "Adds 25 extra documents to your workspace quota."
+        }
+      ]
+    }
+  ],
+  "subscriptionGroups": [
+    {
+      "id": "com.openintelligence.subscriptions",
+      "referenceName": "OpenIntelligence Plans"
+    }
+  ]
+}
