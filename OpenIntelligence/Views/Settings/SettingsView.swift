@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsView: View {
     @ObservedObject var ragService: RAGService
     @EnvironmentObject private var settings: SettingsStore
+    @EnvironmentObject private var entitlementStore: EntitlementStore
     @StateObject private var downloadService = ModelDownloadService.shared
     @StateObject private var modelRegistry = ModelRegistry.shared
 
@@ -15,12 +16,16 @@ struct SettingsView: View {
     @State private var showModelManager = false
     @State private var showModelSelector = false
     @State private var showWhyUnavailable = false
+    @State private var showPlanSheet = false
+    @State private var planEntryPoint: PlanUpgradeEntryPoint = .settings
+    @State private var isRestoringPurchases = false
     @State private var applyTask: Task<Void, Never>? = nil
     @FocusState private var apiKeyFieldFocused: Bool
 
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 20) {
+                billingCard
                 heroCard
                 executionCard
                 cloudConsentCard
@@ -94,6 +99,10 @@ struct SettingsView: View {
         .sheet(isPresented: $showModelSelector) {
             ModelSelectorSheet(ragService: ragService)
         }
+        .sheet(isPresented: $showPlanSheet) {
+            PlanUpgradeSheet(entryPoint: planEntryPoint)
+                .environmentObject(entitlementStore)
+        }
         .sheet(isPresented: $showWhyUnavailable) {
             NavigationStack {
                 ScrollView {
@@ -117,6 +126,70 @@ struct SettingsView: View {
 }
 
 extension SettingsView {
+    @ViewBuilder
+    fileprivate var billingCard: some View {
+        SurfaceCard {
+            SectionHeader(
+                icon: "creditcard",
+                title: "Workspace Plan",
+                caption: "Manage entitlements and quotas"
+            )
+
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(entitlementStore.activeTier.displayName)
+                            .font(.headline)
+                        Text(quotaSummaryText)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    Text("\(ragService.documents.count)/\(entitlementStore.documentLimit) docs")
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.accentColor.opacity(0.1))
+                        .clipShape(Capsule())
+                }
+
+                ProgressView(value: documentUsageProgress)
+                    .tint(documentUsageProgress >= 1 ? .orange : .accentColor)
+
+                Text("Libraries: \(containerServiceSummary)")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+
+            HStack {
+                Button {
+                    presentPlanSheet(from: .settings)
+                } label: {
+                    Label("Manage Plan", systemImage: "arrow.up.forward.app")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+
+                Button {
+                    restorePurchases()
+                } label: {
+                    if isRestoringPurchases {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                    } else {
+                        Label("Restore", systemImage: "arrow.clockwise")
+                    }
+                }
+                .buttonStyle(.bordered)
+                .disabled(isRestoringPurchases)
+            }
+            .controlSize(.small)
+
+            SectionFooter("Use Manage Plan to review upgrades, add-ons, and quota boosts.")
+        }
+    }
+
     @ViewBuilder
     fileprivate var heroCard: some View {
         ZStack(alignment: .leading) {
@@ -1443,6 +1516,42 @@ private enum APIKeyValidationStatus {
         case .valid: return "API key verified."
         case .invalid: return "Could not validate key."
         }
+    }
+
+}
+
+extension SettingsView {
+    @MainActor
+    private func restorePurchases() {
+        guard !isRestoringPurchases else { return }
+        isRestoringPurchases = true
+        Task {
+            await entitlementStore.billingService.restorePurchases()
+            await MainActor.run { self.isRestoringPurchases = false }
+        }
+    }
+
+    private func presentPlanSheet(from entryPoint: PlanUpgradeEntryPoint) {
+        planEntryPoint = entryPoint
+        showPlanSheet = true
+        TelemetryCenter.emitBillingEvent(
+            "Paywall presented",
+            metadata: ["entryPoint": entryPoint.analyticsValue]
+        )
+    }
+
+    private var documentUsageProgress: Double {
+        let limit = max(entitlementStore.documentLimit, 1)
+        return min(Double(ragService.documents.count) / Double(limit), 1)
+    }
+
+    private var quotaSummaryText: String {
+        "Up to \(entitlementStore.documentLimit) documents • \(entitlementStore.libraryLimit) library\(entitlementStore.libraryLimit == 1 ? "" : "ies")"
+    }
+
+    private var containerServiceSummary: String {
+        let active = ragService.containerService.containers.count
+        return "\(active) active / \(entitlementStore.libraryLimit) allowed"
     }
 }
 

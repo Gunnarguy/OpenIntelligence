@@ -37,7 +37,7 @@ enum LoggingConfiguration {
     /// Enable/disable specific logging categories
     static var enabledCategories: Set<Category> = {
         #if DEBUG
-        return [.pipeline, .performance, .llm, .telemetry]  // Enable key categories in debug
+        return [.pipeline, .performance, .llm, .telemetry, .billing]  // Enable key categories in debug
         #else
         return []  // Minimal logging in release
         #endif
@@ -56,6 +56,7 @@ enum LoggingConfiguration {
         case streaming      // Token streaming
         case telemetry      // Telemetry events
         case ui             // UI updates
+        case billing        // StoreKit and entitlement flows
     }
     
     /// Check if logging is enabled for a given level

@@ -6,15 +6,21 @@
 //
 
 import Combine
+import Foundation
 import SwiftUI
 
 // ChatV2 entry point (feature-flagged from ContentView)
+@MainActor
 struct ChatScreen: View {
+    @EnvironmentObject private var onboardingStore: OnboardingStateStore
     @ObservedObject var ragService: RAGService
     @AppStorage("retrievalTopK") private var retrievalTopK: Int = 3
     @State private var showScrollToBottom: Bool = false
     @State private var messages: [ChatMessage] = []
     @State private var streamingText: String = ""
+    @State private var streamingBuffer: String = ""
+    @State private var streamingPumpTask: Task<Void, Never>? = nil
+    @State private var hasReceivedStreamToken: Bool = false
     @State private var generationStart: Date? = nil
     // Per-stage timing
     @State private var embeddingStart: Date? = nil
@@ -99,9 +105,19 @@ struct ChatScreen: View {
 
             Divider()
 
-            MessageListView(messages: $messages)
-                .clipped()
-                .padding(.bottom, DSSpacing.md)
+            if shouldShowFirstQueryHero {
+                FirstQueryPromptView(
+                    hasDocuments: activeDocCount > 0,
+                    prompts: starterPrompts,
+                    onPromptSelected: sendSuggestedPrompt
+                )
+                .padding(.horizontal, DSSpacing.md)
+                .padding(.vertical, DSSpacing.md)
+            } else {
+                MessageListView(messages: $messages)
+                    .clipped()
+                    .padding(.bottom, DSSpacing.md)
+            }
 
             // Streaming row (verbose but clean)
             if isProcessing && !streamingText.isEmpty {
@@ -325,13 +341,26 @@ struct ChatScreen: View {
     }
 
     // MARK: - Send Message
+    private var shouldShowFirstQueryHero: Bool {
+        messages.isEmpty && !onboardingStore.hasAskedFirstQuery
+    }
+
+    private var starterPrompts: [String] {
+        [
+            "Summarize the pricing brief in three customer-ready bullets.",
+            "What architecture choices keep the retrieval engine private?",
+            "Give me launch talking points for the Starter plan.",
+            "List risks reviewers should know before monetization."
+        ]
+    }
+
     private func newChat() {
         messages.removeAll()
         isProcessing = false
         stage = .idle
         execution = .unknown
         ttft = nil
-        streamingText = ""
+        resetStreamingState()
         generationStart = nil
         embeddingStart = nil
         searchingStart = nil
@@ -347,7 +376,7 @@ struct ChatScreen: View {
 
     private func clearChat() {
         messages.removeAll()
-        streamingText = ""
+        resetStreamingState()
         generationStart = nil
         embeddingStart = nil
         searchingStart = nil
@@ -364,6 +393,7 @@ struct ChatScreen: View {
     private func sendMessage(_ text: String) {
         let query = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return }
+        onboardingStore.markAskedFirstQuery()
 
         // Append user message with selected container (override or active)
         var userMessage = ChatMessage(role: .user, content: query)
@@ -388,7 +418,7 @@ struct ChatScreen: View {
         let capturedAllowPCC = allowPrivateCloudCompute
         let capturedService = ragService
         let capturedUsedContainerId = usedContainerId
-        streamingText = ""
+        resetStreamingState()
 
         Task(priority: .userInitiated) {
             do {
@@ -452,9 +482,9 @@ struct ChatScreen: View {
                     streamHandler: { event in
                         await MainActor.run {
                             if event.isFinal {
-                                self.streamingText = ""
-                            } else if !event.text.isEmpty {
-                                self.streamingText.append(event.text)
+                                self.flushStreamingBufferToVisibleText()
+                            } else {
+                                self.enqueueStreamingText(event.text)
                             }
                         }
                     }
@@ -490,7 +520,7 @@ struct ChatScreen: View {
                 assistant.containerId = capturedUsedContainerId
 
                 await MainActor.run {
-                    self.streamingText = ""
+                    self.resetStreamingState()
                     self.messages.append(assistant)
                     self.stage = .complete
                 }
@@ -503,17 +533,22 @@ struct ChatScreen: View {
                     }
                     self.isProcessing = false
                     self.stage = .idle
-                    self.streamingText = ""
+                    self.resetStreamingState()
                     self.generationStart = nil
                 }
             } catch {
                 await MainActor.run {
                     self.isProcessing = false
                     self.stage = .idle
-                    self.streamingText = ""
+                    self.resetStreamingState()
                 }
             }
         }
+    }
+
+    private func sendSuggestedPrompt(_ prompt: String) {
+        DSHaptics.selection()
+        sendMessage(prompt)
     }
 
     // MARK: - Toasts
@@ -521,6 +556,98 @@ struct ChatScreen: View {
     private func pushToast(_ title: String, icon: String, tint: Color) {
         // Toast UI disabled for layout stabilization
         // Intentionally no-op to avoid any overlay/stack interference
+    }
+
+    // MARK: - Streaming Cadence Helpers
+
+    /// Clears any live streaming UI/buffer state (used before/after each query and on cancel).
+    private func resetStreamingState() {
+        streamingPumpTask?.cancel()
+        streamingPumpTask = nil
+        streamingBuffer.removeAll(keepingCapacity: true)
+        streamingText = ""
+        hasReceivedStreamToken = false
+    }
+
+    /// Queues incoming streamed text and starts the drip pump when idle.
+    private func enqueueStreamingText(_ incoming: String) {
+        guard
+            let sanitized = sanitizeStreamChunk(
+                incoming,
+                isFirstChunk: !hasReceivedStreamToken
+            ), !sanitized.isEmpty
+        else { return }
+        streamingBuffer.append(sanitized)
+        hasReceivedStreamToken = true
+        if streamingPumpTask == nil {
+            streamingPumpTask = Task { await pumpStreamingBuffer() }
+        }
+    }
+
+    /// Forces any buffered characters to render immediately (typically when the stream closes).
+    private func flushStreamingBufferToVisibleText() {
+        streamingPumpTask?.cancel()
+        streamingPumpTask = nil
+        guard !streamingBuffer.isEmpty else { return }
+        streamingText.append(streamingBuffer)
+        streamingBuffer.removeAll(keepingCapacity: true)
+    }
+
+    /// Drips buffered characters into the visible text at a steady cadence to avoid bursty dumps.
+    @MainActor
+    private func pumpStreamingBuffer(chunkSize: Int = 18, cadence: UInt64 = 45_000_000) async {
+        defer { streamingPumpTask = nil }
+        while !Task.isCancelled {
+            guard !streamingBuffer.isEmpty else { return }
+            let takeCount = min(chunkSize, streamingBuffer.count)
+            let nextChunk = String(streamingBuffer.prefix(takeCount))
+            streamingBuffer.removeFirst(takeCount)
+            streamingText.append(nextChunk)
+            do {
+                try await Task.sleep(nanoseconds: cadence)
+            } catch {
+                return
+            }
+        }
+    }
+
+    /// Cleans streamed chunks before they reach the UI, stripping stray control characters and the recurring "null -" artifact reported in the stream gutter.
+    private func sanitizeStreamChunk(_ chunk: String, isFirstChunk: Bool) -> String? {
+        guard !chunk.isEmpty else { return nil }
+
+        // Remove null scalars and non-printable control characters while preserving whitespace/newlines for Markdown layout.
+        var cleaned = chunk.replacingOccurrences(of: "\u{0000}", with: "")
+        let disallowedControls = CharacterSet.controlCharacters.subtracting(.whitespacesAndNewlines)
+        if cleaned.rangeOfCharacter(from: disallowedControls) != nil {
+            cleaned = cleaned.components(separatedBy: disallowedControls).joined()
+        }
+
+        guard !cleaned.isEmpty else { return nil }
+
+        if isFirstChunk,
+            let range = cleaned.range(
+                of: #"^\s*(?:null|\(null\))\s*[-–—]\s*"#,
+                options: [.regularExpression, .caseInsensitive]
+            )
+        {
+            let removed = cleaned[range]
+            cleaned = String(cleaned[range.upperBound...])
+            let prefixSample = removed.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !prefixSample.isEmpty {
+                Log.warning(
+                    "Dropped malformed stream prefix: \(prefixSample)",
+                    category: .streaming
+                )
+                TelemetryCenter.emit(
+                    .system,
+                    severity: .warning,
+                    title: "Trimmed malformed stream prefix",
+                    metadata: ["prefix": prefixSample]
+                )
+            }
+        }
+
+        return cleaned.isEmpty ? nil : cleaned
     }
 }
 
@@ -669,6 +796,68 @@ struct MessageListEmptyContent: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 16)
         }
+    }
+}
+
+// MARK: - First-Query Guidance
+
+private struct FirstQueryPromptView: View {
+    let hasDocuments: Bool
+    let prompts: [String]
+    let onPromptSelected: (String) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DSSpacing.md) {
+            HStack(spacing: DSSpacing.sm) {
+                Image(systemName: "sparkles")
+                    .imageScale(.large)
+                    .foregroundStyle(DSColors.accent)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Ask your first grounded question")
+                        .font(DSTypography.title)
+                    Text(hasDocuments
+                        ? "These prompts lean on your imported workspace so you can feel the retrieval stack in action."
+                        : "Import documents from the Documents tab, then try one of these prompts to exercise retrieval.")
+                        .font(DSTypography.body)
+                        .foregroundStyle(DSColors.secondaryText)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: DSSpacing.sm) {
+                ForEach(prompts, id: \.self) { prompt in
+                    Button {
+                        onPromptSelected(prompt)
+                    } label: {
+                        HStack {
+                            Text(prompt)
+                                .font(DSTypography.body)
+                                .multilineTextAlignment(.leading)
+                            Spacer(minLength: DSSpacing.sm)
+                            Image(systemName: "arrow.up.circle.fill")
+                                .foregroundStyle(DSColors.accent)
+                        }
+                        .padding(.vertical, DSSpacing.xs)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, DSSpacing.md)
+                    .padding(.vertical, DSSpacing.sm)
+                    .background(
+                        RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous)
+                            .fill(DSColors.surface)
+                            .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 3)
+                    )
+                }
+            }
+        }
+        .padding(DSSpacing.lg)
+        .background(
+            RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous)
+                .fill(DSColors.surfaceElevated)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: DSCorners.sheet, style: .continuous)
+                .strokeBorder(DSColors.accent.opacity(0.15), lineWidth: 1)
+        )
     }
 }
 

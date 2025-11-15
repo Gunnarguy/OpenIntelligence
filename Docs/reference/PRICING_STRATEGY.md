@@ -31,12 +31,15 @@ Last updated: 2025-11-12
 
 1. **Entitlement model**
    * Define SKU constants (`free`, `starter_monthly`, `pro_monthly`, `pro_annual`, `lifetime_cohort`, `doc_pack_addon`).
+   * ✅ `starter_annual` now active in `StoreKitConfiguration.storekit` at Subscription Tier S15 ($24.99) with 7-day trial metadata.
    * Extend `SettingsStore` to expose plan metadata + remaining document quota for UI.
    * Hook into ingestion pipeline to enforce hard stops at 10/40 docs.
 2. **Paywall + messaging**
    * Build carousel explaining tier outcomes (speed, privacy, collaboration).
    * Add contextual paywall triggers: document quota nearing exhaustion, attempting pro-only rerank, creating >1 library.
    * Include "Refill documents" CTA that deep-links to consumable purchase.
+   * ✅ Paywall hero now includes the three-slide carousel (speed, privacy, collaboration) highlighted in Apple’s IAP guidance.
+   * ✅ Added a dedicated "Refill documents" button on the paywall that purchases the doc-pack consumable without leaving the sheet.
 3. **Billing plumbing**
    * Register StoreKit products + corresponding RevenueCat offerings (native IAP remains primary).
    * Stand up web2app checkout experiment (money-back guarantee for Pro annual).

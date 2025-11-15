@@ -283,6 +283,7 @@ struct LiveTelemetryStatsView: View {
         case .generation: return .red
         case .storage: return .purple
         case .system: return .cyan
+        case .billing: return .mint
         case .error: return .red
         }
     }
