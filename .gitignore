@@ -38,7 +38,7 @@ venv/
 *~
 
 # Test artifacts
-TestDocuments/
+Docs/TestDocuments/
 .coverage
 
 # Local LLM client sources (vendored package, large / generated)

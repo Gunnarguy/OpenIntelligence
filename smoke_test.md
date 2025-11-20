@@ -261,7 +261,7 @@
 **Objective**: Verify document processing pipeline works
 
 1. Navigate to **Documents** tab
-2. Tap "+" button → Select `TestDocuments/sample_technical.md`
+2. Tap "+" button → Select `Docs/TestDocuments/sample_technical.md`
 3. **Verify**:
    - ✅ Processing overlay appears
    - ✅ Progress updates: "Loading" → "Extracting" → "Embedding" → "Storing"
@@ -433,7 +433,7 @@
 **Fix**:
 
 1. Check file picker permissions
-2. Try different document from `TestDocuments/`
+2. Try different document from `Docs/TestDocuments/`
 3. Check console for error details
 
 ### Issue: Streaming not working
