@@ -154,7 +154,7 @@ OpenIntelligence/
 
 ## 🤝 Contributing
 
-We welcome contributions! Please follow these steps:
+Contributions are welcome! Please follow these steps:
 
 1. **Fork & Clone**: Create your own fork of the repository.
 2. **Branch**: Create a feature branch (`git checkout -b feature/amazing-feature`).

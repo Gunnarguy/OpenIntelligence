@@ -1,10 +1,10 @@
 # Contributing to OpenIntelligence
 
-Thank you for your interest in contributing to OpenIntelligence! We aim to build the reference implementation for privacy-first RAG on iOS, and your help is vital.
+Thank you for your interest in contributing to OpenIntelligence! The goal is to build the reference implementation for privacy-first RAG on iOS, and your help is vital.
 
 ## 🌟 The "10x" Standard
 
-We strive for excellence in code quality, architecture, and documentation.
+This project strives for excellence in code quality, architecture, and documentation.
 
 - **Protocol-First**: Always define behavior via protocols before implementation.
 - **Actor Isolation**: Heavy compute goes to `RAGEngine` (actor) or background Tasks.
