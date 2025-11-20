@@ -178,7 +178,19 @@ final class SettingsStore: ObservableObject {
             ordered.append(type)
         }
 
-        primaryModelOptions.forEach { append($0) }
+        // Always prioritize Apple Intelligence first on capable devices
+        if deviceCapabilities.supportsAppleIntelligence || deviceCapabilities.supportsFoundationModels {
+            append(.appleIntelligence)
+        }
+        
+        // Then add other primary options
+        primaryModelOptions.forEach { option in
+            if option != .appleIntelligence {
+                append(option)
+            }
+        }
+        
+        // On-device analysis comes after primary options
         append(.onDeviceAnalysis)
 
         #if os(iOS)
@@ -284,7 +296,12 @@ final class SettingsStore: ObservableObject {
         {
             self.selectedModel = t
         } else {
-            self.selectedModel = .appleIntelligence
+            // Default to Apple Intelligence on capable devices, otherwise On-Device Analysis
+            if deviceCapabilities.supportsAppleIntelligence || deviceCapabilities.supportsFoundationModels {
+                self.selectedModel = .appleIntelligence
+            } else {
+                self.selectedModel = .onDeviceAnalysis
+            }
         }
 
         if let stored = KeychainStorage.string(forKey: Keys.openaiAPIKey), !stored.isEmpty {
@@ -361,12 +378,23 @@ final class SettingsStore: ObservableObject {
         self.hasUserPrimaryOverride =
             defaults.object(forKey: Keys.primaryModelUserOverride) as? Bool ?? false
 
+        // Auto-upgrade from GGUF to Apple Intelligence if device is now capable
+        // (e.g., user upgraded from iPhone 15 to iPhone 16 Pro)
         if selectedModel == .ggufLocal,
             !hasUserPrimaryOverride,
             isPrimarySelectionAvailable(.appleIntelligence)
         {
             setSelectedModelProgrammatically(.appleIntelligence)
         }
+        
+        // Auto-upgrade from On-Device Analysis to Apple Intelligence if device is capable
+        if selectedModel == .onDeviceAnalysis,
+            !hasUserPrimaryOverride,
+            isPrimarySelectionAvailable(.appleIntelligence)
+        {
+            setSelectedModelProgrammatically(.appleIntelligence)
+        }
+        
         sanitizeModelSelectionForPlatform()
         setupPipelines()
         ragService.registerSettingsStore(self)

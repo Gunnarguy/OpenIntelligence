@@ -85,7 +85,8 @@ struct DocumentLibraryView: View {
                         packCap: entitlementStore.documentPackCap,
                         remainingPackCapacity: entitlementStore.remainingDocumentPackCapacity,
                         hasReachedPackCap: entitlementStore.hasReachedDocumentPackCap,
-                        onUpgrade: { presentPlanSheet(for: .quotaBanner) }
+                        onUpgrade: { presentPlanSheet(for: .quotaBanner) },
+                        onRefillPack: refillDocumentPack
                     )
                     .padding(.horizontal)
                     EmptyDocumentsView(
@@ -115,7 +116,8 @@ struct DocumentLibraryView: View {
                         packCap: entitlementStore.documentPackCap,
                         remainingPackCapacity: entitlementStore.remainingDocumentPackCapacity,
                         hasReachedPackCap: entitlementStore.hasReachedDocumentPackCap,
-                        onUpgrade: { presentPlanSheet(for: .quotaBanner) }
+                        onUpgrade: { presentPlanSheet(for: .quotaBanner) },
+                        onRefillPack: refillDocumentPack
                     )
                     .padding(.horizontal)
                     // Document list with modern styling
@@ -326,6 +328,28 @@ struct DocumentLibraryView: View {
             "Paywall presented",
             metadata: ["entryPoint": entryPoint.analyticsValue]
         )
+    }
+
+    @MainActor
+    private func refillDocumentPack() {
+        Task {
+            do {
+                TelemetryCenter.emitBillingEvent(
+                    "Doc pack purchase initiated",
+                    metadata: [
+                        "currentCount": String(ragService.documents.count),
+                        "limit": String(documentLimit)
+                    ]
+                )
+                _ = try await entitlementStore.billingService.purchase(.documentPackAddOn)
+                TelemetryCenter.emitBillingEvent(
+                    "Doc pack purchase succeeded",
+                    metadata: ["packs_active": String(entitlementStore.addOnPacks)]
+                )
+            } catch {
+                // Error handling is managed by EntitlementStore
+            }
+        }
     }
 }
 
@@ -573,12 +597,15 @@ struct DocumentQuotaBanner: View {
     let remainingPackCapacity: Int
     let hasReachedPackCap: Bool
     let onUpgrade: () -> Void
+    var onRefillPack: (() -> Void)? = nil
 
     private var remaining: Int { max(limit - currentCount, 0) }
     private var progress: Double {
         guard limit > 0 else { return 0 }
         return min(Double(currentCount) / Double(limit), 1)
     }
+    private var isNearLimit: Bool { progress >= 0.8 }
+    private var isAtLimit: Bool { progress >= 1.0 }
 
     private var addOnSummaryText: String {
         if addOnPacks == 0 {
@@ -596,17 +623,27 @@ struct DocumentQuotaBanner: View {
                 Spacer()
                 Text("\(currentCount)/\(limit)")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(isAtLimit ? .orange : .secondary)
             }
 
             ProgressView(value: progress)
-                .tint(progress >= 1 ? .orange : .accentColor)
+                .tint(isAtLimit ? .orange : isNearLimit ? .yellow : .accentColor)
 
-            Text(remaining > 0
-                ? "\(remaining) imports left on your \(tierName) plan."
-                : "You've reached the \(tierName) limit. Upgrade to keep adding documents.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 6) {
+                if isAtLimit {
+                    Label("Quota reached! Upgrade or refill to keep importing.", systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.orange)
+                } else if isNearLimit {
+                    Label("Almost full. Reserve your next tier before you hit the wall.", systemImage: "hourglass")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.yellow)
+                } else {
+                    Text("\(remaining) imports left on your \(tierName) plan.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
 
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 6) {
@@ -629,10 +666,42 @@ struct DocumentQuotaBanner: View {
                 }
             }
 
-            Button(action: onUpgrade) {
-                Label(remaining > 0 ? "Explore Plans" : "See Upgrade Options", systemImage: "arrow.up.forward.app")
+            HStack(spacing: 8) {
+                if !hasReachedPackCap, let refillAction = onRefillPack {
+                    Button {
+                        TelemetryCenter.emitBillingEvent(
+                            "Refill CTA tapped",
+                            metadata: [
+                                "currentCount": String(currentCount),
+                                "limit": String(limit),
+                                "progress": String(format: "%.1f", progress * 100)
+                            ]
+                        )
+                        refillAction()
+                    } label: {
+                        Label("Refill +25", systemImage: "plus.rectangle.on.rectangle.fill")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.green)
+                }
+                Button {
+                    TelemetryCenter.emitBillingEvent(
+                        "Quota banner upgrade CTA tapped",
+                        metadata: [
+                            "currentCount": String(currentCount),
+                            "limit": String(limit),
+                            "progress": String(format: "%.1f", progress * 100)
+                        ]
+                    )
+                    onUpgrade()
+                } label: {
+                    Label(isAtLimit ? "Upgrade Now" : "Explore Plans", systemImage: "arrow.up.forward.app")
+                        .font(.caption.weight(.semibold))
+                }
+                .buttonStyle(isAtLimit || isNearLimit ? .borderedProminent : .borderedProminent)
+                .tint(isAtLimit || isNearLimit ? nil : .gray)
             }
-            .buttonStyle(.bordered)
         }
         .padding(16)
         .background(
@@ -640,6 +709,19 @@ struct DocumentQuotaBanner: View {
                 .fill(Color(.systemBackground).opacity(0.9))
                 .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 6)
         )
+        .onAppear {
+            if isAtLimit {
+                TelemetryCenter.emitBillingEvent(
+                    "Quota hit",
+                    severity: .warning,
+                    metadata: [
+                        "tier": tierName,
+                        "limit": String(limit),
+                        "currentCount": String(currentCount)
+                    ]
+                )
+            }
+        }
     }
 }
 

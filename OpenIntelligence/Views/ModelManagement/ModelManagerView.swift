@@ -5,6 +5,7 @@ import SwiftUI
 struct ModelManagerView: View {
     @ObservedObject var ragService: RAGService
     @EnvironmentObject private var settings: SettingsStore
+    @EnvironmentObject private var entitlementStore: EntitlementStore
     @State private var deviceCapabilities = DeviceCapabilities()
     @State private var availableModels: [LLMModel] = []
     @State private var showingCustomModelHelp = false
@@ -150,6 +151,11 @@ struct ModelManagerView: View {
 
     @MainActor
     private func activate(_ model: InstalledModel) async {
+        // Check entitlement before allowing activation
+        guard entitlementStore.canUseLocalModels else {
+            entitlementStore.markPreviewGateTriggered(for: model.backend)
+            return
+        }
         // Drive the shared activation path so telemetry and auto-tune hooks stay consistent.
         await ModelActivationService.activate(model, ragService: ragService, settings: settings)
         refreshAvailableModels()

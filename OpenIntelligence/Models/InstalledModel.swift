@@ -89,9 +89,16 @@ enum ModelRegistryLocations {
 
     static func modelsDirectory() throws -> URL {
         let fm = FileManager.default
-        // Use Documents directory - persists across app reinstalls and rebuilds
+        
+        #if targetEnvironment(simulator)
+        // Simulator: Use Application Support (persists across builds/reinstalls)
+        let base = try fm.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+        let dir = base.appendingPathComponent("Models", isDirectory: true)
+        #else
+        // Device: Use Documents (user-visible, persists across app reinstalls)
         let docs = try fm.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
         let dir = docs.appendingPathComponent("Models", isDirectory: true)
+        #endif
         if !fm.fileExists(atPath: dir.path) {
             try fm.createDirectory(at: dir, withIntermediateDirectories: true)
         }

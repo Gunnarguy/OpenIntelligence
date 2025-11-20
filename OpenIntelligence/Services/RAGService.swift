@@ -14,6 +14,18 @@ import NaturalLanguage
     import FoundationModels
 #endif
 
+enum LocalModelAccessError: LocalizedError {
+    case previewsExhausted
+
+    var errorDescription: String? {
+        "You've used all 3 on-device preview runs. Upgrade to Pro or Lifetime for unlimited private inference."
+    }
+
+    var recoverySuggestion: String? {
+        "Open Settings → Upgrade Plan to continue using GGUF/Core ML locally."
+    }
+}
+
 struct RetrievalLogEntry: Identifiable, Sendable {
     let id = UUID()
     let timestamp: Date
@@ -138,7 +150,10 @@ class RAGService: ObservableObject {
                 category: .initialization)
 
             // Try to instantiate the user's selected model first
-            let primaryService = Self.instantiateService(for: selectedModelRaw)
+            let primaryService = Self.instantiateService(
+                for: selectedModelRaw,
+                entitlementStore: entitlementStore
+            )
             var fallbackServices = Self.buildFallbackChain(excluding: selectedModelRaw)
 
             let resolvedService: LLMService
@@ -354,9 +369,13 @@ class RAGService: ObservableObject {
         service: LLMService,
         prompt: String,
         context: String?,
-        sourceChunks: [DocumentChunk]
+        sourceChunks: [DocumentChunk],
+        allowPrivateCloudCompute: Bool
     ) async throws {
         guard let provider = cloudProvider(for: service) else { return }
+        if !allowPrivateCloudCompute && provider == .applePCC {
+            return  // User blocked PCC; don't prompt for consent we won't use
+        }
         let record = makeTransmissionRecord(
             provider: provider,
             modelName: service.modelName,
@@ -858,8 +877,8 @@ class RAGService: ObservableObject {
                 filename: filename,
                 fileSize: fileSizeStr,
                 documentType: document.contentType,
-                pageCount: nil,  // TODO: Extract from DocumentProcessor
-                ocrPagesUsed: nil,  // TODO: Extract from DocumentProcessor
+                pageCount: document.processingMetadata?.pagesProcessed,
+                ocrPagesUsed: document.processingMetadata?.ocrPagesCount,
                 totalChars: totalChars,
                 totalWords: totalWords,
                 chunksCreated: processedChunks.count,
@@ -2148,19 +2167,23 @@ class RAGService: ObservableObject {
         config: InferenceConfig,
         sourceChunks: [DocumentChunk] = []
     ) async throws -> LLMResponse {
+        let (primaryTicket, primaryBackend) = try preparePreviewTicketIfNeeded(for: _llmService)
+
         // Try primary first
         do {
             try await ensureCloudConsentIfNeeded(
                 service: _llmService,
                 prompt: prompt,
                 context: context,
-                sourceChunks: sourceChunks
+                sourceChunks: sourceChunks,
+                allowPrivateCloudCompute: config.allowPrivateCloudCompute
             )
             let response = try await _llmService.generate(
                 prompt: prompt,
                 context: context,
                 config: config
             )
+            consumePreviewIfNeeded(ticket: primaryTicket, backend: primaryBackend)
             if LLMStreamingContext.handler != nil {
                 LLMStreamingContext.emit(text: "", isFinal: true)
             }
@@ -2190,17 +2213,21 @@ class RAGService: ObservableObject {
                     "Attempting fallback #\(index + 1): \(fallbackService.modelName)",
                     category: .llm)
                 do {
+                    let (fallbackTicket, fallbackBackend) =
+                        try preparePreviewTicketIfNeeded(for: fallbackService)
                     try await ensureCloudConsentIfNeeded(
                         service: fallbackService,
                         prompt: prompt,
                         context: context,
-                        sourceChunks: sourceChunks
+                        sourceChunks: sourceChunks,
+                        allowPrivateCloudCompute: config.allowPrivateCloudCompute
                     )
                     let response = try await fallbackService.generate(
                         prompt: prompt,
                         context: context,
                         config: config
                     )
+                    consumePreviewIfNeeded(ticket: fallbackTicket, backend: fallbackBackend)
                     Log.info(
                         "✓ Fallback #\(index + 1) succeeded: \(fallbackService.modelName)",
                         category: .llm)
@@ -2231,8 +2258,60 @@ class RAGService: ObservableObject {
 
     // MARK: - Private Helpers
 
+    private func preparePreviewTicketIfNeeded(for service: LLMService) throws
+        -> (LocalModelPreviewTicket?, ModelBackend?)
+    {
+        guard let backend = localBackend(for: service) else { return (nil, nil) }
+        guard let store = entitlementStore else { return (nil, backend) }
+        guard let ticket = store.issueLocalModelPreviewTicket() else {
+            store.markPreviewGateTriggered(for: backend)
+            throw LocalModelAccessError.previewsExhausted
+        }
+        return (ticket, backend)
+    }
+
+    private func consumePreviewIfNeeded(
+        ticket: LocalModelPreviewTicket?,
+        backend: ModelBackend?
+    ) {
+        guard let backend else { return }
+        let remaining = entitlementStore?.consumeLocalModelPreviewIfNeeded(
+            ticket: ticket,
+            backend: backend
+        )
+        if let remaining, remaining == 0 {
+            handlePreviewExhaustion()
+        }
+    }
+
+    private func localBackend(for service: LLMService) -> ModelBackend? {
+        switch service {
+        case is LlamaCPPiOSLLMService:
+            return .gguf
+        case is CoreMLLLMService:
+            return .coreML
+        default:
+            return nil
+        }
+    }
+
+    private func handlePreviewExhaustion() {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            if settingsStore?.selectedModel == .ggufLocal
+                || settingsStore?.selectedModel == .coreMLLocal
+            {
+                settingsStore?.selectedModel = .onDeviceAnalysis
+            }
+            lastError = LocalModelAccessError.previewsExhausted.errorDescription
+        }
+    }
+
     /// Returns a configured service for the given settings key, if available.
-    private static func instantiateService(for modelKey: String) -> LLMService? {
+    private static func instantiateService(
+        for modelKey: String,
+        entitlementStore: EntitlementStore?
+    ) -> LLMService? {
         switch modelKey {
         case "openai":
             #if os(macOS)
@@ -2309,28 +2388,32 @@ class RAGService: ObservableObject {
             return OnDeviceAnalysisService()
         case "mlx_local":
             #if os(macOS)
-                let model = UserDefaults.standard.string(forKey: "mlxModel") ?? "local-mlx-model"
-                let stream = UserDefaults.standard.bool(forKey: "mlxStream")
-                if let base = UserDefaults.standard.string(forKey: "mlxBaseURL"),
-                    let url = URL(string: base)
-                {
-                    Log.info(
-                        "✓ Using MLX Local: \(base) [model=\(model), stream=\(stream)]",
+                if let store = entitlementStore, !store.canUseLocalModels {
+                    Log.warning(
+                        "MLX Local requires Pro or Lifetime tier (current: \(store.activeTier.rawValue))",
                         category: .initialization)
-                    return MLXPresetLLMService(baseURL: url, model: model, stream: stream)
-                } else if let defaultURL = URL(string: "http://127.0.0.1:17860") {
-                    Log.info(
-                        "✓ Using MLX Local (default): \(defaultURL.absoluteString) [model=\(model), stream=\(stream)]",
-                        category: .initialization)
-                    return MLXPresetLLMService(baseURL: defaultURL, model: model, stream: stream)
+                    store.markPreviewGateTriggered(for: .mlx)
+                    return nil
                 }
-                return nil
+                Log.info("✓ Using MLX Local (default presets)", category: .initialization)
+                return MLXLocalLLMService()
             #else
                 Log.warning(
                     "MLX Local presets are only available on macOS", category: .initialization)
                 return nil
             #endif
         case "coreml_local":
+            // Enforce tier gating for Core ML (Lifetime/Pro required)
+            if let store = entitlementStore, !store.activeTier.isAtLeast(.lifetime) {
+                Log.warning(
+                    "Core ML Local requires Lifetime or Pro tier (current: \(store.activeTier.rawValue))",
+                    category: .initialization)
+                TelemetryCenter.emitBillingEvent(
+                    "Local model blocked at service init",
+                    metadata: ["tier": store.activeTier.rawValue, "type": "coreml"]
+                )
+                return nil
+            }
             if let coreMLService = CoreMLLLMService.loadFromDefaults() {
                 Log.info(
                     "✓ Using Core ML Local: \(coreMLService.modelName)", category: .initialization)
@@ -2360,6 +2443,13 @@ class RAGService: ObservableObject {
             #endif
         case "gguf_local":
             #if os(iOS)
+                if let store = entitlementStore, !store.canUseLocalModels {
+                    Log.warning(
+                        "GGUF Local requires Pro or Lifetime tier (current: \(store.activeTier.rawValue))",
+                        category: .initialization)
+                    store.markPreviewGateTriggered(for: .gguf)
+                    return nil
+                }
                 guard LlamaCPPiOSLLMService.runtimeAvailable else {
                     Log.warning(
                         "GGUF runtime not bundled; unable to activate immediately",

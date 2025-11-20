@@ -17,6 +17,17 @@ final class StoreKitBillingService: BillingService {
             streamContinuation = continuation
         }
         self.continuation = streamContinuation
+        
+        #if DEBUG
+        // Enable StoreKit testing mode with local configuration file
+        if let configURL = Bundle.main.url(forResource: "StoreKitConfiguration", withExtension: "storekit") {
+            Log.info("✅ StoreKit test configuration found at: \(configURL.path)", category: .billing)
+            // Note: Configuration file must also be set in scheme's StoreKit Configuration option
+        } else {
+            Log.warning("⚠️ StoreKit test configuration not found - products may be unavailable", category: .billing)
+        }
+        #endif
+        
         updatesTask = Task { [weak self] in await self?.listenForTransactions() }
         Task { await refreshProducts() }
     }

@@ -74,6 +74,30 @@ struct AboutView: View {
                             LabeledContent("Optimized for", value: "iOS 26.0+")
                         }
                     }
+
+                    // Contact & Support
+                    SurfaceCard {
+                        SectionHeader(icon: "envelope.fill", title: "Contact & Support")
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Need help or have feedback? Get in touch:")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            
+                            Button {
+                                openEmail()
+                            } label: {
+                                HStack {
+                                    Label("Gunnarguy@me.com", systemImage: "envelope.fill")
+                                        .font(.subheadline.weight(.semibold))
+                                    Spacer()
+                                    Image(systemName: "arrow.up.forward")
+                                        .font(.caption)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(Color.accentColor)
+                        }
+                    }
                 }
                 .padding(16)
             }
@@ -95,6 +119,16 @@ struct AboutView: View {
             Spacer()
             Image(systemName: condition ? "checkmark.circle.fill" : "xmark.circle.fill")
                 .foregroundColor(condition ? .green : .secondary)
+        }
+    }
+
+    private func openEmail() {
+        if let url = URL(string: "mailto:Gunnarguy@me.com?subject=OpenIntelligence%20Feedback") {
+            #if os(iOS)
+            UIApplication.shared.open(url)
+            #elseif os(macOS)
+            NSWorkspace.shared.open(url)
+            #endif
         }
     }
 }

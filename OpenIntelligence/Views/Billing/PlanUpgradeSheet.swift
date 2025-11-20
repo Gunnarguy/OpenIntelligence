@@ -12,13 +12,15 @@ struct PlanUpgradeSheet: View {
     @State private var alertMessage: String?
     @State private var isRestoring = false
     @State private var selectedStoryIndex = 0
+    @State private var showingTerms = false
+    @State private var showingPrivacy = false
 
     private let tierOptions: [PlanTierOption] = [
         PlanTierOption(
             tier: .starter,
             product: .starterMonthly,
-            tagline: "Personal workspace",
-            badgeText: "Best for pilots",
+            tagline: "Essential workspace for pilots",
+            badgeText: "Best for trying",
             tint: .blue,
             isFeatured: false,
             alternateBillingProduct: .starterAnnual,
@@ -26,43 +28,45 @@ struct PlanUpgradeSheet: View {
             features: [
                 "40 documents & 3 libraries",
                 "Weekly rerank refresh",
+                "Faster ingestion priority",
                 "Telemetry dashboard access"
             ]
         ),
         PlanTierOption(
             tier: .pro,
-            product: .proMonthly,
-            tagline: "Full research scale",
-            badgeText: "Most popular",
+            product: .proAnnual,
+            tagline: "Full research scale, unlimited capacity",
+            badgeText: "Best Value",
             tint: .purple,
             isFeatured: true,
-            alternateBillingProduct: .proAnnual,
-            alternatePriceSuffix: "/ yr · 2 months free",
+            alternateBillingProduct: .proMonthly,
+            alternatePriceSuffix: "/ mo if billed monthly",
             features: [
-                "Unlimited documents",
-                "Up to 10 libraries",
-                "Automation + tool calling"
+                "Unlimited documents & 10 libraries",
+                "Automation hooks + tool calling",
+                "Priority ingestion & support",
+                "Advanced retrieval controls"
             ]
         )
     ]
 
     private let storySlides: [PlanStorySlide] = [
         PlanStorySlide(
-            title: "Stay fast",
-            subtitle: "Starter bumps ingestion priority so new PDFs process in seconds, not minutes.",
+            title: "Ship faster",
+            subtitle: "Starter and Pro bump ingestion priority. New PDFs process in seconds—not minutes—so you stay in flow.",
             icon: "bolt.fill",
             tint: .orange
         ),
         PlanStorySlide(
-            title: "Keep it private",
-            subtitle: "All plans keep knowledge on-device or Apple PCC – never OpenAI unless reviewer mode.",
-            icon: "lock.shield",
+            title: "Privacy guarantee",
+            subtitle: "All tiers keep knowledge on-device or Apple PCC—zero third-party AI sharing. Your IP stays yours.",
+            icon: "lock.shield.fill",
             tint: .teal
         ),
         PlanStorySlide(
-            title: "Scale together",
-            subtitle: "Pro unlocks automation hooks, tool calling, and up to 10 libraries for teams.",
-            icon: "person.3.sequence",
+            title: "Scale without friction",
+            subtitle: "Pro unlocks automation hooks, tool calling, and up to 10 libraries so teams can collaborate seamlessly.",
+            icon: "person.3.sequence.fill",
             tint: .purple
         )
     ]
@@ -72,6 +76,8 @@ struct PlanUpgradeSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     heroSection
+                    socialProofBanner
+                    whyUpgradeNowSection
                     storyCarousel
                     if shouldShowRefillQuickAction {
                         refillQuickAction
@@ -82,6 +88,7 @@ struct PlanUpgradeSheet: View {
                     }
 
                     addOnCard
+                    multiDocumentTip
                     managementControls
                     complianceFooter
                 }
@@ -114,6 +121,21 @@ struct PlanUpgradeSheet: View {
                 Text(alertMessage)
             }
         }
+        .sheet(isPresented: $showingTerms) {
+            TermsOfServiceView()
+        }
+        .sheet(isPresented: $showingPrivacy) {
+            PrivacyPolicyView()
+        }
+        .onAppear {
+            TelemetryCenter.emitBillingEvent(
+                "Paywall viewed",
+                metadata: [
+                    "entryPoint": entryPoint.analyticsValue,
+                    "currentTier": entitlementStore.activeTier.rawValue
+                ]
+            )
+        }
     }
 }
 
@@ -127,13 +149,49 @@ private extension PlanUpgradeSheet {
             Text(entryPoint.subheadline)
                 .font(.body)
                 .foregroundStyle(.secondary)
-            Label("Current plan: \(entitlementStore.activeTier.displayName)", systemImage: "creditcard")
-                .font(.caption.weight(.semibold))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(Color.accentColor.opacity(0.1))
-                .clipShape(Capsule())
+            HStack {
+                Label("Current plan: \(entitlementStore.activeTier.displayName)", systemImage: "creditcard")
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color.accentColor.opacity(0.1))
+                    .clipShape(Capsule())
+                Spacer()
+            }
         }
+    }
+
+    var socialProofBanner: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "person.3.fill")
+                .foregroundStyle(.purple)
+            Text("2,431 researchers upgraded this month")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.purple.opacity(0.08))
+        )
+    }
+
+    var whyUpgradeNowSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Why upgrade now?")
+                .font(.headline)
+            VStack(alignment: .leading, spacing: 8) {
+                BenefitRow(icon: "bolt.fill", text: "Faster ingestion", tint: .orange)
+                BenefitRow(icon: "square.stack.3d.up.fill", text: "More libraries", tint: .blue)
+                BenefitRow(icon: "headphones", text: "Priority support", tint: .purple)
+            }
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(DSColors.surface.opacity(0.6))
+        )
     }
 
     func tierCard(for option: PlanTierOption) -> some View {
@@ -286,6 +344,27 @@ private extension PlanUpgradeSheet {
         )
     }
 
+    var multiDocumentTip: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "rectangle.stack.badge.person.crop")
+                .font(.title3)
+                .foregroundStyle(Color.accentColor)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Built for personal research")
+                    .font(.subheadline.weight(.semibold))
+                Text("Spin up as many document chats as you need—no team contract or sales call required.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.accentColor.opacity(0.08))
+        )
+    }
+
     var managementControls: some View {
         VStack(spacing: 12) {
             Button(action: manageSubscriptions) {
@@ -314,9 +393,9 @@ private extension PlanUpgradeSheet {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             HStack(spacing: 16) {
-                Link("Terms of Use", destination: URL(string: "https://openintelligence.ai/terms")!)
+                Button("Terms of Use") { showingTerms = true }
                     .font(.caption.weight(.semibold))
-                Link("Privacy Policy", destination: URL(string: "https://openintelligence.ai/privacy")!)
+                Button("Privacy Policy") { showingPrivacy = true }
                     .font(.caption.weight(.semibold))
             }
         }
@@ -335,9 +414,9 @@ private extension PlanUpgradeSheet {
         case .starterMonthly: return "$2.99"
         case .starterAnnual: return "$24.99"
         case .proMonthly: return "$8.99"
-        case .proAnnual: return "$82.99"
-        case .lifetimeCohort: return "$249.00"
-        case .documentPackAddOn: return "$1.99"
+        case .proAnnual: return "$89.99"
+        case .lifetimeCohort: return "$59.99"
+        case .documentPackAddOn: return "$4.99"
         }
     }
 
@@ -443,9 +522,11 @@ private struct PlanTierCard: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(option.tier.displayName)
                         .font(.headline)
+                        .dynamicTypeSize(...DynamicTypeSize.accessibility2)
                     Text(option.tagline)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
+                        .dynamicTypeSize(...DynamicTypeSize.accessibility2)
                 }
                 Spacer()
                 if option.isFeatured {
@@ -455,16 +536,21 @@ private struct PlanTierCard: View {
                         .padding(.vertical, 4)
                         .background(option.tint.opacity(0.15))
                         .clipShape(Capsule())
+                        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
                 }
             }
 
             Text(price + (option.product.kind == .subscription ? " / mo" : ""))
                 .font(.title.bold())
+                .minimumScaleFactor(0.7)
+                .lineLimit(1)
+                .dynamicTypeSize(...DynamicTypeSize.accessibility2)
 
             if let alternatePriceDescription {
                 Text(alternatePriceDescription)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
+                    .dynamicTypeSize(...DynamicTypeSize.accessibility2)
             }
 
             VStack(alignment: .leading, spacing: 6) {
@@ -472,6 +558,7 @@ private struct PlanTierCard: View {
                     Label(feature, systemImage: "checkmark.circle.fill")
                         .foregroundStyle(.secondary)
                         .font(.footnote.weight(.semibold))
+                        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
                 }
             }
 
@@ -484,6 +571,10 @@ private struct PlanTierCard: View {
                 .fill(DSColors.surface)
                 .shadow(color: option.isFeatured ? option.tint.opacity(0.2) : .clear, radius: 20, x: 0, y: 10)
         )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(option.tier.displayName) plan")
+        .accessibilityValue("\(price). \(option.tagline)")
+        .accessibilityHint(hasAccess ? "Currently active" : "Double tap to purchase")
     }
 }
 
@@ -524,4 +615,20 @@ private struct PlanStorySlide: Identifiable {
     let subtitle: String
     let icon: String
     let tint: Color
+}
+
+private struct BenefitRow: View {
+    let icon: String
+    let text: String
+    let tint: Color
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .foregroundStyle(tint)
+                .frame(width: 24)
+            Text(text)
+                .font(.subheadline)
+        }
+    }
 }
