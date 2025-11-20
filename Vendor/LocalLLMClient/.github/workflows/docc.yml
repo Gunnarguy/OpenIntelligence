@@ -1,0 +1,55 @@
+name: Generate and Deploy DocC
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  generate-docc:
+    runs-on: macos-15
+    env:
+      DEVELOPER_DIR: "/Applications/Xcode_16.4.app/Contents/Developer"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Build DocC
+        run: |
+          BUILD_DOCC=1 swift package --allow-writing-to-directory \
+            ./docs generate-documentation --output-path ./docs \
+            --enable-experimental-combined-documentation \
+            --enable-experimental-external-link-support \
+            --hosting-base-path "LocalLLMClient" \
+            --transform-for-static-hosting \
+            --target LocalLLMClient --target LocalLLMClientMLX \
+            --target LocalLLMClientUtility --target LocalLLMClientLlama
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: "./docs"
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: generate-docc
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -41,5 +41,3 @@ venv/
 Docs/TestDocuments/
 .coverage
 
-# Local LLM client sources (vendored package, large / generated)
-Vendor/LocalLLMClient/
