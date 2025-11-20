@@ -14,6 +14,9 @@ import UIKit
 #if canImport(AppKit)
 import AppKit
 #endif
+#if canImport(CoreHaptics)
+import CoreHaptics
+#endif
 
 // MARK: - Colors (Semantic)
 
@@ -183,25 +186,56 @@ public extension View {
 // MARK: - Haptics (safe, no-op on macOS)
 
 public enum DSHaptics {
+    #if canImport(UIKit)
+    private static let isHapticCapable: Bool = {
+        #if targetEnvironment(simulator)
+        return false
+        #else
+        if #available(iOS 14.0, *) {
+            if ProcessInfo.processInfo.isiOSAppOnMac { return false }
+        }
+        #if canImport(CoreHaptics)
+        if #available(iOS 13.0, *) {
+            return CHHapticEngine.capabilitiesForHardware().supportsHaptics
+        }
+        #endif
+        return true
+        #endif
+    }()
+
+    private static func perform(_ action: () -> Void) {
+        guard isHapticCapable else { return }
+        action()
+    }
+    #endif
+
     public static func selection() {
         #if canImport(UIKit)
-        let gen = UISelectionFeedbackGenerator()
-        gen.prepare()
-        gen.selectionChanged()
+        perform {
+            let gen = UISelectionFeedbackGenerator()
+            gen.prepare()
+            gen.selectionChanged()
+        }
         #endif
     }
+
     public static func success() {
         #if canImport(UIKit)
-        let gen = UINotificationFeedbackGenerator()
-        gen.prepare()
-        gen.notificationOccurred(.success)
+        perform {
+            let gen = UINotificationFeedbackGenerator()
+            gen.prepare()
+            gen.notificationOccurred(.success)
+        }
         #endif
     }
+
     public static func warning() {
         #if canImport(UIKit)
-        let gen = UINotificationFeedbackGenerator()
-        gen.prepare()
-        gen.notificationOccurred(.warning)
+        perform {
+            let gen = UINotificationFeedbackGenerator()
+            gen.prepare()
+            gen.notificationOccurred(.warning)
+        }
         #endif
     }
 }

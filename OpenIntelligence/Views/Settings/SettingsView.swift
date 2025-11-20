@@ -25,18 +25,25 @@ struct SettingsView: View {
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 20) {
-                billingCard
                 heroCard
+                billingCard
+                
+                // Core Intelligence Settings
+                modelSelectionCard
                 executionCard
                 cloudConsentCard
-                modelSelectionCard
                 fallbackCard
+                
+                // Advanced Controls
+                generationCard
+                retrievalCard
                 pipelineCard
+                
                 #if os(macOS)
                     openAICard
                 #endif
-                generationCard
-                retrievalCard
+                
+                // App Management
                 downloadsCard
                 developerCard
                 aboutCard
@@ -95,9 +102,11 @@ struct SettingsView: View {
         #endif
         .sheet(isPresented: $showModelManager) {
             ModelManagerSheet(ragService: ragService)
+                .environmentObject(entitlementStore)
         }
         .sheet(isPresented: $showModelSelector) {
             ModelSelectorSheet(ragService: ragService)
+                .environmentObject(entitlementStore)
         }
         .sheet(isPresented: $showPlanSheet) {
             PlanUpgradeSheet(entryPoint: planEntryPoint)
@@ -183,8 +192,19 @@ extension SettingsView {
                 }
                 .buttonStyle(.bordered)
                 .disabled(isRestoringPurchases)
+                
+                Button {
+                    openContactSupport()
+                } label: {
+                    Image(systemName: "envelope")
+                }
+                .buttonStyle(.bordered)
             }
             .controlSize(.small)
+
+            Text("Designed for solo researchers who need to chat with piles of documents—no enterprise contract required.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
 
             SectionFooter("Use Manage Plan to review upgrades, add-ons, and quota boosts.")
         }
@@ -492,9 +512,22 @@ extension SettingsView {
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
-        Text(localModelStatusText)
-            .font(.caption)
-            .foregroundColor(.secondary)
+        
+        let accessState = entitlementStore.localModelAccessState()
+        if case .blocked = accessState {
+            Button {
+                presentPlanSheet(from: .localModelGated)
+            } label: {
+                Text(localModelStatusText)
+                    .font(.caption)
+                    .foregroundColor(.orange)
+            }
+            .buttonStyle(.plain)
+        } else {
+            Text(localModelStatusText)
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
     }
 
     @ViewBuilder
@@ -596,13 +629,28 @@ extension SettingsView {
     }
 
     private var localModelStatusText: String {
+        let base: String
         if let active = activeLocalModel {
-            return "Currently using \(active.name) for offline inference."
+            base = "Currently using \(active.name) for offline inference."
+        } else if installedLocalModels.isEmpty {
+            base = "Install a GGUF or Core ML pack to unlock on-device responses."
+        } else {
+            base = "Tap a local model below to activate it for offline chat."
         }
-        if installedLocalModels.isEmpty {
-            return "Install a GGUF or Core ML pack to unlock on-device responses."
+
+        let accessSuffix: String
+        switch entitlementStore.localModelAccessState() {
+        case .unlocked:
+            accessSuffix = "Unlocked with the \(entitlementStore.activeTier.displayName) plan."
+        case .preview(let remaining):
+            let total = max(entitlementStore.localModelPreviewTotal, max(remaining, 3))
+            let plural = remaining == 1 ? "run" : "runs"
+            accessSuffix = "⚡ Preview mode: \(remaining)/\(total) \(plural) left. Upgrade for unlimited access."
+        case .blocked:
+            accessSuffix = "🔒 Preview exhausted. Tap to upgrade for unlimited private inference."
         }
-        return "Tap a local model below to activate it for offline chat."
+
+        return base + " " + accessSuffix
     }
 
     private var computePreferenceSummary: String {
@@ -610,7 +658,11 @@ extension SettingsView {
     }
 
     private func activateLocalModel(_ model: InstalledModel) {
-        guard canActivateInstalledModel(model) else { return }
+        guard canActivateInstalledModel(model) else {
+            presentPlanSheet(from: .localModelGated)
+            entitlementStore.markPreviewGateTriggered(for: model.backend)
+            return
+        }
         Task {
             await ModelActivationService.activate(
                 model, ragService: ragService, settings: settings)
@@ -862,6 +914,18 @@ extension SettingsView {
             } label: {
                 Label("Developer Settings", systemImage: "hammer.fill")
             }
+            
+            Toggle(isOn: $settings.reviewerModeEnabled) {
+                Label("Reviewer Mode", systemImage: "checklist")
+            }
+            .tint(.purple)
+            
+            if settings.reviewerModeEnabled {
+                Text("Reviewer mode enables direct OpenAI API access for App Review testing. Disable for production use.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 4)
+            }
         }
     }
 
@@ -1019,7 +1083,8 @@ extension SettingsView {
 
     fileprivate func canActivateInstalledModel(_ model: InstalledModel) -> Bool {
         guard let url = model.localURL else { return false }
-        return FileManager.default.fileExists(atPath: url.path)
+        guard FileManager.default.fileExists(atPath: url.path) else { return false }
+        return entitlementStore.canUseLocalModels
     }
 
     fileprivate func isActiveInstalledModel(_ model: InstalledModel) -> Bool {
@@ -1311,11 +1376,25 @@ extension SettingsView {
             return OnDeviceAnalysisService()
         case .ggufLocal:
             #if os(iOS)
+                guard entitlementStore.canUseLocalModels else {
+                    await MainActor.run {
+                        presentPlanSheet(from: .localModelGated)
+                        entitlementStore.markPreviewGateTriggered(for: .gguf)
+                    }
+                    return nil
+                }
                 return await MainActor.run { LlamaCPPiOSLLMService.fromRegistry() }
             #else
                 return nil
             #endif
         case .coreMLLocal:
+            guard entitlementStore.canUseLocalModels else {
+                await MainActor.run {
+                    presentPlanSheet(from: .localModelGated)
+                    entitlementStore.markPreviewGateTriggered(for: .coreML)
+                }
+                return nil
+            }
             return await CoreMLLLMService.fromRegistry()
         }
     }
@@ -1538,6 +1617,22 @@ extension SettingsView {
             "Paywall presented",
             metadata: ["entryPoint": entryPoint.analyticsValue]
         )
+    }
+
+    private func openContactSupport() {
+        TelemetryCenter.emitBillingEvent(
+            "Contact support CTA tapped",
+            metadata: ["source": "settings"]
+        )
+        if let encoded = "mailto:Gunnarguy@me.com?subject=OpenIntelligence%20Support&body=Please%20describe%20your%20issue%20or%20question:%0A%0A"
+            .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+           let url = URL(string: encoded) {
+            #if os(iOS)
+            UIApplication.shared.open(url)
+            #elseif os(macOS)
+            NSWorkspace.shared.open(url)
+            #endif
+        }
     }
 
     private var documentUsageProgress: Double {

@@ -122,6 +122,7 @@ struct ContentView: View {
                 .navigationViewStyle(.stack)
             #endif
             .environmentObject(settingsStore)
+            .environmentObject(entitlementStore)
             .tabItem {
                 Label("Settings", systemImage: "gearshape")
             }

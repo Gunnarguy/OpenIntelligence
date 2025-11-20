@@ -11,11 +11,13 @@ struct ModelSelectorSheet: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject var ragService: RAGService
     @EnvironmentObject private var settings: SettingsStore
+    @EnvironmentObject private var entitlementStore: EntitlementStore
     @StateObject private var modelRegistry = ModelRegistry.shared
     @State private var selectedFilter: ModelFilter = .all
     @State private var showComparison = false
     @State private var previewModel: LLMModelType?
     @State private var deviceCapabilities = DeviceCapabilities()
+    @State private var showPaywall = false
 
     enum ModelFilter: String, CaseIterable {
         case all = "All"
@@ -75,6 +77,11 @@ struct ModelSelectorSheet: View {
                     onActivate: {
                         activateModel(modelType)
                     })
+            }
+            .sheet(isPresented: $showPaywall) {
+                PlanUpgradeSheet(
+                    entryPoint: .localModelGated
+                )
             }
             .onAppear {
                 deviceCapabilities = RAGService.checkDeviceCapabilities()
@@ -153,6 +160,7 @@ struct ModelSelectorSheet: View {
                         GGUFModelCard(
                             model: model,
                             isActive: isActiveGGUF(model),
+                            isLocked: !entitlementStore.canUseLocalModels,
                             formatBytes: formatBytes
                         ) {
                             activateGGUFModel(model)
@@ -170,6 +178,7 @@ struct ModelSelectorSheet: View {
                         CoreMLModelCard(
                             model: model,
                             isActive: isActiveCoreML(model),
+                            isLocked: !entitlementStore.canUseLocalModels,
                             formatBytes: formatBytes
                         ) {
                             activateCoreMLModel(model)
@@ -287,6 +296,11 @@ struct ModelSelectorSheet: View {
     }
 
     private func activateGGUFModel(_ model: InstalledModel) {
+        guard entitlementStore.canUseLocalModels else {
+            entitlementStore.markPreviewGateTriggered(for: .gguf)
+            showPaywall = true
+            return
+        }
         Task {
             await ModelActivationService.activate(model, ragService: ragService, settings: settings)
             await MainActor.run {
@@ -297,6 +311,11 @@ struct ModelSelectorSheet: View {
     }
 
     private func activateCoreMLModel(_ model: InstalledModel) {
+        guard entitlementStore.canUseLocalModels else {
+            entitlementStore.markPreviewGateTriggered(for: .coreML)
+            showPaywall = true
+            return
+        }
         Task {
             await ModelActivationService.activate(model, ragService: ragService, settings: settings)
             await MainActor.run {
@@ -415,6 +434,7 @@ private struct ModelCategorySection<Content: View>: View {
 private struct GGUFModelCard: View {
     let model: InstalledModel
     let isActive: Bool
+    let isLocked: Bool
     let formatBytes: (Int64?) -> String
     let onActivate: () -> Void
     let onPreview: () -> Void
@@ -430,6 +450,15 @@ private struct GGUFModelCard: View {
                     Image(systemName: "doc.badge.gearshape")
                         .font(.title2)
                         .foregroundColor(isActive ? .green : .accentColor)
+                    if isLocked {
+                        Image(systemName: "lock.fill")
+                            .font(.caption)
+                            .foregroundColor(.white)
+                            .padding(4)
+                            .background(Color.red)
+                            .clipShape(Circle())
+                            .offset(x: 16, y: -16)
+                    }
                 }
 
                 // Info
@@ -488,6 +517,7 @@ private struct GGUFModelCard: View {
 private struct CoreMLModelCard: View {
     let model: InstalledModel
     let isActive: Bool
+    let isLocked: Bool
     let formatBytes: (Int64?) -> String
     let onActivate: () -> Void
     let onPreview: () -> Void
@@ -502,6 +532,15 @@ private struct CoreMLModelCard: View {
                     Image(systemName: "cpu")
                         .font(.title2)
                         .foregroundColor(isActive ? .purple : .purple.opacity(0.8))
+                    if isLocked {
+                        Image(systemName: "lock.fill")
+                            .font(.caption)
+                            .foregroundColor(.white)
+                            .padding(4)
+                            .background(Color.red)
+                            .clipShape(Circle())
+                            .offset(x: 16, y: -16)
+                    }
                 }
 
                 VStack(alignment: .leading, spacing: 6) {

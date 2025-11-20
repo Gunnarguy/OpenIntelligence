@@ -4,6 +4,7 @@ import SwiftUI
 /// Redesigned to avoid cramped overlaps on smaller devices while keeping the checklist actionable.
 struct OnboardingChecklistView: View {
     @EnvironmentObject private var onboardingStore: OnboardingStateStore
+    @EnvironmentObject private var entitlementStore: EntitlementStore
     @ObservedObject var ragService: RAGService
     let onOpenSettings: () -> Void
     let onOpenChat: () -> Void
@@ -61,6 +62,19 @@ struct OnboardingChecklistView: View {
                         .padding(.vertical, 6)
                         .background(Color.white.opacity(0.12), in: Capsule())
                         .foregroundColor(.white)
+                    if case let .preview(remaining) = entitlementStore.localModelAccessState(),
+                        entitlementStore.localModelPreviewTotal > 0
+                    {
+                        Label(
+                            "On-device preview runs: \(remaining)/\(entitlementStore.localModelPreviewTotal)",
+                            systemImage: "bolt.badge.a"
+                        )
+                        .font(.caption2.weight(.semibold))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Color.white.opacity(0.16), in: Capsule())
+                        .foregroundColor(.white.opacity(0.9))
+                    }
                     Text("Welcome to OpenIntelligence")
                         .font(.title2.bold())
                         .foregroundStyle(Color.white)
@@ -209,7 +223,7 @@ struct OnboardingChecklistView: View {
             ChecklistStep(
                 kind: .pickModel,
                 title: "Pick your default model",
-                caption: "Visit Settings → Models so routing knows whether to stay on-device or use Apple PCC.",
+                caption: pickModelCaption,
                 systemImage: "slider.horizontal.3",
                 isComplete: onboardingStore.hasAcknowledgedModelSelection,
                 actionTitle: onboardingStore.hasAcknowledgedModelSelection ? nil : "Open Settings",
@@ -236,6 +250,18 @@ struct OnboardingChecklistView: View {
     private var progressFraction: Double {
         guard !steps.isEmpty else { return 0 }
         return Double(completedStepCount) / Double(steps.count)
+    }
+
+    private var pickModelCaption: String {
+        switch entitlementStore.localModelAccessState() {
+        case .unlocked:
+            return "Visit Settings → Models so routing knows whether to stay on-device or use Apple PCC."
+        case .preview(let remaining):
+            let total = entitlementStore.localModelPreviewTotal
+            return "Visit Settings → Models to spend your \(remaining)/\(total) on-device preview runs before upgrading."
+        case .blocked:
+            return "Preview complete — upgrade in Settings to keep GGUF/Core ML responses fully local."
+        }
     }
 
     private var primaryButtonTitle: String {

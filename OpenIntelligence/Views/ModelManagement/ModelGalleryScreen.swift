@@ -5,10 +5,13 @@
 //  Clean model download gallery
 //
 
+import Combine
 import SwiftUI
 
+@MainActor
 struct ModelGalleryScreen: View {
     @ObservedObject var ragService: RAGService
+    @EnvironmentObject private var entitlementStore: EntitlementStore
     @StateObject private var downloadService = ModelDownloadService.shared
     @Environment(\.dismiss) private var dismiss
 
@@ -67,6 +70,8 @@ struct ModelGalleryScreen: View {
 struct ModelCatalogRowClean: View {
     let entry: ModelCatalogEntry
     @ObservedObject var downloadService: ModelDownloadService
+    @EnvironmentObject private var entitlementStore: EntitlementStore
+    @State private var showPaywall = false
 
     private var downloadState: DownloadState? {
         downloadService.downloads[entry.id]
@@ -137,6 +142,11 @@ struct ModelCatalogRowClean: View {
                     ProgressView()
                 } else {
                     Button {
+                        guard entitlementStore.canUseLocalModels else {
+                            showPaywall = true
+                            entitlementStore.markPreviewGateTriggered(for: entry.backend)
+                            return
+                        }
                         downloadService.download(entry: entry)
                     } label: {
                         Image(systemName: "arrow.down.circle.fill")
@@ -154,6 +164,10 @@ struct ModelCatalogRowClean: View {
             }
         }
         .padding(.vertical, 4)
+        .sheet(isPresented: $showPaywall) {
+            PlanUpgradeSheet(entryPoint: .localModelGated)
+                .environmentObject(entitlementStore)
+        }
     }
 }
 

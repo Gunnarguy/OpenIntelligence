@@ -38,7 +38,7 @@ Last updated: November 2025
 ## Private Cloud Compute & Export Compliance
 
 - Apple PCC sessions are end-to-end encrypted with cryptographic deletion after response completion.
-- App declares `ITSAppUsesNonExemptEncryption=true` in Info.plist. No additional export compliance documentation is necessary.
+- App declares `ITSAppUsesNonExemptEncryption=false` in Info.plist. The app uses only standard encryption (HTTPS/TLS) provided by the operating system, which is exempt from export compliance documentation.
 
 ## Contact
 

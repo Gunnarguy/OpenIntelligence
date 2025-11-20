@@ -199,37 +199,53 @@ struct ChatScreen: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Button {
+                            guard !isProcessing else { return }
                             newChat()
                         } label: {
                             Label("New Chat", systemImage: "square.and.pencil")
                         }
+                        .disabled(messages.isEmpty)
+                        
                         Button(role: .destructive) {
+                            guard !isProcessing else { return }
                             clearChat()
                         } label: {
                             Label("Clear Chat", systemImage: "trash")
                         }
+                        .disabled(messages.isEmpty)
                     } label: {
                         Image(systemName: "ellipsis.circle")
                             .imageScale(.large)
+                            .opacity(messages.isEmpty ? 0.5 : 1.0)
                     }
+                    .disabled(messages.isEmpty)
+                    .animation(nil, value: messages.count)
                 }
             #else
                 ToolbarItem {
                     Menu {
                         Button {
+                            guard !isProcessing else { return }
                             newChat()
                         } label: {
                             Label("New Chat", systemImage: "square.and.pencil")
                         }
+                        .disabled(messages.isEmpty)
+                        
                         Button(role: .destructive) {
+                            guard !isProcessing else { return }
                             clearChat()
                         } label: {
                             Label("Clear Chat", systemImage: "trash")
                         }
+                        .disabled(messages.isEmpty)
                     } label: {
                         Image(systemName: "ellipsis.circle")
                             .imageScale(.large)
+                            .opacity(messages.isEmpty ? 0.5 : 1.0)
                     }
+                    .disabled(messages.isEmpty)
+                    .animation(nil, value: messages.count)
                 }
             #endif
         }
@@ -355,12 +371,18 @@ struct ChatScreen: View {
     }
 
     private func newChat() {
+        print("🔄 [ChatScreen] New chat initiated")
+        
+        // Cancel any in-flight processing
+        if isProcessing {
+            resetStreamingState()
+            isProcessing = false
+        }
+        
         messages.removeAll()
-        isProcessing = false
         stage = .idle
         execution = .unknown
         ttft = nil
-        resetStreamingState()
         generationStart = nil
         embeddingStart = nil
         searchingStart = nil
@@ -375,8 +397,16 @@ struct ChatScreen: View {
     }
 
     private func clearChat() {
+        print("🗑️ [ChatScreen] Clear chat initiated")
+        
+        // Cancel any in-flight processing
+        if isProcessing {
+            resetStreamingState()
+            isProcessing = false
+        }
+        
         messages.removeAll()
-        resetStreamingState()
+        stage = .idle
         generationStart = nil
         embeddingStart = nil
         searchingStart = nil
@@ -393,6 +423,13 @@ struct ChatScreen: View {
     private func sendMessage(_ text: String) {
         let query = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return }
+        
+        // Prevent concurrent queries
+        guard !isProcessing else {
+            print("⚠️ [ChatScreen] Query already in progress, ignoring new request")
+            return
+        }
+        
         onboardingStore.markAskedFirstQuery()
 
         // Append user message with selected container (override or active)
@@ -421,6 +458,16 @@ struct ChatScreen: View {
         resetStreamingState()
 
         Task(priority: .userInitiated) {
+            // Guarantee cleanup even on cancellation or error
+            defer {
+                Task { @MainActor in
+                    self.isProcessing = false
+                    if self.stage == .generating || self.stage == .searching || self.stage == .embedding {
+                        self.stage = .idle
+                    }
+                }
+            }
+            
             do {
                 // Clarify the user's query using Writing Tools if available (improves retrieval quality)
                 var capturedQuery = query
@@ -520,7 +567,8 @@ struct ChatScreen: View {
                 assistant.containerId = capturedUsedContainerId
 
                 await MainActor.run {
-                    self.resetStreamingState()
+                    // flushStreamingBufferToVisibleText already handled cleanup when isFinal arrived
+                    // No need to reset again here - would race with final flush
                     self.messages.append(assistant)
                     self.stage = .complete
                 }
@@ -531,16 +579,22 @@ struct ChatScreen: View {
                     if let genStart = self.generatingStartTS {
                         self.generatingElapsedFinal = Date().timeIntervalSince(genStart)
                     }
-                    self.isProcessing = false
                     self.stage = .idle
-                    self.resetStreamingState()
+                    self.resetStreamingState()  // Final cleanup after everything settles
                     self.generationStart = nil
                 }
             } catch {
+                print("❌ [ChatScreen] Query failed: \(error.localizedDescription)")
                 await MainActor.run {
-                    self.isProcessing = false
                     self.stage = .idle
                     self.resetStreamingState()
+                    
+                    // Add error message to chat
+                    let errorMsg = ChatMessage(
+                        role: .assistant,
+                        content: "Sorry, I encountered an error: \(error.localizedDescription)\n\nPlease try again."
+                    )
+                    self.messages.append(errorMsg)
                 }
             }
         }
@@ -580,6 +634,7 @@ struct ChatScreen: View {
         streamingBuffer.append(sanitized)
         hasReceivedStreamToken = true
         if streamingPumpTask == nil {
+            print("🚰 [Streaming] Starting pump (buffer=\(streamingBuffer.count) chars)")
             streamingPumpTask = Task { await pumpStreamingBuffer() }
         }
     }
@@ -595,14 +650,28 @@ struct ChatScreen: View {
 
     /// Drips buffered characters into the visible text at a steady cadence to avoid bursty dumps.
     @MainActor
-    private func pumpStreamingBuffer(chunkSize: Int = 18, cadence: UInt64 = 45_000_000) async {
-        defer { streamingPumpTask = nil }
+    private func pumpStreamingBuffer(chunkSize: Int = 50, cadence: UInt64 = 80_000_000) async {
+        defer {
+            print("🚰 [Streaming] Pump stopped (remaining buffer=\(streamingBuffer.count) chars)")
+            streamingPumpTask = nil
+        }
+        var pumpedCount = 0
         while !Task.isCancelled {
             guard !streamingBuffer.isEmpty else { return }
             let takeCount = min(chunkSize, streamingBuffer.count)
             let nextChunk = String(streamingBuffer.prefix(takeCount))
             streamingBuffer.removeFirst(takeCount)
-            streamingText.append(nextChunk)
+            pumpedCount += 1
+            
+            // Force immediate UI update with explicit animation
+            withAnimation(.linear(duration: 0.04)) {
+                streamingText.append(nextChunk)
+            }
+            
+            if pumpedCount % 5 == 0 {
+                print("🚰 [Streaming] Pumped \(pumpedCount) chunks (\(streamingText.count) visible chars, \(streamingBuffer.count) buffered)")
+            }
+            
             do {
                 try await Task.sleep(nanoseconds: cadence)
             } catch {

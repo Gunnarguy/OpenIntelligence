@@ -8,19 +8,188 @@
 
 ## Pre-Test Setup
 
-1. **Build & Run**
+1. **Clean Install Simulation**
+
+   ```bash
+   # Reset app state for first-run testing
+   defaults delete com.openintelligence.OpenIntelligence 2>/dev/null || true
+   rm -rf ~/Library/Developer/CoreSimulator/Devices/*/data/Containers/Data/Application/*/Library/Preferences/com.openintelligence.OpenIntelligence.plist 2>/dev/null || true
+   ```
+
+2. **Build & Run**
 
    ```bash
    open OpenIntelligence.xcodeproj
    # ⌘R on iPhone 17 Pro Max simulator
    ```
 
-2. **Check Build Output**
+3. **Check Build Output**
    - ✅ Zero errors, zero warnings
    - ✅ App launches successfully
    - ✅ No crash on startup
 
-## Release Gate Validation (Reviewer Mode Lockout)
+## Test 0: Onboarding Checklist (3 min)
+
+**Objective**: Verify first-run onboarding flow works correctly
+
+**Prerequisites**: Clean install (see Pre-Test Setup)
+
+1. **Launch app** → Onboarding checklist should appear automatically
+2. **Verify Checklist UI**:
+   - ✅ Hero section shows "Welcome to OpenIntelligence"
+   - ✅ Progress card shows "0/3 complete"
+   - ✅ Three steps visible: Import Samples, Pick Model, First Question
+   - ✅ Each step shows incomplete status
+
+3. **Step 1: Import Sample Workspace**
+   - Tap "Import Now" button
+   - **Verify**:
+     - ✅ Progress indicator appears: "Importing sample workspace…"
+     - ✅ Console shows: `[DocumentProcessor] Processing document: Sample-Pricing-Brief...`
+     - ✅ Console shows: `[DocumentProcessor] Processing document: Sample-Technical-Overview...`
+     - ✅ Step 1 marked complete (checkmark badge)
+     - ✅ Progress updates to "1/3 complete"
+     - ✅ Two documents now visible in Documents tab
+
+4. **Step 2: Pick a Model**
+   - Tap "Open Settings" button
+   - Select a primary model (e.g., "Apple Intelligence" or "On-Device Analysis")
+   - Return to onboarding
+   - **Verify**:
+     - ✅ Step 2 marked complete
+     - ✅ Progress updates to "2/3 complete"
+
+5. **Step 3: Ask First Question**
+   - Tap "Go to Chat" button
+   - Type: `"What documents were imported?"`
+   - Send query
+   - **Verify**:
+     - ✅ Response mentions "Sample Pricing Brief" or "Sample Technical Overview"
+     - ✅ Step 3 marked complete
+     - ✅ Progress shows "3/3 complete"
+     - ✅ Checklist auto-dismisses
+
+6. **Verify Persistence**
+   - Quit app (⌘Q)
+   - Relaunch
+   - **Verify**:
+     - ✅ Onboarding checklist does NOT reappear
+     - ✅ Sample documents still present in Documents tab
+     - ✅ `UserDefaults` key `onboarding.hasCompleted` is `true`
+
+**Expected Console Output**:
+
+```text
+📄 [DocumentProcessor] Processing document: Sample-Pricing-Brief-<UUID>.md
+   ✓ Extracted 450 characters (85 words)
+   ✓ Created 2 semantic chunks
+📄 [DocumentProcessor] Processing document: Sample-Technical-Overview-<UUID>.md
+   ✓ Extracted 2100 characters (380 words)
+   ✓ Created 8 semantic chunks
+[OnboardingStateStore] Samples imported, marking complete
+[OnboardingStateStore] All steps complete, dismissing checklist
+```
+
+---
+
+## Test 0.5: Accessibility Validation (5 min)
+
+**Objective**: Verify VoiceOver, Dynamic Type, and High Contrast compliance
+
+**Prerequisites**: iOS Simulator with accessibility features enabled
+
+### A. VoiceOver Testing
+
+1. **Enable VoiceOver**:
+   - Simulator → Settings → Accessibility → VoiceOver → Toggle ON
+   - Or use keyboard shortcut: ⌘-Shift-V (toggle)
+
+2. **Navigate Paywall** (Settings → Billing → Upgrade Plan):
+   - Swipe right through tier cards
+   - **Verify**:
+     - ✅ Each tier announces: "{Plan} plan. {Price}. {Tagline}. {Status/Hint}"
+     - ✅ Example: "Starter plan. $2.99 per month. Essential workspace for pilots. Double tap to purchase"
+     - ✅ Current plan announces: "Pro plan. $8.99 per month. Unlimited RAG workspace. Currently active"
+   - Swipe to footer links (Terms, Privacy)
+   - **Verify**:
+     - ✅ Links announce as buttons with clear labels: "View Terms of Service", "View Privacy Policy"
+
+3. **Navigate Terms/Privacy Views**:
+   - Open Terms of Service
+   - **Verify**:
+     - ✅ Sections announce with headers: "1. Acceptance of Terms"
+     - ✅ Body text reads smoothly without skipping paragraphs
+     - ✅ Close button announces: "Close terms of service. Button"
+   - Return and open Privacy Policy
+   - **Verify same structure**
+
+4. **Disable VoiceOver**: ⌘-Shift-V
+
+### B. Dynamic Type Testing
+
+1. **Increase Font Size**:
+   - Simulator → Settings → Accessibility → Display & Text Size → Larger Text
+   - Drag slider to "Accessibility XXL" (maximum)
+
+2. **Check Paywall Layout**:
+   - Navigate to Settings → Billing → Upgrade Plan
+   - **Verify**:
+     - ✅ Tier card text scales but doesn't overflow
+     - ✅ Price labels scale with `.minimumScaleFactor(0.7)` preventing cutoff
+     - ✅ Feature list remains readable at large sizes
+     - ✅ No text truncation (...) in critical UI
+
+3. **Check Legal Views**:
+   - Open Terms of Service
+   - **Verify**:
+     - ✅ Section headers scale up to Accessibility 3
+     - ✅ Body text remains readable without horizontal scrolling
+     - ✅ All content accessible via vertical scroll
+   - Return and check Privacy Policy
+
+4. **Reset Font Size**: Settings → Display & Text Size → Default
+
+### C. High Contrast Mode
+
+1. **Enable High Contrast**:
+   - Simulator → Settings → Accessibility → Display & Text Size → Increase Contrast → Toggle ON
+
+2. **Verify Color Contrast**:
+   - Navigate to paywall
+   - **Verify**:
+     - ✅ Text-on-background contrast ≥ 7:1 (WCAG AAA)
+     - ✅ Featured tier badge remains visible
+     - ✅ Shadows don't disappear (featured tier glow)
+     - ✅ Secondary text readable against `.surface` backgrounds
+
+3. **Check Interactive Elements**:
+   - **Verify**:
+     - ✅ Buttons have clear borders/backgrounds
+     - ✅ Disabled state visually distinct from active
+     - ✅ Links underlined or clearly differentiated
+
+4. **Disable High Contrast**: Settings → Display & Text Size → Increase Contrast → Toggle OFF
+
+### D. Color Blindness Simulation (Optional)
+
+1. **Enable Color Filters** (protanopia simulation):
+   - Settings → Accessibility → Display & Text Size → Color Filters → Enable
+   - Select "Protanopia" (red-green colorblindness)
+
+2. **Verify Information Not Conveyed by Color Alone**:
+   - Paywall tier badges use text labels ("Best Value", "Most Popular")
+   - Purchase state uses icons + text ("Current Plan", "Upgrade")
+   - **Verify**: ✅ All states distinguishable without color perception
+
+**Expected Telemetry** (Console):
+
+```text
+📊 [TelemetryCenter] Billing event: paywall_viewed (entry_point: settings)
+📊 [TelemetryCenter] Billing event: Terms viewed
+📊 [TelemetryCenter] Billing event: Privacy policy viewed
+```
+
+---
 
 1. **Verify hidden OpenAI settings**
    - Open **Settings** on a _release-signed_ build (Debug builds may expose reviewer mode).
@@ -32,6 +201,58 @@
    - Primary and fallback model lists must never include `.openAIDirect` when the app is built for the App Store.
 4. **Consent defaults**
    - In Settings > Execution & Privacy, verify OpenAI consent reads **Denied** (or **Not Determined**) and cannot be flipped to **Allowed** in production builds.
+
+---
+
+## Test 0.8: Local Model Preview Funnel (4 min)
+
+**Objective**: Verify the three-run local-model preview, gating copy, and telemetry.
+
+**Prerequisites**: Clean install, tier = Free/Starter, no GGUF/Core ML models enabled.
+
+1. **Attempt to enable GGUF/Core ML model**
+   - Go to **Settings → Intelligence Pipeline** and pick a GGUF/Core ML backend.
+   - **Verify**:
+     - ✅ Banner shows "3 preview runs remaining" chip.
+     - ✅ `PlanUpgradeSheet` logs entry point `localModelGated` (only when previews are gone).
+
+2. **Run three local queries**
+      - Install/import a GGUF model if needed from Model Manager.
+      - In **Chat**, send a short prompt ("Summarize the sample workspace") three times.
+      - **Verify Telemetry** (Console):
+
+         ```text
+         📊 [TelemetryCenter] Billing event: preview_model_used (remaining: 2)
+         📊 [TelemetryCenter] Billing event: preview_model_used (remaining: 1)
+         📊 [TelemetryCenter] Billing event: preview_model_used (remaining: 0)
+         📊 [TelemetryCenter] Billing event: preview_exhausted
+         ```
+
+3. **Observe gating state**
+   - Fourth attempt to select GGUF/Core ML should show "Upgrade to unlock unlimited private inference" CTA.
+   - **Verify**:
+     - ✅ `LocalModelAccessState` = `.blocked` (Settings disables toggle, triggers plan sheet).
+     - ✅ Telemetry emits `preview_gate_triggered` with backend metadata.
+
+4. **Upgrade to Starter/Pro via paywall (simulated)**
+   - Trigger paywall (use Manage Plan → Starter Monthly in StoreKit Test).
+   - Complete purchase to move to Starter/Pro.
+   - **Verify**:
+     - ✅ Telemetry log: `preview_to_paid (preview_runs: 3, product: starter_monthly)`.
+     - ✅ `localModelPreviewRemaining` resets to 0 (Pro unlocks unlimited access).
+
+5. **Regression**: Try another GGUF run post-upgrade
+   - Should succeed without consuming tickets or showing gating banners.
+
+**Expected Console Output**:
+
+```text
+🧪 [RAGService] Local preview ticket issued (remaining: 2)
+🧪 [RAGService] Preview ticket consumed (remaining: 1)
+⚠️ [TelemetryCenter] Billing event: preview_exhausted
+⚠️ [TelemetryCenter] Billing event: preview_gate_triggered
+🎉 [TelemetryCenter] Billing event: preview_to_paid (product: pro_monthly)
+```
 
 ---
 
@@ -183,6 +404,7 @@
 
 ## Success Criteria
 
+✅ **Onboarding checklist completes successfully**  
 ✅ **All 6 core tests pass**  
 ✅ **No crashes or errors**  
 ✅ **Badges display correctly**  

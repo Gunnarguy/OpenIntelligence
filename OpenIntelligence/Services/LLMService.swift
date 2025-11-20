@@ -224,22 +224,30 @@ struct LLMResponse {
         }
 
         var isAvailable: Bool {
-            // Quick check without accessing the model
-            // This prevents crashes during init when called from background thread
-            guard Thread.isMainThread else {
+            #if targetEnvironment(simulator)
+                // Foundation Models + PCC are not available inside the simulator runtime
                 print(
-                    "⚠️  AppleFoundationLLMService.isAvailable checked from background thread - returning false"
+                    "⚠️  AppleFoundationLLMService unavailable on Simulator (Foundation Models require real hardware)."
                 )
                 return false
-            }
+            #else
+                // Quick check without accessing the model
+                // This prevents crashes during init when called from background thread
+                guard Thread.isMainThread else {
+                    print(
+                        "⚠️  AppleFoundationLLMService.isAvailable checked from background thread - returning false"
+                    )
+                    return false
+                }
 
-            // Use the detailed availability enum for better diagnostics
-            switch model.availability {
-            case .available:
-                return true
-            case .unavailable:
-                return false
-            }
+                // Use the detailed availability enum for better diagnostics
+                switch model.availability {
+                case .available:
+                    return true
+                case .unavailable:
+                    return false
+                }
+            #endif
         }
 
         var modelName: String {
