@@ -27,7 +27,7 @@ jobs:
         run: |
           xcodebuild -scheme OpenIntelligence \
             -project OpenIntelligence.xcodeproj \
-            -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+            -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' \
             clean build \
             IPHONEOS_DEPLOYMENT_TARGET=26.0 \
             CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
