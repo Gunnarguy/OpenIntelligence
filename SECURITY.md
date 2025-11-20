@@ -1,4 +1,4 @@
-# RAGMLCore Security Notes
+# OpenIntelligence Security Notes
 
 Last updated: November 2025
 

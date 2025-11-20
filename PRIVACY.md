@@ -1,4 +1,4 @@
-# RAGMLCore Privacy Summary
+# OpenIntelligence Privacy Summary
 
 Last updated: November 2025
 

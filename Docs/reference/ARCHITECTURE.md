@@ -1,4 +1,4 @@
-# RAGMLCore Technical Architecture
+# OpenIntelligence Technical Architecture
 
 **Version**: 2.0  
 **Date**: October 2025  
@@ -6,7 +6,7 @@
 
 ## Executive Summary
 
-RAGMLCore is a native iOS 26 application implementing a complete Retrieval-Augmented Generation (RAG) pipeline. The architecture leverages Apple Intelligence (Foundation Models + Private Cloud Compute) while maintaining a protocol-based design.
+OpenIntelligence is a native iOS 26 application implementing a complete Retrieval-Augmented Generation (RAG) pipeline. The architecture leverages Apple Intelligence (Foundation Models + Private Cloud Compute) while maintaining a protocol-based design.
 
 **Simple Concept:** Users upload documents, ask questions, get AI-powered answers using information from their documents.
 
