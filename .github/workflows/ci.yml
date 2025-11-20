@@ -18,7 +18,7 @@ jobs:
       - name: Setup Xcode 26
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: '26'
+          xcode-version: "26"
 
       - name: List Destinations
         run: xcodebuild -scheme OpenIntelligence -showdestinations
