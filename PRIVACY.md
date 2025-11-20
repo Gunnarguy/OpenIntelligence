@@ -5,7 +5,7 @@ Last updated: November 2025
 ## Data Processing Overview
 
 - **Local-first default**: Document ingestion, chunking, embedding, vector search, and answer synthesis all execute on-device by default. No document text or telemetry leaves the device unless the user explicitly selects a cloud pathway.
-- **Cloud fallbacks**: When the user opts into Apple Private Cloud Compute or provides an OpenAI API key, only the active query, retrieval metadata, and the selected context snippets are transmitted. We never send raw document archives, file metadata beyond what is necessary for grounding, analytics, or device identifiers.
+- **Cloud fallbacks**: When the user opts into Apple Private Cloud Compute or provides an OpenAI API key, only the active query, retrieval metadata, and the selected context snippets are transmitted. Raw document archives, file metadata beyond what is necessary for grounding, analytics, or device identifiers are never sent.
 - **Telemetry**: The app does not ship third-party analytics. TelemetryCenter events stay on-device unless the user enables optional export within Reviewer/Developer mode.
 
 ## Model Pathways
