@@ -443,7 +443,7 @@ Before submission, verify:
 ## 9. Recommendations
 
 ### Before Submission:
-1. ✅ Set StoreKit Configuration in Xcode scheme (per STOREKIT_SETUP.md)
+1. ✅ Set StoreKit Configuration in Xcode scheme (per `Docs/reference/STOREKIT_SETUP.md`)
 2. ✅ Test purchase flow with sandbox account
 3. ✅ Verify refund properly revokes credits
 4. ✅ Ensure paywall clearly shows pricing + what's unlocked
