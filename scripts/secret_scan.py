@@ -25,6 +25,7 @@ IGNORE_DIRS = {
     "xcuserdata",
     "__pycache__",
     "node_modules",
+    "exclude",  # Excluded sources in vendored packages
 }
 
 # File extensions that are typically binary or generated
