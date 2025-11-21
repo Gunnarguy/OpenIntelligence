@@ -41,3 +41,7 @@ venv/
 Docs/TestDocuments/
 .coverage
 
+# Business/Pricing strategy (keep private)
+Docs/reference/PRICING_STRATEGY.md
+Docs/reference/APP_STORE_LAUNCH_GUIDE.md
+
