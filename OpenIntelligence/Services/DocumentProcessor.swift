@@ -23,6 +23,11 @@ class DocumentProcessor {
         let text: String
         let metadata: ChunkMetadata
     }
+
+    struct ChunkingOverride: Sendable {
+        let targetWordWindow: Int
+        let overlapWords: Int
+    }
     
     // MARK: - Configuration
     
@@ -41,7 +46,7 @@ class DocumentProcessor {
     // MARK: - Public API
     
     /// Process a document and extract text chunks
-    func processDocument(at url: URL) async throws -> (Document, [ProcessedChunk]) {
+    func processDocument(at url: URL, chunkOverride: ChunkingOverride? = nil) async throws -> (Document, [ProcessedChunk]) {
         let filename = url.lastPathComponent
         let fileSize = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int64) ?? 0
         let fileSizeMB = Double(fileSize) / 1_048_576.0
@@ -79,11 +84,13 @@ class DocumentProcessor {
         let chunkingStartTime = Date()
         
         // Create semantic chunker configuration
+        let activeWindow = chunkOverride?.targetWordWindow ?? self.targetChunkSize
+        let activeOverlap = chunkOverride?.overlapWords ?? self.chunkOverlap
         let chunkerConfig = SemanticChunker.ChunkingConfig(
-            targetSize: self.targetChunkSize,
-            minSize: max(100, self.targetChunkSize / 4),
-            maxSize: self.targetChunkSize * 2,
-            overlap: self.chunkOverlap
+            targetSize: activeWindow,
+            minSize: max(100, activeWindow / 4),
+            maxSize: activeWindow * 2,
+            overlap: activeOverlap
         )
         
         let semanticChunker = SemanticChunker()

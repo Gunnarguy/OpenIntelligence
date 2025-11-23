@@ -27,6 +27,12 @@ final class SettingsStore: ObservableObject {
         static let execContext = "executionContext"  // "automatic" | "onDeviceOnly" | "preferCloud" | "cloudOnly"
         static let temperature = "llmTemperature"  // Double
         static let maxTokens = "llmMaxTokens"  // Int
+        static let contextLength = "llmContextLength" // Int
+        static let topP = "llmTopP" // Double
+        static let frequencyPenalty = "llmFrequencyPenalty" // Double
+        static let presencePenalty = "llmPresencePenalty" // Double
+        static let repetitionPenalty = "llmRepetitionPenalty" // Double
+        static let systemPrompt = "llmSystemPrompt" // String
         static let topK = "retrievalTopK"  // Int
         static let lenient = "lenientRetrievalMode"  // Bool
         static let enableFB1 = "enableFirstFallback"  // Bool
@@ -71,6 +77,18 @@ final class SettingsStore: ObservableObject {
     @Published var temperature: Double
     /// Response length ceiling for the active model.
     @Published var maxTokens: Int
+    /// Context window size (if supported by backend).
+    @Published var contextLength: Int
+    /// Nucleus sampling probability.
+    @Published var topP: Double
+    /// Frequency penalty (0.0 - 2.0).
+    @Published var frequencyPenalty: Double
+    /// Presence penalty (0.0 - 2.0).
+    @Published var presencePenalty: Double
+    /// Repetition penalty (1.0 - 2.0).
+    @Published var repetitionPenalty: Double
+    /// System prompt to prepend to conversations.
+    @Published var systemPrompt: String
     /// Number of retrieved chunks per query.
     @Published var topK: Int
 
@@ -142,6 +160,7 @@ final class SettingsStore: ObservableObject {
                 options.append(.openAIDirect)
             }
         #elseif os(macOS)
+            options.append(.mlxLocal)
             if allowOpenAIDirect {
                 options.append(.openAIDirect)
             }
@@ -279,6 +298,12 @@ final class SettingsStore: ObservableObject {
             #endif
         case .onDeviceAnalysis:
             return true
+        case .mlxLocal:
+            #if os(macOS)
+                return true
+            #else
+                return false
+            #endif
         @unknown default:
             return true
         }
@@ -323,7 +348,13 @@ final class SettingsStore: ObservableObject {
         self.executionContext = ExecutionContext.from(raw: execRaw)
 
         self.temperature = (defaults.object(forKey: Keys.temperature) as? Double) ?? 0.7
-        self.maxTokens = (defaults.object(forKey: Keys.maxTokens) as? Int) ?? 500
+        self.maxTokens = (defaults.object(forKey: Keys.maxTokens) as? Int) ?? 512
+        self.contextLength = (defaults.object(forKey: Keys.contextLength) as? Int) ?? 2048
+        self.topP = (defaults.object(forKey: Keys.topP) as? Double) ?? 0.9
+        self.frequencyPenalty = (defaults.object(forKey: Keys.frequencyPenalty) as? Double) ?? 0.0
+        self.presencePenalty = (defaults.object(forKey: Keys.presencePenalty) as? Double) ?? 0.0
+        self.repetitionPenalty = (defaults.object(forKey: Keys.repetitionPenalty) as? Double) ?? 1.0
+        self.systemPrompt = defaults.string(forKey: Keys.systemPrompt) ?? "You are a helpful assistant."
         self.topK = (defaults.object(forKey: Keys.topK) as? Int) ?? 3
 
         self.lenientRetrievalMode = defaults.object(forKey: Keys.lenient) as? Bool ?? false
@@ -424,6 +455,12 @@ final class SettingsStore: ObservableObject {
             $executionContext.map { _ in () }.eraseToAnyPublisher(),
             $temperature.map { _ in () }.eraseToAnyPublisher(),
             $maxTokens.map { _ in () }.eraseToAnyPublisher(),
+            $contextLength.map { _ in () }.eraseToAnyPublisher(),
+            $topP.map { _ in () }.eraseToAnyPublisher(),
+            $frequencyPenalty.map { _ in () }.eraseToAnyPublisher(),
+            $presencePenalty.map { _ in () }.eraseToAnyPublisher(),
+            $repetitionPenalty.map { _ in () }.eraseToAnyPublisher(),
+            $systemPrompt.map { _ in () }.eraseToAnyPublisher(),
             $topK.map { _ in () }.eraseToAnyPublisher(),
             $lenientRetrievalMode.map { _ in () }.eraseToAnyPublisher(),
             $enableFirstFallback.map { _ in () }.eraseToAnyPublisher(),
@@ -523,6 +560,12 @@ final class SettingsStore: ObservableObject {
 
         defaults.set(temperature, forKey: Keys.temperature)
         defaults.set(maxTokens, forKey: Keys.maxTokens)
+        defaults.set(contextLength, forKey: Keys.contextLength)
+        defaults.set(topP, forKey: Keys.topP)
+        defaults.set(frequencyPenalty, forKey: Keys.frequencyPenalty)
+        defaults.set(presencePenalty, forKey: Keys.presencePenalty)
+        defaults.set(repetitionPenalty, forKey: Keys.repetitionPenalty)
+        defaults.set(systemPrompt, forKey: Keys.systemPrompt)
         defaults.set(topK, forKey: Keys.topK)
 
         defaults.set(lenientRetrievalMode, forKey: Keys.lenient)
@@ -655,6 +698,8 @@ extension SettingsStore {
             guard autoEligible.contains(selectedModel) else { return }
             setSelectedModelProgrammatically(.coreMLLocal)
             AutoTuneService.tuneForSelection(selectedModel: .coreMLLocal)
+        case .mlx:
+            Log.info("Auto-selection skipped for MLX cartridges (manual activation only)", category: .llm)
         case .mlxServer:
             Log.info("Ignoring auto-selection for legacy MLX server", category: .llm)
         }

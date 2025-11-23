@@ -20,7 +20,7 @@ import Foundation
 
     private let modelId: UUID
     private let installedModel: InstalledModel
-    private let computePreference: LocalComputePreference
+    // Removed immutable computePreference to allow dynamic updates
     private let runtime = GGUFClientRuntime()
         var toolHandler: RAGToolHandler?
 
@@ -38,7 +38,7 @@ import Foundation
         init(modelId: UUID, installedModel: InstalledModel, computePreference: LocalComputePreference) {
             self.modelId = modelId
             self.installedModel = installedModel
-            self.computePreference = computePreference
+            // computePreference ignored in init; read dynamically in generate()
             let shortId = String(modelId.uuidString.prefix(8))
             TelemetryCenter.emit(
                 .system,
@@ -106,7 +106,7 @@ import Foundation
         {
             let modelURL = try resolveModelURL()
             let parameter = makeParameter(from: config)
-            let messages = makeMessages(prompt: prompt, context: context)
+            let messages = makeMessages(prompt: prompt, context: context, config: config)
             let start = Date()
             TelemetryCenter.emit(
                 .generation,
@@ -161,9 +161,13 @@ import Foundation
         }
 
         private func makeParameter(from config: InferenceConfig) -> LlamaClient.Parameter {
-            let contextTokens = installedModel.contextWindow ?? max(config.maxTokens * 2, 2048)
+            // Prefer user-configured context length, fallback to model default, then safe minimum
+            let contextTokens = config.contextLength ?? installedModel.contextWindow ?? max(config.maxTokens * 2, 2048)
             var parameter = baseParameter(contextTokens: contextTokens, config: config)
-            applyComputePreference(to: &parameter, contextTokens: contextTokens)
+            
+            // Read latest compute preference dynamically
+            let currentPreference = Self.currentPreference(from: .standard)
+            applyComputePreference(to: &parameter, contextTokens: contextTokens, preference: currentPreference)
             return parameter
         }
 
@@ -192,10 +196,11 @@ import Foundation
 
         private func applyComputePreference(
             to parameter: inout LlamaClient.Parameter,
-            contextTokens: Int
+            contextTokens: Int,
+            preference: LocalComputePreference
         ) {
             // Tune batch size and GPU usage so toggles actually impact llama.cpp throughput.
-            switch computePreference {
+            switch preference {
             case .automatic:
                 parameter.numberOfThreads = nil
             case .gpuPreferred:
@@ -208,11 +213,10 @@ import Foundation
             }
         }
 
-        private func makeMessages(prompt: String, context: String?) -> [LLMInput.Message] {
+        private func makeMessages(prompt: String, context: String?, config: InferenceConfig) -> [LLMInput.Message] {
+            let defaultSystemPrompt = "You are a helpful assistant. If context is provided, ground your answer in it and cite sources when available."
             var messages: [LLMInput.Message] = [
-                .system(
-                    "You are a helpful assistant. If context is provided, ground your answer in it and cite sources when available."
-                )
+                .system(config.systemPrompt ?? defaultSystemPrompt)
             ]
             if let context, !context.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 messages.append(
@@ -231,7 +235,8 @@ import Foundation
 
         private func telemetryMetadata(for config: InferenceConfig, url: URL) -> [String: String] {
             let threadCount: Int
-            switch computePreference {
+            let currentPref = Self.currentPreference(from: .standard)
+            switch currentPref {
             case .cpuOnly:
                 threadCount = ProcessInfo.processInfo.processorCount
             default:
@@ -246,7 +251,7 @@ import Foundation
                 "topP": String(format: "%.2f", config.topP),
                 "threads": "\(threadCount)",
                 "stop": config.stopSequences.joined(separator: ","),
-                "computePref": computePreference.rawValue,
+                "computePref": Self.currentPreference(from: .standard).rawValue,
             ]
         }
     }

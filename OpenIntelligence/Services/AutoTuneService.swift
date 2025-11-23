@@ -92,6 +92,17 @@ enum AutoTuneService {
             if let vendor, vendor.lowercased().contains("qwen") {
                 maxTokens = min(maxTokens + 128, 1280)
             }
+        case .mlxLocal:
+            #if os(macOS)
+                // MLX server advertises its own limits via metadata; aim for safe defaults until synced.
+                maxTokens = clamp(maxTokens, 768, 2048)
+                topK = clamp(topK, 4, 6)
+                temperature = clamp(temperature, 0.55, 0.85)
+            #else
+                maxTokens = max(512, maxTokens)
+                topK = max(3, topK)
+                temperature = clamp(temperature, 0.5, 0.8)
+            #endif
         }
 
         // Persist

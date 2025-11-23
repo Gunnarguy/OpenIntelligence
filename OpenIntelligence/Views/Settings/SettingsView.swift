@@ -1130,6 +1130,8 @@ extension SettingsView {
             return "Runs an embedded GGUF model in-process on iOS for fully offline inference."
         case .coreMLLocal:
             return "Loads a custom Core ML model package for private on-device inference."
+        case .mlxLocal:
+            return "Connects to a local MLX tensor server on your Mac for high-throughput private inference."
         }
     }
 
@@ -1267,6 +1269,31 @@ extension SettingsView {
                 ? .available
                 : .requiresConfiguration(
                     message: "Select a Core ML model package via Model Manager.")
+        case .mlxLocal:
+            #if os(macOS)
+                guard entitlementStore.canUseLocalModels else {
+                    return .unavailable(reason: "Upgrade plan to unlock MLX Local")
+                }
+                guard MLXLLMService.Config.fromDefaults() != nil else {
+                    return .requiresConfiguration(
+                        message: "Set the MLX server URL/model under Diagnostics → MLX")
+                }
+                guard let status = ragService.mlxServerStatus else {
+                    return .requiresConfiguration(message: "Waiting for MLX health check…")
+                }
+                switch status.health {
+                case .healthy:
+                    return .available
+                case .degraded(_, let reason):
+                    return .requiresConfiguration(message: reason)
+                case .unreachable(_, let reason):
+                    return .unavailable(reason: reason)
+                case .unknown:
+                    return .requiresConfiguration(message: "Health unknown — tap Refresh")
+                }
+            #else
+                return .unavailable(reason: "macOS only")
+            #endif
         }
     }
 
@@ -1284,6 +1311,8 @@ extension SettingsView {
             return "Embedded GGUF runtime (iOS)"
         case .coreMLLocal:
             return "Custom Core ML LLM package"
+        case .mlxLocal:
+            return "Connects to your MLX tensor server"
         }
     }
 
@@ -1396,6 +1425,24 @@ extension SettingsView {
                 return nil
             }
             return await CoreMLLLMService.fromRegistry()
+        case .mlxLocal:
+            #if os(macOS)
+                guard entitlementStore.canUseLocalModels else {
+                    await MainActor.run {
+                        presentPlanSheet(from: .localModelGated)
+                        entitlementStore.markPreviewGateTriggered(for: .mlx)
+                    }
+                    return nil
+                }
+                guard let config = MLXLLMService.Config.fromDefaults() else {
+                    return nil
+                }
+                let service = MLXLLMService(config: config)
+                service.toolHandler = ragService
+                return service
+            #else
+                return nil
+            #endif
         }
     }
 
@@ -1546,6 +1593,35 @@ extension SettingsView {
                 • On iOS 26+, the model may be downloading; try again later.
                 • Use Execution & Privacy to force On‑Device Only or allow PCC.
                 """
+
+        case .mlxLocal:
+            #if os(macOS)
+                let reason: String
+                switch status {
+                case .unavailable(let r):
+                    reason = r
+                case .requiresConfiguration(let msg):
+                    reason = msg
+                case .active, .available:
+                    reason = "Ready to run."
+                case .disabled:
+                    reason = "MLX Local is disabled in this pipeline slot."
+                }
+                return """
+                    MLX Local connects to a tensor server running on your Mac for high-throughput private inference.
+
+                    Status:
+                    - \(reason)
+
+                    Next steps:
+                    1) Launch your MLX server (mlx-launch or `python server.py`).
+                    2) Open Developer & Diagnostics → MLX and set the Base URL + Model ID.
+                    3) Tap “Refresh Health” or run the MLX smoke test to verify connectivity.
+                    4) Return here and Apply to route primary inference through MLX.
+                    """
+            #else
+                return "MLX Local is available on macOS only."
+            #endif
 
         default:
             return "No additional information for this model."

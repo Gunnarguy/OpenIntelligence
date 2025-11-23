@@ -1,0 +1,92 @@
+//
+//  DocumentPicker.swift
+//  OpenIntelligence
+//
+//  Created by Gunnar Hostetler on 10/9/25.
+//
+
+import SwiftUI
+import UniformTypeIdentifiers
+
+#if canImport(UIKit)
+struct DocumentPicker: UIViewControllerRepresentable {
+    let onDocumentPicked: (URL) -> Void
+    
+    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [
+            .pdf,
+            .plainText,
+            .text,
+            UTType(filenameExtension: "md") ?? .plainText,
+            .rtf
+        ])
+        picker.delegate = context.coordinator
+        picker.allowsMultipleSelection = true  // Enable multiple file selection
+        return picker
+    }
+    
+    func updateUIViewController(_ uiViewController: UIDocumentPickerViewController, context: Context) {}
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject, UIDocumentPickerDelegate {
+        let parent: DocumentPicker
+        
+        init(_ parent: DocumentPicker) {
+            self.parent = parent
+        }
+        
+        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            // Process ALL selected files
+            print("📚 Processing \(urls.count) selected file(s)...")
+            
+            for url in urls {
+                // Start accessing a security-scoped resource
+                guard url.startAccessingSecurityScopedResource() else {
+                    print("❌ Failed to access security-scoped resource: \(url.lastPathComponent)")
+                    continue
+                }
+                
+                defer { url.stopAccessingSecurityScopedResource() }
+                
+                // Copy to app's document directory
+                let fileManager = FileManager.default
+                let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                let destinationURL = documentsPath.appendingPathComponent(url.lastPathComponent)
+                
+                do {
+                    if fileManager.fileExists(atPath: destinationURL.path) {
+                        try fileManager.removeItem(at: destinationURL)
+                    }
+                    try fileManager.copyItem(at: url, to: destinationURL)
+                    parent.onDocumentPicked(destinationURL)
+                    print("✓ Queued: \(url.lastPathComponent)")
+                } catch {
+                    print("❌ Error copying document \(url.lastPathComponent): \(error)")
+                }
+            }
+        }
+    }
+}
+
+#endif
+
+#if !canImport(UIKit)
+struct DocumentPicker: View {
+    let onDocumentPicked: (URL) -> Void
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "doc.badge.gearshape")
+                .font(.title3)
+                .foregroundColor(.secondary)
+            Text("Document picker is unavailable on this platform.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding()
+    }
+}
+#endif

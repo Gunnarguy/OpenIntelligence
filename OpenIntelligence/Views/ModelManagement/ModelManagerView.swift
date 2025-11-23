@@ -618,7 +618,7 @@ struct ModelComparisonSheet: View {
                     type: type,
                     availability: availability(for: type),
                     highlights: highlights(for: type),
-                    capabilities: Array(type.capabilities.prefix(4))
+                    card: type.capabilityCard
                 )
             }
     }
@@ -684,6 +684,15 @@ struct ModelComparisonSheet: View {
             return .ready("Always on-device")
         case .openAIDirect:
             return .optional("Requires OpenAI API key")
+        case .mlxLocal:
+            #if os(macOS)
+                if MLXLLMService.Config.fromDefaults() != nil {
+                    return .ready("Configured via Diagnostics → MLX")
+                }
+                return .optional("Set MLX server URL under Diagnostics → MLX")
+            #else
+                return .blocked("Available on macOS only")
+            #endif
         }
     }
 
@@ -697,6 +706,8 @@ struct ModelComparisonSheet: View {
             return ["Offline"]
         case .openAIDirect:
             return ["Cloud"]
+        case .mlxLocal:
+            return ["Private", "Streaming"]
         }
     }
 
@@ -734,7 +745,7 @@ struct ModelComparisonSheet: View {
         let type: LLMModelType
         let availability: Availability
         let highlights: [String]
-        let capabilities: [String]
+        let card: ModelCapabilityCardInfo
     }
 }
 
@@ -743,11 +754,16 @@ private struct ModelComparisonCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: entry.type.iconName)
-                    .foregroundColor(.accentColor)
-                Text(entry.type.displayName)
-                    .font(.headline)
+            HStack(spacing: 10) {
+                Text(entry.card.emoji)
+                    .font(.system(size: 28))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(entry.type.displayName)
+                        .font(.headline)
+                    Text(entry.card.nickname)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
                 Spacer()
             }
 
@@ -766,19 +782,13 @@ private struct ModelComparisonCard: View {
                 }
             }
 
-            Text(entry.type.description)
+            Text(entry.card.tagline)
                 .font(.caption)
                 .foregroundColor(.secondary)
 
-            if !entry.capabilities.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(entry.capabilities, id: \.self) { capability in
-                        Label(capability, systemImage: "checkmark.circle.fill")
-                            .font(.caption)
-                            .foregroundColor(.green)
-                    }
-                }
-            }
+            CapabilityChipGrid(chips: entry.card.chips)
+
+            CapabilityStatsGrid(stats: entry.card.stats)
 
             VStack(alignment: .leading, spacing: 4) {
                 SpecLine(title: "Category", value: entry.type.category)
@@ -787,10 +797,106 @@ private struct ModelComparisonCard: View {
                     title: "Network", value: entry.type.requiresNetwork ? "Required" : "Optional")
                 SpecLine(title: "Context", value: entry.type.contextDescription)
             }
+
+            if !entry.card.footer.isEmpty {
+                Text(entry.card.footer)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
         }
         .padding()
         .background(DSColors.surface)
         .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+}
+
+private struct CapabilityChipGrid: View {
+    let chips: [ModelCapabilityChipInfo]
+
+    private let columns = [GridItem(.adaptive(minimum: 140), spacing: 8, alignment: .leading)]
+
+    var body: some View {
+        if chips.isEmpty {
+            EmptyView()
+        } else {
+            LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
+                ForEach(chips) { chip in
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: chip.icon)
+                            .font(.caption)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(chip.label)
+                                .font(.caption.weight(.semibold))
+                            if let detail = chip.detail {
+                                Text(detail)
+                                    .font(.caption2)
+                            }
+                        }
+                    }
+                    .foregroundColor(color(for: chip.tone))
+                    .padding(8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(color(for: chip.tone).opacity(0.1))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+            }
+        }
+    }
+
+    private func color(for tone: ModelCapabilityChipInfo.Tone) -> Color {
+        switch tone {
+        case .accent: return .accentColor
+        case .info: return .blue
+        case .success: return .green
+        case .warning: return .orange
+        case .neutral: return .secondary
+        }
+    }
+}
+
+private struct CapabilityStatsGrid: View {
+    let stats: [ModelCapabilityStatInfo]
+
+    private let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
+
+    var body: some View {
+        if stats.isEmpty {
+            EmptyView()
+        } else {
+            LazyVGrid(columns: columns, spacing: 12) {
+                ForEach(stats) { stat in
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 6) {
+                            Image(systemName: stat.icon)
+                                .font(.caption)
+                                .foregroundColor(color(for: stat.accent))
+                            Text(stat.label)
+                                .font(.caption.weight(.semibold))
+                                .foregroundColor(color(for: stat.accent))
+                        }
+                        Text(stat.value)
+                            .font(.subheadline.weight(.medium))
+                        Text(stat.detail)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(color(for: stat.accent).opacity(0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+            }
+        }
+    }
+
+    private func color(for accent: ModelCapabilityStatInfo.Accent) -> Color {
+        switch accent {
+        case .accent: return .accentColor
+        case .success: return .green
+        case .warning: return .orange
+        case .info: return .blue
+        case .neutral: return .secondary
+        }
     }
 }
 

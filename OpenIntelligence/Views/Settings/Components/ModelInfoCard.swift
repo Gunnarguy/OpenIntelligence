@@ -62,6 +62,8 @@ struct ModelInfoCard: View {
             return Image(systemName: "doc.text.magnifyingglass")
         case .openAIDirect:
             return Image(systemName: "key.fill")
+        case .mlxLocal:
+            return Image(systemName: "server.rack")
         case .ggufLocal:
             return Image(systemName: "doc.badge.gearshape")
         case .coreMLLocal:
@@ -102,6 +104,12 @@ struct ModelInfoCard: View {
             return true
         case .openAIDirect:
             return true
+        case .mlxLocal:
+            #if os(macOS)
+                return true
+            #else
+                return false
+            #endif
         case .ggufLocal:
             #if os(iOS)
             // Available when a GGUF model is selected from the registry
@@ -131,6 +139,12 @@ struct ModelInfoCard: View {
             return nil
         case .openAIDirect:
             return nil
+        case .mlxLocal:
+            #if os(macOS)
+                return nil
+            #else
+                return "Available on macOS only"
+            #endif
         case .ggufLocal:
             #if os(iOS)
             let configured = (UserDefaults.standard.string(forKey: LlamaCPPiOSLLMService.selectedModelIdKey) ?? "").isEmpty == false
@@ -186,6 +200,13 @@ struct ModelInfoCard: View {
                 "Pay-as-you-go pricing",
                 "Full control over usage",
                 "Up to 400K context window"
+            ]
+        case .mlxLocal:
+            return [
+                "Connect to mlx_lm.server on your Mac",
+                "Low-latency Server-Sent Events streaming",
+                "Tool calling support for document search",
+                "No cloud hops — traffic stays on-device"
             ]
         case .ggufLocal:
             return [

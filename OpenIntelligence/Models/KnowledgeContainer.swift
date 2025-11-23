@@ -27,6 +27,9 @@ struct KnowledgeContainer: Identifiable, Codable, Equatable, Sendable {
     var embeddingDim: Int                // e.g. 512, 384, 768
     var vectorDBKind: VectorDBKind
     var strictMode: Bool                 // Higher safety thresholds for medical/high-stakes
+    var autoAdaptDimension: Bool         // Auto-orchestrate chunking/embedding when enabled
+    var chunkingDirective: ChunkingDirective?
+    var lastSelfTuneAt: Date?
     
     // Stats for quick UI rendering
     var totalDocuments: Int
@@ -45,6 +48,9 @@ struct KnowledgeContainer: Identifiable, Codable, Equatable, Sendable {
         embeddingDim: Int = 512,
         vectorDBKind: VectorDBKind = .persistentJSON,
         strictMode: Bool = true,
+        autoAdaptDimension: Bool = false,
+        chunkingDirective: ChunkingDirective? = nil,
+        lastSelfTuneAt: Date? = nil,
         totalDocuments: Int = 0,
         totalChunks: Int = 0,
         dbSizeBytes: Int64 = 0,
@@ -60,10 +66,44 @@ struct KnowledgeContainer: Identifiable, Codable, Equatable, Sendable {
         self.embeddingDim = embeddingDim
         self.vectorDBKind = vectorDBKind
         self.strictMode = strictMode
+        self.autoAdaptDimension = autoAdaptDimension
+        self.chunkingDirective = chunkingDirective
+        self.lastSelfTuneAt = lastSelfTuneAt
         self.totalDocuments = totalDocuments
         self.totalChunks = totalChunks
         self.dbSizeBytes = dbSizeBytes
         self.lastIndexedAt = lastIndexedAt
+    }
+}
+
+struct ChunkingDirective: Codable, Equatable, Sendable {
+    enum Source: String, Codable, Sendable {
+        case baseline
+        case auto
+        case manual
+    }
+
+    let source: Source
+    let strategy: String
+    let targetWordWindow: Int
+    let overlapWords: Int
+    let rationale: [String]
+    let updatedAt: Date
+
+    init(
+        source: Source,
+        strategy: String,
+        targetWordWindow: Int,
+        overlapWords: Int,
+        rationale: [String] = [],
+        updatedAt: Date = Date()
+    ) {
+        self.source = source
+        self.strategy = strategy
+        self.targetWordWindow = targetWordWindow
+        self.overlapWords = overlapWords
+        self.rationale = rationale
+        self.updatedAt = updatedAt
     }
 }
 

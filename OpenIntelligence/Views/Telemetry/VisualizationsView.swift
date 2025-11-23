@@ -350,7 +350,7 @@ struct EmbeddingSpaceView: View {
                     .font(.title2)
                     .fontWeight(.bold)
 
-                Text("\(chunkCount) chunks in 512-dimensional space")
+                Text("\(chunkCount) chunks translated into a map—dots that sit close together discuss similar ideas.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -378,36 +378,92 @@ struct EmbeddingSpaceView: View {
 
             InfoButtonView(
                 title: "Projection Method",
-                explanation: "High-dimensional embedding vectors (512 dimensions) are projected into 3D for inspection.\n\n• PCA: deterministic and lightweight.\n• t-SNE & UMAP: preserve neighborhoods, useful for spotting topical islands." 
+                explanation: "We flatten 512-number vectors into something you can see.\n\n• PCA: super fast overview of the biggest themes.\n• t-SNE: highlights tiny topic bubbles.\n• UMAP: balanced layout when your library mixes formats." 
             )
         }
         .padding(.horizontal)
     }
 
     private var statsRow: some View {
-        HStack(spacing: 12) {
-            StatCard(
-                icon: "cube.box",
-                label: "Chunks",
-                value: "\(chunkCount)",
-                color: .blue
-            )
+        VStack(alignment: .leading, spacing: 18) {
+            EmbeddingLegendCard()
 
-            StatCard(
-                icon: "doc.text",
-                label: "Documents",
-                value: "\(documentCount)",
-                color: .green
-            )
+            HStack(spacing: 12) {
+                StatCard(
+                    icon: "cube.box",
+                    label: "Chunks",
+                    value: "\(chunkCount)",
+                    color: .blue
+                )
 
-            StatCard(
-                icon: "ruler",
-                label: "Dimensions",
-                value: "512",
-                color: .purple
-            )
+                StatCard(
+                    icon: "doc.text",
+                    label: "Documents",
+                    value: "\(documentCount)",
+                    color: .green
+                )
+
+                StatCard(
+                    icon: "ruler",
+                    label: "Dimensions",
+                    value: "512",
+                    color: .purple
+                )
+            }
         }
         .padding(.horizontal)
+    }
+}
+
+struct EmbeddingLegendCard: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "dot.radiowaves.left.and.right")
+                    .foregroundColor(.accentColor)
+                Text("How to read this map")
+                    .font(.headline)
+            }
+
+            Text("Each dot is a document chunk. Neighbors share meaning, tone, or phrasing—spread apart points are unrelated topics.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            VStack(alignment: .leading, spacing: 10) {
+                AxisRow(title: "X axis", detail: "Left ↔ Right shows the biggest difference our model detected (often topic vs. reference material).", color: .blue)
+                AxisRow(title: "Y axis", detail: "Up ↕ Down captures the second strongest pattern, like narrative vs. tables.", color: .green)
+                AxisRow(title: "Z axis", detail: "Depth adds nuance—tilt the scene with two fingers to reveal stacked subtopics.", color: .purple)
+            }
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(DSColors.background)
+        )
+    }
+
+    private struct AxisRow: View {
+        let title: String
+        let detail: String
+        let color: Color
+
+        var body: some View {
+            HStack(alignment: .top, spacing: 10) {
+                Circle()
+                    .fill(color.opacity(0.9))
+                    .frame(width: 8, height: 8)
+                    .padding(.top, 5)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                    Text(detail)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
     }
 }
 
@@ -446,6 +502,10 @@ struct EmbeddingSpacePlaceholder: View {
                     }
                     .padding(.horizontal)
                     .padding(.bottom)
+
+                    EmbeddingLegendCard()
+                        .padding(.horizontal)
+                        .padding(.bottom)
                 }
             }
             
@@ -1330,7 +1390,7 @@ struct EmbeddingInfoSheet: View {
                         HStack(spacing: 8) {
                             Image(systemName: "brain.head.profile")
                                 .foregroundColor(.purple)
-                            Text("Embeddings are numerical representations of text in a high-dimensional space. Similar meanings are placed closer together.")
+                            Text("Think of them as GPS pins for sentences—chunks that mean the same thing land near each other even if they use different words.")
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                         }
@@ -1340,7 +1400,7 @@ struct EmbeddingInfoSheet: View {
                         HStack(spacing: 8) {
                             Image(systemName: "cube.box")
                                 .foregroundColor(.blue)
-                            Text("Using NLEmbedding with 512 dimensions. Each document chunk is converted to a 512-number vector.")
+                            Text("We use NLEmbedding to turn every chunk into a 512-number fingerprint that captures topic, tone, and context.")
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                         }
@@ -1350,7 +1410,7 @@ struct EmbeddingInfoSheet: View {
                         HStack(spacing: 8) {
                             Image(systemName: "chart.xyaxis.line")
                                 .foregroundColor(.green)
-                            Text("PCA, t-SNE, and UMAP reduce 512 dimensions to 2D for visualization while preserving semantic relationships.")
+                            Text("PCA, t-SNE, and UMAP flatten that 512-D fingerprint into a 3D view so you can literally see topic islands and overlaps.")
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                         }
@@ -1360,7 +1420,7 @@ struct EmbeddingInfoSheet: View {
                         HStack(spacing: 8) {
                             Image(systemName: "sparkles")
                                 .foregroundColor(.orange)
-                            Text("Apple's Embedding Atlas will provide interactive exploration of your document embeddings with automatic clustering.")
+                            Text("Apple's Embedding Atlas will add pinch-to-explore controls, automatic cluster naming, and shareable scenes.")
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                         }

@@ -67,6 +67,8 @@ struct InferenceConfig {
     var topP: Float = 0.9
     var topK: Int = 40
     var useKVCache: Bool = true
+    var systemPrompt: String? = nil
+    var contextLength: Int? = nil
     
     // ✅ GAP #3 FIXED: Advanced Generation Parameters (iOS 26+)
     // These parameters improve response quality and reduce repetition

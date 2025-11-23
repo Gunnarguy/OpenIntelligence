@@ -319,6 +319,18 @@ enum ModelActivationService {
             if let service = await CoreMLLLMService.fromRegistry() {
                 await ragService.updateLLMService(service)
             }
+        case .mlx:
+            Log.info(
+                "MLX cartridges detected – pending MLXLLMService wiring for local execution",
+                category: .llm)
+            TelemetryCenter.emit(
+                .system,
+                title: "MLX cartridge activation deferred",
+                metadata: [
+                    "model": installed.name,
+                    "backend": installed.backend.rawValue,
+                ]
+            )
         case .mlxServer:
             Log.info("Ignoring legacy MLX server entry", category: .llm)
         }
