@@ -106,11 +106,15 @@ final class LocalOpenAIServerLLMService: LLMService {
 
         // Compose OpenAI-style chat messages
         var messages: [[String: String]] = []
+        
+        // Use user-configured system prompt or fallback to default RAG prompt
+        let systemContent = userConfig.systemPrompt ?? """
+        You are a helpful assistant. When document context is provided, ground your answer in that context and indicate citations if applicable. If context is irrelevant, answer normally.
+        """
+        
         messages.append([
             "role": "system",
-            "content": """
-            You are a helpful assistant. When document context is provided, ground your answer in that context and indicate citations if applicable. If context is irrelevant, answer normally.
-            """
+            "content": systemContent
         ])
         if let ctx = context, !ctx.isEmpty {
             messages.append([
@@ -143,6 +147,8 @@ final class LocalOpenAIServerLLMService: LLMService {
         // TopP/TopK commonly accepted by local servers (may be ignored)
         body["top_p"] = userConfig.topP
         body["top_k"] = userConfig.topK
+        body["frequency_penalty"] = userConfig.frequencyPenalty
+        body["presence_penalty"] = userConfig.presencePenalty
 
         let start = Date()
 

@@ -402,6 +402,18 @@ final class ModelDownloadService: NSObject, ObservableObject {
                 filename: "qwen2.5-3b-instruct-q4_k_m.gguf"
             ),
             ModelCatalogEntry(
+                name: "Qwen2.5-7B (Q4_K_M)",
+                backend: .gguf,
+                url:
+                    "hf://lmstudio-community/Qwen2.5-7B-Instruct-GGUF:main/Qwen2.5-7B-Instruct-Q4_K_M.gguf",
+                sizeBytes: 4_680_000_000,
+                checksumSHA256: nil,
+                vendor: "Qwen",
+                contextWindow: 131072,
+                quantization: "Q4_K_M",
+                filename: "Qwen2.5-7B-Instruct-Q4_K_M.gguf"
+            ),
+            ModelCatalogEntry(
                 name: "Llama-3.2-1B (Q4_K_M)",
                 backend: .gguf,
                 url:
@@ -437,6 +449,17 @@ final class ModelDownloadService: NSObject, ObservableObject {
                 filename: "gemma-2-2b-it-Q4_K_M.gguf"
             ),
             ModelCatalogEntry(
+                name: "Gemma-2-9B (Q4_K_M)",
+                backend: .gguf,
+                url: "hf://lmstudio-community/gemma-2-9b-it-GGUF:main/gemma-2-9b-it-Q4_K_M.gguf",
+                sizeBytes: 5_760_000_000,
+                checksumSHA256: nil,
+                vendor: "Google",
+                contextWindow: 8192,
+                quantization: "Q4_K_M",
+                filename: "gemma-2-9b-it-Q4_K_M.gguf"
+            ),
+            ModelCatalogEntry(
                 name: "Phi-3.5-Mini (Q4_K_M)",
                 backend: .gguf,
                 url:
@@ -447,6 +470,18 @@ final class ModelDownloadService: NSObject, ObservableObject {
                 contextWindow: 131072,
                 quantization: "Q4_K_M",
                 filename: "Phi-3.5-mini-instruct-Q4_K_M.gguf"
+            ),
+            ModelCatalogEntry(
+                name: "SmolLM2-1.7B (Q4_K_M)",
+                backend: .gguf,
+                url:
+                    "hf://HuggingFaceTB/SmolLM2-1.7B-Instruct-GGUF:main/smollm2-1.7b-instruct-q4_k_m.gguf",
+                sizeBytes: 1_060_000_000,
+                checksumSHA256: nil,
+                vendor: "Hugging Face",
+                contextWindow: 8192,
+                quantization: "Q4_K_M",
+                filename: "smollm2-1.7b-instruct-q4_k_m.gguf"
             ),
         ]
     }
@@ -698,6 +733,18 @@ final class ModelDownloadService: NSObject, ObservableObject {
                     ModelRegistry.shared.installCoreML(at: destURL)
                     // Auto-select first Core ML model if none is currently selected
                     await autoSelectFirstCoreMLIfNeeded()
+                case .mlx:
+                    Log.info(
+                        "MLX cartridge downloads not yet supported – placeholder entry dropped",
+                        category: .llm)
+                    if fm.fileExists(atPath: destURL.path) {
+                        try? fm.removeItem(at: destURL)
+                    }
+                    updateDownload(
+                        entryID,
+                        status: .failed(error: "MLX downloads will be enabled in a future build")
+                    )
+                    return
                 case .mlxServer:
                     Log.info("Ignoring legacy MLX server download", category: .llm)
                     if fm.fileExists(atPath: destURL.path) {

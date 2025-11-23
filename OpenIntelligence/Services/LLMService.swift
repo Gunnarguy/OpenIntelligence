@@ -1720,15 +1720,17 @@ class OpenAILLMService: LLMService {
         let startTime = Date()
 
         // Construct messages with system prompt and user query
+        let defaultSystemPrompt = """
+        You are a helpful AI assistant with access to documents. When provided with context \
+        from documents, use that information to answer questions accurately and concisely. \
+        If the context doesn't contain relevant information, say so clearly. Always be helpful \
+        and conversational.
+        """
+        
         var messages: [[String: String]] = [
             [
                 "role": "system",
-                "content": """
-                You are a helpful AI assistant with access to documents. When provided with context \
-                from documents, use that information to answer questions accurately and concisely. \
-                If the context doesn't contain relevant information, say so clearly. Always be helpful \
-                and conversational.
-                """,
+                "content": config.systemPrompt ?? defaultSystemPrompt,
             ]
         ]
 
@@ -1784,6 +1786,9 @@ class OpenAILLMService: LLMService {
         // Temperature is NOT supported by reasoning models (o1, GPT-5)
         if !isReasoningModel {
             requestBody["temperature"] = Double(config.temperature)
+            requestBody["top_p"] = Double(config.topP)
+            requestBody["frequency_penalty"] = Double(config.frequencyPenalty)
+            requestBody["presence_penalty"] = Double(config.presencePenalty)
         }
 
         // Reasoning models use max_completion_tokens instead of max_tokens

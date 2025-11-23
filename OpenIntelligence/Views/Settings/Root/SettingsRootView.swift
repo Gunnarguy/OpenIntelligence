@@ -359,23 +359,76 @@ struct GenerationParametersView: View {
     @EnvironmentObject private var settings: SettingsStore
     var body: some View {
         List {
-            Section("Temperature") {
-                HStack {
-                    Slider(value: $settings.temperature, in: 0...1, step: 0.05)
-                    Text(String(format: "%.2f", settings.temperature))
-                        .font(.system(.body, design: .monospaced))
-                        .frame(width: 60, alignment: .trailing)
-                }
-                Text("Controls creativity vs. determinism.").font(.footnote).foregroundStyle(.secondary)
+            Section("System Prompt") {
+                TextEditor(text: $settings.systemPrompt)
+                    .frame(height: 100)
+                Text("Instructions prepended to every conversation.").font(.footnote).foregroundStyle(.secondary)
             }
-            Section("Max Tokens") {
+
+            Section("Context & Length") {
                 HStack {
-                    Slider(value: Binding(get: { Double(settings.maxTokens) }, set: { settings.maxTokens = Int($0) }), in: 100...16000, step: 100)
+                    Text("Max Tokens")
+                    Spacer()
                     Text("\(settings.maxTokens)")
                         .font(.system(.body, design: .monospaced))
-                        .frame(width: 60, alignment: .trailing)
                 }
-                Text("Upper bound on response length.").font(.footnote).foregroundStyle(.secondary)
+                Slider(value: Binding(get: { Double(settings.maxTokens) }, set: { settings.maxTokens = Int($0) }), in: 100...4096, step: 100)
+                Text("Maximum number of tokens to generate.").font(.footnote).foregroundStyle(.secondary)
+
+                HStack {
+                    Text("Context Window")
+                    Spacer()
+                    Text("\(settings.contextLength)")
+                        .font(.system(.body, design: .monospaced))
+                }
+                Slider(value: Binding(get: { Double(settings.contextLength) }, set: { settings.contextLength = Int($0) }), in: 512...32768, step: 512)
+                Text("Size of the context window (input + output).").font(.footnote).foregroundStyle(.secondary)
+            }
+
+            Section("Sampling") {
+                HStack {
+                    Text("Temperature")
+                    Spacer()
+                    Text(String(format: "%.2f", settings.temperature))
+                        .font(.system(.body, design: .monospaced))
+                }
+                Slider(value: $settings.temperature, in: 0...2.0, step: 0.05)
+                Text("Controls randomness (0.0 = deterministic, 1.0 = creative).").font(.footnote).foregroundStyle(.secondary)
+
+                HStack {
+                    Text("Top P")
+                    Spacer()
+                    Text(String(format: "%.2f", settings.topP))
+                        .font(.system(.body, design: .monospaced))
+                }
+                Slider(value: $settings.topP, in: 0...1.0, step: 0.05)
+                Text("Nucleus sampling probability.").font(.footnote).foregroundStyle(.secondary)
+            }
+
+            Section("Penalties") {
+                HStack {
+                    Text("Frequency Penalty")
+                    Spacer()
+                    Text(String(format: "%.2f", settings.frequencyPenalty))
+                        .font(.system(.body, design: .monospaced))
+                }
+                Slider(value: $settings.frequencyPenalty, in: 0...2.0, step: 0.1)
+                
+                HStack {
+                    Text("Presence Penalty")
+                    Spacer()
+                    Text(String(format: "%.2f", settings.presencePenalty))
+                        .font(.system(.body, design: .monospaced))
+                }
+                Slider(value: $settings.presencePenalty, in: 0...2.0, step: 0.1)
+
+                HStack {
+                    Text("Repetition Penalty")
+                    Spacer()
+                    Text(String(format: "%.2f", settings.repetitionPenalty))
+                        .font(.system(.body, design: .monospaced))
+                }
+                Slider(value: $settings.repetitionPenalty, in: 1.0...2.0, step: 0.05)
             }
         }
         .navigationTitle("Generation")
@@ -415,8 +468,23 @@ struct ModelGalleryView: View {
 }
 
 struct LocalProvidersView: View {
+    @EnvironmentObject private var settings: SettingsStore
     var body: some View {
         List {
+            Section("Compute Preference") {
+                Picker("Execution Strategy", selection: $settings.localComputePreference) {
+                    Text("Automatic").tag(LocalComputePreference.automatic)
+                    Text("GPU (Metal)").tag(LocalComputePreference.gpuPreferred)
+                    Text("CPU Only").tag(LocalComputePreference.cpuOnly)
+                }
+                #if os(iOS)
+                .pickerStyle(.menu)
+                #endif
+                Text("Choose 'GPU' for best performance on Apple Silicon. 'CPU' may be more stable for very large models.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            
             Section("Local Providers") {
                 #if os(macOS)
                 Text("Configure MLX, llama.cpp, and Ollama (macOS).")

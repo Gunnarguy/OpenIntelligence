@@ -57,7 +57,13 @@ struct ChatScreen: View {
 
     // Settings (synchronized with SettingsView via @AppStorage)
     @AppStorage("llmTemperature") private var temperature: Double = 0.7
-    @AppStorage("llmMaxTokens") private var maxTokens: Int = 500
+    @AppStorage("llmMaxTokens") private var maxTokens: Int = 512
+    @AppStorage("llmTopP") private var topP: Double = 0.9
+    @AppStorage("llmFrequencyPenalty") private var frequencyPenalty: Double = 0.0
+    @AppStorage("llmPresencePenalty") private var presencePenalty: Double = 0.0
+    @AppStorage("llmRepetitionPenalty") private var repetitionPenalty: Double = 1.0
+    @AppStorage("llmSystemPrompt") private var systemPrompt: String = "You are a helpful assistant."
+    @AppStorage("llmContextLength") private var contextLength: Int = 2048
     @AppStorage("allowPrivateCloudCompute") private var allowPrivateCloudCompute: Bool = true
     @AppStorage("executionContextRaw") private var executionContextRaw: String = "automatic"
 
@@ -187,8 +193,12 @@ struct ChatScreen: View {
         .task(id: ragService.containerService.activeContainerId) {
             await recalcActiveCounts()
         }
-        // Recalculate when documents list changes (objectWillChange is a coarse signal)
-        .onReceive(ragService.objectWillChange) { _ in
+        // React to document ingestion/removal immediately
+        .onReceive(ragService.$documents) { _ in
+            Task { await recalcActiveCounts() }
+        }
+        // Ensure counts refresh if the user switches containers outside this view
+        .onReceive(ragService.containerService.$activeContainerId) { _ in
             Task { await recalcActiveCounts() }
         }
         .onReceive(ragService.$pendingCloudConsent) { record in
@@ -284,9 +294,13 @@ struct ChatScreen: View {
     // MARK: - Active-container counts
 
     private func recalcActiveCounts() async {
-        let activeId = await MainActor.run { ragService.containerService.activeContainerId }
-        let defaultId = await MainActor.run { ragService.containerService.containers.first?.id }
-        let docsSnapshot = await MainActor.run { ragService.documents }
+        let (activeId, defaultId, docsSnapshot) = await MainActor.run {
+            (
+                ragService.containerService.activeContainerId,
+                ragService.containerService.containers.first?.id,
+                ragService.documents
+            )
+        }
         // Match Visualizations/Documents parity for legacy docs
         let docsForActive = docsSnapshot.filter { doc in
             if let cid = doc.containerId {
@@ -451,6 +465,12 @@ struct ChatScreen: View {
         let capturedTopK = retrievalTopK
         let capturedMaxTokens = maxTokens
         let capturedTemperature = temperature
+        let capturedTopP = topP
+        let capturedFrequencyPenalty = frequencyPenalty
+        let capturedPresencePenalty = presencePenalty
+        let capturedRepetitionPenalty = repetitionPenalty
+        let capturedSystemPrompt = systemPrompt
+        let capturedContextLength = contextLength
         let capturedExecutionContext = executionContext
         let capturedAllowPCC = allowPrivateCloudCompute
         let capturedService = ragService
@@ -503,9 +523,14 @@ struct ChatScreen: View {
                 let config = InferenceConfig(
                     maxTokens: capturedMaxTokens,
                     temperature: Float(capturedTemperature),
-                    topP: 0.9,
+                    topP: Float(capturedTopP),
                     topK: 40,
                     useKVCache: true,
+                    systemPrompt: capturedSystemPrompt,
+                    contextLength: capturedContextLength,
+                    frequencyPenalty: Float(capturedFrequencyPenalty),
+                    presencePenalty: Float(capturedPresencePenalty),
+                    repetitionPenalty: Float(capturedRepetitionPenalty),
                     executionContext: capturedExecutionContext,
                     allowPrivateCloudCompute: capturedAllowPCC
                 )

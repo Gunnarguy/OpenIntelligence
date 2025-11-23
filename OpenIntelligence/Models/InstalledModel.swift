@@ -13,6 +13,7 @@ import Foundation
 enum ModelBackend: String, Codable, CaseIterable, Identifiable {
     case gguf       // iOS: in-process llama.cpp runtime (when available), file: .gguf
     case coreML     // iOS/macOS: Core ML LLM (.mlpackage)
+    case mlx        // macOS/iOS: MLX tensor bundles (.safetensors, .json configs)
     case mlxServer  // macOS: MLX local server descriptor (no file payload)
 
     var id: String { rawValue }
@@ -21,6 +22,7 @@ enum ModelBackend: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .gguf: return "GGUF"
         case .coreML: return "Core ML"
+        case .mlx: return "MLX"
         case .mlxServer: return "MLX (Server)"
         }
     }
@@ -29,6 +31,7 @@ enum ModelBackend: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .gguf: return "doc.badge.gearshape"
         case .coreML: return "cpu"
+        case .mlx: return "memorychip"
         case .mlxServer: return "server.rack"
         }
     }

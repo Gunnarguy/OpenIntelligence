@@ -1,35 +1,48 @@
 # OpenIntelligence AI Guide
 
+## Project Context
+
+- **Platform**: iOS 26.0+ (Swift 6.0).
+- **Core Mission**: Privacy-first RAG (Retrieval-Augmented Generation) running on-device with optional Private Cloud Compute (PCC).
+- **Key Technologies**: Swift Concurrency (`actor`, `Task`), Apple Foundation Models, Core ML, PDFKit, Vision, NaturalLanguage.
+
 ## Architecture & Core Patterns
-- **Privacy-First RAG**: iOS 26 app. `RAGService` (@MainActor) orchestrates ingestion, search, and LLM routing. `RAGEngine` (actor) handles CPU-heavy math (BM25, RRF, MMR) to keep UI responsive.
-- **Protocol-First**: Services are defined by protocols (`DocumentProcessor`, `EmbeddingService`, `VectorDatabase`, `HybridSearchService`, `LLMService`). Swap implementations via `ContainerService` + `VectorStoreRouter`.
-- **Concurrency**: 
-  - UI state on `@MainActor` (`@Published`, `@AppStorage`).
-  - Heavy work offloaded to `RAGEngine` or `Task.detached`.
-  - Use `Task.isCancelled` checks in hot loops.
 
-## Data Flow & Storage
-- **Ingestion Pipeline**: `DocumentProcessor` (PDFKit/Vision) → `SemanticChunker` (400w target, 75w overlap) → `EmbeddingService` (512-dim NLEmbedding) → `PersistentVectorDatabase`.
-- **Hybrid Search**: Vector candidates (topK * 2) + BM25 keywords → `RAGEngine.reciprocalRankFusion` → MMR diversification.
-- **Container-Aware**: Always access storage via `VectorStoreRouter.db(for: containerId)`. Invalidate hybrid caches if mutating outside `storeBatch`.
+- **Protocol-First Design**: All major services are defined by protocols (`DocumentProcessor`, `EmbeddingService`, `VectorDatabase`, `LLMService`). Implementations are swapped via dependency injection.
+- **Actor Isolation**:
+  - `RAGService` (`@MainActor`): Orchestrates UI state, ingestion, and routing. Source of truth for `documents` and `messages`.
+  - `RAGEngine` (`actor`): Handles CPU-intensive tasks (BM25 scoring, RRF fusion, MMR) off the main thread.
+- **Containerization**: Data is isolated in `KnowledgeContainer`s. Access storage **only** via `VectorStoreRouter.db(for: containerId)`.
 
-## LLM & Tooling
-- **Routing**: `RAGService.instantiateService` + `buildFallbackChain`. Default: Primary → Apple Foundation Models → On-Device Analysis.
-- **Cloud Consent**: Cloud calls MUST pass `ensureCloudConsentIfNeeded` and log via `recordTransmission` for privacy/telemetry.
-- **Agent Tools**: Located in `OpenIntelligence/Services/Tools/`. Must hold weak `RAGService` refs and execute async off-main.
+## Data Flow
 
-## UI & State Management
-- **State**: `RAGService` owns the source of truth. Views read via `@EnvironmentObject` or bindings.
-- **Settings**: Use `SettingsStore` for preferences. Never access `UserDefaults` directly in views.
-- **Messaging**: `RAGService.messages` is the source. UI renders slices (pagination logic in service).
+1.  **Ingestion**: `DocumentProcessor` (PDF/Vision) → `SemanticChunker` (400w/75w overlap) → `EmbeddingService` (512-dim `NLEmbedding`) → `PersistentVectorDatabase` (via `VectorStoreRouter`).
+2.  **Retrieval**: Hybrid Search (Vector + BM25) → `RAGEngine.reciprocalRankFusion` → MMR Diversification.
+3.  **Generation**: `LLMService` generates response.
+    - **Routing**: `AppleFoundationLLMService` (Primary) → `OnDeviceAnalysisService` (Fallback) or `OpenAILLMService` (if configured).
+    - **Privacy**: Cloud calls **must** pass `ensureCloudConsentIfNeeded` and log via `recordTransmission`.
 
-## Telemetry & Debugging
-- **Logging**: Use `Log.info/warning/error/section`. Avoid `print`.
-- **Dashboard**: `TelemetryDashboardView` + `RetrievalLogEntry` are primary debugging tools.
-- **Metrics**: Emit via `TelemetryCenter`.
+## Critical Workflows
 
-## Build & Test Workflows
-- **Build**: `xcodebuild -scheme OpenIntelligence -project OpenIntelligence.xcodeproj -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' build`
-- **Clean**: `./clean_and_rebuild.sh` (use when DerivedData gets noisy).
-- **Smoke Test**: Follow `smoke_test.md` after changes (Ingest `TestDocuments/` → Query → Verify Telemetry).
-- **Docs**: See `Docs/reference/ARCHITECTURE.md` and `PERFORMANCE_OPTIMIZATIONS.md` for deep dives.
+- **Build**: `xcodebuild -scheme OpenIntelligence -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max'` or ⌘R in Xcode.
+- **Clean**: Run `./clean_and_rebuild.sh` to clear DerivedData and force UI updates (especially for Settings).
+- **Test**: Follow `smoke_test.md` manually.
+  - **Smoke Test**: Ingest `TestDocuments/` → Query → Verify Telemetry Badges.
+- **Local LLM**: `Vendor/LocalLLMClient` handles `llama.cpp` integration.
+
+## Coding Conventions
+
+- **Concurrency**: Use structured concurrency (`Task`, `async/await`). **Avoid** `DispatchQueue` unless interfacing with legacy APIs.
+- **Logging**: Use `Log.info`, `Log.warning`, `Log.error`. **Do not use** `print` for production logs.
+- **Settings**: Access preferences via `SettingsStore`. **Never** access `UserDefaults` directly in Views.
+- **UI State**: `RAGService` is the single source of truth. Views use `@EnvironmentObject` or bindings to `RAGService`.
+- **Error Handling**: User-facing errors go to `RAGService.lastError`.
+
+## Key Files
+
+- `Services/RAGService.swift`: Main orchestrator.
+- `Services/RAGEngine.swift`: Math/Logic actor.
+- `Services/LLMService.swift`: LLM protocols and implementations (Apple FM, OpenAI, On-Device).
+- `Services/VectorStoreRouter.swift`: Storage access point.
+- `Services/DocumentProcessor.swift`: Ingestion logic.
+- `Docs/reference/ARCHITECTURE.md`: Detailed technical reference.

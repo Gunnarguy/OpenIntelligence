@@ -16,20 +16,20 @@ final class NLEmbeddingProvider: EmbeddingProvider {
     
     // MARK: - Init
     init(language: NLLanguage = .english) {
-        self.embedding = NLEmbedding.wordEmbedding(for: language)
-        if embedding == nil {
-            print("⚠️ [NLEmbeddingProvider] NLEmbedding not available for \(language.rawValue)")
+        let resolved = NLEmbedding.wordEmbedding(for: language)
+        self.embedding = resolved
+        if resolved == nil {
+            Log.warning(
+                "NLEmbedding not available for \(language.rawValue); using fallback hash embeddings",
+                category: .embedding
+            )
         }
     }
     
     // MARK: - EmbeddingProvider
-    var isAvailable: Bool { embedding != nil }
+    var isAvailable: Bool { true }
     
     func embed(text: String) async throws -> [Float] {
-        guard let embedding = embedding else {
-            throw EmbeddingError.modelUnavailable
-        }
-        
         // Edge case: Empty or whitespace-only text
         let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedText.isEmpty else {
@@ -46,27 +46,35 @@ final class NLEmbeddingProvider: EmbeddingProvider {
         var wordsProcessed = 0
         var wordsSkipped = 0
         
-        for word in words {
-            if let vector = embedding.vector(for: word) {
-                wordVectors.append(vector)
-                wordsProcessed += 1
-            } else if let vector = embedding.vector(for: word.lowercased()) {
-                wordVectors.append(vector)
-                wordsProcessed += 1
-            } else {
-                wordsSkipped += 1
+        if let embedding = embedding {
+            for word in words {
+                if let vector = embedding.vector(for: word) {
+                    wordVectors.append(vector)
+                    wordsProcessed += 1
+                } else if let vector = embedding.vector(for: word.lowercased()) {
+                    wordVectors.append(vector)
+                    wordsProcessed += 1
+                } else {
+                    wordsSkipped += 1
+                }
+            }
+
+            if wordsSkipped > 0 && wordsSkipped > words.count / 2 {
+                Log.warning(
+                    "Low NLEmbedding coverage: \(wordsProcessed)/\(words.count) words",
+                    category: .embedding
+                )
             }
         }
-        
-        if wordsSkipped > 0 && wordsSkipped > words.count / 2 {
-            print("⚠️  [NLEmbeddingProvider] Low coverage: \(wordsProcessed)/\(words.count) words have embeddings")
-        }
-        
-        // If no word vectors found, use fallback strategy
+
+        // If no word vectors found or embedding unavailable, use fallback strategy
         let chunkEmbedding: [Float]
         if wordVectors.isEmpty {
-            print("⚠️  [NLEmbeddingProvider] No vectors returned - using fallback embedding")
-            print("   💡 Text: \"\(trimmedText.prefix(50))...\"")
+            Log.info(
+                "Falling back to hash embedding (NLEmbedding missing or low coverage)",
+                category: .embedding
+            )
+            Log.debug("Sample text: \(trimmedText.prefix(80))", category: .embedding)
             chunkEmbedding = createFallbackEmbedding(for: trimmedText)
         } else {
             // Average all word embeddings to get a single chunk-level embedding

@@ -35,6 +35,31 @@ struct RetrievalLogEntry: Identifiable, Sendable {
     let chunks: [RetrievedChunk]
 }
 
+struct ReembedProgress: Sendable {
+    let completed: Int
+    let total: Int
+    let currentFilename: String
+
+    var percentage: Double {
+        guard total > 0 else { return 0 }
+        return Double(completed) / Double(total)
+    }
+}
+
+enum IngestionContext: Sendable {
+    case userInitiated
+    case autoRebuild
+
+    var allowsSelfTuningScheduling: Bool {
+        switch self {
+        case .userInitiated:
+            return true
+        case .autoRebuild:
+            return false
+        }
+    }
+}
+
 /// Main orchestrator for the RAG (Retrieval-Augmented Generation) pipeline
 /// Coordinates document processing, embedding, retrieval, and generation
 class RAGService: ObservableObject {
@@ -45,6 +70,7 @@ class RAGService: ObservableObject {
     private let embeddingService: EmbeddingService
     let containerService: ContainerService
     private let vectorRouter: VectorStoreRouter
+    private let intelligenceCenter = LibraryIntelligenceCenter()
     private weak var entitlementStore: EntitlementStore?
     private var cancellables = Set<AnyCancellable>()
     @MainActor private weak var settingsStore: SettingsStore?
@@ -55,6 +81,65 @@ class RAGService: ObservableObject {
     @MainActor
     func getDocumentName(for documentId: UUID) -> String {
         return documents.first(where: { $0.id == documentId })?.filename ?? "Unknown"
+    }
+
+    /// Latest intelligence summary for a given container, if one exists
+    @MainActor
+    func intelligenceReport(for containerId: UUID?) -> LibraryIntelligenceCenter.IntelligenceReport? {
+        guard let id = containerId else { return nil }
+        return containerIntelligence[id]
+    }
+
+    /// Recompute the intelligence snapshot for a container on demand.
+    @discardableResult
+    func refreshIntelligence(for containerId: UUID? = nil, force: Bool = false) -> Task<Void, Never> {
+        Task(priority: .utility) { [weak self] in
+            guard let self else { return }
+            await self.generateIntelligenceSnapshot(for: containerId, force: force)
+        }
+    }
+
+    private func generateIntelligenceSnapshot(for containerId: UUID?, force: Bool) async {
+        let resolvedId: UUID? = await MainActor.run {
+            containerId ?? self.containerService.activeContainerId
+        }
+        guard let targetId = resolvedId else { return }
+
+        let shouldSkip = await MainActor.run { () -> Bool in
+            if force { return false }
+            return self.containerIntelligence[targetId] != nil
+        }
+        if shouldSkip { return }
+
+        let docs = await MainActor.run { self.documentsForContainer(targetId) }
+        let database = await dbFor(targetId)
+        let chunks = (try? await database.allChunks()) ?? []
+        let report = await intelligenceCenter.analyzeLibrary(
+            documents: docs,
+            chunks: chunks
+        )
+
+        await MainActor.run {
+            self.containerIntelligence[targetId] = report
+        }
+
+        await handleSelfTuning(
+            for: targetId,
+            report: report,
+            triggerAllowsScheduling: force
+        )
+    }
+
+    @MainActor
+    private func documentsForContainer(_ containerId: UUID) -> [Document] {
+        let defaultContainerId = containerService.containers.first?.id
+        return documents.filter { document in
+            if let docContainer = document.containerId {
+                return docContainer == containerId
+            } else {
+                return containerId == defaultContainerId
+            }
+        }
     }
 
     /// Enrich retrieved chunks with source information for citations
@@ -90,6 +175,13 @@ class RAGService: ObservableObject {
     @MainActor @Published var pendingCloudConsent: CloudTransmissionRecord?
     @MainActor @Published private(set) var lastCloudTransmission: CloudTransmissionRecord?
     @MainActor @Published private(set) var cloudConsent: [CloudProvider: CloudConsentState] = [:]
+    @MainActor @Published private(set) var containerIntelligence: [UUID: LibraryIntelligenceCenter.IntelligenceReport] = [:]
+    @MainActor private var selfTuningInFlight: Set<UUID> = []
+    #if os(macOS)
+        @MainActor @Published private(set) var mlxServerStatus: MLXLLMService.ServerStatus? = nil
+        @MainActor private weak var observedMLXService: MLXLLMService?
+        @MainActor private var mlxStatusBootstrapTask: Task<Void, Never>?
+    #endif
 
     private(set) var totalChunksStored: Int = 0
     private let retrievalHistoryLimit = 50
@@ -102,6 +194,22 @@ class RAGService: ObservableObject {
 
     private var _llmService: LLMService
     private var _fallbackServices: [LLMService] = []
+
+    private enum ChunkingDefaults {
+        static let targetWindow = 400
+        static let overlap = 75
+    }
+
+    private struct EmbeddingAutoAction {
+        let providerId: String
+        let dimension: Int
+        let reason: String
+    }
+
+    private struct ChunkAutoAction {
+        let directive: ChunkingDirective
+        let reason: String
+    }
 
     private enum ConsentDefaults {
         static func key(for provider: CloudProvider) -> String {
@@ -139,6 +247,9 @@ class RAGService: ObservableObject {
         if let service = llmService {
             // User provided custom service (e.g., from Settings)
             self._llmService = service
+            #if os(macOS)
+                configureMLXObserver(for: service)
+            #endif
             Log.info("✓ Using custom LLM service: \(service.modelName)", category: .initialization)
         } else {
             // Check user's selected model from Settings
@@ -187,6 +298,9 @@ class RAGService: ObservableObject {
 
             self._llmService = resolvedService
             self._fallbackServices = fallbackServices
+            #if os(macOS)
+                configureMLXObserver(for: resolvedService)
+            #endif
 
             // Connect tool handler for agentic RAG (Foundation Models only)
             self._llmService.toolHandler = self
@@ -502,6 +616,9 @@ class RAGService: ObservableObject {
                 print(
                     "✅ [RAGService] Loaded \(loadedDocuments.count) documents (\(totalChunksStored) chunks)"
                 )
+                if !loadedDocuments.isEmpty {
+                    self.refreshIntelligence(for: nil)
+                }
             }
         } catch {
             print("❌ [RAGService] Failed to load documents metadata: \(error.localizedDescription)")
@@ -564,6 +681,9 @@ class RAGService: ObservableObject {
     func updateLLMService(_ newService: LLMService) async {
         await MainActor.run {
             self._llmService = newService
+            #if os(macOS)
+                configureMLXObserver(for: newService)
+            #endif
             Log.info("✓ Switched to: \(newService.modelName)", category: .initialization)
         }
     }
@@ -620,7 +740,7 @@ class RAGService: ObservableObject {
 
     /// Add a document to the knowledge base
     /// This performs the full ingestion pipeline: parse → chunk → embed → store
-    func addDocument(at url: URL) async throws {
+    func addDocument(at url: URL, context: IngestionContext = .userInitiated) async throws {
         let filename = url.lastPathComponent
         let gating = await MainActor.run { () -> (limit: Int, canAdd: Bool, tier: WorkspaceTier, count: Int) in
             let count = self.documents.count
@@ -663,13 +783,14 @@ class RAGService: ObservableObject {
         let activeContainerId = await MainActor.run { self.containerService.activeContainerId }
         
         // Get the active container to determine which embedding provider to use
-        let container = await MainActor.run {
+        var container = await MainActor.run {
             self.containerService.containers.first { $0.id == activeContainerId }
         }
-        let providerId = container?.embeddingProviderId ?? "nl_embedding"
+        var providerId = container?.embeddingProviderId ?? "nl_embedding"
+        let chunkOverride = chunkingOverride(for: container)
         
         // Create container-specific embedding service
-        let containerEmbeddingService = EmbeddingService.forProvider(id: providerId)
+        var containerEmbeddingService = EmbeddingService.forProvider(id: providerId)
         
         let pipelineStartTime = Date()
         TelemetryCenter.emit(
@@ -680,6 +801,8 @@ class RAGService: ObservableObject {
                 "embeddingProvider": providerId
             ]
         )
+
+        var pendingSelfTuneReasons: [String] = []
 
         await MainActor.run {
             isProcessing = true
@@ -699,7 +822,10 @@ class RAGService: ObservableObject {
         do {
             // Step 1: Parse document and extract chunks
             let extractionStartTime = Date()
-            let (document, processedChunks) = try await documentProcessor.processDocument(at: url)
+            let (document, processedChunks) = try await documentProcessor.processDocument(
+                at: url,
+                chunkOverride: chunkOverride
+            )
             let extractionTime = Date().timeIntervalSince(extractionStartTime)
             let totalChars = processedChunks.reduce(0) { $0 + $1.metadata.characterCount }
             let totalWords = processedChunks.reduce(0) { $0 + $1.metadata.wordCount }
@@ -722,6 +848,108 @@ class RAGService: ObservableObject {
 
             // Small delay to show the chunking message
             try? await Task.sleep(nanoseconds: 200_000_000)  // 0.2s
+
+            // Step 1.5: Auto-adapt configuration if enabled
+            if context.allowsSelfTuningScheduling,
+                let autoContainer = container,
+                autoContainer.autoAdaptDimension
+            {
+                await MainActor.run {
+                    processingStatus = "\(filename) • Analyzing content"
+                }
+                
+                // Get ALL existing chunks in this container for comprehensive analysis
+                let db = await dbForActiveContainer()
+                let existingChunks = try await db.allChunks()
+                
+                // Analyze combined corpus (existing + new document)
+                let allDocumentsForAnalysis = await MainActor.run { 
+                    self.documents.filter { $0.containerId == activeContainerId } + [document]
+                }
+                let combinedChunks = existingChunks + processedChunks.enumerated().map { index, chunk in
+                    DocumentChunk(
+                        documentId: document.id,
+                        content: chunk.text,
+                        embedding: [], // Empty for analysis
+                        metadata: ChunkMetadata(
+                            chunkIndex: index,
+                            startPosition: chunk.metadata.startPosition,
+                            endPosition: chunk.metadata.endPosition,
+                            pageNumber: chunk.metadata.pageNumber,
+                            sectionTitle: chunk.metadata.sectionTitle,
+                            keywords: chunk.metadata.keywords,
+                            semanticDensity: chunk.metadata.semanticDensity,
+                            hasNumericData: chunk.metadata.hasNumericData,
+                            hasListStructure: chunk.metadata.hasListStructure,
+                            wordCount: chunk.metadata.wordCount,
+                            characterCount: chunk.metadata.characterCount,
+                            createdAt: chunk.metadata.createdAt
+                        )
+                    )
+                }
+                
+                let report = await intelligenceCenter.analyzeLibrary(
+                    documents: allDocumentsForAnalysis,
+                    chunks: combinedChunks
+                )
+
+                await MainActor.run {
+                    self.containerIntelligence[activeContainerId] = report
+                }
+                
+                // Log analysis results
+                TelemetryCenter.emit(
+                    .ingestion,
+                    title: "Content analysis complete",
+                    metadata: [
+                        "file": filename,
+                        "vocabularyRichness": String(format: "%.2f", report.corpus.vocabularyRichness),
+                        "multilingualScore": String(format: "%.2f", report.corpus.multilingualScore),
+                        "technicalDensity": String(format: "%.2f", report.corpus.technicalDensity),
+                        "semanticComplexity": String(format: "%.2f", report.corpus.semanticComplexity),
+                        "chunkingStrategy": report.chunking.strategy.rawValue,
+                        "chunkWindow": "\(report.chunking.targetWordWindow)",
+                        "chunkOverlap": "\(report.chunking.overlapWords)",
+                        "retrievalFusion": report.retrieval.fusionStyle.rawValue,
+                        "retrievalVectorWeight": String(format: "%.2f", report.retrieval.vectorWeight),
+                        "retrievalLexicalWeight": String(format: "%.2f", report.retrieval.lexicalWeight),
+                        "recommendedDimension": "\(report.embedding.dimension)",
+                        "recommendedProvider": report.embedding.providerId,
+                        "confidence": String(format: "%.1f%%", report.embedding.confidence * 100),
+                        "reasoning": report.embedding.rationale,
+                        "alerts": report.alerts.joined(separator: " | ")
+                    ]
+                )
+                
+                let (updatedContainer, autoReasons) = resolveAutoAdjustments(
+                    for: autoContainer,
+                    report: report
+                )
+
+                if updatedContainer != autoContainer {
+                    let embeddingChanged =
+                        updatedContainer.embeddingProviderId != autoContainer.embeddingProviderId
+                        || updatedContainer.embeddingDim != autoContainer.embeddingDim
+
+                    if embeddingChanged {
+                        providerId = updatedContainer.embeddingProviderId
+                        containerEmbeddingService = EmbeddingService.forProvider(id: updatedContainer.embeddingProviderId)
+                        await MainActor.run {
+                            processingStatus = "\(filename) • Config adapted to \(updatedContainer.embeddingDim)D"
+                        }
+                        try? await Task.sleep(nanoseconds: 500_000_000)
+                    }
+
+                    container = updatedContainer
+                    await MainActor.run {
+                        self.containerService.updateContainer(updatedContainer)
+                    }
+                }
+
+                if context.allowsSelfTuningScheduling, !autoReasons.isEmpty {
+                    pendingSelfTuneReasons = autoReasons
+                }
+            }
 
             // Step 2: Generate embeddings with progress updates
             var embeddings: [[Float]] = []
@@ -922,6 +1150,12 @@ class RAGService: ObservableObject {
                 isProcessing = false
             }
 
+            refreshIntelligence(for: activeContainerId, force: true)
+
+            if context.allowsSelfTuningScheduling, !pendingSelfTuneReasons.isEmpty {
+                scheduleSelfTuningRebuild(for: activeContainerId, reasons: pendingSelfTuneReasons)
+            }
+
         } catch {
             // Reset processing state on error
             await MainActor.run {
@@ -964,6 +1198,8 @@ class RAGService: ObservableObject {
         saveDocumentsToDisk()
 
         print("✓ Removed document: \(document.filename)")
+
+        refreshIntelligence(for: activeId, force: true)
     }
 
     /// Clear all documents from the knowledge base
@@ -983,6 +1219,266 @@ class RAGService: ObservableObject {
         saveDocumentsToDisk()
 
         print("✓ Cleared all documents from knowledge base")
+
+        refreshIntelligence(for: activeId, force: true)
+    }
+
+    /// Rebuild embeddings for every document in the specified container
+    func reembedDocuments(
+        in containerId: UUID? = nil,
+        progressHandler: (@MainActor (ReembedProgress) -> Void)? = nil
+    ) async throws {
+        let targetContainerId: UUID
+        if let containerId {
+            targetContainerId = containerId
+        } else {
+            targetContainerId = await MainActor.run { self.containerService.activeContainerId }
+        }
+        let documentsToRebuild = await MainActor.run {
+            self.documents.filter { document in
+                if let docContainer = document.containerId {
+                    return docContainer == targetContainerId
+                } else if let fallbackId = self.containerService.containers.first?.id {
+                    return fallbackId == targetContainerId
+                }
+                return false
+            }
+        }
+
+        guard !documentsToRebuild.isEmpty else {
+            await MainActor.run {
+                progressHandler?(ReembedProgress(completed: 0, total: 0, currentFilename: ""))
+            }
+            return
+        }
+
+        let originalContainerId = await MainActor.run { self.containerService.activeContainerId }
+        if originalContainerId != targetContainerId {
+            await MainActor.run {
+                self.containerService.setActive(targetContainerId)
+            }
+        }
+
+        TelemetryCenter.emit(
+            .ingestion,
+            title: "Re-embedding requested",
+            metadata: [
+                "container": targetContainerId.uuidString,
+                "documents": "\(documentsToRebuild.count)"
+            ]
+        )
+
+        defer {
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.processingStatus = ""
+                self.isProcessing = false
+                if originalContainerId != targetContainerId {
+                    self.containerService.setActive(originalContainerId)
+                }
+            }
+        }
+
+        for (index, document) in documentsToRebuild.enumerated() {
+            if Task.isCancelled { break }
+
+            await MainActor.run {
+                self.processingStatus = "Re-embedding \(document.filename) (\(index + 1)/\(documentsToRebuild.count))"
+                self.isProcessing = true
+                progressHandler?(ReembedProgress(
+                    completed: index,
+                    total: documentsToRebuild.count,
+                    currentFilename: document.filename
+                ))
+            }
+
+            try await removeDocument(document)
+            try await addDocument(at: document.fileURL, context: .autoRebuild)
+
+            await MainActor.run {
+                // Keep overlay visible between documents
+                self.isProcessing = true
+            }
+        }
+
+        await MainActor.run {
+            progressHandler?(ReembedProgress(
+                completed: documentsToRebuild.count,
+                total: documentsToRebuild.count,
+                currentFilename: ""
+            ))
+        }
+    }
+
+    // MARK: - Self-Tuning
+
+    private func chunkingOverride(for container: KnowledgeContainer?) -> DocumentProcessor.ChunkingOverride? {
+        guard let directive = container?.chunkingDirective else { return nil }
+        return DocumentProcessor.ChunkingOverride(
+            targetWordWindow: directive.targetWordWindow,
+            overlapWords: directive.overlapWords
+        )
+    }
+
+    private func resolveAutoAdjustments(
+        for container: KnowledgeContainer,
+        report: LibraryIntelligenceCenter.IntelligenceReport
+    ) -> (KnowledgeContainer, [String]) {
+        var updated = container
+        var reasons: [String] = []
+
+        if let embeddingAction = evaluateEmbeddingShift(container: container, plan: report.embedding) {
+            updated.embeddingProviderId = embeddingAction.providerId
+            updated.embeddingDim = embeddingAction.dimension
+            reasons.append(embeddingAction.reason)
+        }
+
+        if let chunkAction = evaluateChunkShift(current: container.chunkingDirective, plan: report.chunking) {
+            updated.chunkingDirective = chunkAction.directive
+            reasons.append(chunkAction.reason)
+        }
+
+        if !reasons.isEmpty {
+            updated.lastSelfTuneAt = Date()
+        }
+
+        return (updated, reasons)
+    }
+
+    private func evaluateEmbeddingShift(
+        container: KnowledgeContainer,
+        plan: LibraryIntelligenceCenter.EmbeddingPlan
+    ) -> EmbeddingAutoAction? {
+        let providerChanged = plan.providerId != container.embeddingProviderId
+        let dimensionDelta = abs(plan.dimension - container.embeddingDim)
+        guard providerChanged || dimensionDelta >= 64 else { return nil }
+
+        let confident = plan.confidence >= 0.35 || providerChanged
+        guard confident else { return nil }
+
+        let friendlyProvider: String
+        switch plan.providerId {
+        case "coreml_sentence_embedding":
+            friendlyProvider = "Core ML Sentence"
+        case "apple_fm_embed":
+            friendlyProvider = "Apple FM"
+        default:
+            friendlyProvider = "Natural Language"
+        }
+
+        let reason = "Embeddings shifted to \(friendlyProvider) • \(plan.dimension)D (confidence \(String(format: "%.0f%%", plan.confidence * 100)))"
+        return EmbeddingAutoAction(providerId: plan.providerId, dimension: plan.dimension, reason: reason)
+    }
+
+    private func evaluateChunkShift(
+        current: ChunkingDirective?,
+        plan: LibraryIntelligenceCenter.ChunkingPlan
+    ) -> ChunkAutoAction? {
+        let currentStrategy = current?.strategy ?? LibraryIntelligenceCenter.ChunkingPlan.Strategy.balanced.rawValue
+        let currentWindow = current?.targetWordWindow ?? ChunkingDefaults.targetWindow
+        let currentOverlap = current?.overlapWords ?? ChunkingDefaults.overlap
+
+        let strategyChanged = currentStrategy != plan.strategy.rawValue
+        let windowShift = abs(currentWindow - plan.targetWordWindow) >= 40
+        let overlapShift = abs(currentOverlap - plan.overlapWords) >= 15
+
+        guard strategyChanged || windowShift || overlapShift else { return nil }
+
+        var reasonBits: [String] = []
+        if strategyChanged {
+            reasonBits.append("Chunk strategy → \(plan.strategy.rawValue.capitalized)")
+        }
+        if windowShift {
+            reasonBits.append("Window \(currentWindow)→\(plan.targetWordWindow)")
+        }
+        if overlapShift {
+            reasonBits.append("Overlap \(currentOverlap)→\(plan.overlapWords)")
+        }
+
+        let directive = ChunkingDirective(
+            source: .auto,
+            strategy: plan.strategy.rawValue,
+            targetWordWindow: plan.targetWordWindow,
+            overlapWords: plan.overlapWords,
+            rationale: plan.rationales
+        )
+
+        return ChunkAutoAction(directive: directive, reason: reasonBits.joined(separator: " • "))
+    }
+
+    private func scheduleSelfTuningRebuild(for containerId: UUID, reasons: [String]) {
+        Task.detached(priority: .utility) { [weak self] in
+            guard let self else { return }
+            let canStart = await self.beginSelfTuning(for: containerId)
+            guard canStart else { return }
+            TelemetryCenter.emit(
+                .ingestion,
+                title: "Self-tuning rebuild scheduled",
+                metadata: [
+                    "container": containerId.uuidString,
+                    "reasons": reasons.joined(separator: " | ")
+                ]
+            )
+            do {
+                try await self.reembedDocuments(in: containerId)
+                TelemetryCenter.emit(
+                    .ingestion,
+                    title: "Self-tuning rebuild complete",
+                    metadata: ["container": containerId.uuidString]
+                )
+            } catch {
+                if Task.isCancelled { return }
+                TelemetryCenter.emit(
+                    .ingestion,
+                    severity: .error,
+                    title: "Self-tuning rebuild failed",
+                    metadata: [
+                        "container": containerId.uuidString,
+                        "error": error.localizedDescription
+                    ]
+                )
+            }
+            await self.finishSelfTuning(for: containerId)
+        }
+    }
+
+    @MainActor
+    private func beginSelfTuning(for containerId: UUID) -> Bool {
+        if selfTuningInFlight.contains(containerId) {
+            return false
+        }
+        selfTuningInFlight.insert(containerId)
+        return true
+    }
+
+    @MainActor
+    private func finishSelfTuning(for containerId: UUID) {
+        selfTuningInFlight.remove(containerId)
+    }
+
+    private func handleSelfTuning(
+        for containerId: UUID,
+        report: LibraryIntelligenceCenter.IntelligenceReport,
+        triggerAllowsScheduling: Bool
+    ) async {
+        guard let container = await MainActor.run(
+            resultType: KnowledgeContainer?.self,
+            body: {
+                self.containerService.containers.first { $0.id == containerId }
+            }
+        ) else { return }
+        guard container.autoAdaptDimension else { return }
+
+        let (updated, reasons) = resolveAutoAdjustments(for: container, report: report)
+        if updated != container {
+            await MainActor.run {
+                self.containerService.updateContainer(updated)
+            }
+        }
+
+        if triggerAllowsScheduling, !reasons.isEmpty {
+            scheduleSelfTuningRebuild(for: containerId, reasons: reasons)
+        }
     }
 
     // MARK: - RAG Query Pipeline
@@ -2135,6 +2631,9 @@ class RAGService: ObservableObject {
     func updateLLMService(_ primary: LLMService, fallbacks: [LLMService] = []) {
         self._llmService = primary
         self._fallbackServices = fallbacks
+        #if os(macOS)
+            configureMLXObserver(for: primary)
+        #endif
         Log.info(
             "✓ Updated model: \(primary.modelName) with \(fallbacks.count) fallback(s)",
             category: .initialization)
@@ -2290,6 +2789,8 @@ class RAGService: ObservableObject {
             return .gguf
         case is CoreMLLLMService:
             return .coreML
+        case is MLXLLMService:
+            return .mlx
         default:
             return nil
         }
@@ -2395,8 +2896,16 @@ class RAGService: ObservableObject {
                     store.markPreviewGateTriggered(for: .mlx)
                     return nil
                 }
-                Log.info("✓ Using MLX Local (default presets)", category: .initialization)
-                return MLXLocalLLMService()
+                guard let config = MLXLLMService.Config.fromDefaults() else {
+                    Log.warning(
+                        "MLX Local selected but configuration is invalid",
+                        category: .initialization)
+                    return nil
+                }
+                Log.info(
+                    "✓ Using MLX Local (URL: \(config.baseURL.absoluteString), model: \(config.model))",
+                    category: .initialization)
+                return MLXLLMService(config: config)
             #else
                 Log.warning(
                     "MLX Local presets are only available on macOS", category: .initialization)
@@ -2499,6 +3008,33 @@ class RAGService: ObservableObject {
         
         return fallbacks
     }
+
+    #if os(macOS)
+        @MainActor
+        private func configureMLXObserver(for service: LLMService) {
+            observedMLXService?.setStatusObserver(nil)
+            mlxStatusBootstrapTask?.cancel()
+            mlxStatusBootstrapTask = nil
+
+            guard let mlxService = service as? MLXLLMService else {
+                mlxServerStatus = nil
+                observedMLXService = nil
+                return
+            }
+
+            observedMLXService = mlxService
+            mlxService.setStatusObserver { [weak self] status in
+                self?.mlxServerStatus = status
+            }
+
+            mlxStatusBootstrapTask = Task { [weak self] in
+                let status = await mlxService.currentServerStatus()
+                await MainActor.run {
+                    self?.mlxServerStatus = status
+                }
+            }
+        }
+    #endif
 
     #if os(iOS)
         /// Reactivates the previously selected GGUF model once the runtime and registry entry are ready.
@@ -2805,8 +3341,8 @@ extension RAGService {
 
         // Check Apple Intelligence availability (requires A17 Pro+/M-series + iOS 18.1+)
         #if canImport(FoundationModels)
-            if #available(iOS 26.0, *) {
-                // iOS 26+ with Foundation Models
+            if #available(iOS 18.0, *) {
+                // iOS 18.0+ with Foundation Models capability check
                 #if targetEnvironment(simulator)
                     // Simulator: Foundation Models not available
                     capabilities.supportsFoundationModels = false

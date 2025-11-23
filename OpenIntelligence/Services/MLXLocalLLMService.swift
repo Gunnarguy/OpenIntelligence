@@ -70,11 +70,15 @@ final class MLXLocalLLMService: LLMService {
         
         // Compose messages in OpenAI chat format
         var messages: [[String: String]] = []
+        
+        // Use user-configured system prompt or fallback to default RAG prompt
+        let systemContent = userConfig.systemPrompt ?? """
+        You are a helpful assistant. When provided with document context, ground your answer in that context and clearly indicate citations if applicable. If context is irrelevant, answer normally.
+        """
+        
         messages.append([
             "role": "system",
-            "content": """
-            You are a helpful assistant. When provided with document context, ground your answer in that context and clearly indicate citations if applicable. If context is irrelevant, answer normally.
-            """
+            "content": systemContent
         ])
         
         if let ctx = context, !ctx.isEmpty {
@@ -99,7 +103,10 @@ final class MLXLocalLLMService: LLMService {
             "model": self.config.model,
             "messages": messages,
             "max_tokens": userConfig.maxTokens,
-            "temperature": Double(userConfig.temperature)
+            "temperature": Double(userConfig.temperature),
+            "top_p": Double(userConfig.topP),
+            "frequency_penalty": Double(userConfig.frequencyPenalty),
+            "presence_penalty": Double(userConfig.presencePenalty)
         ]
         
         // Build request
