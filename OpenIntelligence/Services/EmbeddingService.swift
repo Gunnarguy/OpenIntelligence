@@ -14,13 +14,13 @@ class EmbeddingService {
     // MARK: - Properties
     
     private let provider: EmbeddingProvider
-    private let embeddingDimension: Int
+    private let targetDimension: Int
     
     // MARK: - Initialization
     
-    init(provider: EmbeddingProvider = NLEmbeddingProvider()) {
+    init(provider: EmbeddingProvider = NLEmbeddingProvider(), targetDimension: Int? = nil) {
         self.provider = provider
-        self.embeddingDimension = provider.dimension
+        self.targetDimension = targetDimension ?? provider.dimension
         if !provider.isAvailable {
             print("⚠️ Warning: Embedding provider not available on this device")
         }
@@ -28,18 +28,36 @@ class EmbeddingService {
     
     /// Factory method to create an EmbeddingService based on provider ID
     /// Used for per-container embedding provider selection
-    static func forProvider(id: String) -> EmbeddingService {
+    static func forProvider(
+        id: String,
+        targetDimension: Int? = nil,
+        allowFallback: Bool = true
+    ) -> EmbeddingService {
+        let resolved: EmbeddingService
         switch id {
         case "nl_embedding":
-            return EmbeddingService(provider: NLEmbeddingProvider())
+            resolved = EmbeddingService(provider: NLEmbeddingProvider(), targetDimension: targetDimension)
         case "coreml_sentence_embedding":
-            return EmbeddingService(provider: CoreMLSentenceEmbeddingProvider())
+            resolved = EmbeddingService(provider: CoreMLSentenceEmbeddingProvider(), targetDimension: targetDimension)
         case "apple_fm_embed":
-            return EmbeddingService(provider: AppleFMEmbeddingProvider())
+            resolved = EmbeddingService(provider: AppleFMEmbeddingProvider(), targetDimension: targetDimension)
         default:
-            Log.warning("Unknown embedding provider '\(id)', falling back to NLEmbedding", category: .embedding)
-            return EmbeddingService(provider: NLEmbeddingProvider())
+            Log.warning(
+                "Unknown embedding provider '\(id)', defaulting to NLEmbedding",
+                category: .embedding
+            )
+            resolved = EmbeddingService(provider: NLEmbeddingProvider(), targetDimension: targetDimension)
         }
+
+        guard allowFallback, id != "nl_embedding", !resolved.isAvailable else {
+            return resolved
+        }
+
+        Log.warning(
+            "Embedding provider '\(id)' unavailable on this device – falling back to NLEmbedding",
+            category: .embedding
+        )
+        return EmbeddingService(provider: NLEmbeddingProvider(), targetDimension: targetDimension)
     }
     
     // MARK: - Public API
@@ -53,15 +71,17 @@ class EmbeddingService {
     /// Returns a vector representing the semantic meaning
     func generateEmbedding(for text: String) async throws -> [Float] {
         let vec = try await provider.embed(text: text)
-        try validateEmbedding(vec)
-        return vec
+        let adjusted = adjustDimension(vec)
+        try validateEmbedding(adjusted)
+        return adjusted
     }
     
     /// Generate embeddings for multiple text chunks in batch
     func generateEmbeddings(for texts: [String]) async throws -> [[Float]] {
         print("🔢 [EmbeddingService] Generating embeddings for \(texts.count) chunks via provider...")
         let startTime = Date()
-        let embeddings = try await provider.embedBatch(texts: texts)
+        let rawEmbeddings = try await provider.embedBatch(texts: texts)
+        let embeddings = rawEmbeddings.map { adjustDimension($0) }
         let totalTime = Date().timeIntervalSince(startTime)
         let avgTime = texts.isEmpty ? 0 : totalTime / Double(texts.count)
         print("✅ [EmbeddingService] Complete: \(texts.count) embeddings in \(String(format: "%.2f", totalTime))s")
@@ -76,9 +96,9 @@ class EmbeddingService {
     /// Validate that an embedding is well-formed
     private func validateEmbedding(_ embedding: [Float]) throws {
         // Check dimensionality
-        guard embedding.count == embeddingDimension else {
-            print("❌ [EmbeddingService] Invalid dimension: \(embedding.count) (expected \(embeddingDimension))")
-            throw EmbeddingError.invalidDimension(expected: embeddingDimension, actual: embedding.count)
+        guard embedding.count == targetDimension else {
+            print("❌ [EmbeddingService] Invalid dimension: \(embedding.count) (expected \(targetDimension))")
+            throw EmbeddingError.invalidDimension(expected: targetDimension, actual: embedding.count)
         }
         
         // Check for NaN or Inf values
@@ -106,23 +126,23 @@ class EmbeddingService {
     /// This produces a fixed-size representation regardless of input length
     private func averageEmbeddings(_ vectors: [[Double]]) -> [Float] {
         guard !vectors.isEmpty else {
-            return Array(repeating: 0.0, count: embeddingDimension)
+            return Array(repeating: 0.0, count: targetDimension)
         }
         
         let count = vectors.count
-        var averaged = Array(repeating: 0.0, count: embeddingDimension)
+        var averaged = Array(repeating: 0.0, count: targetDimension)
         
         // Sum all vectors
         for vector in vectors {
             for (i, value) in vector.enumerated() {
-                if i < embeddingDimension {
+                if i < targetDimension {
                     averaged[i] += value
                 }
             }
         }
         
         // Divide by count to get average
-        for i in 0..<embeddingDimension {
+        for i in 0..<targetDimension {
             averaged[i] /= Double(count)
         }
         
@@ -133,7 +153,7 @@ class EmbeddingService {
     /// Create a fallback embedding for text with no word vectors
     /// Uses character-level and structural features to create a synthetic embedding
     private func createFallbackEmbedding(for text: String) -> [Float] {
-        var embedding = Array(repeating: Float(0.0), count: embeddingDimension)
+        var embedding = Array(repeating: Float(0.0), count: targetDimension)
         
         // Use a simple hash-based approach to create a deterministic embedding
         // This ensures the same text always gets the same embedding
@@ -141,25 +161,25 @@ class EmbeddingService {
         
         // Populate embedding with character frequency features (first 256 dimensions)
         for (index, char) in normalized.unicodeScalars.prefix(256).enumerated() {
-            if index < embeddingDimension {
+            if index < targetDimension {
                 // Use Unicode value normalized to [-1, 1] range
                 embedding[index] = Float(char.value % 256) / 128.0 - 1.0
             }
         }
         
         // Add text length feature (dimension 256-260)
-        if embeddingDimension > 256 {
+        if targetDimension > 256 {
             embedding[256] = Float(min(text.count, 1000)) / 1000.0
         }
         
         // Add word count feature (dimension 261-265)
-        if embeddingDimension > 261 {
+        if targetDimension > 261 {
             let wordCount = text.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }.count
             embedding[261] = Float(min(wordCount, 100)) / 100.0
         }
         
         // Add numeric content indicator (dimension 266-270)
-        if embeddingDimension > 266 {
+        if targetDimension > 266 {
             let hasNumbers = text.rangeOfCharacter(from: .decimalDigits) != nil
             embedding[266] = hasNumbers ? 1.0 : -1.0
         }
@@ -198,6 +218,26 @@ class EmbeddingService {
         }
         
         return dotProduct / magnitude
+    }
+
+    private func adjustDimension(_ vector: [Float]) -> [Float] {
+        if vector.count == targetDimension {
+            return vector
+        }
+
+        if vector.count > targetDimension {
+            Log.warning(
+                "Truncating embedding from \(vector.count) → \(targetDimension) dimensions",
+                category: .embedding
+            )
+            return Array(vector.prefix(targetDimension))
+        }
+
+        Log.warning(
+            "Padding embedding from \(vector.count) → \(targetDimension) dimensions",
+            category: .embedding
+        )
+        return vector + Array(repeating: 0.0, count: targetDimension - vector.count)
     }
 }
 

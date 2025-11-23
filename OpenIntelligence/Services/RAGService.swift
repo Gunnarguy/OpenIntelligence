@@ -787,10 +787,14 @@ class RAGService: ObservableObject {
             self.containerService.containers.first { $0.id == activeContainerId }
         }
         var providerId = container?.embeddingProviderId ?? "nl_embedding"
+        let initialDimension = container?.embeddingDim ?? 512
         let chunkOverride = chunkingOverride(for: container)
         
         // Create container-specific embedding service
-        var containerEmbeddingService = EmbeddingService.forProvider(id: providerId)
+        var containerEmbeddingService = EmbeddingService.forProvider(
+            id: providerId,
+            targetDimension: initialDimension
+        )
         
         let pipelineStartTime = Date()
         TelemetryCenter.emit(
@@ -933,7 +937,10 @@ class RAGService: ObservableObject {
 
                     if embeddingChanged {
                         providerId = updatedContainer.embeddingProviderId
-                        containerEmbeddingService = EmbeddingService.forProvider(id: updatedContainer.embeddingProviderId)
+                        containerEmbeddingService = EmbeddingService.forProvider(
+                            id: updatedContainer.embeddingProviderId,
+                            targetDimension: updatedContainer.embeddingDim
+                        )
                         await MainActor.run {
                             processingStatus = "\(filename) • Config adapted to \(updatedContainer.embeddingDim)D"
                         }
@@ -1516,11 +1523,23 @@ class RAGService: ObservableObject {
             if let id = containerId,
                 let container = self.containerService.containers.first(where: { $0.id == id })
             {
-                return (container.embeddingProviderId, EmbeddingService.forProvider(id: container.embeddingProviderId))
+                return (
+                    container.embeddingProviderId,
+                    EmbeddingService.forProvider(
+                        id: container.embeddingProviderId,
+                        targetDimension: container.embeddingDim
+                    )
+                )
             } else if let activeContainer = self.containerService.activeContainer {
-                return (activeContainer.embeddingProviderId, EmbeddingService.forProvider(id: activeContainer.embeddingProviderId))
+                return (
+                    activeContainer.embeddingProviderId,
+                    EmbeddingService.forProvider(
+                        id: activeContainer.embeddingProviderId,
+                        targetDimension: activeContainer.embeddingDim
+                    )
+                )
             } else {
-                return ("nl_embedding", EmbeddingService.forProvider(id: "nl_embedding"))
+                return ("nl_embedding", EmbeddingService.forProvider(id: "nl_embedding", targetDimension: 512))
             }
         }
         
