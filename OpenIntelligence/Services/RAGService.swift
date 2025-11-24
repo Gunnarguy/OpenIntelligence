@@ -68,6 +68,7 @@ class RAGService: ObservableObject {
 
     private let documentProcessor: DocumentProcessor
     private let embeddingService: EmbeddingService
+    private let embeddingServiceWasInjected: Bool
     let containerService: ContainerService
     private let vectorRouter: VectorStoreRouter
     private let intelligenceCenter = LibraryIntelligenceCenter()
@@ -176,6 +177,7 @@ class RAGService: ObservableObject {
     @MainActor @Published private(set) var lastCloudTransmission: CloudTransmissionRecord?
     @MainActor @Published private(set) var cloudConsent: [CloudProvider: CloudConsentState] = [:]
     @MainActor @Published private(set) var containerIntelligence: [UUID: LibraryIntelligenceCenter.IntelligenceReport] = [:]
+    @MainActor @Published var thinkingEvents: [ThinkingEvent] = []
     @MainActor private var selfTuningInFlight: Set<UUID> = []
     #if os(macOS)
         @MainActor @Published private(set) var mlxServerStatus: MLXLLMService.ServerStatus? = nil
@@ -206,6 +208,32 @@ class RAGService: ObservableObject {
         let reason: String
     }
 
+    /// Snapshot of the embedding configuration for the active query/document scope
+    private struct EmbeddingContext {
+        let containerId: UUID
+        let containerName: String
+        let providerId: String
+        let dimension: Int
+        let service: EmbeddingService
+    }
+
+    struct EmbeddingDiagnosticsSnapshot: Identifiable, Sendable {
+        let containerId: UUID
+        let containerName: String
+        let embeddingProviderId: String
+        let dimension: Int
+        let autoAdaptEnabled: Bool
+        let strictMode: Bool
+        let documentCount: Int
+        let chunkCount: Int
+
+        var id: UUID { containerId }
+
+        func makeEmbeddingService() -> EmbeddingService {
+            EmbeddingService.forProvider(id: embeddingProviderId, targetDimension: dimension)
+        }
+    }
+
     private struct ChunkAutoAction {
         let directive: ChunkingDirective
         let reason: String
@@ -232,7 +260,13 @@ class RAGService: ObservableObject {
         entitlementStore: EntitlementStore? = nil
     ) {
         self.documentProcessor = documentProcessor ?? DocumentProcessor()
-        self.embeddingService = embeddingService ?? EmbeddingService()
+        if let embeddingService {
+            self.embeddingService = embeddingService
+            self.embeddingServiceWasInjected = true
+        } else {
+            self.embeddingService = EmbeddingService()
+            self.embeddingServiceWasInjected = false
+        }
         // Container + Vector store routing
         self.containerService = containerService ?? ContainerService()
         self.vectorRouter = vectorRouter ?? VectorStoreRouter()
@@ -675,6 +709,84 @@ class RAGService: ObservableObject {
         }
     }
 
+    func embeddingDiagnosticsSnapshot() async -> EmbeddingDiagnosticsSnapshot {
+        let context = await resolveEmbeddingContext()
+        let containerDetails = await MainActor.run {
+            self.containerService.containers.first { $0.id == context.containerId }
+        }
+
+        return EmbeddingDiagnosticsSnapshot(
+            containerId: context.containerId,
+            containerName: containerDetails?.name ?? context.containerName,
+            embeddingProviderId: containerDetails?.embeddingProviderId ?? context.providerId,
+            dimension: containerDetails?.embeddingDim ?? context.dimension,
+            autoAdaptEnabled: containerDetails?.autoAdaptDimension ?? false,
+            strictMode: containerDetails?.strictMode ?? false,
+            documentCount: containerDetails?.totalDocuments ?? 0,
+            chunkCount: containerDetails?.totalChunks ?? 0
+        )
+    }
+
+    /// Resolve the embedding service + metadata for the current (or preferred) container context
+    private func resolveEmbeddingContext(preferredContainerId: UUID? = nil) async -> EmbeddingContext {
+        let container: KnowledgeContainer? = await MainActor.run {
+            if let id = preferredContainerId,
+                let scoped = self.containerService.containers.first(where: { $0.id == id })
+            {
+                return scoped
+            }
+
+            if let currentQueryId = self.currentQueryContainerId,
+                let scoped = self.containerService.containers.first(where: { $0.id == currentQueryId })
+            {
+                return scoped
+            }
+
+            if let active = self.containerService.activeContainer {
+                return active
+            }
+
+            return self.containerService.containers.first
+        }
+
+        guard let container else {
+            let fallbackId = await MainActor.run { self.containerService.activeContainerId }
+            Log.error("No knowledge containers available; using default embedding service", category: .embedding)
+            return EmbeddingContext(
+                containerId: fallbackId,
+                containerName: "Unknown",
+                providerId: "nl_embedding",
+                dimension: embeddingService.outputDimension,
+                service: embeddingService
+            )
+        }
+
+        if embeddingServiceWasInjected,
+            embeddingService.outputDimension == container.embeddingDim
+        {
+            return EmbeddingContext(
+                containerId: container.id,
+                containerName: container.name,
+                providerId: container.embeddingProviderId,
+                dimension: container.embeddingDim,
+                service: embeddingService
+            )
+        }
+
+        let service = EmbeddingService.forProvider(
+            id: container.embeddingProviderId,
+            targetDimension: container.embeddingDim
+        )
+
+        return EmbeddingContext(
+            containerId: container.id,
+            containerName: container.name,
+            providerId: container.embeddingProviderId,
+            dimension: container.embeddingDim,
+            service: service
+        )
+    }
+
     // MARK: - LLM Service Management
 
     /// Dynamically updates the LLM service (called from Settings)
@@ -698,11 +810,9 @@ class RAGService: ObservableObject {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw RAGServiceError.emptyQuery }
 
-        let queryEmbedding = try await embeddingService.generateEmbedding(for: trimmed)
-        let selectedId = await MainActor.run {
-            self.currentQueryContainerId ?? self.containerService.activeContainerId
-        }
-        let database = await dbFor(selectedId)
+        let embeddingContext = await resolveEmbeddingContext()
+        let queryEmbedding = try await embeddingContext.service.generateEmbedding(for: trimmed)
+        let database = await dbFor(embeddingContext.containerId)
         let searchCount = max(1, min(topK * 2, topK + 4))
         var candidates = try await database.search(embedding: queryEmbedding, topK: searchCount)
 
@@ -1413,6 +1523,8 @@ class RAGService: ObservableObject {
         return ChunkAutoAction(directive: directive, reason: reasonBits.joined(separator: " • "))
     }
 
+    private static let thinkingEventLimit = 24
+
     private func scheduleSelfTuningRebuild(for containerId: UUID, reasons: [String]) {
         Task.detached(priority: .utility) { [weak self] in
             guard let self else { return }
@@ -1446,6 +1558,30 @@ class RAGService: ObservableObject {
                 )
             }
             await self.finishSelfTuning(for: containerId)
+        }
+    }
+
+    // MARK: - Thinking Timeline Helpers
+
+    @MainActor
+    private func resetThinkingTimeline() {
+        thinkingEvents.removeAll(keepingCapacity: false)
+    }
+
+    private func emitThinkingEvent(
+        _ kind: ThinkingEvent.Kind,
+        title: String,
+        detail: String? = nil
+    ) {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            if self.thinkingEvents.count >= Self.thinkingEventLimit {
+                let overflow = self.thinkingEvents.count - Self.thinkingEventLimit + 1
+                if overflow > 0 {
+                    self.thinkingEvents.removeFirst(overflow)
+                }
+            }
+            self.thinkingEvents.append(ThinkingEvent(kind: kind, title: title, detail: detail))
         }
     }
 
@@ -1498,6 +1634,7 @@ class RAGService: ObservableObject {
         containerId: UUID? = nil,
         streamHandler: LLMStreamHandler? = nil
     ) async throws -> RAGResponse {
+        resetThinkingTimeline()
         return try await LLMStreamingContext.$handler.withValue(streamHandler) {
             try await self.queryInternal(
                 question, topK: topK, config: config, containerId: containerId)
@@ -1518,57 +1655,29 @@ class RAGService: ObservableObject {
             }
         }
         
-        // Get container-specific embedding provider
-        let (embeddingProviderId, queryEmbeddingService) = await MainActor.run {
-            if let id = containerId,
-                let container = self.containerService.containers.first(where: { $0.id == id })
-            {
-                return (
-                    container.embeddingProviderId,
-                    EmbeddingService.forProvider(
-                        id: container.embeddingProviderId,
-                        targetDimension: container.embeddingDim
-                    )
-                )
-            } else if let activeContainer = self.containerService.activeContainer {
-                return (
-                    activeContainer.embeddingProviderId,
-                    EmbeddingService.forProvider(
-                        id: activeContainer.embeddingProviderId,
-                        targetDimension: activeContainer.embeddingDim
-                    )
-                )
-            } else {
-                return ("nl_embedding", EmbeddingService.forProvider(id: "nl_embedding", targetDimension: 512))
-            }
-        }
+        let embeddingContext = await resolveEmbeddingContext(preferredContainerId: containerId)
+        let embeddingProviderId = embeddingContext.providerId
+        let queryEmbeddingService = embeddingContext.service
+        let selectedId = embeddingContext.containerId
+        let selectedName = embeddingContext.containerName
+        let selectedDim = embeddingContext.dimension
+        let vdb = await dbFor(selectedId)
         
         // Establish query-scoped container context for downstream tool calls and listings
         await MainActor.run {
-            self.currentQueryContainerId = containerId ?? self.containerService.activeContainerId
+            self.currentQueryContainerId = selectedId
             self.transientConsentGrants.removeAll()
         }
         // Optional DB warmup to ensure the vector store is loaded (prevents first-touch latency)
-        let _ = try? await (containerId != nil ? dbFor(containerId!) : dbForActiveContainer())
-            .count()
+        let _ = try? await vdb.count()
         // Ensure cleanup even if an error is thrown later in the pipeline
         defer {
             Task { await MainActor.run { self.currentQueryContainerId = nil } }
-        }
-        // Selected container context details (id/name/dimension)
-        let (selectedId, selectedName, selectedDim) = await MainActor.run {
-            () -> (UUID, String, Int) in
-            let id = containerId ?? self.containerService.activeContainerId
-            let container = self.containerService.containers.first { $0.id == id }
-            let name = container?.name ?? "Unknown"
-            let dim = container?.embeddingDim ?? 512
-            return (id, name, dim)
         }
         // Query heuristics for short/generic prompts
         let queryWords = question.split(separator: " ").count
         let effectiveTopK = max(1, (queryWords <= 2) ? min(topK, 3) : min(topK, 10))
         // Fetch current stored chunk count from vector database (fallback to cached total)
-        let vdb = await (containerId != nil ? dbFor(containerId!) : dbForActiveContainer())
         let totalStored = (try? await vdb.count()) ?? totalChunksStored
 
         Log.box(
@@ -1578,7 +1687,14 @@ class RAGService: ObservableObject {
             content: [
                 "📝 Query: \(question)",
                 "🎯 Retrieving top \(effectiveTopK) chunks from \(totalStored) total",
+                "🧬 Embeddings: \(embeddingProviderId) • \(selectedDim)D",
             ]
+        )
+
+        emitThinkingEvent(
+            .planning,
+            title: "Scoping query",
+            detail: "Top \(effectiveTopK) • \(selectedName) • \(selectedDim)D via \(embeddingProviderId)"
         )
 
         TelemetryCenter.emit(
@@ -1592,6 +1708,8 @@ class RAGService: ObservableObject {
                 "characters": "\(question.count)",
                 "topK": "\(effectiveTopK)",
                 "strictMode": strictMode ? "true" : "false",
+                "embeddingProvider": embeddingProviderId,
+                "embeddingDim": "\(selectedDim)",
             ]
         )
 
@@ -1665,6 +1783,16 @@ class RAGService: ObservableObject {
                     duration: expansionTime
                 )
 
+                if let firstVariant = expandedQueries.first {
+                    let preview = expandedQueries.dropFirst().first
+                        .map { " • \($0)" } ?? ""
+                    emitThinkingEvent(
+                        .planning,
+                        title: "Expanded query",
+                        detail: firstVariant + preview
+                    )
+                }
+
                 // Step 2: Embed the user's query (primary query only)
                 Log.section("Step 2: Query Embedding", level: .info, category: .pipeline)
                 let embeddingStartTime = Date()
@@ -1689,6 +1817,12 @@ class RAGService: ObservableObject {
                         "provider": embeddingProviderId
                     ],
                     duration: embeddingTime
+                )
+
+                emitThinkingEvent(
+                    .embedding,
+                    title: "Embedding ready",
+                    detail: "\(queryEmbedding.count)D in \(String(format: "%.0f", embeddingTime * 1000)) ms"
                 )
 
                 // Warn if embedding dimension doesn't match the selected library's index dimension
@@ -1734,6 +1868,11 @@ class RAGService: ObservableObject {
                             "question": String(question.prefix(60))
                         ],
                         duration: retrievalTime
+                    )
+                    emitThinkingEvent(
+                        .fallback,
+                        title: "Falling back to chat",
+                        detail: "No relevant chunks found"
                     )
                     // Fallback to direct LLM chat mode
                     let response = try await generateDirectChatResponse(
@@ -1792,6 +1931,17 @@ class RAGService: ObservableObject {
                     duration: retrievalTime
                 )
 
+                let sourcePreview = chunksWithSources.prefix(3)
+                    .map { $0.sourceDocument }
+                    .filter { !$0.isEmpty }
+                let retrievalDetail: String
+                if sourcePreview.isEmpty {
+                    retrievalDetail = "\(chunksWithSources.count) candidates in \(String(format: "%.0f", retrievalTime * 1000)) ms"
+                } else {
+                    retrievalDetail = "\(chunksWithSources.count) candidates • \(sourcePreview.joined(separator: ", "))"
+                }
+                emitThinkingEvent(.retrieval, title: "Hybrid retrieval", detail: retrievalDetail)
+
                 Log.info(
                     "✓ Retrieved \(chunksWithSources.count) chunks with hybrid fusion",
                     category: .retrieval)
@@ -1836,6 +1986,11 @@ class RAGService: ObservableObject {
                     Log.warning(
                         "⚠️  [RAGService] Re-ranking yielded no candidates; falling back to direct chat",
                         category: .retrieval)
+                    emitThinkingEvent(
+                        .fallback,
+                        title: "Re-ranking exhausted",
+                        detail: "Switching to direct chat"
+                    )
                     let response = try await generateDirectChatResponse(
                         question: question,
                         ragQuery: ragQuery,
@@ -1895,6 +2050,12 @@ class RAGService: ObservableObject {
                     ]
                 )
 
+                emitThinkingEvent(
+                    .gating,
+                    title: strictMode ? "Strict gate" : "Confidence gate",
+                    detail: "min \(String(format: "%.2f", dynamicMin)) • top \(String(format: "%.2f", topSim))"
+                )
+
                 if filteredChunks.count < rerankedChunks.count {
                     let dropped = rerankedChunks.count - filteredChunks.count
                     Log.warning(
@@ -1930,6 +2091,11 @@ class RAGService: ObservableObject {
                         Log.error(
                             "   ❌ No high-confidence chunks found (all below threshold) — falling back to On‑Device Analysis",
                             category: .retrieval)
+                        emitThinkingEvent(
+                            .fallback,
+                            title: "Low-confidence context",
+                            detail: "Switching to On-Device Analysis"
+                        )
                         TelemetryCenter.emit(
                             .retrieval,
                             severity: .error,
@@ -2057,10 +2223,21 @@ class RAGService: ObservableObject {
                     duration: mmrTime
                 )
 
+                emitThinkingEvent(
+                    .rerank,
+                    title: "Context diversified",
+                    detail: "\(diverseChunks.count) chunks • \(uniqueDocCount) docs"
+                )
+
                 if diverseChunks.isEmpty {
                     Log.warning(
                         "⚠️  [RAGService] MMR returned no candidates; falling back to direct chat",
                         category: .retrieval)
+                    emitThinkingEvent(
+                        .fallback,
+                        title: "MMR exhausted",
+                        detail: "Switching to direct chat"
+                    )
                     let response = try await generateDirectChatResponse(
                         question: question,
                         ragQuery: ragQuery,
@@ -2109,6 +2286,12 @@ class RAGService: ObservableObject {
                             Top sources retrieved:
                             \(topSources)
                             """
+
+                        emitThinkingEvent(
+                            .warning,
+                            title: "Strict mode paused answer",
+                            detail: "\(supporting.count) strong chunk(s) found"
+                        )
 
                         let metadata = ResponseMetadata(
                             timeToFirstToken: nil,
@@ -2186,11 +2369,22 @@ class RAGService: ObservableObject {
                     ]
                 )
 
+                emitThinkingEvent(
+                    .context,
+                    title: "Context ready",
+                    detail: "\(actualChunksUsed) chunks • \(contextWords) words"
+                )
+
                 // If context is empty, fallback to direct chat to avoid downstream failures
                 if actualChunksUsed == 0 || context.isEmpty {
                     Log.warning(
                         "⚠️  [RAGService] Empty context after assembly; falling back to direct chat",
                         category: .retrieval)
+                    emitThinkingEvent(
+                        .fallback,
+                        title: "Context empty",
+                        detail: "Answering without RAG"
+                    )
                     let response = try await generateDirectChatResponse(
                         question: question,
                         ragQuery: ragQuery,
@@ -2228,6 +2422,11 @@ class RAGService: ObservableObject {
 
                 // Attempt generation with retry on context-overflow
                 var llmResponse: LLMResponse
+                emitThinkingEvent(
+                    .generation,
+                    title: "Generating answer",
+                    detail: llmService.modelName
+                )
                 do {
                     llmResponse = try await generateWithFallback(
                         prompt: question,
@@ -2284,6 +2483,12 @@ class RAGService: ObservableObject {
                         "characters": "\(responseText.count)",
                     ],
                     duration: generationTime
+                )
+
+                emitThinkingEvent(
+                    .generation,
+                    title: "Answer composed",
+                    detail: "\(llmResponse.tokensGenerated) tokens in \(String(format: "%.2f", generationTime))s"
                 )
 
                 // Wrap all printing in error handling to prevent crashes
@@ -2450,9 +2655,20 @@ class RAGService: ObservableObject {
                     ]
                 )
 
+                emitThinkingEvent(
+                    .planning,
+                    title: "Direct chat",
+                    detail: "No documents in \(selectedName)"
+                )
+
                 Log.section("Direct LLM Generation (No RAG)", level: .info, category: .pipeline)
                 let generationStartTime = Date()
 
+                emitThinkingEvent(
+                    .generation,
+                    title: "Generating answer",
+                    detail: llmService.modelName
+                )
                 let llmResponse = try await generateWithFallback(
                     prompt: question,
                     context: nil,  // No document context
@@ -2471,6 +2687,12 @@ class RAGService: ObservableObject {
                         "containerId": selectedId.uuidString,
                     ],
                     duration: generationTime
+                )
+
+                emitThinkingEvent(
+                    .generation,
+                    title: "Answer composed",
+                    detail: "\(llmResponse.tokensGenerated) tokens in \(String(format: "%.2f", generationTime))s"
                 )
 
                 Log.info("✓ Response generated", category: .llm)
@@ -3860,12 +4082,10 @@ extension RAGService: RAGToolHandler {
         print("🔧 [Tool Call] search_documents(query: \"\(query)\")")
 
         // Use the existing RAG pipeline to search
-        let queryEmbedding = try await embeddingService.generateEmbedding(for: query)
+        let embeddingContext = await resolveEmbeddingContext()
+        let queryEmbedding = try await embeddingContext.service.generateEmbedding(for: query)
 
-        let selectedId = await MainActor.run {
-            self.currentQueryContainerId ?? self.containerService.activeContainerId
-        }
-        let db = await dbFor(selectedId)
+        let db = await dbFor(embeddingContext.containerId)
 
         let retrievedChunks = try await db.search(
             embedding: queryEmbedding,
@@ -3903,15 +4123,13 @@ extension RAGService: RAGToolHandler {
             "🔧 [Tool Call] search_documents(query: \"\(query)\", topK: \(topK?.description ?? "nil"), minSimilarity: \(minSimilarity?.description ?? "nil"))"
         )
 
-        // Step 1: Embed the query
-        let queryEmbedding = try await embeddingService.generateEmbedding(for: query)
+        // Step 1: Embed the query using the container's provider/dimension
+        let embeddingContext = await resolveEmbeddingContext()
+        let queryEmbedding = try await embeddingContext.service.generateEmbedding(for: query)
 
         // Step 2: Vector search with optional k
         let k = max(1, topK ?? 3)
-        let selectedId = await MainActor.run {
-            self.currentQueryContainerId ?? self.containerService.activeContainerId
-        }
-        let db = await dbFor(selectedId)
+        let db = await dbFor(embeddingContext.containerId)
         var retrievedChunks = try await db.search(
             embedding: queryEmbedding,
             topK: k

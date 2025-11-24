@@ -10,12 +10,21 @@ import SwiftUI
 
 struct CoreValidationView: View {
     @ObservedObject var ragService: RAGService
+    @ObservedObject private var telemetryCenter = TelemetryCenter.shared
     
     @State private var testResults: [TestResult] = []
     @State private var isRunning = false
     @State private var currentTest = ""
     @State private var overallStatus: TestStatus = .notStarted
+    @State private var embeddingSnapshot: RAGService.EmbeddingDiagnosticsSnapshot? = nil
     
+    private var recentEmbeddingEvents: [TelemetryEvent] {
+        let filtered = telemetryCenter.events.filter {
+            $0.title.contains("Embedding dimension auto-adjusted")
+        }
+        return Array(filtered.suffix(5))
+    }
+
     var body: some View {
         ZStack {
             // Modern gradient background
@@ -35,6 +44,15 @@ struct CoreValidationView: View {
                     ModernStatusCard(status: overallStatus, isRunning: isRunning, currentTest: currentTest)
                         .padding(.horizontal)
                         .padding(.top)
+
+                    if let snapshot = embeddingSnapshot {
+                        EmbeddingStatusCard(snapshot: snapshot)
+                            .padding(.horizontal)
+                        if !recentEmbeddingEvents.isEmpty {
+                            EmbeddingTelemetryList(events: recentEmbeddingEvents)
+                                .padding(.horizontal)
+                        }
+                    }
                     
                     // Run Tests Button
                     Button(action: runAllTests) {
@@ -114,6 +132,11 @@ struct CoreValidationView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
+        .task {
+            if embeddingSnapshot == nil {
+                embeddingSnapshot = await ragService.embeddingDiagnosticsSnapshot()
+            }
+        }
     }
     
     // MARK: - Test Runner
@@ -125,6 +148,13 @@ struct CoreValidationView: View {
                 testResults = []
                 overallStatus = .running
             }
+
+            let snapshot = await ragService.embeddingDiagnosticsSnapshot()
+            await MainActor.run {
+                self.embeddingSnapshot = snapshot
+            }
+            let vectorDimension = snapshot.dimension
+            let makeEmbeddingService = { snapshot.makeEmbeddingService() }
             
             // Test 1: Document Processor
             await runTest(name: "DocumentProcessor - Basic Parsing") {
@@ -136,24 +166,24 @@ struct CoreValidationView: View {
             
             // Test 2: Embedding Service
             await runTest(name: "EmbeddingService - Availability") {
-                let embeddingService = EmbeddingService()
+                let embeddingService = makeEmbeddingService()
                 return embeddingService.isAvailable
             }
             
             await runTest(name: "EmbeddingService - Dimension Check") {
-                let embeddingService = EmbeddingService()
+                let embeddingService = makeEmbeddingService()
                 guard embeddingService.isAvailable else { return false }
                 
                 do {
                     let embedding = try await embeddingService.generateEmbedding(for: "Test text for validation")
-                    return embedding.count == 512
+                    return embedding.count == vectorDimension
                 } catch {
                     return false
                 }
             }
             
             await runTest(name: "EmbeddingService - Edge Case (Empty)") {
-                let embeddingService = EmbeddingService()
+                let embeddingService = makeEmbeddingService()
                 do {
                     _ = try await embeddingService.generateEmbedding(for: "")
                     return false // Should have thrown error
@@ -164,11 +194,11 @@ struct CoreValidationView: View {
             
             // Test 3: Vector Database
             await runTest(name: "VectorDatabase - Store and Count") {
-                let vectorDB = InMemoryVectorDatabase()
+                let vectorDB = InMemoryVectorDatabase(dimension: vectorDimension)
                 let testChunk = DocumentChunk(
                     documentId: UUID(),
                     content: "Test content",
-                    embedding: Array(repeating: 0.1, count: 512),
+                    embedding: Array(repeating: 0.1, count: vectorDimension),
                     metadata: ChunkMetadata(chunkIndex: 0, startPosition: 0, endPosition: 12)
                 )
                 
@@ -182,8 +212,8 @@ struct CoreValidationView: View {
             }
             
             await runTest(name: "VectorDatabase - Search Functionality") {
-                let vectorDB = InMemoryVectorDatabase()
-                let testEmbedding = Array(repeating: Float(0.1), count: 512)
+                let vectorDB = InMemoryVectorDatabase(dimension: vectorDimension)
+                let testEmbedding = Array(repeating: Float(0.1), count: vectorDimension)
                 let testChunk = DocumentChunk(
                     documentId: UUID(),
                     content: "Test content",
@@ -201,8 +231,8 @@ struct CoreValidationView: View {
             }
             
             await runTest(name: "VectorDatabase - Edge Case (Empty Search)") {
-                let vectorDB = InMemoryVectorDatabase()
-                let testEmbedding = Array(repeating: Float(0.1), count: 512)
+                let vectorDB = InMemoryVectorDatabase(dimension: vectorDimension)
+                let testEmbedding = Array(repeating: Float(0.1), count: vectorDimension)
                 
                 do {
                     let results = try await vectorDB.search(embedding: testEmbedding, topK: 5)
@@ -232,8 +262,8 @@ struct CoreValidationView: View {
                 // Use a dedicated test service to avoid main-thread constraints of Apple FM
                 let testService = RAGService(
                     documentProcessor: DocumentProcessor(),
-                    embeddingService: EmbeddingService(),
-                    vectorDatabase: InMemoryVectorDatabase(),
+                    embeddingService: makeEmbeddingService(),
+                    vectorDatabase: InMemoryVectorDatabase(dimension: vectorDimension),
                     llmService: OnDeviceAnalysisService()
                 )
                 do {
@@ -249,8 +279,8 @@ struct CoreValidationView: View {
                 // Empty in-memory DB ensures direct chat path
                 let testService = RAGService(
                     documentProcessor: DocumentProcessor(),
-                    embeddingService: EmbeddingService(),
-                    vectorDatabase: InMemoryVectorDatabase(),
+                    embeddingService: makeEmbeddingService(),
+                    vectorDatabase: InMemoryVectorDatabase(dimension: vectorDimension),
                     llmService: OnDeviceAnalysisService()
                 )
                 do {
@@ -264,10 +294,10 @@ struct CoreValidationView: View {
             // Test 8: Tools - search_documents truncation and citation
             await runTest(name: "Tools - search_documents truncation + citation") {
                 // Seed a temporary service with one long chunk and verify truncation + source formatting
-                let vectorDB = InMemoryVectorDatabase()
+                let vectorDB = InMemoryVectorDatabase(dimension: vectorDimension)
                 let testService = RAGService(
                     documentProcessor: DocumentProcessor(),
-                    embeddingService: EmbeddingService(),
+                    embeddingService: makeEmbeddingService(),
                     vectorDatabase: vectorDB,
                     llmService: OnDeviceAnalysisService()
                 )
@@ -283,7 +313,7 @@ struct CoreValidationView: View {
                 
                 do {
                     // Prepare embedding and chunk
-                    let embedder = EmbeddingService()
+                    let embedder = makeEmbeddingService()
                     let embedding = try await embedder.generateEmbedding(for: longText)
                     let chunk = DocumentChunk(
                         documentId: doc.id,
@@ -405,6 +435,112 @@ struct ModernStatusCard: View {
                 .fill(DSColors.surface)
                 .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
         )
+    }
+}
+
+struct EmbeddingStatusCard: View {
+    let snapshot: RAGService.EmbeddingDiagnosticsSnapshot
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Active Embedding Configuration")
+                .font(.headline)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Label {
+                    Text("\(snapshot.embeddingProviderId) • \(snapshot.dimension)D")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                } icon: {
+                    Image(systemName: "brain.head.profile")
+                        .foregroundColor(.accentColor)
+                }
+
+                Label {
+                    Text(snapshot.containerName)
+                        .font(.subheadline)
+                } icon: {
+                    Image(systemName: "tray.full")
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            HStack(spacing: 16) {
+                StatusPill(text: snapshot.autoAdaptEnabled ? "Auto-adapt ON" : "Auto-adapt OFF", systemImage: "arrow.2.squarepath")
+                StatusPill(text: snapshot.strictMode ? "Strict" : "Lenient", systemImage: snapshot.strictMode ? "lock.shield" : "switch.2")
+            }
+
+            Text("Docs: \(snapshot.documentCount) • Chunks: \(snapshot.chunkCount)")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color(.secondarySystemBackground).opacity(0.9))
+        )
+    }
+}
+
+struct EmbeddingTelemetryList: View {
+    let events: [TelemetryEvent]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Label("Recent Embedding Events", systemImage: "waveform.path.ecg")
+                    .font(.headline)
+                Spacer()
+                Text("Last \(events.count)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            ForEach(events) { event in
+                HStack(alignment: .top, spacing: 10) {
+                    Text(event.formattedTimestamp)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .frame(width: 60, alignment: .leading)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(event.title)
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                        if !event.metadata.isEmpty {
+                            Text(event.metadata.map { "\($0.key)=\($0.value)" }.sorted().joined(separator: " • "))
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color(.secondarySystemBackground).opacity(0.9))
+        )
+    }
+}
+
+private struct StatusPill: View {
+    let text: String
+    let systemImage: String
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: systemImage)
+            Text(text)
+                .font(.caption)
+                .fontWeight(.semibold)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(
+            Capsule()
+                .fill(Color.accentColor.opacity(0.12))
+        )
+        .foregroundColor(.accentColor)
     }
 }
 

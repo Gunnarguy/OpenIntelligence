@@ -12,6 +12,29 @@
 
 import SwiftUI
 
+struct EmbeddingInsight: Identifiable, Equatable {
+    let id = UUID()
+    let icon: String
+    let title: String
+    let detail: String
+    let accent: Color
+}
+
+/// Lightweight annotation descriptor used to project short contextual blurbs over the scene.
+struct PointAnnotationLabel: Identifiable, Equatable {
+    let id = UUID()
+    let pointIndex: Int
+    let docId: UUID
+    let title: String
+    let detail: String
+    let keywords: [String]
+    let normalizedX: CGFloat
+    let normalizedY: CGFloat
+    let depthHint: CGFloat
+    let accent: Color
+    let score: Double
+}
+
 #if canImport(SceneKit)
 import SceneKit
 import QuartzCore
@@ -100,13 +123,13 @@ enum EmbeddingSceneBackgroundStyle: String, CaseIterable, Identifiable {
     }
 }
 
-// MARK: - Public Renderer (used from VisualizationsView.EmbeddingSpaceView)
-
 struct EmbeddingSpaceRenderer: View {
     @EnvironmentObject var ragService: RAGService
     @EnvironmentObject var containerService: ContainerService
     
     let projectionMethod: EmbeddingSpaceView.ProjectionMethod
+    let chunkCount: Int
+    let documentCount: Int
     
     @State private var isLoading = true
     @State private var points: [SCNVector3] = []
@@ -133,9 +156,18 @@ struct EmbeddingSpaceRenderer: View {
     @State private var depthCue = true
     @State private var backgroundStyle: EmbeddingSceneBackgroundStyle = .aurora
     @State private var sceneReloadToken = UUID()
+    @State private var insights: [EmbeddingInsight] = []
+    @State private var focusMode = false
+    @State private var showHUD = true
+    @State private var annotationLabels: [PointAnnotationLabel] = []
     
     // Default: 1K/2K/5K
     private let sampleOptions = [1000, 2000, 5000]
+    private static let countFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        return formatter
+    }()
     
     var body: some View {
         VStack(spacing: 12) {
@@ -183,7 +215,9 @@ struct EmbeddingSpaceRenderer: View {
     private var readyContent: some View {
         VStack(spacing: 20) {
             heroScene
+            controlToolbar
             tuningCard
+            insightHighlights
             legendSection
         }
     }
@@ -223,7 +257,7 @@ struct EmbeddingSpaceRenderer: View {
     
     private var heroScene: some View {
         let (filteredPoints, filteredColors) = filteredArrays()
-        return ZStack(alignment: .topTrailing) {
+        return ZStack {
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .fill(backgroundGradient(for: backgroundStyle))
 
@@ -231,15 +265,19 @@ struct EmbeddingSpaceRenderer: View {
                 points: filteredPoints,
                 colors: filteredColors,
                 options: sceneOptions,
-                reloadToken: sceneReloadToken
+                reloadToken: sceneReloadToken,
+                annotations: buildSceneAnnotations()
             )
             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-
-            controlOverlay
         }
-        .frame(height: 440)
+        .overlay(alignment: .topLeading) {
+            if showHUD { sceneHUD }
+        }
+        .frame(height: heroHeight)
         .shadow(color: .black.opacity(0.08), radius: 18, x: 0, y: 12)
-        .padding(.horizontal)
+        .padding(.horizontal, heroHorizontalPadding)
+        .animation(.spring(response: 0.45, dampingFraction: 0.88), value: focusMode)
+        .animation(.easeInOut(duration: 0.2), value: showHUD)
     }
 
     private var tuningCard: some View {
@@ -313,10 +351,83 @@ struct EmbeddingSpaceRenderer: View {
             backgroundStyle: backgroundStyle
         )
     }
+    
+    private func buildSceneAnnotations() -> [Embedding3DSceneView.AnnotationData] {
+        guard showHUD, !annotationLabels.isEmpty, !points.isEmpty else { return [] }
+        
+        var result: [Embedding3DSceneView.AnnotationData] = []
+        for label in annotationLabels {
+            guard label.pointIndex < points.count else { continue }
+            let position = points[label.pointIndex]
+            let uiColor = pointColorsUI[label.pointIndex]
+            
+            // Determine detail level based on spatial clustering
+            // In a real implementation, this would check camera distance
+            // For now, use score as a proxy
+            let detailLevel: Int
+            if label.score > 0.8 {
+                detailLevel = 2 // Full detail
+            } else if label.score > 0.5 {
+                detailLevel = 1 // Title only
+            } else {
+                detailLevel = 0 // Minimal dot
+            }
+            
+            result.append(Embedding3DSceneView.AnnotationData(
+                position: position,
+                title: label.title,
+                keywords: label.keywords,
+                color: uiColor,
+                detailLevel: detailLevel
+            ))
+        }
+        return result
+    }
+
+    private func formattedCount(_ value: Int) -> String {
+        Self.countFormatter.string(from: NSNumber(value: value)) ?? "\(value)"
+    }
+
+    private var heroHeight: CGFloat { focusMode ? 620 : 460 }
+    private var heroHorizontalPadding: CGFloat { focusMode ? 4 : 16 }
+
+    private var sampleCoverageRatio: Double {
+        guard chunkCount > 0 else { return 0 }
+        return min(1, Double(totalPoints) / Double(max(chunkCount, 1)))
+    }
+
+    private var docCoverageRatio: Double {
+        guard documentCount > 0 else { return 0 }
+        let represented = legendItems.filter { $0.count > 0 }.count
+        return min(1, Double(represented) / Double(max(documentCount, 1)))
+    }
+
+    private var sampleCoverageText: String {
+        guard chunkCount > 0, totalPoints > 0 else { return "No embeddings sampled yet" }
+        let pct = String(format: "%.0f%%", sampleCoverageRatio * 100)
+        return "Showing \(formattedCount(totalPoints)) of \(formattedCount(chunkCount)) chunks (\(pct))"
+    }
+
+    private var docCoverageText: String {
+        guard documentCount > 0, !legendItems.isEmpty else { return "" }
+        let pct = String(format: "%.0f%%", docCoverageRatio * 100)
+        return "\(legendItems.filter { $0.count > 0 }.count) of \(documentCount) docs (\(pct))"
+    }
+
+    private var projectionExplainer: String {
+        switch projectionMethod {
+        case .pca:
+            return "PCA keeps the broadest themes intact—use it for a fast sanity check."
+        case .tsne:
+            return "t-SNE squeezes tiny topic bubbles apart; look for tight clusters."
+        case .umap:
+            return "UMAP balances global + local structure, great for mixed-format libraries."
+        }
+    }
 
     private var controlOverlay: some View {
         VStack(alignment: .trailing, spacing: 10) {
-            HStack(spacing: 10) {
+            HStack(spacing: 6) {
                 ControlToggleButton(
                     icon: "arrow.triangle.2.circlepath",
                     title: "Rotate",
@@ -336,6 +447,28 @@ struct EmbeddingSpaceRenderer: View {
                     title: "Depth",
                     isActive: depthCue,
                     action: { depthCue.toggle() }
+                )
+
+                ControlToggleButton(
+                    icon: "text.justify",
+                    title: "HUD",
+                    isActive: showHUD,
+                    action: {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            showHUD.toggle()
+                        }
+                    }
+                )
+
+                ControlToggleButton(
+                    icon: "arrow.up.left.and.arrow.down.right",
+                    title: "Focus",
+                    isActive: focusMode,
+                    action: {
+                        withAnimation(.spring(response: 0.45, dampingFraction: 0.9)) {
+                            focusMode.toggle()
+                        }
+                    }
                 )
 
                 Button(action: resetScene) {
@@ -379,6 +512,202 @@ struct EmbeddingSpaceRenderer: View {
         .padding(16)
     }
 
+    /// Inline HUD inspired by Apple's Embedding Atlas to explain what the user is seeing.
+    @ViewBuilder
+    private var sceneHUD: some View {
+        if totalPoints > 0 {
+            VStack(alignment: .leading, spacing: 12) {
+                sampleSummaryBadge
+                axisHintPanel
+            }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(Color.white.opacity(0.55))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                    )
+            )
+            .shadow(color: .black.opacity(0.04), radius: 10, x: 0, y: 6)
+            .padding(12)
+        }
+    }
+
+    private var controlToolbar: some View {
+        VStack(spacing: 8) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ControlToggleButton(
+                        icon: "arrow.triangle.2.circlepath",
+                        title: "Rotate",
+                        isActive: autoRotate,
+                        action: { autoRotate.toggle() }
+                    )
+
+                    ControlToggleButton(
+                        icon: "chart.xyaxis.line",
+                        title: "Axes",
+                        isActive: showAxes,
+                        action: { showAxes.toggle() }
+                    )
+
+                    ControlToggleButton(
+                        icon: "cube.transparent",
+                        title: "Depth",
+                        isActive: depthCue,
+                        action: { depthCue.toggle() }
+                    )
+
+                    ControlToggleButton(
+                        icon: "text.justify",
+                        title: "HUD",
+                        isActive: showHUD,
+                        action: {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                showHUD.toggle()
+                            }
+                        }
+                    )
+
+                    ControlToggleButton(
+                        icon: "arrow.up.left.and.arrow.down.right",
+                        title: "Focus",
+                        isActive: focusMode,
+                        action: {
+                            withAnimation(.spring(response: 0.45, dampingFraction: 0.9)) {
+                                focusMode.toggle()
+                            }
+                        }
+                    )
+
+                    Button(action: resetScene) {
+                        Label("Reset", systemImage: "arrow.counterclockwise")
+                            .font(.caption2)
+                            .padding(.vertical, 4)
+                            .padding(.horizontal, 8)
+                            .background(Color.black.opacity(0.08))
+                            .foregroundColor(.primary)
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 4)
+            }
+
+            Menu {
+                ForEach(EmbeddingSceneBackgroundStyle.allCases) { style in
+                    Button {
+                        backgroundStyle = style
+                    } label: {
+                        HStack {
+                            Label(style.displayName, systemImage: style.iconName)
+                            Spacer()
+                            if style == backgroundStyle {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            } label: {
+                Label(backgroundStyle.displayName, systemImage: backgroundStyle.iconName)
+                    .font(.caption2)
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, 12)
+                    .background(Color.black.opacity(0.05))
+                    .foregroundColor(.primary)
+                    .clipShape(Capsule())
+            }
+        }
+        .padding(.vertical, 10)
+        .padding(.horizontal, 18)
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(.thinMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                )
+        )
+        .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 4)
+        .padding(.horizontal, 16)
+    }
+
+    private var sampleSummaryBadge: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: "chart.scatter")
+                Text(sampleCoverageText)
+            }
+            .font(.caption)
+            .foregroundColor(.primary)
+
+            HStack(spacing: 6) {
+                Image(systemName: "rectangle.3.group")
+                Text(docCoverageText.isEmpty ? projectionExplainer : docCoverageText)
+            }
+            .font(.caption2)
+            .foregroundColor(.secondary)
+        }
+    }
+
+    private var axisHintPanel: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: "chart.xyaxis.line")
+                Text("Axis cheat sheet")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+            }
+            axisHintRow(label: "X axis", detail: "Left ↔ Right splits the strongest topic contrast.", color: .blue)
+            axisHintRow(label: "Y axis", detail: "Up ↕ Down separates structure—narrative vs. tabular.", color: .green)
+            axisHintRow(label: "Z axis", detail: "Depth stacks subtopics; tilt the view to reveal layers.", color: .purple)
+        }
+    }
+
+    private func axisHintRow(label: String, detail: String, color: Color) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Circle()
+                .fill(color.opacity(0.9))
+                .frame(width: 8, height: 8)
+                .padding(.top, 4)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label)
+                    .font(.caption2)
+                    .fontWeight(.semibold)
+                Text(detail)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var insightHighlights: some View {
+        if !insights.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("Quick insights")
+                        .font(.headline)
+                    Spacer()
+                    Text(projectionExplainer)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(insights) { insight in
+                            InsightCard(insight: insight)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+            .padding(.horizontal)
+        }
+    }
+
     private func resetScene() {
         sceneReloadToken = UUID()
     }
@@ -414,14 +743,17 @@ struct EmbeddingSpaceRenderer: View {
 
         var body: some View {
             Button(action: action) {
-                HStack(spacing: 6) {
+                HStack(spacing: 4) {
                     Image(systemName: icon)
                     Text(title)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                        .layoutPriority(1)
                 }
                 .font(.caption2)
-                .padding(.vertical, 6)
-                .padding(.horizontal, 10)
-                .background(isActive ? Color.accentColor : Color.black.opacity(0.12))
+                .padding(.vertical, 4)
+                .padding(.horizontal, 8)
+                .background(isActive ? Color.accentColor : Color.black.opacity(0.1))
                 .foregroundColor(isActive ? .white : .white.opacity(0.85))
                 .clipShape(Capsule())
             }
@@ -517,6 +849,111 @@ struct EmbeddingSpaceRenderer: View {
             .contentShape(Rectangle())
         }
     }
+
+    struct AnnotationPopoverLayer: View {
+        let labels: [PointAnnotationLabel]
+        let focusMode: Bool
+
+        var body: some View {
+            GeometryReader { proxy in
+                ForEach(labels) { label in
+                    AnnotationBubble(label: label)
+                        .position(
+                            x: proxy.size.width * label.normalizedX,
+                            y: proxy.size.height * (1 - label.normalizedY)
+                        )
+                        .scaleEffect(depthScale(label.depthHint))
+                        .opacity(depthOpacity(label.depthHint, score: label.score))
+                        .animation(.spring(response: 0.4, dampingFraction: 0.92), value: label.id)
+                        .transition(.scale.combined(with: .opacity))
+                        .zIndex(Double(label.depthHint))
+                }
+            }
+            .allowsHitTesting(false)
+        }
+        
+        private func depthScale(_ depth: CGFloat) -> CGFloat {
+            // Subtle depth parallax: closer = slightly larger
+            let base = focusMode ? 1.0 : 0.95
+            return base + (depth * 0.12)
+        }
+        
+        private func depthOpacity(_ depth: CGFloat, score: Double) -> Double {
+            // Fade distant labels more aggressively
+            let depthFade = 0.65 + (depth * 0.35)
+            let scoreFade = 0.7 + (score * 0.3)
+            return min(depthFade, scoreFade)
+        }
+    }
+
+    struct AnnotationBubble: View {
+        let label: PointAnnotationLabel
+
+        private var keywordTag: String? {
+            label.keywords.first
+        }
+
+        var body: some View {
+            HStack(spacing: 4) {
+                Circle()
+                    .fill(label.accent)
+                    .frame(width: 4, height: 4)
+                
+                Text(label.title)
+                    .font(.system(size: 8, weight: .medium, design: .rounded))
+                    .lineLimit(1)
+                    .foregroundColor(.primary.opacity(0.85))
+                
+                if let keyword = keywordTag {
+                    Text("·")
+                        .font(.system(size: 7))
+                        .foregroundColor(.secondary.opacity(0.4))
+                    Text(keyword)
+                        .font(.system(size: 7, weight: .regular, design: .rounded))
+                        .foregroundColor(.secondary.opacity(0.65))
+                        .lineLimit(1)
+                }
+            }
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2)
+            .background(
+                Capsule()
+                    .fill(.ultraThinMaterial)
+                    .overlay(
+                        Capsule()
+                            .strokeBorder(label.accent.opacity(0.15), lineWidth: 0.33)
+                    )
+            )
+            .shadow(color: Color.black.opacity(0.03), radius: 1.5, x: 0, y: 0.5)
+        }
+    }
+
+    struct InsightCard: View {
+        let insight: EmbeddingInsight
+
+        var body: some View {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
+                    Image(systemName: insight.icon)
+                        .foregroundColor(insight.accent)
+                    Text(insight.title)
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                }
+                Text(insight.detail)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(14)
+            .background(DSColors.background)
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(insight.accent.opacity(0.4), lineWidth: 1)
+            )
+            .cornerRadius(14)
+        }
+    }
     
 // MARK: - Filtering
     
@@ -538,6 +975,222 @@ struct EmbeddingSpaceRenderer: View {
         }
         return (fp, fc)
     }
+
+    /// Translate the current sample into approachable "Atlas-style" insights.
+    private func buildInsights(
+        sampledPoints: Int,
+        chunkCount: Int,
+        docCounts: [UUID: Int],
+        docNames: [UUID: String]
+    ) -> [EmbeddingInsight] {
+        var cards: [EmbeddingInsight] = []
+        let safeTotal = max(sampledPoints, 1)
+
+        if chunkCount > 0 {
+            let ratio = Double(sampledPoints) / Double(max(chunkCount, 1))
+            let pct = String(format: "%.0f%%", ratio * 100)
+            if ratio < 0.2 {
+                cards.append(
+                    EmbeddingInsight(
+                        icon: "gauge.low",
+                        title: "Light sample",
+                        detail: "Only \(pct) of the library is visible—raise the point cap for broader context.",
+                        accent: .orange
+                    )
+                )
+            } else if ratio > 0.6 {
+                cards.append(
+                    EmbeddingInsight(
+                        icon: "sparkles",
+                        title: "Rich coverage",
+                        detail: "Most of the library is represented. Try t-SNE or UMAP to stress-test cluster separation.",
+                        accent: .green
+                    )
+                )
+            }
+        }
+
+        if let dominant = docCounts.max(by: { $0.value < $1.value }), dominant.value > 0 {
+            let docName = docNames[dominant.key] ?? "Document"
+            let pct = String(format: "%.0f%%", (Double(dominant.value) / Double(safeTotal)) * 100)
+            cards.append(
+                EmbeddingInsight(
+                    icon: "doc.text.magnifyingglass",
+                    title: "\(docName) dominates",
+                    detail: "\(pct) of sampled points come from this source—toggle legend chips to verify balance.",
+                    accent: .purple
+                )
+            )
+        }
+
+        if documentCount > 0 {
+            let docRatio = Double(docCounts.count) / Double(max(documentCount, 1))
+            let pct = String(format: "%.0f%%", docRatio * 100)
+            if docRatio < 0.5 {
+                cards.append(
+                    EmbeddingInsight(
+                        icon: "rectangle.3.offgrid",
+                        title: "Limited document mix",
+                        detail: "Only \(pct) of docs appear in this sample. Consider refreshing or increasing the cap.",
+                        accent: .pink
+                    )
+                )
+            } else {
+                cards.append(
+                    EmbeddingInsight(
+                        icon: "link.circle",
+                        title: "Healthy coverage",
+                        detail: "\(pct) of docs are represented—use filters to focus on a storyline.",
+                        accent: .blue
+                    )
+                )
+            }
+        }
+
+        cards.append(
+            EmbeddingInsight(
+                icon: "cube.transparent",
+                title: "\(projectionMethod.rawValue) focus",
+                detail: projectionExplainer,
+                accent: Color.accentColor
+            )
+        )
+
+        return Array(cards.prefix(4))
+    }
+
+    private func buildAnnotationLabels(
+        chunks: [DocumentChunk],
+        coords: [SIMD3<Float>],
+        docIds: [UUID],
+        docNames: [UUID: String],
+        colorByDoc: [UUID: PlatformColor],
+        limit: Int
+    ) -> [PointAnnotationLabel] {
+        guard limit > 0 else { return [] }
+        let count = min(chunks.count, coords.count, docIds.count)
+        guard count > 0 else { return [] }
+
+        let xs = coords.prefix(count).map { $0.x }
+        let ys = coords.prefix(count).map { $0.y }
+        let zs = coords.prefix(count).map { $0.z }
+        let minX = xs.min() ?? 0
+        let maxX = xs.max() ?? 1
+        let minY = ys.min() ?? 0
+        let maxY = ys.max() ?? 1
+        let minZ = zs.min() ?? 0
+        let maxZ = zs.max() ?? 1
+        let spanX = max(maxX - minX, 0.001)
+        let spanY = max(maxY - minY, 0.001)
+        let spanZ = max(maxZ - minZ, 0.001)
+
+        struct AnnotationCandidate {
+            let docId: UUID
+            let pointIndex: Int
+            let title: String
+            let detail: String
+            let keywords: [String]
+            let normalizedX: CGFloat
+            let normalizedY: CGFloat
+            let depthHint: CGFloat
+            let accent: Color
+            let score: Double
+        }
+
+        var candidates: [AnnotationCandidate] = []
+        candidates.reserveCapacity(count)
+
+        for index in 0..<count {
+            let chunk = chunks[index]
+            let coord = coords[index]
+            let docId = docIds[index]
+            let docName = docNames[docId] ?? "Document"
+            let sectionTitle = chunk.metadata.sectionTitle?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let title = (sectionTitle?.isEmpty == false) ? sectionTitle! : docName
+            let rawDetail = chunk.content.trimmingCharacters(in: .whitespacesAndNewlines)
+            let keywords = chunk.metadata.keywords
+            let detail: String
+            if keywords.isEmpty {
+                detail = rawDetail.isEmpty ? docName : String(rawDetail.prefix(64))
+            } else {
+                detail = keywords.prefix(3).joined(separator: " • ")
+            }
+            let densityScore = Double(chunk.metadata.semanticDensity ?? 0.45)
+            let lengthScore = Double(min(chunk.metadata.wordCount, 420)) / 420.0
+            let keywordScore = Double(min(keywords.count, 4)) * 0.08
+            let numericBonus = chunk.metadata.hasNumericData ? 0.08 : 0
+            let score = densityScore + lengthScore + keywordScore + numericBonus
+            let baseX = Double(coord.x - minX) / Double(spanX)
+            let baseY = Double(coord.y - minY) / Double(spanY)
+            let jitterSeed = Double(abs(chunk.id.hashValue % 1000)) / 1000.0
+            let jitterX = (jitterSeed - 0.5) * 0.08
+            let jitterY = (0.5 - jitterSeed) * 0.06
+            let normalizedX = CGFloat(min(max(baseX + jitterX, 0.08), 0.92))
+            let normalizedY = CGFloat(min(max(baseY + jitterY, 0.08), 0.92))
+            let depthBase = Double(coord.z - minZ) / Double(spanZ)
+            let depthHint = CGFloat(min(max(depthBase, 0), 1))
+            let accentColor: Color
+            if let platformColor = colorByDoc[docId] {
+                accentColor = Color(platformColor)
+            } else {
+                accentColor = .accentColor
+            }
+            let candidate = AnnotationCandidate(
+                docId: docId,
+                pointIndex: index,
+                title: title,
+                detail: detail,
+                keywords: keywords,
+                normalizedX: normalizedX,
+                normalizedY: normalizedY,
+                depthHint: depthHint,
+                accent: accentColor,
+                score: max(score, 0.05)
+            )
+            candidates.append(candidate)
+        }
+
+        guard !candidates.isEmpty else { return [] }
+
+        candidates.sort { $0.score > $1.score }
+        var selected: [AnnotationCandidate] = []
+        selected.reserveCapacity(limit)
+        var usedDocs: Set<UUID> = []
+
+        for candidate in candidates where selected.count < limit {
+            if !usedDocs.contains(candidate.docId) {
+                selected.append(candidate)
+                usedDocs.insert(candidate.docId)
+            }
+        }
+        if selected.count < limit {
+            for candidate in candidates where selected.count < limit {
+                if !selected.contains(where: { $0.pointIndex == candidate.pointIndex }) {
+                    selected.append(candidate)
+                }
+            }
+        }
+
+        let maxScore = selected.map { $0.score }.max() ?? 1
+        let safeMax = max(maxScore, 0.01)
+
+        return selected.map { candidate in
+            let normalizedScore = candidate.score / safeMax
+            let safeScore = min(max(normalizedScore, 0), 1)
+            return PointAnnotationLabel(
+                pointIndex: candidate.pointIndex,
+                docId: candidate.docId,
+                title: candidate.title,
+                detail: candidate.detail,
+                keywords: candidate.keywords,
+                normalizedX: candidate.normalizedX,
+                normalizedY: candidate.normalizedY,
+                depthHint: candidate.depthHint,
+                accent: candidate.accent,
+                score: safeScore
+            )
+        }
+    }
     
     // MARK: - Data + Projection
     
@@ -548,7 +1201,9 @@ struct EmbeddingSpaceRenderer: View {
             await MainActor.run {
                 isLoading = true
                 errorText = nil
+                annotationLabels = []
             }
+            let annotationLimit = await MainActor.run { focusMode ? 5 : 3 }
             
             // Snapshot documents to resolve names and filter by active container
             let docsSnapshot = await MainActor.run { ragService.documents }
@@ -576,6 +1231,8 @@ struct EmbeddingSpaceRenderer: View {
                     self.allDocIdsForPoints = []
                     self.totalPoints = 0
                     self.isLoading = false
+                    self.insights = []
+                    self.annotationLabels = []
                 }
                 return
             }
@@ -590,6 +1247,8 @@ struct EmbeddingSpaceRenderer: View {
                     self.allDocIdsForPoints = []
                     self.totalPoints = 0
                     self.isLoading = false
+                    self.insights = []
+                    self.annotationLabels = []
                 }
                 return
             }
@@ -605,8 +1264,11 @@ struct EmbeddingSpaceRenderer: View {
             let perDocQuota = max(1, sampleLimit / max(docIds.count, 1))
             var sampledEmbeddings: [[Float]] = []
             var sampledDocIds: [UUID] = []
-            sampledEmbeddings.reserveCapacity(min(sampleLimit, filtered.count))
-            sampledDocIds.reserveCapacity(min(sampleLimit, filtered.count))
+            var sampledChunks: [DocumentChunk] = []
+            let capacity = min(sampleLimit, filtered.count)
+            sampledEmbeddings.reserveCapacity(capacity)
+            sampledDocIds.reserveCapacity(capacity)
+            sampledChunks.reserveCapacity(capacity)
             
             // Deterministic sampling per containerId
             let rngSeed = UInt64(abs(Int64(activeId.uuidString.hashValue)))
@@ -622,13 +1284,16 @@ struct EmbeddingSpaceRenderer: View {
                         if i != j { indices.swapAt(i, j) }
                     }
                     for idx in indices.prefix(perDocQuota) {
-                        sampledEmbeddings.append(arr[idx].embedding)
+                        let chunk = arr[idx]
+                        sampledEmbeddings.append(chunk.embedding)
                         sampledDocIds.append(did)
+                        sampledChunks.append(chunk)
                     }
                 } else {
                     for c in arr {
                         sampledEmbeddings.append(c.embedding)
                         sampledDocIds.append(did)
+                        sampledChunks.append(c)
                     }
                 }
             }
@@ -642,18 +1307,38 @@ struct EmbeddingSpaceRenderer: View {
                 order = Array(order.prefix(sampleLimit))
                 var newEmb: [[Float]] = []
                 var newIds: [UUID] = []
+                var newChunks: [DocumentChunk] = []
                 newEmb.reserveCapacity(order.count)
                 newIds.reserveCapacity(order.count)
+                newChunks.reserveCapacity(order.count)
                 for idx in order {
                     newEmb.append(sampledEmbeddings[idx])
                     newIds.append(sampledDocIds[idx])
+                    newChunks.append(sampledChunks[idx])
                 }
                 sampledEmbeddings = newEmb
                 sampledDocIds = newIds
+                sampledChunks = newChunks
             }
             
-            // Validate dims
-            sampledEmbeddings = sampledEmbeddings.filter { !$0.isEmpty }
+            // Validate dims while keeping identifiers aligned
+            var filteredEmbeddings: [[Float]] = []
+            var filteredDocIds: [UUID] = []
+            var filteredChunks: [DocumentChunk] = []
+            filteredEmbeddings.reserveCapacity(sampledEmbeddings.count)
+            filteredDocIds.reserveCapacity(sampledDocIds.count)
+            filteredChunks.reserveCapacity(sampledChunks.count)
+            for index in 0..<sampledEmbeddings.count {
+                guard index < sampledDocIds.count, index < sampledChunks.count else { continue }
+                let embedding = sampledEmbeddings[index]
+                guard !embedding.isEmpty else { continue }
+                filteredEmbeddings.append(embedding)
+                filteredDocIds.append(sampledDocIds[index])
+                filteredChunks.append(sampledChunks[index])
+            }
+            sampledEmbeddings = filteredEmbeddings
+            sampledDocIds = filteredDocIds
+            sampledChunks = filteredChunks
             if Task.isCancelled { return }
             guard !sampledEmbeddings.isEmpty else {
                 await MainActor.run {
@@ -663,12 +1348,22 @@ struct EmbeddingSpaceRenderer: View {
                     self.allDocIdsForPoints = []
                     self.totalPoints = 0
                     self.isLoading = false
+                    self.insights = []
+                    self.annotationLabels = []
                 }
                 return
             }
             
             // Projection & caching
-            let methodKind: ProjectionMethodKind = (projectionMethod == .pca) ? .pca : .rp
+            let methodKind: ProjectionMethodKind
+            switch projectionMethod {
+            case .pca:
+                methodKind = .pca
+            case .tsne:
+                methodKind = .tsne
+            case .umap:
+                methodKind = .umap
+            }
             let cacheKey = ProjectionCacheKey(
                 containerId: activeId,
                 method: methodKind.rawValue,
@@ -726,6 +1421,20 @@ struct EmbeddingSpaceRenderer: View {
             // Build SceneKit vectors and color list aligned
             let scnPoints: [SCNVector3] = coords3D.map { SCNVector3($0.x, $0.y, $0.z) }
             let uiColors: [PlatformColor] = sampledDocIds.map { colorByDoc[$0] ?? ColorPalette.fallback }
+            let generatedInsights = buildInsights(
+                sampledPoints: scnPoints.count,
+                chunkCount: chunkCount,
+                docCounts: counts,
+                docNames: nameById
+            )
+            let annotationSet = buildAnnotationLabels(
+                chunks: sampledChunks,
+                coords: coords3D,
+                docIds: sampledDocIds,
+                docNames: nameById,
+                colorByDoc: colorByDoc,
+                limit: annotationLimit
+            )
             
             await MainActor.run {
                 self.points = scnPoints
@@ -735,6 +1444,8 @@ struct EmbeddingSpaceRenderer: View {
                 self.totalPoints = scnPoints.count
                 // Default: if no filters yet, treat as "all" selected by keeping set empty
                 self.isLoading = false
+                self.insights = generatedInsights
+                self.annotationLabels = annotationSet
             }
         }
     }
@@ -766,14 +1477,24 @@ struct Embedding3DSceneView: View {
         let depthCue: Bool
         let backgroundStyle: EmbeddingSceneBackgroundStyle
     }
+    
+    struct AnnotationData: Identifiable {
+        let id = UUID()
+        let position: SCNVector3
+        let title: String
+        let keywords: [String]
+        let color: PlatformColor
+        let detailLevel: Int // 0=minimal, 1=normal, 2=detailed
+    }
 
     let points: [SCNVector3]
     let colors: [PlatformColor]
     let options: SceneOptions
     let reloadToken: UUID
+    let annotations: [AnnotationData]
 
     var body: some View {
-        SceneViewContainer(points: points, colors: colors, options: options, reloadToken: reloadToken)
+        SceneViewContainer(points: points, colors: colors, options: options, reloadToken: reloadToken, annotations: annotations)
             .background(DSColors.background)
             .clipShape(RoundedRectangle(cornerRadius: 16))
     }
@@ -785,9 +1506,11 @@ struct SceneViewContainer: UIViewRepresentable {
     let colors: [PlatformColor]
     let options: Embedding3DSceneView.SceneOptions
     let reloadToken: UUID
+    let annotations: [Embedding3DSceneView.AnnotationData]
 
     func makeUIView(context: Context) -> SCNView {
         let view = SCNView(frame: .zero)
+        view.delegate = context.coordinator
         configure(view)
         return view
     }
@@ -798,10 +1521,55 @@ struct SceneViewContainer: UIViewRepresentable {
 
     private func configure(_ view: SCNView) {
         let _ = reloadToken
-        view.scene = buildScene(points: points, colors: colors, options: options)
+        view.scene = buildScene(points: points, colors: colors, options: options, annotations: annotations)
         view.allowsCameraControl = true
         view.autoenablesDefaultLighting = true
         view.backgroundColor = .clear
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+    
+    class Coordinator: NSObject, SCNSceneRendererDelegate {
+        func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
+            guard let scene = renderer.scene else { return }
+            updateLabelLOD(scene: scene, pointOfView: renderer.pointOfView)
+        }
+        
+        private func updateLabelLOD(scene: SCNScene, pointOfView: SCNNode?) {
+            guard let camera = pointOfView else { return }
+            let cameraPos = camera.position
+            
+            scene.rootNode.enumerateChildNodes { node, _ in
+                guard node.name == "contentRoot" else { return }
+                
+                node.enumerateChildNodes { labelNode, _ in
+                    guard labelNode.geometry is SCNText || labelNode.childNodes.contains(where: { $0.geometry is SCNText }) else { return }
+                    
+                    let distance = simd_distance(simd_float3(cameraPos), simd_float3(labelNode.position))
+                    
+                    // Dynamic LOD based on distance
+                    if distance < 2.0 {
+                        // Close: show full detail
+                        labelNode.opacity = 0.95
+                        labelNode.scale = SCNVector3(0.4, 0.4, 0.4)
+                    } else if distance < 4.0 {
+                        // Medium: normal detail
+                        labelNode.opacity = 0.8
+                        labelNode.scale = SCNVector3(0.35, 0.35, 0.35)
+                    } else if distance < 6.0 {
+                        // Far: minimal
+                        labelNode.opacity = 0.5
+                        labelNode.scale = SCNVector3(0.3, 0.3, 0.3)
+                    } else {
+                        // Very far: hide
+                        labelNode.opacity = 0.2
+                        labelNode.scale = SCNVector3(0.25, 0.25, 0.25)
+                    }
+                }
+            }
+        }
     }
 }
 #else
@@ -810,9 +1578,11 @@ struct SceneViewContainer: NSViewRepresentable {
     let colors: [PlatformColor]
     let options: Embedding3DSceneView.SceneOptions
     let reloadToken: UUID
+    let annotations: [Embedding3DSceneView.AnnotationData]
 
     func makeNSView(context: Context) -> SCNView {
         let view = SCNView(frame: .zero)
+        view.delegate = context.coordinator
         configure(view)
         return view
     }
@@ -823,17 +1593,62 @@ struct SceneViewContainer: NSViewRepresentable {
 
     private func configure(_ view: SCNView) {
         let _ = reloadToken
-        view.scene = buildScene(points: points, colors: colors, options: options)
+        view.scene = buildScene(points: points, colors: colors, options: options, annotations: annotations)
         view.allowsCameraControl = true
         view.autoenablesDefaultLighting = true
         view.backgroundColor = .clear
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+    
+    class Coordinator: NSObject, SCNSceneRendererDelegate {
+        func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
+            guard let scene = renderer.scene else { return }
+            updateLabelLOD(scene: scene, pointOfView: renderer.pointOfView)
+        }
+        
+        private func updateLabelLOD(scene: SCNScene, pointOfView: SCNNode?) {
+            guard let camera = pointOfView else { return }
+            let cameraPos = camera.position
+            
+            scene.rootNode.enumerateChildNodes { node, _ in
+                guard node.name == "contentRoot" else { return }
+                
+                node.enumerateChildNodes { labelNode, _ in
+                    guard labelNode.geometry is SCNText || labelNode.childNodes.contains(where: { $0.geometry is SCNText }) else { return }
+                    
+                    let distance = simd_distance(simd_float3(cameraPos), simd_float3(labelNode.position))
+                    
+                    // Dynamic LOD based on distance
+                    if distance < 2.0 {
+                        // Close: show full detail
+                        labelNode.opacity = 0.95
+                        labelNode.scale = SCNVector3(0.4, 0.4, 0.4)
+                    } else if distance < 4.0 {
+                        // Medium: normal detail
+                        labelNode.opacity = 0.8
+                        labelNode.scale = SCNVector3(0.35, 0.35, 0.35)
+                    } else if distance < 6.0 {
+                        // Far: minimal
+                        labelNode.opacity = 0.5
+                        labelNode.scale = SCNVector3(0.3, 0.3, 0.3)
+                    } else {
+                        // Very far: hide
+                        labelNode.opacity = 0.2
+                        labelNode.scale = SCNVector3(0.25, 0.25, 0.25)
+                    }
+                }
+            }
+        }
     }
 }
 #endif
 
 // MARK: - Scene construction
 
-private func buildScene(points: [SCNVector3], colors: [PlatformColor], options: Embedding3DSceneView.SceneOptions) -> SCNScene {
+private func buildScene(points: [SCNVector3], colors: [PlatformColor], options: Embedding3DSceneView.SceneOptions, annotations: [Embedding3DSceneView.AnnotationData]) -> SCNScene {
     let scene = SCNScene()
     scene.rootNode.addChildNode(makeCameraNode(depthCue: options.depthCue))
 
@@ -846,6 +1661,7 @@ private func buildScene(points: [SCNVector3], colors: [PlatformColor], options: 
     }
 
     addPointNodes(points, colors, scale: options.pointScale, depthCue: options.depthCue, into: contentRoot)
+    addAnnotationLabels(annotations, into: contentRoot)
     addLighting(into: scene.rootNode, depthCue: options.depthCue)
     applyBackground(style: options.backgroundStyle, to: scene)
     applyAutoRotate(options.autoRotate, to: contentRoot)
@@ -956,6 +1772,95 @@ private func addPointNodes(_ points: [SCNVector3], _ colors: [PlatformColor], sc
         node.position = points[index]
         root.addChildNode(node)
     }
+}
+
+private func addAnnotationLabels(_ annotations: [Embedding3DSceneView.AnnotationData], into root: SCNNode) {
+    for annotation in annotations {
+        let labelNode = makeBillboardLabel(
+            text: annotation.title,
+            keyword: annotation.keywords.first,
+            color: annotation.color,
+            detailLevel: annotation.detailLevel
+        )
+        labelNode.position = SCNVector3(
+            annotation.position.x,
+            annotation.position.y + 0.08, // Offset above point
+            annotation.position.z
+        )
+        root.addChildNode(labelNode)
+    }
+}
+
+private func makeBillboardLabel(text: String, keyword: String?, color: PlatformColor, detailLevel: Int) -> SCNNode {
+    let container = SCNNode()
+    
+    // Build label text based on detail level
+    let labelText: String
+    switch detailLevel {
+    case 0: // Minimal: just a dot
+        labelText = "•"
+    case 1: // Normal: title only
+        labelText = text
+    default: // Detailed: title + keyword
+        if let kw = keyword {
+            labelText = "\(text) · \(kw)"
+        } else {
+            labelText = text
+        }
+    }
+    
+    let textGeo = SCNText(string: labelText, extrusionDepth: 0)
+    #if canImport(UIKit)
+    textGeo.font = UIFont.systemFont(ofSize: detailLevel == 0 ? 0.12 : 0.08, weight: .medium)
+    #else
+    textGeo.font = NSFont.systemFont(ofSize: detailLevel == 0 ? 0.12 : 0.08, weight: .medium)
+    #endif
+    textGeo.flatness = 0.05
+    textGeo.chamferRadius = 0.001
+    
+    let textMaterial = SCNMaterial()
+    textMaterial.diffuse.contents = color
+    textMaterial.emission.contents = color
+    textMaterial.emission.intensity = 0.3
+    textMaterial.isDoubleSided = true
+    textGeo.materials = [textMaterial]
+    
+    let textNode = SCNNode(geometry: textGeo)
+    let (min, max) = textGeo.boundingBox
+    let width = max.x - min.x
+    let height = max.y - min.y
+    textNode.pivot = SCNMatrix4MakeTranslation(min.x + width/2, min.y + height/2, 0)
+    textNode.scale = SCNVector3(0.35, 0.35, 0.35)
+    
+    // Add subtle background pill
+    if detailLevel > 0 {
+        let pillWidth = CGFloat(width) * 0.38
+        let pillHeight = CGFloat(height) * 0.42
+        let pill = SCNBox(width: pillWidth, height: pillHeight, length: 0.002, chamferRadius: pillHeight * 0.5)
+        let pillMaterial = SCNMaterial()
+        #if canImport(UIKit)
+        pillMaterial.diffuse.contents = UIColor.white.withAlphaComponent(0.15)
+        #else
+        pillMaterial.diffuse.contents = NSColor.white.withAlphaComponent(0.15)
+        #endif
+        pillMaterial.isDoubleSided = true
+        pill.materials = [pillMaterial]
+        let pillNode = SCNNode(geometry: pill)
+        pillNode.position = SCNVector3(0, 0, -0.002)
+        container.addChildNode(pillNode)
+    }
+    
+    container.addChildNode(textNode)
+    
+    // Billboard constraint to always face camera
+    let billboard = SCNBillboardConstraint()
+    billboard.freeAxes = [.X, .Y]
+    container.constraints = [billboard]
+    
+    // LOD: fade out when far, scale when close
+    container.opacity = detailLevel == 0 ? 0.5 : 0.85
+    
+    return container
 }
 
 private func addLighting(into root: SCNNode, depthCue: Bool) {
@@ -1124,6 +2029,8 @@ enum ColorPalette {
 // Provides a graceful placeholder so VisualizationsView compiles across all supported platforms.
 struct EmbeddingSpaceRenderer: View {
     let projectionMethod: EmbeddingSpaceView.ProjectionMethod
+    let chunkCount: Int
+    let documentCount: Int
     var body: some View {
         VStack(spacing: 12) {
             ZStack {
@@ -1141,10 +2048,36 @@ struct EmbeddingSpaceRenderer: View {
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal)
+                    Text("Tracking \(chunkCount) chunks across \(documentCount) documents")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .padding(.top, 4)
+                    Text(projectionHelper)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                    Text("Tip: On compatible devices, use Focus mode to stretch the scene, or hide the HUD for a clean canvas.")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.top, 2)
                 }
                 .padding()
             }
-            .frame(height: 340)
+            .frame(height: 360)
+
+            EmbeddingLegendCard()
+        }
+    }
+
+    private var projectionHelper: String {
+        switch projectionMethod {
+        case .pca:
+            return "PCA offers a fast overview once SceneKit is available."
+        case .tsne:
+            return "t-SNE will highlight tiny topic bubbles in the future renderer."
+        case .umap:
+            return "UMAP balances local and global structure for mixed document sets."
         }
     }
 }

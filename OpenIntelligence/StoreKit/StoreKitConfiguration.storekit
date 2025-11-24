@@ -21,16 +21,35 @@
             "locale": "en_US",
             "name": "Starter Monthly",
             "description": "Unlock 40 documents, 3 libraries, and faster ingestion."
+          },
+          {
+            "locale": "en_GB",
+            "name": "Starter Monthly",
+            "description": "Access 40 documents, 3 libraries, and priority parsing in the UK tier."
+          },
+          {
+            "locale": "de_DE",
+            "name": "Starter Monatsabo",
+            "description": "Schalte 40 Dokumente, 3 Bibliotheken und schnellere Verarbeitung frei."
+          },
+          {
+            "locale": "ja_JP",
+            "name": "スタータープラン（月額）",
+            "description": "40 件のドキュメントと 3 つのライブラリ、優先インジェストを利用できます。"
           }
         ],
-        "levels": [2]
+        "levels": [2],
+        "introductoryOffer": {
+          "mode": "free",
+          "period": "P3D"
+        }
       }
     },
     {
       "id": "starter_annual",
       "type": "auto-renewable-subscription",
       "referenceName": "Starter Annual",
-      "familySharable": false,
+      "familySharable": true,
       "price": {
         "currencyCode": "USD",
         "value": 24.99
@@ -43,6 +62,21 @@
             "locale": "en_US",
             "name": "Starter Annual",
             "description": "Yearly billing for 40 documents, 3 libraries, and faster ingestion."
+          },
+          {
+            "locale": "en_GB",
+            "name": "Starter Annual",
+            "description": "Annual billing for 40 documents, 3 libraries, and accelerated ingestion."
+          },
+          {
+            "locale": "es_ES",
+            "name": "Starter Anual",
+            "description": "Facturación anual con 40 documentos, 3 bibliotecas y procesamiento rápido."
+          },
+          {
+            "locale": "fr_FR",
+            "name": "Starter Annuel",
+            "description": "Facturation annuelle pour 40 documents, 3 bibliothèques et une ingestion plus rapide."
           }
         ],
         "levels": [2],
@@ -69,16 +103,35 @@
             "locale": "en_US",
             "name": "Pro Monthly",
             "description": "Unlimited documents, automation hooks, and premium retrieval controls."
+          },
+          {
+            "locale": "en_GB",
+            "name": "Pro Monthly",
+            "description": "Unlimited documents, automation hooks, and premium retrieval controls for UK testers."
+          },
+          {
+            "locale": "de_DE",
+            "name": "Pro Monatsabo",
+            "description": "Unbegrenzte Dokumente, Automationen und erweiterte Retrieval-Einstellungen."
+          },
+          {
+            "locale": "ja_JP",
+            "name": "プロプラン（月額）",
+            "description": "無制限のドキュメント、自動化フック、高度な検索コントロールを提供します。"
           }
         ],
-        "levels": [1]
+        "levels": [1],
+        "introductoryOffer": {
+          "mode": "free",
+          "period": "P7D"
+        }
       }
     },
     {
       "id": "pro_annual",
       "type": "auto-renewable-subscription",
       "referenceName": "Pro Annual",
-      "familySharable": false,
+      "familySharable": true,
       "price": {
         "currencyCode": "USD",
         "value": 89.99
@@ -91,6 +144,16 @@
             "locale": "en_US",
             "name": "Pro Annual",
             "description": "Annual billing for unlimited documents and pro automation features."
+          },
+          {
+            "locale": "en_GB",
+            "name": "Pro Annual",
+            "description": "Annual billing for unlimited documents with automation and routing controls."
+          },
+          {
+            "locale": "es_ES",
+            "name": "Pro Anual",
+            "description": "Facturación anual para documentos ilimitados y funciones de automatización profesional."
           }
         ],
         "levels": [1],
@@ -104,7 +167,7 @@
       "id": "lifetime_cohort",
       "type": "non-consumable",
       "referenceName": "Lifetime Cohort",
-      "familySharable": false,
+      "familySharable": true,
       "price": {
         "currencyCode": "USD",
         "value": 59.99
@@ -114,6 +177,21 @@
           "locale": "en_US",
           "name": "Lifetime Cohort",
           "description": "One-time unlock for unlimited on-device documents and Core ML cartridges."
+        },
+        {
+          "locale": "en_GB",
+          "name": "Lifetime Cohort",
+          "description": "One-time unlock for unlimited on-device documents and ML cartridges."
+        },
+        {
+          "locale": "de_DE",
+          "name": "Lifetime-Paket",
+          "description": "Einmaliger Kauf für unbegrenzte On-Device-Dokumente und Core-ML-Erweiterungen."
+        },
+        {
+          "locale": "ja_JP",
+          "name": "ライフタイム・コホート",
+          "description": "1 回の購入で無制限のオンデバイス・ドキュメントと Core ML カートリッジをアンロック。"
         }
       ]
     },
@@ -131,6 +209,16 @@
           "locale": "en_US",
           "name": "Document Pack",
           "description": "Adds 25 extra documents to your workspace quota."
+        },
+        {
+          "locale": "en_GB",
+          "name": "Document Pack",
+          "description": "Adds 25 additional documents to the workspace quota."
+        },
+        {
+          "locale": "fr_FR",
+          "name": "Pack de documents",
+          "description": "Ajoute 25 documents supplémentaires à votre quota."
         }
       ]
     }

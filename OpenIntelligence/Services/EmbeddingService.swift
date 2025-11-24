@@ -15,12 +15,19 @@ class EmbeddingService {
     
     private let provider: EmbeddingProvider
     private let targetDimension: Int
+    private let providerIdentifier: String
+    private var dimensionAdjustmentCount = 0
     
     // MARK: - Initialization
     
-    init(provider: EmbeddingProvider = NLEmbeddingProvider(), targetDimension: Int? = nil) {
+    init(
+        provider: EmbeddingProvider = NLEmbeddingProvider(),
+        providerId: String = "nl_embedding",
+        targetDimension: Int? = nil
+    ) {
         self.provider = provider
         self.targetDimension = targetDimension ?? provider.dimension
+        self.providerIdentifier = providerId
         if !provider.isAvailable {
             print("⚠️ Warning: Embedding provider not available on this device")
         }
@@ -36,17 +43,33 @@ class EmbeddingService {
         let resolved: EmbeddingService
         switch id {
         case "nl_embedding":
-            resolved = EmbeddingService(provider: NLEmbeddingProvider(), targetDimension: targetDimension)
+            resolved = EmbeddingService(
+                provider: NLEmbeddingProvider(),
+                providerId: "nl_embedding",
+                targetDimension: targetDimension
+            )
         case "coreml_sentence_embedding":
-            resolved = EmbeddingService(provider: CoreMLSentenceEmbeddingProvider(), targetDimension: targetDimension)
+            resolved = EmbeddingService(
+                provider: CoreMLSentenceEmbeddingProvider(),
+                providerId: "coreml_sentence_embedding",
+                targetDimension: targetDimension
+            )
         case "apple_fm_embed":
-            resolved = EmbeddingService(provider: AppleFMEmbeddingProvider(), targetDimension: targetDimension)
+            resolved = EmbeddingService(
+                provider: AppleFMEmbeddingProvider(),
+                providerId: "apple_fm_embed",
+                targetDimension: targetDimension
+            )
         default:
             Log.warning(
                 "Unknown embedding provider '\(id)', defaulting to NLEmbedding",
                 category: .embedding
             )
-            resolved = EmbeddingService(provider: NLEmbeddingProvider(), targetDimension: targetDimension)
+            resolved = EmbeddingService(
+                provider: NLEmbeddingProvider(),
+                providerId: "nl_embedding",
+                targetDimension: targetDimension
+            )
         }
 
         guard allowFallback, id != "nl_embedding", !resolved.isAvailable else {
@@ -57,7 +80,11 @@ class EmbeddingService {
             "Embedding provider '\(id)' unavailable on this device – falling back to NLEmbedding",
             category: .embedding
         )
-        return EmbeddingService(provider: NLEmbeddingProvider(), targetDimension: targetDimension)
+        return EmbeddingService(
+            provider: NLEmbeddingProvider(),
+            providerId: "nl_embedding",
+            targetDimension: targetDimension
+        )
     }
     
     // MARK: - Public API
@@ -65,6 +92,11 @@ class EmbeddingService {
     /// Check if embedding generation is available on this device
     var isAvailable: Bool {
         return provider.isAvailable
+    }
+
+    /// The dimensionality this service will output after adjustments
+    var outputDimension: Int {
+        targetDimension
     }
     
     /// Generate a semantic embedding for a text chunk
@@ -226,6 +258,7 @@ class EmbeddingService {
         }
 
         if vector.count > targetDimension {
+            recordAdjustment(for: vector.count)
             Log.warning(
                 "Truncating embedding from \(vector.count) → \(targetDimension) dimensions",
                 category: .embedding
@@ -233,11 +266,36 @@ class EmbeddingService {
             return Array(vector.prefix(targetDimension))
         }
 
+        recordAdjustment(for: vector.count)
         Log.warning(
             "Padding embedding from \(vector.count) → \(targetDimension) dimensions",
             category: .embedding
         )
         return vector + Array(repeating: 0.0, count: targetDimension - vector.count)
+    }
+
+    private func recordAdjustment(for actualDimension: Int) {
+        dimensionAdjustmentCount += 1
+
+        if dimensionAdjustmentCount == 1 || dimensionAdjustmentCount.isMultiple(of: 25) {
+            TelemetryCenter.emit(
+                .system,
+                severity: .warning,
+                title: "Embedding dimension auto-adjusted",
+                metadata: [
+                    "provider": providerIdentifier,
+                    "target": "\(targetDimension)",
+                    "actual": "\(actualDimension)",
+                    "occurrences": "\(dimensionAdjustmentCount)"
+                ]
+            )
+        }
+
+        if dimensionAdjustmentCount > 100 {
+            assertionFailure(
+                "Embedding dimension auto-adjustment fired \(dimensionAdjustmentCount)x for provider \(providerIdentifier)."
+            )
+        }
     }
 }
 
