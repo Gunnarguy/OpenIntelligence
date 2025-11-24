@@ -86,6 +86,7 @@ public enum DSColors {
 public enum DSTypography {
     public static var title: Font { .title3.weight(.semibold) }
     public static var body: Font { .body }
+    public static var caption: Font { .caption }
     public static var meta: Font { .caption2 }
     public static var chip: Font { .caption2.weight(.semibold) }
     public static var code: Font { .system(.footnote, design: .monospaced) }
@@ -106,9 +107,10 @@ public enum DSSpacing {
 
 public enum DSCorners {
     public static let chip: CGFloat = 8
+    public static let control: CGFloat = 12
+    public static let card: CGFloat = 16
     public static let bubble: CGFloat = 20
     public static let sheet: CGFloat = 24
-    public static let control: CGFloat = 12
 }
 
 // MARK: - Shadows / Elevation

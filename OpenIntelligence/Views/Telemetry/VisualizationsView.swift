@@ -335,7 +335,11 @@ struct EmbeddingSpaceView: View {
         VStack(alignment: .leading, spacing: 20) {
             header
             projectionPicker
-            EmbeddingSpaceRenderer(projectionMethod: projectionMethod)
+            EmbeddingSpaceRenderer(
+                projectionMethod: projectionMethod,
+                chunkCount: chunkCount,
+                documentCount: documentCount
+            )
             statsRow
         }
         .sheet(isPresented: $showingInfo) {

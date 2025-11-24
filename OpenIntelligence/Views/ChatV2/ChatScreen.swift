@@ -38,6 +38,7 @@ struct ChatScreen: View {
     @State private var currentRetrievedChunks: [RetrievedChunk] = []
     @State private var currentMetadata: ResponseMetadata? = nil
     @State private var showRetrievedDetails: Bool = false
+    @State private var thinkingEvents: [ThinkingEvent] = []
 
     // Processing State
     @State private var isProcessing: Bool = false
@@ -162,6 +163,13 @@ struct ChatScreen: View {
                 generatingElapsed: generatingElapsedDisplay
             )
 
+            if !thinkingEvents.isEmpty {
+                ThinkingStreamView(events: thinkingEvents)
+                    .padding(.horizontal, DSSpacing.md)
+                    .padding(.bottom, DSSpacing.sm)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+
             // Live telemetry strip during generation (stacked, not overlay)
             if isProcessing {
                 LiveCountersStrip(
@@ -200,6 +208,9 @@ struct ChatScreen: View {
         // Ensure counts refresh if the user switches containers outside this view
         .onReceive(ragService.containerService.$activeContainerId) { _ in
             Task { await recalcActiveCounts() }
+        }
+        .onReceive(ragService.$thinkingEvents) { events in
+            thinkingEvents = events
         }
         .onReceive(ragService.$pendingCloudConsent) { record in
             activeCloudConsent = record
@@ -408,6 +419,7 @@ struct ChatScreen: View {
         currentMetadata = nil
         toasts.removeAll()
         showRetrievedDetails = false
+        thinkingEvents.removeAll()
     }
 
     private func clearChat() {
@@ -432,6 +444,7 @@ struct ChatScreen: View {
         currentMetadata = nil
         toasts.removeAll()
         showRetrievedDetails = false
+        thinkingEvents.removeAll()
     }
 
     private func sendMessage(_ text: String) {

@@ -19,6 +19,8 @@ import simd
 enum ProjectionMethodKind: String {
     case pca
     case rp
+    case tsne
+    case umap
 }
 
 final class ProjectionService {
@@ -43,6 +45,10 @@ final class ProjectionService {
             return pca3D_powerIteration(X: X, seed: seed)
         case .rp:
             return randomProjection3D(X: X, seed: seed)
+        case .tsne:
+            return tsne3D(X: X, seed: seed)
+        case .umap:
+            return umap3D(X: X, seed: seed)
         }
     }
 
@@ -191,6 +197,195 @@ final class ProjectionService {
             out.append(SIMD3<Float>(x, y, z))
         }
         return out
+    }
+    
+    // MARK: - t-SNE (Simplified Barnes-Hut approximation)
+    
+    private func tsne3D(X: [[Float]], seed: UInt64, perplexity: Float = 30, iterations: Int = 250) -> [SIMD3<Float>] {
+        let N = X.count
+        guard N > 1 else { return X.isEmpty ? [] : [SIMD3<Float>(0, 0, 0)] }
+        
+        // Initialize with PCA for better starting point
+        var Y = pca3D_powerIteration(X: X, seed: seed)
+        
+        // Compute pairwise similarities in high-D (Gaussian kernel)
+        let sigma = perplexity / 3.0
+        var P = Array(repeating: Array(repeating: Float(0), count: N), count: N)
+        for i in 0..<N {
+            for j in 0..<N where i != j {
+                var dist: Float = 0
+                for d in 0..<(X[i].count) {
+                    let diff = X[i][d] - X[j][d]
+                    dist += diff * diff
+                }
+                P[i][j] = exp(-dist / (2 * sigma * sigma))
+            }
+            let rowSum = P[i].reduce(0, +)
+            if rowSum > 0 {
+                for j in 0..<N { P[i][j] /= rowSum }
+            }
+        }
+        // Symmetrize
+        for i in 0..<N {
+            for j in 0..<N {
+                P[i][j] = (P[i][j] + P[j][i]) / (2 * Float(N))
+            }
+        }
+        
+        // Gradient descent
+        var velocity = Array(repeating: SIMD3<Float>(0, 0, 0), count: N)
+        let momentum: Float = 0.5
+        let eta: Float = 200.0
+        
+        for iter in 0..<iterations {
+            // Compute Q (Student-t kernel in low-D)
+            var Q = Array(repeating: Array(repeating: Float(0), count: N), count: N)
+            var Z: Float = 0
+            for i in 0..<N {
+                for j in 0..<N where i != j {
+                    let diff = Y[i] - Y[j]
+                    let dist = simd_length(diff)
+                    Q[i][j] = 1.0 / (1.0 + dist * dist)
+                    Z += Q[i][j]
+                }
+            }
+            if Z > 0 {
+                for i in 0..<N {
+                    for j in 0..<N {
+                        Q[i][j] /= Z
+                    }
+                }
+            }
+            
+            // Compute gradients
+            var grad = Array(repeating: SIMD3<Float>(0, 0, 0), count: N)
+            for i in 0..<N {
+                for j in 0..<N where i != j {
+                    let pij = max(P[i][j], 1e-12)
+                    let qij = max(Q[i][j], 1e-12)
+                    let mult = (pij - qij) * Q[i][j]
+                    let diff = Y[i] - Y[j]
+                    grad[i] += 4 * mult * diff
+                }
+            }
+            
+            // Update positions with momentum
+            let effectiveEta = iter < 50 ? eta * 4 : eta
+            for i in 0..<N {
+                velocity[i] = momentum * velocity[i] - effectiveEta * grad[i]
+                Y[i] += velocity[i]
+            }
+        }
+        
+        return Y
+    }
+    
+    // MARK: - UMAP (Simplified force-directed layout)
+    
+    private func umap3D(X: [[Float]], seed: UInt64, nNeighbors: Int = 15, iterations: Int = 300) -> [SIMD3<Float>] {
+        let N = X.count
+        guard N > 1 else { return X.isEmpty ? [] : [SIMD3<Float>(0, 0, 0)] }
+        
+        Log.info("UMAP starting with N=\(N) points, nNeighbors=\(nNeighbors), iterations=\(iterations)")
+        
+        // Initialize with scaled random positions for better spreading
+        var rng = VizLCG(seed: seed ^ 0xABC123456)
+        var Y = (0..<N).map { _ in
+            SIMD3<Float>(
+                Float.vizNormal(&rng) * 0.5,
+                Float.vizNormal(&rng) * 0.5,
+                Float.vizNormal(&rng) * 0.5
+            )
+        }
+        
+        Log.info("UMAP initial positions range: \(Y.map { simd_length($0) }.min() ?? 0)...\(Y.map { simd_length($0) }.max() ?? 0)")
+        
+        // Build k-NN graph in high-D
+        var neighbors: [[Int]] = Array(repeating: [], count: N)
+        let k = min(nNeighbors, N - 1)
+        for i in 0..<N {
+            var dists: [(Int, Float)] = []
+            for j in 0..<N where i != j {
+                var dist: Float = 0
+                for d in 0..<X[i].count {
+                    let diff = X[i][d] - X[j][d]
+                    dist += diff * diff
+                }
+                dists.append((j, sqrt(dist)))
+            }
+            dists.sort { $0.1 < $1.1 }
+            neighbors[i] = dists.prefix(k).map { $0.0 }
+        }
+        
+        // Force-directed optimization with better parameters
+        let a: Float = 1.929
+        let b: Float = 0.7915
+        let repulsionStrength: Float = 1.0
+        let learningRate: Float = 1.0
+        
+        for iter in 0..<iterations {
+            var forces = Array(repeating: SIMD3<Float>(0, 0, 0), count: N)
+            let alpha = learningRate * (1.0 - Float(iter) / Float(iterations))
+            
+            // Attractive forces (neighbors)
+            for i in 0..<N {
+                for j in neighbors[i] {
+                    let diff = Y[j] - Y[i]
+                    let dist = max(simd_length(diff), 0.001)
+                    // UMAP attractive force (pull neighbors together)
+                    let weight = -2.0 * a * b * pow(dist, 2 * b - 2) / (1.0 + a * pow(dist, 2 * b))
+                    forces[i] += weight * diff / dist
+                }
+            }
+            
+            // Repulsive forces (negative sampling)
+            var rngLocal = VizLCG(seed: seed ^ UInt64(iter + 1))
+            let negativeSamples = max(5, N / 5)  // Increased from N/10
+            for i in 0..<N {
+                for _ in 0..<negativeSamples {
+                    let j = Int(rngLocal.next() % UInt64(N))
+                    if i != j && !neighbors[i].contains(j) {
+                        let diff = Y[i] - Y[j]
+                        let dist = max(simd_length(diff), 0.001)
+                        // UMAP repulsive force (push non-neighbors apart)
+                        let denom = 0.001 + pow(dist, 2 * b)
+                        let weight = 2.0 * repulsionStrength * b / (denom * (1.0 + a * pow(dist, 2 * b)))
+                        forces[i] += weight * diff / dist
+                    }
+                }
+            }
+            
+            // Update positions with adaptive learning rate
+            for i in 0..<N {
+                Y[i] += alpha * forces[i]
+            }
+            
+            // Log progress periodically
+            if iter % 50 == 0 {
+                let avgForce = forces.map { simd_length($0) }.reduce(0, +) / Float(N)
+                Log.info("UMAP iter \(iter): avgForce=\(avgForce), alpha=\(alpha)")
+            }
+        }
+        
+        Log.info("UMAP optimization complete, positions range: \(Y.map { simd_length($0) }.min() ?? 0)...\(Y.map { simd_length($0) }.max() ?? 0)")
+        
+        // Normalize to reasonable range
+        var minVals = Y[0], maxVals = Y[0]
+        for y in Y {
+            minVals = simd_min(minVals, y)
+            maxVals = simd_max(maxVals, y)
+        }
+        let span = maxVals - minVals
+        let scale = simd_max(span.x, simd_max(span.y, span.z))
+        Log.info("UMAP normalization: span=\(span), scale=\(scale)")
+        if scale > 0.001 {
+            for i in 0..<N {
+                Y[i] = (Y[i] - (minVals + maxVals) * 0.5) * (2.0 / scale)
+            }
+        }
+        
+        Log.info("UMAP final normalized positions range: \(Y.map { simd_length($0) }.min() ?? 0)...\(Y.map { simd_length($0) }.max() ?? 0)")
+        return Y
     }
 
     // MARK: - LinAlg Utilities
