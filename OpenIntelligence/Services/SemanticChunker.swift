@@ -127,14 +127,14 @@ class SemanticChunker {
         config: ChunkingConfig = ChunkingConfig(),
         pageNumbers: [Int: Range<String.Index>]? = nil
     ) -> [EnhancedChunk] {
-        print("\n📊 [SemanticChunker] Starting advanced chunking...")
-        print("   📏 Target: \(config.targetSize)w, Min: \(config.minSize)w, Max: \(config.maxSize)w")
-        print("   🔄 Overlap: \(config.overlap)w")
+        Log.debug("[SemanticChunker] Starting advanced chunking", category: .ingestion)
+        Log.debug("[SemanticChunker] Target: \(config.targetSize)w, Min: \(config.minSize)w, Max: \(config.maxSize)w", category: .ingestion)
+        Log.debug("[SemanticChunker] Overlap: \(config.overlap)w", category: .ingestion)
         
         // Safety check: if text is too small, just return one chunk
         let wordCount = tokenWordCount(text)
         if wordCount < config.minSize {
-            print("   ⚠️  Text too small (\(wordCount) words), creating single chunk")
+            Log.warning("[SemanticChunker] Text too small (\(wordCount) words); creating single chunk", category: .ingestion)
             let small = createSingleChunk(text, documentId: documentId, pageNumbers: pageNumbers)
             // Update diagnostics for tiny docs
             self.lastDiagnostics = ChunkingDiagnostics(
@@ -154,11 +154,11 @@ class SemanticChunker {
         
         // 1. Detect sections and structure
         let sections = detectSections(text)
-        print("   📑 Detected \(sections.count) sections")
+        Log.debug("[SemanticChunker] Detected \(sections.count) sections", category: .ingestion)
         
         // 2. Detect topic boundaries if enabled
         let topicBoundaries = config.useTopicDetection ? detectTopicBoundaries(text) : []
-        print("   🎯 Detected \(topicBoundaries.count) topic boundaries")
+        Log.debug("[SemanticChunker] Detected \(topicBoundaries.count) topic boundaries", category: .ingestion)
         
         // 3. Chunk with semantic awareness
         var chunks: [EnhancedChunk] = []
@@ -167,7 +167,7 @@ class SemanticChunker {
         let maxChunks = 5000 // Safety limit to prevent runaway loops on malformed input
         
         while currentPosition < text.endIndex && chunkIndex < maxChunks {
-            print("   📝 Processing chunk \(chunkIndex + 1)...")
+            Log.verbose("[SemanticChunker] Processing chunk \(chunkIndex + 1)", category: .ingestion)
             
             // Safety check: if we're too close to the end, create final chunk and stop
             let remainingDistance = text.distance(from: currentPosition, to: text.endIndex)
@@ -177,7 +177,7 @@ class SemanticChunker {
                     let finalText = String(text[currentPosition..<text.endIndex])
                     let wordCount = tokenWordCount(finalText)
                     if wordCount > 0 {
-                        print("      ✓ Final chunk \(chunkIndex + 1): \(wordCount) words")
+                        Log.verbose("[SemanticChunker] Final chunk \(chunkIndex + 1): \(wordCount) words", category: .ingestion)
                         let metadata = extractMetadata(
                             chunkText: finalText,
                             chunkIndex: chunkIndex,
@@ -208,12 +208,12 @@ class SemanticChunker {
             
             // Safety check: ensure range is valid and not empty
             guard chunkRange.lowerBound < chunkRange.upperBound else {
-                print("   ⚠️  Empty range detected, stopping chunking")
+                Log.warning("[SemanticChunker] Empty range detected; stopping chunking", category: .ingestion)
                 break
             }
             
             let chunkText = String(text[chunkRange])
-            print("      ✓ Chunk \(chunkIndex + 1): \(tokenWordCount(chunkText)) words")
+            Log.verbose("[SemanticChunker] Chunk \(chunkIndex + 1): \(tokenWordCount(chunkText)) words", category: .ingestion)
             
             // Extract metadata
             let metadata = extractMetadata(
@@ -242,7 +242,7 @@ class SemanticChunker {
             
             // Safety check: ensure we're making progress
             if nextPosition <= currentPosition {
-                print("   ⚠️  No progress made, advancing by 1 character to prevent infinite loop")
+                Log.warning("[SemanticChunker] No progress made; advancing by 1 character to prevent infinite loop", category: .ingestion)
                 currentPosition = text.index(after: currentPosition)
             } else {
                 currentPosition = nextPosition
@@ -251,7 +251,7 @@ class SemanticChunker {
             chunkIndex += 1
         }
         
-        print("   ✅ Created \(chunks.count) semantically-aware chunks")
+        Log.debug("[SemanticChunker] Created \(chunks.count) semantically-aware chunks", category: .ingestion)
         printChunkStatistics(chunks)
         
         // Update diagnostics for UI/telemetry
@@ -521,11 +521,11 @@ class SemanticChunker {
         let avgDensity = chunks.map { $0.metadata.semanticDensity }.reduce(0, +) / Float(max(chunks.count, 1))
         let withSections = chunks.filter { $0.metadata.sectionTitle != nil }.count
         let withNumeric = chunks.filter { $0.metadata.hasNumericData }.count
-        
-        print("   📊 Avg words/chunk: \(avgWords)")
-        print("   🎯 Avg semantic density: \(String(format: "%.2f", avgDensity))")
-        print("   📑 Chunks with sections: \(withSections)")
-        print("   🔢 Chunks with numeric data: \(withNumeric)")
+
+        Log.debug("[SemanticChunker] Avg words/chunk: \(avgWords)", category: .ingestion)
+        Log.debug("[SemanticChunker] Avg semantic density: \(String(format: "%.2f", avgDensity))", category: .ingestion)
+        Log.debug("[SemanticChunker] Chunks with sections: \(withSections)", category: .ingestion)
+        Log.debug("[SemanticChunker] Chunks with numeric data: \(withNumeric)", category: .ingestion)
     }
     
     /// Create a single chunk for very small documents

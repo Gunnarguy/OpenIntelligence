@@ -174,11 +174,11 @@ actor RAGEngine {
         if scored.count > 0 {
             // keep debug parity with existing logs
             let top = scored[0]
-            print("   ✅ Re-ranking complete. Top score: \(String(format: "%.4f", top.score))")
-            print("   📊 Score breakdown:")
-            print("      - Semantic: \(String(format: "%.3f", top.chunk.similarityScore))")
-            print("      - Keywords: \(String(format: "%.3f", top.keyword))")
-            print("      - Proximity: \(String(format: "%.3f", top.proximity))")
+                Log.debug("[RAGEngine] Re-ranking complete. Top score: \(String(format: "%.4f", top.score))", category: .retrieval)
+                Log.debug("[RAGEngine] Score breakdown:", category: .retrieval)
+                Log.debug("[RAGEngine] - Semantic: \(String(format: "%.3f", top.chunk.similarityScore))", category: .retrieval)
+                Log.debug("[RAGEngine] - Keywords: \(String(format: "%.3f", top.keyword))", category: .retrieval)
+                Log.debug("[RAGEngine] - Proximity: \(String(format: "%.3f", top.proximity))", category: .retrieval)
         }
 
         return Array(scored.prefix(topK)).map { $0.chunk }

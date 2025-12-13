@@ -122,7 +122,7 @@ final class ContainerService: ObservableObject {
             let decoded = try JSONDecoder().decode([KnowledgeContainer].self, from: data)
             return decoded
         } catch {
-            print("❌ [ContainerService] Failed to load containers: \(error.localizedDescription)")
+            Log.error("[ContainerService] Failed to load containers: \(error.localizedDescription)", category: .initialization)
             return []
         }
     }
@@ -134,9 +134,8 @@ final class ContainerService: ObservableObject {
             enc.outputFormatting = [.prettyPrinted, .sortedKeys]
             let data = try enc.encode(containers)
             try data.write(to: url, options: .atomic)
-            // print("💾 [ContainerService] Saved \(containers.count) containers")
         } catch {
-            print("❌ [ContainerService] Failed to save containers: \(error.localizedDescription)")
+            Log.error("[ContainerService] Failed to save containers: \(error.localizedDescription)", category: .initialization)
         }
     }
     

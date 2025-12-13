@@ -150,17 +150,15 @@ class HybridSearchService {
             try await vectorDatabase.store(chunk: chunk)
         }
         
-        print("✅ [HybridSearch] Indexed \(chunks.count) chunks for hybrid retrieval")
+        Log.debug("Indexed \(chunks.count) chunks for hybrid retrieval", category: .pipeline)
     }
     
     /// Perform hybrid search with reciprocal rank fusion
     func search(query: String, embedding: [Float], topK: Int) async throws -> [RetrievedChunk] {
-        print("\n🔍 [HybridSearch] Performing hybrid retrieval...")
-        print("   📊 Vector weight: \(vectorWeight), Keyword weight: \(keywordWeight)")
+        Log.debug("Hybrid search starting (vector: \(vectorWeight), keyword: \(keywordWeight))", category: .pipeline)
         
         // 1. Vector search
         let vectorResults = try await vectorDatabase.search(embedding: embedding, topK: topK * 2)
-        print("   🎯 Vector search: \(vectorResults.count) results")
         
         // 2. BM25 keyword search (off-main via RAGEngine)
         // Build a snapshot from current candidates to ensure valid DF/length stats
@@ -170,7 +168,6 @@ class HybridSearchService {
             candidates: vectorResults,
             snapshot: snapshot
         )
-        print("   🔤 BM25 scored: \(keywordResults.count) results")
         
         // 3. Reciprocal Rank Fusion (RRF) off-main
         let fusedResults = await engine.reciprocalRankFusion(
@@ -184,12 +181,7 @@ class HybridSearchService {
         // 4. Take top K from fused results
         let topResults = Array(fusedResults.prefix(topK))
         
-        print("   ✅ Hybrid fusion: \(topResults.count) final results")
-        if let topChunk = topResults.first {
-            print("   📈 Top result:")
-            print("      - Vector similarity: \(String(format: "%.3f", topChunk.similarityScore))")
-            // BM25 and fusion scores are computed but not currently stored in metadata
-        }
+        Log.debug("Hybrid fusion: \(topResults.count) results from \(vectorResults.count) vector + \(keywordResults.count) BM25", category: .pipeline)
         
         return topResults
     }

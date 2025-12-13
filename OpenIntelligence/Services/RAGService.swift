@@ -635,7 +635,7 @@ class RAGService: ObservableObject {
     private func loadDocumentsFromDisk() {
         let fileManager = FileManager.default
         guard fileManager.fileExists(atPath: documentsStorageURL.path) else {
-            print("ℹ️  [RAGService] No existing documents metadata found")
+            Log.info("  [RAGService] No existing documents metadata found")
             return
         }
 
@@ -647,15 +647,13 @@ class RAGService: ObservableObject {
             Task { @MainActor in
                 self.documents = loadedDocuments
                 self.totalChunksStored = loadedDocuments.reduce(0) { $0 + $1.totalChunks }
-                print(
-                    "✅ [RAGService] Loaded \(loadedDocuments.count) documents (\(totalChunksStored) chunks)"
-                )
+                Log.info("[RAGService] Loaded \(loadedDocuments.count) documents (\(totalChunksStored) chunks)")
                 if !loadedDocuments.isEmpty {
                     self.refreshIntelligence(for: nil)
                 }
             }
         } catch {
-            print("❌ [RAGService] Failed to load documents metadata: \(error.localizedDescription)")
+            Log.error(" [RAGService] Failed to load documents metadata: \(error.localizedDescription)")
         }
     }
 
@@ -666,11 +664,9 @@ class RAGService: ObservableObject {
                 encoder.outputFormatting = .prettyPrinted
                 let data = try encoder.encode(documents)
                 try data.write(to: documentsStorageURL, options: .atomic)
-                print("💾 [RAGService] Saved \(documents.count) documents metadata")
+                Log.debug(" [RAGService] Saved \(documents.count) documents metadata")
             } catch {
-                print(
-                    "❌ [RAGService] Failed to save documents metadata: \(error.localizedDescription)"
-                )
+                Log.error("[RAGService] Failed to save documents metadata: \(error.localizedDescription)")
             }
         }
     }
@@ -678,20 +674,24 @@ class RAGService: ObservableObject {
     // MARK: - Vector DB Access
 
     private func dbForActiveContainer() async -> VectorDatabase {
-        let container = await MainActor.run { self.containerService.activeContainer }
-        // ContainerService guarantees at least one container
-        return self.vectorRouter.db(for: container!)
+        return await MainActor.run {
+            let container = self.containerService.activeContainer
+            // ContainerService guarantees at least one container
+            return self.vectorRouter.db(for: container!)
+        }
     }
 
     /// Return a database for a specific container id (falls back to active on miss)
     private func dbFor(_ containerId: UUID) async -> VectorDatabase {
-        let container = await MainActor.run {
-            self.containerService.containers.first { $0.id == containerId }
-        }
-        if let c = container {
-            return self.vectorRouter.db(for: c)
-        } else {
-            return await dbForActiveContainer()
+        return await MainActor.run {
+            if let container = self.containerService.containers.first(where: { $0.id == containerId }) {
+                return self.vectorRouter.db(for: container)
+            } else if let active = self.containerService.activeContainer {
+                return self.vectorRouter.db(for: active)
+            } else {
+                // Fallback: should never happen but create temp in-memory DB
+                return InMemoryVectorDatabase(dimension: 512)
+            }
         }
     }
 
@@ -702,9 +702,7 @@ class RAGService: ObservableObject {
         do {
             return try await db.allChunks()
         } catch {
-            print(
-                "❌ [RAGService] Failed to load all chunks for active container: \(error.localizedDescription)"
-            )
+            Log.error("[RAGService] Failed to load all chunks: \(error.localizedDescription)")
             return []
         }
     }
@@ -1284,7 +1282,7 @@ class RAGService: ObservableObject {
             }
 
             // Re-throw with context
-            print("❌ [RAGService] Failed to add document: \(error.localizedDescription)")
+            Log.error(" [RAGService] Failed to add document: \(error.localizedDescription)")
             TelemetryCenter.emit(
                 .ingestion,
                 severity: .error,
@@ -1314,7 +1312,7 @@ class RAGService: ObservableObject {
 
         saveDocumentsToDisk()
 
-        print("✓ Removed document: \(document.filename)")
+        Log.info(" Removed document: \(document.filename)")
 
         refreshIntelligence(for: activeId, force: true)
     }
@@ -1335,7 +1333,7 @@ class RAGService: ObservableObject {
 
         saveDocumentsToDisk()
 
-        print("✓ Cleared all documents from knowledge base")
+        Log.info(" Cleared all documents from knowledge base")
 
         refreshIntelligence(for: activeId, force: true)
     }
@@ -2613,7 +2611,7 @@ class RAGService: ObservableObject {
                     )
 
                 } catch {
-                    print("❌ Error during response processing: \(error)")
+                    Log.error(" Error during response processing: \(error)")
                     // Still try to return something
                     let metadata = ResponseMetadata(
                         timeToFirstToken: nil,
@@ -2759,7 +2757,7 @@ class RAGService: ObservableObject {
                 }
             }
 
-            print("❌ [RAGService] Query failed: \(error.localizedDescription)")
+            Log.error(" [RAGService] Query failed: \(error.localizedDescription)")
             TelemetryCenter.emit(
                 .error,
                 severity: .error,
@@ -3591,7 +3589,7 @@ extension RAGService {
                         "Foundation Models not available in Simulator"
                     capabilities.supportsAppleIntelligence = false
                     capabilities.appleIntelligenceUnavailableReason = "Not available in Simulator"
-                    print("ℹ️  Running in Simulator - Foundation Models unavailable")
+                    Log.info("  Running in Simulator - Foundation Models unavailable")
                 #else
                     // Real device: Check Foundation Models availability
                     // SystemLanguageModel.default must be accessed synchronously on main thread
@@ -3603,7 +3601,7 @@ extension RAGService {
                         capabilities.supportsAppleIntelligence = false
                         capabilities.appleIntelligenceUnavailableReason =
                             "Internal error: not called from main thread"
-                        print("❌ checkDeviceCapabilities() not called from main thread")
+                        Log.error(" checkDeviceCapabilities() not called from main thread")
 
                         // Skip Foundation Models check, continue with rest
                         capabilities.supportsPrivateCloudCompute = false
@@ -3646,7 +3644,7 @@ extension RAGService {
                         capabilities.foundationModelUnavailableReason = nil
                         capabilities.supportsAppleIntelligence = true
                         capabilities.appleIntelligenceUnavailableReason = nil
-                        print("✅ Foundation Models available on device")
+                        Log.info(" Foundation Models available on device")
 
                     case .unavailable(let reason):
                         capabilities.supportsFoundationModels = false
@@ -3657,30 +3655,28 @@ extension RAGService {
                             let message = "Device not eligible (requires A17 Pro+ or M-series)"
                             capabilities.foundationModelUnavailableReason = message
                             capabilities.appleIntelligenceUnavailableReason = message
-                            print("❌ Device not eligible for Foundation Models")
+                            Log.error(" Device not eligible for Foundation Models")
 
                         case .appleIntelligenceNotEnabled:
                             let message =
                                 "Apple Intelligence not enabled - go to Settings > Apple Intelligence & Siri"
                             capabilities.foundationModelUnavailableReason = message
                             capabilities.appleIntelligenceUnavailableReason = message
-                            print("⚠️  Apple Intelligence not enabled in Settings")
-                            print("   💡 Go to Settings > Apple Intelligence & Siri to enable")
+                            Log.warning("  Apple Intelligence not enabled in Settings")
+                            Log.info("   💡 Go to Settings > Apple Intelligence & Siri to enable")
 
                         case .modelNotReady:
                             let message = "Model downloading or initializing - check iPhone Storage"
                             capabilities.foundationModelUnavailableReason = message
                             capabilities.appleIntelligenceUnavailableReason = message
-                            print("⏳ Foundation Models not ready (downloading or initializing)")
-                            print(
-                                "   💡 Check Settings > General > iPhone Storage for download progress"
-                            )
+                            Log.info(" Foundation Models not ready (downloading or initializing)")
+                            Log.info("   💡 Check Settings > General > iPhone Storage for download progress")
 
                         @unknown default:
                             let message = "Foundation Models unavailable (unknown reason)"
                             capabilities.foundationModelUnavailableReason = message
                             capabilities.appleIntelligenceUnavailableReason = message
-                            print("❌ Foundation Models unavailable (unknown reason)")
+                            Log.error(" Foundation Models unavailable (unknown reason)")
                         }
                     }
                 #endif
@@ -4079,7 +4075,7 @@ extension RAGService: RAGToolHandler {
     /// Search documents for relevant information
     /// Called by the LLM when it needs information from the document library
     func searchDocuments(query: String) async throws -> String {
-        print("🔧 [Tool Call] search_documents(query: \"\(query)\")")
+        Log.debug(" [Tool Call] search_documents(query: \"\(query)\")")
 
         // Use the existing RAG pipeline to search
         let embeddingContext = await resolveEmbeddingContext()
@@ -4113,15 +4109,13 @@ extension RAGService: RAGToolHandler {
             result += "\n\n"
         }
 
-        print("✅ [Tool Call] Returned \(retrievedChunks.count) chunks")
+        Log.info(" [Tool Call] Returned \(retrievedChunks.count) chunks")
         return result
     }
 
     /// Agentic search with optional topK and minSimilarity (called by Function Calling)
     func searchDocuments(query: String, topK: Int?, minSimilarity: Float?) async throws -> String {
-        print(
-            "🔧 [Tool Call] search_documents(query: \"\(query)\", topK: \(topK?.description ?? "nil"), minSimilarity: \(minSimilarity?.description ?? "nil"))"
-        )
+        Log.debug("[Tool Call] search_documents(query: \"\(query)\", topK: \(topK?.description ?? "nil"), minSimilarity: \(minSimilarity?.description ?? "nil"))")
 
         // Step 1: Embed the query using the container's provider/dimension
         let embeddingContext = await resolveEmbeddingContext()
@@ -4162,14 +4156,14 @@ extension RAGService: RAGToolHandler {
             result += "\n\n"
         }
 
-        print("✅ [Tool Call] Returned \(retrievedChunks.count) chunks")
+        Log.info(" [Tool Call] Returned \(retrievedChunks.count) chunks")
         return result
     }
 
     /// List all available documents
     /// Called by the LLM when user asks what documents are available
     func listDocuments() async throws -> String {
-        print("🔧 [Tool Call] list_documents()")
+        Log.debug(" [Tool Call] list_documents()")
 
         // Scope to the query's container (or active if no query in flight)
         let (activeId, defaultId, docsSnapshot) = await MainActor.run {
@@ -4202,14 +4196,14 @@ extension RAGService: RAGToolHandler {
             result += "\n"
         }
 
-        print("✅ [Tool Call] Listed \(scopedDocs.count) documents (scoped)")
+        Log.info(" [Tool Call] Listed \(scopedDocs.count) documents (scoped)")
         return result
     }
 
     /// Get summary of a specific document
     /// Called by the LLM when user asks about a specific document
     func getDocumentSummary(documentName: String) async throws -> String {
-        print("🔧 [Tool Call] get_document_summary(documentName: \"\(documentName)\")")
+        Log.debug(" [Tool Call] get_document_summary(documentName: \"\(documentName)\")")
 
         // Scope to the query's container (or active if no query in flight)
         let (activeId, defaultId, docsSnapshot) = await MainActor.run {
@@ -4242,7 +4236,7 @@ extension RAGService: RAGToolHandler {
         result += "- Added: \(formatDate(doc.addedAt))\n"
         result += "- File Type: \(doc.contentType.rawValue)"
 
-        print("✅ [Tool Call] Returned summary for \(doc.filename) (scoped)")
+        Log.info(" [Tool Call] Returned summary for \(doc.filename) (scoped)")
         return result
     }
 

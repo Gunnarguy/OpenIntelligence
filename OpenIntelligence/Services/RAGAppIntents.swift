@@ -44,9 +44,8 @@ struct QueryDocumentsIntent: AppIntent {
     }
     
     func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
-        print("\n🎙️ [Siri] Query Documents Intent invoked")
-        print("   Question: \(question)")
-        print("   Top K: \(topK)")
+        // Avoid logging user content; keep logs metadata-only.
+        Log.info("[Siri] Query Documents intent invoked (questionChars=\(question.count), topK=\(topK))", category: .pipeline)
         
         // Create RAG service instance on main actor
         let ragService = await MainActor.run {
@@ -59,7 +58,7 @@ struct QueryDocumentsIntent: AppIntent {
         }
         
         guard documentCount > 0 else {
-            print("   ⚠️ No documents loaded")
+            Log.warning("[Siri] Query blocked: no documents loaded", category: .pipeline)
             return .result(
                 dialog: IntentDialog(stringLiteral: "You don't have any documents loaded yet. Add some documents first."),
                 view: ErrorSnippetView(message: "No documents available")
@@ -74,10 +73,8 @@ struct QueryDocumentsIntent: AppIntent {
             )
             
             let response = try await ragService.query(question, topK: topK, config: config)
-            
-            print("   ✅ Query complete")
-            print("   Response length: \(response.generatedResponse.count) chars")
-            print("   Chunks retrieved: \(response.retrievedChunks.count)")
+
+            Log.info("[Siri] Query complete (answerChars=\(response.generatedResponse.count), chunks=\(response.retrievedChunks.count))", category: .pipeline)
             
             // Format response for Siri
             let spokenResponse = formatForSiri(response.generatedResponse)
@@ -98,7 +95,7 @@ struct QueryDocumentsIntent: AppIntent {
             )
             
         } catch {
-            print("   ❌ Query failed: \(error.localizedDescription)")
+            Log.error("[Siri] Query failed: \(error.localizedDescription)", category: .pipeline)
             return .result(
                 dialog: IntentDialog(stringLiteral: "Sorry, I couldn't answer that question. \(error.localizedDescription)"),
                 view: ErrorSnippetView(message: error.localizedDescription)
@@ -164,7 +161,7 @@ struct ListDocumentsIntent: AppIntent {
     static var openAppWhenRun: Bool = false
     
     func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
-        print("\n🎙️ [Siri] List Documents Intent invoked")
+        Log.info("[Siri] List Documents intent invoked", category: .pipeline)
         
         let ragService = await MainActor.run {
             RAGService()

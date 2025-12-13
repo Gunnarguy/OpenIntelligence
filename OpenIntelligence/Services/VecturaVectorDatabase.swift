@@ -23,7 +23,7 @@ final class VecturaVectorDatabase: VectorDatabase {
         // Initialize VecturaKit with hybrid search enabled if supported
         // Adjust options as the SDK evolves
         self.db = VecturaDB(dimension: dimension, enableHybridSearch: true)
-        print("✅ [VecturaVectorDatabase] Initialized VecturaKit (dim=\(dimension))")
+        Log.info("[VecturaVectorDatabase] Initialized VecturaKit (dim=\(dimension))", category: .vectorDB)
     }
 
     func store(chunk: DocumentChunk) async throws {
@@ -55,7 +55,7 @@ final class VecturaVectorDatabase: VectorDatabase {
                 ]
             )
         })
-        print("✅ [VecturaVectorDatabase] Stored batch: \(chunks.count)")
+        Log.debug("[VecturaVectorDatabase] Stored batch: \(chunks.count)", category: .vectorDB)
     }
 
     func search(embedding: [Float], topK: Int) async throws -> [RetrievedChunk] {
@@ -120,6 +120,33 @@ final class VecturaVectorDatabase: VectorDatabase {
     func allChunks() async throws -> [DocumentChunk] {
         return []
     }
+    
+    func updateChunk(_ chunk: DocumentChunk) async throws {
+        // VecturaKit upsert semantics: delete + insert
+        try await db.delete(where: .equals(key: "id", value: chunk.id.uuidString))
+        try await store(chunk: chunk)
+    }
+    
+    func exists(chunkId: UUID) async -> Bool {
+        // VecturaKit may not have a direct exists; search for the id
+        do {
+            let hits = try await db.search(query: [], topK: 1, filter: .equals(key: "id", value: chunkId.uuidString))
+            return !hits.isEmpty
+        } catch {
+            return false
+        }
+    }
+    
+    func statistics() async -> VectorDatabaseStats {
+        let c = (try? await count()) ?? 0
+        return VectorDatabaseStats(
+            chunkCount: c,
+            dimension: 512,
+            uniqueDocuments: 0,
+            estimatedMemoryBytes: 0,
+            backend: "VecturaHNSW"
+        )
+    }
 }
 
 #else
@@ -129,7 +156,7 @@ final class VecturaVectorDatabase: VectorDatabase {
 final class VecturaVectorDatabase: VectorDatabase {
 
     init(dimension: Int = 512) {
-        print("⚠️  [VecturaVectorDatabase] VecturaKit not available in this target. Stub initialized.")
+        Log.warning("[VecturaVectorDatabase] VecturaKit not available in this target. Stub initialized.", category: .vectorDB)
     }
 
     func store(chunk: DocumentChunk) async throws {
@@ -158,6 +185,24 @@ final class VecturaVectorDatabase: VectorDatabase {
     
     func allChunks() async throws -> [DocumentChunk] {
         return []
+    }
+    
+    func updateChunk(_ chunk: DocumentChunk) async throws {
+        throw VectorDatabaseError.storeFailed("VecturaKit not available")
+    }
+    
+    func exists(chunkId: UUID) async -> Bool {
+        return false
+    }
+    
+    func statistics() async -> VectorDatabaseStats {
+        return VectorDatabaseStats(
+            chunkCount: 0,
+            dimension: 512,
+            uniqueDocuments: 0,
+            estimatedMemoryBytes: 0,
+            backend: "VecturaStub"
+        )
     }
 }
 

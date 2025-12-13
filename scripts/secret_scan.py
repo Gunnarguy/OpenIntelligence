@@ -25,6 +25,7 @@ IGNORE_DIRS = {
     "xcuserdata",
     "__pycache__",
     "node_modules",
+    "Vendor",
     "exclude",  # Excluded sources in vendored packages
 }
 

@@ -226,17 +226,13 @@ struct LLMResponse {
         var isAvailable: Bool {
             #if targetEnvironment(simulator)
                 // Foundation Models + PCC are not available inside the simulator runtime
-                print(
-                    "⚠️  AppleFoundationLLMService unavailable on Simulator (Foundation Models require real hardware)."
-                )
+                Log.debug("AppleFoundationLLMService unavailable on Simulator", category: .llm)
                 return false
             #else
                 // Quick check without accessing the model
                 // This prevents crashes during init when called from background thread
                 guard Thread.isMainThread else {
-                    print(
-                        "⚠️  AppleFoundationLLMService.isAvailable checked from background thread - returning false"
-                    )
+                    Log.debug("AppleFoundationLLMService.isAvailable checked from background thread", category: .llm)
                     return false
                 }
 
@@ -282,7 +278,7 @@ struct LLMResponse {
             // SAFETY: We no longer access SystemLanguageModel.default in init
             // Instead, we defer it until the model property is accessed
             // This allows the service to be created on any thread
-            print("🔍 AppleFoundationLLMService initialized (model will be loaded on first use)")
+            Log.debug("AppleFoundationLLMService initialized (model will be loaded on first use)", category: .llm)
         }
 
         /// Start model warm-up (call this after init from an async context)
@@ -299,7 +295,7 @@ struct LLMResponse {
         /// This runs in the background and makes the first real query instant
         @MainActor
         private func warmUpModel() async {
-            print("🔥 [Warm-up] Starting Foundation Model preload...")
+            Log.debug("[Warm-up] Starting Foundation Model preload...", category: .llm)
             let startTime = Date()
 
             do {
@@ -307,15 +303,13 @@ struct LLMResponse {
                 try ensureSession()
 
                 guard let session = session else {
-                    print("⚠️  [Warm-up] Session unavailable")
+                    Log.warning("[Warm-up] Session unavailable", category: .llm)
                     return
                 }
 
                 // Send a minimal throwaway query to fully initialize the model
                 let warmupPrompt = "Hi"
                 let options = GenerationOptions(temperature: 0.0)
-
-                print("🔥 [Warm-up] Sending minimal query to load model...")
 
                 // Use streaming (the actual API available) and consume minimal response
                 let responseStream = session.streamResponse(to: warmupPrompt, options: options)
@@ -326,18 +320,11 @@ struct LLMResponse {
                 }
 
                 let loadTime = Date().timeIntervalSince(startTime)
-                print(
-                    "✅ [Warm-up] Foundation Model preloaded in \(String(format: "%.2f", loadTime))s"
-                )
-                print("   💡 First real user query will now be INSTANT")
-                print("   📊 Eliminated ~5s first-query latency")
+                Log.info("[Warm-up] Foundation Model preloaded in \(String(format: "%.2f", loadTime))s", category: .llm)
 
             } catch {
                 let failTime = Date().timeIntervalSince(startTime)
-                print(
-                    "⚠️  [Warm-up] Model preload failed after \(String(format: "%.2f", failTime))s: \(error)"
-                )
-                print("   💡 First query will still work, just with normal loading delay")
+                Log.warning("[Warm-up] Model preload failed after \(String(format: "%.2f", failTime))s: \(error)", category: .llm)
             }
         }
 
@@ -352,7 +339,7 @@ struct LLMResponse {
             // Check availability with detailed diagnostics BEFORE creating session
             switch model.availability {
             case .available:
-                print("✅ Foundation Models available - creating session...")
+                Log.debug("Foundation Models available - creating session...", category: .llm)
 
                 // Initialize function calling tools for agentic RAG
                 // These tools enable the model to decide when to search documents vs answer directly
@@ -372,11 +359,7 @@ struct LLMResponse {
                     summaryTool.ragService = ragService
                     tools.append(summaryTool)
 
-                    print(
-                        "   🛠️  Initialized \(tools.count) tools: search_documents, list_documents, get_document_summary"
-                    )
-                } else {
-                    print("   ⚠️  No RAGService available - tools disabled")
+                    Log.debug("Initialized \(tools.count) tools for agentic RAG", category: .llm)
                 }
 
                 // Create language model session with hybrid RAG+LLM instructions
@@ -410,27 +393,21 @@ struct LLMResponse {
                         """)
                 )
 
-                print("✅ Apple Foundation Model initialized with Function Calling")
-                print("   🧠 Agentic RAG mode enabled")
-                print("   � Tools: search_documents, list_documents, get_document_summary")
-                print("   🤖 Model decides when to retrieve vs answer directly")
-                print("   🔒 Zero data retention, end-to-end encrypted")
-                print("   📍 Model: SystemLanguageModel.default")
+                Log.info("Apple Foundation Model session initialized (Agentic RAG)", category: .llm)
 
             case .unavailable(let reason):
-                print("⚠️  Apple Foundation Models not available on this device")
+                let reasonStr: String
                 switch reason {
                 case .deviceNotEligible:
-                    print("   ❌ Device not eligible: Requires A17 Pro+ or M-series chip")
+                    reasonStr = "Device not eligible (requires A17 Pro+ or M-series)"
                 case .appleIntelligenceNotEnabled:
-                    print("   ❌ Apple Intelligence not enabled")
-                    print("   💡 Go to Settings > Apple Intelligence & Siri to enable")
+                    reasonStr = "Apple Intelligence not enabled"
                 case .modelNotReady:
-                    print("   ⏳ Model downloading or initializing...")
-                    print("   💡 Check Settings > General > iPhone Storage for download progress")
+                    reasonStr = "Model downloading or initializing"
                 @unknown default:
-                    print("   ❌ Unknown reason")
+                    reasonStr = "Unknown reason"
                 }
+                Log.warning("Foundation Models unavailable: \(reasonStr)", category: .llm)
                 throw LLMError.modelUnavailable
             }
         }
@@ -457,16 +434,10 @@ struct LLMResponse {
                 ]
             )
 
-            print("\n╔══════════════════════════════════════════════════════════════╗")
-            print("║ APPLE FOUNDATION MODEL GENERATION                            ║")
-            print("╚══════════════════════════════════════════════════════════════╝")
-
             // Construct augmented prompt with RAG context
             let fullPrompt: String
             if let context = context, !context.isEmpty {
-                print("📚 MODE: RAG (Document Context Available)")
-                print("📄 Context length: \(context.count) characters")
-                print("❓ User prompt: \(prompt)")
+                Log.debug("RAG mode: context=\(context.count) chars, prompt=\(prompt.prefix(50))...", category: .llm)
                 fullPrompt = """
                     Below is text content that has been provided for you to analyze. Please read this content carefully and answer the question that follows.
 
@@ -490,80 +461,14 @@ struct LLMResponse {
                     Your detailed answer:
                     """
             } else {
-                print("💬 MODE: General Chat (No Document Context)")
-                print("❓ User prompt: \(prompt)")
+                Log.debug("General chat mode: prompt=\(prompt.prefix(50))...", category: .llm)
                 fullPrompt = prompt
             }
 
-            print("\n━━━ LLM Configuration ━━━")
-            print("🌡️  Temperature: \(config.temperature)")
-            print("🎯 Max tokens: \(config.maxTokens)")
-            print(
-                "🔧 Execution: \(config.executionContext.emoji) \(config.executionContext.description)"
-            )
-            print("☁️  PCC Allowed: \(config.allowPrivateCloudCompute ? "Yes" : "No")")
-
-            // Detailed execution context analysis
-            print("\n━━━ Execution Strategy Analysis ━━━")
+            // Estimate token count for routing decisions
             let promptLength = fullPrompt.count
             let estimatedTokens = promptLength / 4  // Rough estimate: 1 token ≈ 4 chars
-
-            print("📊 Request Analysis:")
-            print("   • Prompt length: \(promptLength) chars (~\(estimatedTokens) tokens)")
-            print(
-                "   • Context included: \(context != nil ? "Yes (\(context!.count) chars)" : "No")")
-            print("   • Requested max tokens: \(config.maxTokens)")
-
-            print("\n🎯 Execution Mode Prediction:")
-            switch config.executionContext {
-            case .onDeviceOnly:
-                print("   📱 FORCED ON-DEVICE ONLY")
-                print("   └─ User explicitly requested on-device execution")
-                print("   └─ System will NOT use Private Cloud Compute")
-                print("   └─ May fail if query too complex for on-device model")
-            case .automatic:
-                print("   🔄 AUTOMATIC (Hybrid)")
-                print("   └─ System will intelligently choose:")
-                print("      • Short queries → On-Device (~0.1-0.5s first token)")
-                print("      • Complex queries → Private Cloud Compute (~1-3s first token)")
-                print("      • Long context (>2000 tokens) → Likely PCC")
-                print("      • Multi-step reasoning → Likely PCC")
-                if estimatedTokens > 2000 {
-                    print(
-                        "   ⚠️  PREDICTION: Likely using PCC (large context: \(estimatedTokens) tokens)"
-                    )
-                } else if estimatedTokens > 1000 {
-                    print(
-                        "   ⚡ PREDICTION: May use PCC for quality (medium context: \(estimatedTokens) tokens)"
-                    )
-                } else {
-                    print(
-                        "   ⚡ PREDICTION: Likely on-device (small context: \(estimatedTokens) tokens)"
-                    )
-                }
-            case .preferCloud:
-                print("   ☁️  PREFER CLOUD (Hybrid with Cloud Bias)")
-                print("   └─ System will prefer Private Cloud Compute when possible")
-                print("   └─ May still use on-device for very simple queries")
-                print("   └─ Expected: More frequent PCC usage for higher quality")
-                print("   └─ Expected latency: 1-3s first token (when using PCC)")
-            case .cloudOnly:
-                print("   ☁️  FORCED PRIVATE CLOUD COMPUTE")
-                print("   └─ User explicitly requested cloud execution")
-                print("   └─ System will use Apple's PCC servers")
-                print("   └─ Expected latency: 1-3s first token")
-            @unknown default:
-                print("   ❓ Unknown execution context")
-            }
-
-            if !config.allowPrivateCloudCompute && config.executionContext != .onDeviceOnly {
-                print("\n⚠️  PCC Disabled by User - Will Force On-Device Execution")
-            }
-
-            print("\n💡 How to Detect Actual Execution Location:")
-            print("   • Time to first token < 1.0s → On-Device")
-            print("   • Time to first token > 1.0s → Private Cloud Compute")
-            print("   • Watch for detection message after first token arrives...")
+            Log.debug("Generation: ~\(estimatedTokens) tokens, exec=\(config.executionContext)", category: .llm)
 
             // Generate response using streaming API with execution context
             var responseText = ""
@@ -578,31 +483,7 @@ struct LLMResponse {
                 temperature: Double(config.temperature)
             )
 
-            print("\n━━━ Generation Parameters ━━━")
-            print("🌡️  Temperature: \(config.temperature)")
-            print(
-                "🎯 TopP: \(config.topP) | TopK: \(config.topK) (configured, awaiting iOS 26.x support)"
-            )
-            print(
-                "🔁 Frequency Penalty: \(config.frequencyPenalty) (configured, awaiting iOS 26.x support)"
-            )
-            print(
-                "📚 Presence Penalty: \(config.presencePenalty) (configured, awaiting iOS 26.x support)"
-            )
-            print(
-                "🚫 Repetition Penalty: \(config.repetitionPenalty) (configured, awaiting iOS 26.x support)"
-            )
-            if !config.stopSequences.isEmpty {
-                print("⏹️  Stop Sequences: \(config.stopSequences.joined(separator: ", "))")
-            }
-
-            print("\n━━━ Starting Generation ━━━")
-            print("⏱️  Start time: \(startTime)")
-
             let responseStream = session.streamResponse(to: fullPrompt, options: options)
-
-            print("📡 Streaming response from Foundation Model...")
-            print("📡 Waiting for response snapshots...\n")
 
             var snapshotCount = 0
             var forcedLocalFallback = false
@@ -612,64 +493,24 @@ struct LLMResponse {
 
                 if firstTokenTime == nil {
                     firstTokenTime = Date().timeIntervalSince(startTime)
-                    print(
-                        "⚡ First token received after \(String(format: "%.2f", firstTokenTime!))s")
 
                     // Detect actual execution location from first token latency
                     // On-device: ~0.1-0.5s, PCC: ~2-4s (includes network roundtrip)
                     if let ttft = firstTokenTime {
-                        print("\n╔══════════════════════════════════════════════════════════════╗")
-                        print("║ 🎯 EXECUTION LOCATION DETECTED                               ║")
-                        print("╚══════════════════════════════════════════════════════════════╝")
-
                         if ttft < 1.0 {
                             actualExecutionLocation = "📱 On-Device"
-                            print("✅ CONFIRMED: On-Device Execution")
-                            print("   📊 Evidence:")
-                            print("      • Time to first token: \(String(format: "%.2f", ttft))s")
-                            print("      • Threshold: < 1.0s indicates local processing")
-                            print("   🔒 Privacy:")
-                            print("      • Data never left device")
-                            print("      • Zero network transmission")
-                            print("      • Processing on Neural Engine")
-                            print("   ⚡ Performance:")
-                            print("      • Using on-device ~3B parameter model")
-                            print("      • Direct Neural Engine access")
-                            print("      • No network latency")
+                            Log.info("[FM] On-Device execution (TTFT: \(String(format: "%.2f", ttft))s)", category: .llm)
                         } else {
                             actualExecutionLocation = "☁️ Private Cloud Compute"
-                            print("✅ CONFIRMED: Private Cloud Compute (PCC)")
-                            print("   📊 Evidence:")
-                            print("      • Time to first token: \(String(format: "%.2f", ttft))s")
-                            print(
-                                "      • Threshold: > 1.0s indicates network roundtrip to Apple servers"
-                            )
-                            print("   🔒 Privacy Guarantees (PCC):")
-                            print("      • Runs on Apple Silicon servers (same architecture)")
-                            print("      • End-to-end encrypted connection")
-                            print("      • Cryptographic zero-retention (no data stored)")
-                            print("      • Stateless: data destroyed after response")
-                            print("      • Independently verifiable privacy claims")
-                            print("   ⚡ Performance:")
-                            print("      • Using larger server-grade model")
-                            print("      • Higher quality responses")
-                            print("      • Better at complex reasoning")
-                            print("   🌐 Network:")
-                            print("      • Secure connection to Apple PCC servers")
-                            print("      • Request encrypted, response encrypted")
-                            print(
-                                "      • ~\(String(format: "%.1f", ttft - 0.3))s network overhead")
+                            Log.info("[FM] Private Cloud Compute (TTFT: \(String(format: "%.2f", ttft))s)", category: .llm)
                         }
-                        print("╚══════════════════════════════════════════════════════════════╝\n")
 
                         // Enforce execution preferences: if PCC is blocked, fall back to on-device analysis
                         if (config.executionContext == .onDeviceOnly
                             || !config.allowPrivateCloudCompute)
                             && actualExecutionLocation.contains("Private Cloud Compute")
                         {
-                            print(
-                                "🚫 PCC blocked by settings. Aborting FM stream and falling back to On‑Device Analysis."
-                            )
+                            Log.warning("PCC blocked by settings - falling back to On-Device Analysis", category: .llm)
                             TelemetryCenter.emit(
                                 .system,
                                 severity: .warning,
@@ -700,15 +541,7 @@ struct LLMResponse {
                     tokenCount = currentWords
                 }
 
-                // Detailed logging for EVERY snapshot
-                print("📦 Snapshot #\(snapshotCount):")
-                print("   Snapshot type: \(type(of: snapshot))")
-                print("   Content length: \(responseText.count) chars (\(newChars) new)")
-                print("   Word count: \(currentWords) words (\(newWords) new)")
-                print("   Full content so far:")
-                print("   \"\(responseText)\"")
-                print("   ---")
-
+                // Emit new content to streaming context
                 if newChars > 0 {
                     let chunk = String(responseText.suffix(newChars))
                     LLMStreamingContext.emit(text: chunk, isFinal: false)
@@ -740,81 +573,19 @@ struct LLMResponse {
                 )
             }
 
-            print("\n📊 Stream Statistics:")
-            print("   Total snapshots: \(snapshotCount)")
-            print("   Final content length: \(responseText.count) chars")
-            print("   Final word count: \(tokenCount) words")
+            Log.debug("[FM] Stream complete: \(snapshotCount) snapshots, \(responseText.count) chars", category: .llm)
 
             let totalTime = Date().timeIntervalSince(startTime)
 
             // Final token count is accurate word count
             let finalTokenCount = responseText.split(separator: " ").count
 
-            print("\n━━━ Generation Complete ━━━")
-            print("✅ Total words: \(finalTokenCount)")
-            print("✅ Total characters: \(responseText.count)")
-            print("⏱️  Total time: \(String(format: "%.2f", totalTime))s")
-            print("📍 Executed on: \(actualExecutionLocation)")
-            if let ttft = firstTokenTime {
-                print("⚡ Time to first token: \(String(format: "%.2f", ttft))s")
-
-                // Provide explanation of why this execution location was chosen
-                print("\n━━━ Why This Execution Location? ━━━")
-                if ttft < 1.0 {
-                    print("📱 On-Device was chosen because:")
-                    print("   ✓ Query was simple enough for on-device model")
-                    print("   ✓ Context size manageable (~\(fullPrompt.count / 4) tokens)")
-                    print("   ✓ Fast response prioritized")
-                    print("   ✓ Complete privacy (data never left device)")
-                } else {
-                    print("☁️ Private Cloud Compute was chosen because:")
-                    let estimatedTokens = fullPrompt.count / 4
-                    if estimatedTokens > 2000 {
-                        print(
-                            "   • Large context size (~\(estimatedTokens) tokens > 2000 threshold)")
-                    } else if estimatedTokens > 1000 {
-                        print("   • Medium context size (~\(estimatedTokens) tokens)")
-                    }
-                    if context != nil && context!.count > 2000 {
-                        print("   • Complex RAG query with substantial context")
-                    }
-                    print("   • Higher quality response needed")
-                    print("   • Complex reasoning required")
-                    print("   📊 PCC provides:")
-                    print("      - Larger model capacity")
-                    print("      - Better context understanding")
-                    print("      - More sophisticated reasoning")
-                    print("   🔒 With full privacy guarantees:")
-                    print("      - Zero data retention (cryptographically enforced)")
-                    print("      - End-to-end encryption")
-                    print("      - Stateless processing")
-                }
-            }
-
-            if totalTime > 0 {
-                let tps = Float(finalTokenCount) / Float(totalTime)
-                print("\n🚀 Speed: \(String(format: "%.1f", tps)) words/sec")
-            }
-
-            print("\n📄 Full Response Text:")
-            print("─────────────────────────────────────────────")
-            print(responseText)
-            print("─────────────────────────────────────────────")
-
-            print("\n🔍 Response Analysis:")
-            print("   Is response empty? \(responseText.isEmpty)")
-            print(
-                "   Starts with refusal? \(responseText.lowercased().contains("can't assist") || responseText.lowercased().contains("cannot assist") || responseText.lowercased().contains("apologize"))"
-            )
+            Log.info("[FM] Generation complete: \(finalTokenCount) words in \(String(format: "%.2f", totalTime))s (\(actualExecutionLocation))", category: .llm)
 
             // Determine actual model name based on execution location
             let executionBasedModelName: String
             if let ttft = firstTokenTime {
-                if ttft < 1.0 {
-                    executionBasedModelName = "Apple Foundation Model (On-Device)"
-                } else {
-                    executionBasedModelName = "Apple Foundation Model (Private Cloud Compute)"
-                }
+                executionBasedModelName = ttft < 1.0 ? "Apple Foundation Model (On-Device)" : "Apple Foundation Model (Private Cloud Compute)"
             } else {
                 executionBasedModelName = modelName
             }
@@ -870,9 +641,7 @@ class OnDeviceAnalysisService: LLMService {
     var modelName: String { "On-Device Analysis (Extractive QA)" }
 
     init() {
-        print("✅ On-Device Analysis Service initialized")
-        print("   📍 100% local processing using NaturalLanguage framework")
-        print("   🔒 Zero network calls, zero data collection")
+        Log.debug("On-Device Analysis Service initialized", category: .llm)
     }
 
     func generate(prompt: String, context: String?, config: InferenceConfig) async throws
@@ -1252,8 +1021,7 @@ class OnDeviceAnalysisService: LLMService {
             // This is a prototype implementation based on Apple's App Intents framework
             // The actual API may vary slightly as Apple continues to document it
 
-            print("🤖 [AssistChatIntent] Invoking \(provider.displayName)...")
-            print("   Query: \(query.prefix(100))...")
+            Log.debug("[AssistChatIntent] Invoking \(provider.displayName)", category: .llm)
 
             // TEMPORARY: Until full Apple Intelligence API is available
             // For now, return an error result
@@ -1313,12 +1081,9 @@ class OnDeviceAnalysisService: LLMService {
 
         init() {
             if isAvailable {
-                print("✅ ChatGPT Extension available")
-                print("   🔐 User consent required per request")
-                print("   🌐 Powered by OpenAI via Apple Intelligence")
+                Log.info("ChatGPT Extension available", category: .llm)
             } else {
-                print("⚠️  ChatGPT Extension not available")
-                print("   💡 Enable in Settings > Apple Intelligence & Siri > ChatGPT")
+                Log.debug("ChatGPT Extension not available - enable in Settings", category: .llm)
             }
         }
 
@@ -1420,9 +1185,7 @@ class OnDeviceAnalysisService: LLMService {
             // IMPLEMENTATION: Apple Intelligence ChatGPT Extension (iOS 18.1+)
             // Uses AssistantIntent framework to invoke system ChatGPT integration
 
-            print("\n🤖 [ChatGPT Extension] Sending request via Apple Intelligence...")
-            print("   📝 Prompt length: \(prompt.count) chars")
-            print("   🔐 System will show consent dialog if needed")
+            Log.debug("[ChatGPT Extension] Sending request (\(prompt.count) chars)", category: .llm)
 
             // Create an AssistantIntent to invoke ChatGPT
             // The system handles:
@@ -1436,8 +1199,6 @@ class OnDeviceAnalysisService: LLMService {
             intent.provider = .chatGPT  // Use ChatGPT provider
 
             do {
-                print("   ⏳ Waiting for user consent and response...")
-
                 // Perform the intent - this triggers the system consent dialog
                 let _ = try await intent.perform()
 
@@ -1452,17 +1213,17 @@ class OnDeviceAnalysisService: LLMService {
                 if error.localizedDescription.contains("consent")
                     || error.localizedDescription.contains("declined")
                 {
-                    print("   ⚠️  User declined ChatGPT consent")
+                    Log.warning("User declined ChatGPT consent", category: .llm)
                     throw LLMError.generationFailed(
                         "User declined ChatGPT access. Enable in Settings > Apple Intelligence & Siri > ChatGPT"
                     )
                 } else if error.localizedDescription.contains("not enabled") {
-                    print("   ⚠️  ChatGPT Extension not enabled in Settings")
+                    Log.warning("ChatGPT Extension not enabled in Settings", category: .llm)
                     throw LLMError.generationFailed(
                         "ChatGPT not enabled. Go to Settings > Apple Intelligence & Siri > ChatGPT and enable it."
                     )
                 } else {
-                    print("   ❌ ChatGPT request failed: \(error.localizedDescription)")
+                    Log.error("ChatGPT request failed: \(error.localizedDescription)", category: .llm)
                     throw LLMError.generationFailed(
                         "ChatGPT request failed: \(error.localizedDescription)")
                 }
@@ -1542,7 +1303,7 @@ class CoreMLLLMService: LLMService {
             let configuration = MLModelConfiguration()
             configuration.computeUnits = .all  // CPU + GPU + Neural Engine
             let loaded = try MLModel(contentsOf: url, configuration: configuration)
-            print("✓ Successfully loaded Core ML model: \(url.lastPathComponent)")
+            Log.info("Successfully loaded Core ML model: \(url.lastPathComponent)", category: .llm)
             return loaded
         } catch {
             Log.error(
@@ -1699,9 +1460,7 @@ class OpenAILLMService: LLMService {
         self.model = model
 
         if isAvailable {
-            print("✅ OpenAI Direct API initialized")
-            print("   🔑 Using model: \(model)")
-            print("   🌐 Direct connection to OpenAI (not via Apple)")
+            Log.info("OpenAI Direct API initialized (model: \(model))", category: .llm)
         }
     }
 
@@ -1712,10 +1471,7 @@ class OpenAILLMService: LLMService {
             throw LLMError.modelUnavailable
         }
 
-        print("\n🌐 [OpenAI] Starting API call...")
-        print("   Model: \(model)")
-        print("   Prompt length: \(prompt.count) chars")
-        print("   Context length: \(context?.count ?? 0) chars")
+        Log.debug("[OpenAI] Starting API call (model: \(model), prompt: \(prompt.count) chars)", category: .llm)
 
         let startTime = Date()
 
@@ -1802,11 +1558,6 @@ class OpenAILLMService: LLMService {
             throw LLMError.generationFailed("Failed to encode request")
         }
 
-        print("   📤 Sending request to OpenAI...")
-        print(
-            "   Parameters: max_\(isReasoningModel ? "completion_" : "")tokens=\(config.maxTokens)\(isReasoningModel ? "" : ", temp=\(config.temperature)")"
-        )
-
         // Create request
         var request = URLRequest(url: URL(string: endpoint)!)
         request.httpMethod = "POST"
@@ -1816,17 +1567,14 @@ class OpenAILLMService: LLMService {
         request.timeoutInterval = 60  // 60 second timeout
 
         // Make API call
-        print("   ⏳ Waiting for response...")
         let (data, response) = try await URLSession.shared.data(for: request)
 
         let apiTime = Date().timeIntervalSince(startTime)
-        print("   ✅ Received response in \(String(format: "%.2f", apiTime))s")
+        Log.debug("[OpenAI] Response received in \(String(format: "%.2f", apiTime))s", category: .llm)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw LLMError.generationFailed("Invalid response")
         }
-
-        print("   HTTP Status: \(httpResponse.statusCode)")
 
         guard httpResponse.statusCode == 200 else {
             let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
@@ -1837,7 +1585,7 @@ class OpenAILLMService: LLMService {
         // Parse response
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             let errorString = String(data: data, encoding: .utf8) ?? "Unknown error"
-            print("   ❌ Failed to parse JSON: \(errorString)")
+            Log.error("[OpenAI] Failed to parse JSON: \(errorString)", category: .llm)
             throw LLMError.generationFailed("Failed to parse response")
         }
 
@@ -1846,12 +1594,9 @@ class OpenAILLMService: LLMService {
             let message = firstChoice["message"] as? [String: Any],
             let content = message["content"] as? String
         else {
-            print("   ❌ Invalid response structure")
-            print("   JSON: \(json)")
+            Log.error("[OpenAI] Invalid response structure", category: .llm)
             throw LLMError.generationFailed("Failed to parse response")
         }
-
-        print("   📝 Response length: \(content.count) chars")
 
         // Extract usage statistics
         let tokensGenerated: Int
@@ -1859,14 +1604,12 @@ class OpenAILLMService: LLMService {
             let completionTokens = usage["completion_tokens"] as? Int
         {
             tokensGenerated = completionTokens
-            print("   🔢 Tokens generated: \(completionTokens)")
         } else {
             tokensGenerated = content.split(separator: " ").count
-            print("   🔢 Estimated tokens: \(tokensGenerated)")
         }
 
         let totalTime = Date().timeIntervalSince(startTime)
-        print("   ✅ [OpenAI] Generation complete in \(String(format: "%.2f", totalTime))s")
+        Log.info("[OpenAI] Generation complete: \(tokensGenerated) tokens in \(String(format: "%.2f", totalTime))s", category: .llm)
 
         if !content.isEmpty {
             LLMStreamingContext.emit(text: content, isFinal: false)

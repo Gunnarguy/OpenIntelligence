@@ -50,9 +50,8 @@ class DocumentProcessor {
         let filename = url.lastPathComponent
         let fileSize = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int64) ?? 0
         let fileSizeMB = Double(fileSize) / 1_048_576.0
-        
-        print("\n📄 [DocumentProcessor] Processing document: \(filename)")
-        print("   File size: \(String(format: "%.2f", fileSizeMB)) MB")
+
+        Log.info("[DocumentProcessor] Processing \(filename) (\(String(format: "%.2f", fileSizeMB)) MB)", category: .ingestion)
         
     let startTime = Date()
     let documentId = UUID()
@@ -61,7 +60,7 @@ class DocumentProcessor {
         
         // Determine document type
         let documentType = detectDocumentType(url: url)
-        print("   Document type: \(documentType)")
+        Log.debug("[DocumentProcessor] Document type: \(documentType)", category: .ingestion)
         
         // Extract text based on document type
         progressHandler?("reading file")
@@ -74,9 +73,11 @@ class DocumentProcessor {
         let extractionTime = Date().timeIntervalSince(startTime)
         let charCount = extractedText.count
         let wordCount = extractedText.split(separator: " ").count
-        
-        print("   ✓ Extracted \(charCount) characters (\(wordCount) words)")
-        print("   ⏱️  Extraction took \(String(format: "%.2f", extractionTime))s")
+
+        Log.debug(
+            "[DocumentProcessor] Extracted \(charCount) chars (\(wordCount) words) in \(String(format: "%.2f", extractionTime))s",
+            category: .ingestion
+        )
         
         // Chunk the text using semantic chunker
         progressHandler?("chunking text")
@@ -94,7 +95,6 @@ class DocumentProcessor {
         )
         
         let semanticChunker = SemanticChunker()
-        
         // Use semantic chunking (synchronous call, no page mapping for now)
         let enhancedChunks = semanticChunker.chunkText(
             extractedText,
@@ -122,9 +122,11 @@ class DocumentProcessor {
         }
         
         let chunkingTime = Date().timeIntervalSince(chunkingStartTime)
-        
-        print("   ✓ Created \(processedChunks.count) semantic chunks")
-        print("   ⏱️  Semantic chunking took \(String(format: "%.3f", chunkingTime))s")
+		
+    		Log.debug(
+                "[DocumentProcessor] Created \(processedChunks.count) semantic chunks in \(String(format: "%.3f", chunkingTime))s",
+    			category: .ingestion
+    		)
         
         // Log semantic features detected
         let chunksWithSections = processedChunks.filter { $0.metadata.sectionTitle != nil }.count
@@ -132,17 +134,17 @@ class DocumentProcessor {
         let chunksWithNumericData = processedChunks.filter { $0.metadata.hasNumericData }.count
         let chunksWithLists = processedChunks.filter { $0.metadata.hasListStructure }.count
         
-    print("   📑 Semantic features:")
-    print("      - Sections detected: \(chunksWithSections)/\(processedChunks.count)")
-    print("      - Keywords extracted: \(chunksWithKeywords)/\(processedChunks.count)")
-    print("      - Numeric data: \(chunksWithNumericData)/\(processedChunks.count)")
-    print("      - List structures: \(chunksWithLists)/\(processedChunks.count)")
+    		Log.debug("   📑 Semantic features:", category: .ingestion)
+    		Log.debug("      - Sections detected: \(chunksWithSections)/\(processedChunks.count)", category: .ingestion)
+    		Log.debug("      - Keywords extracted: \(chunksWithKeywords)/\(processedChunks.count)", category: .ingestion)
+    		Log.debug("      - Numeric data: \(chunksWithNumericData)/\(processedChunks.count)", category: .ingestion)
+    		Log.debug("      - List structures: \(chunksWithLists)/\(processedChunks.count)", category: .ingestion)
         
         // Calculate average semantic density
         let avgSemanticDensity = processedChunks
             .map { Double($0.metadata.semanticDensity ?? 0) }
             .reduce(0.0, +) / Double(max(1, processedChunks.count))
-        print("      - Avg semantic density: \(String(format: "%.3f", avgSemanticDensity))")
+            Log.debug("      - Avg semantic density: \(String(format: "%.3f", avgSemanticDensity))", category: .ingestion)
         
         // Print chunk statistics
         if !processedChunks.isEmpty {
@@ -150,7 +152,7 @@ class DocumentProcessor {
             let avgChunkSize = chunkLengths.reduce(0, +) / processedChunks.count
             let minChunkSize = chunkLengths.min() ?? 0
             let maxChunkSize = chunkLengths.max() ?? 0
-            print("   📊 Chunk stats: avg=\(avgChunkSize), min=\(minChunkSize), max=\(maxChunkSize) chars")
+                Log.debug("   📊 Chunk stats: avg=\(avgChunkSize), min=\(minChunkSize), max=\(maxChunkSize) chars", category: .ingestion)
             
             let chunkStats = ChunkStatistics(
                 averageChars: avgChunkSize,
@@ -159,7 +161,7 @@ class DocumentProcessor {
             )
             
             let totalTime = Date().timeIntervalSince(startTime)
-            print("   ✅ Total processing: \(String(format: "%.2f", totalTime))s")
+                Log.debug("   ✅ Total processing: \(String(format: "%.2f", totalTime))s", category: .ingestion)
             
             // Create processing metadata
             let metadata = ProcessingMetadata(
@@ -189,7 +191,7 @@ class DocumentProcessor {
         }
         
         let totalTime = Date().timeIntervalSince(startTime)
-        print("   ✅ Total processing: \(String(format: "%.2f", totalTime))s")
+            Log.debug("   ✅ Total processing: \(String(format: "%.2f", totalTime))s", category: .ingestion)
         
         // Create document metadata (no chunks case)
         let document = Document(
@@ -228,15 +230,14 @@ class DocumentProcessor {
                 // Try UTF-8 first (most common)
                 text = try String(contentsOf: url, encoding: .utf8)
                 pageInfo = PageInfo(totalPages: 1, ocrPagesUsed: 0, pageNumbers: [1])
-                pageInfo = PageInfo(totalPages: 1, ocrPagesUsed: 0, pageNumbers: [1])
             } catch {
                 // Fallback to other encodings if UTF-8 fails
-                print("⚠️  [DocumentProcessor] UTF-8 decode failed, trying other encodings...")
+                Log.warning("[DocumentProcessor] UTF-8 decode failed; trying fallback encodings", category: .ingestion)
                 if let data = try? Data(contentsOf: url) {
                     if let decodedText = String(data: data, encoding: .isoLatin1) ?? String(data: data, encoding: .ascii) {
                         text = decodedText
                         pageInfo = PageInfo(totalPages: 1, ocrPagesUsed: 0, pageNumbers: [1])
-                        print("   Successfully decoded with fallback encoding")
+                        Log.debug("[DocumentProcessor] Decoded with fallback encoding", category: .ingestion)
                     } else {
                         throw DocumentProcessingError.unsupportedEncoding
                     }
@@ -251,38 +252,38 @@ class DocumentProcessor {
             
         // Images - Use OCR
         case .png, .jpeg, .heic, .tiff, .gif, .image:
-            print("   🔍 Image detected - applying OCR...")
+            Log.debug("[DocumentProcessor] Image detected; applying OCR", category: .ingestion)
             text = try await extractTextFromImage(url: url)
             pageInfo = PageInfo(totalPages: 1, ocrPagesUsed: 1, pageNumbers: [1])
             
         // Code files - Preserve as-is with syntax
         case .swift, .python, .javascript, .typescript, .java, .cpp, .c, .objc,
              .go, .rust, .ruby, .php, .html, .css, .json, .xml, .yaml, .sql, .shell, .code:
-            print("   💻 Code file detected - preserving syntax...")
+            Log.debug("[DocumentProcessor] Code file detected; preserving syntax", category: .ingestion)
             text = try extractTextFromCode(url: url)
             pageInfo = PageInfo(totalPages: 1, ocrPagesUsed: 0, pageNumbers: [1])
             
         // CSV - Convert to structured text
         case .csv:
-            print("   📊 CSV detected - converting to structured text...")
+            Log.debug("[DocumentProcessor] CSV detected; converting to structured text", category: .ingestion)
             text = try extractTextFromCSV(url: url)
             pageInfo = PageInfo(totalPages: 1, ocrPagesUsed: 0, pageNumbers: [1])
             
         // Office documents - Attempt extraction
         case .word, .excel, .powerpoint, .pages, .numbers, .keynote:
-            print("   📄 Office document detected - attempting extraction...")
+            Log.debug("[DocumentProcessor] Office document detected; attempting extraction", category: .ingestion)
             text = try await extractTextFromOfficeDocument(url: url, type: type)
             pageInfo = PageInfo(totalPages: 1, ocrPagesUsed: 0, pageNumbers: [1])
             
         case .unknown:
             // Last resort: try treating as plain text
-            print("⚠️  [DocumentProcessor] Unknown format, attempting plain text extraction...")
+            Log.warning("[DocumentProcessor] Unknown format; attempting plain text extraction", category: .ingestion)
             if let attemptedText = try? String(contentsOf: url, encoding: .utf8), !attemptedText.isEmpty {
                 text = attemptedText
                 pageInfo = PageInfo(totalPages: 1, ocrPagesUsed: 0, pageNumbers: [1])
-                print("   ✓ Successfully extracted as plain text")
+                Log.debug("[DocumentProcessor] Extracted as plain text", category: .ingestion)
             } else {
-                print("❌ [DocumentProcessor] Unsupported format: \(url.pathExtension)")
+                Log.error("[DocumentProcessor] Unsupported format: \(url.pathExtension)", category: .ingestion)
                 throw DocumentProcessingError.unsupportedFormat
             }
         }
@@ -290,18 +291,18 @@ class DocumentProcessor {
         // Edge case: Empty or whitespace-only document
         let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedText.isEmpty else {
-            print("❌ [DocumentProcessor] Document is empty or contains only whitespace")
+            Log.error("[DocumentProcessor] Document is empty or contains only whitespace", category: .ingestion)
             throw DocumentProcessingError.emptyDocument
         }
         
         // Edge case: Very short document
         if trimmedText.count < 50 {
-            print("⚠️  [DocumentProcessor] Warning: Very short document (\(trimmedText.count) chars)")
+            Log.warning("[DocumentProcessor] Very short document (\(trimmedText.count) chars)", category: .ingestion)
         }
         
         // Edge case: Suspiciously long document (possible issue)
         if text.count > 10_000_000 { // 10MB of text
-            print("⚠️  [DocumentProcessor] Warning: Very large document (\(text.count) chars)")
+            Log.warning("[DocumentProcessor] Very large document (\(text.count) chars)", category: .ingestion)
         }
         
         return (text, pageInfo)
@@ -310,16 +311,16 @@ class DocumentProcessor {
     /// Extract text from PDF with page tracking for semantic chunking
     private func extractTextFromPDFWithPages(url: URL) async throws -> (text: String, pageInfo: PageInfo) {
         guard let pdfDocument = PDFDocument(url: url) else {
-            print("❌ [DocumentProcessor] PDF load failed: \(url.lastPathComponent)")
+            Log.error("[DocumentProcessor] PDF load failed: \(url.lastPathComponent)", category: .ingestion)
             throw DocumentProcessingError.pdfLoadFailed
         }
         
         let pageCount = pdfDocument.pageCount
-        print("   PDF pages: \(pageCount)")
+        Log.debug("[DocumentProcessor] PDF pages: \(pageCount)", category: .ingestion)
         
         // Edge case: Empty PDF
         guard pageCount > 0 else {
-            print("⚠️  [DocumentProcessor] PDF has zero pages")
+            Log.warning("[DocumentProcessor] PDF has zero pages", category: .ingestion)
             throw DocumentProcessingError.emptyDocument
         }
         
@@ -343,7 +344,7 @@ class DocumentProcessor {
                 fullText += pageText + "\n\n"
                 
                 let pageTime = Date().timeIntervalSince(pageStartTime)
-                print("   ✓ Page \(pageIndex + 1): \(pageText.count) chars (\(String(format: "%.2f", pageTime))s)")
+                    Log.debug("   ✓ Page \(pageIndex + 1): \(pageText.count) chars (\(String(format: "%.2f", pageTime))s)", category: .ingestion)
             } else {
                 // No extractable text - try OCR on the page image
                 pagesWithoutText += 1
@@ -362,14 +363,17 @@ class DocumentProcessor {
                     totalOCRChars += ocrText.count
                     
                     let pageTime = Date().timeIntervalSince(pageStartTime)
-                    print("   ✓ Page \(pageIndex + 1): OCR extracted \(ocrText.count) chars (\(String(format: "%.2f", pageTime))s)")
+                    Log.debug("   ✓ Page \(pageIndex + 1): OCR extracted \(ocrText.count) chars (\(String(format: "%.2f", pageTime))s)", category: .ingestion)
                 }
             }
         }
         
         // Report OCR usage
         if ocrUsedCount > 0 {
-            print("   📸 OCR applied to \(ocrUsedCount)/\(pageCount) pages (\(totalOCRChars) chars total)")
+            Log.debug(
+                "[DocumentProcessor] OCR applied to \(ocrUsedCount)/\(pageCount) pages (\(totalOCRChars) chars total)",
+                category: .ingestion
+            )
         }
         
         let pageInfo = PageInfo(
@@ -385,16 +389,16 @@ class DocumentProcessor {
     /// Now with OCR fallback for image-only pages
     private func extractTextFromPDF(url: URL) async throws -> String {
         guard let pdfDocument = PDFDocument(url: url) else {
-            print("❌ [DocumentProcessor] PDF load failed: \(url.lastPathComponent)")
+            Log.error("[DocumentProcessor] PDF load failed: \(url.lastPathComponent)", category: .ingestion)
             throw DocumentProcessingError.pdfLoadFailed
         }
         
         let pageCount = pdfDocument.pageCount
-        print("   PDF pages: \(pageCount)")
+        Log.debug("[DocumentProcessor] PDF pages: \(pageCount)", category: .ingestion)
         
         // Edge case: Empty PDF
         guard pageCount > 0 else {
-            print("⚠️  [DocumentProcessor] PDF has zero pages")
+            Log.warning("[DocumentProcessor] PDF has zero pages", category: .ingestion)
             throw DocumentProcessingError.emptyDocument
         }
         
@@ -418,7 +422,7 @@ class DocumentProcessor {
                 fullText += pageText + "\n\n"
                 
                 let pageTime = Date().timeIntervalSince(pageStartTime)
-                print("   ✓ Page \(pageIndex + 1): \(pageText.count) chars (\(String(format: "%.2f", pageTime))s)")
+                Log.debug("   ✓ Page \(pageIndex + 1): \(pageText.count) chars (\(String(format: "%.2f", pageTime))s)", category: .ingestion)
             } else {
                 // No extractable text - try OCR on the page image
                 pagesWithoutText += 1
@@ -437,27 +441,27 @@ class DocumentProcessor {
                     totalOCRChars += ocrText.count
                     
                     let pageTime = Date().timeIntervalSince(pageStartTime)
-                    print("   ✓ Page \(pageIndex + 1): OCR extracted \(ocrText.count) chars (\(String(format: "%.2f", pageTime))s)")
+                    Log.debug("   ✓ Page \(pageIndex + 1): OCR extracted \(ocrText.count) chars (\(String(format: "%.2f", pageTime))s)", category: .ingestion)
                 }
             }
         }
         
         // Report OCR usage
         if ocrUsedCount > 0 {
-            print("   📸 OCR applied to \(ocrUsedCount)/\(pageCount) pages (\(totalOCRChars) chars total)")
+            Log.debug("[DocumentProcessor] OCR applied to \(ocrUsedCount)/\(pageCount) pages (\(totalOCRChars) chars total)", category: .ingestion)
         }
         
         if pagesWithoutText > 0 && ocrUsedCount == 0 {
-            print("   ⚠️ \(pagesWithoutText) pages had no extractable text (may be images)")
+            Log.warning("[DocumentProcessor] \(pagesWithoutText) pages had no extractable text (may be images)", category: .ingestion)
         }
         
         // Only throw error if NO text was extracted at all
         let trimmedText = fullText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedText.isEmpty else {
             if pagesWithoutText == pageCount {
-                print("❌ [DocumentProcessor] PDF contains no extractable text (all pages are images)")
-                print("💡 Hint: OCR attempted but found no text. Image quality may be too low.")
-                print("💡 Suggestion: Try a higher quality scan or text-based PDF")
+                Log.error("[DocumentProcessor] PDF contains no extractable text (all pages are images)", category: .ingestion)
+                Log.info("[DocumentProcessor] Hint: OCR attempted but found no text. Image quality may be too low.", category: .ingestion)
+                Log.info("[DocumentProcessor] Suggestion: Try a higher quality scan or text-based PDF", category: .ingestion)
             }
             throw DocumentProcessingError.imageOnlyPDF
         }
@@ -532,17 +536,17 @@ class DocumentProcessor {
         let startTime = Date()
         
         guard let image = CIImage(contentsOf: url) else {
-            print("❌ [DocumentProcessor] Failed to load image: \(url.lastPathComponent)")
+            Log.error("[DocumentProcessor] Failed to load image: \(url.lastPathComponent)", category: .ingestion)
             throw DocumentProcessingError.imageLoadFailed
         }
         
         let imageSize = image.extent.size
-        print("   Image dimensions: \(Int(imageSize.width))×\(Int(imageSize.height))px")
+        Log.debug("[DocumentProcessor] Image dimensions: \(Int(imageSize.width))×\(Int(imageSize.height))px", category: .ingestion)
         
         let text = try await performOCR(on: image)
         let ocrTime = Date().timeIntervalSince(startTime)
         
-        print("   ✓ OCR extracted \(text.count) chars in \(String(format: "%.2f", ocrTime))s")
+        Log.debug("[DocumentProcessor] OCR extracted \(text.count) chars in \(String(format: "%.2f", ocrTime))s", category: .ingestion)
         
         return text
     }
@@ -654,8 +658,8 @@ class DocumentProcessor {
         }
         
         // Legacy .doc, .xls, .ppt - limited support
-        print("⚠️  [DocumentProcessor] Legacy Office format detected")
-        print("💡 Suggestion: Convert to .docx, .xlsx, or .pptx for better support")
+        Log.warning("[DocumentProcessor] Legacy Office format detected", category: .ingestion)
+        Log.info("[DocumentProcessor] Suggestion: Convert to .docx, .xlsx, or .pptx for better support", category: .ingestion)
         throw DocumentProcessingError.legacyOfficeFormat
     }
     
@@ -663,8 +667,8 @@ class DocumentProcessor {
     private func extractTextFromIWorkDocument(url: URL) throws -> String {
         // iWork documents are packages - look for index.xml or similar
         // This is a simplified implementation
-        print("⚠️  [DocumentProcessor] iWork document support is limited")
-        print("💡 Suggestion: Export as PDF or text for full compatibility")
+        Log.warning("[DocumentProcessor] iWork document support is limited", category: .ingestion)
+        Log.info("[DocumentProcessor] Suggestion: Export as PDF or text for full compatibility", category: .ingestion)
         
         // Try to read as a package
         var isDirectory: ObjCBool = false
@@ -692,8 +696,8 @@ class DocumentProcessor {
         // Modern Office formats (.docx, .xlsx, .pptx) are ZIP files
         // They contain XML files with the actual content
         
-        print("⚠️  [DocumentProcessor] Modern Office format detected")
-        print("💡 Suggestion: For best results, export as PDF before importing")
+        Log.warning("[DocumentProcessor] Modern Office format detected", category: .ingestion)
+        Log.info("[DocumentProcessor] Suggestion: For best results, export as PDF before importing", category: .ingestion)
         
         // This would require ZIP extraction and XML parsing
         // For now, suggest conversion

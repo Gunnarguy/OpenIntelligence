@@ -51,7 +51,7 @@ final class LocalOpenAIServerLLMService: LLMService {
 
     init(config: Config = Config()) {
         self.config = config
-        print("🧩 LocalOpenAIServerLLMService → \(config.baseURL.absoluteString) [model=\(config.model), stream=\(config.stream)]")
+        Log.debug("LocalOpenAIServerLLMService → \(config.baseURL.absoluteString) [model=\(config.model), stream=\(config.stream)]", category: .llm)
     }
 
     var isAvailable: Bool {
@@ -161,8 +161,8 @@ final class LocalOpenAIServerLLMService: LLMService {
             req.httpBody = payload
             req.timeoutInterval = 300
 
-            print("🌐 [Local LLM] POST(stream) \(url.absoluteString)")
-            print("    model=\(self.config.model) max_tokens=\(userConfig.maxTokens) temp=\(userConfig.temperature)")
+            Log.debug("[Local LLM] POST(stream) \(url.absoluteString)", category: .llm)
+            Log.debug("[Local LLM] model=\(self.config.model) max_tokens=\(userConfig.maxTokens) temp=\(userConfig.temperature)", category: .llm)
 
             // Use async bytes streaming API
             let (bytes, resp) = try await URLSession.shared.bytes(for: req)
@@ -231,14 +231,14 @@ final class LocalOpenAIServerLLMService: LLMService {
                     if firstTokenTTFT == nil {
                         let ttft = Date().timeIntervalSince(start)
                         firstTokenTTFT = ttft
-                        print("⚡ [Local LLM] First token in \(String(format: "%.2f", ttft))s")
+                        Log.debug("[Local LLM] First token in \(String(format: "%.2f", ttft))s", category: .performance)
                     }
 
                     tokenCountApprox += addition.split(separator: " ").count
                     LLMStreamingContext.emit(text: addition, isFinal: false)
                 }
             } catch {
-                print("⚠️ [Local LLM] Stream parsing error: \(error.localizedDescription)")
+                Log.warning("[Local LLM] Stream parsing error: \(error.localizedDescription)", category: .llm)
             }
 
             let total = Date().timeIntervalSince(start)
@@ -256,8 +256,8 @@ final class LocalOpenAIServerLLMService: LLMService {
             req.httpBody = payload
             req.timeoutInterval = 120
 
-            print("🌐 [Local LLM] POST \(url.absoluteString)")
-            print("    model=\(self.config.model) max_tokens=\(userConfig.maxTokens) temp=\(userConfig.temperature)")
+            Log.debug("[Local LLM] POST \(url.absoluteString)", category: .llm)
+            Log.debug("[Local LLM] model=\(self.config.model) max_tokens=\(userConfig.maxTokens) temp=\(userConfig.temperature)", category: .llm)
 
             let (data, resp) = try await URLSession.shared.data(for: req)
             guard let http = resp as? HTTPURLResponse else {
@@ -334,7 +334,7 @@ final class MLXPresetLLMService: LLMService {
         self.inner = LocalOpenAIServerLLMService(
             config: .init(baseURL: baseURL, model: model, chatCompletionsPath: "/v1/chat/completions", stream: stream, headers: nil)
         )
-        print("🧪 MLX Preset → \(baseURL.absoluteString) [model=\(model), stream=\(stream)]")
+        Log.debug("MLX Preset → \(baseURL.absoluteString) [model=\(model), stream=\(stream)]", category: .llm)
     }
 
     var isAvailable: Bool { inner.isAvailable }
@@ -359,7 +359,7 @@ final class LlamaCPPPresetLLMService: LLMService {
         self.inner = LocalOpenAIServerLLMService(
             config: .init(baseURL: baseURL, model: model, chatCompletionsPath: "/v1/chat/completions", stream: stream, headers: nil)
         )
-        print("🧪 llama.cpp Preset → \(baseURL.absoluteString) [model=\(model), stream=\(stream)]")
+        Log.debug("llama.cpp Preset → \(baseURL.absoluteString) [model=\(model), stream=\(stream)]", category: .llm)
     }
 
     var isAvailable: Bool { inner.isAvailable }
@@ -385,7 +385,7 @@ final class OllamaPresetLLMService: LLMService {
         self.inner = LocalOpenAIServerLLMService(
             config: .init(baseURL: baseURL, model: model, chatCompletionsPath: "/v1/chat/completions", stream: stream, headers: nil)
         )
-        print("🧪 Ollama Preset → \(baseURL.absoluteString) [model=\(model), stream=\(stream)]")
+        Log.debug("Ollama Preset → \(baseURL.absoluteString) [model=\(model), stream=\(stream)]", category: .llm)
     }
 
     var isAvailable: Bool { inner.isAvailable }

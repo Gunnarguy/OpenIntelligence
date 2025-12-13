@@ -29,7 +29,7 @@ class EmbeddingService {
         self.targetDimension = targetDimension ?? provider.dimension
         self.providerIdentifier = providerId
         if !provider.isAvailable {
-            print("⚠️ Warning: Embedding provider not available on this device")
+            Log.warning("Embedding provider not available on this device", category: .embedding)
         }
     }
     
@@ -110,16 +110,13 @@ class EmbeddingService {
     
     /// Generate embeddings for multiple text chunks in batch
     func generateEmbeddings(for texts: [String]) async throws -> [[Float]] {
-        print("🔢 [EmbeddingService] Generating embeddings for \(texts.count) chunks via provider...")
+        Log.debug("Generating embeddings for \(texts.count) chunks", category: .embedding)
         let startTime = Date()
         let rawEmbeddings = try await provider.embedBatch(texts: texts)
         let embeddings = rawEmbeddings.map { adjustDimension($0) }
         let totalTime = Date().timeIntervalSince(startTime)
         let avgTime = texts.isEmpty ? 0 : totalTime / Double(texts.count)
-        print("✅ [EmbeddingService] Complete: \(texts.count) embeddings in \(String(format: "%.2f", totalTime))s")
-        if texts.count > 0 {
-            print("   Average: \(String(format: "%.0f", avgTime * 1000))ms per embedding")
-        }
+        Log.info("Embedded \(texts.count) chunks in \(String(format: "%.2f", totalTime))s (avg: \(String(format: "%.0f", avgTime * 1000))ms)", category: .embedding)
         return embeddings
     }
     
@@ -129,26 +126,26 @@ class EmbeddingService {
     private func validateEmbedding(_ embedding: [Float]) throws {
         // Check dimensionality
         guard embedding.count == targetDimension else {
-            print("❌ [EmbeddingService] Invalid dimension: \(embedding.count) (expected \(targetDimension))")
+            Log.error("Invalid dimension: \(embedding.count) (expected \(targetDimension))", category: .embedding)
             throw EmbeddingError.invalidDimension(expected: targetDimension, actual: embedding.count)
         }
         
         // Check for NaN or Inf values
         for (index, value) in embedding.enumerated() {
             if value.isNaN {
-                print("❌ [EmbeddingService] NaN detected at index \(index)")
+                Log.error("NaN detected at index \(index)", category: .embedding)
                 throw EmbeddingError.containsNaN
             }
             if value.isInfinite {
-                print("❌ [EmbeddingService] Infinite value detected at index \(index)")
+                Log.error("Infinite value at index \(index)", category: .embedding)
                 throw EmbeddingError.containsInfinite
             }
         }
         
         // Check that embedding is not all zeros (likely indicates an error)
         let magnitude = embedding.reduce(0.0) { $0 + $1 * $1 }
-        if magnitude < 0.0001 { // Very small threshold
-            print("⚠️  [EmbeddingService] Warning: Near-zero embedding vector")
+        if magnitude < 0.0001 {
+            Log.warning("Near-zero embedding vector", category: .embedding)
         }
     }
     
@@ -229,7 +226,7 @@ class EmbeddingService {
     /// Returns a value between -1 (opposite) and 1 (identical)
     func cosineSimilarity(_ a: [Float], _ b: [Float]) -> Float {
         guard a.count == b.count else {
-            print("⚠️ Warning: Embedding dimension mismatch")
+            Log.warning("Embedding dimension mismatch in cosine similarity", category: .embedding)
             return 0.0
         }
         
