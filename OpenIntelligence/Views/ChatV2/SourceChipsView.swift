@@ -2,7 +2,8 @@
 //  SourceChipsView.swift
 //  OpenIntelligence
 //
-//  Compact chips that summarize retrieved sources with similarity percent
+//  Compact chips that summarize retrieved sources with similarity percent.
+//  Polished with staggered animations, quality indicators, and modern styling.
 //  Created by Cline on 10/28/25.
 //
 
@@ -12,14 +13,19 @@ struct SourceChipsView: View {
     let chunks: [RetrievedChunk]
     let onTap: () -> Void
     
+    /// Stagger animation for chips appearing
+    @State private var appearedCount: Int = 0
+    
     private var topChips: [ChipData] {
-        let top = chunks.prefix(5) // show up to 5 chips
+        let top = chunks.prefix(6) // show up to 6 chips
         return top.enumerated().map { (i, c) in
             let pct = max(0, min(1, Double(c.similarityScore)))
             return ChipData(
                 index: i + 1,
                 percent: pct,
-                tint: similarityColor(pct)
+                tint: similarityColor(pct),
+                sourceName: c.sourceDocument,
+                quality: qualityTier(pct)
             )
         }
     }
@@ -27,44 +33,144 @@ struct SourceChipsView: View {
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: DSSpacing.xs) {
-                ForEach(topChips) { chip in
-                    Button(action: onTap) {
-                        HStack(spacing: DSSpacing.xxs) {
-                            Image(systemName: "doc.text.magnifyingglass")
-                                .font(.caption2)
-                            Text("Source \(chip.index) • \(String(format: "%.0f", chip.percent * 100))%")
-                                .font(DSTypography.meta)
-                        }
-                        .padding(.horizontal, DSSpacing.xs)
-                        .padding(.vertical, 6)
-                        .background(DSColors.chipBackground(for: chip.tint))
-                        .foregroundColor(chip.tint)
-                        .cornerRadius(DSCorners.chip)
-                    }
-                    .buttonStyle(.plain)
+                ForEach(Array(topChips.enumerated()), id: \.element.id) { index, chip in
+                    SourceChip(chip: chip, onTap: onTap)
+                        .opacity(index < appearedCount ? 1.0 : 0.0)
+                        .offset(x: index < appearedCount ? 0 : 20)
+                        .animation(
+                            DSAnimations.snappySpring.delay(Double(index) * 0.05),
+                            value: appearedCount
+                        )
+                }
+                
+                // "More" indicator if truncated
+                if chunks.count > 6 {
+                    MoreChip(remaining: chunks.count - 6, onTap: onTap)
+                        .opacity(appearedCount >= topChips.count ? 1.0 : 0.0)
+                        .animation(
+                            DSAnimations.snappySpring.delay(0.35),
+                            value: appearedCount
+                        )
                 }
             }
-            .padding(.top, DSSpacing.xs)
+            .padding(.vertical, DSSpacing.xxs)
         }
-        .accessibilityLabel("Retrieved sources")
+        .onAppear {
+            // Stagger chip appearance
+            withAnimation {
+                appearedCount = topChips.count + 1
+            }
+        }
+        .accessibilityLabel("Retrieved \(chunks.count) sources")
     }
+    
+    // MARK: - Helpers
     
     private func similarityColor(_ score: Double) -> Color {
-        if score >= 0.8 {
-            return .green
-        } else if score >= 0.6 {
-            return .orange
-        } else {
-            return .red
-        }
+        if score >= 0.8 { return .green }
+        if score >= 0.65 { return .orange }
+        if score >= 0.5 { return .yellow }
+        return .red
     }
     
-    private struct ChipData: Identifiable {
-        let id = UUID()
-        let index: Int
-        let percent: Double
-        let tint: Color
+    private func qualityTier(_ score: Double) -> String {
+        if score >= 0.8 { return "High" }
+        if score >= 0.65 { return "Good" }
+        if score >= 0.5 { return "Fair" }
+        return "Low"
     }
+}
+
+// MARK: - Individual Chip
+
+private struct SourceChip: View {
+    let chip: ChipData
+    let onTap: () -> Void
+    
+    @State private var isPressed: Bool = false
+    
+    var body: some View {
+        Button(action: {
+            DSHaptics.light()
+            onTap()
+        }) {
+            HStack(spacing: DSSpacing.xxs) {
+                // Quality dot indicator
+                Circle()
+                    .fill(chip.tint)
+                    .frame(width: 5, height: 5)
+                
+                // Source label
+                Text("#\(chip.index)")
+                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                    .foregroundColor(chip.tint)
+                
+                // Similarity percentage
+                Text("\(Int(chip.percent * 100))%")
+                    .font(.system(size: 9, weight: .medium, design: .monospaced))
+                    .foregroundColor(DSColors.secondaryText)
+            }
+            .padding(.horizontal, DSSpacing.xs)
+            .padding(.vertical, 5)
+            .background(
+                Capsule()
+                    .fill(DSColors.chipBackground(for: chip.tint))
+            )
+            .overlay(
+                Capsule()
+                    .strokeBorder(chip.tint.opacity(0.25), lineWidth: 0.5)
+            )
+            .scaleEffect(isPressed ? 0.95 : 1.0)
+        }
+        .buttonStyle(.plain)
+        .onLongPressGesture(minimumDuration: 0, pressing: { pressing in
+            withAnimation(.easeInOut(duration: 0.1)) {
+                isPressed = pressing
+            }
+        }, perform: {})
+        .accessibilityLabel("Source \(chip.index), \(chip.quality) match at \(Int(chip.percent * 100)) percent")
+    }
+}
+
+// MARK: - More Chip
+
+private struct MoreChip: View {
+    let remaining: Int
+    let onTap: () -> Void
+    
+    var body: some View {
+        Button(action: {
+            DSHaptics.light()
+            onTap()
+        }) {
+            HStack(spacing: 3) {
+                Text("+\(remaining)")
+                    .font(.system(size: 9, weight: .semibold, design: .rounded))
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 7, weight: .bold))
+            }
+            .foregroundColor(DSColors.accent)
+            .padding(.horizontal, DSSpacing.xs)
+            .padding(.vertical, 5)
+            .background(
+                Capsule()
+                    .fill(DSColors.chipBackground(for: DSColors.accent))
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(remaining) more sources, tap to view all")
+    }
+}
+
+// MARK: - Data Model
+
+private struct ChipData: Identifiable {
+    let id = UUID()
+    let index: Int
+    let percent: Double
+    let tint: Color
+    let sourceName: String
+    let quality: String
 }
 
 // MARK: - Preview

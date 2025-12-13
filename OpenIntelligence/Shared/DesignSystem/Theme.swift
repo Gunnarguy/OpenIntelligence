@@ -74,6 +74,14 @@ public enum DSColors {
     public static var success: Color { Color.green }
     public static var warning: Color { Color.orange }
     public static var danger: Color { Color.red }
+    
+    // Borders & Separators
+    public static var border: Color {
+        Color.primary.opacity(0.15)
+    }
+    public static var separator: Color {
+        Color.primary.opacity(0.1)
+    }
 
     // Chips (10-15% bg opacity)
     public static func chipBackground(for color: Color) -> Color {
@@ -145,6 +153,8 @@ public enum DSAnimations {
     public static let bubbleAppear: Animation = .spring(response: 0.35, dampingFraction: 0.8)
     public static let fastEase: Animation = .easeInOut(duration: 0.2)
     public static let stagePulse: Animation = .easeInOut(duration: 0.9).repeatForever(autoreverses: true)
+    public static let snappySpring: Animation = .spring(response: 0.3, dampingFraction: 0.7, blendDuration: 0.1)
+    public static let gentleSpring: Animation = .spring(response: 0.5, dampingFraction: 0.8)
 }
 
 // MARK: - Modifiers
@@ -217,6 +227,26 @@ public enum DSHaptics {
             let gen = UISelectionFeedbackGenerator()
             gen.prepare()
             gen.selectionChanged()
+        }
+        #endif
+    }
+    
+    public static func light() {
+        #if canImport(UIKit)
+        perform {
+            let gen = UIImpactFeedbackGenerator(style: .light)
+            gen.prepare()
+            gen.impactOccurred()
+        }
+        #endif
+    }
+    
+    public static func medium() {
+        #if canImport(UIKit)
+        perform {
+            let gen = UIImpactFeedbackGenerator(style: .medium)
+            gen.prepare()
+            gen.impactOccurred()
         }
         #endif
     }

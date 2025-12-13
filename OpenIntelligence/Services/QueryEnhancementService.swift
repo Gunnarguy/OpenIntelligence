@@ -2,103 +2,121 @@
 //  QueryEnhancementService.swift
 //  OpenIntelligence
 //
-//  Query expansion, reformulation, and result re-ranking
+//  Query expansion and light reformulation to improve hybrid retrieval.
 //
 
 import Foundation
 import NaturalLanguage
 
-/// Enhances queries and re-ranks results for better retrieval accuracy
-class QueryEnhancementService {
-    
-    /// Expand query with synonyms and related terms
+/// Enhances user queries before retrieval.
+///
+/// This service must be silent-by-default: do not use direct `print()`.
+/// Route diagnostic output through `Log.*` so verbosity is gated.
+final class QueryEnhancementService {
+
+    /// Produces a small set of query variants for keyword-heavy retrieval (BM25).
+    /// - Note: The first element is always the original query (trimmed).
     func expandQuery(_ query: String) -> [String] {
-        print("\n🔍 [QueryEnhancement] Expanding query...")
-        print("   📝 Original: \"\(query)\"")
-        
-        var expandedQueries: [String] = [query]  // Always include original
-        
-        // 1. Extract key terms
-        let keyTerms = extractKeyTerms(query)
-        print("   🎯 Key terms: \(keyTerms.joined(separator: ", "))")
-        
-        // 2. Generate synonyms using NaturalLanguage
-        let synonyms = generateSynonyms(for: keyTerms)
-        print("   📚 Synonyms found: \(synonyms.count)")
-        
-        // 2.5 Handle trivial/underspecified queries to help BM25
-        let tokenCount = query.split(separator: " ").count
-        let trimmedLower = query.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-        let trivialSet: Set<String> = ["test","help","hello","hi","hey","ok","okay","thanks","thank you"]
-        if tokenCount <= 1 || keyTerms.isEmpty || trivialSet.contains(trimmedLower) {
-            expandedQueries.append("\(query) overview")
-            expandedQueries.append("\(query) summary")
-            expandedQueries.append("\(query) introduction")
-            expandedQueries.append("overview")
-            expandedQueries.append("summary")
-            print("   🔧 Trivial input detected; added generic boost terms for BM25")
-            print("   ✅ Generated \(expandedQueries.count) query variations")
-            return Array(Set(expandedQueries))
+        let original = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !original.isEmpty else { return [] }
+
+        Log.debug("[QueryEnhancement] Expanding query", category: .retrieval)
+
+        var variations: [String] = [original]
+
+        // 1) Extract key terms for synonym lookup.
+        let keyTerms = extractKeyTerms(original)
+        if !keyTerms.isEmpty {
+            Log.debug("[QueryEnhancement] Key terms: \(keyTerms.joined(separator: ", "))", category: .retrieval)
         }
-        
-        // 3. Create expanded query versions
+
+        // 2) Handle trivial/underspecified queries (helps BM25 avoid empty-ish inputs).
+        let tokenCount = original.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
+        let lower = original.lowercased()
+        let trivialSet: Set<String> = [
+            "test", "help", "hello", "hi", "hey", "ok", "okay", "thanks", "thank you",
+        ]
+        if tokenCount <= 1 || keyTerms.isEmpty || trivialSet.contains(lower) {
+            variations.append("\(original) overview")
+            variations.append("\(original) summary")
+            variations.append("\(original) introduction")
+            variations.append("overview")
+            variations.append("summary")
+            Log.debug("[QueryEnhancement] Trivial input detected; added generic boost terms", category: .retrieval)
+            return uniquePreservingOrder(variations, max: 8)
+        }
+
+        // 3) Synonym-based expansions.
+        let synonyms = generateSynonyms(for: keyTerms)
         if !synonyms.isEmpty {
-            // Version 1: Replace key terms with synonyms
+            Log.debug("[QueryEnhancement] Synonym groups: \(synonyms.count)", category: .retrieval)
+
+            // Replace key terms with synonyms (limited to keep the query compact).
             for (term, syns) in synonyms {
-                for syn in syns.prefix(2) {  // Top 2 synonyms only
-                    let expanded = query.replacingOccurrences(of: term, with: syn, options: .caseInsensitive)
-                    if expanded != query {
-                        expandedQueries.append(expanded)
+                for syn in syns.prefix(2) {
+                    let expanded = original.replacingOccurrences(of: term, with: syn, options: .caseInsensitive)
+                    if expanded != original {
+                        variations.append(expanded)
                     }
                 }
             }
-            
-            // Version 2: Append synonyms
-            let allSynonyms = synonyms.values.flatMap { $0 }.prefix(3).joined(separator: " ")
+
+            // Append a few synonyms (bag-of-words style).
+            let allSynonyms = synonyms.values.flatMap { $0 }.prefix(3)
             if !allSynonyms.isEmpty {
-                expandedQueries.append("\(query) \(allSynonyms)")
+                variations.append("\(original) \(allSynonyms.joined(separator: " "))")
             }
         }
-        
-        // 4. Question reformulation
-        if query.contains("?") {
-            expandedQueries.append(contentsOf: reformulateQuestion(query))
+
+        // 4) Simple question reformulations.
+        if original.contains("?") {
+            variations.append(contentsOf: reformulateQuestion(original))
         }
-        
-        print("   ✅ Generated \(expandedQueries.count) query variations")
-        for (i, q) in expandedQueries.enumerated() where i > 0 {
-            print("      [\(i)] \(q)")
-        }
-        
-        return Array(Set(expandedQueries))  // Remove duplicates
+
+        let result = uniquePreservingOrder(variations, max: 12)
+        Log.debug("[QueryEnhancement] Produced \(result.count) variations", category: .retrieval)
+        return result
     }
-    
-    /// Extract key terms (nouns, verbs, proper nouns)
+
+    /// Extracts key terms (nouns/verbs/adjectives) using `NaturalLanguage`.
     private func extractKeyTerms(_ query: String) -> [String] {
         let tagger = NLTagger(tagSchemes: [.lexicalClass, .nameType])
         tagger.string = query
-        
-        var keyTerms: [String] = []
-        
-        tagger.enumerateTags(in: query.startIndex..<query.endIndex, unit: .word,
-                            scheme: .lexicalClass, options: [.omitWhitespace, .omitPunctuation]) { tag, range in
-            if tag == .noun || tag == .verb || tag == .adjective {
-                let term = String(query[range])
-                if term.count > 2 {  // Filter very short words
-                    keyTerms.append(term)
-                }
+
+        var terms: [String] = []
+        var seen = Set<String>()
+
+        tagger.enumerateTags(
+            in: query.startIndex..<query.endIndex,
+            unit: .word,
+            scheme: .lexicalClass,
+            // NOTE: NLTagger.Options no longer includes `.omitStopWords` on newer SDKs.
+            // We already filter by lexical class (noun/verb/adjective), which naturally
+            // excludes most stop words.
+            options: [.omitWhitespace, .omitPunctuation]
+        ) { tag, range in
+            guard let tag else { return true }
+            guard tag == .noun || tag == .verb || tag == .adjective else { return true }
+
+            let token = String(query[range])
+            guard token.count > 2 else { return true }
+
+            let key = token.lowercased()
+            if seen.insert(key).inserted {
+                terms.append(token)
             }
             return true
         }
-        
-        return keyTerms
+
+        return terms
     }
-    
-    /// Generate synonyms for terms
+
+    /// Very small, domain-oriented synonym map.
+    ///
+    /// This is intentionally conservative (no heavy NLP / embeddings) to keep expansion cheap.
     private func generateSynonyms(for terms: [String]) -> [String: [String]] {
-        var synonyms: [String: [String]] = [:]
-        
-        // Common domain-specific synonyms (can be expanded)
+        var result: [String: [String]] = [:]
+
         let synonymDict: [String: [String]] = [
             "clean": ["sanitize", "disinfect", "sterilize", "wash"],
             "use": ["operate", "utilize", "employ", "apply"],
@@ -109,151 +127,62 @@ class QueryEnhancementService {
             "remove": ["detach", "disconnect", "separate", "extract"],
             "install": ["attach", "connect", "mount", "affix"],
             "check": ["verify", "inspect", "examine", "test"],
-            "warning": ["caution", "alert", "notice", "advisory"]
+            "warning": ["caution", "alert", "notice", "advisory"],
         ]
-        
+
         for term in terms {
-            let lowercased = term.lowercased()
-            if let syns = synonymDict[lowercased] {
-                synonyms[term] = syns
+            let lower = term.lowercased()
+            if let syns = synonymDict[lower], !syns.isEmpty {
+                result[term] = syns
             }
         }
-        
-        return synonyms
+
+        return result
     }
-    
-    /// Reformulate questions into statement form
+
+    /// Reformulates common question patterns into statement/keyword forms.
     private func reformulateQuestion(_ query: String) -> [String] {
         var reformulations: [String] = []
-        
-        // Common question patterns
+
         let patterns: [(pattern: String, replacement: String)] = [
-            ("^How do I ", "Instructions for "),
-            ("^How to ", "Procedure for "),
-            ("^What is ", "Information about "),
-            ("^What are ", "Details on "),
-            ("^When should ", "Timing for "),
-            ("^Why ", "Reason for "),
-            ("^Can I ", "Possibility of "),
-            ("^Where ", "Location of ")
+            ("^How do I ", "instructions for "),
+            ("^How to ", "procedure for "),
+            ("^What is ", "information about "),
+            ("^What are ", "details on "),
+            ("^When should ", "timing for "),
+            ("^Why ", "reason for "),
+            ("^Can I ", "possibility of "),
+            ("^Where ", "location of "),
         ]
-        
+
         for (pattern, replacement) in patterns {
-            if let range = query.range(of: pattern, options: .regularExpression) {
-                var reformulated = query
-                reformulated.replaceSubrange(range, with: replacement)
-                reformulated = reformulated.replacingOccurrences(of: "?", with: "")
-                reformulations.append(reformulated)
+            if let range = query.range(of: pattern, options: [.regularExpression, .caseInsensitive]) {
+                var s = query
+                s.replaceSubrange(range, with: replacement)
+                s = s.replacingOccurrences(of: "?", with: "")
+                reformulations.append(s)
             }
         }
-        
+
         return reformulations
     }
-    
-    /// Re-rank results using multiple signals
-    func rerank(
-        chunks: [RetrievedChunk],
-        query: String,
-        topK: Int
-    ) -> [RetrievedChunk] {
-        print("\n🔄 [QueryEnhancement] Re-ranking \(chunks.count) results...")
-        
-        // Create mutable array with metadata dictionary
-        var scoredChunks: [(chunk: RetrievedChunk, metadata: [String: Any])] = chunks.map {
-            ($0, [:])
-        }
-        
-        // Score each chunk with multiple signals
-        for i in 0..<scoredChunks.count {
-            var score = scoredChunks[i].chunk.similarityScore  // Base semantic similarity
-            
-            // Signal 1: Exact keyword matches
-            let keywordBoost = calculateKeywordMatch(query: query, content: scoredChunks[i].chunk.chunk.content)
-            score += keywordBoost * 0.2
-            scoredChunks[i].metadata["keyword_boost"] = keywordBoost
-            
-            // Signal 2: Term proximity (how close query terms are in document)
-            let proximityBoost = calculateTermProximity(query: query, content: scoredChunks[i].chunk.chunk.content)
-            score += proximityBoost * 0.15
-            scoredChunks[i].metadata["proximity_boost"] = proximityBoost
-            
-            // Signal 3: Position/recency (first chunks often more important)
-            let chunkIndex = scoredChunks[i].chunk.chunk.metadata.chunkIndex
-            let positionScore = 1.0 / Float(chunkIndex + 10)  // Slight boost for earlier chunks
-            score += positionScore * 0.05
-            
-            // Note: Enhanced metadata from SemanticChunker (hasNumericData, hasListStructure)
-            // will be available once DocumentProcessor integration is complete
-            
-            // Store final score
-            scoredChunks[i].metadata["rerank_score"] = score
-        }
-        
-        // Sort by re-ranked score
-        scoredChunks.sort { item1, item2 in
-            let score1 = item1.metadata["rerank_score"] as? Float ?? item1.chunk.similarityScore
-            let score2 = item2.metadata["rerank_score"] as? Float ?? item2.chunk.similarityScore
-            return score1 > score2
-        }
-        
-        let topResults = Array(scoredChunks.prefix(topK))
-        
-        if let firstScore = topResults.first?.metadata["rerank_score"] as? Float {
-            print("   ✅ Re-ranking complete. Top score: \(String(format: "%.4f", firstScore))")
-            print("   📊 Score breakdown:")
-            print("      - Semantic: \(String(format: "%.3f", topResults.first?.chunk.similarityScore ?? 0))")
-            print("      - Keywords: \(String(format: "%.3f", topResults.first?.metadata["keyword_boost"] as? Float ?? 0))")
-            print("      - Proximity: \(String(format: "%.3f", topResults.first?.metadata["proximity_boost"] as? Float ?? 0))")
-        }
-        
-        // Return just the chunks (metadata is in print output only for now)
-        return topResults.map { $0.chunk }
-    }
-    
-    /// Calculate keyword match score
-    private func calculateKeywordMatch(query: String, content: String) -> Float {
-        let queryTerms = Set(query.lowercased().split(separator: " ").map { String($0) }.filter { $0.count > 2 })
-        let contentTerms = Set(content.lowercased().split(separator: " ").map { String($0) })
-        
-        let matches = queryTerms.intersection(contentTerms)
-        return Float(matches.count) / Float(max(queryTerms.count, 1))
-    }
-    
-    /// Calculate term proximity (how close query terms appear in content)
-    private func calculateTermProximity(query: String, content: String) -> Float {
-        let queryTerms = query.lowercased().split(separator: " ").map { String($0) }.filter { $0.count > 2 }
-        let contentWords = content.lowercased().split(separator: " ").map { String($0) }
-        
-        guard queryTerms.count > 1 else { return 0 }
-        
-        // Find positions of each query term
-        var positions: [[Int]] = []
-        for term in queryTerms {
-            let pos = contentWords.enumerated().compactMap { $0.element.contains(term) ? $0.offset : nil }
-            positions.append(pos)
-        }
-        
-        // Calculate minimum distance between terms
-        var minDistance = Int.max
-        if positions.allSatisfy({ !$0.isEmpty }) {
-            for i in 0..<positions[0].count {
-                for j in 0..<positions[1].count {
-                    let distance = abs(positions[0][i] - positions[1][j])
-                    minDistance = min(minDistance, distance)
+
+    /// De-duplicates case-insensitively while preserving order.
+    private func uniquePreservingOrder(_ strings: [String], max: Int) -> [String] {
+        var seen = Set<String>()
+        var out: [String] = []
+
+        for s in strings {
+            let trimmed = s.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            let key = trimmed.lowercased()
+            if seen.insert(key).inserted {
+                out.append(trimmed)
+                if out.count >= max {
+                    break
                 }
             }
         }
-        
-        // Closer terms = higher score
-        return minDistance == Int.max ? 0 : 1.0 / Float(minDistance + 1)
-    }
-    
-    private func queryHasNumbers(_ query: String) -> Bool {
-        return query.rangeOfCharacter(from: .decimalDigits) != nil
-    }
-    
-    private func querySeeksSteps(_ query: String) -> Bool {
-        let stepKeywords = ["how", "step", "procedure", "process", "instructions"]
-        return stepKeywords.contains { query.lowercased().contains($0) }
+        return out
     }
 }

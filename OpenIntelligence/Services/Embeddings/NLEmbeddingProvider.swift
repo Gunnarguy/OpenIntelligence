@@ -74,7 +74,7 @@ final class NLEmbeddingProvider: EmbeddingProvider {
                 "Falling back to hash embedding (NLEmbedding missing or low coverage)",
                 category: .embedding
             )
-            Log.debug("Sample text: \(trimmedText.prefix(80))", category: .embedding)
+            Log.debug("Fallback embedding input length: \(trimmedText.count) chars", category: .embedding)
             chunkEmbedding = createFallbackEmbedding(for: trimmedText)
         } else {
             // Average all word embeddings to get a single chunk-level embedding
@@ -94,7 +94,7 @@ final class NLEmbeddingProvider: EmbeddingProvider {
             let e = try await embed(text: t)
             out.append(e)
             if (idx + 1) % 50 == 0 {
-                print("   [NLEmbeddingProvider] Progress: \(idx + 1)/\(texts.count)")
+                Log.verbose("[NLEmbeddingProvider] Progress: \(idx + 1)/\(texts.count)", category: .embedding)
             }
         }
         return out
@@ -158,7 +158,7 @@ final class NLEmbeddingProvider: EmbeddingProvider {
         }
         let magnitude = embedding.reduce(0.0) { $0 + $1 * $1 }
         if magnitude < 0.0001 {
-            print("⚠️  [NLEmbeddingProvider] Near-zero embedding vector")
+            Log.warning("[NLEmbeddingProvider] Near-zero embedding vector", category: .embedding)
         }
     }
 }

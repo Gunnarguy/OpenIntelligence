@@ -33,8 +33,8 @@ class WritingToolsService {
         guard isAvailable else {
             throw WritingToolsError.notAvailable
         }
-        
-        print("📝 [Writing Tools] Proofreading text (\(text.count) chars)...")
+
+        Log.debug("[Writing Tools] Proofreading text (chars=\(text.count))", category: .pipeline)
         
         let request = WritingToolsRequest(
             text: text,
@@ -42,9 +42,8 @@ class WritingToolsService {
         )
         
         let result = try await WritingTools.process(request)
-        
-        print("   ✅ Proofreading complete")
-        print("   Changes: \(result.changeCount) corrections")
+
+        Log.debug("[Writing Tools] Proofreading complete (changes=\(result.changeCount))", category: .pipeline)
         
         return result.text
     }
@@ -54,8 +53,8 @@ class WritingToolsService {
         guard isAvailable else {
             throw WritingToolsError.notAvailable
         }
-        
-        print("📝 [Writing Tools] Rewriting text in '\(tone.rawValue)' tone...")
+
+        Log.debug("[Writing Tools] Rewriting text (chars=\(text.count), tone=\(tone.rawValue))", category: .pipeline)
         
         let request = WritingToolsRequest(
             text: text,
@@ -63,9 +62,8 @@ class WritingToolsService {
         )
         
         let result = try await WritingTools.process(request)
-        
-        print("   ✅ Rewrite complete")
-        print("   Alternatives: \(result.alternatives.count)")
+
+        Log.debug("[Writing Tools] Rewrite complete (alternatives=\(result.alternatives.count))", category: .pipeline)
         
         return result.alternatives
     }
@@ -75,8 +73,8 @@ class WritingToolsService {
         guard isAvailable else {
             throw WritingToolsError.notAvailable
         }
-        
-        print("📝 [Writing Tools] Summarizing text (\(text.count) chars) - style: \(style.rawValue)...")
+
+        Log.debug("[Writing Tools] Summarizing text (chars=\(text.count), style=\(style.rawValue))", category: .pipeline)
         
         let request = WritingToolsRequest(
             text: text,
@@ -84,10 +82,9 @@ class WritingToolsService {
         )
         
         let result = try await WritingTools.process(request)
-        
-        print("   ✅ Summary complete")
-        print("   Original: \(text.count) chars → Summary: \(result.text.count) chars")
-        print("   Compression: \(String(format: "%.1f", Double(result.text.count) / Double(text.count) * 100))%")
+
+        let compression = text.isEmpty ? 0.0 : (Double(result.text.count) / Double(text.count) * 100)
+        Log.debug("[Writing Tools] Summary complete (originalChars=\(text.count), summaryChars=\(result.text.count), compression=\(String(format: "%.1f", compression))%)", category: .pipeline)
         
         return result.text
     }
@@ -97,8 +94,8 @@ class WritingToolsService {
         guard isAvailable else {
             throw WritingToolsError.notAvailable
         }
-        
-        print("📝 [Writing Tools] Making text concise...")
+
+        Log.debug("[Writing Tools] Making text concise (chars=\(text.count))", category: .pipeline)
         
         let request = WritingToolsRequest(
             text: text,
@@ -106,9 +103,8 @@ class WritingToolsService {
         )
         
         let result = try await WritingTools.process(request)
-        
-        print("   ✅ Concise version ready")
-        print("   Original: \(text.count) chars → Concise: \(result.text.count) chars")
+
+        Log.debug("[Writing Tools] Concise version ready (originalChars=\(text.count), conciseChars=\(result.text.count))", category: .pipeline)
         
         return result.text
     }
@@ -121,8 +117,8 @@ class WritingToolsService {
             // Fallback: Return raw chunks concatenated
             return chunks.map { $0.chunk.content }.joined(separator: "\n\n")
         }
-        
-        print("📝 [Writing Tools] Summarizing \(chunks.count) retrieved chunks for LLM context...")
+
+        Log.debug("[Writing Tools] Summarizing context (chunks=\(chunks.count))", category: .pipeline)
         
         let rawContext = chunks.map { chunk in
             """
@@ -133,11 +129,10 @@ class WritingToolsService {
         
         // Use "key points" style for factual document content
         let summary = try await summarize(rawContext, style: .keyPoints)
-        
-        print("   ✅ Context summarized:")
-        print("      Original: \(rawContext.count) chars")
-        print("      Summary: \(summary.count) chars")
-        print("      Savings: \(rawContext.count - summary.count) chars (\(String(format: "%.1f", (1.0 - Double(summary.count) / Double(rawContext.count)) * 100))%)")
+
+        let savings = rawContext.count - summary.count
+        let pct = rawContext.isEmpty ? 0.0 : ((1.0 - Double(summary.count) / Double(rawContext.count)) * 100)
+        Log.debug("[Writing Tools] Context summarized (originalChars=\(rawContext.count), summaryChars=\(summary.count), savingsChars=\(savings), savingsPct=\(String(format: "%.1f", pct))%)", category: .pipeline)
         
         return summary
     }
@@ -147,18 +142,16 @@ class WritingToolsService {
         guard isAvailable else {
             return query
         }
-        
-        print("📝 [Writing Tools] Clarifying user query...")
+
+        Log.debug("[Writing Tools] Clarifying user query (chars=\(query.count))", category: .pipeline)
         
         // Use proofread to fix typos and grammar
         let clarified = try await proofread(query)
-        
+
         if clarified != query {
-            print("   ✅ Query clarified:")
-            print("      Original: \(query)")
-            print("      Clarified: \(clarified)")
+            Log.debug("[Writing Tools] Query clarified (charsBefore=\(query.count), charsAfter=\(clarified.count))", category: .pipeline)
         } else {
-            print("   ℹ️  Query already clear")
+            Log.verbose("[Writing Tools] Query already clear", category: .pipeline)
         }
         
         return clarified

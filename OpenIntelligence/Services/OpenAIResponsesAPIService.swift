@@ -37,10 +37,7 @@ class OpenAIResponsesAPIService: LLMService {
         self.verbosity = verbosity
         
         if isAvailable {
-            print("✅ GPT-5 Responses API initialized")
-            print("   🔑 Using model: \(model)")
-            print("   🧠 Reasoning effort: \(reasoningEffort)")
-            print("   📝 Verbosity: \(verbosity)")
+            Log.debug("GPT-5 Responses API initialized (model=\(model), reasoningEffort=\(reasoningEffort), verbosity=\(verbosity))", category: .llm)
         }
     }
     
@@ -49,10 +46,7 @@ class OpenAIResponsesAPIService: LLMService {
             throw LLMError.modelUnavailable
         }
         
-        print("\n🌐 [GPT-5 Responses] Starting API call...")
-        print("   Model: \(model)")
-        print("   Reasoning effort: \(reasoningEffort)")
-        print("   Verbosity: \(verbosity)")
+        Log.debug("[GPT-5 Responses] Starting API call (model=\(model), reasoningEffort=\(reasoningEffort), verbosity=\(verbosity))", category: .llm)
         
         let startTime = Date()
         
@@ -87,7 +81,7 @@ class OpenAIResponsesAPIService: LLMService {
         // Add previous_response_id for CoT passing if available
         if responsesToggle(.includeCoT, defaultValue: true), let prevId = lastResponseId {
             requestBody["previous_response_id"] = prevId
-            print("   🔗 Passing previous CoT: \(prevId)")
+            Log.debug("[GPT-5 Responses] Passing previous response id", category: .llm)
         }
         
         // Set max output tokens
@@ -131,7 +125,7 @@ class OpenAIResponsesAPIService: LLMService {
         // Extract response ID for next turn
         if let responseId = responseJson["id"] as? String {
             lastResponseId = responseId
-            print("   💾 Stored response ID: \(responseId)")
+            Log.debug("[GPT-5 Responses] Stored response id", category: .llm)
         }
         
         // Extract text from response
@@ -151,9 +145,7 @@ class OpenAIResponsesAPIService: LLMService {
         // Estimate TTFT (Responses API returns this in headers sometimes, but not always)
         let ttft = totalTime * 0.1  // Rough estimate: 10% of total time
         
-        print("✅ [GPT-5 Responses] Generation complete")
-        print("   ⏱️  Total time: \(String(format: "%.2f", totalTime))s")
-        print("   🎯 Output tokens: \(tokensGenerated)")
+        Log.debug("[GPT-5 Responses] Generation complete (total=\(String(format: "%.2f", totalTime))s, outputTokens=\(tokensGenerated))", category: .performance)
         
         return LLMResponse(
             text: outputText,

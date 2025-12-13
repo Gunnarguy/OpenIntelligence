@@ -34,7 +34,7 @@ struct ChatScreen: View {
     @State private var processingClock = Timer.publish(every: 0.2, on: .main, in: .common)
         .autoconnect()
     // Ephemeral UI and retrieval
-    @State private var toasts: [ToastItem] = []
+    @StateObject private var toastManager = ToastManager()
     @State private var currentRetrievedChunks: [RetrievedChunk] = []
     @State private var currentMetadata: ResponseMetadata? = nil
     @State private var showRetrievedDetails: Bool = false
@@ -69,124 +69,85 @@ struct ChatScreen: View {
     @AppStorage("executionContextRaw") private var executionContextRaw: String = "automatic"
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Header removed (moved actions to NavigationBar toolbar)
-
-            // Container selector (scopes chat retrieval)
-            ContainerPickerStrip(containerService: ragService.containerService)
-                .padding(.horizontal)
-
-            // One-off override (applies to next message only)
-            HStack(spacing: DSSpacing.sm) {
-                Text("This message:")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                Picker("Library", selection: $messageContainerOverride) {
-                    // Nil = use pinned active container
-                    let activeName = ragService.containerService.activeContainer?.name ?? "Active"
-                    Text("Active: \(activeName)").tag(Optional<UUID>.none)
-                    ForEach(ragService.containerService.containers, id: \.id) { c in
-                        Text(c.name).tag(Optional(c.id))
-                    }
-                }
-                .pickerStyle(.menu)
-                if messageContainerOverride != nil {
-                    Button {
-                        messageContainerOverride = nil
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                }
-                Spacer()
-            }
-            .padding(.horizontal)
-
-            // Context / Status Bar (active-container scoped)
-            ContextStatusBarView(
-                docCount: activeDocCount,
-                chunkCount: activeChunkCount,
-                usedK: latestRetrievedCount
-            )
-
-            Divider()
-
-            if shouldShowFirstQueryHero {
-                FirstQueryPromptView(
-                    hasDocuments: activeDocCount > 0,
-                    prompts: starterPrompts,
-                    onPromptSelected: sendSuggestedPrompt
+        ZStack(alignment: .top) {
+            // Main content VStack
+            VStack(spacing: 0) {
+                // Compact header with container + stats
+                CompactChatHeader(
+                    containerService: ragService.containerService,
+                    docCount: activeDocCount,
+                    chunkCount: activeChunkCount,
+                    messageContainerOverride: $messageContainerOverride
                 )
-                .padding(.horizontal, DSSpacing.md)
-                .padding(.vertical, DSSpacing.md)
-            } else {
-                MessageListView(messages: $messages)
-                    .clipped()
-                    .padding(.bottom, DSSpacing.md)
-            }
 
-            // Streaming row (verbose but clean)
-            if isProcessing && !streamingText.isEmpty {
-                HStack(alignment: .top, spacing: DSSpacing.xs) {
-                    AvatarView(kind: .assistant)
-                    VStack(alignment: .leading, spacing: DSSpacing.xs) {
-                        Text(streamingText)
-                            .font(DSTypography.body)
-                            .foregroundColor(DSColors.primaryText)
-                            .padding(.horizontal, DSSpacing.sm)
-                            .padding(.vertical, DSSpacing.sm)
-                            .background(DSColors.surface)
-                            .clipShape(
-                                RoundedRectangle(cornerRadius: DSCorners.bubble, style: .continuous)
-                            )
-                            .bubbleShadow()
-                        HStack(spacing: DSSpacing.xs) {
-                            TokenCadenceView(
-                                tokensApprox: tokensApprox, tokensPerSecond: tokensPerSecondApprox)
-                            TypingIndicator()
-                        }
-                    }
-                    Spacer(minLength: 48)
-                }
-                .padding(.horizontal, DSSpacing.md)
-                .transition(.opacity.combined(with: .scale))
-            }
-
-            // Stage indicator + execution badge (stacked, not overlay)
-            StageProgressBar(
-                stage: stage,
-                execution: execution,
-                ttft: ttft,
-                embeddingElapsed: embeddingElapsedDisplay,
-                searchingElapsed: searchingElapsedDisplay,
-                generatingElapsed: generatingElapsedDisplay
-            )
-
-            if !thinkingEvents.isEmpty {
-                ThinkingStreamView(events: thinkingEvents)
+                // Main content area
+                if shouldShowFirstQueryHero {
+                    FirstQueryPromptView(
+                        hasDocuments: activeDocCount > 0,
+                        prompts: starterPrompts,
+                        onPromptSelected: sendSuggestedPrompt
+                    )
                     .padding(.horizontal, DSSpacing.md)
-                    .padding(.bottom, DSSpacing.sm)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-            }
+                    .padding(.vertical, DSSpacing.md)
+                } else {
+                    MessageListV2(
+                        messages: $messages,
+                        streamingText: streamingText,
+                        isStreaming: isProcessing,
+                        generationStart: generationStart,
+                        onRegenerate: { message in
+                            regenerateResponse(for: message)
+                        }
+                    )
+                }
+                
+                // Sources tray - only show AFTER we have sources (post-generation)
+                // During generation, sources aren't available yet from RAG pipeline
+                if !currentRetrievedChunks.isEmpty && !isProcessing {
+                    RetrievalSourcesTray(
+                        stage: .complete,
+                        chunks: currentRetrievedChunks
+                    ) {
+                        showRetrievedDetails = true
+                    }
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
 
-            // Live telemetry strip during generation (stacked, not overlay)
-            if isProcessing {
-                LiveCountersStrip(
-                    ttft: ttft,
-                    tokensApprox: tokensApprox,
-                    tokensPerSecondApprox: tokensPerSecondApprox,
-                    retrievedCount: latestRetrievedCount
+                // Compact status pill during processing (single source of truth)
+                if isProcessing {
+                    StatusPillV2(
+                        stage: stage,
+                        execution: execution,
+                        ttft: ttft,
+                        embeddingElapsed: embeddingElapsedDisplay,
+                        searchingElapsed: searchingElapsedDisplay,
+                        generatingElapsed: generatingElapsedDisplay
+                    )
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+
+                // Collapsible thinking stream (already compact)
+                if !thinkingEvents.isEmpty {
+                    ThinkingStreamView(events: thinkingEvents)
+                        .padding(.horizontal, DSSpacing.md)
+                        .padding(.bottom, DSSpacing.xs)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+
+                Divider()
+                    .opacity(0.5)
+
+                // Modern composer with stop button support
+                ChatComposerV2(
+                    isProcessing: isProcessing,
+                    onSend: sendMessage,
+                    onStop: stopGeneration
                 )
             }
-
-            Divider()
-
-            // Composer (will evolve with Writing Tools and actions)
-            ChatComposer(
-                isProcessing: isProcessing,
-                onSend: sendMessage
-            )
+            
+            // Toast overlay (appears above everything) - minimal use
+            ToastStackView(items: toastManager.toasts, maxVisible: 1)
+                .padding(.top, 60) // Below nav bar
         }
         .navigationTitle(ragService.currentModelName)
         #if os(iOS)
@@ -396,8 +357,6 @@ struct ChatScreen: View {
     }
 
     private func newChat() {
-        print("🔄 [ChatScreen] New chat initiated")
-        
         // Cancel any in-flight processing
         if isProcessing {
             resetStreamingState()
@@ -417,14 +376,12 @@ struct ChatScreen: View {
         generatingElapsedFinal = nil
         currentRetrievedChunks = []
         currentMetadata = nil
-        toasts.removeAll()
+        toastManager.clearAll()
         showRetrievedDetails = false
         thinkingEvents.removeAll()
     }
 
     private func clearChat() {
-        print("🗑️ [ChatScreen] Clear chat initiated")
-        
         // Cancel any in-flight processing
         if isProcessing {
             resetStreamingState()
@@ -442,9 +399,56 @@ struct ChatScreen: View {
         generatingElapsedFinal = nil
         currentRetrievedChunks = []
         currentMetadata = nil
-        toasts.removeAll()
+        toastManager.clearAll()
         showRetrievedDetails = false
         thinkingEvents.removeAll()
+    }
+    
+    /// Stops generation immediately and preserves partial response
+    private func stopGeneration() {
+        guard isProcessing else { return }
+        
+        // Flush any buffered text immediately
+        flushStreamingBufferToVisibleText()
+        
+        // If we have partial text, save it as a message
+        if !streamingText.isEmpty {
+            var partial = ChatMessage(
+                role: .assistant,
+                content: streamingText + "\n\n*(Generation stopped)*"
+            )
+            partial.containerId = ragService.containerService.activeContainerId
+            messages.append(partial)
+        }
+        
+        // Reset all processing state
+        resetStreamingState()
+        isProcessing = false
+        stage = .idle
+        DSHaptics.selection()
+    }
+    
+    /// Regenerates a response by finding the preceding user query
+    private func regenerateResponse(for message: ChatMessage) {
+        guard message.role == .assistant else { return }
+        guard !isProcessing else { return }
+        
+        // Find the user message that preceded this assistant response
+        if let index = messages.firstIndex(where: { $0.id == message.id }),
+           index > 0 {
+            let previousMessage = messages[index - 1]
+            if previousMessage.role == .user {
+                // Remove the assistant response we're regenerating
+                messages.remove(at: index)
+                
+                // Remove the user message too (sendMessage will re-add it)
+                messages.remove(at: index - 1)
+                
+                // Re-send the query
+                DSHaptics.selection()
+                sendMessage(previousMessage.content)
+            }
+        }
     }
 
     private func sendMessage(_ text: String) {
@@ -452,10 +456,7 @@ struct ChatScreen: View {
         guard !query.isEmpty else { return }
         
         // Prevent concurrent queries
-        guard !isProcessing else {
-            print("⚠️ [ChatScreen] Query already in progress, ignoring new request")
-            return
-        }
+        guard !isProcessing else { return }
         
         onboardingStore.markAskedFirstQuery()
 
@@ -517,8 +518,7 @@ struct ChatScreen: View {
                     self.searchingElapsedFinal = nil
                     self.generatingStartTS = nil
                     self.generatingElapsedFinal = nil
-                    self.pushToast(
-                        "Embedding started", icon: "brain.head.profile", tint: DSColors.accent)
+                    // StatusPillV2 shows stage - no toast needed
                 }
                 try? await Task.sleep(nanoseconds: 250_000_000)
 
@@ -529,8 +529,7 @@ struct ChatScreen: View {
                     if let embStart = self.embeddingStart {
                         self.embeddingElapsedFinal = Date().timeIntervalSince(embStart)
                     }
-                    self.pushToast(
-                        "Searching top \(capturedTopK)", icon: "magnifyingglass", tint: .green)
+                    // StatusPillV2 shows stage - no toast needed
                 }
 
                 let config = InferenceConfig(
@@ -556,7 +555,7 @@ struct ChatScreen: View {
                     if let searchStart = self.searchingStart, let genStart = self.generationStart {
                         self.searchingElapsedFinal = genStart.timeIntervalSince(searchStart)
                     }
-                    self.pushToast("Generating…", icon: "sparkles", tint: DSColors.accent)
+                    // StatusPillV2 shows stage - no toast needed
                 }
 
                 let response = try await capturedService.query(
@@ -578,9 +577,7 @@ struct ChatScreen: View {
                 await MainActor.run {
                     self.currentRetrievedChunks = response.retrievedChunks
                     self.currentMetadata = response.metadata
-                    self.pushToast(
-                        "Found \(response.retrievedChunks.count) source\(response.retrievedChunks.count == 1 ? "" : "s")",
-                        icon: "doc.text.magnifyingglass", tint: .green)
+                    // Sources tray will show this - no separate toast needed
                 }
 
                 // Update execution badge based on TTFT heuristic
@@ -588,17 +585,13 @@ struct ChatScreen: View {
                     await MainActor.run {
                         self.ttft = first
                         self.execution = first < 1.0 ? .onDevice : .privateCloudCompute
-                        let ttftString =
-                            first < 1.0
-                            ? String(format: "%.0f ms", first * 1000)
-                            : String(format: "%.2f s", first)
-                        self.pushToast("TTFT \(ttftString)", icon: "timer", tint: DSColors.accent)
+                        // TTFT shown in StatusPill - no toast needed
                     }
                 }
 
                 var assistant = ChatMessage(
                     role: .assistant,
-                    content: response.generatedResponse,
+                    content: sanitizeFinalResponse(response.generatedResponse),
                     metadata: response.metadata,
                     retrievedChunks: response.retrievedChunks
                 )
@@ -609,6 +602,15 @@ struct ChatScreen: View {
                     // No need to reset again here - would race with final flush
                     self.messages.append(assistant)
                     self.stage = .complete
+                    
+                    // Show completion toast with token count
+                    let tokenCount = response.metadata.tokensGenerated
+                    self.toastManager.clearAll()
+                    self.pushToast(
+                        tokenCount > 0 ? "Done • \(tokenCount) tokens" : "Complete",
+                        icon: "checkmark.circle.fill",
+                        tint: .green
+                    )
                 }
 
                 try? await Task.sleep(nanoseconds: 200_000_000)
@@ -622,10 +624,14 @@ struct ChatScreen: View {
                     self.generationStart = nil
                 }
             } catch {
-                print("❌ [ChatScreen] Query failed: \(error.localizedDescription)")
+                Log.error("Query failed: \(error.localizedDescription)", category: .llm)
                 await MainActor.run {
                     self.stage = .idle
                     self.resetStreamingState()
+                    
+                    // Clear any pending toasts and show error
+                    self.toastManager.clearAll()
+                    self.pushToast("Error occurred", icon: "exclamationmark.triangle.fill", tint: .red)
                     
                     // Add error message to chat
                     let errorMsg = ChatMessage(
@@ -646,8 +652,8 @@ struct ChatScreen: View {
     // MARK: - Toasts
 
     private func pushToast(_ title: String, icon: String, tint: Color) {
-        // Toast UI disabled for layout stabilization
-        // Intentionally no-op to avoid any overlay/stack interference
+        let toast = ToastItem(title: title, icon: icon, tint: tint)
+        toastManager.show(toast, duration: 2.0)
     }
 
     // MARK: - Streaming Cadence Helpers
@@ -672,7 +678,6 @@ struct ChatScreen: View {
         streamingBuffer.append(sanitized)
         hasReceivedStreamToken = true
         if streamingPumpTask == nil {
-            print("🚰 [Streaming] Starting pump (buffer=\(streamingBuffer.count) chars)")
             streamingPumpTask = Task { await pumpStreamingBuffer() }
         }
     }
@@ -689,10 +694,7 @@ struct ChatScreen: View {
     /// Drips buffered characters into the visible text at a steady cadence to avoid bursty dumps.
     @MainActor
     private func pumpStreamingBuffer(chunkSize: Int = 50, cadence: UInt64 = 80_000_000) async {
-        defer {
-            print("🚰 [Streaming] Pump stopped (remaining buffer=\(streamingBuffer.count) chars)")
-            streamingPumpTask = nil
-        }
+        defer { streamingPumpTask = nil }
         var pumpedCount = 0
         while !Task.isCancelled {
             guard !streamingBuffer.isEmpty else { return }
@@ -706,10 +708,6 @@ struct ChatScreen: View {
                 streamingText.append(nextChunk)
             }
             
-            if pumpedCount % 5 == 0 {
-                print("🚰 [Streaming] Pumped \(pumpedCount) chunks (\(streamingText.count) visible chars, \(streamingBuffer.count) buffered)")
-            }
-            
             do {
                 try await Task.sleep(nanoseconds: cadence)
             } catch {
@@ -718,7 +716,7 @@ struct ChatScreen: View {
         }
     }
 
-    /// Cleans streamed chunks before they reach the UI, stripping stray control characters and the recurring "null -" artifact reported in the stream gutter.
+    /// Cleans streamed chunks before they reach the UI, stripping stray control characters and the recurring "null" artifact reported in the stream gutter.
     private func sanitizeStreamChunk(_ chunk: String, isFirstChunk: Bool) -> String? {
         guard !chunk.isEmpty else { return nil }
 
@@ -731,30 +729,59 @@ struct ChatScreen: View {
 
         guard !cleaned.isEmpty else { return nil }
 
-        if isFirstChunk,
-            let range = cleaned.range(
-                of: #"^\s*(?:null|\(null\))\s*[-–—]\s*"#,
+        // On the first chunk, strip common malformed prefixes that appear from certain LLM streams
+        if isFirstChunk {
+            // Pattern matches: "null", "(null)", "null -", "null:", "null\n", etc.
+            if let range = cleaned.range(
+                of: #"^\s*(?:\(null\)|null)[\s\-–—:]*"#,
                 options: [.regularExpression, .caseInsensitive]
-            )
-        {
+            ) {
+                let removed = cleaned[range]
+                cleaned = String(cleaned[range.upperBound...])
+                let prefixSample = removed.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !prefixSample.isEmpty {
+                    Log.warning(
+                        "Dropped malformed stream prefix: \(prefixSample)",
+                        category: .streaming
+                    )
+                    TelemetryCenter.emit(
+                        .system,
+                        severity: .warning,
+                        title: "Trimmed malformed stream prefix",
+                        metadata: ["prefix": prefixSample]
+                    )
+                }
+            }
+        }
+        
+        // Also strip standalone "null" if the entire chunk is just "null"
+        if cleaned.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "null" {
+            Log.debug("Dropped standalone 'null' chunk", category: .streaming)
+            return nil
+        }
+
+        return cleaned.isEmpty ? nil : cleaned
+    }
+    
+    /// Sanitizes the final response text before displaying in message bubble.
+    /// Strips leading "null" artifacts and other malformed prefixes.
+    private func sanitizeFinalResponse(_ text: String) -> String {
+        var cleaned = text
+        
+        // Strip leading "null" or "(null)" with optional separator
+        if let range = cleaned.range(
+            of: #"^\s*(?:\(null\)|null)[\s\-–—:]*"#,
+            options: [.regularExpression, .caseInsensitive]
+        ) {
             let removed = cleaned[range]
             cleaned = String(cleaned[range.upperBound...])
             let prefixSample = removed.trimmingCharacters(in: .whitespacesAndNewlines)
             if !prefixSample.isEmpty {
-                Log.warning(
-                    "Dropped malformed stream prefix: \(prefixSample)",
-                    category: .streaming
-                )
-                TelemetryCenter.emit(
-                    .system,
-                    severity: .warning,
-                    title: "Trimmed malformed stream prefix",
-                    metadata: ["prefix": prefixSample]
-                )
+                Log.warning("Stripped malformed response prefix: \(prefixSample)", category: .llm)
             }
         }
-
-        return cleaned.isEmpty ? nil : cleaned
+        
+        return cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 
@@ -837,6 +864,126 @@ struct ContextStatusBarView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
         .background(Color.green.opacity(0.05))
+    }
+}
+
+// MARK: - Compact Chat Header V2
+
+/// Modern, minimal header with container selector and document stats
+struct CompactChatHeader: View {
+    @ObservedObject var containerService: ContainerService
+    let docCount: Int
+    let chunkCount: Int
+    @Binding var messageContainerOverride: UUID?
+    
+    @State private var showContainerPicker = false
+    
+    private var activeContainerName: String {
+        containerService.activeContainer?.name ?? "Default"
+    }
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Container selector button
+            Button {
+                showContainerPicker = true
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "folder.fill")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    
+                    Text(activeContainerName)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(DSColors.primaryText)
+                        .lineLimit(1)
+                    
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(.ultraThinMaterial)
+                )
+            }
+            .buttonStyle(.plain)
+            
+            // Stats chips
+            HStack(spacing: 8) {
+                StatChip(icon: "doc.fill", value: "\(docCount)", color: .blue)
+                StatChip(icon: "square.grid.3x3.fill", value: "\(chunkCount)", color: .purple)
+            }
+            
+            Spacer()
+            
+            // Override indicator
+            if messageContainerOverride != nil {
+                Button {
+                    messageContainerOverride = nil
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.uturn.left")
+                            .font(.system(size: 10, weight: .semibold))
+                        Text("Override")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .foregroundStyle(.orange)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(
+                        Capsule()
+                            .fill(.orange.opacity(0.12))
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .confirmationDialog("Select Library", isPresented: $showContainerPicker) {
+            ForEach(containerService.containers, id: \.id) { container in
+                Button(container.name) {
+                    containerService.setActive(container.id)
+                }
+            }
+            
+            Divider()
+            
+            Button("Override This Message…") {
+                // Show override picker
+                if let first = containerService.containers.first {
+                    messageContainerOverride = first.id
+                }
+            }
+        } message: {
+            Text("Choose which library to search")
+        }
+    }
+}
+
+/// Small stat chip for header
+private struct StatChip: View {
+    let icon: String
+    let value: String
+    let color: Color
+    
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: 10, weight: .medium))
+            Text(value)
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+        }
+        .foregroundStyle(color)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(
+            Capsule()
+                .fill(color.opacity(0.1))
+        )
     }
 }
 

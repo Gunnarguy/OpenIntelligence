@@ -109,7 +109,10 @@ enum AutoTuneService {
         defaults.set(maxTokens, forKey: "llmMaxTokens")
         defaults.set(topK, forKey: "retrievalTopK")
         defaults.set(temperature, forKey: "llmTemperature")
-        print("🔧 [AutoTune] Applied defaults → maxTokens=\(maxTokens), topK=\(topK), temperature=\(String(format: "%.2f", temperature)) for \(selectedModel.rawValue)")
+        Log.debug(
+            "[AutoTune] Applied defaults → maxTokens=\(maxTokens), topK=\(topK), temperature=\(String(format: "%.2f", temperature)) for \(selectedModel.rawValue)",
+            category: .pipeline
+        )
     }
 
     // MARK: - Helpers

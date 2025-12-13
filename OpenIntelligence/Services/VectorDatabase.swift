@@ -12,25 +12,42 @@ import Foundation
 protocol VectorDatabase {
     /// Store a document chunk with its embedding
     func store(chunk: DocumentChunk) async throws
-    
-    /// Store multiple chunks in batch
+
+    /// Store a batch of chunks.
     func storeBatch(chunks: [DocumentChunk]) async throws
-    
-    /// Search for the k most similar chunks to a query embedding
+
+    /// Search for the nearest chunks to a query embedding.
     func search(embedding: [Float], topK: Int) async throws -> [RetrievedChunk]
-    
-    /// Delete all chunks for a specific document
+
+    /// Delete all chunks belonging to a given document.
     func deleteChunks(forDocument documentId: UUID) async throws
-    
-    /// Clear the entire database
+
+    /// Remove all stored chunks.
     func clear() async throws
-    
-    /// Get total count of stored chunks
+
+    /// Count chunks currently stored.
     func count() async throws -> Int
-    
-    /// Enumerate all chunks (used for analytics/visualization)
-    /// Implementations should be efficient and may downsample internally if needed.
+
+    /// Return all chunks.
     func allChunks() async throws -> [DocumentChunk]
+
+    /// Update a chunk.
+    func updateChunk(_ chunk: DocumentChunk) async throws
+
+    /// Check if a chunk exists.
+    func exists(chunkId: UUID) async -> Bool
+
+    /// Return health/usage statistics for diagnostics.
+    func statistics() async -> VectorDatabaseStats
+}
+
+/// Statistics for vector database health monitoring
+struct VectorDatabaseStats {
+    let chunkCount: Int
+    let dimension: Int
+    let uniqueDocuments: Int
+    let estimatedMemoryBytes: Int
+    let backend: String
 }
 
 /// In-memory vector database implementation with performance optimizations
@@ -61,33 +78,42 @@ class InMemoryVectorDatabase: VectorDatabase {
     // MARK: - VectorDatabase Protocol
     
     func store(chunk: DocumentChunk) async throws {
+        guard chunk.embedding.count == embeddingDim else {
+            throw VectorDatabaseError.invalidEmbedding
+        }
         await withCheckedContinuation { continuation in
             queue.async(flags: .barrier) {
                 self.chunks[chunk.id] = chunk
+                // Maintain norm cache and clear search cache when DB mutates
+                self.embeddingNorms[chunk.id] = self.computeNorm(chunk.embedding)
+                self.embeddingCache.removeAll()
                 continuation.resume()
             }
         }
     }
     
     func storeBatch(chunks: [DocumentChunk]) async throws {
-        print("💾 [VectorDatabase] Storing \(chunks.count) chunks...")
+        Log.debug("[InMemoryVectorDatabase] Storing \(chunks.count) chunks...", category: .vectorDB)
         let startTime = Date()
         
         // Validate embeddings before storing
         for (index, chunk) in chunks.enumerated() {
             guard chunk.embedding.count == embeddingDim else {
-                print("❌ [VectorDatabase] Invalid embedding dimension at index \(index): \(chunk.embedding.count) (expected \(embeddingDim))")
+                Log.error(
+                    "[InMemoryVectorDatabase] Invalid embedding dimension at index \(index): \(chunk.embedding.count) (expected \(embeddingDim))",
+                    category: .vectorDB
+                )
                 throw VectorDatabaseError.invalidEmbedding
             }
         }
         
+        // Mutate storage on the concurrent queue barrier.
         await withCheckedContinuation { continuation in
             queue.async(flags: .barrier) {
                 for chunk in chunks {
                     self.chunks[chunk.id] = chunk
                     // PERFORMANCE: Pre-compute and cache embedding norm
-                    let norm = self.computeNorm(chunk.embedding)
-                    self.embeddingNorms[chunk.id] = norm
+                    self.embeddingNorms[chunk.id] = self.computeNorm(chunk.embedding)
                 }
                 // PERFORMANCE: Clear cache when database changes
                 self.embeddingCache.removeAll()
@@ -96,8 +122,11 @@ class InMemoryVectorDatabase: VectorDatabase {
         }
         
         let totalTime = Date().timeIntervalSince(startTime)
-        print("✅ [VectorDatabase] Stored \(chunks.count) chunks in \(String(format: "%.2f", totalTime))s")
-        print("   Total chunks in database: \(self.chunks.count)")
+        Log.debug(
+            "[InMemoryVectorDatabase] Stored \(chunks.count) chunks in \(String(format: "%.2f", totalTime))s",
+            category: .vectorDB
+        )
+        Log.debug("[InMemoryVectorDatabase] Total chunks in database: \(self.chunks.count)", category: .vectorDB)
     }
     
     func search(embedding: [Float], topK: Int) async throws -> [RetrievedChunk] {
@@ -105,29 +134,29 @@ class InMemoryVectorDatabase: VectorDatabase {
         
         // Edge case: Empty database
         guard chunks.count > 0 else {
-            print("⚠️  [VectorDatabase] Search on empty database")
+            Log.warning("[InMemoryVectorDatabase] Search on empty database", category: .vectorDB)
             return []
         }
         
         // Edge case: topK larger than database size
         let effectiveTopK = min(topK, chunks.count)
         if effectiveTopK < topK {
-            print("⚠️  [VectorDatabase] Requested topK=\(topK) but only \(chunks.count) chunks available")
+            Log.warning("[InMemoryVectorDatabase] Requested topK=\(topK) but only \(chunks.count) chunks available", category: .vectorDB)
         }
         
         // Validate query embedding
         guard embedding.count == embeddingDim else {
-            print("❌ [VectorDatabase] Invalid query embedding dimension: \(embedding.count) (expected \(embeddingDim))")
+            Log.error("[InMemoryVectorDatabase] Invalid query embedding dimension: \(embedding.count) (expected \(embeddingDim))")
             throw VectorDatabaseError.invalidEmbedding
         }
         
         // PERFORMANCE: Check cache first
         if let cachedResult = checkCache(for: embedding) {
-            print("⚡️ [VectorDatabase] Cache hit! Returning \(cachedResult.count) cached results")
+            Log.debug("[InMemoryVectorDatabase] Cache hit (\(cachedResult.count) results)", category: .vectorDB)
             return Array(cachedResult.prefix(effectiveTopK))
         }
         
-        print("🔍 [VectorDatabase] Searching \(chunks.count) chunks for top \(effectiveTopK)...")
+        Log.debug("[InMemoryVectorDatabase] Searching \(chunks.count) chunks for top \(effectiveTopK)...", category: .vectorDB)
         
         // Snapshot storage and norms off the concurrent queue
         let (allChunksSnapshot, normsSnapshot): ([DocumentChunk], [UUID: Float]) = await withCheckedContinuation { continuation in
@@ -146,11 +175,11 @@ class InMemoryVectorDatabase: VectorDatabase {
         )
         
         let searchTime = Date().timeIntervalSince(startTime)
-        print("✅ [VectorDatabase] Search complete in \(String(format: "%.0f", searchTime * 1000))ms")
+        Log.debug("[InMemoryVectorDatabase] Search complete in \(String(format: "%.0f", searchTime * 1000))ms", category: .vectorDB)
         if let first = results.first {
-            print("   Top result: score=\(String(format: "%.3f", first.similarityScore))")
+            Log.debug("[InMemoryVectorDatabase] Top result: score=\(String(format: "%.3f", first.similarityScore))", category: .vectorDB)
             if results.count > 1, let last = results.last {
-                print("   Score range: \(String(format: "%.3f", last.similarityScore)) - \(String(format: "%.3f", first.similarityScore))")
+                Log.debug("[InMemoryVectorDatabase] Score range: \(String(format: "%.3f", last.similarityScore)) - \(String(format: "%.3f", first.similarityScore))", category: .vectorDB)
             }
         }
         
@@ -174,7 +203,7 @@ class InMemoryVectorDatabase: VectorDatabase {
         }
         
         let deletedCount = beforeCount - chunks.count
-        print("🗑️  [VectorDatabase] Deleted \(deletedCount) chunks for document \(documentId)")
+        Log.info("[InMemoryVectorDatabase] Deleted \(deletedCount) chunks for document \(documentId)", category: .vectorDB)
     }
     
     func clear() async throws {
@@ -189,7 +218,7 @@ class InMemoryVectorDatabase: VectorDatabase {
             }
         }
         
-        print("🗑️  [VectorDatabase] Cleared all \(count) chunks")
+        Log.info("[InMemoryVectorDatabase] Cleared all \(count) chunks", category: .vectorDB)
     }
     
     func count() async throws -> Int {
@@ -204,6 +233,44 @@ class InMemoryVectorDatabase: VectorDatabase {
         return await withCheckedContinuation { continuation in
             queue.async {
                 continuation.resume(returning: Array(self.chunks.values))
+            }
+        }
+    }
+    
+    func updateChunk(_ chunk: DocumentChunk) async throws {
+        guard chunk.embedding.count == embeddingDim else {
+            throw VectorDatabaseError.invalidEmbedding
+        }
+        await withCheckedContinuation { continuation in
+            queue.async(flags: .barrier) {
+                self.chunks[chunk.id] = chunk
+                self.embeddingNorms[chunk.id] = self.computeNorm(chunk.embedding)
+                self.embeddingCache.removeAll()
+                continuation.resume()
+            }
+        }
+    }
+    
+    func exists(chunkId: UUID) async -> Bool {
+        await withCheckedContinuation { continuation in
+            queue.async {
+                continuation.resume(returning: self.chunks[chunkId] != nil)
+            }
+        }
+    }
+    
+    func statistics() async -> VectorDatabaseStats {
+        await withCheckedContinuation { continuation in
+            queue.async {
+                let uniqueDocs = Set(self.chunks.values.map { $0.documentId }).count
+                let memEstimate = self.chunks.count * self.embeddingDim * MemoryLayout<Float>.size
+                continuation.resume(returning: VectorDatabaseStats(
+                    chunkCount: self.chunks.count,
+                    dimension: self.embeddingDim,
+                    uniqueDocuments: uniqueDocs,
+                    estimatedMemoryBytes: memEstimate,
+                    backend: "InMemory"
+                ))
             }
         }
     }
@@ -381,6 +448,7 @@ class PersistentVectorDatabase: VectorDatabase {
     // MARK: - Storage
     
     private var chunks: [UUID: DocumentChunk] = [:]
+    private var embeddingNorms: [UUID: Float] = [:]  // Cached norms for fast search
     private let queue = DispatchQueue(label: "com.openintelligence.persistentdb", attributes: .concurrent)
     private let fileManager = FileManager.default
     private let storageURL: URL
@@ -405,7 +473,7 @@ class PersistentVectorDatabase: VectorDatabase {
         self.storageURL = appDirectory.appendingPathComponent("vector_database.json")
         self.embeddingDim = 512
         
-        print("💾 [PersistentVectorDatabase] Storage location: \(storageURL.path)")
+        Log.debug("[PersistentVectorDatabase] Storage location: \(storageURL.path)", category: .vectorDB)
         
         // Load existing data
         loadFromDisk()
@@ -416,7 +484,7 @@ class PersistentVectorDatabase: VectorDatabase {
     init(storageURL: URL, dimension: Int) {
         self.storageURL = storageURL
         self.embeddingDim = dimension
-        print("💾 [PersistentVectorDatabase] Storage location: \(storageURL.path) (dim=\(dimension))")
+        Log.debug("[PersistentVectorDatabase] Storage location: \(storageURL.path) (dim=\(dimension))", category: .vectorDB)
         // Load existing data
         loadFromDisk()
     }
@@ -425,7 +493,7 @@ class PersistentVectorDatabase: VectorDatabase {
     
     private func loadFromDisk() {
         guard fileManager.fileExists(atPath: storageURL.path) else {
-            print("ℹ️  [PersistentVectorDatabase] No existing database found - starting fresh")
+            Log.info("[PersistentVectorDatabase] No existing database found - starting fresh", category: .vectorDB)
             return
         }
         
@@ -437,10 +505,15 @@ class PersistentVectorDatabase: VectorDatabase {
             // Convert array to dictionary for fast lookup
             self.chunks = Dictionary(uniqueKeysWithValues: loadedChunks.map { ($0.id, $0) })
             
-            print("✅ [PersistentVectorDatabase] Loaded \(chunks.count) chunks from disk")
+            // Pre-compute norms for loaded chunks
+            for chunk in loadedChunks {
+                self.embeddingNorms[chunk.id] = self.computeNorm(chunk.embedding)
+            }
+            
+            Log.info("[PersistentVectorDatabase] Loaded \(chunks.count) chunks from disk", category: .vectorDB)
         } catch {
-            print("❌ [PersistentVectorDatabase] Failed to load database: \(error.localizedDescription)")
-            print("   Starting with empty database")
+            Log.error("[PersistentVectorDatabase] Failed to load database: \(error.localizedDescription)")
+            Log.warning("[PersistentVectorDatabase] Starting with empty database")
         }
     }
     
@@ -455,10 +528,10 @@ class PersistentVectorDatabase: VectorDatabase {
                     try data.write(to: self.storageURL, options: .atomic)
                     
                     let sizeMB = Double(data.count) / 1_000_000.0
-                    print("💾 [PersistentVectorDatabase] Saved \(chunksArray.count) chunks (\(String(format: "%.2f", sizeMB)) MB)")
+                    Log.debug("[PersistentVectorDatabase] Saved \(chunksArray.count) chunks (\(String(format: "%.2f", sizeMB)) MB)", category: .vectorDB)
                     
                 } catch {
-                    print("❌ [PersistentVectorDatabase] Failed to save: \(error.localizedDescription)")
+                    Log.error("[PersistentVectorDatabase] Failed to save: \(error.localizedDescription)")
                 }
                 continuation.resume()
             }
@@ -468,31 +541,68 @@ class PersistentVectorDatabase: VectorDatabase {
     // MARK: - VectorDatabase Protocol
     
     func store(chunk: DocumentChunk) async throws {
+        guard chunk.embedding.count == embeddingDim else {
+            Log.error("[PersistentVectorDatabase] Invalid embedding dimension: \(chunk.embedding.count)")
+            throw VectorDatabaseError.invalidEmbedding
+        }
+        let norm = computeNorm(chunk.embedding)
         await withCheckedContinuation { continuation in
             queue.async(flags: .barrier) {
                 self.chunks[chunk.id] = chunk
+                self.embeddingNorms[chunk.id] = norm
                 continuation.resume()
             }
         }
         await saveToDisk()
     }
     
+    /// Update an existing chunk in place (e.g., after re-embedding)
+    func updateChunk(_ chunk: DocumentChunk) async throws {
+        guard chunk.embedding.count == embeddingDim else {
+            throw VectorDatabaseError.invalidEmbedding
+        }
+        let norm = computeNorm(chunk.embedding)
+        await withCheckedContinuation { continuation in
+            queue.async(flags: .barrier) {
+                self.chunks[chunk.id] = chunk
+                self.embeddingNorms[chunk.id] = norm
+                continuation.resume()
+            }
+        }
+        await saveToDisk()
+    }
+    
+    /// Check if a chunk exists by ID
+    func exists(chunkId: UUID) async -> Bool {
+        await withCheckedContinuation { continuation in
+            queue.async {
+                continuation.resume(returning: self.chunks[chunkId] != nil)
+            }
+        }
+    }
+    
     func storeBatch(chunks: [DocumentChunk]) async throws {
-        print("💾 [PersistentVectorDatabase] Storing \(chunks.count) chunks...")
+        Log.debug("[PersistentVectorDatabase] Storing \(chunks.count) chunks...", category: .vectorDB)
         let startTime = Date()
         
         // Validate embeddings before storing
         for (index, chunk) in chunks.enumerated() {
             guard chunk.embedding.count == embeddingDim else {
-                print("❌ [PersistentVectorDatabase] Invalid embedding dimension at index \(index): \(chunk.embedding.count)")
+                Log.error("[PersistentVectorDatabase] Invalid embedding dimension at index \(index): \(chunk.embedding.count)")
                 throw VectorDatabaseError.invalidEmbedding
             }
         }
+        
+        // Pre-compute norms outside barrier for parallelism
+        let norms = chunks.map { (id: $0.id, norm: computeNorm($0.embedding)) }
         
         await withCheckedContinuation { continuation in
             queue.async(flags: .barrier) {
                 for chunk in chunks {
                     self.chunks[chunk.id] = chunk
+                }
+                for entry in norms {
+                    self.embeddingNorms[entry.id] = entry.norm
                 }
                 continuation.resume()
             }
@@ -501,8 +611,8 @@ class PersistentVectorDatabase: VectorDatabase {
         await saveToDisk()
         
         let totalTime = Date().timeIntervalSince(startTime)
-        print("✅ [PersistentVectorDatabase] Stored \(chunks.count) chunks in \(String(format: "%.2f", totalTime))s")
-        print("   Total chunks in database: \(self.chunks.count)")
+        Log.debug("[PersistentVectorDatabase] Stored \(chunks.count) chunks in \(String(format: "%.2f", totalTime))s", category: .vectorDB)
+        Log.debug("[PersistentVectorDatabase] Total chunks in database: \(self.chunks.count)", category: .vectorDB)
     }
     
     func search(embedding: [Float], topK: Int) async throws -> [RetrievedChunk] {
@@ -510,7 +620,7 @@ class PersistentVectorDatabase: VectorDatabase {
         
         // Validate query embedding
         guard embedding.count == embeddingDim else {
-            print("❌ [PersistentVectorDatabase] Invalid query embedding dimension: \(embedding.count)")
+            Log.error("[PersistentVectorDatabase] Invalid query embedding dimension: \(embedding.count)")
             throw VectorDatabaseError.invalidQueryEmbedding
         }
         
@@ -521,36 +631,47 @@ class PersistentVectorDatabase: VectorDatabase {
         }
         
         guard !allChunks.isEmpty else {
-            print("⚠️  [PersistentVectorDatabase] Database is empty")
+            Log.warning("[PersistentVectorDatabase] Database is empty", category: .vectorDB)
             return []
         }
         
-        // Offload vector math to background actor
+        // Snapshot norms for optimized search
+        let normsSnapshot = await withCheckedContinuation { continuation in
+            queue.async {
+                continuation.resume(returning: self.embeddingNorms)
+            }
+        }
+        
+        // Offload vector math to background actor with cached norms
         let engine = RAGEngine()
         let topChunks = await engine.computeVectorSearch(
             embedding: embedding,
             chunks: allChunks,
             topK: topK,
-            chunkNorms: nil
+            chunkNorms: normsSnapshot
         )
         
         let searchTime = Date().timeIntervalSince(startTime)
-        print("🔍 [PersistentVectorDatabase] Search complete in \(String(format: "%.2f", searchTime))s")
-        print("   Searched \(allChunks.count) chunks, returned top \(topChunks.count)")
+        Log.debug("[PersistentVectorDatabase] Search complete in \(String(format: "%.2f", searchTime))s", category: .vectorDB)
+        Log.debug("[PersistentVectorDatabase] Searched \(allChunks.count) chunks, returned top \(topChunks.count)", category: .vectorDB)
         if let topScore = topChunks.first?.similarityScore {
-            print("   Best match: \(String(format: "%.3f", topScore)) similarity")
+            Log.debug("[PersistentVectorDatabase] Best match: \(String(format: "%.3f", topScore)) similarity", category: .vectorDB)
         }
         
         return Array(topChunks)
     }
     
     func deleteChunks(forDocument documentId: UUID) async throws {
-        print("🗑️  [PersistentVectorDatabase] Deleting chunks for document: \(documentId)")
+        Log.debug("[PersistentVectorDatabase] Deleting chunks for document: \(documentId)", category: .vectorDB)
         
         let deletedCount = await withCheckedContinuation { continuation in
             queue.async(flags: .barrier) {
                 let beforeCount = self.chunks.count
-                self.chunks = self.chunks.filter { $0.value.documentId != documentId }
+                let idsToRemove = self.chunks.filter { $0.value.documentId == documentId }.keys
+                for id in idsToRemove {
+                    self.chunks.removeValue(forKey: id)
+                    self.embeddingNorms.removeValue(forKey: id)
+                }
                 let afterCount = self.chunks.count
                 continuation.resume(returning: beforeCount - afterCount)
             }
@@ -558,15 +679,16 @@ class PersistentVectorDatabase: VectorDatabase {
         
         await saveToDisk()
         
-        print("✅ [PersistentVectorDatabase] Deleted \(deletedCount) chunks")
+        Log.info("[PersistentVectorDatabase] Deleted \(deletedCount) chunks", category: .vectorDB)
     }
     
     func clear() async throws {
-        print("�️  [PersistentVectorDatabase] Clearing entire database...")
+        Log.info("[PersistentVectorDatabase] Clearing entire database...", category: .vectorDB)
         
         await withCheckedContinuation { continuation in
             queue.async(flags: .barrier) {
                 self.chunks.removeAll()
+                self.embeddingNorms.removeAll()
                 continuation.resume()
             }
         }
@@ -574,7 +696,7 @@ class PersistentVectorDatabase: VectorDatabase {
         // Delete the file
         try? fileManager.removeItem(at: storageURL)
         
-        print("✅ [PersistentVectorDatabase] Database cleared")
+        Log.info("[PersistentVectorDatabase] Database cleared", category: .vectorDB)
     }
     
     func count() async throws -> Int {
@@ -593,7 +715,32 @@ class PersistentVectorDatabase: VectorDatabase {
         }
     }
     
+    func statistics() async -> VectorDatabaseStats {
+        await withCheckedContinuation { continuation in
+            queue.async {
+                let uniqueDocs = Set(self.chunks.values.map { $0.documentId }).count
+                // Rough estimate: chunk dict + norms + embeddings
+                let embeddingBytes = self.chunks.count * self.embeddingDim * MemoryLayout<Float>.size
+                let normBytes = self.embeddingNorms.count * MemoryLayout<Float>.size
+                let memEstimate = embeddingBytes + normBytes
+                continuation.resume(returning: VectorDatabaseStats(
+                    chunkCount: self.chunks.count,
+                    dimension: self.embeddingDim,
+                    uniqueDocuments: uniqueDocs,
+                    estimatedMemoryBytes: memEstimate,
+                    backend: "PersistentJSON"
+                ))
+            }
+        }
+    }
+    
     // MARK: - Helper Methods
+    
+    private func computeNorm(_ vector: [Float]) -> Float {
+        var sum: Float = 0
+        for v in vector { sum += v * v }
+        return sqrt(sum)
+    }
     
     private func cosineSimilarity(_ a: [Float], _ b: [Float]) -> Float {
         var dotProduct: Float = 0.0

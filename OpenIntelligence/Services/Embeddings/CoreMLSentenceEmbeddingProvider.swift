@@ -41,7 +41,7 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
             let loaded = try MLModel(contentsOf: modelURL, configuration: cfg)
             self.init(model: loaded, dimension: expectedDimension)
         } catch {
-            print("✗ [CoreMLSentenceEmbeddingProvider] Failed to load model: \(error.localizedDescription)")
+            Log.error("[CoreMLSentenceEmbeddingProvider] Failed to load model: \(error.localizedDescription)", category: .embedding)
             self.init(dimension: expectedDimension)
         }
     }

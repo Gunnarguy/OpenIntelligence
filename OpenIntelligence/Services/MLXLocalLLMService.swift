@@ -36,8 +36,14 @@ final class MLXLocalLLMService: LLMService {
     
     init(config: Config = Config()) {
         self.config = config
-        print("🧪 MLXLocalLLMService initialized → \(config.baseURL.absoluteString) [model=\(config.model)]")
-        print("   Hint: Start server with: mlx_lm.server --model <name> --port 17860")
+        Log.info(
+            "[MLXLocalLLMService] Initialized → \(config.baseURL.absoluteString) [model=\(config.model)]",
+            category: .llm
+        )
+        Log.debug(
+            "[MLXLocalLLMService] Hint: Start server with: mlx_lm.server --model <name> --port 17860",
+            category: .llm
+        )
     }
     
     var isAvailable: Bool {
@@ -119,8 +125,11 @@ final class MLXLocalLLMService: LLMService {
         let payload = try JSONSerialization.data(withJSONObject: body)
         req.httpBody = payload
         
-        print("🌐 [MLX Local] POST \(url.absoluteString)")
-        print("    model=\(self.config.model) max_tokens=\(userConfig.maxTokens) temp=\(userConfig.temperature)")
+        Log.debug("[MLX Local] POST \(url.absoluteString)", category: .llm)
+        Log.debug(
+            "[MLX Local] model=\(self.config.model) max_tokens=\(userConfig.maxTokens) temp=\(userConfig.temperature)",
+            category: .llm
+        )
         
         let (data, resp) = try await URLSession.shared.data(for: req)
         guard let http = resp as? HTTPURLResponse else {
