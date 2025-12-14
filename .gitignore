@@ -36,6 +36,7 @@ venv/
 *.swp
 *.swo
 *~
+buildServer.json
 
 # Test artifacts
 Docs/TestDocuments/
