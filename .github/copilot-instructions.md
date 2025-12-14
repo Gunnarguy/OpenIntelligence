@@ -1,5 +1,66 @@
 # OpenIntelligence AI Guide
 
+> **This file is auto-injected into every Copilot session.** It is the single source of truth for how to work in this codebase. Read it fully before making any changes.
+
+## Prime Directives (STRICT)
+
+1. **Context First**: Before generating code, read `ROADMAP.md` (for current status) and `Docs/reference/ARCHITECTURE.md` (for patterns).
+2. **Zero-Sprawl Policy**: You are PROHIBITED from creating new markdown files (like `plan.md`, `update_log.md`) to document your work.
+3. **Single Source of Truth**: All task tracking happens in `ROADMAP.md`. Technical notes go in inline code comments.
+4. **Silent Alignment**: Do not explain that you are following these rules; just follow them.
+
+## Agent Mode Behavior
+
+- **Plan**: Propose your plan in Chat only—NO new files.
+- **Edit**: Apply changes directly to code files.
+- **Verify**: Run a build/lint check before confirming done.
+- **Update**: Check off tasks in `ROADMAP.md` (`[x]`) immediately upon completion.
+
+---
+
+## Directory Structure (Memorize This)
+
+```
+OpenIntelligence/
+├── OpenIntelligenceApp.swift    # App entry point
+├── ContentView.swift            # Root view (tab bar)
+├── Models/                      # Data types (ChatMessage, KnowledgeContainer, etc.)
+├── Services/                    # ALL business logic lives here
+│   ├── RAGService.swift         # 🔑 Main orchestrator (@MainActor, ~4000 LOC)
+│   ├── RAGEngine.swift          # Background actor (MMR, BM25, RRF)
+│   ├── LLMService.swift         # Protocol + 7 implementations
+│   ├── VectorStoreRouter.swift  # Per-container DB routing
+│   ├── SettingsStore.swift      # Centralized preferences
+│   └── ...                      # Other services (chunking, search, etc.)
+├── Views/                       # SwiftUI views organized by feature
+│   ├── ChatV2/                  # Main chat interface
+│   ├── Settings/                # Settings screens
+│   ├── Documents/               # Document management
+│   ├── Billing/                 # StoreKit/subscription UI
+│   └── ...
+├── Shared/                      # Cross-cutting utilities (DesignSystem, QuotaPolicy)
+├── StoreKit/                    # StoreKit 2 integration
+└── Utilities/                   # Keychain, MarkdownRenderer
+
+Docs/
+├── reference/
+│   ├── ARCHITECTURE.md          # Full technical reference (READ THIS)
+│   ├── RELEASE.md               # Release checklist, smoke tests, StoreKit testing
+│   └── PRICING_STRATEGY.md      # Business docs (don't modify)
+└── TestDocuments/               # Test fixtures for DocumentProcessor
+
+OpenIntelligenceTests/           # Unit tests + TestDoubles.swift for mocks
+Vendor/LocalLLMClient/           # llama.cpp + MLX (DON'T TOUCH - vendored dependency)
+scripts/                         # CI/CD helpers (secret_scan, preflight_check)
+```
+
+### Don't Touch Zones
+- `Vendor/` — Vendored llama.cpp/MLX binaries. Never modify.
+- `*.xcodeproj/` — Xcode manages this. Don't hand-edit.
+- `PRICING_STRATEGY.md` — Business-sensitive, gitignored from public.
+
+---
+
 ## Project Overview
 
 **Platform**: iOS 26.0+ (Swift 6.0, `-default-isolation=MainActor`)  
@@ -51,12 +112,32 @@ await recordTransmission(CloudTransmissionRecord(...))
 
 ## Build & Test Commands
 
-| Task           | Command                                                               |
-| -------------- | --------------------------------------------------------------------- |
-| **Build**      | ⌘R in Xcode (scheme: `OpenIntelligence`, device: `iPhone 17 Pro Max`) |
-| **Clean**      | `./clean_and_rebuild.sh` — clears DerivedData; fixes stale UI         |
-| **Smoke Test** | Manual: follow `smoke_test.md` (10 min)                               |
-| **Unit Tests** | ⌘U — see `OpenIntelligenceTests/` for mocks in `TestDoubles.swift`    |
+| Task              | Command                                                                  |
+| ----------------- | ------------------------------------------------------------------------ |
+| **Build**         | `xcodebuild -scheme OpenIntelligence -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build` |
+| **Clean Build**   | `./clean_and_rebuild.sh` — clears DerivedData; fixes stale UI           |
+| **Smoke Test**    | Follow `Docs/reference/RELEASE.md` § Smoke Test Checklist               |
+| **Unit Tests**    | `xcodebuild test -scheme OpenIntelligence -destination 'platform=iOS Simulator,name=iPhone 16 Pro'` |
+| **Lint**          | `swiftlint` (auto-runs on save in VS Code)                              |
+
+### Common Agent Tasks
+
+**"Add a new LLM provider"**
+1. Create `Services/MyNewLLMService.swift` conforming to `LLMService` protocol
+2. Add case to `LLMModelType` enum in `Models/LLMModelType.swift`
+3. Register in `RAGService.buildLLMFallbackChain()`
+4. Add UI toggle in `Views/Settings/`
+
+**"Add a new setting"**
+1. Add `@AppStorage` property to `Services/SettingsStore.swift`
+2. Add UI control in appropriate `Views/Settings/` screen
+3. Access via `@EnvironmentObject var settings: SettingsStore` in views
+
+**"Fix a retrieval bug"**
+1. Check `Services/HybridSearchService.swift` for search logic
+2. Check `Services/RAGEngine.swift` for ranking (MMR, RRF)
+3. Check `Services/VectorStoreRouter.swift` for DB routing
+4. Run `HybridSearchServiceTests` to verify
 
 ## Coding Conventions
 
