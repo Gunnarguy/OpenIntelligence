@@ -41,8 +41,7 @@ jobs:
 
       - name: Validate environment
         run: |
-          chmod +x scripts/validate_env.sh
-          ./scripts/validate_env.sh
+          bash scripts/validate_env.sh
 
       - name: SwiftLint (if available)
         run: |
