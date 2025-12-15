@@ -30,97 +30,98 @@ struct SettingsRootView: View {
         var icon: String {
             switch self {
             case .executionPrivacy: return "lock.shield"
-            case .modelSelection:   return "brain.head.profile"
-            case .fallbacks:        return "arrow.triangle.2.circlepath"
-            case .openAI:           return "key"
-            case .generation:       return "slider.horizontal.3"
-            case .retrieval:        return "magnifyingglass"
-            case .gallery:          return "rectangle.stack"
-            case .providers:        return "bolt.horizontal"
-            case .systemStatus:     return "waveform.path.ecg"
-            case .developer:        return "wrench.and.screwdriver"
-            case .about:            return "info.circle"
+            case .modelSelection: return "brain.head.profile"
+            case .fallbacks: return "arrow.triangle.2.circlepath"
+            case .openAI: return "key"
+            case .generation: return "slider.horizontal.3"
+            case .retrieval: return "magnifyingglass"
+            case .gallery: return "rectangle.stack"
+            case .providers: return "bolt.horizontal"
+            case .systemStatus: return "waveform.path.ecg"
+            case .developer: return "wrench.and.screwdriver"
+            case .about: return "info.circle"
             }
         }
 
         #if os(iOS)
-        static var allCases: [Category] {
-            [
-                .executionPrivacy,
-                .modelSelection,
-                .fallbacks,
-                .generation,
-                .retrieval,
-                .gallery,
-                .providers,
-                .systemStatus,
-                .developer,
-                .about
-            ]
-        }
+            static var allCases: [Category] {
+                [
+                    .executionPrivacy,
+                    .modelSelection,
+                    .fallbacks,
+                    .generation,
+                    .retrieval,
+                    .gallery,
+                    .providers,
+                    .systemStatus,
+                    .developer,
+                    .about,
+                ]
+            }
         #else
-        static var allCases: [Category] {
-            [
-                .executionPrivacy,
-                .modelSelection,
-                .fallbacks,
-                .openAI,
-                .generation,
-                .retrieval,
-                .gallery,
-                .providers,
-                .systemStatus,
-                .developer,
-                .about
-            ]
-        }
+            static var allCases: [Category] {
+                [
+                    .executionPrivacy,
+                    .modelSelection,
+                    .fallbacks,
+                    .openAI,
+                    .generation,
+                    .retrieval,
+                    .gallery,
+                    .providers,
+                    .systemStatus,
+                    .developer,
+                    .about,
+                ]
+            }
         #endif
     }
 
     #if os(iOS)
-    @State private var path = NavigationPath()
-    var body: some View {
-        NavigationStack(path: $path) {
-            List {
-                ForEach(availableCategories) { cat in
-                    NavigationLink(value: cat) {
-                        Label(cat.rawValue, systemImage: cat.icon)
+        @State private var path = NavigationPath()
+        var body: some View {
+            NavigationStack(path: $path) {
+                List {
+                    ForEach(availableCategories) { cat in
+                        NavigationLink(value: cat) {
+                            Label(cat.rawValue, systemImage: cat.icon)
+                        }
+                    }
+                }
+                .navigationTitle("Settings")
+                .navigationDestination(for: Category.self) { cat in
+                    destination(for: cat)
+                }
+                .onChange(of: settings.reviewerModeEnabled) { _, enabled in
+                    if !enabled {
+                        path = NavigationPath()
                     }
                 }
             }
-            .navigationTitle("Settings")
-            .navigationDestination(for: Category.self) { cat in
-                destination(for: cat)
+        }
+
+    #elseif os(macOS)
+        @State private var selection: Category? = .executionPrivacy
+        var body: some View {
+            NavigationSplitView {
+                List(availableCategories, selection: $selection) { cat in
+                    Label(cat.rawValue, systemImage: cat.icon)
+                }
+                .navigationTitle("Settings")
+            } detail: {
+                if let sel = selection {
+                    destination(for: sel)
+                } else {
+                    Text("Select a category")
+                        .foregroundStyle(.secondary)
+                }
             }
             .onChange(of: settings.reviewerModeEnabled) { _, enabled in
-                if !enabled {
-                    path = NavigationPath()
+                if !enabled, selection == .openAI {
+                    selection = .executionPrivacy
                 }
             }
         }
-    }
-    #elseif os(macOS)
-    @State private var selection: Category? = .executionPrivacy
-    var body: some View {
-        NavigationSplitView {
-            List(availableCategories, selection: $selection) { cat in
-                Label(cat.rawValue, systemImage: cat.icon)
-            }
-            .navigationTitle("Settings")
-        } detail: {
-            if let sel = selection {
-                destination(for: sel)
-            } else {
-                Text("Select a category")
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .onChange(of: settings.reviewerModeEnabled) { _, enabled in
-            if !enabled, selection == .openAI {
-                selection = .executionPrivacy
-            }
-        }
-    }
     #endif
 
     private var availableCategories: [Category] {
@@ -135,7 +136,7 @@ struct SettingsRootView: View {
                 .providers,
                 .systemStatus,
                 .developer,
-                .about
+                .about,
             ]
         #else
             var categories: [Category] = [
@@ -149,7 +150,7 @@ struct SettingsRootView: View {
                 .providers,
                 .systemStatus,
                 .developer,
-                .about
+                .about,
             ]
         #endif
 
@@ -172,16 +173,16 @@ struct SettingsRootView: View {
     private func destination(for cat: Category) -> some View {
         switch cat {
         case .executionPrivacy: ExecutionPrivacyView()
-        case .modelSelection:   ModelSelectionView()
-        case .fallbacks:        FallbacksView()
-        case .openAI:           OpenAISettingsView()
-        case .generation:       GenerationParametersView()
-        case .retrieval:        RetrievalSettingsView()
-        case .gallery:          ModelGalleryView()
-        case .providers:        LocalProvidersView()
-        case .systemStatus:     SystemStatusView()
-        case .developer:        DeveloperDiagnosticsView()
-        case .about:            AboutSettingsView()
+        case .modelSelection: ModelSelectionView()
+        case .fallbacks: FallbacksView()
+        case .openAI: OpenAISettingsView()
+        case .generation: GenerationParametersView()
+        case .retrieval: RetrievalSettingsView()
+        case .gallery: ModelGalleryView()
+        case .providers: LocalProvidersView()
+        case .systemStatus: SystemStatusView()
+        case .developer: DeveloperDiagnosticsView()
+        case .about: AboutSettingsView()
         }
     }
 }
@@ -241,9 +242,9 @@ struct ModelSelectionView: View {
                             Label(t.displayName, systemImage: t.iconName).tag(t)
                         }
                     }
-                #if os(iOS)
-                .pickerStyle(.menu)
-                #endif
+                    #if os(iOS)
+                    .pickerStyle(.menu)
+                    #endif
                 }
                 Text("Choose the primary inference pathway. Fallbacks are configured separately.")
                     .font(.footnote)
@@ -284,9 +285,11 @@ struct FallbacksView: View {
     private var firstOptions: [LLMModelType] {
         settings.fallbackOptions(excluding: Set([settings.selectedModel]))
     }
+
     private var secondOptions: [LLMModelType] {
         settings.fallbackOptions(excluding: Set([settings.selectedModel, settings.firstFallback]))
     }
+
     var body: some View {
         List {
             Section("First Fallback") {
@@ -372,7 +375,7 @@ struct GenerationParametersView: View {
                     Text("\(settings.maxTokens)")
                         .font(.system(.body, design: .monospaced))
                 }
-                Slider(value: Binding(get: { Double(settings.maxTokens) }, set: { settings.maxTokens = Int($0) }), in: 100...4096, step: 100)
+                Slider(value: Binding(get: { Double(settings.maxTokens) }, set: { settings.maxTokens = Int($0) }), in: 100 ... 4096, step: 100)
                 Text("Maximum number of tokens to generate.").font(.footnote).foregroundStyle(.secondary)
 
                 HStack {
@@ -381,7 +384,7 @@ struct GenerationParametersView: View {
                     Text("\(settings.contextLength)")
                         .font(.system(.body, design: .monospaced))
                 }
-                Slider(value: Binding(get: { Double(settings.contextLength) }, set: { settings.contextLength = Int($0) }), in: 512...32768, step: 512)
+                Slider(value: Binding(get: { Double(settings.contextLength) }, set: { settings.contextLength = Int($0) }), in: 512 ... 32768, step: 512)
                 Text("Size of the context window (input + output).").font(.footnote).foregroundStyle(.secondary)
             }
 
@@ -392,7 +395,7 @@ struct GenerationParametersView: View {
                     Text(String(format: "%.2f", settings.temperature))
                         .font(.system(.body, design: .monospaced))
                 }
-                Slider(value: $settings.temperature, in: 0...2.0, step: 0.05)
+                Slider(value: $settings.temperature, in: 0 ... 2.0, step: 0.05)
                 Text("Controls randomness (0.0 = deterministic, 1.0 = creative).").font(.footnote).foregroundStyle(.secondary)
 
                 HStack {
@@ -401,7 +404,7 @@ struct GenerationParametersView: View {
                     Text(String(format: "%.2f", settings.topP))
                         .font(.system(.body, design: .monospaced))
                 }
-                Slider(value: $settings.topP, in: 0...1.0, step: 0.05)
+                Slider(value: $settings.topP, in: 0 ... 1.0, step: 0.05)
                 Text("Nucleus sampling probability.").font(.footnote).foregroundStyle(.secondary)
             }
 
@@ -412,15 +415,15 @@ struct GenerationParametersView: View {
                     Text(String(format: "%.2f", settings.frequencyPenalty))
                         .font(.system(.body, design: .monospaced))
                 }
-                Slider(value: $settings.frequencyPenalty, in: 0...2.0, step: 0.1)
-                
+                Slider(value: $settings.frequencyPenalty, in: 0 ... 2.0, step: 0.1)
+
                 HStack {
                     Text("Presence Penalty")
                     Spacer()
                     Text(String(format: "%.2f", settings.presencePenalty))
                         .font(.system(.body, design: .monospaced))
                 }
-                Slider(value: $settings.presencePenalty, in: 0...2.0, step: 0.1)
+                Slider(value: $settings.presencePenalty, in: 0 ... 2.0, step: 0.1)
 
                 HStack {
                     Text("Repetition Penalty")
@@ -428,7 +431,7 @@ struct GenerationParametersView: View {
                     Text(String(format: "%.2f", settings.repetitionPenalty))
                         .font(.system(.body, design: .monospaced))
                 }
-                Slider(value: $settings.repetitionPenalty, in: 1.0...2.0, step: 0.05)
+                Slider(value: $settings.repetitionPenalty, in: 1.0 ... 2.0, step: 0.05)
             }
         }
         .navigationTitle("Generation")
@@ -441,7 +444,7 @@ struct RetrievalSettingsView: View {
         List {
             Section("Retrieved Chunks") {
                 HStack {
-                    Slider(value: Binding(get: { Double(settings.topK) }, set: { settings.topK = Int($0) }), in: 1...50, step: 1)
+                    Slider(value: Binding(get: { Double(settings.topK) }, set: { settings.topK = Int($0) }), in: 1 ... 50, step: 1)
                     Text("\(settings.topK)")
                         .font(.system(.body, design: .monospaced))
                         .frame(width: 40, alignment: .trailing)
@@ -449,6 +452,28 @@ struct RetrievalSettingsView: View {
             }
             Section {
                 Toggle("Lenient Retrieval Mode", isOn: $settings.lenientRetrievalMode)
+            }
+
+            Section {
+                Toggle(isOn: $settings.useHighAccuracyEmbeddings) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("High-Accuracy Embeddings")
+                        Text("Uses NLContextualEmbedding for 15-25% better semantic search. New libraries will use contextual embeddings.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            } header: {
+                Text("Embedding Quality")
+            } footer: {
+                if settings.useHighAccuracyEmbeddings {
+                    Label("Active provider: nl_contextual_embedding", systemImage: "sparkles")
+                        .font(.caption)
+                        .foregroundStyle(.green)
+                } else {
+                    Text("Active provider: nl_embedding (standard)")
+                        .font(.caption)
+                }
             }
         }
         .navigationTitle("Retrieval")
@@ -484,12 +509,12 @@ struct LocalProvidersView: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
-            
+
             Section("Local Providers") {
                 #if os(macOS)
-                Text("Configure MLX, llama.cpp, and Ollama (macOS).")
+                    Text("Configure MLX, llama.cpp, and Ollama (macOS).")
                 #else
-                Text("Local providers available on macOS.")
+                    Text("Local providers available on macOS.")
                 #endif
             }
         }
@@ -538,7 +563,7 @@ struct AboutSettingsView: View {
                 allowances: "10 documents · 1 library",
                 highlights: [
                     "Hybrid retrieval with on-device + PCC models",
-                    "Telemetry consent prompt on first run"
+                    "Telemetry consent prompt on first run",
                 ]
             ),
             .init(
@@ -547,7 +572,7 @@ struct AboutSettingsView: View {
                 allowances: "40 documents · 3 libraries",
                 highlights: [
                     "Faster ingestion queue",
-                    "Weekly rerank refresh"
+                    "Weekly rerank refresh",
                 ]
             ),
             .init(
@@ -557,7 +582,7 @@ struct AboutSettingsView: View {
                 highlights: [
                     "Full hybrid retrieval with MMR tuning",
                     "Automation hooks & sharing",
-                    "Priority compute lane"
+                    "Priority compute lane",
                 ]
             ),
             .init(
@@ -566,9 +591,9 @@ struct AboutSettingsView: View {
                 allowances: "Unlimited on-device usage",
                 highlights: [
                     "Local inference cartridges included",
-                    "No recurring charges"
+                    "No recurring charges",
                 ]
-            )
+            ),
         ]
     }
 

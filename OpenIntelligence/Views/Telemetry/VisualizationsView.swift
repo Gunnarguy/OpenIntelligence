@@ -6,11 +6,11 @@
 //  Created by GitHub Copilot on 10/18/25.
 //
 
-import SwiftUI
 import Charts
 import Foundation
+import SwiftUI
 #if canImport(UIKit)
-import UIKit
+    import UIKit
 #endif
 
 /// Top-level telemetry dashboard for the RAG pipeline.
@@ -70,7 +70,7 @@ struct VisualizationsView: View {
         .background(DSColors.background.ignoresSafeArea())
         .navigationTitle("Visualizations")
         #if os(iOS)
-        .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(.large)
         #endif
     }
 
@@ -235,10 +235,12 @@ struct VisualizationsView: View {
 
     @ViewBuilder
     private var embeddingSection: some View {
+        let dimension = containerService.activeContainer?.embeddingDim ?? 512
         if totalChunkCount > 0 {
             EmbeddingSpaceView(
                 chunkCount: totalChunkCount,
-                documentCount: activeDocuments.count
+                documentCount: activeDocuments.count,
+                embeddingDimension: dimension
             )
         } else {
             EmbeddingSpacePlaceholder(
@@ -250,7 +252,6 @@ struct VisualizationsView: View {
     }
 }
 
-
 // MARK: - Empty State
 
 struct EmptyVisualizationsView: View {
@@ -258,7 +259,7 @@ struct EmptyVisualizationsView: View {
     var body: some View {
         VStack(spacing: 24) {
             Spacer()
-            
+
             // Hero icon with gradient
             ZStack {
                 Circle()
@@ -266,14 +267,14 @@ struct EmptyVisualizationsView: View {
                         LinearGradient(
                             colors: [
                                 Color.purple.opacity(0.2),
-                                Color.blue.opacity(0.1)
+                                Color.blue.opacity(0.1),
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
                     )
                     .frame(width: 120, height: 120)
-                
+
                 Image(systemName: "chart.xyaxis.line")
                     .font(.system(size: 50))
                     .foregroundStyle(
@@ -284,12 +285,12 @@ struct EmptyVisualizationsView: View {
                         )
                     )
             }
-            
+
             VStack(spacing: 8) {
                 Text("No Data to Visualize")
                     .font(.title2)
                     .fontWeight(.bold)
-                
+
                 Text("Add documents to see embedding visualizations")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
@@ -307,7 +308,7 @@ struct EmptyVisualizationsView: View {
                         .clipShape(Capsule())
                 }
             }
-            
+
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -319,6 +320,7 @@ struct EmptyVisualizationsView: View {
 struct EmbeddingSpaceView: View {
     let chunkCount: Int
     let documentCount: Int
+    let embeddingDimension: Int // Actual dimension from container
 
     @State private var projectionMethod: ProjectionMethod = .pca
     @State private var showingInfo = false
@@ -382,7 +384,7 @@ struct EmbeddingSpaceView: View {
 
             InfoButtonView(
                 title: "Projection Method",
-                explanation: "We flatten 512-number vectors into something you can see.\n\n• PCA: super fast overview of the biggest themes.\n• t-SNE: highlights tiny topic bubbles.\n• UMAP: balanced layout when your library mixes formats." 
+                explanation: "We flatten 512-number vectors into something you can see.\n\n• PCA: super fast overview of the biggest themes.\n• t-SNE: highlights tiny topic bubbles.\n• UMAP: balanced layout when your library mixes formats."
             )
         }
         .padding(.horizontal)
@@ -410,7 +412,7 @@ struct EmbeddingSpaceView: View {
                 StatCard(
                     icon: "ruler",
                     label: "Dimensions",
-                    value: "512",
+                    value: "\(embeddingDimension)",
                     color: .purple
                 )
             }
@@ -475,7 +477,7 @@ struct EmbeddingSpacePlaceholder: View {
     let projectionMethod: EmbeddingSpaceView.ProjectionMethod
     let chunkCount: Int
     let documentCount: Int
-    
+
     var body: some View {
         VStack(spacing: 20) {
             // Chart placeholder
@@ -483,10 +485,10 @@ struct EmbeddingSpacePlaceholder: View {
                 RoundedRectangle(cornerRadius: 16)
                     .fill(DSColors.background)
                     .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
-                
+
                 VStack(spacing: 16) {
                     // Simulated scatter plot
-                    GeometryReader { geometry in
+                    GeometryReader { _ in
                         Canvas { context, size in
                             // Draw simulated clusters
                             drawSimulatedClusters(context: context, size: size, documentCount: documentCount)
@@ -494,11 +496,11 @@ struct EmbeddingSpacePlaceholder: View {
                     }
                     .frame(height: 300)
                     .padding()
-                    
+
                     VStack(spacing: 8) {
                         Text("🔮 Embedding Atlas Integration")
                             .font(.headline)
-                        
+
                         Text("Future: Interactive visualization with Apple's Embedding Atlas")
                             .font(.caption)
                             .foregroundColor(.secondary)
@@ -512,7 +514,7 @@ struct EmbeddingSpacePlaceholder: View {
                         .padding(.bottom)
                 }
             }
-            
+
             // Stats cards
             HStack(spacing: 12) {
                 StatCard(
@@ -521,14 +523,14 @@ struct EmbeddingSpacePlaceholder: View {
                     value: "\(chunkCount)",
                     color: .blue
                 )
-                
+
                 StatCard(
                     icon: "doc.text",
                     label: "Documents",
                     value: "\(documentCount)",
                     color: .green
                 )
-                
+
                 StatCard(
                     icon: "ruler",
                     label: "Dimensions",
@@ -538,23 +540,23 @@ struct EmbeddingSpacePlaceholder: View {
             }
         }
     }
-    
+
     private func drawSimulatedClusters(context: GraphicsContext, size: CGSize, documentCount: Int) {
         // Draw simulated embedding clusters
         let clusterCount = min(documentCount, 5)
         let colors: [Color] = [.blue, .green, .purple, .orange, .red]
-        
-        for i in 0..<clusterCount {
-            let centerX = CGFloat.random(in: size.width * 0.2...size.width * 0.8)
-            let centerY = CGFloat.random(in: size.height * 0.2...size.height * 0.8)
-            let pointCount = Int.random(in: 10...30)
-            
-            for _ in 0..<pointCount {
-                let angle = CGFloat.random(in: 0...(2 * .pi))
-                let radius = CGFloat.random(in: 0...40)
+
+        for i in 0 ..< clusterCount {
+            let centerX = CGFloat.random(in: size.width * 0.2 ... size.width * 0.8)
+            let centerY = CGFloat.random(in: size.height * 0.2 ... size.height * 0.8)
+            let pointCount = Int.random(in: 10 ... 30)
+
+            for _ in 0 ..< pointCount {
+                let angle = CGFloat.random(in: 0 ... (2 * .pi))
+                let radius = CGFloat.random(in: 0 ... 40)
                 let x = centerX + cos(angle) * radius
                 let y = centerY + sin(angle) * radius
-                
+
                 let point = CGPoint(x: x, y: y)
                 context.fill(
                     Path(ellipseIn: CGRect(x: point.x - 3, y: point.y - 3, width: 6, height: 6)),
@@ -570,21 +572,21 @@ struct EmbeddingSpacePlaceholder: View {
 struct ChunkDistributionView: View {
     let documents: [Document]
     let chunkCount: Int
-    
+
     var chunkSizeData: [(document: String, avgSize: Double)] {
         documents.map { doc in
             let avgSize = doc.processingMetadata?.chunkStats.averageChars ?? 0
             return (doc.filename, Double(avgSize))
         }
     }
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Chunk Distribution")
                 .font(.title2)
                 .fontWeight(.bold)
                 .padding(.horizontal)
-            
+
             // Chart
             if #available(iOS 16.0, *) {
                 Chart {
@@ -611,7 +613,7 @@ struct ChunkDistributionView: View {
                 )
                 .padding(.horizontal)
             }
-            
+
             // Stats grid
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                 StatCard(
@@ -620,21 +622,21 @@ struct ChunkDistributionView: View {
                     value: "\(documents.count)",
                     color: .blue
                 )
-                
+
                 StatCard(
                     icon: "cube.box",
                     label: "Total Chunks",
                     value: "\(chunkCount)",
                     color: .green
                 )
-                
+
                 StatCard(
                     icon: "chart.bar",
                     label: "Avg per Doc",
                     value: "\(documents.isEmpty ? 0 : chunkCount / documents.count)",
                     color: .purple
                 )
-                
+
                 StatCard(
                     icon: "waveform",
                     label: "Avg Size",
@@ -645,7 +647,7 @@ struct ChunkDistributionView: View {
             .padding(.horizontal)
         }
     }
-    
+
     private var averageChunkSize: Int {
         let totalSize = documents.compactMap { $0.processingMetadata?.chunkStats.averageChars }.reduce(0, +)
         return documents.isEmpty ? 0 : totalSize / documents.count
@@ -657,14 +659,14 @@ struct ChunkDistributionView: View {
 struct QueryAnalyticsView: View {
     @ObservedObject var ragService: RAGService
     @ObservedObject private var telemetry = TelemetryCenter.shared
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Query Analytics")
                 .font(.title2)
                 .fontWeight(.bold)
                 .padding(.horizontal)
-            
+
             // Recent queries from telemetry
             if telemetry.events.isEmpty {
                 EmptyAnalyticsView()
@@ -672,7 +674,7 @@ struct QueryAnalyticsView: View {
             } else {
                 QueryStatsGrid()
                     .padding(.horizontal)
-                
+
                 RecentQueriesList(telemetry: telemetry)
                     .padding(.horizontal)
             }
@@ -686,10 +688,10 @@ struct EmptyAnalyticsView: View {
             Image(systemName: "chart.line.uptrend.xyaxis")
                 .font(.system(size: 50))
                 .foregroundColor(.secondary)
-            
+
             Text("No query data yet")
                 .font(.headline)
-            
+
             Text("Run some queries to see analytics")
                 .font(.caption)
                 .foregroundColor(.secondary)
@@ -706,18 +708,18 @@ struct EmptyAnalyticsView: View {
 
 struct QueryStatsGrid: View {
     @ObservedObject private var telemetry = TelemetryCenter.shared
-    
+
     var queryCount: Int {
         telemetry.events.filter { $0.category == .generation && $0.title.contains("Query") }.count
     }
-    
+
     var avgResponseTime: Double {
         let queryEvents = telemetry.events.filter { $0.category == .generation }
         guard !queryEvents.isEmpty else { return 0 }
         let totalTime = queryEvents.compactMap { $0.duration }.reduce(0, +)
         return totalTime / Double(queryEvents.count)
     }
-    
+
     var body: some View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
             StatCard(
@@ -726,7 +728,7 @@ struct QueryStatsGrid: View {
                 value: "\(queryCount)",
                 color: .blue
             )
-            
+
             StatCard(
                 icon: "clock",
                 label: "Avg Time",
@@ -739,19 +741,19 @@ struct QueryStatsGrid: View {
 
 struct RecentQueriesList: View {
     @ObservedObject var telemetry: TelemetryCenter
-    
+
     var recentQueries: [TelemetryEvent] {
         telemetry.events
             .filter { $0.category == .generation && $0.title.contains("Query") }
             .prefix(5)
             .reversed()
     }
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Recent Queries")
                 .font(.headline)
-            
+
             ForEach(Array(recentQueries.enumerated()), id: \.element.id) { index, event in
                 QueryEventCard(event: event, index: index + 1)
             }
@@ -762,7 +764,7 @@ struct RecentQueriesList: View {
 struct QueryEventCard: View {
     let event: TelemetryEvent
     let index: Int
-    
+
     var body: some View {
         HStack(spacing: 14) {
             ZStack {
@@ -1219,18 +1221,18 @@ struct DashboardSectionCard<Content: View>: View {
 struct PerformanceMetricsView: View {
     @ObservedObject var ragService: RAGService
     @ObservedObject private var telemetry = TelemetryCenter.shared
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Performance Metrics")
                 .font(.title2)
                 .fontWeight(.bold)
                 .padding(.horizontal)
-            
+
             // Pipeline stage breakdown
             PipelineStagesCard()
                 .padding(.horizontal)
-            
+
             // System metrics
             SystemMetricsGrid()
                 .padding(.horizontal)
@@ -1240,20 +1242,20 @@ struct PerformanceMetricsView: View {
 
 struct PipelineStagesCard: View {
     @ObservedObject private var telemetry = TelemetryCenter.shared
-    
+
     var stageMetrics: [(stage: String, avgTime: Double, color: Color)] {
         [
             ("Embedding", avgDuration(for: .embedding), .purple),
             ("Retrieval", avgDuration(for: .retrieval), .blue),
-            ("Generation", avgDuration(for: .generation), .green)
+            ("Generation", avgDuration(for: .generation), .green),
         ]
     }
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Pipeline Stages")
                 .font(.headline)
-            
+
             ForEach(stageMetrics, id: \.stage) { metric in
                 StageMetricRow(
                     stage: metric.stage,
@@ -1269,7 +1271,7 @@ struct PipelineStagesCard: View {
                 .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
         )
     }
-    
+
     private func avgDuration(for category: TelemetryCategory) -> Double {
         let events = telemetry.events.filter { $0.category == category }
         guard !events.isEmpty else { return 0 }
@@ -1282,18 +1284,18 @@ struct StageMetricRow: View {
     let stage: String
     let avgTime: Double
     let color: Color
-    
+
     var body: some View {
         HStack {
             Circle()
                 .fill(color)
                 .frame(width: 8, height: 8)
-            
+
             Text(stage)
                 .font(.subheadline)
-            
+
             Spacer()
-            
+
             Text(String(format: "%.2fs", avgTime))
                 .font(.subheadline)
                 .fontWeight(.medium)
@@ -1305,37 +1307,37 @@ struct StageMetricRow: View {
 struct SystemMetricsGrid: View {
     var body: some View {
         #if canImport(UIKit)
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-            StatCard(
-                icon: "memorychip",
-                label: "Device",
-                value: UIDevice.current.model,
-                color: .blue
-            )
-            
-            StatCard(
-                icon: "cpu",
-                label: "iOS",
-                value: UIDevice.current.systemVersion,
-                color: .green
-            )
-        }
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                StatCard(
+                    icon: "memorychip",
+                    label: "Device",
+                    value: UIDevice.current.model,
+                    color: .blue
+                )
+
+                StatCard(
+                    icon: "cpu",
+                    label: "iOS",
+                    value: UIDevice.current.systemVersion,
+                    color: .green
+                )
+            }
         #else
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-            StatCard(
-                icon: "desktopcomputer",
-                label: "Device",
-                value: "Mac",
-                color: .blue
-            )
-            
-            StatCard(
-                icon: "cpu",
-                label: "OS",
-                value: ProcessInfo.processInfo.operatingSystemVersionString,
-                color: .green
-            )
-        }
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                StatCard(
+                    icon: "desktopcomputer",
+                    label: "Device",
+                    value: "Mac",
+                    color: .blue
+                )
+
+                StatCard(
+                    icon: "cpu",
+                    label: "OS",
+                    value: ProcessInfo.processInfo.operatingSystemVersionString,
+                    color: .green
+                )
+            }
         #endif
     }
 }
@@ -1347,26 +1349,26 @@ struct StatCard: View {
     let label: String
     let value: String
     let color: Color
-    
+
     var body: some View {
         VStack(spacing: 8) {
             ZStack {
                 Circle()
                     .fill(color.opacity(0.2))
                     .frame(width: 44, height: 44)
-                
+
                 Image(systemName: icon)
                     .foregroundColor(color)
                     .font(.title3)
             }
-            
+
             Text(value)
                 .font(.title3)
                 .fontWeight(.bold)
                 .lineLimit(1)
                 .minimumScaleFactor(0.65)
                 .multilineTextAlignment(.center)
-            
+
             Text(label)
                 .font(.caption)
                 .foregroundColor(.secondary)
@@ -1385,7 +1387,40 @@ struct StatCard: View {
 
 struct EmbeddingInfoSheet: View {
     @Environment(\.dismiss) var dismiss
-    
+    @EnvironmentObject private var settings: SettingsStore
+
+    /// Human-readable name for the active embedding method
+    private var embeddingMethodName: String {
+        switch settings.defaultEmbeddingProvider {
+        case "nl_contextual_embedding":
+            return "NLContextualEmbedding"
+        case "nl_embedding":
+            return "NLEmbedding"
+        case "coreml_sentence_embedding":
+            return "CoreML Sentence Embedding"
+        case "apple_fm_embed":
+            return "Apple Foundation Model"
+        default:
+            return "NLEmbedding"
+        }
+    }
+
+    /// Description of the current embedding method
+    private var embeddingMethodDescription: String {
+        switch settings.defaultEmbeddingProvider {
+        case "nl_contextual_embedding":
+            return "We use NLContextualEmbedding (BERT-based) to turn every chunk into a high-accuracy semantic fingerprint that captures deep context and meaning."
+        case "nl_embedding":
+            return "We use NLEmbedding to turn every chunk into a 512-number fingerprint that captures topic, tone, and context."
+        case "coreml_sentence_embedding":
+            return "We use CoreML Sentence Embedding for cross-lingual semantic fingerprints."
+        case "apple_fm_embed":
+            return "We use Apple Foundation Model embeddings for state-of-the-art semantic understanding."
+        default:
+            return "We use NLEmbedding to turn every chunk into a 512-number fingerprint that captures topic, tone, and context."
+        }
+    }
+
     var body: some View {
         NavigationView {
             ScrollView {
@@ -1399,27 +1434,27 @@ struct EmbeddingInfoSheet: View {
                                 .foregroundColor(.secondary)
                         }
                     }
-                    
-                    VisualizationInfoSection(title: "Current Method") {
+
+                    VisualizationInfoSection(title: "Current Method: \(embeddingMethodName)") {
                         HStack(spacing: 8) {
-                            Image(systemName: "cube.box")
-                                .foregroundColor(.blue)
-                            Text("We use NLEmbedding to turn every chunk into a 512-number fingerprint that captures topic, tone, and context.")
+                            Image(systemName: settings.useHighAccuracyEmbeddings ? "sparkles" : "cube.box")
+                                .foregroundColor(settings.useHighAccuracyEmbeddings ? .purple : .blue)
+                            Text(embeddingMethodDescription)
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                         }
                     }
-                    
+
                     VisualizationInfoSection(title: "Projection Methods") {
                         HStack(spacing: 8) {
                             Image(systemName: "chart.xyaxis.line")
                                 .foregroundColor(.green)
-                            Text("PCA, t-SNE, and UMAP flatten that 512-D fingerprint into a 3D view so you can literally see topic islands and overlaps.")
+                            Text("PCA, t-SNE, and UMAP flatten the embedding fingerprint into a 3D view so you can literally see topic islands and overlaps.")
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                         }
                     }
-                    
+
                     VisualizationInfoSection(title: "Future: Embedding Atlas") {
                         HStack(spacing: 8) {
                             Image(systemName: "sparkles")
@@ -1434,13 +1469,13 @@ struct EmbeddingInfoSheet: View {
             }
             .navigationTitle("Embedding Space")
             #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
+                .navigationBarTitleDisplayMode(.inline)
             #endif
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") { dismiss() }
+                    }
                 }
-            }
         }
     }
 }
@@ -1448,13 +1483,13 @@ struct EmbeddingInfoSheet: View {
 struct VisualizationInfoSection<Content: View>: View {
     let title: String
     @ViewBuilder let content: () -> Content
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(title)
                 .font(.headline)
                 .foregroundColor(.blue)
-            
+
             content()
         }
         .padding()
@@ -1762,7 +1797,7 @@ struct SimilarityHeatmapView: View {
         var sum: Double = 0
         var count = 0
         for (idx, chunk) in sampleChunks.enumerated() {
-            for jdx in idx + 1..<sampleChunks.count {
+            for jdx in idx + 1 ..< sampleChunks.count {
                 sum += Double(cosineSimilarity(chunk, sampleChunks[jdx]))
                 count += 1
             }
@@ -1812,7 +1847,7 @@ struct PipelineTimelineView: View {
             Stage(id: "retrieve", name: "Retrieval", detail: "Run hybrid search + MMR diversification", icon: "arrow.down.circle.fill", category: .retrieval),
             Stage(id: "assemble", name: "Assembly", detail: "Build grounded context + metadata bundle", icon: "square.stack.3d.up.fill", category: .retrieval),
             Stage(id: "generate", name: "Generation", detail: "Stream the answer with citations + tools", icon: "sparkles", category: .generation),
-            Stage(id: "billing", name: "Billing & Entitlements", detail: "StoreKit purchases, restores, and quota updates", icon: "creditcard.fill", category: .billing)
+            Stage(id: "billing", name: "Billing & Entitlements", detail: "StoreKit purchases, restores, and quota updates", icon: "creditcard.fill", category: .billing),
         ]
     }
 
@@ -2050,8 +2085,8 @@ struct SemanticClusteringView: View {
             Slider(value: Binding(
                 get: { Double(selectedK) },
                 set: { selectedK = Int($0) }
-            ), in: 2...10, step: 1)
-            .tint(.purple)
+            ), in: 2 ... 10, step: 1)
+                .tint(.purple)
 
             HStack(spacing: 12) {
                 Button {
@@ -2288,9 +2323,9 @@ struct SemanticClusteringView: View {
         var pairCount = 0
 
         for cluster in clusters where cluster.count > 1 {
-            for lhsIndex in 0..<(cluster.count - 1) {
+            for lhsIndex in 0 ..< (cluster.count - 1) {
                 let lhs = cluster[lhsIndex]
-                for rhs in cluster[(lhsIndex + 1)..<cluster.count] {
+                for rhs in cluster[(lhsIndex + 1) ..< cluster.count] {
                     total += cosineSimilarity(lhs, rhs)
                     pairCount += 1
                 }
@@ -2332,7 +2367,7 @@ struct SemanticClusteringView: View {
         var generator = SplitMix64(seed: seed == 0 ? 0xCAFE_BABE_DEAD_BEEF : seed)
         var centroids: [[Float]] = []
         centroids.reserveCapacity(k)
-        for _ in 0..<k {
+        for _ in 0 ..< k {
             if let embedding = chunks.randomElement(using: &generator)?.embedding {
                 centroids.append(embedding)
             } else {
@@ -2342,10 +2377,10 @@ struct SemanticClusteringView: View {
 
         var clusters = Array(repeating: [DocumentChunk](), count: k)
 
-        for _ in 0..<maxIterations {
+        for _ in 0 ..< maxIterations {
             clusters = Array(repeating: [], count: k)
             for chunk in chunks {
-                let distances = centroids.enumerated().map { (index, centroid) -> (Int, Float) in
+                let distances = centroids.enumerated().map { index, centroid -> (Int, Float) in
                     (index, euclideanDistance(chunk.embedding, centroid))
                 }
                 if let nearest = distances.min(by: { $0.1 < $1.1 })?.0 {
@@ -2353,7 +2388,7 @@ struct SemanticClusteringView: View {
                 }
             }
 
-            for index in 0..<k where !clusters[index].isEmpty {
+            for index in 0 ..< k where !clusters[index].isEmpty {
                 centroids[index] = averageEmbedding(clusters[index].map { $0.embedding })
             }
         }
@@ -2446,7 +2481,7 @@ struct ClusteringInfoCard: View {
                 Text("Automatically groups similar chunks together:")
                     .font(.caption)
                     .fontWeight(.medium)
-                
+
                 Text("1. Picks K random cluster centers in embedding space")
                     .font(.caption2)
                 Text("2. Assigns each chunk to nearest center")
@@ -2455,9 +2490,9 @@ struct ClusteringInfoCard: View {
                     .font(.caption2)
                 Text("4. Repeats until clusters stabilize")
                     .font(.caption2)
-                
+
                 Divider()
-                
+
                 Text("Use this to discover main topics in your knowledge base without manual tagging!")
                     .font(.caption2)
                     .foregroundColor(.blue)
@@ -2601,7 +2636,7 @@ enum VisualizationChunkSampler {
         return selection
     }
 
-    nonisolated private static func chunkOrdering(lhs: DocumentChunk, rhs: DocumentChunk) -> Bool {
+    private nonisolated static func chunkOrdering(lhs: DocumentChunk, rhs: DocumentChunk) -> Bool {
         if lhs.documentId == rhs.documentId {
             return lhs.metadata.chunkIndex < rhs.metadata.chunkIndex
         }

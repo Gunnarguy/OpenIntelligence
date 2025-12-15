@@ -13,7 +13,7 @@ struct RAGQuery: Sendable {
     let query: String
     let timestamp: Date
     let topK: Int
-    
+
     init(id: UUID = UUID(), query: String, timestamp: Date = Date(), topK: Int = 3) {
         self.id = id
         self.query = query
@@ -29,16 +29,17 @@ struct RAGResponse: Sendable {
     let retrievedChunks: [RetrievedChunk]
     let generatedResponse: String
     let metadata: ResponseMetadata
-    let confidenceScore: Float  // 0.0-1.0 aggregate confidence
-    let qualityWarnings: [String]  // Warnings about result quality
-    
-    init(id: UUID = UUID(), 
-         queryId: UUID, 
-         retrievedChunks: [RetrievedChunk], 
-         generatedResponse: String, 
+    let confidenceScore: Float // 0.0-1.0 aggregate confidence
+    let qualityWarnings: [String] // Warnings about result quality
+
+    init(id: UUID = UUID(),
+         queryId: UUID,
+         retrievedChunks: [RetrievedChunk],
+         generatedResponse: String,
          metadata: ResponseMetadata,
          confidenceScore: Float = 1.0,
-         qualityWarnings: [String] = []) {
+         qualityWarnings: [String] = [])
+    {
         self.id = id
         self.queryId = queryId
         self.retrievedChunks = retrievedChunks
@@ -54,9 +55,9 @@ struct RetrievedChunk: Sendable {
     let chunk: DocumentChunk
     let similarityScore: Float
     let rank: Int
-    let sourceDocument: String  // Filename for citation
-    let pageNumber: Int?  // Page number if available
-    
+    let sourceDocument: String // Filename for citation
+    let pageNumber: Int? // Page number if available
+
     nonisolated init(chunk: DocumentChunk, similarityScore: Float, rank: Int, sourceDocument: String = "", pageNumber: Int? = nil) {
         self.chunk = chunk
         self.similarityScore = similarityScore
@@ -77,7 +78,8 @@ struct ResponseMetadata: Sendable {
     let strictModeEnabled: Bool
     let gatingDecision: String?
     let toolCallsMade: Int?
-    
+    let embeddingProvider: String? // e.g., "nl_embedding", "nl_contextual_embedding"
+
     init(timeToFirstToken: TimeInterval? = nil,
          totalGenerationTime: TimeInterval,
          tokensGenerated: Int,
@@ -86,7 +88,9 @@ struct ResponseMetadata: Sendable {
          retrievalTime: TimeInterval,
          strictModeEnabled: Bool = false,
          gatingDecision: String? = nil,
-         toolCallsMade: Int? = nil) {
+         toolCallsMade: Int? = nil,
+         embeddingProvider: String? = nil)
+    {
         self.timeToFirstToken = timeToFirstToken
         self.totalGenerationTime = totalGenerationTime
         self.tokensGenerated = tokensGenerated
@@ -96,5 +100,6 @@ struct ResponseMetadata: Sendable {
         self.strictModeEnabled = strictModeEnabled
         self.gatingDecision = gatingDecision
         self.toolCallsMade = toolCallsMade
+        self.embeddingProvider = embeddingProvider
     }
 }

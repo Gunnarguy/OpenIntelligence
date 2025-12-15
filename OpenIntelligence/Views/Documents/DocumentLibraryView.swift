@@ -5,13 +5,14 @@
 //  Created by Gunnar Hostetler on 10/9/25.
 //
 
-import SwiftUI
 import StoreKit
+import SwiftUI
 import UniformTypeIdentifiers
 
 struct DocumentLibraryView: View {
     @EnvironmentObject private var onboardingStore: OnboardingStateStore
     @EnvironmentObject private var entitlementStore: EntitlementStore
+    @EnvironmentObject private var settings: SettingsStore
     @ObservedObject var ragService: RAGService
     @ObservedObject var containerService: ContainerService
     @State private var showingFilePicker = false
@@ -30,14 +31,15 @@ struct DocumentLibraryView: View {
     private var isAtDocumentLimit: Bool {
         ragService.documents.count >= documentLimit
     }
+
     private var libraryLimit: Int { entitlementStore.libraryLimit }
 
     init(ragService: RAGService, containerService: ContainerService, onViewVisualizations: (() -> Void)? = nil) {
-        self._ragService = ObservedObject(wrappedValue: ragService)
-        self._containerService = ObservedObject(wrappedValue: containerService)
+        _ragService = ObservedObject(wrappedValue: ragService)
+        _containerService = ObservedObject(wrappedValue: containerService)
         self.onViewVisualizations = onViewVisualizations
     }
-    
+
     private var filteredDocuments: [Document] {
         let activeId = containerService.activeContainerId
         let defaultId = containerService.containers.first?.id
@@ -50,7 +52,7 @@ struct DocumentLibraryView: View {
             }
         }
     }
-    
+
     private var filteredTotalChunks: Int {
         filteredDocuments.reduce(0) { $0 + $1.totalChunks }
     }
@@ -62,7 +64,7 @@ struct DocumentLibraryView: View {
                 allowsCreation: true,
                 onCreateLibrary: handleNewLibraryTapped
             )
-                .padding(.horizontal)
+            .padding(.horizontal)
             DocumentQuotaBanner(
                 currentCount: ragService.documents.count,
                 limit: documentLimit,
@@ -95,7 +97,7 @@ struct DocumentLibraryView: View {
                 allowsCreation: true,
                 onCreateLibrary: handleNewLibraryTapped
             )
-                .padding(.horizontal)
+            .padding(.horizontal)
             DocumentQuotaBanner(
                 currentCount: ragService.documents.count,
                 limit: documentLimit,
@@ -112,14 +114,17 @@ struct DocumentLibraryView: View {
             ScrollView {
                 LazyVStack(spacing: 12) {
                     ForEach(filteredDocuments) { document in
-                        NavigationLink(destination: DocumentDetailsView(document: document)) {
+                        NavigationLink(destination: DocumentDetailsView(
+                            document: document,
+                            embeddingProviderId: containerService.activeContainer?.embeddingProviderId
+                        )) {
                             ModernDocumentCard(document: document, ragService: ragService)
                         }
                         .buttonStyle(.plain)
                     }
                 }
                 .padding()
-                
+
                 // Stats footer
                 StatsFooter(totalDocuments: filteredDocuments.count, totalChunks: filteredTotalChunks)
                     .padding(.horizontal)
@@ -127,20 +132,20 @@ struct DocumentLibraryView: View {
             }
         }
     }
-    
+
     var body: some View {
         ZStack {
             // Modern gradient background
             LinearGradient(
                 colors: [
                     DSColors.background,
-                    DSColors.surface.opacity(0.3)
+                    DSColors.surface.opacity(0.3),
                 ],
                 startPoint: .top,
                 endPoint: .bottom
             )
             .ignoresSafeArea()
-            
+
             if filteredDocuments.isEmpty {
                 emptyStateView
             } else {
@@ -149,106 +154,107 @@ struct DocumentLibraryView: View {
         }
         .navigationTitle("Documents")
         #if os(iOS)
-        .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(.large)
         #endif
-        .toolbar {
-            ToolbarItem(placement: .automatic) {
-                Button(action: presentDocumentPickerOrUpgrade) {
-                    Label("Add Document", systemImage: "plus")
+            .toolbar {
+                ToolbarItem(placement: .automatic) {
+                    Button(action: presentDocumentPickerOrUpgrade) {
+                        Label("Add Document", systemImage: "plus")
+                    }
+                    .disabled(ragService.isProcessing)
                 }
-                .disabled(ragService.isProcessing)
-            }
-            
-            ToolbarItem(placement: .automatic) {
-                Button {
-                    showingContainerSettings = true
-                } label: {
-                    Label("Manage Library", systemImage: "gearshape")
-                }
-            }
 
-            ToolbarItem(placement: .automatic) {
-                Button {
-                    showingSemanticSearch = true
-                } label: {
-                    Label("Semantic Search", systemImage: "text.magnifyingglass")
-                }
-                .disabled(ragService.documents.isEmpty)
-            }
-            
-            if filteredDocuments.count > 0 {
                 ToolbarItem(placement: .automatic) {
                     Button {
-                        onViewVisualizations?()
+                        showingContainerSettings = true
                     } label: {
-                        Label("Visualize", systemImage: "cube.transparent")
+                        Label("Manage Library", systemImage: "gearshape")
                     }
                 }
-            }
-            
-            if !ragService.documents.isEmpty {
+
                 ToolbarItem(placement: .automatic) {
-                    Button(role: .destructive) {
-                        Task {
-                            try? await ragService.clearAllDocuments()
-                        }
+                    Button {
+                        showingSemanticSearch = true
                     } label: {
-                        Label("Clear All", systemImage: "trash")
+                        Label("Semantic Search", systemImage: "text.magnifyingglass")
+                    }
+                    .disabled(ragService.documents.isEmpty)
+                }
+
+                if filteredDocuments.count > 0 {
+                    ToolbarItem(placement: .automatic) {
+                        Button {
+                            onViewVisualizations?()
+                        } label: {
+                            Label("Visualize", systemImage: "cube.transparent")
+                        }
+                    }
+                }
+
+                if !ragService.documents.isEmpty {
+                    ToolbarItem(placement: .automatic) {
+                        Button(role: .destructive) {
+                            Task {
+                                try? await ragService.clearAllDocuments()
+                            }
+                        } label: {
+                            Label("Clear All", systemImage: "trash")
+                        }
                     }
                 }
             }
-        }
-        .sheet(isPresented: $showingFilePicker) {
-            DocumentPicker { url in
-                enqueueDocumentIngestion(at: url)
+            .sheet(isPresented: $showingFilePicker) {
+                DocumentPicker { url in
+                    enqueueDocumentIngestion(at: url)
+                }
             }
-        }
-        .alert("Sample Import Failed", isPresented: Binding(
-            get: { sampleImportError != nil },
-            set: { if !$0 { sampleImportError = nil } }
-        )) {
-            Button("OK", role: .cancel) { sampleImportError = nil }
-        } message: {
-            if let message = sampleImportError {
-                Text(message)
+            .alert("Sample Import Failed", isPresented: Binding(
+                get: { sampleImportError != nil },
+                set: { if !$0 { sampleImportError = nil } }
+            )) {
+                Button("OK", role: .cancel) { sampleImportError = nil }
+            } message: {
+                if let message = sampleImportError {
+                    Text(message)
+                }
             }
-        }
-        .alert("Error Processing Document", isPresented: .constant(ragService.lastError != nil)) {
-            Button("OK", role: .cancel) {
-                ragService.lastError = nil
+            .alert("Error Processing Document", isPresented: .constant(ragService.lastError != nil)) {
+                Button("OK", role: .cancel) {
+                    ragService.lastError = nil
+                }
+            } message: {
+                if let error = ragService.lastError {
+                    Text(error)
+                }
             }
-        } message: {
-            if let error = ragService.lastError {
-                Text(error)
+            .overlay {
+                if ragService.isProcessing {
+                    ProcessingOverlay(status: ragService.processingStatus)
+                }
             }
-        }
-        .overlay {
-            if ragService.isProcessing {
-                ProcessingOverlay(status: ragService.processingStatus)
+            .sheet(isPresented: $showingContainerSettings) {
+                ContainerSettingsSheet(containerService: containerService, ragService: ragService)
             }
-        }
-        .sheet(isPresented: $showingContainerSettings) {
-            ContainerSettingsSheet(containerService: containerService, ragService: ragService)
-        }
-        .sheet(isPresented: Binding(
-            get: { ragService.lastProcessingSummary != nil },
-            set: { if !$0 { ragService.lastProcessingSummary = nil } }
-        )) {
-            if let summary = ragService.lastProcessingSummary {
-                ProcessingSummaryView(summary: summary)
+            .sheet(isPresented: Binding(
+                get: { ragService.lastProcessingSummary != nil },
+                set: { if !$0 { ragService.lastProcessingSummary = nil } }
+            )) {
+                if let summary = ragService.lastProcessingSummary {
+                    ProcessingSummaryView(summary: summary)
+                }
             }
-        }
-        .sheet(isPresented: $showingSemanticSearch) {
-            SemanticSearchView(
-                ragService: ragService,
-                containerService: containerService
-            )
-        }
-        .sheet(isPresented: $showingPlanSheet) {
-            PlanUpgradeSheet(entryPoint: activePaywallEntryPoint)
-                .environmentObject(entitlementStore)
-        }
+            .sheet(isPresented: $showingSemanticSearch) {
+                SemanticSearchView(
+                    ragService: ragService,
+                    containerService: containerService
+                )
+            }
+            .sheet(isPresented: $showingPlanSheet) {
+                PlanUpgradeSheet(entryPoint: activePaywallEntryPoint)
+                    .environmentObject(entitlementStore)
+            }
     }
+
     /// Launches the file picker if the user still has document quota remaining.
     @MainActor
     private func presentDocumentPickerOrUpgrade() {
@@ -323,7 +329,14 @@ struct DocumentLibraryView: View {
 
         let newIndex = currentCount + 1
         let libraryName = "Library \(newIndex)"
-        let newContainer = containerService.createContainer(name: libraryName)
+
+        // Use high-accuracy contextual embeddings if enabled in settings
+        let embeddingProvider = settings.useHighAccuracyEmbeddings ? "nl_contextual_embedding" : "nl_embedding"
+
+        let newContainer = containerService.createContainer(
+            name: libraryName,
+            embeddingProviderId: embeddingProvider
+        )
         containerService.setActive(newContainer.id)
     }
 
@@ -345,7 +358,7 @@ struct DocumentLibraryView: View {
                     "Doc pack purchase initiated",
                     metadata: [
                         "currentCount": String(ragService.documents.count),
-                        "limit": String(documentLimit)
+                        "limit": String(documentLimit),
                     ]
                 )
                 _ = try await entitlementStore.billingService.purchase(.documentPackAddOn)
@@ -360,31 +373,31 @@ struct DocumentLibraryView: View {
     }
 }
 
-#Preview {
-    let containerService = ContainerService()
-    let billingService = PreviewBillingService()
-    let entitlementStore = EntitlementStore(billingService: billingService)
-    let ragService = RAGService(containerService: containerService, entitlementStore: entitlementStore)
-    return DocumentLibraryView(ragService: ragService, containerService: containerService)
-        .environmentObject(OnboardingStateStore())
-        .environmentObject(entitlementStore)
-}
-
 #if DEBUG
-@MainActor
-private final class PreviewBillingService: BillingService {
-    let events: AsyncStream<BillingEvent>
-
-    init() {
-        events = AsyncStream { continuation in
-            continuation.finish()
-        }
+    #Preview {
+        let containerService = ContainerService()
+        let billingService = PreviewBillingService()
+        let entitlementStore = EntitlementStore(billingService: billingService)
+        let ragService = RAGService(containerService: containerService, entitlementStore: entitlementStore)
+        DocumentLibraryView(ragService: ragService, containerService: containerService)
+            .environmentObject(OnboardingStateStore())
+            .environmentObject(entitlementStore)
     }
 
-    func refreshProducts() async {}
+    @MainActor
+    private final class PreviewBillingService: BillingService {
+        let events: AsyncStream<BillingEvent>
 
-    func purchase(_ product: BillingProduct) async throws -> StoreKit.Transaction? { nil }
+        init() {
+            events = AsyncStream { continuation in
+                continuation.finish()
+            }
+        }
 
-    func restorePurchases() async {}
-}
+        func refreshProducts() async {}
+
+        func purchase(_: BillingProduct) async throws -> StoreKit.Transaction? { nil }
+
+        func restorePurchases() async {}
+    }
 #endif

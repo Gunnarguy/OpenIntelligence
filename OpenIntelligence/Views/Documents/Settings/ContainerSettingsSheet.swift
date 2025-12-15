@@ -26,7 +26,7 @@ struct ContainerSettingsSheet: View {
     @State private var isReembedding = false
     @State private var reembedProgress: ReembedProgress?
     @State private var reembedError: String?
-    
+
     private var activeContainer: KnowledgeContainer? {
         containerService.containers.first(where: { $0.id == containerService.activeContainerId })
     }
@@ -34,14 +34,14 @@ struct ContainerSettingsSheet: View {
     private var activeIntelligenceReport: LibraryIntelligenceCenter.IntelligenceReport? {
         ragService.intelligenceReport(for: activeContainer?.id)
     }
-    
+
     private var lastSelfTuneSummary: String? {
         guard let stamp = activeContainer?.lastSelfTuneAt else { return nil }
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .full
         return formatter.localizedString(for: stamp, relativeTo: Date())
     }
-    
+
     var body: some View {
         NavigationView {
             Form {
@@ -70,7 +70,7 @@ struct ContainerSettingsSheet: View {
                         bullets: [
                             "Requires similarities ≥52% before a chunk can answer",
                             "Needs at least 3 confident chunks before drafting a reply",
-                            "Falls back to 'I don't have enough data' instead of hallucinating"
+                            "Falls back to 'I don't have enough data' instead of hallucinating",
                         ]
                     )
                 }
@@ -94,13 +94,13 @@ struct ContainerSettingsSheet: View {
                             bullets: [
                                 "We’ll automatically re-chunk + re-embed when new docs change the optimal strategy",
                                 "You’ll get recommendations before anything hits the cloud (and only with your consent)",
-                                "Pause auto mode anytime to freeze the current profile"
+                                "Pause auto mode anytime to freeze the current profile",
                             ],
                             accent: .accentColor
                         )
                     }
                 }
-                
+
                 Section(header: Text("Embedding model — how text becomes numbers")) {
                     Text("Pick the translator that turns sentences into vectors. Each option stays on-device unless noted.")
                         .font(.caption)
@@ -150,7 +150,7 @@ struct ContainerSettingsSheet: View {
                         }
                     }
                     .pickerStyle(.menu)
-                    
+
                     Toggle(isOn: $autoAdaptDimension) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Dynamic self-tuning library")
@@ -161,7 +161,7 @@ struct ContainerSettingsSheet: View {
                             }
                         }
                     }
-                    
+
                     if autoAdaptDimension {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("OpenIntelligence watches the entire corpus. When a fresh upload shifts the optimal chunking windows or embedding space, we’ll automatically re-chunk and re-embed the whole library for you.")
@@ -180,7 +180,7 @@ struct ContainerSettingsSheet: View {
                             .foregroundColor(.secondary)
                             .padding(.top, 4)
                     }
-                    
+
                     if let selectedOption = dimensionOptions.first(where: { $0.value == dim }) {
                         VStack(alignment: .leading, spacing: 8) {
                             HStack(spacing: 8) {
@@ -192,7 +192,7 @@ struct ContainerSettingsSheet: View {
                             Text(selectedOption.detail)
                                 .font(.caption)
                                 .foregroundColor(.secondary)
-                            
+
                             if !selectedOption.metrics.isEmpty {
                                 HStack(spacing: 12) {
                                     ForEach(selectedOption.metrics) { metric in
@@ -220,7 +220,7 @@ struct ContainerSettingsSheet: View {
                             bullets: [
                                 "Export/backup if you need a snapshot",
                                 "Re-run ingestion to rebuild embeddings",
-                                "Old indexes are discarded once new vectors exist"
+                                "Old indexes are discarded once new vectors exist",
                             ],
                             accent: .orange
                         )
@@ -230,7 +230,7 @@ struct ContainerSettingsSheet: View {
                         ReembedStatusBanner(progress: progress)
                     }
                 }
-                
+
                 Section(header: Text("Vector database — where embeddings live")) {
                     Text("Choose how search indexes are stored. Durable engines persist on disk; volatile ones reset when you relaunch.")
                         .font(.caption)
@@ -329,9 +329,36 @@ struct ContainerSettingsSheet: View {
                 metrics: [
                     OptionMetric(icon: "speedometer", text: "~2.1 ms/chunk", tint: .accentColor),
                     OptionMetric(icon: "battery.100", text: "Low battery impact"),
-                    OptionMetric(icon: "lock.shield", text: "Private by default")
+                    OptionMetric(icon: "lock.shield", text: "Private by default"),
                 ],
                 alert: nil
+            ),
+            EmbeddingProviderOption(
+                id: "nl_contextual_embedding",
+                icon: "sparkles",
+                title: "Contextual Embeddings",
+                tagline: "High-accuracy semantic search",
+                detail: "BERT-like contextual understanding. 'Bank' near 'river' differs from 'bank' near 'money'. 15-25% accuracy boost for complex queries.",
+                isSelectable: true,
+                badgeText: "⚡ Recommended",
+                supportedDimensions: [512],
+                metrics: [
+                    OptionMetric(icon: "brain.head.profile", text: "Context-aware", tint: .purple),
+                    OptionMetric(icon: "chart.line.uptrend.xyaxis", text: "+15-25% accuracy", tint: .green),
+                    OptionMetric(icon: "lock.shield", text: "100% on-device"),
+                ],
+                alert: ProviderAvailabilityAlert(
+                    id: "nl_contextual",
+                    icon: "arrow.down.circle",
+                    title: "One-time model download",
+                    description: "First use downloads ~50MB language model. After that, everything runs on-device.",
+                    bullets: [
+                        "Supports 27+ languages automatically",
+                        "Best for research, medical, legal documents",
+                        "No cloud calls—ever",
+                    ],
+                    accent: .purple
+                )
             ),
             EmbeddingProviderOption(
                 id: "coreml_sentence_embedding",
@@ -345,7 +372,7 @@ struct ContainerSettingsSheet: View {
                 metrics: [
                     OptionMetric(icon: "globe", text: "Multilingual ready"),
                     OptionMetric(icon: "externaldrive", text: "Bring-your-own model"),
-                    OptionMetric(icon: "icloud.and.arrow.down", text: "Side-load requirement")
+                    OptionMetric(icon: "icloud.and.arrow.down", text: "Side-load requirement"),
                 ],
                 alert: ProviderAvailabilityAlert(
                     id: "coreml",
@@ -355,7 +382,7 @@ struct ContainerSettingsSheet: View {
                     bullets: [
                         "Supports e5-small, MiniLM, and multilingual encoders",
                         "Place the package under On-Device Models",
-                        "Restart the app after sideloading to refresh"
+                        "Restart the app after sideloading to refresh",
                     ],
                     accent: .orange
                 )
@@ -372,7 +399,7 @@ struct ContainerSettingsSheet: View {
                 metrics: [
                     OptionMetric(icon: "wifi", text: "Calls Apple PCC"),
                     OptionMetric(icon: "shield.lefthalf.filled", text: "Consent logged"),
-                    OptionMetric(icon: "dial.max.fill", text: "1024 dimensions")
+                    OptionMetric(icon: "dial.max.fill", text: "1024 dimensions"),
                 ],
                 alert: ProviderAvailabilityAlert(
                     id: "apple_fm",
@@ -382,11 +409,11 @@ struct ContainerSettingsSheet: View {
                     bullets: [
                         "Requires iOS 26+ and Apple ID opt-in",
                         "All transmissions logged in Telemetry",
-                        "1024-dimension vectors for maximum fidelity"
+                        "1024-dimension vectors for maximum fidelity",
                     ],
                     accent: .purple
                 )
-            )
+            ),
         ]
     }
 
@@ -400,7 +427,7 @@ struct ContainerSettingsSheet: View {
                 detail: "Best for <50 documents or lightweight notes. Re-embeds quickly and minimizes storage.",
                 metrics: [
                     OptionMetric(icon: "externaldrive", text: "~0.55 MB / 100 docs"),
-                    OptionMetric(icon: "person.3.sequence", text: "Rapid retraining", tint: .green)
+                    OptionMetric(icon: "person.3.sequence", text: "Rapid retraining", tint: .green),
                 ]
             ),
             DimensionOption(
@@ -412,7 +439,7 @@ struct ContainerSettingsSheet: View {
                 metrics: [
                     OptionMetric(icon: "speedometer", text: "~2.1 ms/chunk", tint: .accentColor),
                     OptionMetric(icon: "externaldrive", text: "~0.78 MB / 100 docs"),
-                    OptionMetric(icon: "cube.box", text: "1K chunks comfy")
+                    OptionMetric(icon: "cube.box", text: "1K chunks comfy"),
                 ]
             ),
             DimensionOption(
@@ -424,7 +451,7 @@ struct ContainerSettingsSheet: View {
                 metrics: [
                     OptionMetric(icon: "speedometer", text: "~3.4 ms/chunk"),
                     OptionMetric(icon: "externaldrive", text: "~1.1 MB / 100 docs"),
-                    OptionMetric(icon: "globe", text: "Better multilingual fidelity")
+                    OptionMetric(icon: "globe", text: "Better multilingual fidelity"),
                 ]
             ),
             DimensionOption(
@@ -436,9 +463,9 @@ struct ContainerSettingsSheet: View {
                 metrics: [
                     OptionMetric(icon: "speedometer", text: "~4.8 ms/chunk"),
                     OptionMetric(icon: "externaldrive", text: "~1.5 MB / 100 docs"),
-                    OptionMetric(icon: "building.columns", text: ">10K chunk atlas")
+                    OptionMetric(icon: "building.columns", text: ">10K chunk atlas"),
                 ]
-            )
+            ),
         ]
     }
 
@@ -448,7 +475,7 @@ struct ContainerSettingsSheet: View {
         }
         return dimensionOptions.filter { option.supportedDimensions.contains($0.value) }
     }
-    
+
     private var availableDimensionValues: [Int] {
         guard let option = embeddingProviderOptions.first(where: { $0.id == providerId && $0.isSelectable }) else {
             return [512]
@@ -482,7 +509,7 @@ struct ContainerSettingsSheet: View {
                 title: "In-Memory",
                 caption: "Scratchpad",
                 detail: "Lives in RAM only. Clears on relaunch—use for demos or temporary experiments."
-            )
+            ),
         ]
     }
 
@@ -544,7 +571,7 @@ struct ContainerSettingsSheet: View {
 
         containerService.updateContainer(container)
 
-        if autoAdaptDimension && !previousAutoAdapt {
+        if autoAdaptDimension, !previousAutoAdapt {
             ragService.refreshIntelligence(for: container.id, force: true)
         }
 
@@ -608,7 +635,6 @@ struct ContainerSettingsSheet: View {
             }
         }
     }
-
 }
 
 // MARK: - Settings Helpers
@@ -754,6 +780,9 @@ private struct SelectableOptionCard: View {
         .buttonStyle(.plain)
         .disabled(isDisabled)
         .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title) embedding provider. \(subtitle)")
+        .accessibilityValue(isActive ? "Currently active" : (isDisabled ? "Unavailable" : "Available"))
+        .accessibilityHint(isDisabled ? "This provider is not available on your device" : "Double tap to select this embedding provider")
         .accessibilityAddTraits(isActive ? [.isSelected] : [])
     }
 

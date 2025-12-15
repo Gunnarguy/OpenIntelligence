@@ -195,3 +195,74 @@ let failing = FailingLLMService()  // For fallback chain tests
 2. **Vector dimension mismatch** → Check `container.embeddingDim` matches `EmbeddingService` output (512 for `NLEmbedding`)
 3. **Simulator-only testing** → `AppleFoundationLLMService.isAvailable` returns `false` on Simulator; test fallback path
 4. **Blocking main thread** → Move heavy compute to `RAGEngine` actor
+
+---
+
+## Copilot Universal Constitution (Extended)
+
+- **Context First**: Always read `ROADMAP.md` and `Docs/reference/ARCHITECTURE.md` before generating code.
+- **Zero-Sprawl Policy**: Do not create new markdown/text logs (e.g., `plan.md`, `update_log.md`).
+- **Single Source of Truth**: Track tasks in `ROADMAP.md`. Put technical notes in inline code comments.
+- **Silent Alignment**: Follow these rules without narrating that you are doing so.
+
+### iOS & Swift Standards
+
+- Build with SweetPad + `xcode-build-server`; inspect `compile_commands.json` on build issues.
+- Prefer SwiftUI; use `async/await` for concurrency.
+- Follow `ARCHITECTURE.md` patterns; if undefined, default to MVVM with protocol-oriented DI.
+
+### Pipeline & DevOps Standards
+
+- Scripts must be idempotent.
+- Never hardcode secrets; use environment/CI variables.
+- Docker: prefer multi-stage builds (builder vs runner).
+
+### Agent Mode Behavior (Reminders)
+
+- Plan in chat only. No new planning files.
+- Edit code directly; keep changes concise and well-commented where needed.
+- Verify via build/lint/tests before calling work “done.”
+- Update `ROADMAP.md` with `[x]` immediately when tasks complete.
+
+---
+
+## Code Archaeology Prompts (for regeneration only)
+
+Use these canned prompts **inside Agent Mode** when asked to regenerate documentation:
+
+- **ARCHITECTURE.md Deep Scan**: Document high-level goal, data flow, tech stack, key components, and design patterns observed.
+- **ROADMAP.md Audit**: List completed features, technical debt, and three future steps. Single file only.
+- **Directory Standards Add-on**: Append section:
+	- `/App`: Entry points and configuration
+	- `/Features`: By domain (Views, ViewModels, Models per feature)
+	- `/Core`: Shared utilities, networking, extensions
+	- `/UI`: Reusable design-system components
+	- `/Pipelines`: CI/CD YAMLs and build scripts
+
+---
+
+## Daily Driver (Activator Prompt)
+
+When starting work:
+
+1. Read `ROADMAP.md` and `Docs/reference/ARCHITECTURE.md`.
+2. Find the next unchecked `[ ]` in `ROADMAP.md`.
+3. Propose a plan in chat (no files).
+4. Implement code.
+5. Update `ROADMAP.md` with `[x]` for the item.
+
+---
+
+## Cleanup Protocols
+
+- **Janitor**: If stray markdown files exist (outside `ROADMAP.md`, `ARCHITECTURE.md`, `README.md`), merge useful info into `ARCHITECTURE.md` as bullets, then delete the extras.
+- **Housekeeper**: Audit file locations against Directory Standards; propose moves (e.g., `UserView.swift` → `/Features/Auth/UserView.swift`), then execute with references updated after approval.
+
+---
+
+## Interview Pitch (Talking Points)
+
+- Modularized VS Code with SweetPad + build server; headless CI simulation locally.
+- Static analysis enforced on save (SwiftFormat/SwiftLint) to avoid style debates.
+- Cognitive load tools (Todo Tree, Error Lens) keep feedback fast.
+- IaC validated locally (YAML/Docker) before pushing.

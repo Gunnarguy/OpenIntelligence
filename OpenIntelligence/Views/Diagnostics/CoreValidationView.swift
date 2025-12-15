@@ -11,13 +11,13 @@ import SwiftUI
 struct CoreValidationView: View {
     @ObservedObject var ragService: RAGService
     @ObservedObject private var telemetryCenter = TelemetryCenter.shared
-    
+
     @State private var testResults: [TestResult] = []
     @State private var isRunning = false
     @State private var currentTest = ""
     @State private var overallStatus: TestStatus = .notStarted
     @State private var embeddingSnapshot: RAGService.EmbeddingDiagnosticsSnapshot? = nil
-    
+
     private var recentEmbeddingEvents: [TelemetryEvent] {
         let filtered = telemetryCenter.events.filter {
             $0.title.contains("Embedding dimension auto-adjusted")
@@ -31,13 +31,13 @@ struct CoreValidationView: View {
             LinearGradient(
                 colors: [
                     DSColors.background,
-                    DSColors.surface.opacity(0.3)
+                    DSColors.surface.opacity(0.3),
                 ],
                 startPoint: .top,
                 endPoint: .bottom
             )
             .ignoresSafeArea()
-            
+
             ScrollView {
                 VStack(spacing: 20) {
                     // Hero Status Card
@@ -53,7 +53,7 @@ struct CoreValidationView: View {
                                 .padding(.horizontal)
                         }
                     }
-                    
+
                     // Run Tests Button
                     Button(action: runAllTests) {
                         HStack(spacing: 12) {
@@ -61,7 +61,7 @@ struct CoreValidationView: View {
                                 .font(.title3)
                                 .rotationEffect(isRunning ? .degrees(360) : .degrees(0))
                                 .animation(isRunning ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: isRunning)
-                            
+
                             Text(isRunning ? "Running Tests..." : "Run Core Validation")
                                 .font(.headline)
                         }
@@ -80,7 +80,7 @@ struct CoreValidationView: View {
                     }
                     .disabled(isRunning)
                     .padding(.horizontal)
-                    
+
                     // Test Results
                     if !testResults.isEmpty {
                         VStack(alignment: .leading, spacing: 16) {
@@ -88,9 +88,9 @@ struct CoreValidationView: View {
                                 Text("Test Results")
                                     .font(.title3)
                                     .fontWeight(.bold)
-                                
+
                                 Spacer()
-                                
+
                                 // Pass/Fail count
                                 HStack(spacing: 12) {
                                     HStack(spacing: 4) {
@@ -100,7 +100,7 @@ struct CoreValidationView: View {
                                             .font(.caption)
                                             .fontWeight(.semibold)
                                     }
-                                    
+
                                     HStack(spacing: 4) {
                                         Image(systemName: "xmark.circle.fill")
                                             .foregroundColor(.red)
@@ -111,7 +111,7 @@ struct CoreValidationView: View {
                                 }
                             }
                             .padding(.horizontal)
-                            
+
                             LazyVStack(spacing: 12) {
                                 ForEach(testResults) { result in
                                     ModernTestResultCard(result: result)
@@ -120,7 +120,7 @@ struct CoreValidationView: View {
                             .padding(.horizontal)
                         }
                     }
-                    
+
                     // Test Info
                     ModernTestInfoSection()
                         .padding(.horizontal)
@@ -130,17 +130,17 @@ struct CoreValidationView: View {
         }
         .navigationTitle("Core Validation")
         #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitleDisplayMode(.inline)
         #endif
-        .task {
-            if embeddingSnapshot == nil {
-                embeddingSnapshot = await ragService.embeddingDiagnosticsSnapshot()
+            .task {
+                if embeddingSnapshot == nil {
+                    embeddingSnapshot = await ragService.embeddingDiagnosticsSnapshot()
+                }
             }
-        }
     }
-    
+
     // MARK: - Test Runner
-    
+
     private func runAllTests() {
         Task {
             await MainActor.run {
@@ -155,7 +155,7 @@ struct CoreValidationView: View {
             }
             let vectorDimension = snapshot.dimension
             let makeEmbeddingService = { snapshot.makeEmbeddingService() }
-            
+
             // Test 1: Document Processor
             await runTest(name: "DocumentProcessor - Basic Parsing") {
                 // This would test actual document processing
@@ -163,17 +163,17 @@ struct CoreValidationView: View {
                 let processor = DocumentProcessor()
                 return processor.targetChunkSize == 400
             }
-            
+
             // Test 2: Embedding Service
             await runTest(name: "EmbeddingService - Availability") {
                 let embeddingService = makeEmbeddingService()
                 return embeddingService.isAvailable
             }
-            
+
             await runTest(name: "EmbeddingService - Dimension Check") {
                 let embeddingService = makeEmbeddingService()
                 guard embeddingService.isAvailable else { return false }
-                
+
                 do {
                     let embedding = try await embeddingService.generateEmbedding(for: "Test text for validation")
                     return embedding.count == vectorDimension
@@ -181,7 +181,7 @@ struct CoreValidationView: View {
                     return false
                 }
             }
-            
+
             await runTest(name: "EmbeddingService - Edge Case (Empty)") {
                 let embeddingService = makeEmbeddingService()
                 do {
@@ -191,7 +191,7 @@ struct CoreValidationView: View {
                     return true // Correctly handled edge case
                 }
             }
-            
+
             // Test 3: Vector Database
             await runTest(name: "VectorDatabase - Store and Count") {
                 let vectorDB = InMemoryVectorDatabase(dimension: vectorDimension)
@@ -201,7 +201,7 @@ struct CoreValidationView: View {
                     embedding: Array(repeating: 0.1, count: vectorDimension),
                     metadata: ChunkMetadata(chunkIndex: 0, startPosition: 0, endPosition: 12)
                 )
-                
+
                 do {
                     try await vectorDB.store(chunk: testChunk)
                     let count = try await vectorDB.count()
@@ -210,7 +210,7 @@ struct CoreValidationView: View {
                     return false
                 }
             }
-            
+
             await runTest(name: "VectorDatabase - Search Functionality") {
                 let vectorDB = InMemoryVectorDatabase(dimension: vectorDimension)
                 let testEmbedding = Array(repeating: Float(0.1), count: vectorDimension)
@@ -220,7 +220,7 @@ struct CoreValidationView: View {
                     embedding: testEmbedding,
                     metadata: ChunkMetadata(chunkIndex: 0, startPosition: 0, endPosition: 12)
                 )
-                
+
                 do {
                     try await vectorDB.store(chunk: testChunk)
                     let results = try await vectorDB.search(embedding: testEmbedding, topK: 1)
@@ -229,11 +229,11 @@ struct CoreValidationView: View {
                     return false
                 }
             }
-            
+
             await runTest(name: "VectorDatabase - Edge Case (Empty Search)") {
                 let vectorDB = InMemoryVectorDatabase(dimension: vectorDimension)
                 let testEmbedding = Array(repeating: Float(0.1), count: vectorDimension)
-                
+
                 do {
                     let results = try await vectorDB.search(embedding: testEmbedding, topK: 5)
                     return results.isEmpty // Should return empty array for empty DB
@@ -241,7 +241,7 @@ struct CoreValidationView: View {
                     return false
                 }
             }
-            
+
             // Test 4: Device Capabilities
             await runTest(name: "Device Capabilities Check") {
                 await withCheckedContinuation { continuation in
@@ -251,12 +251,12 @@ struct CoreValidationView: View {
                     }
                 }
             }
-            
+
             // Test 5: LLM Service
             await runTest(name: "LLM Service - Availability") {
-                return ragService.isLLMAvailable
+                ragService.isLLMAvailable
             }
-            
+
             // Test 6: RAGService - Small Talk Bypass ('hi')
             await runTest(name: "RAGService - Small Talk Bypass ('hi')") {
                 // Use a dedicated test service to avoid main-thread constraints of Apple FM
@@ -273,7 +273,7 @@ struct CoreValidationView: View {
                     return false
                 }
             }
-            
+
             // Test 7: RAGService - Direct Chat (No Docs)
             await runTest(name: "RAGService - Direct Chat (No Docs)") {
                 // Empty in-memory DB ensures direct chat path
@@ -290,7 +290,7 @@ struct CoreValidationView: View {
                     return false
                 }
             }
-            
+
             // Test 8: Tools - search_documents truncation and citation
             await runTest(name: "Tools - search_documents truncation + citation") {
                 // Seed a temporary service with one long chunk and verify truncation + source formatting
@@ -301,7 +301,7 @@ struct CoreValidationView: View {
                     vectorDatabase: vectorDB,
                     llmService: OnDeviceAnalysisService()
                 )
-                
+
                 let longText = String(repeating: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. ", count: 40) // > 600 chars
                 let doc = Document(
                     filename: "Foo.txt",
@@ -310,7 +310,7 @@ struct CoreValidationView: View {
                     totalChunks: 1,
                     processingMetadata: nil
                 )
-                
+
                 do {
                     // Prepare embedding and chunk
                     let embedder = makeEmbeddingService()
@@ -326,12 +326,12 @@ struct CoreValidationView: View {
                             pageNumber: 1
                         )
                     )
-                    
+
                     try await vectorDB.store(chunk: chunk)
                     await MainActor.run {
                         testService.documents.append(doc)
                     }
-                    
+
                     // Call tool and verify truncation marker and citation
                     let toolOutput = try await testService.searchDocuments(query: "Lorem ipsum")
                     let hasTruncation = toolOutput.contains(" [...]")
@@ -342,14 +342,14 @@ struct CoreValidationView: View {
                     return false
                 }
             }
-            
+
             // Finalize
             await MainActor.run {
                 isRunning = false
-                
+
                 let passedCount = testResults.filter { $0.status == .passed }.count
                 let totalCount = testResults.count
-                
+
                 if passedCount == totalCount {
                     overallStatus = .passed
                 } else if passedCount == 0 {
@@ -360,23 +360,23 @@ struct CoreValidationView: View {
             }
         }
     }
-    
+
     private func runTest(name: String, test: () async -> Bool) async {
         await MainActor.run {
             currentTest = name
         }
-        
+
         let startTime = Date()
         let passed = await test()
         let duration = Date().timeIntervalSince(startTime)
-        
+
         let result = TestResult(
             name: name,
             status: passed ? .passed : .failed,
             duration: duration,
             message: passed ? "✓" : "Failed"
         )
-        
+
         await MainActor.run {
             testResults.append(result)
         }
@@ -389,7 +389,7 @@ struct ModernStatusCard: View {
     let status: TestStatus
     let isRunning: Bool
     let currentTest: String
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 12) {
@@ -397,16 +397,16 @@ struct ModernStatusCard: View {
                     Circle()
                         .fill(status.color.opacity(0.2))
                         .frame(width: 50, height: 50)
-                    
+
                     Image(systemName: status.icon)
                         .font(.title3)
                         .foregroundColor(status.color)
                 }
-                
+
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Core Pipeline Validation")
                         .font(.headline)
-                    
+
                     if status != .notStarted && status != .running {
                         Text(status.message)
                             .font(.caption)
@@ -414,12 +414,12 @@ struct ModernStatusCard: View {
                     }
                 }
             }
-            
+
             if isRunning && !currentTest.isEmpty {
                 HStack(spacing: 8) {
                     ProgressView()
                         .scaleEffect(0.8)
-                    
+
                     Text(currentTest)
                         .font(.caption)
                         .foregroundColor(.secondary)
@@ -441,6 +441,26 @@ struct ModernStatusCard: View {
 struct EmbeddingStatusCard: View {
     let snapshot: RAGService.EmbeddingDiagnosticsSnapshot
 
+    /// Human-readable provider description
+    private var providerDescription: String {
+        switch snapshot.embeddingProviderId {
+        case "nl_contextual_embedding":
+            return "Contextual (High Accuracy)"
+        case "nl_embedding":
+            return "Standard NL"
+        case "coreml_sentence_embedding":
+            return "CoreML Sentence"
+        case "apple_fm_embed":
+            return "Apple FM"
+        default:
+            return snapshot.embeddingProviderId
+        }
+    }
+
+    private var isHighAccuracy: Bool {
+        snapshot.embeddingProviderId.contains("contextual") || snapshot.embeddingProviderId.contains("fm")
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Active Embedding Configuration")
@@ -448,12 +468,21 @@ struct EmbeddingStatusCard: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 Label {
-                    Text("\(snapshot.embeddingProviderId) • \(snapshot.dimension)D")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
+                    HStack(spacing: 6) {
+                        Text(providerDescription)
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                        Text("• \(snapshot.dimension)D")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        if isHighAccuracy {
+                            Text("🎯")
+                                .font(.caption)
+                        }
+                    }
                 } icon: {
-                    Image(systemName: "brain.head.profile")
-                        .foregroundColor(.accentColor)
+                    Image(systemName: isHighAccuracy ? "sparkles" : "brain.head.profile")
+                        .foregroundColor(isHighAccuracy ? .purple : .accentColor)
                 }
 
                 Label {
@@ -546,7 +575,7 @@ private struct StatusPill: View {
 
 struct ModernTestResultCard: View {
     let result: TestResult
-    
+
     var body: some View {
         HStack(spacing: 16) {
             // Status icon
@@ -554,24 +583,24 @@ struct ModernTestResultCard: View {
                 Circle()
                     .fill(result.status.color.opacity(0.2))
                     .frame(width: 40, height: 40)
-                
+
                 Image(systemName: result.status.icon)
                     .foregroundColor(result.status.color)
             }
-            
+
             VStack(alignment: .leading, spacing: 4) {
                 Text(result.name)
                     .font(.subheadline)
                     .fontWeight(.medium)
                     .foregroundColor(.primary)
-                
+
                 Text(result.message)
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
-            
+
             Spacer()
-            
+
             Text(String(format: "%.2fs", result.duration))
                 .font(.caption)
                 .fontWeight(.medium)
@@ -602,7 +631,7 @@ struct ModernTestInfoSection: View {
                     .font(.title3)
                     .fontWeight(.bold)
             }
-            
+
             VStack(spacing: 12) {
                 ModernTestInfoItem(
                     icon: "doc.text",
@@ -644,22 +673,22 @@ struct ModernTestInfoItem: View {
     let icon: String
     let color: Color
     let text: String
-    
+
     var body: some View {
         HStack(spacing: 12) {
             ZStack {
                 RoundedRectangle(cornerRadius: 8)
                     .fill(color.opacity(0.2))
                     .frame(width: 36, height: 36)
-                
+
                 Image(systemName: icon)
                     .foregroundColor(color)
             }
-            
+
             Text(text)
                 .font(.subheadline)
                 .foregroundColor(.primary)
-            
+
             Spacer()
         }
     }
@@ -671,7 +700,7 @@ struct StatusCard: View {
     let status: TestStatus
     let isRunning: Bool
     let currentTest: String
-    
+
     var body: some View {
         ModernStatusCard(status: status, isRunning: isRunning, currentTest: currentTest)
     }
@@ -679,7 +708,7 @@ struct StatusCard: View {
 
 struct TestResultRow: View {
     let result: TestResult
-    
+
     var body: some View {
         ModernTestResultCard(result: result)
     }
@@ -694,7 +723,7 @@ struct TestInfoSection: View {
 struct TestInfoItem: View {
     let icon: String
     let text: String
-    
+
     var body: some View {
         ModernTestInfoItem(icon: icon, color: .blue, text: text)
     }
@@ -716,7 +745,7 @@ enum TestStatus {
     case passed
     case failed
     case partial
-    
+
     var color: Color {
         switch self {
         case .notStarted: return .gray
@@ -726,7 +755,7 @@ enum TestStatus {
         case .partial: return .orange
         }
     }
-    
+
     var icon: String {
         switch self {
         case .notStarted: return "circle"
@@ -736,7 +765,7 @@ enum TestStatus {
         case .partial: return "exclamationmark.circle.fill"
         }
     }
-    
+
     var message: String {
         switch self {
         case .notStarted: return "Tests not run"

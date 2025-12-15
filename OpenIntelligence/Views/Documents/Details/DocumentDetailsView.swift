@@ -9,37 +9,75 @@ import SwiftUI
 
 struct DocumentDetailsView: View {
     let document: Document
-    
+    let embeddingProviderId: String?
+
+    /// Human-readable name for the embedding provider
+    private var embeddingProviderDisplayName: String {
+        switch embeddingProviderId {
+        case "nl_contextual_embedding":
+            return "Contextual Embedding"
+        case "nl_embedding", nil:
+            return "NLEmbedding"
+        case "coreml_sentence_embedding":
+            return "CoreML Sentence"
+        case "apple_fm_embed":
+            return "Apple FM"
+        default:
+            return embeddingProviderId ?? "NLEmbedding"
+        }
+    }
+
+    /// Description for the embedding provider
+    private var embeddingProviderDescription: String {
+        switch embeddingProviderId {
+        case "nl_contextual_embedding":
+            return "BERT-based, high-accuracy semantic search"
+        case "nl_embedding", nil:
+            return "Word2Vec-based, 512 dimensions"
+        case "coreml_sentence_embedding":
+            return "Sentence-level, cross-lingual"
+        case "apple_fm_embed":
+            return "Foundation Model embeddings"
+        default:
+            return "512 dimensions"
+        }
+    }
+
+    /// Whether this is a high-accuracy provider
+    private var isHighAccuracyProvider: Bool {
+        embeddingProviderId == "nl_contextual_embedding"
+    }
+
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 18, pinnedViews: []) {
                 documentHeaderCard
                 vectorStorageCard
-                
+
                 if let metadata = document.processingMetadata {
                     contentAnalysisCard(metadata)
                     chunkingStrategyCard(metadata)
                     performanceMetricsCard(metadata)
-                    
+
                     if metadata.ocrPagesCount ?? 0 > 0 {
                         ocrDetailsCard(metadata)
                     }
                 }
-                
+
                 technicalDetailsCard
             }
             .padding(.vertical, 22)
             .padding(.horizontal, 18)
         }
-            .background(DSColors.background.ignoresSafeArea())
-            .navigationTitle("Document Intelligence")
-            #if os(iOS)
+        .background(DSColors.background.ignoresSafeArea())
+        .navigationTitle("Document Intelligence")
+        #if os(iOS)
             .navigationBarTitleDisplayMode(.large)
-            #endif
+        #endif
     }
-    
+
     // MARK: - Document Header Card
-    
+
     @ViewBuilder
     private var documentHeaderCard: some View {
         DocumentDetailCardView(icon: iconName(for: document.contentType), title: document.filename, caption: "Document Overview") {
@@ -60,16 +98,16 @@ struct DocumentDetailsView: View {
                         )
                         .foregroundColor(.accentColor)
                         .cornerRadius(8)
-                    
+
                     Spacer()
-                    
+
                     Text(document.addedAt, style: .relative)
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
-                
+
                 Divider()
-                
+
                 // Quick stats
                 HStack(spacing: 20) {
                     QuickStatView(
@@ -78,7 +116,7 @@ struct DocumentDetailsView: View {
                         label: "Chunks",
                         color: .blue
                     )
-                    
+
                     if let metadata = document.processingMetadata {
                         QuickStatView(
                             icon: "doc.text",
@@ -86,7 +124,7 @@ struct DocumentDetailsView: View {
                             label: "Characters",
                             color: .green
                         )
-                        
+
                         QuickStatView(
                             icon: "text.word.spacing",
                             value: formatNumber(metadata.totalWords),
@@ -98,34 +136,35 @@ struct DocumentDetailsView: View {
             }
         }
     }
-    
+
     // MARK: - Vector Storage Card
-    
+
     @ViewBuilder
     private var vectorStorageCard: some View {
         DocumentDetailCardView(icon: "cylinder.fill", title: "Vector Storage", caption: "Embedding metrics") {
             VStack(spacing: 8) {
                 VectorMetricRow(
-                    icon: "brain.head.profile",
+                    icon: isHighAccuracyProvider ? "sparkles" : "brain.head.profile",
                     label: "Embedding Model",
-                    value: "NLEmbedding",
-                    detail: "Word2Vec-based, 512 dimensions"
+                    value: embeddingProviderDisplayName,
+                    detail: embeddingProviderDescription,
+                    valueColor: isHighAccuracyProvider ? .purple : .primary
                 )
-                
+
                 VectorMetricRow(
                     icon: "square.stack.3d.up.fill",
                     label: "Vector Dimensions",
                     value: "512-dim",
                     detail: "Cosine similarity search"
                 )
-                
+
                 VectorMetricRow(
                     icon: "memorychip",
                     label: "Memory Footprint",
                     value: estimatedMemoryUsage,
                     detail: "Vectors + metadata"
                 )
-                
+
                 VectorMetricRow(
                     icon: "externaldrive.fill",
                     label: "Storage Status",
@@ -136,9 +175,9 @@ struct DocumentDetailsView: View {
             }
         }
     }
-    
+
     // MARK: - Content Analysis Card
-    
+
     @ViewBuilder
     private func contentAnalysisCard(_ metadata: ProcessingMetadata) -> some View {
         DocumentDetailCardView(icon: "text.magnifyingglass", title: "Content Analysis", caption: "Document structure breakdown") {
@@ -150,7 +189,7 @@ struct DocumentDetailsView: View {
                     value: String(format: "%.2f MB", metadata.fileSizeMB),
                     detail: formatBytes(Int(metadata.fileSizeMB * 1024 * 1024))
                 )
-                
+
                 if let pages = metadata.pagesProcessed {
                     ContentMetricRow(
                         icon: "doc.plaintext",
@@ -160,7 +199,7 @@ struct DocumentDetailsView: View {
                         detail: pages > 1 ? "Multi-page document" : "Single page"
                     )
                 }
-                
+
                 ContentMetricRow(
                     icon: "character.book.closed",
                     iconColor: .green,
@@ -168,7 +207,7 @@ struct DocumentDetailsView: View {
                     value: formatNumber(metadata.totalCharacters),
                     detail: "\(formatNumber(metadata.totalWords)) words"
                 )
-                
+
                 ContentMetricRow(
                     icon: "chart.line.uptrend.xyaxis",
                     iconColor: .orange,
@@ -179,9 +218,9 @@ struct DocumentDetailsView: View {
             }
         }
     }
-    
+
     // MARK: - Chunking Strategy Card
-    
+
     @ViewBuilder
     private func chunkingStrategyCard(_ metadata: ProcessingMetadata) -> some View {
         DocumentDetailCardView(icon: "scissors", title: "Chunking Strategy", caption: "Semantic paragraph-based splitting") {
@@ -192,23 +231,23 @@ struct DocumentDetailsView: View {
                     value: "\(document.totalChunks)",
                     badge: "Optimal"
                 )
-                
+
                 ChunkMetricRow(
                     icon: "ruler",
                     label: "Average Size",
                     value: "\(metadata.chunkStats.averageChars) chars",
                     badge: "\(averageWords(metadata)) words"
                 )
-                
+
                 ChunkMetricRow(
                     icon: "arrow.up.arrow.down",
                     label: "Size Range",
                     value: "\(metadata.chunkStats.minChars) - \(metadata.chunkStats.maxChars)",
                     badge: "Chars"
                 )
-                
+
                 Divider()
-                
+
                 HStack(spacing: 8) {
                     Image(systemName: "info.circle.fill")
                         .foregroundColor(.blue)
@@ -221,9 +260,9 @@ struct DocumentDetailsView: View {
             }
         }
     }
-    
+
     // MARK: - Performance Metrics Card
-    
+
     @ViewBuilder
     private func performanceMetricsCard(_ metadata: ProcessingMetadata) -> some View {
         DocumentDetailCardView(icon: "speedometer", title: "Performance Metrics", caption: "Processing pipeline timing") {
@@ -235,7 +274,7 @@ struct DocumentDetailsView: View {
                     time: metadata.extractionTimeSeconds,
                     detail: extractionMethod(metadata)
                 )
-                
+
                 PerformanceRow(
                     icon: "scissors",
                     iconColor: .orange,
@@ -243,7 +282,7 @@ struct DocumentDetailsView: View {
                     time: metadata.chunkingTimeSeconds,
                     detail: "\(document.totalChunks) chunks created"
                 )
-                
+
                 PerformanceRow(
                     icon: "brain.head.profile",
                     iconColor: .purple,
@@ -251,9 +290,9 @@ struct DocumentDetailsView: View {
                     time: metadata.embeddingTimeSeconds,
                     detail: String(format: "%.0f ms/chunk avg", (metadata.embeddingTimeSeconds / Double(document.totalChunks)) * 1000)
                 )
-                
+
                 Divider()
-                
+
                 PerformanceRow(
                     icon: "clock.fill",
                     iconColor: .green,
@@ -265,9 +304,9 @@ struct DocumentDetailsView: View {
             }
         }
     }
-    
+
     // MARK: - OCR Details Card
-    
+
     @ViewBuilder
     private func ocrDetailsCard(_ metadata: ProcessingMetadata) -> some View {
         if let ocrPages = metadata.ocrPagesCount, ocrPages > 0 {
@@ -278,22 +317,22 @@ struct DocumentDetailsView: View {
                             .font(.title2)
                             .foregroundColor(.blue)
                             .frame(width: 32)
-                        
+
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Optical Character Recognition")
                                 .font(.subheadline)
                                 .fontWeight(.semibold)
-                            
+
                             Text("\(ocrPages) page\(ocrPages == 1 ? "" : "s") processed with Vision framework")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
-                        
+
                         Spacer()
                     }
-                    
+
                     Divider()
-                    
+
                     HStack(spacing: 8) {
                         Image(systemName: "info.circle.fill")
                             .foregroundColor(.blue)
@@ -307,9 +346,9 @@ struct DocumentDetailsView: View {
             }
         }
     }
-    
+
     // MARK: - Technical Details Card
-    
+
     @ViewBuilder
     private var technicalDetailsCard: some View {
         DocumentDetailCardView(icon: "info.circle", title: "Technical Details", caption: "System information") {
@@ -322,15 +361,15 @@ struct DocumentDetailsView: View {
             }
         }
     }
-    
+
     // MARK: - Helper Functions
-    
+
     private var estimatedMemoryUsage: String {
         let bytesPerChunk = (512 * 4) + 500
         let totalBytes = bytesPerChunk * document.totalChunks
         return formatBytes(totalBytes)
     }
-    
+
     private func formatBytes(_ bytes: Int) -> String {
         if bytes < 1024 {
             return "\(bytes) B"
@@ -340,7 +379,7 @@ struct DocumentDetailsView: View {
             return String(format: "%.2f MB", Double(bytes) / (1024.0 * 1024.0))
         }
     }
-    
+
     private func formatNumber(_ number: Int) -> String {
         if number < 1000 {
             return "\(number)"
@@ -350,16 +389,16 @@ struct DocumentDetailsView: View {
             return String(format: "%.2fM", Double(number) / 1_000_000.0)
         }
     }
-    
+
     private func contentDensity(_ metadata: ProcessingMetadata) -> Double {
         guard metadata.totalCharacters > 0 else { return 0 }
         return Double(metadata.totalWords) / Double(metadata.totalCharacters) * 100
     }
-    
+
     private func averageWords(_ metadata: ProcessingMetadata) -> Int {
         return metadata.chunkStats.averageChars / 5 // Rough estimate: 5 chars per word
     }
-    
+
     private func extractionMethod(_ metadata: ProcessingMetadata) -> String {
         if let ocrPages = metadata.ocrPagesCount, ocrPages > 0 {
             return "PDFKit + Vision OCR"
@@ -367,12 +406,12 @@ struct DocumentDetailsView: View {
             return "PDFKit native"
         }
     }
-    
+
     private func throughputRate(_ metadata: ProcessingMetadata) -> String {
         let chunksPerSecond = Double(document.totalChunks) / metadata.totalProcessingTimeSeconds
         return String(format: "%.1f chunks/sec", chunksPerSecond)
     }
-    
+
     private func iconName(for type: DocumentType) -> String {
         switch type {
         case .pdf: return "doc.fill"
@@ -405,18 +444,18 @@ struct DetailRow: View {
     let label: String
     let value: String
     var highlight: Bool = false
-    
+
     var body: some View {
         HStack {
             Image(systemName: icon)
                 .frame(width: 24)
                 .foregroundColor(.accentColor)
-            
+
             Text(label)
                 .foregroundColor(.secondary)
-            
+
             Spacer()
-            
+
             Text(value)
                 .fontWeight(highlight ? .semibold : .regular)
                 .foregroundColor(highlight ? .accentColor : .primary)
@@ -432,14 +471,14 @@ private struct DocumentDetailCardView<Content: View>: View {
     let title: String
     let caption: String?
     let content: Content
-    
+
     init(icon: String? = nil, title: String, caption: String? = nil, @ViewBuilder content: () -> Content) {
         self.icon = icon
         self.title = title
         self.caption = caption
         self.content = content()
     }
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             if icon != nil || !title.isEmpty {
@@ -481,7 +520,7 @@ private struct QuickStatView: View {
     let value: String
     let label: String
     let color: Color
-    
+
     var body: some View {
         VStack(spacing: 4) {
             Image(systemName: icon)
@@ -504,7 +543,7 @@ private struct VectorMetricRow: View {
     let value: String
     let detail: String
     var valueColor: Color = .primary
-    
+
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: icon)
@@ -533,7 +572,7 @@ private struct ContentMetricRow: View {
     let label: String
     let value: String
     let detail: String
-    
+
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: icon)
@@ -560,23 +599,23 @@ private struct ChunkMetricRow: View {
     let label: String
     let value: String
     let badge: String
-    
+
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
                 .foregroundColor(.accentColor)
                 .font(.title3)
                 .frame(width: 28)
-            
+
             VStack(alignment: .leading, spacing: 2) {
                 Text(label)
                     .font(.subheadline)
                 Text(value)
                     .font(.headline)
             }
-            
+
             Spacer()
-            
+
             Text(badge)
                 .font(.caption2)
                 .fontWeight(.medium)
@@ -597,7 +636,7 @@ private struct PerformanceRow: View {
     let time: TimeInterval
     let detail: String
     var highlight: Bool = false
-    
+
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: icon)
@@ -625,7 +664,7 @@ private struct PerformanceRow: View {
 private struct TechnicalRow: View {
     let label: String
     let value: String
-    
+
     var body: some View {
         HStack {
             Text(label)

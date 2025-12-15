@@ -1,0 +1,370 @@
+## 🛠️ Phase 1: Environment Setup
+
+Use **VS Code Profiles** to prevent extension conflicts and "bugging out."
+
+**Action:** Settings (Gear) → Profiles → Create Profile
+
+---
+
+### 🧱 Domain A: The iOS "Heavy Lifter" Stack
+
+*Profile: "iOS Architect"*
+
+*Use when:* Building apps, UI work, Core Data, Swift logic
+
+| Extension | ID | Why You Need It | Configuration Note |
+| --- | --- | --- | --- |
+| SweetPad | `sweetpad.sweetpad` | **The Engine.** Replaces Xcode for Build/Run/Simulate. | Critical: Must pair with `xcode-build-server` to feed build data to Copilot. |
+| Swift (Official) | `sswg.swift-lang` | **The Brain.** Provides the LSP (IntelliSense). | Disable its "debug" features if you use CodeLLDB to avoid conflicts. |
+| CodeLLDB | `vadimcn.vscode-lldb` | **The Scalpel.** Debugger that actually works with Swift binaries. | Requires lldb configuration in `.vscode/launch.json`. |
+| SwiftFormat | `vknabel.vscode-swiftformat` | **The Enforcer.** Auto-formats code on save. Essential for teams. | Set `editor.formatOnSave: true`. Prevents "nitpick" comments in PRs. |
+| SwiftLint | `kiro.git-swiftlint` | **The Police.** Highlights bad code patterns (force casts, huge functions) inline. | Requires `brew install swiftlint`. Shows errors in the "Problems" tab. |
+| Apple Dictionary | `fiatjaf.vscode-apple-dictionary` | **The Reference.** Hover over a word to see Apple glossary definitions. | Minor but helpful for obscure API terms. |
+
+**🚀 Setup Command (Run in Terminal):**
+
+```bash
+brew install xcode-build-server xcbeautify swiftlint
+code --install-extension sweetpad.sweetpad
+code --install-extension sswg.swift-lang
+code --install-extension vadimcn.vscode-lldb
+code --install-extension vknabel.vscode-swiftformat
+code --install-extension kiro.git-swiftlint
+```
+
+---
+
+### 🔧 Domain B: The Pipeline & DevOps Stack
+
+*Profile: "Pipeline Operator"*
+
+*Use when:* Writing Azure Pipelines, GitHub Actions, Dockerfiles, Python scripts
+
+| Extension | ID | Why You Need It | Configuration Note |
+| --- | --- | --- | --- |
+| Azure Pipelines | [`ms-azure-devops.azure](http://ms-azure-devops.azure)-pipelines` | **The Validator.** Syntax highlighting and validation for `azure-pipelines.yml`. | Prevents "push and pray" by catching syntax errors locally. |
+| Docker | `ms-azuretools.vscode-docker` | **The Container.** Manage images, containers, and Dockerfiles. | Right-click a Dockerfile to build. Copilot reads this to understand your environment. |
+| YAML | `redhat.vscode-yaml` | **The Structure.** Essential for `.github/workflows` and Kubernetes files. | Pro Tip: Map schemas in settings to validate custom config files. |
+| Remote - SSH | `ms-vscode-remote.remote-ssh` | **The Tunnel.** Edit files directly on your build server or cloud VM. | Essential if your pipeline runs on a Linux runner you need to debug. |
+| Dev Containers | `ms-vscode-remote.remote-containers` | **The Sandbox.** Open your folder inside a Docker container. | Ensures your dev environment matches CI exactly. |
+
+**🚀 Setup Command:**
+
+- `code --install-extension [ms-azure-devops.azure](http://ms-azure-devops.azure)-pipelines`
+- `code --install-extension ms-azuretools.vscode-docker`
+- `code --install-extension redhat.vscode-yaml`
+- `code --install-extension ms-vscode-remote.remote-ssh`
+- `code --install-extension ms-vscode-remote.remote-containers`
+
+---
+
+### 🧠 Domain C: The "Cognitive Load" Stack (Productivity)
+
+*Profile: Both profiles (or create a third "Documentation/Review" profile)*
+
+These are the "10x" tools that manage the chaos of big projects.
+
+| Extension | ID | Why You Need It | The "Staff Engineer" Flex |
+| --- | --- | --- | --- |
+| Error Lens | `usernamehw.errorlens` | **Instant Feedback.** Shows error messages inline right next to the code line. | You don't have to hover over red squiggles. You see the error instantly. Mandatory. |
+| GitLens | `eamodio.gitlens` | **History & Blame.** Shows who wrote this line and why (commit message) on hover. | "Who broke this? Oh, it was me, 6 months ago." Essential for archaeology. |
+| Todo Tree | `gruntfuggly.todo-tree` | **Debt Manager.** Scrapes `// TODO` and `// FIXME` into a sidebar tree. | Pairs perfectly with your [`ROADMAP.md`](http://ROADMAP.md). Keeps technical debt visible. |
+| Project Manager | `alefragnani.project-manager` | **Context Switcher.** Save workspaces and switch instantly. | Toggle between "iOS App" and "Backend API" in 2 seconds. |
+| Markdown All in One | `yzhang.markdown-all-in-one` | **Documentation.** Auto-toc, shortcuts, and preview for your `.md` files. | Makes maintaining [`ARCHITECTURE.md`](http://ARCHITECTURE.md) and [`ROADMAP.md`](http://ROADMAP.md) painless. |
+| Material Icon Theme | `pkief.material-icon-theme` | **Visual Parsing.** Gives folders and files distinct icons. | Helps your brain navigate the file tree 20% faster. |
+| GitHub Copilot | `github.copilot` | **The Brain.** AI pair programmer across all domains. | Required in all profiles. The whole point of the protocol. |
+
+**🚀 Setup Command:**
+
+```bash
+code --install-extension usernamehw.errorlens
+code --install-extension eamodio.gitlens
+code --install-extension gruntfuggly.todo-tree
+code --install-extension alefragnani.project-manager
+code --install-extension yzhang.markdown-all-in-one
+code --install-extension pkief.material-icon-theme
+code --install-extension github.copilot
+```
+
+---
+
+### ⚙️ The "Glueware": Workspace Settings
+
+Extensions are useless if they aren't configured. Paste this into `.vscode/settings.json`:
+
+<aside>
+📋
+
+**iOS Specifics**
+
+`"swift.path": "/usr/bin/swift"`
+
+`"swift.sourcekit-lsp.serverPath": "/usr/bin/sourcekit-lsp"`
+
+`"[sweetpad.build](http://sweetpad.build).xcodeWorkspacePath": "YourApp.xcworkspace"`
+
+`"sweetpad.format.swiftFormatPath": "swift-format"`
+
+**Formatting & Linting**
+
+`"editor.formatOnSave": true`
+
+`"editor.codeActionsOnSave": { "source.fixAll.swiftlint": "explicit" }`
+
+`"[swift]": { "editor.defaultFormatter": "vknabel.vscode-swiftformat" }`
+
+**Cognitive Load Reducers**
+
+`"errorLens.fontStyleItalic": true`
+
+`"errorLens.gutterIconsEnabled": true`
+
+`"todo-tree.tree.showScanModeButton": false`
+
+`"todo-tree.general.tags": ["TODO", "FIXME", "BUG", "HACK", "XXX"]`
+
+**Copilot Context Optimization**
+
+`"github.copilot.editor.enableAutoCompletions": true`
+
+`"files.exclude": { "**/.git": true, "**/.DS_Store": true, "**/DerivedData": true, "**/build": true }`
+
+</aside>
+
+---
+
+### 🏆 How to Pitch This Setup
+
+When onboarding a new dev or explaining your environment to an employer:
+
+> *"I run a modularized VS Code environment.*
+> 
+
+> - *I use SweetPad + Build Server to decouple the build system from the IDE, allowing for headless CI/CD simulation locally.*
+> 
+
+> - *I enforce Static Analysis via SwiftLint/Format on save, so we never argue about code style in PRs.*
+> 
+
+> - *I manage Cognitive Debt using Todo Tree and Error Lens to keep the feedback loop under 200ms.*
+> 
+
+> - *My Infrastructure as Code (YAML/Docker) is validated locally before it ever hits the repo."*
+> 
+
+---
+
+## 📜 Phase 2: The Constitution
+
+Create this file at `.github/[copilot-instructions.md](http://copilot-instructions.md)` in **every repository**. This hard-wires the rules into the Agent.
+
+<aside>
+🤖
+
+**🤖 Copilot Universal Constitution**
+
+**1. Prime Directives (STRICT)**
+
+- **Context First:** Before generating code, you MUST read [`ROADMAP.md`](http://ROADMAP.md) (for current status) and [`ARCHITECTURE.md`](http://ARCHITECTURE.md) (for patterns).
+- **Zero-Sprawl Policy:** You are PROHIBITED from creating new text/markdown files (like [`plan.md`](http://plan.md), `update_[log.md](http://log.md)`) to document your work.
+- **Single Source of Truth:** All task tracking must happen in [`ROADMAP.md`](http://ROADMAP.md). All technical notes must be inline code comments.
+- **Silent Alignment:** Do not explain that you are following these rules; just follow them.
+
+**2. iOS & Swift Standards**
+
+- **Build System:** This project uses SweetPad and xcode-build-server. If builds fail, analyze `compile_commands.json`.
+- **Frameworks:** Prefer SwiftUI. Use `async/await` for concurrency.
+- **Architecture:** Follow patterns in [`ARCHITECTURE.md`](http://ARCHITECTURE.md). If undefined, default to MVVM with Protocol-Oriented dependency injection.
+
+**3. Pipeline & DevOps Standards**
+
+- **Idempotency:** Scripts must be re-runnable without side effects.
+- **Secrets:** NEVER hardcode credentials. Use `$(Variable)` syntax.
+- **Docker:** Use multi-stage builds (builder vs runner).
+
+**4. Agent Mode Behavior**
+
+- **Plan:** Propose your plan in the Chat window only.
+- **Edit:** Apply changes directly to code files.
+- **Verify:** Run a build/lint check before confirming done.
+- **Update:** Check off the task in [`ROADMAP.md`](http://ROADMAP.md) (`[x]`) immediately upon completion.
+</aside>
+
+---
+
+## 🏛️ Phase 3: Code Archaeology
+
+Run these prompts in **Agent Mode** (`@workspace`) to reverse-engineer documentation from your existing "guessed-my-way-through" projects.
+
+### Prompt A: Generate [ARCHITECTURE.md](http://ARCHITECTURE.md)
+
+> @workspace Perform a Deep Scan of this repository. I need to document what has been built.
+> 
+
+> 
+> 
+
+> Create a file named [`ARCHITECTURE.md`](http://ARCHITECTURE.md) containing:
+> 
+
+> - **High-Level Goal:** What does this app/pipeline actually do?
+> 
+
+> - **Data Flow:** How does data move from input to output?
+> 
+
+> - **Tech Stack:** List all libraries and frameworks used.
+> 
+
+> - **Key Components:** Identify the 'meat and potatoes' files and explain their purpose.
+> 
+
+> - **Design Patterns:** Identify patterns I used (even if inconsistent).
+> 
+
+> 
+> 
+
+> Be technical. Document the existing reality.
+> 
+
+### Prompt B: Generate [ROADMAP.md](http://ROADMAP.md)
+
+> @workspace Analyze the codebase for implemented features and unfinished business (TODOs, stubs, commented-out blocks).
+> 
+
+> 
+> 
+
+> Create a file named [`ROADMAP.md`](http://ROADMAP.md) with this exact structure:
+> 
+
+> 
+> 
+
+> **1. Completed Features (The Foundation)**
+> 
+
+> - [x] (List every major feature you find implemented)
+> 
+
+> 
+> 
+
+> **2. Technical Debt (The Cracks)**
+> 
+
+> - [ ] (List areas needing refactoring, TODOs, or error handling)
+> 
+
+> 
+> 
+
+> **3. Future Trajectory**
+> 
+
+> - [ ] (Suggest 3 logical next steps based on the architecture)
+> 
+
+> 
+> 
+
+> Do NOT create multiple files. Put it all in this one file.
+> 
+
+### Prompt C: Add Directory Standards to [ARCHITECTURE.md](http://ARCHITECTURE.md)
+
+Add this section manually so the Agent knows where files belong:
+
+```markdown
+## Directory Structure Standards
+- `/App`: Entry points and configuration
+- `/Features`: Grouped by domain (e.g., /Auth, /Dashboard) — each folder has Views, ViewModels, Models
+- `/Core`: Shared utilities, Networking, Extensions
+- `/UI`: Reusable Design System components (Buttons, Cards)
+- `/Pipelines`: CI/CD YAMLs and build scripts
+```
+
+---
+
+## 🚀 Phase 4: Daily Driver
+
+**Paste this prompt every time you open VS Code to start working.**
+
+<aside>
+⚡
+
+**The Activator Prompt**
+
+Agent, synchronize context. Read [`ROADMAP.md`](http://ROADMAP.md) and [`ARCHITECTURE.md`](http://ARCHITECTURE.md).
+
+Identify the next unchecked item (`[ ]`) in the Roadmap.
+
+- Propose a technical plan to implement it (in the chat only, NO new files).
+- Once I approve, write the code.
+- After the code is written, update [`ROADMAP.md`](http://ROADMAP.md) to mark it `[x]`.
+
+Strictly enforce the Zero-Sprawl Policy.
+
+</aside>
+
+---
+
+## 🧹 Phase 5: Cleanup Protocols
+
+### The Janitor (if Agent creates junk files)
+
+> Agent, you violated the Zero-Sprawl Policy.
+> 
+
+> - Scan the file tree for any markdown files created outside of the core architecture of the app (exclude [`ROADMAP.md`](http://ROADMAP.md), [`ARCHITECTURE.md`](http://ARCHITECTURE.md), and [`README.md`](http://README.md)).
+> 
+
+> - If they contain useful info, merge it into [`ARCHITECTURE.md`](http://ARCHITECTURE.md) as a bulleted list.
+> 
+
+> - DELETE those temporary files immediately.
+> 
+
+> - Confirm when the file tree is clean.
+> 
+
+### The Housekeeper (organize messy file structure)
+
+> Agent, strictly audit the current file structure against the 'Directory Structure Standards' in [`ARCHITECTURE.md`](http://ARCHITECTURE.md).
+> 
+
+> 1. Identify files in the root or generic folders that should be moved to specific Feature or Core modules.
+> 
+
+> 2. Propose a file move plan (e.g., move `UserView.swift` → `/Features/Auth/UserView.swift`).
+> 
+
+> 3. Upon my approval, execute the moves and update any project references to ensure the build doesn't break.
+> 
+
+> 
+> 
+
+> Goal: A clean root directory containing only configuration files.
+> 
+
+---
+
+## 🎓 The Interview Pitch
+
+When explaining your workflow:
+
+> *"I don't just write code; I manage Cognitive Context.*
+> 
+
+> - *I virtualize my environment (Profiles) to prevent toolchain conflicts.*
+> 
+
+> - *I treat Documentation as State (Roadmap/Architecture MDs), allowing my AI agents to have deterministic context rather than hallucinating solutions.*
+> 
+
+> - *I enforce architectural constraints via System Prompts (.github/instructions), ensuring every line of generated code adheres to the project's specific design patterns — not generic internet averages."*
+> 
+
+This proves you're an **Engineering Lead**, not just a coder.

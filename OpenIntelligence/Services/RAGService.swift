@@ -63,7 +63,6 @@ enum IngestionContext: Sendable {
 /// Main orchestrator for the RAG (Retrieval-Augmented Generation) pipeline
 /// Coordinates document processing, embedding, retrieval, and generation
 class RAGService: ObservableObject {
-
     // MARK: - Dependencies
 
     private let documentProcessor: DocumentProcessor
@@ -149,7 +148,7 @@ class RAGService: ObservableObject {
         return chunks.map { retrieved in
             let docName =
                 documents.first(where: { $0.id == retrieved.chunk.documentId })?.filename
-                ?? "Unknown"
+                    ?? "Unknown"
             let pageNum = retrieved.chunk.metadata.pageNumber
             return RetrievedChunk(
                 chunk: retrieved.chunk,
@@ -170,8 +169,8 @@ class RAGService: ObservableObject {
     @MainActor @Published var documents: [Document] = []
     @MainActor @Published var isProcessing: Bool = false
     @MainActor @Published var processingStatus: String = ""
-    @MainActor @Published var lastError: String? = nil  // User-facing error message
-    @MainActor @Published var lastProcessingSummary: ProcessingSummary? = nil  // Detailed completion stats
+    @MainActor @Published var lastError: String? = nil // User-facing error message
+    @MainActor @Published var lastProcessingSummary: ProcessingSummary? = nil // Detailed completion stats
     @MainActor @Published private(set) var retrievalHistory: [RetrievalLogEntry] = []
     @MainActor @Published var pendingCloudConsent: CloudTransmissionRecord?
     @MainActor @Published private(set) var lastCloudTransmission: CloudTransmissionRecord?
@@ -253,7 +252,7 @@ class RAGService: ObservableObject {
     init(
         documentProcessor: DocumentProcessor? = nil,
         embeddingService: EmbeddingService? = nil,
-        vectorDatabase: VectorDatabase? = nil,
+        vectorDatabase _: VectorDatabase? = nil,
         llmService: LLMService? = nil,
         containerService: ContainerService? = nil,
         vectorRouter: VectorStoreRouter? = nil,
@@ -262,10 +261,10 @@ class RAGService: ObservableObject {
         self.documentProcessor = documentProcessor ?? DocumentProcessor()
         if let embeddingService {
             self.embeddingService = embeddingService
-            self.embeddingServiceWasInjected = true
+            embeddingServiceWasInjected = true
         } else {
             self.embeddingService = EmbeddingService()
-            self.embeddingServiceWasInjected = false
+            embeddingServiceWasInjected = false
         }
         // Container + Vector store routing
         self.containerService = containerService ?? ContainerService()
@@ -280,7 +279,7 @@ class RAGService: ObservableObject {
 
         if let service = llmService {
             // User provided custom service (e.g., from Settings)
-            self._llmService = service
+            _llmService = service
             #if os(macOS)
                 configureMLXObserver(for: service)
             #endif
@@ -292,7 +291,8 @@ class RAGService: ObservableObject {
 
             Log.info(
                 "🔧 Initializing with user's selected model: \(selectedModelRaw)",
-                category: .initialization)
+                category: .initialization
+            )
 
             // Try to instantiate the user's selected model first
             let primaryService = Self.instantiateService(
@@ -314,12 +314,13 @@ class RAGService: ObservableObject {
                 resolvedService = fallback
                 #if canImport(FoundationModels)
                     if #available(iOS 26.0, *),
-                        let foundationFallback = resolvedService as? AppleFoundationLLMService
+                       let foundationFallback = resolvedService as? AppleFoundationLLMService
                     {
                         foundationFallback.startWarmup()
                         Log.debug(
                             "🔥 Preloading model in background for instant first query",
-                            category: .initialization)
+                            category: .initialization
+                        )
                     }
                 #endif
             } else {
@@ -330,14 +331,14 @@ class RAGService: ObservableObject {
                 resolvedService = OnDeviceAnalysisService()
             }
 
-            self._llmService = resolvedService
-            self._fallbackServices = fallbackServices
+            _llmService = resolvedService
+            _fallbackServices = fallbackServices
             #if os(macOS)
                 configureMLXObserver(for: resolvedService)
             #endif
 
             // Connect tool handler for agentic RAG (Foundation Models only)
-            self._llmService.toolHandler = self
+            _llmService.toolHandler = self
             Log.info("🔗 Tool handler connected for agentic RAG", category: .initialization)
             #if os(iOS)
                 if selectedModelRaw == LLMModelType.ggufLocal.rawValue {
@@ -363,7 +364,7 @@ class RAGService: ObservableObject {
         for provider in CloudProvider.allCases {
             let key = ConsentDefaults.key(for: provider)
             if let raw = UserDefaults.standard.string(forKey: key),
-                let state = CloudConsentState(rawValue: raw)
+               let state = CloudConsentState(rawValue: raw)
             {
                 states[provider] = state
             } else {
@@ -454,7 +455,7 @@ class RAGService: ObservableObject {
                     "provider": provider.shortName,
                     "model": record.modelName,
                     "chars": "\(record.promptCharacterCount)",
-                    "chunks": "\(record.contextChunkCount)"
+                    "chunks": "\(record.contextChunkCount)",
                 ]
             )
             continuation?.resume(returning: .deny)
@@ -521,8 +522,8 @@ class RAGService: ObservableObject {
         allowPrivateCloudCompute: Bool
     ) async throws {
         guard let provider = cloudProvider(for: service) else { return }
-        if !allowPrivateCloudCompute && provider == .applePCC {
-            return  // User blocked PCC; don't prompt for consent we won't use
+        if !allowPrivateCloudCompute, provider == .applePCC {
+            return // User blocked PCC; don't prompt for consent we won't use
         }
         let record = makeTransmissionRecord(
             provider: provider,
@@ -567,7 +568,7 @@ class RAGService: ObservableObject {
                 title: "Cloud call blocked (denied)",
                 metadata: [
                     "provider": provider.shortName,
-                    "model": record.modelName
+                    "model": record.modelName,
                 ]
             )
             return .deny
@@ -584,7 +585,7 @@ class RAGService: ObservableObject {
                     "provider": provider.shortName,
                     "model": record.modelName,
                     "chars": "\(record.promptCharacterCount)",
-                    "chunks": "\(record.contextChunkCount)"
+                    "chunks": "\(record.contextChunkCount)",
                 ]
             )
             return await withCheckedContinuation { continuation in
@@ -606,7 +607,7 @@ class RAGService: ObservableObject {
                 "chars": "\(record.promptCharacterCount)",
                 "chunks": "\(record.contextChunkCount)",
                 "bytes": "\(record.estimatedBytes)",
-                "grant": grant
+                "grant": grant,
             ]
         )
     }
@@ -626,7 +627,8 @@ class RAGService: ObservableObject {
     private var documentsStorageURL: URL {
         let fileManager = FileManager.default
         let appSupportURL = fileManager.urls(
-            for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            for: .applicationSupportDirectory, in: .userDomainMask
+        )[0]
         let appDirectory = appSupportURL.appendingPathComponent("OpenIntelligence", isDirectory: true)
         try? fileManager.createDirectory(at: appDirectory, withIntermediateDirectories: true)
         return appDirectory.appendingPathComponent("documents_metadata.json")
@@ -729,13 +731,13 @@ class RAGService: ObservableObject {
     private func resolveEmbeddingContext(preferredContainerId: UUID? = nil) async -> EmbeddingContext {
         let container: KnowledgeContainer? = await MainActor.run {
             if let id = preferredContainerId,
-                let scoped = self.containerService.containers.first(where: { $0.id == id })
+               let scoped = self.containerService.containers.first(where: { $0.id == id })
             {
                 return scoped
             }
 
             if let currentQueryId = self.currentQueryContainerId,
-                let scoped = self.containerService.containers.first(where: { $0.id == currentQueryId })
+               let scoped = self.containerService.containers.first(where: { $0.id == currentQueryId })
             {
                 return scoped
             }
@@ -760,7 +762,7 @@ class RAGService: ObservableObject {
         }
 
         if embeddingServiceWasInjected,
-            embeddingService.outputDimension == container.embeddingDim
+           embeddingService.outputDimension == container.embeddingDim
         {
             return EmbeddingContext(
                 containerId: container.id,
@@ -838,7 +840,7 @@ class RAGService: ObservableObject {
             metadata: [
                 "query": String(trimmed.prefix(80)),
                 "results": "\(enriched.count)",
-                "topK": "\(topK)"
+                "topK": "\(topK)",
             ]
         )
         return enriched
@@ -873,7 +875,7 @@ class RAGService: ObservableObject {
                 metadata: [
                     "file": filename,
                     "limit": "\(documentLimit)",
-                    "currentCount": "\(currentDocumentCount)"
+                    "currentCount": "\(currentDocumentCount)",
                 ]
             )
             TelemetryCenter.emitBillingEvent(
@@ -883,13 +885,13 @@ class RAGService: ObservableObject {
                     "tier": gating.tier.rawValue,
                     "limit": "\(documentLimit)",
                     "currentCount": "\(currentDocumentCount)",
-                    "file": filename
+                    "file": filename,
                 ]
             )
             throw quotaError
         }
         let activeContainerId = await MainActor.run { self.containerService.activeContainerId }
-        
+
         // Get the active container to determine which embedding provider to use
         var container = await MainActor.run {
             self.containerService.containers.first { $0.id == activeContainerId }
@@ -897,20 +899,20 @@ class RAGService: ObservableObject {
         var providerId = container?.embeddingProviderId ?? "nl_embedding"
         let initialDimension = container?.embeddingDim ?? 512
         let chunkOverride = chunkingOverride(for: container)
-        
+
         // Create container-specific embedding service
         var containerEmbeddingService = EmbeddingService.forProvider(
             id: providerId,
             targetDimension: initialDimension
         )
-        
+
         let pipelineStartTime = Date()
         TelemetryCenter.emit(
             .ingestion,
             title: "Ingestion started",
             metadata: [
                 "file": filename,
-                "embeddingProvider": providerId
+                "embeddingProvider": providerId,
             ]
         )
 
@@ -922,7 +924,7 @@ class RAGService: ObservableObject {
         }
 
         // Give UI time to show the overlay (testing delay)
-        try? await Task.sleep(nanoseconds: 1_000_000_000)  // 1 full second
+        try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 full second
 
         // Set up progress handler for real-time updates
         documentProcessor.progressHandler = { [weak self] progress in
@@ -959,23 +961,23 @@ class RAGService: ObservableObject {
             }
 
             // Small delay to show the chunking message
-            try? await Task.sleep(nanoseconds: 200_000_000)  // 0.2s
+            try? await Task.sleep(nanoseconds: 200_000_000) // 0.2s
 
             // Step 1.5: Auto-adapt configuration if enabled
             if context.allowsSelfTuningScheduling,
-                let autoContainer = container,
-                autoContainer.autoAdaptDimension
+               let autoContainer = container,
+               autoContainer.autoAdaptDimension
             {
                 await MainActor.run {
                     processingStatus = "\(filename) • Analyzing content"
                 }
-                
+
                 // Get ALL existing chunks in this container for comprehensive analysis
                 let db = await dbForActiveContainer()
                 let existingChunks = try await db.allChunks()
-                
+
                 // Analyze combined corpus (existing + new document)
-                let allDocumentsForAnalysis = await MainActor.run { 
+                let allDocumentsForAnalysis = await MainActor.run {
                     self.documents.filter { $0.containerId == activeContainerId } + [document]
                 }
                 let combinedChunks = existingChunks + processedChunks.enumerated().map { index, chunk in
@@ -999,7 +1001,7 @@ class RAGService: ObservableObject {
                         )
                     )
                 }
-                
+
                 let report = await intelligenceCenter.analyzeLibrary(
                     documents: allDocumentsForAnalysis,
                     chunks: combinedChunks
@@ -1008,7 +1010,7 @@ class RAGService: ObservableObject {
                 await MainActor.run {
                     self.containerIntelligence[activeContainerId] = report
                 }
-                
+
                 // Log analysis results
                 TelemetryCenter.emit(
                     .ingestion,
@@ -1029,10 +1031,10 @@ class RAGService: ObservableObject {
                         "recommendedProvider": report.embedding.providerId,
                         "confidence": String(format: "%.1f%%", report.embedding.confidence * 100),
                         "reasoning": report.embedding.rationale,
-                        "alerts": report.alerts.joined(separator: " | ")
+                        "alerts": report.alerts.joined(separator: " | "),
                     ]
                 )
-                
+
                 let (updatedContainer, autoReasons) = resolveAutoAdjustments(
                     for: autoContainer,
                     report: report
@@ -1041,7 +1043,7 @@ class RAGService: ObservableObject {
                 if updatedContainer != autoContainer {
                     let embeddingChanged =
                         updatedContainer.embeddingProviderId != autoContainer.embeddingProviderId
-                        || updatedContainer.embeddingDim != autoContainer.embeddingDim
+                            || updatedContainer.embeddingDim != autoContainer.embeddingDim
 
                     if embeddingChanged {
                         providerId = updatedContainer.embeddingProviderId
@@ -1087,6 +1089,7 @@ class RAGService: ObservableObject {
                     "file": filename,
                     "chunks": "\(processedChunks.count)",
                     "dimensions": "\(embeddings.first?.count ?? 0)",
+                    "provider": providerId,
                 ],
                 duration: embeddingTime
             )
@@ -1215,7 +1218,8 @@ class RAGService: ObservableObject {
             )
             updatedDocument = docWithContainer
 
-            // Create processing summary
+            // Create processing summary with embedding provider info
+            let activeProviderId = containerService.activeContainer?.embeddingProviderId ?? "nl_embedding"
             let summary = ProcessingSummary(
                 filename: filename,
                 fileSize: fileSizeStr,
@@ -1233,7 +1237,8 @@ class RAGService: ObservableObject {
                     avgChars: avgChunkSize,
                     minChars: minChunkSize,
                     maxChars: maxChunkSize
-                )
+                ),
+                embeddingProviderId: activeProviderId
             )
 
             // Step 5: Update state
@@ -1259,7 +1264,7 @@ class RAGService: ObservableObject {
             saveDocumentsToDisk()
 
             // Small success flash
-            try? await Task.sleep(nanoseconds: 100_000_000)  // 0.1s
+            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1s
 
             await MainActor.run {
                 isProcessing = false
@@ -1379,7 +1384,7 @@ class RAGService: ObservableObject {
             title: "Re-embedding requested",
             metadata: [
                 "container": targetContainerId.uuidString,
-                "documents": "\(documentsToRebuild.count)"
+                "documents": "\(documentsToRebuild.count)",
             ]
         )
 
@@ -1533,7 +1538,7 @@ class RAGService: ObservableObject {
                 title: "Self-tuning rebuild scheduled",
                 metadata: [
                     "container": containerId.uuidString,
-                    "reasons": reasons.joined(separator: " | ")
+                    "reasons": reasons.joined(separator: " | "),
                 ]
             )
             do {
@@ -1551,7 +1556,7 @@ class RAGService: ObservableObject {
                     title: "Self-tuning rebuild failed",
                     metadata: [
                         "container": containerId.uuidString,
-                        "error": error.localizedDescription
+                        "error": error.localizedDescription,
                     ]
                 )
             }
@@ -1635,7 +1640,8 @@ class RAGService: ObservableObject {
         resetThinkingTimeline()
         return try await LLMStreamingContext.$handler.withValue(streamHandler) {
             try await self.queryInternal(
-                question, topK: topK, config: config, containerId: containerId)
+                question, topK: topK, config: config, containerId: containerId
+            )
         }
     }
 
@@ -1645,14 +1651,14 @@ class RAGService: ObservableObject {
         let inferenceConfig = config ?? InferenceConfig()
         let strictMode: Bool = await MainActor.run {
             if let id = containerId,
-                let container = self.containerService.containers.first(where: { $0.id == id })
+               let container = self.containerService.containers.first(where: { $0.id == id })
             {
                 return container.strictMode
             } else {
                 return self.containerService.activeContainer?.strictMode ?? false
             }
         }
-        
+
         let embeddingContext = await resolveEmbeddingContext(preferredContainerId: containerId)
         let embeddingProviderId = embeddingContext.providerId
         let queryEmbeddingService = embeddingContext.service
@@ -1660,7 +1666,7 @@ class RAGService: ObservableObject {
         let selectedName = embeddingContext.containerName
         let selectedDim = embeddingContext.dimension
         let vdb = await dbFor(selectedId)
-        
+
         // Establish query-scoped container context for downstream tool calls and listings
         await MainActor.run {
             self.currentQueryContainerId = selectedId
@@ -1748,7 +1754,7 @@ class RAGService: ObservableObject {
                         retrievalTime: 0,
                         fallbackNote: "Short greeting detected; replied without document retrieval."
                     )
-                    return await self.finalizeResponse(
+                    return await finalizeResponse(
                         query: question,
                         containerId: selectedId,
                         containerName: selectedName,
@@ -1771,12 +1777,13 @@ class RAGService: ObservableObject {
                 let expansionTime = Date().timeIntervalSince(expansionStartTime)
                 Log.info(
                     "✓ Expanded to \(expandedQueries.count) query variations in \(String(format: "%.0f", expansionTime * 1000))ms",
-                    category: .pipeline)
+                    category: .pipeline
+                )
                 TelemetryCenter.emit(
                     .retrieval,
                     title: "Query expanded",
                     metadata: [
-                        "variants": "\(expandedQueries.count)"
+                        "variants": "\(expandedQueries.count)",
                     ],
                     duration: expansionTime
                 )
@@ -1800,27 +1807,32 @@ class RAGService: ObservableObject {
                 let embeddingMagnitude = sqrt(queryEmbedding.map { $0 * $0 }.reduce(0, +))
                 Log.info(
                     "✓ Generated \(queryEmbedding.count)-dimensional embedding",
-                    category: .embedding)
+                    category: .embedding
+                )
                 Log.debug(
                     "  Vector magnitude: \(String(format: "%.4f", embeddingMagnitude))",
-                    category: .embedding)
+                    category: .embedding
+                )
                 Log.debug(
                     "  Time: \(String(format: "%.0f", embeddingTime * 1000))ms",
-                    category: .performance)
+                    category: .performance
+                )
                 TelemetryCenter.emit(
                     .embedding,
                     title: "Query embedding",
                     metadata: [
                         "dimensions": "\(queryEmbedding.count)",
-                        "provider": embeddingProviderId
+                        "provider": embeddingProviderId,
                     ],
                     duration: embeddingTime
                 )
 
+                // Show provider in thinking timeline (contextual = high accuracy badge)
+                let providerLabel = embeddingProviderId == "nl_contextual_embedding" ? "⚡ Contextual" : embeddingProviderId
                 emitThinkingEvent(
                     .embedding,
                     title: "Embedding ready",
-                    detail: "\(queryEmbedding.count)D in \(String(format: "%.0f", embeddingTime * 1000)) ms"
+                    detail: "\(providerLabel) • \(queryEmbedding.count)D in \(String(format: "%.0f", embeddingTime * 1000)) ms"
                 )
 
                 // Warn if embedding dimension doesn't match the selected library's index dimension
@@ -1840,14 +1852,15 @@ class RAGService: ObservableObject {
 
                 // Step 3: Hybrid Search (vector + BM25 keyword search with RRF fusion)
                 Log.section(
-                    "Step 3: Hybrid Search (Vector + BM25)", level: .info, category: .pipeline)
+                    "Step 3: Hybrid Search (Vector + BM25)", level: .info, category: .pipeline
+                )
                 let retrievalStartTime = Date()
                 let hybridSearch = HybridSearchService(vectorDatabase: vdb)
                 // Use expanded queries for keyword search (original for vector)
                 let retrievedChunks = try await hybridSearch.search(
-                    query: expandedQueries.joined(separator: " "),  // Combine expansions
+                    query: expandedQueries.joined(separator: " "), // Combine expansions
                     embedding: queryEmbedding,
-                    topK: effectiveTopK * 2  // Retrieve 2x for re-ranking (clamped)
+                    topK: effectiveTopK * 2 // Retrieve 2x for re-ranking (clamped)
                 )
 
                 // Measure retrieval time before any MainActor work
@@ -1857,13 +1870,14 @@ class RAGService: ObservableObject {
                 if retrievedChunks.isEmpty {
                     Log.warning(
                         "⚠️  [RAGService] No chunks retrieved (database may be empty)",
-                        category: .retrieval)
+                        category: .retrieval
+                    )
                     TelemetryCenter.emit(
                         .retrieval,
                         severity: .warning,
                         title: "No chunks retrieved",
                         metadata: [
-                            "question": String(question.prefix(60))
+                            "question": String(question.prefix(60)),
                         ],
                         duration: retrievalTime
                     )
@@ -1880,9 +1894,9 @@ class RAGService: ObservableObject {
                         pipelineStartTime: pipelineStartTime,
                         retrievalTime: retrievalTime,
                         fallbackNote:
-                            "No relevant document context found; replied without RAG context."
+                        "No relevant document context found; replied without RAG context."
                     )
-                    return await self.finalizeResponse(
+                    return await finalizeResponse(
                         query: question,
                         containerId: selectedId,
                         containerName: selectedName,
@@ -1895,7 +1909,7 @@ class RAGService: ObservableObject {
                 let chunksWithSources: [RetrievedChunk] = retrievedChunks.map { retrieved in
                     let docName =
                         docsSnapshot.first(where: { $0.id == retrieved.chunk.documentId })?.filename
-                        ?? "Unknown"
+                            ?? "Unknown"
                     let pageNum = retrieved.chunk.metadata.pageNumber
                     return RetrievedChunk(
                         chunk: retrieved.chunk,
@@ -1911,8 +1925,8 @@ class RAGService: ObservableObject {
                 let topContextWords = chunkWordCounts.prefix(effectiveTopK).reduce(0, +)
                 let averageChunkWords =
                     chunkWordCounts.isEmpty
-                    ? 0.0
-                    : Double(totalChunkWords) / Double(chunkWordCounts.count)
+                        ? 0.0
+                        : Double(totalChunkWords) / Double(chunkWordCounts.count)
 
                 TelemetryCenter.emit(
                     .retrieval,
@@ -1942,18 +1956,22 @@ class RAGService: ObservableObject {
 
                 Log.info(
                     "✓ Retrieved \(chunksWithSources.count) chunks with hybrid fusion",
-                    category: .retrieval)
+                    category: .retrieval
+                )
                 Log.debug(
                     "  Time: \(String(format: "%.0f", retrievalTime * 1000))ms",
-                    category: .performance)
+                    category: .performance
+                )
                 if let topChunk = chunksWithSources.first {
                     Log.debug(
                         "  Top semantic score: \(String(format: "%.4f", topChunk.similarityScore))",
-                        category: .retrieval)
+                        category: .retrieval
+                    )
                     if !topChunk.sourceDocument.isEmpty {
                         Log.debug(
                             "  Source: \(topChunk.sourceDocument)\(topChunk.pageNumber.map { " (p. \($0))" } ?? "")",
-                            category: .retrieval)
+                            category: .retrieval
+                        )
                     }
                     // BM25 and fusion scores would be displayed here once metadata storage is enhanced
                 }
@@ -1965,17 +1983,18 @@ class RAGService: ObservableObject {
                 let rerankedChunks = await engine.rerank(
                     chunks: chunksWithSources,
                     query: question,
-                    topK: effectiveTopK * 3  // Get more candidates for MMR diversification (clamped)
+                    topK: effectiveTopK * 3 // Get more candidates for MMR diversification (clamped)
                 )
                 let rerankTime = Date().timeIntervalSince(rerankStartTime)
                 Log.info(
                     "✓ Re-ranked to top \(rerankedChunks.count) in \(String(format: "%.0f", rerankTime * 1000))ms",
-                    category: .retrieval)
+                    category: .retrieval
+                )
                 TelemetryCenter.emit(
                     .retrieval,
                     title: "Re-ranking complete",
                     metadata: [
-                        "candidates": "\(rerankedChunks.count)"
+                        "candidates": "\(rerankedChunks.count)",
                     ],
                     duration: rerankTime
                 )
@@ -1983,7 +2002,8 @@ class RAGService: ObservableObject {
                 if rerankedChunks.isEmpty {
                     Log.warning(
                         "⚠️  [RAGService] Re-ranking yielded no candidates; falling back to direct chat",
-                        category: .retrieval)
+                        category: .retrieval
+                    )
                     emitThinkingEvent(
                         .fallback,
                         title: "Re-ranking exhausted",
@@ -1997,7 +2017,7 @@ class RAGService: ObservableObject {
                         retrievalTime: retrievalTime,
                         fallbackNote: "No re-ranked candidates; replied without RAG context."
                     )
-                    return await self.finalizeResponse(
+                    return await finalizeResponse(
                         query: question,
                         containerId: selectedId,
                         containerName: selectedName,
@@ -2010,7 +2030,7 @@ class RAGService: ObservableObject {
                 let lenient = UserDefaults.standard.bool(forKey: "lenientRetrievalMode")
                 let isTrivial =
                     (queryWords <= 2)
-                    || ["test", "help", "hello", "hi", "hey", "ok", "okay"].contains(lowerQ)
+                        || ["test", "help", "hello", "hi", "hey", "ok", "okay"].contains(lowerQ)
 
                 // Relative-score metrics (computed on reranked results)
                 let topSim: Float = rerankedChunks.first?.similarityScore ?? 0
@@ -2031,7 +2051,7 @@ class RAGService: ObservableObject {
                 // Acceptance override if relative signals are strong even with modest absolute scores
                 let acceptanceOverride: Bool =
                     (topSim >= 0.50) || (topSim >= 0.38 && (topSim - avgTop5) >= 0.05)
-                    || ((topSim - secondSim) >= 0.07)
+                        || ((topSim - secondSim) >= 0.07)
 
                 TelemetryCenter.emit(
                     .retrieval,
@@ -2058,7 +2078,8 @@ class RAGService: ObservableObject {
                     let dropped = rerankedChunks.count - filteredChunks.count
                     Log.warning(
                         "   ⚠️  Filtered out \(dropped) low-confidence chunks (< \(String(format: "%.2f", dynamicMin)))",
-                        category: .retrieval)
+                        category: .retrieval
+                    )
                     TelemetryCenter.emit(
                         .retrieval,
                         severity: .warning,
@@ -2074,7 +2095,8 @@ class RAGService: ObservableObject {
                         filteredChunks = Array(rerankedChunks.prefix(effectiveTopK * 2))
                         Log.info(
                             "   ✅ Acceptance override applied; proceeding with top reranked results",
-                            category: .retrieval)
+                            category: .retrieval
+                        )
                         TelemetryCenter.emit(
                             .retrieval,
                             title: "Acceptance override",
@@ -2088,7 +2110,8 @@ class RAGService: ObservableObject {
                         // Graceful fallback: try On-Device Analysis with extracted context
                         Log.error(
                             "   ❌ No high-confidence chunks found (all below threshold) — falling back to On‑Device Analysis",
-                            category: .retrieval)
+                            category: .retrieval
+                        )
                         emitThinkingEvent(
                             .fallback,
                             title: "Low-confidence context",
@@ -2099,7 +2122,7 @@ class RAGService: ObservableObject {
                             severity: .error,
                             title: "No high-confidence context (fallback to On‑Device Analysis)",
                             metadata: [
-                                "threshold": String(format: "%.2f", dynamicMin)
+                                "threshold": String(format: "%.2f", dynamicMin),
                             ]
                         )
 
@@ -2125,7 +2148,8 @@ class RAGService: ObservableObject {
                             retrievalTime: retrievalTime,
                             strictModeEnabled: strictMode,
                             gatingDecision: "fallback_ondevice_low_confidence",
-                            toolCallsMade: fallbackResp.toolCallsMade
+                            toolCallsMade: fallbackResp.toolCallsMade,
+                            embeddingProvider: embeddingProviderId
                         )
 
                         let response = RAGResponse(
@@ -2136,10 +2160,10 @@ class RAGService: ObservableObject {
                             metadata: meta,
                             confidenceScore: 0.0,
                             qualityWarnings: [
-                                "Low-confidence retrieval: answered using extractive on‑device analysis"
+                                "Low-confidence retrieval: answered using extractive on‑device analysis",
                             ]
                         )
-                        return await self.finalizeResponse(
+                        return await finalizeResponse(
                             query: question,
                             containerId: selectedId,
                             containerName: selectedName,
@@ -2166,7 +2190,8 @@ class RAGService: ObservableObject {
                         if addedDocs > 0 {
                             Log.info(
                                 "   🔁 Expanded context to cover \(addedDocs) additional document(s)",
-                                category: .retrieval)
+                                category: .retrieval
+                            )
                             TelemetryCenter.emit(
                                 .retrieval,
                                 title: "Document coverage boost",
@@ -2179,7 +2204,8 @@ class RAGService: ObservableObject {
                         } else {
                             Log.info(
                                 "   🔁 Normalized candidate pool to \(augmented.count) chunks",
-                                category: .retrieval)
+                                category: .retrieval
+                            )
                         }
                         filteredChunks = augmented
                     }
@@ -2193,21 +2219,22 @@ class RAGService: ObservableObject {
                 let diverseChunks = await engine.applyMMR(
                     candidates: filteredChunks,
                     queryEmbedding: queryEmbedding,
-                    topK: effectiveTopK,  // Clamped for short queries
-                    lambda: strictMode ? 0.75 : 0.7  // Strict mode favors relevance slightly more
+                    topK: effectiveTopK, // Clamped for short queries
+                    lambda: strictMode ? 0.75 : 0.7 // Strict mode favors relevance slightly more
                 )
                 let mmrTime = Date().timeIntervalSince(mmrStartTime)
                 Log.info(
                     "✓ Selected \(diverseChunks.count) diverse chunks in \(String(format: "%.0f", mmrTime * 1000))ms",
-                    category: .retrieval)
+                    category: .retrieval
+                )
                 Log.debug("  λ=0.7 (70% relevance, 30% diversity)", category: .retrieval)
                 let contextWordCounts = diverseChunks.map { wordCount(of: $0.chunk.content) }
                 let totalContextWords = contextWordCounts.reduce(0, +)
                 let maxContextWords = contextWordCounts.max() ?? 0
                 let averageContextWords =
                     contextWordCounts.isEmpty
-                    ? 0.0
-                    : Double(totalContextWords) / Double(contextWordCounts.count)
+                        ? 0.0
+                        : Double(totalContextWords) / Double(contextWordCounts.count)
                 TelemetryCenter.emit(
                     .retrieval,
                     title: "MMR diversification",
@@ -2230,7 +2257,8 @@ class RAGService: ObservableObject {
                 if diverseChunks.isEmpty {
                     Log.warning(
                         "⚠️  [RAGService] MMR returned no candidates; falling back to direct chat",
-                        category: .retrieval)
+                        category: .retrieval
+                    )
                     emitThinkingEvent(
                         .fallback,
                         title: "MMR exhausted",
@@ -2243,9 +2271,9 @@ class RAGService: ObservableObject {
                         pipelineStartTime: pipelineStartTime,
                         retrievalTime: retrievalTime,
                         fallbackNote:
-                            "No diverse candidates after MMR; replied without RAG context."
+                        "No diverse candidates after MMR; replied without RAG context."
                     )
-                    return await self.finalizeResponse(
+                    return await finalizeResponse(
                         query: question,
                         containerId: selectedId,
                         containerName: selectedName,
@@ -2256,14 +2284,16 @@ class RAGService: ObservableObject {
                 Log.verbose("\nFinal diverse chunks:", category: .retrieval)
                 for (index, chunk) in diverseChunks.enumerated() {
                     let preview = chunk.chunk.content.prefix(80).replacingOccurrences(
-                        of: "\n", with: " ")
+                        of: "\n", with: " "
+                    )
                     let source =
                         chunk.sourceDocument.isEmpty
-                        ? ""
-                        : " | \(chunk.sourceDocument)\(chunk.pageNumber.map { " p.\($0)" } ?? "")"
+                            ? ""
+                            : " | \(chunk.sourceDocument)\(chunk.pageNumber.map { " p.\($0)" } ?? "")"
                     Log.verbose(
                         "  [\(index + 1)] Similarity: \(String(format: "%.4f", chunk.similarityScore))\(source)",
-                        category: .retrieval)
+                        category: .retrieval
+                    )
                     Log.verbose("      \"\(preview)...\"", category: .retrieval)
                 }
 
@@ -2279,11 +2309,11 @@ class RAGService: ObservableObject {
                                 "- [\(idx + 1)] \(src)\(page) — \(String(format: "%.0f%%", r.similarityScore * 100))"
                         }.joined(separator: "\n")
                         let caution = """
-                            Strict Mode is enabled. Not enough high-confidence evidence (>= 52% similarity) across at least 3 chunks was found to answer reliably.
+                        Strict Mode is enabled. Not enough high-confidence evidence (>= 52% similarity) across at least 3 chunks was found to answer reliably.
 
-                            Top sources retrieved:
-                            \(topSources)
-                            """
+                        Top sources retrieved:
+                        \(topSources)
+                        """
 
                         emitThinkingEvent(
                             .warning,
@@ -2300,7 +2330,8 @@ class RAGService: ObservableObject {
                             retrievalTime: retrievalTime,
                             strictModeEnabled: strictMode,
                             gatingDecision: "strict_blocked",
-                            toolCallsMade: 0
+                            toolCallsMade: 0,
+                            embeddingProvider: embeddingProviderId
                         )
 
                         let response = RAGResponse(
@@ -2311,7 +2342,7 @@ class RAGService: ObservableObject {
                             confidenceScore: 0.0,
                             qualityWarnings: ["Strict mode: insufficient supporting evidence"]
                         )
-                        return await self.finalizeResponse(
+                        return await finalizeResponse(
                             query: question,
                             containerId: selectedId,
                             containerName: selectedName,
@@ -2332,7 +2363,7 @@ class RAGService: ObservableObject {
                 if llmService is OpenAILLMService {
                     // GPT-5 has 400K token context (~1.6M chars theoretical)
                     // Use 200K chars conservatively (leaves ~200K for prompt + response)
-                    maxContextChars = 200000  // 200K chars = ~50K tokens
+                    maxContextChars = 200_000 // 200K chars = ~50K tokens
                 } else if llmService is AppleFoundationLLMService {
                     // Tighter context for Apple FM to leave room for tool scaffolding and output
                     maxContextChars = 1500
@@ -2346,7 +2377,8 @@ class RAGService: ObservableObject {
                 )
                 Log.info(
                     "   ✓ Using \(actualChunksUsed)/\(diverseChunks.count) chunks (\(context.count) chars)",
-                    category: .pipeline)
+                    category: .pipeline
+                )
 
                 let contextSize = context.count
                 let contextWords = context.split(separator: " ").count
@@ -2355,7 +2387,8 @@ class RAGService: ObservableObject {
                 Log.section("Step 5: Context Assembly Complete", level: .info, category: .pipeline)
                 Log.info(
                     "✓ Final context: \(contextSize) chars, \(contextWords) words from \(actualChunksUsed) chunks",
-                    category: .pipeline)
+                    category: .pipeline
+                )
                 TelemetryCenter.emit(
                     .retrieval,
                     title: "Context assembled",
@@ -2377,7 +2410,8 @@ class RAGService: ObservableObject {
                 if actualChunksUsed == 0 || context.isEmpty {
                     Log.warning(
                         "⚠️  [RAGService] Empty context after assembly; falling back to direct chat",
-                        category: .retrieval)
+                        category: .retrieval
+                    )
                     emitThinkingEvent(
                         .fallback,
                         title: "Context empty",
@@ -2391,7 +2425,7 @@ class RAGService: ObservableObject {
                         retrievalTime: retrievalTime,
                         fallbackNote: "Empty assembled context; replied without RAG context."
                     )
-                    return await self.finalizeResponse(
+                    return await finalizeResponse(
                         query: question,
                         containerId: selectedId,
                         containerName: selectedName,
@@ -2495,7 +2529,8 @@ class RAGService: ObservableObject {
                     Log.info("  Model: \(llmService.modelName)", category: .llm)
                     Log.info(
                         "  Generation time: \(String(format: "%.2f", generationTime))s",
-                        category: .performance)
+                        category: .performance
+                    )
 
                     // Access response text safely
                     Log.debug("  Response length: \(responseText.count) chars", category: .llm)
@@ -2506,7 +2541,8 @@ class RAGService: ObservableObject {
                         if let tps = llmResponse.tokensPerSecond {
                             Log.debug(
                                 "  Speed: \(String(format: "%.1f", tps)) tokens/sec",
-                                category: .performance)
+                                category: .performance
+                            )
                         }
                     }
 
@@ -2534,12 +2570,13 @@ class RAGService: ObservableObject {
 
                     Log.info(
                         "📊 Confidence Score: \(String(format: "%.1f", confidenceScore * 100))%",
-                        category: .pipeline)
+                        category: .pipeline
+                    )
                     TelemetryCenter.emit(
                         .system,
                         title: "Response evaluated",
                         metadata: [
-                            "confidence": String(format: "%.2f", confidenceScore)
+                            "confidence": String(format: "%.2f", confidenceScore),
                         ]
                     )
 
@@ -2576,7 +2613,7 @@ class RAGService: ObservableObject {
                     // Step 9: Create response metadata
                     let gatingSummary: String? =
                         acceptanceOverride
-                        ? "acceptance_override" : ((lenient || isTrivial) ? "lenient" : nil)
+                            ? "acceptance_override" : ((lenient || isTrivial) ? "lenient" : nil)
                     let metadata = ResponseMetadata(
                         timeToFirstToken: llmResponse.timeToFirstToken,
                         totalGenerationTime: llmResponse.totalTime,
@@ -2586,7 +2623,8 @@ class RAGService: ObservableObject {
                         retrievalTime: retrievalTime,
                         strictModeEnabled: strictMode,
                         gatingDecision: gatingSummary,
-                        toolCallsMade: llmResponse.toolCallsMade
+                        toolCallsMade: llmResponse.toolCallsMade,
+                        embeddingProvider: embeddingProviderId
                     )
 
                     let response = RAGResponse(
@@ -2601,9 +2639,10 @@ class RAGService: ObservableObject {
                     let totalTime = Date().timeIntervalSince(pipelineStartTime)
                     Log.info(
                         "✅ Enhanced RAG pipeline complete in \(String(format: "%.2f", totalTime))s",
-                        category: .pipeline)
+                        category: .pipeline
+                    )
 
-                    return await self.finalizeResponse(
+                    return await finalizeResponse(
                         query: question,
                         containerId: selectedId,
                         containerName: selectedName,
@@ -2621,7 +2660,8 @@ class RAGService: ObservableObject {
                         modelUsed: llmService.modelName,
                         retrievalTime: retrievalTime,
                         strictModeEnabled: strictMode,
-                        toolCallsMade: 0
+                        toolCallsMade: 0,
+                        embeddingProvider: embeddingProviderId
                     )
 
                     let response = RAGResponse(
@@ -2632,7 +2672,7 @@ class RAGService: ObservableObject {
                         confidenceScore: 0.0,
                         qualityWarnings: ["Error occurred during response processing"]
                     )
-                    return await self.finalizeResponse(
+                    return await finalizeResponse(
                         query: question,
                         containerId: selectedId,
                         containerName: selectedName,
@@ -2669,7 +2709,7 @@ class RAGService: ObservableObject {
                 )
                 let llmResponse = try await generateWithFallback(
                     prompt: question,
-                    context: nil,  // No document context
+                    context: nil, // No document context
                     config: inferenceConfig,
                     sourceChunks: []
                 )
@@ -2697,26 +2737,29 @@ class RAGService: ObservableObject {
                 Log.info("  Model: \(llmService.modelName)", category: .llm)
                 Log.info(
                     "  Generation time: \(String(format: "%.2f", generationTime))s",
-                    category: .performance)
+                    category: .performance
+                )
                 Log.debug("  Tokens: \(llmResponse.tokensGenerated)", category: .llm)
                 Log.debug(
                     "  Speed: \(String(format: "%.1f", llmResponse.tokensPerSecond ?? 0)) tokens/sec",
-                    category: .performance)
+                    category: .performance
+                )
 
                 let metadata = ResponseMetadata(
                     timeToFirstToken: llmResponse.timeToFirstToken,
                     totalGenerationTime: llmResponse.totalTime,
                     tokensGenerated: llmResponse.tokensGenerated,
                     tokensPerSecond: llmResponse.tokensPerSecond,
-                    modelUsed: llmResponse.modelName ?? llmService.modelName,  // Use actual execution location if available
-                    retrievalTime: 0,  // No retrieval in direct chat mode
+                    modelUsed: llmResponse.modelName ?? llmService.modelName, // Use actual execution location if available
+                    retrievalTime: 0, // No retrieval in direct chat mode
                     strictModeEnabled: strictMode,
-                    toolCallsMade: llmResponse.toolCallsMade
+                    toolCallsMade: llmResponse.toolCallsMade,
+                    embeddingProvider: embeddingProviderId
                 )
 
                 let response = RAGResponse(
                     queryId: ragQuery.id,
-                    retrievedChunks: [],  // No chunks in direct chat mode
+                    retrievedChunks: [], // No chunks in direct chat mode
                     generatedResponse: llmResponse.text,
                     metadata: metadata
                 )
@@ -2724,7 +2767,8 @@ class RAGService: ObservableObject {
                 let totalTime = Date().timeIntervalSince(pipelineStartTime)
                 Log.info(
                     "✅ [RAGService] Direct chat complete in \(String(format: "%.2f", totalTime))s",
-                    category: .pipeline)
+                    category: .pipeline
+                )
                 TelemetryCenter.emit(
                     .system,
                     title: "Query complete",
@@ -2737,7 +2781,7 @@ class RAGService: ObservableObject {
                     duration: totalTime
                 )
 
-                return await self.finalizeResponse(
+                return await finalizeResponse(
                     query: question,
                     containerId: selectedId,
                     containerName: selectedName,
@@ -2795,7 +2839,7 @@ class RAGService: ObservableObject {
 
         let llmResponse = try await generateWithFallback(
             prompt: question,
-            context: nil,  // No document context
+            context: nil, // No document context
             config: inferenceConfig,
             sourceChunks: []
         )
@@ -2814,11 +2858,13 @@ class RAGService: ObservableObject {
         Log.info("✓ Response generated", category: .llm)
         Log.info("  Model: \(llmService.modelName)", category: .llm)
         Log.info(
-            "  Generation time: \(String(format: "%.2f", generationTime))s", category: .performance)
+            "  Generation time: \(String(format: "%.2f", generationTime))s", category: .performance
+        )
         Log.debug("  Tokens: \(llmResponse.tokensGenerated)", category: .llm)
         Log.debug(
             "  Speed: \(String(format: "%.1f", llmResponse.tokensPerSecond ?? 0)) tokens/sec",
-            category: .performance)
+            category: .performance
+        )
 
         let metadata = ResponseMetadata(
             timeToFirstToken: llmResponse.timeToFirstToken,
@@ -2828,7 +2874,8 @@ class RAGService: ObservableObject {
             modelUsed: llmService.modelName,
             retrievalTime: retrievalTime,
             strictModeEnabled: strictMode,
-            toolCallsMade: llmResponse.toolCallsMade
+            toolCallsMade: llmResponse.toolCallsMade,
+            embeddingProvider: nil // No embedding used in direct chat fallback
         )
 
         var warnings: [String] = []
@@ -2846,7 +2893,8 @@ class RAGService: ObservableObject {
         let totalTime = Date().timeIntervalSince(pipelineStartTime)
         Log.info(
             "✅ [RAGService] Direct chat complete in \(String(format: "%.2f", totalTime))s",
-            category: .pipeline)
+            category: .pipeline
+        )
         TelemetryCenter.emit(
             .system,
             title: "Query complete",
@@ -2868,14 +2916,15 @@ class RAGService: ObservableObject {
     ///   - fallbacks: Optional array of fallback services to try if primary fails
     @MainActor
     func updateLLMService(_ primary: LLMService, fallbacks: [LLMService] = []) {
-        self._llmService = primary
-        self._fallbackServices = fallbacks
+        _llmService = primary
+        _fallbackServices = fallbacks
         #if os(macOS)
             configureMLXObserver(for: primary)
         #endif
         Log.info(
             "✓ Updated model: \(primary.modelName) with \(fallbacks.count) fallback(s)",
-            category: .initialization)
+            category: .initialization
+        )
     }
 
     /// Switch to a different LLM implementation
@@ -2928,28 +2977,32 @@ class RAGService: ObservableObject {
             return response
         } catch {
             let errorDesc = error.localizedDescription
-            
+
             // Check if it's a Jinja template error (common with some GGUF models)
             let isTemplateError = errorDesc.contains("Jinja") || errorDesc.contains("template")
-            
+
             if isTemplateError {
                 Log.warning(
                     "⚠️  \(_llmService.modelName) has a broken chat template (Jinja error)",
-                    category: .llm)
+                    category: .llm
+                )
                 Log.info(
                     "💡 Tip: Try a different GGUF model (Qwen2.5, Llama-3.2, or Phi-3)",
-                    category: .llm)
+                    category: .llm
+                )
             } else {
                 Log.warning(
                     "Primary model \(_llmService.modelName) failed: \(errorDesc)",
-                    category: .llm)
+                    category: .llm
+                )
             }
 
             // Try fallbacks in order
             for (index, fallbackService) in _fallbackServices.enumerated() {
                 Log.info(
                     "Attempting fallback #\(index + 1): \(fallbackService.modelName)",
-                    category: .llm)
+                    category: .llm
+                )
                 do {
                     let (fallbackTicket, fallbackBackend) =
                         try preparePreviewTicketIfNeeded(for: fallbackService)
@@ -2968,7 +3021,8 @@ class RAGService: ObservableObject {
                     consumePreviewIfNeeded(ticket: fallbackTicket, backend: fallbackBackend)
                     Log.info(
                         "✓ Fallback #\(index + 1) succeeded: \(fallbackService.modelName)",
-                        category: .llm)
+                        category: .llm
+                    )
                     if LLMStreamingContext.handler != nil {
                         LLMStreamingContext.emit(text: "", isFinal: true)
                     }
@@ -2976,7 +3030,8 @@ class RAGService: ObservableObject {
                 } catch {
                     Log.warning(
                         "Fallback #\(index + 1) failed: \(error.localizedDescription)",
-                        category: .llm)
+                        category: .llm
+                    )
                     continue
                 }
             }
@@ -2984,11 +3039,11 @@ class RAGService: ObservableObject {
             // All fallbacks exhausted - provide helpful error message
             if isTemplateError {
                 throw LLMError.generationFailed("""
-                    Model has incompatible chat template. \
-                    Try: Settings → Primary Model → Select "Apple Intelligence" or "On-Device Analysis"
-                    """)
+                Model has incompatible chat template. \
+                Try: Settings → Primary Model → Select "Apple Intelligence" or "On-Device Analysis"
+                """)
             }
-            
+
             // Rethrow original error
             throw error
         }
@@ -3057,11 +3112,12 @@ class RAGService: ObservableObject {
             #if os(macOS)
                 guard
                     let storedKey = UserDefaults.standard.string(forKey: "openaiAPIKey")?
-                        .trimmingCharacters(in: .whitespacesAndNewlines),
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
                     !storedKey.isEmpty
                 else {
                     Log.warning(
-                        "OpenAI Direct selected but API key is missing", category: .initialization)
+                        "OpenAI Direct selected but API key is missing", category: .initialization
+                    )
                     return nil
                 }
                 let model = UserDefaults.standard.string(forKey: "openaiModel") ?? "gpt-4o-mini"
@@ -3073,13 +3129,15 @@ class RAGService: ObservableObject {
                 } else {
                     Log.info(
                         "✓ Using OpenAI Direct (Chat Completions): \(model)",
-                        category: .initialization)
+                        category: .initialization
+                    )
                     return OpenAILLMService(apiKey: storedKey, model: model)
                 }
             #else
                 Log.info(
                     "OpenAI Direct disabled on iOS for Apple-native configuration",
-                    category: .initialization)
+                    category: .initialization
+                )
                 return nil
             #endif
         case "apple_intelligence":
@@ -3089,20 +3147,24 @@ class RAGService: ObservableObject {
                     guard foundationService.isAvailable else {
                         Log.warning(
                             "Apple Foundation Models unavailable on this device",
-                            category: .initialization)
+                            category: .initialization
+                        )
                         return nil
                     }
                     foundationService.startWarmup()
                     Log.info(
                         "✓ Using Apple Foundation Models (on-device + PCC)",
-                        category: .initialization)
+                        category: .initialization
+                    )
                     Log.debug(
                         "🔥 Preloading model in background for instant first query",
-                        category: .initialization)
+                        category: .initialization
+                    )
                     return foundationService
                 } else {
                     Log.warning(
-                        "Apple Intelligence requires iOS 26.0 or later", category: .initialization)
+                        "Apple Intelligence requires iOS 26.0 or later", category: .initialization
+                    )
                 }
             #endif
             return nil
@@ -3111,16 +3173,19 @@ class RAGService: ObservableObject {
                 let chatGPTService = AppleChatGPTExtensionService()
                 if chatGPTService.isAvailable {
                     Log.info(
-                        "✓ Using ChatGPT Extension (Apple Intelligence)", category: .initialization)
+                        "✓ Using ChatGPT Extension (Apple Intelligence)", category: .initialization
+                    )
                     return chatGPTService
                 } else {
                     Log.warning(
                         "ChatGPT Extension not available - check Settings > Apple Intelligence & Siri",
-                        category: .initialization)
+                        category: .initialization
+                    )
                 }
             } else {
                 Log.warning(
-                    "ChatGPT Extension requires iOS 18.1 or later", category: .initialization)
+                    "ChatGPT Extension requires iOS 18.1 or later", category: .initialization
+                )
             }
             return nil
         case "on_device_analysis":
@@ -3131,23 +3196,27 @@ class RAGService: ObservableObject {
                 if let store = entitlementStore, !store.canUseLocalModels {
                     Log.warning(
                         "MLX Local requires Pro or Lifetime tier (current: \(store.activeTier.rawValue))",
-                        category: .initialization)
+                        category: .initialization
+                    )
                     store.markPreviewGateTriggered(for: .mlx)
                     return nil
                 }
                 guard let config = MLXLLMService.Config.fromDefaults() else {
                     Log.warning(
                         "MLX Local selected but configuration is invalid",
-                        category: .initialization)
+                        category: .initialization
+                    )
                     return nil
                 }
                 Log.info(
                     "✓ Using MLX Local (URL: \(config.baseURL.absoluteString), model: \(config.model))",
-                    category: .initialization)
+                    category: .initialization
+                )
                 return MLXLLMService(config: config)
             #else
                 Log.warning(
-                    "MLX Local presets are only available on macOS", category: .initialization)
+                    "MLX Local presets are only available on macOS", category: .initialization
+                )
                 return nil
             #endif
         case "coreml_local":
@@ -3155,7 +3224,8 @@ class RAGService: ObservableObject {
             if let store = entitlementStore, !store.activeTier.isAtLeast(.lifetime) {
                 Log.warning(
                     "Core ML Local requires Lifetime or Pro tier (current: \(store.activeTier.rawValue))",
-                    category: .initialization)
+                    category: .initialization
+                )
                 TelemetryCenter.emitBillingEvent(
                     "Local model blocked at service init",
                     metadata: ["tier": store.activeTier.rawValue, "type": "coreml"]
@@ -3164,11 +3234,13 @@ class RAGService: ObservableObject {
             }
             if let coreMLService = CoreMLLLMService.loadFromDefaults() {
                 Log.info(
-                    "✓ Using Core ML Local: \(coreMLService.modelName)", category: .initialization)
+                    "✓ Using Core ML Local: \(coreMLService.modelName)", category: .initialization
+                )
                 return coreMLService
             } else {
                 Log.warning(
-                    "Core ML Local selected but no model configured", category: .initialization)
+                    "Core ML Local selected but no model configured", category: .initialization
+                )
                 return nil
             }
         case "llama_cpp_local":
@@ -3177,7 +3249,8 @@ class RAGService: ObservableObject {
                 return LlamaCPPPresetLLMService()
             #else
                 Log.warning(
-                    "llama.cpp local preset is only available on macOS", category: .initialization)
+                    "llama.cpp local preset is only available on macOS", category: .initialization
+                )
                 return nil
             #endif
         case "ollama_local":
@@ -3186,7 +3259,8 @@ class RAGService: ObservableObject {
                 return OllamaPresetLLMService()
             #else
                 Log.warning(
-                    "Ollama local preset is only available on macOS", category: .initialization)
+                    "Ollama local preset is only available on macOS", category: .initialization
+                )
                 return nil
             #endif
         case "gguf_local":
@@ -3194,14 +3268,16 @@ class RAGService: ObservableObject {
                 if let store = entitlementStore, !store.canUseLocalModels {
                     Log.warning(
                         "GGUF Local requires Pro or Lifetime tier (current: \(store.activeTier.rawValue))",
-                        category: .initialization)
+                        category: .initialization
+                    )
                     store.markPreviewGateTriggered(for: .gguf)
                     return nil
                 }
                 guard LlamaCPPiOSLLMService.runtimeAvailable else {
                     Log.warning(
                         "GGUF runtime not bundled; unable to activate immediately",
-                        category: .initialization)
+                        category: .initialization
+                    )
                     return nil
                 }
                 if let service = LlamaCPPiOSLLMService.fromRegistry() {
@@ -3210,7 +3286,8 @@ class RAGService: ObservableObject {
                 }
                 Log.warning(
                     "GGUF Local selected but no installed model was found",
-                    category: .initialization)
+                    category: .initialization
+                )
                 return nil
             #else
                 Log.warning("GGUF Local preset is only supported on iOS", category: .initialization)
@@ -3225,7 +3302,7 @@ class RAGService: ObservableObject {
     /// Builds an ordered list of fallback services, excluding the user's primary selection.
     private static func buildFallbackChain(excluding modelKey: String) -> [LLMService] {
         var fallbacks: [LLMService] = []
-        
+
         // Try Apple Intelligence first (if available and not primary)
         #if canImport(FoundationModels)
             if modelKey != "apple_intelligence" {
@@ -3238,13 +3315,13 @@ class RAGService: ObservableObject {
                 }
             }
         #endif
-        
+
         // ALWAYS add On-Device Analysis as ultimate fallback (works offline, no dependencies)
         if modelKey != "on_device_analysis" {
             fallbacks.append(OnDeviceAnalysisService())
             Log.debug("Added On-Device Analysis as ultimate fallback", category: .initialization)
         }
-        
+
         return fallbacks
     }
 
@@ -3290,12 +3367,13 @@ class RAGService: ObservableObject {
             guard let service = LlamaCPPiOSLLMService.fromRegistry() else {
                 Log.warning(
                     "GGUF selection persisted but no model found (\(reason))",
-                    category: .initialization)
+                    category: .initialization
+                )
                 return
             }
             service.toolHandler = self
-            self._llmService = service
-            self._llmService.toolHandler = self
+            _llmService = service
+            _llmService.toolHandler = self
             AutoTuneService.tuneForSelection(selectedModel: .ggufLocal)
             TelemetryCenter.emit(
                 .system,
@@ -3306,7 +3384,8 @@ class RAGService: ObservableObject {
                 ]
             )
             Log.info(
-                "✓ Activated GGUF Local model (\(service.modelName))", category: .initialization)
+                "✓ Activated GGUF Local model (\(service.modelName))", category: .initialization
+            )
         }
     #endif
 
@@ -3319,8 +3398,8 @@ class RAGService: ObservableObject {
         let chunkWordTotal = chunkWordCounts.reduce(0, +)
         let averageChunkWords =
             chunkWordCounts.isEmpty
-            ? 0.0
-            : Double(chunkWordTotal) / Double(chunkWordCounts.count)
+                ? 0.0
+                : Double(chunkWordTotal) / Double(chunkWordCounts.count)
 
         var statsContent: [String] = [
             "Query: \(String(query.prefix(50)))… (≈\(queryWords) words)",
@@ -3393,11 +3472,11 @@ class RAGService: ObservableObject {
                 chunks: response.retrievedChunks
             )
         }
-        await self.logQueryStats(query: query, response: response)
+        await logQueryStats(query: query, response: response)
         return response
     }
 
-    nonisolated private func wordCount(of text: String) -> Int {
+    private nonisolated func wordCount(of text: String) -> Int {
         text.split(whereSeparator: { $0.isWhitespace }).count
     }
 
@@ -3443,21 +3522,15 @@ class RAGService: ObservableObject {
 
     // MARK: - MainActor snapshot helpers (async to avoid superfluous await warnings)
 
-    nonisolated
-        private func snapshotDocuments() async -> [Document]
-    {
+    private nonisolated func snapshotDocuments() async -> [Document] {
         await MainActor.run { self.documents }
     }
 
-    nonisolated
-        private func snapshotDocumentsCount() async -> Int
-    {
+    private nonisolated func snapshotDocumentsCount() async -> Int {
         await MainActor.run { self.documents.count }
     }
 
-    nonisolated
-        private func documentName(for documentId: UUID) async -> String
-    {
+    private nonisolated func documentName(for documentId: UUID) async -> String {
         await MainActor.run { self.getDocumentName(for: documentId) }
     }
 
@@ -3523,7 +3596,7 @@ class RAGService: ObservableObject {
         let uniqueSources = Set(chunks.map { $0.sourceDocument })
         let sourceCount = uniqueSources.count
 
-        if sourceCount == 1 && documents.count > 1 {
+        if sourceCount == 1, documents.count > 1 {
             warnings.append("Single source: Information from only one document")
         }
 
@@ -3539,10 +3612,10 @@ class RAGService: ObservableObject {
         let sourceDiversityWeight: Float = 0.2
         let queryQualityWeight: Float = 0.1
 
-        let similarityScore = min(topSimilarity / 0.8, 1.0)  // Normalize: 0.8+ = full confidence
-        let chunkScore = min(Float(chunkCount) / 5.0, 1.0)  // 5+ chunks = full confidence
+        let similarityScore = min(topSimilarity / 0.8, 1.0) // Normalize: 0.8+ = full confidence
+        let chunkScore = min(Float(chunkCount) / 5.0, 1.0) // 5+ chunks = full confidence
         let diversityScore = min(Float(sourceCount) / Float(max(documents.count, 1)), 1.0)
-        let queryScore = min(Float(queryWords) / 5.0, 1.0)  // 5+ words = full confidence
+        let queryScore = min(Float(queryWords) / 5.0, 1.0) // 5+ words = full confidence
 
         let confidence =
             (similarityScore * similarityWeight + chunkScore * chunkCountWeight + diversityScore
@@ -3552,13 +3625,11 @@ class RAGService: ObservableObject {
     }
 
     // MARK: - MMR (Maximal Marginal Relevance) for Diversity
-
 }
 
 // MARK: - Device Capability Detection
 
 extension RAGService {
-
     /// Comprehensive device capability detection for Apple Intelligence ecosystem
     @MainActor
     static func checkDeviceCapabilities() -> DeviceCapabilities {
@@ -3572,7 +3643,7 @@ extension RAGService {
         capabilities.iOSMinor = systemVersion.minorVersion
         let hasAppleIntelligenceOS =
             (systemVersion.majorVersion > 18)
-            || (systemVersion.majorVersion == 18 && systemVersion.minorVersion >= 1)
+                || (systemVersion.majorVersion == 18 && systemVersion.minorVersion >= 1)
 
         // Detect device/chip tier based on available features
         // This is an approximation since we can't directly query chip model
@@ -3646,7 +3717,7 @@ extension RAGService {
                         capabilities.appleIntelligenceUnavailableReason = nil
                         Log.info(" Foundation Models available on device")
 
-                    case .unavailable(let reason):
+                    case let .unavailable(reason):
                         capabilities.supportsFoundationModels = false
                         capabilities.supportsAppleIntelligence = false
 
@@ -3759,7 +3830,7 @@ extension RAGService {
 
         // Simulator gets conservative capabilities to avoid crashes
         #if targetEnvironment(simulator)
-            return .a14Bionic  // Don't claim Apple Intelligence support in simulator
+            return .a14Bionic // Don't claim Apple Intelligence support in simulator
         #else
 
             var systemInfo = utsname()
@@ -3845,11 +3916,11 @@ extension RAGService {
         chip: DeviceChip, hasAppleIntelligence: Bool, hasEmbeddings: Bool
     ) -> DeviceCapabilities.DeviceTier {
         if hasAppleIntelligence && chip.supportsAppleIntelligence {
-            return .high  // A17 Pro+ or M-series with full Apple Intelligence
+            return .high // A17 Pro+ or M-series with full Apple Intelligence
         } else if hasEmbeddings {
-            return .medium  // A13+ with embedding support
+            return .medium // A13+ with embedding support
         } else {
-            return .low  // Older devices
+            return .low // Older devices
         }
     }
 }
@@ -3971,9 +4042,9 @@ struct DeviceCapabilities {
     /// - Returns ≈900 tokens for on-device-only execution while models download
     var appleIntelligenceContextTokens: Int {
         if supportsFoundationModels {
-            return 50_000  // ≈200K characters before prompt+response overhead
+            return 50000 // ≈200K characters before prompt+response overhead
         } else if supportsAppleIntelligence {
-            return 900  // ≈3.5K characters processed purely on-device
+            return 900 // ≈3.5K characters processed purely on-device
         } else {
             return 0
         }
@@ -4011,9 +4082,9 @@ struct DeviceCapabilities {
     }
 
     enum DeviceTier {
-        case low  // Pre-A13, minimal AI support
-        case medium  // A13-A16, embeddings + Core ML
-        case high  // A17 Pro+ or M-series, full Apple Intelligence
+        case low // Pre-A13, minimal AI support
+        case medium // A13-A16, embeddings + Core ML
+        case high // A17 Pro+ or M-series, full Apple Intelligence
 
         var description: String {
             switch self {
@@ -4061,17 +4132,17 @@ enum RAGServiceError: LocalizedError {
             return "Failed to retrieve relevant chunks"
         case .modelNotAvailable:
             return "The selected LLM model is not available"
-        case .cloudConsentDenied(let provider):
+        case let .cloudConsentDenied(provider):
             return "Cloud transmission denied for \(provider.shortName)"
         }
     }
 }
 
 // MARK: - RAGService Tool Handler Implementation
+
 // This enables agentic RAG where the LLM can decide when to search documents
 
 extension RAGService: RAGToolHandler {
-
     /// Search documents for relevant information
     /// Called by the LLM when it needs information from the document library
     func searchDocuments(query: String) async throws -> String {
@@ -4085,7 +4156,7 @@ extension RAGService: RAGToolHandler {
 
         let retrievedChunks = try await db.search(
             embedding: queryEmbedding,
-            topK: 3  // Return top 3 chunks for tool call
+            topK: 3 // Return top 3 chunks for tool call
         )
 
         if retrievedChunks.isEmpty {
@@ -4105,7 +4176,7 @@ extension RAGService: RAGToolHandler {
                 " (Relevance: \(String(format: "%.1f%%", retrieved.similarityScore * 100))):\n"
             let fullText = retrieved.chunk.content.trimmingCharacters(in: .whitespacesAndNewlines)
             let preview = fullText.count > 600 ? String(fullText.prefix(600)) + " [...]" : fullText
-            result += preview  // Truncated preview to control token usage
+            result += preview // Truncated preview to control token usage
             result += "\n\n"
         }
 
