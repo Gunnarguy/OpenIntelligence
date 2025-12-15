@@ -7,7 +7,7 @@
 
 import SwiftUI
 #if canImport(UIKit)
-import UIKit
+    import UIKit
 #endif
 
 /// Floating action bar that appears on message tap/hover
@@ -17,11 +17,11 @@ struct MessageActionsBar: View {
     let onRegenerate: (() -> Void)?
     let onShowDetails: (() -> Void)?
     let onShare: (() -> Void)?
-    
+
     @State private var copiedFeedback = false
-    
+
     private var isUser: Bool { message.role == .user }
-    
+
     var body: some View {
         HStack(spacing: 2) {
             // Copy button
@@ -32,21 +32,21 @@ struct MessageActionsBar: View {
             ) {
                 copyToClipboard()
             }
-            
+
             // Regenerate (assistant only)
             if !isUser, let onRegenerate {
                 ActionButton(icon: "arrow.clockwise", label: "Retry", color: .orange) {
                     onRegenerate()
                 }
             }
-            
+
             // Details (assistant only, if has metadata)
             if !isUser, message.metadata != nil, let onShowDetails {
                 ActionButton(icon: "info.circle", label: "Details", color: .blue) {
                     onShowDetails()
                 }
             }
-            
+
             // Share
             if let onShare {
                 ActionButton(icon: "square.and.arrow.up", label: "Share", color: .purple) {
@@ -62,16 +62,16 @@ struct MessageActionsBar: View {
                 .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 2)
         )
     }
-    
+
     private func copyToClipboard() {
         #if canImport(UIKit)
-        UIPasteboard.general.string = message.content
+            UIPasteboard.general.string = message.content
         #endif
-        
+
         copiedFeedback = true
         DSHaptics.success()
         onCopy()
-        
+
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
             copiedFeedback = false
         }
@@ -84,9 +84,9 @@ private struct ActionButton: View {
     let label: String
     let color: Color
     let action: () -> Void
-    
+
     @State private var isPressed = false
-    
+
     var body: some View {
         Button(action: {
             DSHaptics.selection()
@@ -119,9 +119,9 @@ private struct ActionButtonStyle: ButtonStyle {
 struct MessageMetadataPanel: View {
     let metadata: ResponseMetadata
     let chunks: [RetrievedChunk]?
-    
+
     @State private var expanded = false
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             // Header row - always visible
@@ -134,13 +134,13 @@ struct MessageMetadataPanel: View {
                     Image(systemName: "chart.bar.doc.horizontal")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(DSColors.accent)
-                    
+
                     Text("Response Metrics")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(DSColors.primaryText)
-                    
+
                     Spacer()
-                    
+
                     Image(systemName: "chevron.right")
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(Color.secondary)
@@ -154,7 +154,7 @@ struct MessageMetadataPanel: View {
                 )
             }
             .buttonStyle(.plain)
-            
+
             // Expanded content
             if expanded {
                 VStack(spacing: 0) {
@@ -192,7 +192,7 @@ struct MessageMetadataPanel: View {
             }
         }
     }
-    
+
     private func formatTTFT(_ ttft: TimeInterval?) -> String {
         guard let ttft = ttft else { return "—" }
         if ttft < 1.0 {
@@ -207,20 +207,20 @@ private struct MetricRow: View {
     let value: String
     let icon: String
     var valueColor: Color = DSColors.primaryText
-    
+
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: icon)
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(Color.secondary)
                 .frame(width: 16)
-            
+
             Text(label)
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(Color.secondary)
-            
+
             Spacer()
-            
+
             Text(value)
                 .font(.system(size: 12, weight: .semibold, design: .monospaced))
                 .foregroundStyle(valueColor)
@@ -239,7 +239,7 @@ private struct MetricRow: View {
             onShowDetails: {},
             onShare: {}
         )
-        
+
         MessageActionsBar(
             message: ChatMessage(role: .user, content: "User message"),
             onCopy: {},
@@ -262,7 +262,8 @@ private struct MetricRow: View {
             modelUsed: "Apple Foundation Model (PCC)",
             retrievalTime: 0.089,
             strictModeEnabled: true,
-            toolCallsMade: 2
+            toolCallsMade: 2,
+            embeddingProvider: "nl_contextual_embedding"
         ),
         chunks: []
     )

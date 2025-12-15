@@ -14,7 +14,7 @@ struct DocumentChunk: Identifiable, Codable, Sendable {
     let content: String
     let embedding: [Float]
     let metadata: ChunkMetadata
-    
+
     init(id: UUID = UUID(), documentId: UUID, content: String, embedding: [Float], metadata: ChunkMetadata) {
         self.id = id
         self.documentId = documentId
@@ -41,8 +41,8 @@ struct ChunkMetadata: Codable, Sendable {
 
     init(
         chunkIndex: Int,
-    startPosition: Int = 0,
-    endPosition: Int = 0,
+        startPosition: Int = 0,
+        endPosition: Int = 0,
         pageNumber: Int? = nil,
         sectionTitle: String? = nil,
         keywords: [String] = [],
@@ -84,22 +84,22 @@ struct ChunkMetadata: Codable, Sendable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-    chunkIndex = try container.decode(Int.self, forKey: .chunkIndex)
-    let decodedStart = try container.decodeIfPresent(Int.self, forKey: .startPosition)
-    let decodedEnd = try container.decodeIfPresent(Int.self, forKey: .endPosition)
+        chunkIndex = try container.decode(Int.self, forKey: .chunkIndex)
+        let decodedStart = try container.decodeIfPresent(Int.self, forKey: .startPosition)
+        let decodedEnd = try container.decodeIfPresent(Int.self, forKey: .endPosition)
         pageNumber = try container.decodeIfPresent(Int.self, forKey: .pageNumber)
         sectionTitle = try container.decodeIfPresent(String.self, forKey: .sectionTitle)
         keywords = try container.decodeIfPresent([String].self, forKey: .keywords) ?? []
         semanticDensity = try container.decodeIfPresent(Float.self, forKey: .semanticDensity)
         hasNumericData = try container.decodeIfPresent(Bool.self, forKey: .hasNumericData) ?? false
         hasListStructure = try container.decodeIfPresent(Bool.self, forKey: .hasListStructure) ?? false
-    wordCount = try container.decodeIfPresent(Int.self, forKey: .wordCount) ?? 0
-    let decodedCharacterCount = try container.decodeIfPresent(Int.self, forKey: .characterCount) ?? 0
-    characterCount = decodedCharacterCount
-    let fallbackStart = decodedStart ?? 0
-    startPosition = fallbackStart
-    // Old persisted chunks will not contain explicit offsets. Fall back to a sensible range based on count.
-    endPosition = decodedEnd ?? (fallbackStart + decodedCharacterCount)
+        wordCount = try container.decodeIfPresent(Int.self, forKey: .wordCount) ?? 0
+        let decodedCharacterCount = try container.decodeIfPresent(Int.self, forKey: .characterCount) ?? 0
+        characterCount = decodedCharacterCount
+        let fallbackStart = decodedStart ?? 0
+        startPosition = fallbackStart
+        // Old persisted chunks will not contain explicit offsets. Fall back to a sensible range based on count.
+        endPosition = decodedEnd ?? (fallbackStart + decodedCharacterCount)
         createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
     }
 
@@ -132,7 +132,7 @@ struct Document: Identifiable, Codable {
     let totalChunks: Int
     let processingMetadata: ProcessingMetadata?
     let containerId: UUID?
-    
+
     init(
         id: UUID = UUID(),
         filename: String,
@@ -179,7 +179,7 @@ enum DocumentType: String, Codable {
     case text
     case markdown
     case rtf
-    
+
     // Image formats (will use OCR)
     case image
     case png
@@ -187,7 +187,7 @@ enum DocumentType: String, Codable {
     case heic
     case tiff
     case gif
-    
+
     // Code files (treat as text with syntax preservation)
     case swift
     case python
@@ -209,7 +209,7 @@ enum DocumentType: String, Codable {
     case sql
     case shell
     case code // Generic code file
-    
+
     // Office documents
     case word
     case excel
@@ -217,10 +217,10 @@ enum DocumentType: String, Codable {
     case pages
     case numbers
     case keynote
-    
+
     // Web and data formats
     case csv
-    
+
     case unknown
 }
 
@@ -240,7 +240,31 @@ struct ProcessingSummary: Identifiable {
     let embeddingTime: Double
     let totalTime: Double
     let chunkStats: ChunkStatistics
-    
+
+    /// The embedding provider used for this ingestion (e.g., "nl_embedding", "nl_contextual_embedding")
+    let embeddingProviderId: String?
+
+    /// Human-readable name for the embedding provider
+    var embeddingProviderDisplayName: String {
+        switch embeddingProviderId {
+        case "nl_contextual_embedding":
+            return "Contextual Embedding"
+        case "nl_embedding", nil:
+            return "NLEmbedding"
+        case "coreml_sentence_embedding":
+            return "CoreML Sentence"
+        case "apple_fm_embed":
+            return "Apple FM"
+        default:
+            return embeddingProviderId ?? "NLEmbedding"
+        }
+    }
+
+    /// Whether this is a high-accuracy provider
+    var isHighAccuracyProvider: Bool {
+        embeddingProviderId == "nl_contextual_embedding"
+    }
+
     struct ChunkStatistics {
         let avgChars: Int
         let minChars: Int

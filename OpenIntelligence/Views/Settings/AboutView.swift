@@ -2,7 +2,24 @@ import SwiftUI
 
 /// Presents product metadata and device-specific capability information.
 struct AboutView: View {
+    @EnvironmentObject private var settings: SettingsStore
     @State private var deviceCapabilities = DeviceCapabilities()
+
+    /// Human-readable name for the active embedding provider
+    private var embeddingDisplayName: String {
+        switch settings.defaultEmbeddingProvider {
+        case "nl_contextual_embedding":
+            return "Contextual (High Accuracy)"
+        case "nl_embedding":
+            return "NLEmbedding (512-dim)"
+        case "coreml_sentence_embedding":
+            return "CoreML Sentence"
+        case "apple_fm_embed":
+            return "Apple FM Embed"
+        default:
+            return settings.defaultEmbeddingProvider
+        }
+    }
 
     var body: some View {
         ZStack {
@@ -68,7 +85,7 @@ struct AboutView: View {
                         SectionHeader(icon: "gearshape.2.fill", title: "Technology")
                         VStack(alignment: .leading, spacing: 8) {
                             LabeledContent("RAG Pipeline", value: "Semantic search + LLM")
-                            LabeledContent("Embeddings", value: "NLEmbedding (512-dim)")
+                            LabeledContent("Embeddings", value: embeddingDisplayName)
                             LabeledContent("Vector Store", value: "In-memory cosine similarity")
                             LabeledContent("Minimum iOS", value: "18.0")
                             LabeledContent("Optimized for", value: "iOS 26.0+")
@@ -82,7 +99,7 @@ struct AboutView: View {
                             Text("Need help or have feedback? Get in touch:")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
-                            
+
                             Button {
                                 openEmail()
                             } label: {
@@ -104,13 +121,13 @@ struct AboutView: View {
         }
         .navigationTitle("About")
         #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitleDisplayMode(.inline)
         #endif
-        .onAppear {
-            DispatchQueue.main.async {
-                deviceCapabilities = RAGService.checkDeviceCapabilities()
+            .onAppear {
+                DispatchQueue.main.async {
+                    deviceCapabilities = RAGService.checkDeviceCapabilities()
+                }
             }
-        }
     }
 
     private func capabilityRow(title: String, condition: Bool) -> some View {
@@ -125,9 +142,9 @@ struct AboutView: View {
     private func openEmail() {
         if let url = URL(string: "mailto:Gunnarguy@me.com?subject=OpenIntelligence%20Feedback") {
             #if os(iOS)
-            UIApplication.shared.open(url)
+                UIApplication.shared.open(url)
             #elseif os(macOS)
-            NSWorkspace.shared.open(url)
+                NSWorkspace.shared.open(url)
             #endif
         }
     }

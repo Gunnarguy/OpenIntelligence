@@ -71,13 +71,13 @@ struct SemanticSearchView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Tuning")
                 .font(.headline)
-            Stepper(value: $topK, in: 1...12, step: 1) {
+            Stepper(value: $topK, in: 1 ... 12, step: 1) {
                 Text("Top results: \(Int(topK))")
             }
             Toggle("Apply minimum similarity", isOn: $enforceThreshold)
             if enforceThreshold {
                 VStack(alignment: .leading, spacing: 6) {
-                    Slider(value: $minSimilarity, in: 0.2...0.8, step: 0.05)
+                    Slider(value: $minSimilarity, in: 0.2 ... 0.8, step: 0.05)
                     Text("Threshold: \(similarityLabel(minSimilarity))")
                         .font(.caption)
                         .foregroundColor(.secondary)
@@ -90,6 +90,29 @@ struct SemanticSearchView: View {
 
     private var statusSection: some View {
         Group {
+            // Show active embedding provider
+            if let container = containerService.activeContainer {
+                let isContextual = container.embeddingProviderId == "nl_contextual_embedding"
+                HStack(spacing: 8) {
+                    Image(systemName: isContextual ? "sparkles" : "brain.head.profile")
+                        .foregroundColor(isContextual ? .purple : .blue)
+                    Text(isContextual ? "Using High-Accuracy Embeddings" : "Using Standard Embeddings")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    if isContextual {
+                        Text("⚡ Contextual")
+                            .font(.caption2)
+                            .fontWeight(.medium)
+                            .foregroundColor(.purple)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Capsule().fill(Color.purple.opacity(0.15)))
+                    }
+                }
+                .padding(.horizontal)
+            }
+
             if isSearching {
                 StatusBanner(
                     icon: "hourglass", color: Color.secondary,

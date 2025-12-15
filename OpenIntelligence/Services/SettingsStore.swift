@@ -17,28 +17,29 @@ import SwiftUI
 @MainActor
 final class SettingsStore: ObservableObject {
     // MARK: - Keys (mirror existing @AppStorage in SettingsRootView.swift)
+
     /// Backing keys for settings stored in `UserDefaults`.
     private enum Keys {
-        static let selectedModel = "selectedLLMModel"  // LLMModelType.rawValue
+        static let selectedModel = "selectedLLMModel" // LLMModelType.rawValue
         static let openaiAPIKey = "openaiAPIKey"
         static let openaiModel = "openaiModel"
         static let preferPCC = "preferPrivateCloudCompute"
         static let allowPCC = "allowPrivateCloudCompute"
-        static let execContext = "executionContext"  // "automatic" | "onDeviceOnly" | "preferCloud" | "cloudOnly"
-        static let temperature = "llmTemperature"  // Double
-        static let maxTokens = "llmMaxTokens"  // Int
+        static let execContext = "executionContext" // "automatic" | "onDeviceOnly" | "preferCloud" | "cloudOnly"
+        static let temperature = "llmTemperature" // Double
+        static let maxTokens = "llmMaxTokens" // Int
         static let contextLength = "llmContextLength" // Int
         static let topP = "llmTopP" // Double
         static let frequencyPenalty = "llmFrequencyPenalty" // Double
         static let presencePenalty = "llmPresencePenalty" // Double
         static let repetitionPenalty = "llmRepetitionPenalty" // Double
         static let systemPrompt = "llmSystemPrompt" // String
-        static let topK = "retrievalTopK"  // Int
-        static let lenient = "lenientRetrievalMode"  // Bool
-        static let enableFB1 = "enableFirstFallback"  // Bool
-        static let enableFB2 = "enableSecondFallback"  // Bool
-        static let firstFB = "firstFallbackModel"  // LLMModelType.rawValue
-        static let secondFB = "secondFallbackModel"  // LLMModelType.rawValue
+        static let topK = "retrievalTopK" // Int
+        static let lenient = "lenientRetrievalMode" // Bool
+        static let enableFB1 = "enableFirstFallback" // Bool
+        static let enableFB2 = "enableSecondFallback" // Bool
+        static let firstFB = "firstFallbackModel" // LLMModelType.rawValue
+        static let secondFB = "secondFallbackModel" // LLMModelType.rawValue
         static let primaryModelUserOverride = "primaryModelUserOverride"
         static let localComputePreference = "ggufLocalComputePreference"
 
@@ -52,9 +53,14 @@ final class SettingsStore: ObservableObject {
         static let reviewerModeEnabled = "reviewerModeEnabled"
         static let applePCCConsent = "cloudConsent.applePCC"
         static let openAIConsent = "cloudConsent.openAI"
+
+        // Embedding provider
+        static let defaultEmbeddingProvider = "defaultEmbeddingProvider"
+        static let useHighAccuracyEmbeddings = "useHighAccuracyEmbeddings"
     }
 
     // MARK: - Published Settings (bind from UI)
+
     /// Primary inference pathway the user selected.
     @Published var selectedModel: LLMModelType
     /// Stored OpenAI API key (macOS only in the current build).
@@ -124,8 +130,17 @@ final class SettingsStore: ObservableObject {
     /// Saved consent preference for OpenAI Direct transmissions.
     @Published var openAIConsent: CloudConsentState
 
+    // MARK: - Embedding Settings
+
+    /// Default embedding provider for new containers.
+    /// Options: "nl_embedding" (fast), "nl_contextual_embedding" (high-accuracy, iOS 17+)
+    @Published var defaultEmbeddingProvider: String
+    /// When enabled, new containers use NLContextualEmbedding for 15-25% better accuracy.
+    /// Requires iOS 17+ and downloads ~50MB model on first use.
+    @Published var useHighAccuracyEmbeddings: Bool
 
     // MARK: - Infra
+
     private let defaults: UserDefaults
     private let ragService: RAGService
     private let deviceCapabilities: DeviceCapabilities
@@ -136,6 +151,7 @@ final class SettingsStore: ObservableObject {
     private var isApplyingProgrammaticSelection = false
 
     // MARK: - Model Availability
+
     /// Models that can be shown in the primary picker given current hardware and installs.
     var primaryModelOptions: [LLMModelType] {
         var options: [LLMModelType] = []
@@ -146,7 +162,6 @@ final class SettingsStore: ObservableObject {
         {
             options.append(.appleIntelligence)
         }
-
 
         #if os(iOS)
             // Include GGUF Local if runtime is available OR if a GGUF model is installed
@@ -201,14 +216,14 @@ final class SettingsStore: ObservableObject {
         if deviceCapabilities.supportsAppleIntelligence || deviceCapabilities.supportsFoundationModels {
             append(.appleIntelligence)
         }
-        
+
         // Then add other primary options
-        primaryModelOptions.forEach { option in
+        for option in primaryModelOptions {
             if option != .appleIntelligence {
                 append(option)
             }
         }
-        
+
         // On-device analysis comes after primary options
         append(.onDeviceAnalysis)
 
@@ -223,11 +238,11 @@ final class SettingsStore: ObservableObject {
         #endif
 
         #if os(macOS)
-            if reviewerModeEnabled && !trimmedAPIKey.isEmpty {
+            if reviewerModeEnabled, !trimmedAPIKey.isEmpty {
                 append(.openAIDirect)
             }
         #elseif os(iOS)
-            if reviewerModeEnabled && !trimmedAPIKey.isEmpty {
+            if reviewerModeEnabled, !trimmedAPIKey.isEmpty {
                 append(.openAIDirect)
             }
         #endif
@@ -310,128 +325,135 @@ final class SettingsStore: ObservableObject {
     }
 
     // MARK: - Init
+
     init(defaults: UserDefaults = .standard, ragService: RAGService) {
         self.defaults = defaults
         self.ragService = ragService
-        self.deviceCapabilities = RAGService.checkDeviceCapabilities()
+        deviceCapabilities = RAGService.checkDeviceCapabilities()
 
         // Load persisted values with sensible defaults
         if let raw = defaults.string(forKey: Keys.selectedModel),
-            let t = LLMModelType(rawValue: raw)
+           let t = LLMModelType(rawValue: raw)
         {
-            self.selectedModel = t
+            selectedModel = t
         } else {
             // Default to Apple Intelligence on capable devices, otherwise On-Device Analysis
             if deviceCapabilities.supportsAppleIntelligence || deviceCapabilities.supportsFoundationModels {
-                self.selectedModel = .appleIntelligence
+                selectedModel = .appleIntelligence
             } else {
-                self.selectedModel = .onDeviceAnalysis
+                selectedModel = .onDeviceAnalysis
             }
         }
 
         if let stored = KeychainStorage.string(forKey: Keys.openaiAPIKey), !stored.isEmpty {
-            self.openaiAPIKey = stored
+            openaiAPIKey = stored
         } else {
             let legacy = defaults.string(forKey: Keys.openaiAPIKey) ?? ""
-            self.openaiAPIKey = legacy
+            openaiAPIKey = legacy
             if !legacy.isEmpty {
                 KeychainStorage.setString(legacy, forKey: Keys.openaiAPIKey)
                 defaults.removeObject(forKey: Keys.openaiAPIKey)
             }
         }
-        self.openaiModel = defaults.string(forKey: Keys.openaiModel) ?? "gpt-4o-mini"
+        openaiModel = defaults.string(forKey: Keys.openaiModel) ?? "gpt-4o-mini"
 
-        self.preferPrivateCloudCompute = defaults.bool(forKey: Keys.preferPCC)
-        self.allowPrivateCloudCompute = defaults.object(forKey: Keys.allowPCC) as? Bool ?? true
+        preferPrivateCloudCompute = defaults.bool(forKey: Keys.preferPCC)
+        allowPrivateCloudCompute = defaults.object(forKey: Keys.allowPCC) as? Bool ?? true
 
         let execRaw = defaults.string(forKey: Keys.execContext) ?? "automatic"
-        self.executionContext = ExecutionContext.from(raw: execRaw)
+        executionContext = ExecutionContext.from(raw: execRaw)
 
-        self.temperature = (defaults.object(forKey: Keys.temperature) as? Double) ?? 0.7
-        self.maxTokens = (defaults.object(forKey: Keys.maxTokens) as? Int) ?? 512
-        self.contextLength = (defaults.object(forKey: Keys.contextLength) as? Int) ?? 2048
-        self.topP = (defaults.object(forKey: Keys.topP) as? Double) ?? 0.9
-        self.frequencyPenalty = (defaults.object(forKey: Keys.frequencyPenalty) as? Double) ?? 0.0
-        self.presencePenalty = (defaults.object(forKey: Keys.presencePenalty) as? Double) ?? 0.0
-        self.repetitionPenalty = (defaults.object(forKey: Keys.repetitionPenalty) as? Double) ?? 1.0
-        self.systemPrompt = defaults.string(forKey: Keys.systemPrompt) ?? "You are a helpful assistant."
-        self.topK = (defaults.object(forKey: Keys.topK) as? Int) ?? 3
+        temperature = (defaults.object(forKey: Keys.temperature) as? Double) ?? 0.7
+        maxTokens = (defaults.object(forKey: Keys.maxTokens) as? Int) ?? 512
+        contextLength = (defaults.object(forKey: Keys.contextLength) as? Int) ?? 2048
+        topP = (defaults.object(forKey: Keys.topP) as? Double) ?? 0.9
+        frequencyPenalty = (defaults.object(forKey: Keys.frequencyPenalty) as? Double) ?? 0.0
+        presencePenalty = (defaults.object(forKey: Keys.presencePenalty) as? Double) ?? 0.0
+        repetitionPenalty = (defaults.object(forKey: Keys.repetitionPenalty) as? Double) ?? 1.0
+        systemPrompt = defaults.string(forKey: Keys.systemPrompt) ?? "You are a helpful assistant."
+        topK = (defaults.object(forKey: Keys.topK) as? Int) ?? 3
 
-        self.lenientRetrievalMode = defaults.object(forKey: Keys.lenient) as? Bool ?? false
-        self.localComputePreference = LocalComputePreference.load(
-            from: defaults, key: Keys.localComputePreference, fallback: .automatic)
+        lenientRetrievalMode = defaults.object(forKey: Keys.lenient) as? Bool ?? false
+        localComputePreference = LocalComputePreference.load(
+            from: defaults, key: Keys.localComputePreference, fallback: .automatic
+        )
 
-        self.enableFirstFallback = defaults.object(forKey: Keys.enableFB1) as? Bool ?? true
-        self.enableSecondFallback = defaults.object(forKey: Keys.enableFB2) as? Bool ?? true
+        enableFirstFallback = defaults.object(forKey: Keys.enableFB1) as? Bool ?? true
+        enableSecondFallback = defaults.object(forKey: Keys.enableFB2) as? Bool ?? true
 
         if let raw1 = defaults.string(forKey: Keys.firstFB),
-            let t1 = LLMModelType(rawValue: raw1)
+           let t1 = LLMModelType(rawValue: raw1)
         {
-            self.firstFallback = t1
+            firstFallback = t1
         } else {
-            self.firstFallback = .onDeviceAnalysis
+            firstFallback = .onDeviceAnalysis
         }
 
         if let raw2 = defaults.string(forKey: Keys.secondFB),
-            let t2 = LLMModelType(rawValue: raw2)
+           let t2 = LLMModelType(rawValue: raw2)
         {
-            self.secondFallback = t2
+            secondFallback = t2
         } else {
             #if os(iOS)
-                self.secondFallback = .chatGPTExtension
+                secondFallback = .chatGPTExtension
             #else
-                self.secondFallback = .onDeviceAnalysis
+                secondFallback = .onDeviceAnalysis
             #endif
         }
 
-        self.responsesIncludeReasoning =
+        responsesIncludeReasoning =
             defaults.object(forKey: Keys.responsesIncludeReasoning) as? Bool ?? true
-        self.responsesIncludeVerbosity =
+        responsesIncludeVerbosity =
             defaults.object(forKey: Keys.responsesIncludeVerbosity) as? Bool ?? true
-        self.responsesIncludeCoT =
+        responsesIncludeCoT =
             defaults.object(forKey: Keys.responsesIncludeCoT) as? Bool ?? true
-        self.responsesIncludeMaxTokens =
+        responsesIncludeMaxTokens =
             defaults.object(forKey: Keys.responsesIncludeMaxTokens) as? Bool ?? true
 
-    self.reviewerModeEnabled =
-        defaults.object(forKey: Keys.reviewerModeEnabled) as? Bool ?? false
-#if !DEBUG
-    // Release builds must never persist reviewer mode; force-disable in case a debug build wrote it.
-    self.reviewerModeEnabled = false
-    defaults.set(false, forKey: Keys.reviewerModeEnabled)
-#endif
+        reviewerModeEnabled =
+            defaults.object(forKey: Keys.reviewerModeEnabled) as? Bool ?? false
+        #if !DEBUG
+            // Release builds must never persist reviewer mode; force-disable in case a debug build wrote it.
+            reviewerModeEnabled = false
+            defaults.set(false, forKey: Keys.reviewerModeEnabled)
+        #endif
         let appleConsentRaw = defaults.string(forKey: Keys.applePCCConsent)
-        self.applePCCConsent =
+        applePCCConsent =
             CloudConsentState(rawValue: appleConsentRaw ?? "") ?? .notDetermined
         let openAIConsentRaw = defaults.string(forKey: Keys.openAIConsent)
-        self.openAIConsent =
+        openAIConsent =
             CloudConsentState(rawValue: openAIConsentRaw ?? "") ?? .notDetermined
-        self.hasUserPrimaryOverride =
+        hasUserPrimaryOverride =
             defaults.object(forKey: Keys.primaryModelUserOverride) as? Bool ?? false
+
+        // Embedding provider settings
+        defaultEmbeddingProvider = defaults.string(forKey: Keys.defaultEmbeddingProvider) ?? "nl_embedding"
+        useHighAccuracyEmbeddings = defaults.object(forKey: Keys.useHighAccuracyEmbeddings) as? Bool ?? false
 
         // Auto-upgrade from GGUF to Apple Intelligence if device is now capable
         // (e.g., user upgraded from iPhone 15 to iPhone 16 Pro)
         if selectedModel == .ggufLocal,
-            !hasUserPrimaryOverride,
-            isPrimarySelectionAvailable(.appleIntelligence)
+           !hasUserPrimaryOverride,
+           isPrimarySelectionAvailable(.appleIntelligence)
         {
             setSelectedModelProgrammatically(.appleIntelligence)
         }
-        
+
         // Auto-upgrade from On-Device Analysis to Apple Intelligence if device is capable
         if selectedModel == .onDeviceAnalysis,
-            !hasUserPrimaryOverride,
-            isPrimarySelectionAvailable(.appleIntelligence)
+           !hasUserPrimaryOverride,
+           isPrimarySelectionAvailable(.appleIntelligence)
         {
             setSelectedModelProgrammatically(.appleIntelligence)
         }
-        
+
         sanitizeModelSelectionForPlatform()
         setupPipelines()
         ragService.registerSettingsStore(self)
     }
 
     // MARK: - Pipelines
+
     /// Wires change observers so `@Published` values stay persisted and applied.
     private func setupPipelines() {
         $selectedModel
@@ -475,6 +497,8 @@ final class SettingsStore: ObservableObject {
             $reviewerModeEnabled.map { _ in () }.eraseToAnyPublisher(),
             $applePCCConsent.map { _ in () }.eraseToAnyPublisher(),
             $openAIConsent.map { _ in () }.eraseToAnyPublisher(),
+            $defaultEmbeddingProvider.map { _ in () }.eraseToAnyPublisher(),
+            $useHighAccuracyEmbeddings.map { _ in () }.eraseToAnyPublisher(),
         ]
         Publishers.MergeMany(publishers)
             .sink { [weak self] in
@@ -491,21 +515,35 @@ final class SettingsStore: ObservableObject {
             }
             .store(in: &cancellables)
 
-#if !DEBUG
-        // Guardrail: ignore any reviewer mode toggles in release builds to keep OpenAI Direct inaccessible.
-        $reviewerModeEnabled
-            .dropFirst()
-            .sink { [weak self] enabled in
-                guard let self, enabled else { return }
-                self.reviewerModeEnabled = false
-            }
-            .store(in: &cancellables)
-#endif
+        #if !DEBUG
+            // Guardrail: ignore any reviewer mode toggles in release builds to keep OpenAI Direct inaccessible.
+            $reviewerModeEnabled
+                .dropFirst()
+                .sink { [weak self] enabled in
+                    guard let self, enabled else { return }
+                    self.reviewerModeEnabled = false
+                }
+                .store(in: &cancellables)
+        #endif
 
         $openaiAPIKey
             .dropFirst()
             .sink { [weak self] _ in
                 self?.sanitizeModelSelectionForPlatform()
+            }
+            .store(in: &cancellables)
+
+        // Sync high-accuracy toggle with embedding provider selection
+        $useHighAccuracyEmbeddings
+            .dropFirst()
+            .sink { [weak self] enabled in
+                guard let self else { return }
+                if enabled {
+                    self.defaultEmbeddingProvider = "nl_contextual_embedding"
+                } else {
+                    self.defaultEmbeddingProvider = "nl_embedding"
+                }
+                Log.info("Embedding provider switched to: \(self.defaultEmbeddingProvider)", category: .embedding)
             }
             .store(in: &cancellables)
 
@@ -544,6 +582,7 @@ final class SettingsStore: ObservableObject {
     }
 
     // MARK: - Persistence
+
     /// Writes the current in-memory values to `UserDefaults`.
     private func persistAll() {
         defaults.set(selectedModel.rawValue, forKey: Keys.selectedModel)
@@ -584,9 +623,14 @@ final class SettingsStore: ObservableObject {
         defaults.set(applePCCConsent.rawValue, forKey: Keys.applePCCConsent)
         defaults.set(openAIConsent.rawValue, forKey: Keys.openAIConsent)
         defaults.set(hasUserPrimaryOverride, forKey: Keys.primaryModelUserOverride)
+
+        // Embedding provider settings
+        defaults.set(defaultEmbeddingProvider, forKey: Keys.defaultEmbeddingProvider)
+        defaults.set(useHighAccuracyEmbeddings, forKey: Keys.useHighAccuracyEmbeddings)
     }
 
     // MARK: - Side Effects (Debounced)
+
     /// Emits telemetry once a batch of setting changes has settled.
     private func applySettingsDebounced() {
         // Phase 1: Emit lightweight telemetry and return
@@ -600,7 +644,8 @@ final class SettingsStore: ObservableObject {
                 "openaiModel": openaiModel,
                 "fallbacks":
                     "\(enableFirstFallback ? "1" : "0")\(enableSecondFallback ? "+1" : "")",
-            ])
+            ]
+        )
     }
 }
 
@@ -651,8 +696,8 @@ extension SettingsStore {
                 setSelectedModelProgrammatically(fallbackUniverse.first ?? .onDeviceAnalysis)
             }
         } else if !hasUserPrimaryOverride,
-            selectedModel != .appleIntelligence,
-            isPrimarySelectionAvailable(.appleIntelligence)
+                  selectedModel != .appleIntelligence,
+                  isPrimarySelectionAvailable(.appleIntelligence)
         {
             setSelectedModelProgrammatically(.appleIntelligence)
         }
@@ -708,9 +753,9 @@ extension SettingsStore {
 
 // MARK: - ExecutionContext Raw Mapping
 
-extension ExecutionContext {
+private extension ExecutionContext {
     /// Persists the enum as a raw string for `UserDefaults`.
-    fileprivate var rawString: String {
+    var rawString: String {
         switch self {
         case .automatic: return "automatic"
         case .onDeviceOnly: return "onDeviceOnly"
@@ -720,7 +765,7 @@ extension ExecutionContext {
     }
 
     /// Restores an `ExecutionContext` instance from a stored raw value.
-    fileprivate static func from(raw: String) -> ExecutionContext {
+    static func from(raw: String) -> ExecutionContext {
         switch raw {
         case "onDeviceOnly": return .onDeviceOnly
         case "preferCloud": return .preferCloud

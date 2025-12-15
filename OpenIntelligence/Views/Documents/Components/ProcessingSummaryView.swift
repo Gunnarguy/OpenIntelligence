@@ -10,7 +10,7 @@ import SwiftUI
 struct ProcessingSummaryView: View {
     let summary: ProcessingSummary
     @Environment(\.dismiss) var dismiss
-    
+
     var body: some View {
         NavigationView {
             ScrollView {
@@ -20,17 +20,17 @@ struct ProcessingSummaryView: View {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: 60))
                             .foregroundColor(.green)
-                        
+
                         Text("Document Processed!")
                             .font(.title2)
                             .fontWeight(.bold)
-                        
+
                         Text(summary.filename)
                             .font(.headline)
                             .foregroundColor(.secondary)
                     }
                     .padding(.top, 20)
-                    
+
                     // File Info Section
                     InfoSection(title: "File Information", icon: "doc.fill", color: .blue) {
                         DetailInfoRow(label: "File Size", value: summary.fileSize)
@@ -42,7 +42,7 @@ struct ProcessingSummaryView: View {
                             DetailInfoRow(label: "OCR Used", value: "\(ocrPages) pages")
                         }
                     }
-                    
+
                     // Content Statistics Section
                     InfoSection(title: "Content Statistics", icon: "text.alignleft", color: .green) {
                         DetailInfoRow(label: "Characters", value: String(format: "%,d", summary.totalChars))
@@ -51,7 +51,23 @@ struct ProcessingSummaryView: View {
                         DetailInfoRow(label: "Avg Chunk Size", value: "\(summary.chunkStats.avgChars) chars")
                         DetailInfoRow(label: "Size Range", value: "\(summary.chunkStats.minChars) - \(summary.chunkStats.maxChars) chars")
                     }
-                    
+
+                    // Embedding Model Section
+                    InfoSection(title: "Embedding Model", icon: summary.isHighAccuracyProvider ? "sparkles" : "brain.head.profile", color: summary.isHighAccuracyProvider ? .purple : .indigo) {
+                        DetailInfoRow(label: "Provider", value: summary.embeddingProviderDisplayName)
+                        if summary.isHighAccuracyProvider {
+                            HStack {
+                                Text("Quality")
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                                Label("High Accuracy", systemImage: "star.fill")
+                                    .font(.caption)
+                                    .foregroundColor(.purple)
+                            }
+                        }
+                        DetailInfoRow(label: "Dimensions", value: "512")
+                    }
+
                     // Performance Section
                     InfoSection(title: "Performance Metrics", icon: "speedometer", color: .orange) {
                         DetailInfoRow(label: "Extraction Time", value: String(format: "%.2f s", summary.extractionTime))
@@ -80,9 +96,9 @@ struct ProcessingSummaryView: View {
 extension View {
     @ViewBuilder func iOSNavigationBarInline() -> some View {
         #if os(iOS)
-        self.navigationBarTitleDisplayMode(.inline)
+            navigationBarTitleDisplayMode(.inline)
         #else
-        self
+            self
         #endif
     }
 }
@@ -92,7 +108,7 @@ struct InfoSection<Content: View>: View {
     let icon: String
     let color: Color
     @ViewBuilder let content: Content
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -101,7 +117,7 @@ struct InfoSection<Content: View>: View {
                 Text(title)
                     .font(.headline)
             }
-            
+
             VStack(spacing: 8) {
                 content
             }
@@ -119,7 +135,7 @@ struct DetailInfoRow: View {
     let label: String
     let value: String
     var highlight: Bool = false
-    
+
     var body: some View {
         HStack {
             Text(label)

@@ -10,16 +10,16 @@ import SwiftUI
 struct ChatResponseDetailsView: View {
     let metadata: ResponseMetadata
     let retrievedChunks: [RetrievedChunk]
-    
+
     @State private var selectedTab: DetailTab = .overview
     @Environment(\.dismiss) private var dismiss
-    
+
     enum DetailTab: String, CaseIterable {
         case overview = "Overview"
         case timing = "Timing"
         case sources = "Sources"
     }
-    
+
     var body: some View {
         NavigationView {
             ScrollView {
@@ -32,7 +32,7 @@ struct ChatResponseDetailsView: View {
                     }
                     .pickerStyle(.segmented)
                     .padding(.horizontal)
-                    
+
                     switch selectedTab {
                     case .overview:
                         overviewSection
@@ -54,9 +54,9 @@ struct ChatResponseDetailsView: View {
             }
         }
     }
-    
+
     // MARK: - Overview Section
-    
+
     private var overviewSection: some View {
         VStack(spacing: DSSpacing.md) {
             // Execution badges
@@ -66,47 +66,47 @@ struct ChatResponseDetailsView: View {
                     ttft: metadata.timeToFirstToken,
                     strictMode: metadata.strictModeEnabled
                 )
-                
+
                 if let toolCalls = metadata.toolCallsMade, toolCalls > 0 {
                     ToolCallBadge(count: toolCalls)
                 }
             }
-            
+
             if metadata.strictModeEnabled {
                 strictModeBadge
             }
-            
+
             if let decision = metadata.gatingDecision {
                 gatingBadge(for: decision)
             }
-            
+
             // Key metrics cards
             LazyVGrid(columns: [
                 GridItem(.flexible()),
-                GridItem(.flexible())
+                GridItem(.flexible()),
             ], spacing: 12) {
                 MetricCard(
                     icon: "clock.arrow.circlepath",
                     title: "First Token",
-                    value: metadata.timeToFirstToken != nil ? 
+                    value: metadata.timeToFirstToken != nil ?
                         String(format: "%.0fms", metadata.timeToFirstToken! * 1000) : "—",
                     color: .blue
                 )
-                
+
                 MetricCard(
                     icon: "timer",
                     title: "Total Time",
                     value: String(format: "%.2fs", metadata.totalGenerationTime),
                     color: .green
                 )
-                
+
                 MetricCard(
                     icon: "number",
                     title: "Tokens",
                     value: "\(metadata.tokensGenerated)",
                     color: .purple
                 )
-                
+
                 MetricCard(
                     icon: "speedometer",
                     title: "Speed",
@@ -116,7 +116,7 @@ struct ChatResponseDetailsView: View {
                 )
             }
             .padding(.horizontal)
-            
+
             // Quick source summary
             if !retrievedChunks.isEmpty {
                 HStack {
@@ -128,9 +128,39 @@ struct ChatResponseDetailsView: View {
                 }
                 .padding(.horizontal)
             }
+
+            // Embedding provider badge (helps users understand accuracy)
+            if let provider = metadata.embeddingProvider {
+                let isContextual = provider.contains("contextual")
+                HStack(spacing: 8) {
+                    Image(systemName: isContextual ? "sparkles" : "bolt.badge.a")
+                        .foregroundStyle(isContextual ? .purple : .blue)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Embedding Model")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.secondary)
+                        Text(isContextual ? "Contextual (High Accuracy)" : "Standard NL")
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                    Spacer()
+                    if isContextual {
+                        Text("🎯 +15-25%")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(.green)
+                    }
+                }
+                .padding(12)
+                .background(Color(uiColor: .secondarySystemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .padding(.horizontal)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(isContextual
+                    ? "Embedding model: Contextual with 15 to 25 percent accuracy boost"
+                    : "Embedding model: Standard Natural Language")
+            }
         }
     }
-    
+
     private var speedColor: Color {
         guard let tps = metadata.tokensPerSecond else { return .gray }
         if tps > 40 { return .green }
@@ -138,9 +168,9 @@ struct ChatResponseDetailsView: View {
         if tps > 10 { return .orange }
         return .red
     }
-    
+
     // MARK: - Timing Section
-    
+
     private var timingSection: some View {
         VStack(spacing: DSSpacing.md) {
             // Timing waterfall
@@ -151,12 +181,12 @@ struct ChatResponseDetailsView: View {
                 total: metadata.totalGenerationTime + metadata.retrievalTime
             )
             .padding(.horizontal)
-            
+
             // Performance summary
             VStack(alignment: .leading, spacing: 8) {
                 Text("Performance Analysis")
                     .font(.system(size: 15, weight: .semibold))
-                
+
                 performanceInsight
             }
             .padding()
@@ -165,13 +195,13 @@ struct ChatResponseDetailsView: View {
             .padding(.horizontal)
         }
     }
-    
+
     private var performanceInsight: some View {
         let ttft = metadata.timeToFirstToken ?? 0
         let tps = metadata.tokensPerSecond ?? 0
-        
+
         var insights: [(icon: String, text: String, color: Color)] = []
-        
+
         if ttft < 0.3 {
             insights.append(("bolt.fill", "Ultra-fast first token response", .green))
         } else if ttft < 1.0 {
@@ -179,7 +209,7 @@ struct ChatResponseDetailsView: View {
         } else {
             insights.append(("clock.badge.exclamationmark", "First token latency could be improved", .orange))
         }
-        
+
         if tps > 40 {
             insights.append(("flame.fill", "Exceptional generation speed", .green))
         } else if tps > 20 {
@@ -187,7 +217,7 @@ struct ChatResponseDetailsView: View {
         } else if tps > 0 {
             insights.append(("tortoise.fill", "Generation was slower than typical", .orange))
         }
-        
+
         return VStack(alignment: .leading, spacing: 6) {
             ForEach(insights.indices, id: \.self) { index in
                 let insight = insights[index]
@@ -202,9 +232,9 @@ struct ChatResponseDetailsView: View {
             }
         }
     }
-    
+
     // MARK: - Sources Section
-    
+
     private var sourcesSection: some View {
         VStack(spacing: DSSpacing.md) {
             if retrievedChunks.isEmpty {
@@ -213,7 +243,7 @@ struct ChatResponseDetailsView: View {
                 // Quality visualization
                 RetrievalQualityBar(chunks: retrievedChunks)
                     .padding(.horizontal)
-                
+
                 // Detailed source list
                 VStack(alignment: .leading, spacing: 12) {
                     ForEach(Array(retrievedChunks.enumerated()), id: \.offset) { index, chunk in
@@ -224,7 +254,7 @@ struct ChatResponseDetailsView: View {
             }
         }
     }
-    
+
     private var emptySourcesView: some View {
         VStack(spacing: 12) {
             Image(systemName: "doc.text.magnifyingglass")
@@ -240,9 +270,9 @@ struct ChatResponseDetailsView: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 40)
     }
-    
+
     // MARK: - Badges
-    
+
     private var strictModeBadge: some View {
         HStack(spacing: 6) {
             Image(systemName: "lock.shield.fill")
@@ -256,12 +286,12 @@ struct ChatResponseDetailsView: View {
         .background(Color.red.opacity(0.12))
         .cornerRadius(8)
     }
-    
+
     private func gatingBadge(for decision: String) -> some View {
         let icon: String
         let label: String
         let color: Color
-        
+
         switch decision {
         case "acceptance_override":
             icon = "checkmark.seal.fill"
@@ -284,7 +314,7 @@ struct ChatResponseDetailsView: View {
             label = decision
             color = .gray
         }
-        
+
         return HStack(spacing: 6) {
             Image(systemName: icon)
                 .foregroundColor(color)
@@ -306,7 +336,7 @@ private struct MetricCard: View {
     let title: String
     let value: String
     let color: Color
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
@@ -317,7 +347,7 @@ private struct MetricCard: View {
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.secondary)
             }
-            
+
             Text(value)
                 .font(.system(size: 20, weight: .semibold, design: .rounded))
                 .foregroundStyle(DSColors.primaryText)
@@ -334,20 +364,20 @@ private struct MetricCard: View {
 private struct ExpandableChunkView: View {
     let chunk: RetrievedChunk
     let rank: Int
-    
+
     @State private var isExpanded = false
-    
+
     private var similarityScore: Double {
         Double(chunk.similarityScore)
     }
-    
+
     private var similarityColor: Color {
         if similarityScore >= 0.8 { return .green }
         if similarityScore >= 0.6 { return .blue }
         if similarityScore >= 0.4 { return .orange }
         return .red
     }
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             // Header with rank, similarity, and expand toggle
@@ -365,27 +395,27 @@ private struct ExpandableChunkView: View {
                         .padding(.vertical, 2)
                         .background(similarityColor)
                         .clipShape(Capsule())
-                    
+
                     // Source name
                     Text(chunk.sourceDocument.isEmpty ? "Document" : chunk.sourceDocument)
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(DSColors.primaryText)
                         .lineLimit(1)
-                    
+
                     Spacer()
-                    
+
                     // Similarity percentage
                     Text(String(format: "%.0f%%", similarityScore * 100))
                         .font(.system(size: 12, weight: .semibold, design: .monospaced))
                         .foregroundStyle(similarityColor)
-                    
+
                     Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(.secondary)
                 }
             }
             .buttonStyle(.plain)
-            
+
             // Similarity bar
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
@@ -397,7 +427,7 @@ private struct ExpandableChunkView: View {
                 }
             }
             .frame(height: 4)
-            
+
             // Expanded content
             if isExpanded {
                 VStack(alignment: .leading, spacing: 8) {
@@ -405,7 +435,7 @@ private struct ExpandableChunkView: View {
                         .font(.system(size: 13))
                         .foregroundStyle(.secondary)
                         .lineLimit(nil)
-                    
+
                     HStack(spacing: 12) {
                         Label("\(chunk.chunk.content.count) chars", systemImage: "text.alignleft")
                         Label("\(chunk.chunk.content.split(separator: " ").count) words", systemImage: "textformat")
@@ -430,20 +460,20 @@ struct ResponseDetailMetricRow: View {
     let label: String
     let value: String
     let color: Color
-    
+
     var body: some View {
         HStack(spacing: DSSpacing.xs) {
             Image(systemName: icon)
                 .font(.caption)
                 .foregroundColor(color)
                 .frame(width: 16)
-            
+
             Text(label)
                 .font(.caption)
                 .foregroundColor(DSColors.secondaryText)
-            
+
             Spacer()
-            
+
             Text(value)
                 .font(.caption)
                 .fontWeight(.medium)
@@ -459,13 +489,13 @@ private struct ModelExecutionBadge: View {
     let modelName: String
     let ttft: TimeInterval?
     let strictMode: Bool
-    
+
     private var executionInfo: (icon: String, label: String, color: Color) {
         // Strict mode takes priority
         if strictMode {
             return ("shield.checkered", "Strict Mode", .orange)
         }
-        
+
         // Determine execution location based on model name and TTFT
         if modelName.contains("GGUF") {
             return ("doc.badge.gearshape", "On-Device GGUF", .blue)
@@ -491,15 +521,15 @@ private struct ModelExecutionBadge: View {
         } else if modelName.contains("On-Device Analysis") {
             return ("doc.text.magnifyingglass", "Extractive", .gray)
         }
-        
+
         return ("questionmark.circle", "Unknown", .secondary)
     }
-    
+
     var body: some View {
         HStack(spacing: DSSpacing.xxs) {
             Image(systemName: executionInfo.icon)
                 .font(.system(size: 10, weight: .semibold))
-            
+
             Text(executionInfo.label)
                 .font(.system(size: 10, weight: .medium))
         }

@@ -2,14 +2,14 @@ import SwiftUI
 
 struct ThinkingStreamView: View {
     let events: [ThinkingEvent]
-    
+
     @State private var isExpanded = false
     @AppStorage("thinkingViewAutoCollapse") private var autoCollapse = true
 
     private var recentEvents: [ThinkingEvent] {
         Array(events.suffix(5))
     }
-    
+
     private var latestEvent: ThinkingEvent? {
         events.last
     }
@@ -21,11 +21,11 @@ struct ThinkingStreamView: View {
                 HStack(spacing: 4) {
                     // Animated thinking indicator
                     ThinkingPulse()
-                    
+
                     Text("Thinking")
                         .font(.system(size: 10, weight: .medium, design: .rounded))
                         .foregroundStyle(DSColors.secondaryText)
-                    
+
                     // Show latest step inline when collapsed
                     if !isExpanded, let latest = latestEvent {
                         Text("•")
@@ -36,9 +36,9 @@ struct ThinkingStreamView: View {
                             .foregroundStyle(DSColors.secondaryText.opacity(0.6))
                             .lineLimit(1)
                     }
-                    
+
                     Spacer()
-                    
+
                     // Expand/collapse chevron
                     Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                         .font(.system(size: 8, weight: .semibold))
@@ -50,7 +50,7 @@ struct ThinkingStreamView: View {
                 .clipShape(Capsule())
             }
             .buttonStyle(.plain)
-            
+
             // Expanded detail view
             if isExpanded {
                 VStack(alignment: .leading, spacing: 2) {
@@ -74,7 +74,7 @@ struct ThinkingStreamView: View {
 // Animated pulsing dot to indicate active thinking
 private struct ThinkingPulse: View {
     @State private var isPulsing = false
-    
+
     var body: some View {
         Circle()
             .fill(DSColors.accent)
@@ -109,11 +109,11 @@ private struct CompactThinkingRow: View {
             Circle()
                 .fill(tint)
                 .frame(width: 4, height: 4)
-            
+
             Text(event.title)
                 .font(.system(size: 9, weight: .medium, design: .monospaced))
                 .foregroundStyle(DSColors.primaryText)
-            
+
             if let detail = event.detail, !detail.isEmpty {
                 Text("–")
                     .font(.system(size: 9))
@@ -123,7 +123,7 @@ private struct CompactThinkingRow: View {
                     .foregroundStyle(DSColors.secondaryText.opacity(0.6))
                     .lineLimit(1)
             }
-            
+
             Spacer(minLength: 0)
         }
         .padding(.vertical, 2)
@@ -133,7 +133,7 @@ private struct CompactThinkingRow: View {
 #Preview("Collapsed") {
     let sample: [ThinkingEvent] = [
         ThinkingEvent(kind: .planning, title: "Scoping query", detail: "Top 3 • Research"),
-        ThinkingEvent(kind: .embedding, title: "Embedding", detail: "32ms"),
+        ThinkingEvent(kind: .embedding, title: "Embedding", detail: "⚡ Contextual • 512D in 32 ms"),
         ThinkingEvent(kind: .retrieval, title: "Searching", detail: "6 chunks"),
     ]
     return ThinkingStreamView(events: sample)
@@ -144,10 +144,10 @@ private struct CompactThinkingRow: View {
 #Preview("Expanded") {
     let sample: [ThinkingEvent] = [
         ThinkingEvent(kind: .planning, title: "Scoping query", detail: "Top 3 • Research Library"),
-        ThinkingEvent(kind: .embedding, title: "Embedding ready", detail: "1024D in 32 ms"),
+        ThinkingEvent(kind: .embedding, title: "Embedding ready", detail: "⚡ Contextual • 512D in 32 ms"),
         ThinkingEvent(kind: .retrieval, title: "Hybrid retrieval", detail: "6 candidates • Roadmap.pdf"),
         ThinkingEvent(kind: .gating, title: "Confidence gate", detail: "min 0.52 • top 0.67"),
-        ThinkingEvent(kind: .generation, title: "Answer composed", detail: "428 tokens in 2.1s")
+        ThinkingEvent(kind: .generation, title: "Answer composed", detail: "428 tokens in 2.1s"),
     ]
     return VStack {
         ThinkingStreamView(events: sample)

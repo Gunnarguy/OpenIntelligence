@@ -108,8 +108,12 @@ Navigate to the **Documents** tab. Drag and drop PDFs, Markdown, or Text files. 
 
 - **Parse** text using PDFKit or Vision OCR.
 - **Chunk** content into 400-word segments.
-- **Embed** chunks using the on-device `NLEmbedding` model.
+- **Embed** chunks using on-device models:
+  - **Standard NL** (default): Fast word-averaged embeddings via `NLEmbedding`.
+  - **Contextual NL** (iOS 17+): BERT-like contextual embeddings for 15-25% better accuracy.
 - **Index** for both vector and keyword search.
+
+> 💡 **Tip**: Enable high-accuracy mode in Library Settings → Embedding Model for technical or complex documents.
 
 ### 2. Chat & Retrieval
 

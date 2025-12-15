@@ -95,12 +95,13 @@ class DocumentProcessor {
         )
         
         let semanticChunker = SemanticChunker()
-        // Use semantic chunking (synchronous call, no page mapping for now)
+        // Use semantic chunking with page→text range mapping for accurate citations
+        let pageMapping = pageInfo.pageTextRanges.isEmpty ? nil : pageInfo.pageTextRanges
         let enhancedChunks = semanticChunker.chunkText(
             extractedText,
             documentId: documentId,
             config: chunkerConfig,
-            pageNumbers: nil  // TODO: Map page numbers to text ranges
+            pageNumbers: pageMapping
         )
         
         // Extract text strings and metadata for downstream use
@@ -207,17 +208,28 @@ class DocumentProcessor {
     
     // MARK: - Text Extraction
     
+    /// Maps page numbers to their corresponding text range in the concatenated document string
+    typealias PageTextMapping = [Int: Range<String.Index>]
+    
     /// Holds page information from document extraction
     private struct PageInfo {
         let totalPages: Int
         let ocrPagesUsed: Int
-        let pageNumbers: [Int] // Array of page numbers corresponding to text chunks
+        let pageNumbers: [Int]           // Array of page numbers corresponding to text chunks
+        let pageTextRanges: PageTextMapping  // Maps page numbers to text ranges (for citations)
+        
+        init(totalPages: Int, ocrPagesUsed: Int, pageNumbers: [Int], pageTextRanges: PageTextMapping = [:]) {
+            self.totalPages = totalPages
+            self.ocrPagesUsed = ocrPagesUsed
+            self.pageNumbers = pageNumbers
+            self.pageTextRanges = pageTextRanges
+        }
     }
     
     /// Extract text with page information for semantic chunking
     private func extractTextWithPageInfo(from url: URL, type: DocumentType) async throws -> (text: String, pageInfo: PageInfo) {
         let text: String
-        var pageInfo = PageInfo(totalPages: 0, ocrPagesUsed: 0, pageNumbers: [])
+        var pageInfo = PageInfo(totalPages: 0, ocrPagesUsed: 0, pageNumbers: [], pageTextRanges: [:])
         
         switch type {
         case .pdf:
@@ -328,29 +340,38 @@ class DocumentProcessor {
         var pagesWithoutText = 0
         var ocrUsedCount = 0
         var totalOCRChars = 0
+        var pageTextRanges: PageTextMapping = [:]  // Track page→text ranges for citations
         
         // Extract text from all pages, with OCR fallback for image-only pages
         for pageIndex in 0..<pageCount {
             guard let page = pdfDocument.page(at: pageIndex) else { continue }
             
             let pageStartTime = Date()
+            let pageNumber = pageIndex + 1  // 1-indexed for user-facing citations
+            
+            // Record start position for this page (before appending text)
+            let pageStartIndex = fullText.endIndex
             
             // Try standard text extraction first
             if let pageText = page.string, !pageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                progressHandler?("page \(pageIndex + 1)/\(pageCount)")
+                progressHandler?("page \(pageNumber)/\(pageCount)")
                 // Delay to ensure UI updates (increased for visibility)
                 try? await Task.sleep(nanoseconds: 300_000_000) // 0.3s
                 
                 fullText += pageText + "\n\n"
                 
+                // Record page→text range mapping for accurate citations
+                let pageEndIndex = fullText.endIndex
+                pageTextRanges[pageNumber] = pageStartIndex..<pageEndIndex
+                
                 let pageTime = Date().timeIntervalSince(pageStartTime)
-                    Log.debug("   ✓ Page \(pageIndex + 1): \(pageText.count) chars (\(String(format: "%.2f", pageTime))s)", category: .ingestion)
+                Log.debug("   ✓ Page \(pageNumber): \(pageText.count) chars (\(String(format: "%.2f", pageTime))s)", category: .ingestion)
             } else {
                 // No extractable text - try OCR on the page image
                 pagesWithoutText += 1
                 
                 // Update progress for OCR
-                progressHandler?("page \(pageIndex + 1)/\(pageCount), OCR")
+                progressHandler?("page \(pageNumber)/\(pageCount), OCR")
                 // Small delay to ensure UI updates
                 try? await Task.sleep(nanoseconds: 50_000_000) // 0.05s
                 
@@ -362,8 +383,12 @@ class DocumentProcessor {
                     ocrUsedCount += 1
                     totalOCRChars += ocrText.count
                     
+                    // Record page→text range for OCR content too
+                    let pageEndIndex = fullText.endIndex
+                    pageTextRanges[pageNumber] = pageStartIndex..<pageEndIndex
+                    
                     let pageTime = Date().timeIntervalSince(pageStartTime)
-                    Log.debug("   ✓ Page \(pageIndex + 1): OCR extracted \(ocrText.count) chars (\(String(format: "%.2f", pageTime))s)", category: .ingestion)
+                    Log.debug("   ✓ Page \(pageNumber): OCR extracted \(ocrText.count) chars (\(String(format: "%.2f", pageTime))s)", category: .ingestion)
                 }
             }
         }
@@ -376,10 +401,14 @@ class DocumentProcessor {
             )
         }
         
+        // Log page mapping stats for debugging
+        Log.debug("[DocumentProcessor] Built page→text mapping for \(pageTextRanges.count) pages", category: .ingestion)
+        
         let pageInfo = PageInfo(
             totalPages: pageCount,
             ocrPagesUsed: ocrUsedCount,
-            pageNumbers: Array(1...pageCount) // All pages processed
+            pageNumbers: Array(1...pageCount),
+            pageTextRanges: pageTextRanges  // Pass mapping for accurate chunk citations
         )
         
         return (fullText, pageInfo)

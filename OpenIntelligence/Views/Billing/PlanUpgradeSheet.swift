@@ -1,5 +1,5 @@
-import SwiftUI
 import StoreKit
+import SwiftUI
 import UIKit
 
 /// Full-screen paywall surface that highlights plan tiers, add-ons, and billing controls.
@@ -27,9 +27,9 @@ struct PlanUpgradeSheet: View {
             alternatePriceSuffix: "/ yr · save ~30%",
             features: [
                 "40 documents & 3 libraries",
-                "Weekly rerank refresh",
                 "Faster ingestion priority",
-                "Telemetry dashboard access"
+                "Telemetry dashboard access",
+                "Priority support",
             ]
         ),
         PlanTierOption(
@@ -43,11 +43,11 @@ struct PlanUpgradeSheet: View {
             alternatePriceSuffix: "/ mo if billed monthly",
             features: [
                 "Unlimited documents & 10 libraries",
-                "Automation hooks + tool calling",
+                "Full local model access",
                 "Priority ingestion & support",
-                "Advanced retrieval controls"
+                "Advanced retrieval controls",
             ]
-        )
+        ),
     ]
 
     private let storySlides: [PlanStorySlide] = [
@@ -64,11 +64,11 @@ struct PlanUpgradeSheet: View {
             tint: .teal
         ),
         PlanStorySlide(
-            title: "Scale without friction",
-            subtitle: "Pro unlocks automation hooks, tool calling, and up to 10 libraries so teams can collaborate seamlessly.",
-            icon: "person.3.sequence.fill",
+            title: "Scale without limits",
+            subtitle: "Pro unlocks unlimited documents, full local model access, and up to 10 libraries for power users.",
+            icon: "arrow.up.right.circle.fill",
             tint: .purple
-        )
+        ),
     ]
 
     var body: some View {
@@ -132,7 +132,7 @@ struct PlanUpgradeSheet: View {
                 "Paywall viewed",
                 metadata: [
                     "entryPoint": entryPoint.analyticsValue,
-                    "currentTier": entitlementStore.activeTier.rawValue
+                    "currentTier": entitlementStore.activeTier.rawValue,
                 ]
             )
         }
@@ -258,7 +258,7 @@ private extension PlanUpgradeSheet {
                     isCapped ? "Pack Limit Reached" : "Buy Document Pack – \(priceLabel(for: .documentPackAddOn))",
                     systemImage: isCapped ? "lock.fill" : "cart.badge.plus"
                 )
-                    .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
             .disabled(isCapped || purchasingProduct == .documentPackAddOn)
@@ -431,14 +431,14 @@ private extension PlanUpgradeSheet {
 
     func purchase(_ product: BillingProduct) {
         guard purchasingProduct != product else { return }
-        if product == .documentPackAddOn && entitlementStore.hasReachedDocumentPackCap {
+        if product == .documentPackAddOn, entitlementStore.hasReachedDocumentPackCap {
             TelemetryCenter.emitBillingEvent(
                 "Paywall CTA blocked",
                 severity: .warning,
                 metadata: [
                     "product": product.rawValue,
                     "reason": "documentPackCap",
-                    "entryPoint": entryPoint.analyticsValue
+                    "entryPoint": entryPoint.analyticsValue,
                 ]
             )
             alertMessage = "You already have the maximum number of document packs active. Remove documents or upgrade your workspace to unlock more capacity."
@@ -449,7 +449,7 @@ private extension PlanUpgradeSheet {
             "Paywall CTA tapped",
             metadata: [
                 "product": product.rawValue,
-                "entryPoint": entryPoint.analyticsValue
+                "entryPoint": entryPoint.analyticsValue,
             ]
         )
         Task {
