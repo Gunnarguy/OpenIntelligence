@@ -137,7 +137,7 @@ open OpenIntelligence.xcodeproj  # ⌘R
 | `starter_annual` | Subscription | $24.99/yr | 7-day trial |
 | `pro_monthly` | Subscription | $8.99/mo | 7-day trial |
 | `pro_annual` | Subscription | $89.99/yr | Family Sharing |
-| `lifetime_cohort` | Non-consumable | $149.99 | Limited availability (lifetime unlock) |
+| `lifetime_cohort` | Non-consumable | $99.99 | Limited availability (lifetime unlock) |
 | `doc_pack_addon` | Consumable | $4.99 | +25 documents |
 
 ### Validate Catalog
@@ -223,7 +223,7 @@ For each product:
 | `starter_annual` | S15 | $24.99 |
 | `pro_monthly` | S9 | $8.99 |
 | `pro_annual` | S69 | $89.99 |
-| `lifetime_cohort` | Tier 150 | $149.99 |
+| `lifetime_cohort` | Tier TBD | $99.99 |
 | `doc_pack_addon` | Tier 5 | $4.99 |
 
 ### App Store Metadata

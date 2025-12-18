@@ -15,16 +15,33 @@ struct PlanUpgradeSheet: View {
     @State private var showingTerms = false
     @State private var showingPrivacy = false
 
-    private let tierOptions: [PlanTierOption] = [
+    /// Sorted top-to-bottom by level and billing period to match the release catalog.
+    /// The UI intentionally surfaces every SKU so we can spot missing App Store Connect
+    /// configuration early (and avoid "only 3 products show up" surprises).
+    private let planOptions: [PlanTierOption] = [
         PlanTierOption(
             tier: .starter,
+            planName: "Starter (Monthly)",
             product: .starterMonthly,
             tagline: "Essential workspace for pilots",
-            badgeText: "Best for trying",
+            badgeText: "Try it",
             tint: .blue,
             isFeatured: false,
-            alternateBillingProduct: .starterAnnual,
-            alternatePriceSuffix: "/ yr · save ~30%",
+            features: [
+                "40 documents & 3 libraries",
+                "Faster ingestion priority",
+                "Telemetry dashboard access",
+                "Priority support",
+            ]
+        ),
+        PlanTierOption(
+            tier: .starter,
+            planName: "Starter (Annual)",
+            product: .starterAnnual,
+            tagline: "Yearly billing, same Starter limits",
+            badgeText: "Save",
+            tint: .blue,
+            isFeatured: false,
             features: [
                 "40 documents & 3 libraries",
                 "Faster ingestion priority",
@@ -34,18 +51,47 @@ struct PlanUpgradeSheet: View {
         ),
         PlanTierOption(
             tier: .pro,
-            product: .proAnnual,
-            tagline: "Full research scale, unlimited capacity",
-            badgeText: "Best Value",
+            planName: "Pro (Monthly)",
+            product: .proMonthly,
+            tagline: "Full research scale, billed monthly",
+            badgeText: "Flexible",
             tint: .purple,
-            isFeatured: true,
-            alternateBillingProduct: .proMonthly,
-            alternatePriceSuffix: "/ mo if billed monthly",
+            isFeatured: false,
             features: [
                 "Unlimited documents & 10 libraries",
                 "Full local model access",
                 "Priority ingestion & support",
                 "Advanced retrieval controls",
+            ]
+        ),
+        PlanTierOption(
+            tier: .pro,
+            planName: "Pro (Annual)",
+            product: .proAnnual,
+            tagline: "Full research scale, billed annually",
+            badgeText: "Best Value",
+            tint: .purple,
+            isFeatured: true,
+            features: [
+                "Unlimited documents & 10 libraries",
+                "Full local model access",
+                "Priority ingestion & support",
+                "Advanced retrieval controls",
+            ]
+        ),
+        PlanTierOption(
+            tier: .lifetime,
+            planName: "Lifetime Cohort",
+            product: .lifetimeCohort,
+            tagline: "One-time unlock for early supporters",
+            badgeText: "Limited",
+            tint: .orange,
+            isFeatured: false,
+            features: [
+                "Unlimited documents & 10 libraries",
+                "Full local model access",
+                "No renewal — one-time purchase",
+                "Priority support",
             ]
         ),
     ]
@@ -83,7 +129,7 @@ struct PlanUpgradeSheet: View {
                         refillQuickAction
                     }
 
-                    ForEach(tierOptions) { option in
+                    ForEach(planOptions) { option in
                         tierCard(for: option)
                     }
 
@@ -199,7 +245,6 @@ private extension PlanUpgradeSheet {
             option: option,
             price: priceLabel(for: option.product),
             priceSuffix: priceSuffix(for: option.product),
-            alternatePriceDescription: alternatePriceDescription(for: option),
             hasAccess: entitlementStore.activeTier.isAtLeast(option.tier),
             canPurchase: canPurchase(option.product),
             isProcessing: purchasingProduct == option.product,
@@ -421,7 +466,7 @@ private extension PlanUpgradeSheet {
         case .starterAnnual: return "$24.99"
         case .proMonthly: return "$8.99"
         case .proAnnual: return "$89.99"
-        case .lifetimeCohort: return "$59.99"
+        case .lifetimeCohort: return "$99.99"
         case .documentPackAddOn: return "$4.99"
         }
     }
@@ -455,15 +500,6 @@ private extension PlanUpgradeSheet {
         default:
             return nil
         }
-    }
-
-    func alternatePriceDescription(for option: PlanTierOption) -> String? {
-        guard let altProduct = option.alternateBillingProduct else { return nil }
-        let altPrice = priceLabel(for: altProduct)
-        if let suffix = option.alternatePriceSuffix {
-            return "Or \(altPrice) \(suffix)"
-        }
-        return "Or \(altPrice)"
     }
 
     func purchase(_ product: BillingProduct) {
@@ -548,13 +584,12 @@ private extension PlanUpgradeSheet {
 private struct PlanTierOption: Identifiable {
     let id = UUID()
     let tier: WorkspaceTier
+    let planName: String
     let product: BillingProduct
     let tagline: String
     let badgeText: String
     let tint: Color
     let isFeatured: Bool
-    let alternateBillingProduct: BillingProduct?
-    let alternatePriceSuffix: String?
     let features: [String]
 }
 
@@ -562,7 +597,6 @@ private struct PlanTierCard: View {
     let option: PlanTierOption
     let price: String
     let priceSuffix: String?
-    let alternatePriceDescription: String?
     let hasAccess: Bool
     let canPurchase: Bool
     let isProcessing: Bool
@@ -572,7 +606,7 @@ private struct PlanTierCard: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(option.tier.displayName)
+                    Text(option.planName)
                         .font(.headline)
                         .dynamicTypeSize(...DynamicTypeSize.accessibility2)
                     Text(option.tagline)
@@ -598,13 +632,6 @@ private struct PlanTierCard: View {
                 .lineLimit(1)
                 .dynamicTypeSize(...DynamicTypeSize.accessibility2)
 
-            if let alternatePriceDescription {
-                Text(alternatePriceDescription)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .dynamicTypeSize(...DynamicTypeSize.accessibility2)
-            }
-
             VStack(alignment: .leading, spacing: 6) {
                 ForEach(option.features, id: \.self) { feature in
                     Label(feature, systemImage: "checkmark.circle.fill")
@@ -624,9 +651,9 @@ private struct PlanTierCard: View {
                 .shadow(color: option.isFeatured ? option.tint.opacity(0.2) : .clear, radius: 20, x: 0, y: 10)
         )
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(option.tier.displayName) plan")
+        .accessibilityLabel("\(option.planName) plan")
         .accessibilityValue("\(price). \(option.tagline)")
-        .accessibilityHint(hasAccess ? "Currently active" : "Double tap to purchase")
+        .accessibilityHint(hasAccess ? "Already unlocked" : "Double tap to purchase")
     }
 }
 
@@ -634,7 +661,7 @@ private extension PlanTierCard {
     @ViewBuilder
     func ctaLabel(hasAccess: Bool, canPurchase: Bool, isProcessing: Bool) -> some View {
         if hasAccess {
-            Label("Current Plan", systemImage: "checkmark")
+            Label("Unlocked", systemImage: "checkmark")
                 .frame(maxWidth: .infinity)
         } else if isProcessing {
             ProgressView()
@@ -643,7 +670,7 @@ private extension PlanTierCard {
             Label("Loading…", systemImage: "hourglass")
                 .frame(maxWidth: .infinity)
         } else {
-            Label("Upgrade to \(option.tier.displayName)", systemImage: "arrow.up.forward.app")
+            Label("Choose \(option.planName)", systemImage: "arrow.up.forward.app")
                 .frame(maxWidth: .infinity)
         }
     }

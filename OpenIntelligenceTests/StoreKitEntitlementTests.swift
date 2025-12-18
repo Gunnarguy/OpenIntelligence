@@ -1,9 +1,8 @@
-import XCTest
 @testable import OpenIntelligence
+import XCTest
 
 @MainActor
 final class StoreKitEntitlementTests: XCTestCase {
-
     func testPreviewTicketsDecrementUntilBlocked() async {
         let defaults = UserDefaults(suiteName: "entitlement-tests-")!
         defaults.removePersistentDomain(forName: "entitlement-tests-")
@@ -60,5 +59,7 @@ final class StoreKitEntitlementTests: XCTestCase {
         XCTAssertEqual(store.documentLimit, QuotaPolicy.documentLimit(for: .starter))
         store.setDebugTier(.pro)
         XCTAssertEqual(store.documentLimit, QuotaPolicy.documentLimit(for: .pro))
+        store.setDebugTier(.lifetime)
+        XCTAssertEqual(store.documentLimit, QuotaPolicy.documentLimit(for: .lifetime))
     }
 }
