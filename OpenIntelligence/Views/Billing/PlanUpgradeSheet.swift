@@ -165,7 +165,7 @@ private extension PlanUpgradeSheet {
         HStack(spacing: 8) {
             Image(systemName: "person.3.fill")
                 .foregroundStyle(.purple)
-            Text("2,431 researchers upgraded this month")
+            Text("Upgrade anytime — cancel in App Store settings.")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.secondary)
         }
@@ -198,8 +198,10 @@ private extension PlanUpgradeSheet {
         PlanTierCard(
             option: option,
             price: priceLabel(for: option.product),
+            priceSuffix: priceSuffix(for: option.product),
             alternatePriceDescription: alternatePriceDescription(for: option),
             hasAccess: entitlementStore.activeTier.isAtLeast(option.tier),
+            canPurchase: canPurchase(option.product),
             isProcessing: purchasingProduct == option.product,
             ctaAction: { purchase(option.product) }
         )
@@ -261,7 +263,7 @@ private extension PlanUpgradeSheet {
                 .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
-            .disabled(isCapped || purchasingProduct == .documentPackAddOn)
+            .disabled(isCapped || purchasingProduct == .documentPackAddOn || !canPurchase(.documentPackAddOn))
         }
         .padding()
         .background(DSColors.surface)
@@ -335,7 +337,7 @@ private extension PlanUpgradeSheet {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
-            .disabled(purchasingProduct == .documentPackAddOn)
+            .disabled(purchasingProduct == .documentPackAddOn || !canPurchase(.documentPackAddOn))
         }
         .padding()
         .background(
@@ -406,6 +408,10 @@ private extension PlanUpgradeSheet {
 // MARK: - Actions
 
 private extension PlanUpgradeSheet {
+    func canPurchase(_ product: BillingProduct) -> Bool {
+        entitlementStore.product(for: product) != nil
+    }
+
     func priceLabel(for product: BillingProduct) -> String {
         if let storeProduct = entitlementStore.product(for: product) {
             return storeProduct.displayPrice
@@ -420,6 +426,37 @@ private extension PlanUpgradeSheet {
         }
     }
 
+    func priceSuffix(for product: BillingProduct) -> String? {
+        guard product.kind == .subscription else { return nil }
+
+        if let storeProduct = entitlementStore.product(for: product),
+           let period = storeProduct.subscription?.subscriptionPeriod
+        {
+            switch period.unit {
+            case .month:
+                return " / mo"
+            case .year:
+                return " / yr"
+            case .week:
+                return " / wk"
+            case .day:
+                return " / day"
+            @unknown default:
+                break
+            }
+        }
+
+        // Fallback for cases when StoreKit metadata is not loaded yet.
+        switch product {
+        case .starterMonthly, .proMonthly:
+            return " / mo"
+        case .starterAnnual, .proAnnual:
+            return " / yr"
+        default:
+            return nil
+        }
+    }
+
     func alternatePriceDescription(for option: PlanTierOption) -> String? {
         guard let altProduct = option.alternateBillingProduct else { return nil }
         let altPrice = priceLabel(for: altProduct)
@@ -431,6 +468,19 @@ private extension PlanUpgradeSheet {
 
     func purchase(_ product: BillingProduct) {
         guard purchasingProduct != product else { return }
+        guard canPurchase(product) else {
+            alertMessage = "Purchases aren’t available yet. Please wait a moment and try again."
+            TelemetryCenter.emitBillingEvent(
+                "Paywall purchase blocked",
+                severity: .warning,
+                metadata: [
+                    "product": product.rawValue,
+                    "reason": "productNotLoaded",
+                    "entryPoint": entryPoint.analyticsValue,
+                ]
+            )
+            return
+        }
         if product == .documentPackAddOn, entitlementStore.hasReachedDocumentPackCap {
             TelemetryCenter.emitBillingEvent(
                 "Paywall CTA blocked",
@@ -511,8 +561,10 @@ private struct PlanTierOption: Identifiable {
 private struct PlanTierCard: View {
     let option: PlanTierOption
     let price: String
+    let priceSuffix: String?
     let alternatePriceDescription: String?
     let hasAccess: Bool
+    let canPurchase: Bool
     let isProcessing: Bool
     let ctaAction: () -> Void
 
@@ -540,7 +592,7 @@ private struct PlanTierCard: View {
                 }
             }
 
-            Text(price + (option.product.kind == .subscription ? " / mo" : ""))
+            Text(price + (priceSuffix ?? ""))
                 .font(.title.bold())
                 .minimumScaleFactor(0.7)
                 .lineLimit(1)
@@ -562,8 +614,8 @@ private struct PlanTierCard: View {
                 }
             }
 
-            ctaButton(hasAccess: hasAccess, isProcessing: isProcessing)
-                .disabled(hasAccess || isProcessing)
+            ctaButton(hasAccess: hasAccess, canPurchase: canPurchase, isProcessing: isProcessing)
+                .disabled(hasAccess || isProcessing || !canPurchase)
         }
         .padding()
         .background(
@@ -580,12 +632,15 @@ private struct PlanTierCard: View {
 
 private extension PlanTierCard {
     @ViewBuilder
-    func ctaLabel(hasAccess: Bool, isProcessing: Bool) -> some View {
+    func ctaLabel(hasAccess: Bool, canPurchase: Bool, isProcessing: Bool) -> some View {
         if hasAccess {
             Label("Current Plan", systemImage: "checkmark")
                 .frame(maxWidth: .infinity)
         } else if isProcessing {
             ProgressView()
+                .frame(maxWidth: .infinity)
+        } else if !canPurchase {
+            Label("Loading…", systemImage: "hourglass")
                 .frame(maxWidth: .infinity)
         } else {
             Label("Upgrade to \(option.tier.displayName)", systemImage: "arrow.up.forward.app")
@@ -594,15 +649,15 @@ private extension PlanTierCard {
     }
 
     @ViewBuilder
-    func ctaButton(hasAccess: Bool, isProcessing: Bool) -> some View {
+    func ctaButton(hasAccess: Bool, canPurchase: Bool, isProcessing: Bool) -> some View {
         if option.isFeatured {
             Button(action: ctaAction) {
-                ctaLabel(hasAccess: hasAccess, isProcessing: isProcessing)
+                ctaLabel(hasAccess: hasAccess, canPurchase: canPurchase, isProcessing: isProcessing)
             }
             .buttonStyle(.borderedProminent)
         } else {
             Button(action: ctaAction) {
-                ctaLabel(hasAccess: hasAccess, isProcessing: isProcessing)
+                ctaLabel(hasAccess: hasAccess, canPurchase: canPurchase, isProcessing: isProcessing)
             }
             .buttonStyle(.bordered)
         }
