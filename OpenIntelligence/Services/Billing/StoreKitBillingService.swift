@@ -13,21 +13,21 @@ final class StoreKitBillingService: BillingService {
 
     init() {
         var streamContinuation: AsyncStream<BillingEvent>.Continuation!
-        self.events = AsyncStream { continuation in
+        events = AsyncStream { continuation in
             streamContinuation = continuation
         }
-        self.continuation = streamContinuation
-        
+        continuation = streamContinuation
+
         #if DEBUG
-        // Enable StoreKit testing mode with local configuration file
-        if let configURL = Bundle.main.url(forResource: "StoreKitConfiguration", withExtension: "storekit") {
-            Log.info("✅ StoreKit test configuration found at: \(configURL.path)", category: .billing)
-            // Note: Configuration file must also be set in scheme's StoreKit Configuration option
-        } else {
-            Log.warning("⚠️ StoreKit test configuration not found - products may be unavailable", category: .billing)
-        }
+            // Enable StoreKit testing mode with local configuration file
+            if let configURL = Bundle.main.url(forResource: "StoreKitConfiguration", withExtension: "storekit") {
+                Log.info("✅ StoreKit test configuration found at: \(configURL.path)", category: .billing)
+                // Note: Configuration file must also be set in scheme's StoreKit Configuration option
+            } else {
+                Log.warning("⚠️ StoreKit test configuration not found - products may be unavailable", category: .billing)
+            }
         #endif
-        
+
         updatesTask = Task { [weak self] in await self?.listenForTransactions() }
         Task { await refreshProducts() }
     }
@@ -90,12 +90,13 @@ final class StoreKitBillingService: BillingService {
         } catch {
             let wrapped = BillingError(product: product, reason: .storeKitError(error), underlyingError: error)
             continuation.yield(.purchaseFailed(product: product, error: wrapped))
+            let message = wrapped.errorDescription ?? error.localizedDescription
             emitBilling(
                 "Purchase failed",
                 severity: .error,
                 metadata: [
                     "product": product.rawValue,
-                    "reason": error.localizedDescription
+                    "reason": message,
                 ]
             )
             throw wrapped
@@ -113,7 +114,7 @@ final class StoreKitBillingService: BillingService {
                     "Restore applied",
                     metadata: [
                         "product": billingProduct.rawValue,
-                        "transactionId": String(transaction.id)
+                        "transactionId": String(transaction.id),
                     ]
                 )
             } catch {
@@ -124,7 +125,7 @@ final class StoreKitBillingService: BillingService {
                     severity: .error,
                     metadata: [
                         "product": billingProduct.rawValue,
-                        "reason": error.localizedDescription
+                        "reason": error.localizedDescription,
                     ]
                 )
             }
@@ -135,14 +136,14 @@ final class StoreKitBillingService: BillingService {
 
     private func handlePurchaseResult(_ result: Product.PurchaseResult, for product: BillingProduct) throws -> Transaction? {
         switch result {
-        case .success(let verification):
+        case let .success(verification):
             let transaction = try checkVerified(verification, expectedProduct: product)
             continuation.yield(.purchaseSucceeded(product: product, transaction: transaction))
             emitBilling(
                 "Purchase succeeded",
                 metadata: [
                     "product": product.rawValue,
-                    "transactionId": String(transaction.id)
+                    "transactionId": String(transaction.id),
                 ]
             )
             Task { await transaction.finish() }
@@ -179,7 +180,7 @@ final class StoreKitBillingService: BillingService {
                     "Transaction updated",
                     metadata: [
                         "product": billingProduct.rawValue,
-                        "transactionId": String(transaction.id)
+                        "transactionId": String(transaction.id),
                     ]
                 )
                 await transaction.finish()
@@ -191,7 +192,7 @@ final class StoreKitBillingService: BillingService {
                     severity: .error,
                     metadata: [
                         "product": billingProduct.rawValue,
-                        "reason": error.localizedDescription
+                        "reason": error.localizedDescription,
                     ]
                 )
             }
@@ -203,9 +204,9 @@ final class StoreKitBillingService: BillingService {
         expectedProduct: BillingProduct? = nil
     ) throws -> Transaction {
         switch result {
-        case .verified(let transaction):
+        case let .verified(transaction):
             return transaction
-        case .unverified(let unsignedTransaction, let verificationError):
+        case let .unverified(unsignedTransaction, verificationError):
             let product = expectedProduct
                 ?? BillingProduct(rawValue: unsignedTransaction.productID)
                 ?? .starterMonthly
@@ -214,7 +215,7 @@ final class StoreKitBillingService: BillingService {
                 severity: .error,
                 metadata: [
                     "product": product.rawValue,
-                    "reason": verificationError.localizedDescription
+                    "reason": verificationError.localizedDescription,
                 ]
             )
             throw BillingError(
