@@ -27,22 +27,22 @@ struct SettingsView: View {
             LazyVStack(spacing: 20) {
                 heroCard
                 billingCard
-                
+
                 // Core Intelligence Settings
                 modelSelectionCard
                 executionCard
                 cloudConsentCard
                 fallbackCard
-                
+
                 // Advanced Controls
                 generationCard
                 retrievalCard
                 pipelineCard
-                
+
                 #if os(macOS)
                     openAICard
                 #endif
-                
+
                 // App Management
                 downloadsCard
                 developerCard
@@ -66,77 +66,77 @@ struct SettingsView: View {
         #if os(iOS)
             .navigationBarTitleDisplayMode(.large)
         #endif
-        .task { await bootstrap() }
-        .onDisappear { applyTask?.cancel() }
-        .onChange(of: settings.selectedModel) {
-            normalizeFallbacks()
-            applyNow()
-        }
-        .onChange(of: settings.firstFallback, initial: false) {
-            normalizeFallbacks()
-            if settings.enableFirstFallback {
+            .task { await bootstrap() }
+            .onDisappear { applyTask?.cancel() }
+            .onChange(of: settings.selectedModel) {
+                normalizeFallbacks()
                 applyNow()
             }
-        }
-        .onChange(of: settings.secondFallback, initial: false) {
-            normalizeFallbacks()
-            if settings.enableSecondFallback {
+            .onChange(of: settings.firstFallback, initial: false) {
+                normalizeFallbacks()
+                if settings.enableFirstFallback {
+                    applyNow()
+                }
+            }
+            .onChange(of: settings.secondFallback, initial: false) {
+                normalizeFallbacks()
+                if settings.enableSecondFallback {
+                    applyNow()
+                }
+            }
+            .onChange(of: settings.enableFirstFallback, initial: false) {
+                refreshPipeline()
                 applyNow()
             }
-        }
-        .onChange(of: settings.enableFirstFallback, initial: false) {
-            refreshPipeline()
-            applyNow()
-        }
-        .onChange(of: settings.enableSecondFallback, initial: false) {
-            refreshPipeline()
-            applyNow()
-        }
-        .onChange(of: settings.allowPrivateCloudCompute, initial: false) { refreshPipeline() }
-        .onChange(of: settings.localComputePreference, initial: false) { applyNow() }
+            .onChange(of: settings.enableSecondFallback, initial: false) {
+                refreshPipeline()
+                applyNow()
+            }
+            .onChange(of: settings.allowPrivateCloudCompute, initial: false) { refreshPipeline() }
+            .onChange(of: settings.localComputePreference, initial: false) { applyNow() }
         #if os(macOS)
             .onChange(of: settings.openaiAPIKey, initial: false) {
                 apiKeyStatus = .unknown
                 refreshPipeline()
             }
         #endif
-        .sheet(isPresented: $showModelManager) {
-            ModelManagerSheet(ragService: ragService)
-                .environmentObject(entitlementStore)
-        }
-        .sheet(isPresented: $showModelSelector) {
-            ModelSelectorSheet(ragService: ragService)
-                .environmentObject(entitlementStore)
-        }
-        .sheet(isPresented: $showPlanSheet) {
-            PlanUpgradeSheet(entryPoint: planEntryPoint)
-                .environmentObject(entitlementStore)
-        }
-        .sheet(isPresented: $showWhyUnavailable) {
-            NavigationStack {
-                ScrollView {
-                    Text(gatingHelpText(for: settings.selectedModel, status: selectedModelStatus))
-                        .font(.callout)
-                        .padding()
-                        .textSelection(.enabled)
-                }
-                .navigationTitle("Why Unavailable?")
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Done") { showWhyUnavailable = false }
+            .sheet(isPresented: $showModelManager) {
+                ModelManagerSheet(ragService: ragService)
+                    .environmentObject(entitlementStore)
+            }
+            .sheet(isPresented: $showModelSelector) {
+                ModelSelectorSheet(ragService: ragService)
+                    .environmentObject(entitlementStore)
+            }
+            .sheet(isPresented: $showPlanSheet) {
+                PlanUpgradeSheet(entryPoint: planEntryPoint)
+                    .environmentObject(entitlementStore)
+            }
+            .sheet(isPresented: $showWhyUnavailable) {
+                NavigationStack {
+                    ScrollView {
+                        Text(gatingHelpText(for: settings.selectedModel, status: selectedModelStatus))
+                            .font(.callout)
+                            .padding()
+                            .textSelection(.enabled)
+                    }
+                    .navigationTitle("Why Unavailable?")
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Done") { showWhyUnavailable = false }
+                        }
                     }
                 }
-            }
-            #if os(iOS)
+                #if os(iOS)
                 .presentationDetents([.medium, .large])
-            #endif
-        }
+                #endif
+            }
     }
 }
 
-extension SettingsView {
+private extension SettingsView {
     @ViewBuilder
-    fileprivate var billingCard: some View {
+    var billingCard: some View {
         SurfaceCard {
             SectionHeader(
                 icon: "creditcard",
@@ -192,7 +192,7 @@ extension SettingsView {
                 }
                 .buttonStyle(.bordered)
                 .disabled(isRestoringPurchases)
-                
+
                 Button {
                     openContactSupport()
                 } label: {
@@ -211,7 +211,7 @@ extension SettingsView {
     }
 
     @ViewBuilder
-    fileprivate var heroCard: some View {
+    var heroCard: some View {
         ZStack(alignment: .leading) {
             LinearGradient(
                 colors: [
@@ -271,11 +271,12 @@ extension SettingsView {
     }
 
     @ViewBuilder
-    fileprivate var executionCard: some View {
+    var executionCard: some View {
         SurfaceCard {
             SectionHeader(
                 icon: "cloud.fill", title: "Execution & Privacy",
-                caption: "Control where inference runs")
+                caption: "Control where inference runs"
+            )
             Toggle("Allow Private Cloud Compute", isOn: $settings.allowPrivateCloudCompute)
             Toggle("Prefer Private Cloud", isOn: $settings.preferPrivateCloudCompute)
                 .disabled(!settings.allowPrivateCloudCompute)
@@ -289,12 +290,13 @@ extension SettingsView {
     }
 
     @ViewBuilder
-    fileprivate var cloudConsentCard: some View {
+    var cloudConsentCard: some View {
         SurfaceCard {
             SectionHeader(
                 icon: "shield.lefthalf.fill",
                 title: "Cloud Consent",
-                caption: "Review approvals and recent transmissions")
+                caption: "Review approvals and recent transmissions"
+            )
 
             ForEach(CloudProvider.allCases, id: \.self) { provider in
                 providerRow(for: provider)
@@ -416,11 +418,12 @@ extension SettingsView {
     }
 
     @ViewBuilder
-    fileprivate var modelSelectionCard: some View {
+    var modelSelectionCard: some View {
         SurfaceCard {
             SectionHeader(
                 icon: "brain.head.profile", title: "Model Selection",
-                caption: "Primary intelligence pathway")
+                caption: "Primary intelligence pathway"
+            )
 
             // Current model display - tappable card
             Button {
@@ -479,7 +482,7 @@ extension SettingsView {
     }
 
     @ViewBuilder
-    fileprivate var localModelInlineManager: some View {
+    var localModelInlineManager: some View {
         Divider()
             .padding(.vertical, 6)
 
@@ -512,7 +515,7 @@ extension SettingsView {
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
-        
+
         let accessState = entitlementStore.localModelAccessState()
         if case .blocked = accessState {
             Button {
@@ -642,7 +645,7 @@ extension SettingsView {
         switch entitlementStore.localModelAccessState() {
         case .unlocked:
             accessSuffix = "Unlocked with the \(entitlementStore.activeTier.displayName) plan."
-        case .preview(let remaining):
+        case let .preview(remaining):
             let total = max(entitlementStore.localModelPreviewTotal, max(remaining, 3))
             let plural = remaining == 1 ? "run" : "runs"
             accessSuffix = "⚡ Preview mode: \(remaining)/\(total) \(plural) left. Upgrade for unlimited access."
@@ -665,7 +668,8 @@ extension SettingsView {
         }
         Task {
             await ModelActivationService.activate(
-                model, ragService: ragService, settings: settings)
+                model, ragService: ragService, settings: settings
+            )
             await MainActor.run { refreshPipeline() }
         }
     }
@@ -699,11 +703,12 @@ extension SettingsView {
     }
 
     @ViewBuilder
-    fileprivate var fallbackCard: some View {
+    var fallbackCard: some View {
         SurfaceCard {
             SectionHeader(
                 icon: "arrow.triangle.2.circlepath", title: "Fallback Strategy",
-                caption: "Stay responsive when networks fluctuate")
+                caption: "Stay responsive when networks fluctuate"
+            )
             Toggle("Enable First Fallback", isOn: $settings.enableFirstFallback)
             if settings.enableFirstFallback {
                 Picker("First Fallback", selection: $settings.firstFallback) {
@@ -728,11 +733,12 @@ extension SettingsView {
     }
 
     @ViewBuilder
-    fileprivate var pipelineCard: some View {
+    var pipelineCard: some View {
         SurfaceCard {
             SectionHeader(
                 icon: "bolt.horizontal", title: "Execution Pipeline",
-                caption: "Current model order and status")
+                caption: "Current model order and status"
+            )
             ForEach(pipelineStages) { stage in
                 PipelineStageRow(stage: stage)
                 if stage.id != pipelineStages.last?.id {
@@ -759,10 +765,11 @@ extension SettingsView {
 
     #if os(macOS)
         @ViewBuilder
-        fileprivate var openAICard: some View {
+        var openAICard: some View {
             SurfaceCard {
                 SectionHeader(
-                    icon: "key.fill", title: "OpenAI Direct", caption: "Use your own API key")
+                    icon: "key.fill", title: "OpenAI Direct", caption: "Use your own API key"
+                )
                 apiKeyEntry
                 Picker("Model", selection: $settings.openaiModel) {
                     ForEach(openAIModelOptions, id: \.id) { option in
@@ -805,7 +812,7 @@ extension SettingsView {
     #endif
 
     @ViewBuilder
-    fileprivate var generationCard: some View {
+    var generationCard: some View {
         SurfaceCard {
             SectionHeader(icon: "slider.horizontal.3", title: "Generation Parameters")
             VStack(alignment: .leading, spacing: 12) {
@@ -816,7 +823,7 @@ extension SettingsView {
                         .font(.system(.body, design: .monospaced))
                         .foregroundColor(.secondary)
                 }
-                Slider(value: $settings.temperature, in: 0...1, step: 0.05)
+                Slider(value: $settings.temperature, in: 0 ... 1, step: 0.05)
                 HStack {
                     Text("Max Tokens")
                     Spacer()
@@ -829,7 +836,7 @@ extension SettingsView {
                         get: { Double(settings.maxTokens) },
                         set: { settings.maxTokens = Int($0) }
                     ),
-                    in: 100...16000,
+                    in: 100 ... 16000,
                     step: 100
                 )
             }
@@ -840,7 +847,7 @@ extension SettingsView {
     }
 
     @ViewBuilder
-    fileprivate var retrievalCard: some View {
+    var retrievalCard: some View {
         SurfaceCard {
             SectionHeader(icon: "magnifyingglass", title: "Retrieval Settings")
             HStack {
@@ -855,7 +862,7 @@ extension SettingsView {
                     get: { Double(settings.topK) },
                     set: { settings.topK = Int($0) }
                 ),
-                in: 1...30,
+                in: 1 ... 30,
                 step: 1
             )
             Toggle("Lenient Retrieval Mode", isOn: $settings.lenientRetrievalMode)
@@ -866,11 +873,12 @@ extension SettingsView {
     }
 
     @ViewBuilder
-    fileprivate var downloadsCard: some View {
+    var downloadsCard: some View {
         SurfaceCard {
             SectionHeader(
                 icon: "tray.and.arrow.down", title: "Model Downloads",
-                caption: "Manage local models")
+                caption: "Manage local models"
+            )
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Label("Catalog", systemImage: "list.bullet.rectangle")
@@ -901,7 +909,7 @@ extension SettingsView {
     }
 
     @ViewBuilder
-    fileprivate var developerCard: some View {
+    var developerCard: some View {
         SurfaceCard {
             SectionHeader(icon: "wrench.and.screwdriver", title: "Developer & Diagnostics")
             NavigationLink {
@@ -914,23 +922,25 @@ extension SettingsView {
             } label: {
                 Label("Developer Settings", systemImage: "hammer.fill")
             }
-            
-            Toggle(isOn: $settings.reviewerModeEnabled) {
-                Label("Reviewer Mode", systemImage: "checklist")
-            }
-            .tint(.purple)
-            
-            if settings.reviewerModeEnabled {
-                Text("Reviewer mode enables direct OpenAI API access for App Review testing. Disable for production use.")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .padding(.top, 4)
-            }
+
+            #if DEBUG
+                Toggle(isOn: $settings.reviewerModeEnabled) {
+                    Label("Reviewer Mode", systemImage: "checklist")
+                }
+                .tint(.purple)
+
+                if settings.reviewerModeEnabled {
+                    Text("Reviewer mode enables direct OpenAI API access for App Review testing. Disable for production use.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 4)
+                }
+            #endif
         }
     }
 
     @ViewBuilder
-    fileprivate var aboutCard: some View {
+    var aboutCard: some View {
         SurfaceCard {
             SectionHeader(icon: "info.circle", title: "About")
             NavigationLink {
@@ -943,7 +953,7 @@ extension SettingsView {
 
     #if os(macOS)
         @ViewBuilder
-        fileprivate var apiKeyEntry: some View {
+        var apiKeyEntry: some View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text("API Key")
@@ -984,7 +994,7 @@ extension SettingsView {
         }
 
         @ViewBuilder
-        fileprivate var apiKeyStatusView: some View {
+        var apiKeyStatusView: some View {
             switch apiKeyStatus {
             case .unknown:
                 EmptyView()
@@ -1012,12 +1022,12 @@ extension SettingsView {
         }
     #endif
 
-    fileprivate var executionOptions: [ExecutionContext] {
+    var executionOptions: [ExecutionContext] {
         [.automatic, .onDeviceOnly, .preferCloud, .cloudOnly]
     }
 
     #if os(macOS)
-        fileprivate var openAIModelOptions: [(id: String, name: String)] {
+        var openAIModelOptions: [(id: String, name: String)] {
             [
                 ("gpt-5", "GPT-5 (Reasoning)"),
                 ("gpt-5-mini", "GPT-5 Mini"),
@@ -1031,7 +1041,7 @@ extension SettingsView {
         }
     #endif
 
-    fileprivate var executionSummaryText: String {
+    var executionSummaryText: String {
         var base: String
         switch settings.executionContext {
         case .automatic:
@@ -1054,7 +1064,7 @@ extension SettingsView {
     }
 
     #if os(macOS)
-        fileprivate var openAIContextFooter: String {
+        var openAIContextFooter: String {
             if trimmedAPIKey.isEmpty {
                 return
                     "Add an API key to enable OpenAI Direct. Keys stay on device and are stored securely."
@@ -1064,13 +1074,13 @@ extension SettingsView {
         }
     #endif
 
-    fileprivate func pipelineHeadline() -> String {
+    func pipelineHeadline() -> String {
         pipelineStages
             .map { "[\($0.role.shortCode)] \($0.name)" }
             .joined(separator: "  ->  ")
     }
 
-    fileprivate func formatBytes(_ bytes: Int64?) -> String {
+    func formatBytes(_ bytes: Int64?) -> String {
         guard let bytes = bytes else { return "—" }
         if bytes < 1024 { return "\(bytes) B" }
         let kb = Double(bytes) / 1024.0
@@ -1081,13 +1091,13 @@ extension SettingsView {
         return String(format: "%.2f GB", gb)
     }
 
-    fileprivate func canActivateInstalledModel(_ model: InstalledModel) -> Bool {
+    func canActivateInstalledModel(_ model: InstalledModel) -> Bool {
         guard let url = model.localURL else { return false }
         guard FileManager.default.fileExists(atPath: url.path) else { return false }
         return entitlementStore.canUseLocalModels
     }
 
-    fileprivate func isActiveInstalledModel(_ model: InstalledModel) -> Bool {
+    func isActiveInstalledModel(_ model: InstalledModel) -> Bool {
         switch model.backend {
         case .gguf:
             return settings.selectedModel == .ggufLocal && selectedGGUFModelId == model.id
@@ -1098,7 +1108,7 @@ extension SettingsView {
         }
     }
 
-    fileprivate var selectedGGUFModelId: UUID? {
+    var selectedGGUFModelId: UUID? {
         guard
             let idString = UserDefaults.standard.string(
                 forKey: LlamaCPPiOSLLMService.selectedModelIdKey)
@@ -1106,14 +1116,14 @@ extension SettingsView {
         return UUID(uuidString: idString)
     }
 
-    fileprivate var selectedCoreMLModelId: UUID? {
+    var selectedCoreMLModelId: UUID? {
         guard
             let idString = UserDefaults.standard.string(forKey: CoreMLLLMService.selectedModelIdKey)
         else { return nil }
         return UUID(uuidString: idString)
     }
 
-    fileprivate func modelSummary(for type: LLMModelType) -> String {
+    func modelSummary(for type: LLMModelType) -> String {
         switch type {
         case .appleIntelligence:
             return
@@ -1135,12 +1145,12 @@ extension SettingsView {
         }
     }
 
-    fileprivate func bootstrap() async {
+    func bootstrap() async {
         await MainActor.run {
             deviceCapabilities = RAGService.checkDeviceCapabilities()
         }
         await MainActor.run { refreshPipeline() }
-        if downloadService.catalog.isEmpty && !downloadService.isLoadingCatalog {
+        if downloadService.catalog.isEmpty, !downloadService.isLoadingCatalog {
             await downloadService.loadCatalog(from: nil)
         }
         if modelRegistry.installed.isEmpty {
@@ -1149,15 +1159,14 @@ extension SettingsView {
     }
 
     @MainActor
-    fileprivate func refreshPipeline() {
+    func refreshPipeline() {
         pipelineStages = buildPipelineStages()
     }
 
     @MainActor
-    fileprivate func normalizeFallbacks() {
+    func normalizeFallbacks() {
         if settings.firstFallback == settings.selectedModel {
-            if let replacement = firstFallbackOptions.first(where: { $0 != settings.selectedModel })
-            {
+            if let replacement = firstFallbackOptions.first(where: { $0 != settings.selectedModel }) {
                 settings.firstFallback = replacement
             }
         }
@@ -1173,7 +1182,7 @@ extension SettingsView {
         refreshPipeline()
     }
 
-    fileprivate func buildPipelineStages() -> [ModelPipelineStage] {
+    func buildPipelineStages() -> [ModelPipelineStage] {
         let preferences = preferredModelOrder()
         let currentActive = ragService.currentModelName
 
@@ -1183,8 +1192,7 @@ extension SettingsView {
             let stage = self.stage(for: entry.type, role: role, enabled: entry.enabled)
 
             // Mark as active if this is the currently running model
-            if stage.name.contains(currentActive) || currentActive.contains(entry.type.displayName)
-            {
+            if stage.name.contains(currentActive) || currentActive.contains(entry.type.displayName) {
                 return ModelPipelineStage(
                     name: stage.name,
                     role: stage.role,
@@ -1198,7 +1206,7 @@ extension SettingsView {
         }
     }
 
-    fileprivate func stage(for type: LLMModelType, role: ModelPipelineStage.Role, enabled: Bool)
+    func stage(for type: LLMModelType, role: ModelPipelineStage.Role, enabled: Bool)
         -> ModelPipelineStage
     {
         ModelPipelineStage(
@@ -1210,8 +1218,7 @@ extension SettingsView {
         )
     }
 
-    fileprivate func stageStatus(for type: LLMModelType, enabled: Bool) -> ModelPipelineStage.Status
-    {
+    func stageStatus(for type: LLMModelType, enabled: Bool) -> ModelPipelineStage.Status {
         guard enabled else { return .disabled }
         switch type {
         case .appleIntelligence:
@@ -1284,9 +1291,9 @@ extension SettingsView {
                 switch status.health {
                 case .healthy:
                     return .available
-                case .degraded(_, let reason):
+                case let .degraded(_, reason):
                     return .requiresConfiguration(message: reason)
-                case .unreachable(_, let reason):
+                case let .unreachable(_, reason):
                     return .unavailable(reason: reason)
                 case .unknown:
                     return .requiresConfiguration(message: "Health unknown — tap Refresh")
@@ -1297,7 +1304,7 @@ extension SettingsView {
         }
     }
 
-    fileprivate func stageDetail(for type: LLMModelType) -> String {
+    func stageDetail(for type: LLMModelType) -> String {
         switch type {
         case .appleIntelligence:
             return "Apple Foundation Models with automatic PCC fallback"
@@ -1316,7 +1323,7 @@ extension SettingsView {
         }
     }
 
-    fileprivate func preferredModelOrder() -> [(type: LLMModelType, enabled: Bool)] {
+    func preferredModelOrder() -> [(type: LLMModelType, enabled: Bool)] {
         var order: [(LLMModelType, Bool)] = []
         var seen = Set<LLMModelType>()
         let entries: [(LLMModelType, Bool)] = [
@@ -1334,7 +1341,7 @@ extension SettingsView {
     }
 
     @MainActor
-    fileprivate func applyNow() {
+    func applyNow() {
         applyTask?.cancel()
         isApplyingModel = true
         applyTask = Task {
@@ -1344,7 +1351,7 @@ extension SettingsView {
     }
 
     @MainActor
-    fileprivate func applyPreferredService() async {
+    func applyPreferredService() async {
         let preferences = preferredModelOrder()
 
         // Build chain: collect all available services
@@ -1372,8 +1379,7 @@ extension SettingsView {
         DSHaptics.success()
     }
 
-    fileprivate func instantiateService(for type: LLMModelType, enabled: Bool) async -> LLMService?
-    {
+    func instantiateService(for type: LLMModelType, enabled: Bool) async -> LLMService? {
         guard enabled else { return nil }
         switch type {
         case .appleIntelligence:
@@ -1447,7 +1453,7 @@ extension SettingsView {
     }
 
     #if os(macOS)
-        fileprivate func validateAPIKey() async {
+        func validateAPIKey() async {
             let key = trimmedAPIKey
             guard !key.isEmpty else {
                 apiKeyStatus = .unknown
@@ -1461,7 +1467,8 @@ extension SettingsView {
             let service = OpenAILLMService(apiKey: key, model: settings.openaiModel)
             do {
                 let response = try await service.generate(
-                    prompt: "pong", context: nil, config: config)
+                    prompt: "pong", context: nil, config: config
+                )
                 await MainActor.run {
                     apiKeyStatus = response.text.isEmpty ? .invalid : .valid
                     isValidatingAPIKey = false
@@ -1475,11 +1482,11 @@ extension SettingsView {
         }
     #endif
 
-    fileprivate var trimmedAPIKey: String {
+    var trimmedAPIKey: String {
         settings.openaiAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    fileprivate var availablePrimaryModels: [LLMModelType] {
+    var availablePrimaryModels: [LLMModelType] {
         var options = settings.primaryModelOptions
         if !options.contains(settings.selectedModel) {
             options.append(settings.selectedModel)
@@ -1495,19 +1502,19 @@ extension SettingsView {
         return deduped
     }
 
-    fileprivate var firstFallbackOptions: [LLMModelType] {
+    var firstFallbackOptions: [LLMModelType] {
         settings.fallbackOptions(excluding: Set([settings.selectedModel]))
     }
 
-    fileprivate var secondFallbackOptions: [LLMModelType] {
+    var secondFallbackOptions: [LLMModelType] {
         settings.fallbackOptions(excluding: Set([settings.selectedModel, settings.firstFallback]))
     }
 
-    fileprivate var selectedModelStatus: ModelPipelineStage.Status {
+    var selectedModelStatus: ModelPipelineStage.Status {
         stageStatus(for: settings.selectedModel, enabled: true)
     }
 
-    fileprivate var shouldShowWhyUnavailable: Bool {
+    var shouldShowWhyUnavailable: Bool {
         switch selectedModelStatus {
         case .unavailable, .requiresConfiguration:
             return true
@@ -1516,91 +1523,91 @@ extension SettingsView {
         }
     }
 
-    fileprivate func gatingHelpText(for type: LLMModelType, status: ModelPipelineStage.Status)
+    func gatingHelpText(for type: LLMModelType, status: ModelPipelineStage.Status)
         -> String
     {
         switch type {
         case .ggufLocal:
             #if os(iOS)
-                var reasons: String = ""
+                var reasons = ""
                 switch status {
-                case .unavailable(let reason):
+                case let .unavailable(reason):
                     reasons = reason
-                case .requiresConfiguration(let msg):
+                case let .requiresConfiguration(msg):
                     reasons = msg
                 default:
                     reasons = "Unknown configuration issue."
                 }
                 let runtimeNote: String =
                     LlamaCPPiOSLLMService.runtimeAvailable
-                    ? ""
-                    : """
-                    • GGUF runtime not bundled. Add the LocalLLMClient package and link its products to the app target:
-                      - Xcode: File → Add Packages… → Add Local Package → select Vendor/LocalLLMClient
-                      - Add products: LocalLLMClient, LocalLLMClientCore, LocalLLMClientLlama, LocalLLMClientLlamaC
-                      - Build for a real device (recommended).
-                    """
+                        ? ""
+                        : """
+                        • GGUF runtime not bundled. Add the LocalLLMClient package and link its products to the app target:
+                          - Xcode: File → Add Packages… → Add Local Package → select Vendor/LocalLLMClient
+                          - Add products: LocalLLMClient, LocalLLMClientCore, LocalLLMClientLlama, LocalLLMClientLlamaC
+                          - Build for a real device (recommended).
+                        """
 
                 return """
-                    GGUF Local (iOS) runs an embedded llama.cpp runtime fully on-device.
+                GGUF Local (iOS) runs an embedded llama.cpp runtime fully on-device.
 
-                    Why unavailable:
-                    - \(reasons)
-                    \(runtimeNote)
+                Why unavailable:
+                - \(reasons)
+                \(runtimeNote)
 
-                    Next steps:
-                    1) Open Model Manager and import a small .gguf (e.g., 2–3B, 4-bit).
-                    2) Set Local Primary → GGUF for your installed model.
-                    3) Open Developer & Diagnostics → Backend Health → GGUF Local.
-                       - Run “Verify Model File”, then “Smoke Test” or “Benchmark”.
+                Next steps:
+                1) Open Model Manager and import a small .gguf (e.g., 2–3B, 4-bit).
+                2) Set Local Primary → GGUF for your installed model.
+                3) Open Developer & Diagnostics → Backend Health → GGUF Local.
+                   - Run “Verify Model File”, then “Smoke Test” or “Benchmark”.
 
-                    Tip: Use iPhone 16 Pro/Max or newer for best performance.
-                    """
+                Tip: Use iPhone 16 Pro/Max or newer for best performance.
+                """
             #else
                 return "GGUF Local is available on iOS only."
             #endif
 
         case .coreMLLocal:
-            var reasons: String = ""
+            var reasons = ""
             switch status {
-            case .unavailable(let reason):
+            case let .unavailable(reason):
                 reasons = reason
-            case .requiresConfiguration(let msg):
+            case let .requiresConfiguration(msg):
                 reasons = msg
             default:
                 reasons = "No Core ML model selected."
             }
             return """
-                Core ML Local runs a custom .mlpackage fully on-device.
+            Core ML Local runs a custom .mlpackage fully on-device.
 
-                Why unavailable:
-                - \(reasons)
+            Why unavailable:
+            - \(reasons)
 
-                Next steps:
-                1) Import a Core ML LLM package via Model Manager.
-                2) Set Local Primary → Core ML.
-                3) Apply and test in Backend Health.
-                """
+            Next steps:
+            1) Import a Core ML LLM package via Model Manager.
+            2) Set Local Primary → Core ML.
+            3) Apply and test in Backend Health.
+            """
 
         case .appleIntelligence:
             return """
-                Apple Intelligence (Foundation Models) runs on-device and can seamlessly use Private Cloud Compute when allowed.
+            Apple Intelligence (Foundation Models) runs on-device and can seamlessly use Private Cloud Compute when allowed.
 
-                Status: \(deviceCapabilities.appleIntelligenceStatus)
+            Status: \(deviceCapabilities.appleIntelligenceStatus)
 
-                Next steps:
-                • Ensure device meets requirements (A17 Pro+/M‑series) and Apple Intelligence is enabled in Settings.
-                • On iOS 26+, the model may be downloading; try again later.
-                • Use Execution & Privacy to force On‑Device Only or allow PCC.
-                """
+            Next steps:
+            • Ensure device meets requirements (A17 Pro+/M‑series) and Apple Intelligence is enabled in Settings.
+            • On iOS 26+, the model may be downloading; try again later.
+            • Use Execution & Privacy to force On‑Device Only or allow PCC.
+            """
 
         case .mlxLocal:
             #if os(macOS)
                 let reason: String
                 switch status {
-                case .unavailable(let r):
+                case let .unavailable(r):
                     reason = r
-                case .requiresConfiguration(let msg):
+                case let .requiresConfiguration(msg):
                     reason = msg
                 case .active, .available:
                     reason = "Ready to run."
@@ -1608,17 +1615,17 @@ extension SettingsView {
                     reason = "MLX Local is disabled in this pipeline slot."
                 }
                 return """
-                    MLX Local connects to a tensor server running on your Mac for high-throughput private inference.
+                MLX Local connects to a tensor server running on your Mac for high-throughput private inference.
 
-                    Status:
-                    - \(reason)
+                Status:
+                - \(reason)
 
-                    Next steps:
-                    1) Launch your MLX server (mlx-launch or `python server.py`).
-                    2) Open Developer & Diagnostics → MLX and set the Base URL + Model ID.
-                    3) Tap “Refresh Health” or run the MLX smoke test to verify connectivity.
-                    4) Return here and Apply to route primary inference through MLX.
-                    """
+                Next steps:
+                1) Launch your MLX server (mlx-launch or `python server.py`).
+                2) Open Developer & Diagnostics → MLX and set the Base URL + Model ID.
+                3) Tap “Refresh Health” or run the MLX smoke test to verify connectivity.
+                4) Return here and Apply to route primary inference through MLX.
+                """
             #else
                 return "MLX Local is available on macOS only."
             #endif
@@ -1627,8 +1634,9 @@ extension SettingsView {
             return "No additional information for this model."
         }
     }
+
     #if os(iOS)
-        fileprivate var ggufConfigured: Bool {
+        var ggufConfigured: Bool {
             guard LlamaCPPiOSLLMService.runtimeAvailable else { return false }
             guard
                 let idString = UserDefaults.standard.string(
@@ -1672,7 +1680,6 @@ private enum APIKeyValidationStatus {
         case .invalid: return "Could not validate key."
         }
     }
-
 }
 
 extension SettingsView {
@@ -1702,11 +1709,12 @@ extension SettingsView {
         )
         if let encoded = "mailto:Gunnarguy@me.com?subject=OpenIntelligence%20Support&body=Please%20describe%20your%20issue%20or%20question:%0A%0A"
             .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-           let url = URL(string: encoded) {
+            let url = URL(string: encoded)
+        {
             #if os(iOS)
-            UIApplication.shared.open(url)
+                UIApplication.shared.open(url)
             #elseif os(macOS)
-            NSWorkspace.shared.open(url)
+                NSWorkspace.shared.open(url)
             #endif
         }
     }
@@ -1761,12 +1769,12 @@ private struct PipelineStageRow: View {
                 Text(stage.detail)
                     .font(.caption)
                     .foregroundColor(.secondary)
-                if case .unavailable(let reason) = stage.status {
+                if case let .unavailable(reason) = stage.status {
                     Text(reason)
                         .font(.caption2)
                         .foregroundColor(.red)
                 }
-                if case .requiresConfiguration(let message) = stage.status {
+                if case let .requiresConfiguration(message) = stage.status {
                     Text(message)
                         .font(.caption2)
                         .foregroundColor(.orange)
@@ -1912,7 +1920,8 @@ private struct LocalModelRow: View {
 
     private func installDescriptor() -> String? {
         let relative = LocalModelRow.relativeFormatter.localizedString(
-            for: model.installedAt, relativeTo: Date())
+            for: model.installedAt, relativeTo: Date()
+        )
         return "Installed \(relative)"
     }
 }
@@ -1934,8 +1943,8 @@ private struct ModelManagerSheet: View {
     }
 }
 
-extension ModelPipelineStage.Status {
-    fileprivate var label: String {
+private extension ModelPipelineStage.Status {
+    var label: String {
         switch self {
         case .active: return "Active"
         case .available: return "Available"
@@ -1945,7 +1954,7 @@ extension ModelPipelineStage.Status {
         }
     }
 
-    fileprivate var tint: Color {
+    var tint: Color {
         switch self {
         case .active: return .green
         case .available: return .accentColor
@@ -1955,7 +1964,7 @@ extension ModelPipelineStage.Status {
         }
     }
 
-    fileprivate var icon: String {
+    var icon: String {
         switch self {
         case .active: return "checkmark.circle.fill"
         case .available: return "bolt.circle.fill"

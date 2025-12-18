@@ -137,7 +137,7 @@ open OpenIntelligence.xcodeproj  # ⌘R
 | `starter_annual` | Subscription | $24.99/yr | 7-day trial |
 | `pro_monthly` | Subscription | $8.99/mo | 7-day trial |
 | `pro_annual` | Subscription | $89.99/yr | Family Sharing |
-| `lifetime_cohort` | Non-consumable | $59.99 | Limited availability |
+| `lifetime_cohort` | Non-consumable | $149.99 | Limited availability (lifetime unlock) |
 | `doc_pack_addon` | Consumable | $4.99 | +25 documents |
 
 ### Validate Catalog
@@ -181,16 +181,39 @@ xcodebuild -exportArchive \
 
 ## 6. App Store Connect Setup
 
-### In-App Purchases
+### In-App Purchases & Subscriptions
+
+> **Note (App Store Connect UI)**: If the “Create” dialog only shows **Consumable** and **Non-Consumable**, you’re currently on the **In-App Purchases** page.
+> Auto-renewable subscriptions are created from the **Subscriptions** page (and require a **Subscription Group**).
+
+#### Quick prerequisites (if options are missing)
+- Ensure the **Paid Applications / Agreements, Tax, and Banking** setup is completed for the account.
+- Ensure you’re inside the correct app: **My Apps → OpenIntelligence**.
+- Use **Monetization → In-App Purchases and Subscriptions** and then select the correct sub-section:
+  - **Subscriptions** (for Starter/Pro plans)
+  - **In-App Purchases** (for lifetime + consumables)
+
+#### Subscriptions (Auto-Renewable)
 
 **Subscription Group**: `OpenIntelligence Plans`
 
 For each product:
-1. App Store Connect → My Apps → OpenIntelligence → Features → In-App Purchases
-2. Click "+" → Select type → Enter Product ID exactly as shown above
-3. Add localization (Display Name, Description)
-4. Set pricing tier
-5. Enable "Cleared for Sale"
+1. App Store Connect → My Apps → OpenIntelligence → **Monetization** → **Subscriptions**
+2. Create the subscription group (once): `OpenIntelligence Plans`
+3. Inside the group, click "+" to add each subscription
+4. Select duration (monthly/annual), then enter Product ID exactly as shown above
+5. Add localization (Display Name, Description)
+6. Set pricing tier
+7. Enable "Cleared for Sale"
+
+#### In-App Purchases (Consumable / Non-Consumable)
+
+1. App Store Connect → My Apps → OpenIntelligence → **Monetization** → **In-App Purchases**
+2. Click "+" → Select type (Consumable / Non-Consumable)
+3. Enter Product ID exactly as shown above
+4. Add localization (Display Name, Description)
+5. Set pricing tier
+6. Enable "Cleared for Sale"
 
 ### Price Tier Mapping
 
@@ -200,7 +223,7 @@ For each product:
 | `starter_annual` | S15 | $24.99 |
 | `pro_monthly` | S9 | $8.99 |
 | `pro_annual` | S69 | $89.99 |
-| `lifetime_cohort` | Tier 60 | $59.99 |
+| `lifetime_cohort` | Tier 150 | $149.99 |
 | `doc_pack_addon` | Tier 5 | $4.99 |
 
 ### App Store Metadata

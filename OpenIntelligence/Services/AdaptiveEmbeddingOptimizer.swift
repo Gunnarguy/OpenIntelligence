@@ -664,7 +664,7 @@ actor LibraryIntelligenceCenter {
         totalWords: Int
     ) -> (dimension: Int, provider: String, confidence: Double, reasoning: String) {
         var score384 = 0.0
-        var score512 = 0.3
+        let score512 = 0.3
         var score512Contextual = 0.0 // NLContextualEmbedding (high-accuracy 512D)
         var score768 = 0.0
         var score1024 = 0.0

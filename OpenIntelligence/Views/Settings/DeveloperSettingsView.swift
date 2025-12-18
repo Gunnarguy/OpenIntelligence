@@ -105,9 +105,9 @@ struct DeveloperSettingsView: View {
         }
         .navigationTitle("Developer Settings")
         #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitleDisplayMode(.inline)
         #endif
-        .onAppear { applyLoggingSettings() }
+            .onAppear { applyLoggingSettings() }
     }
 
     // MARK: - Computed UI
@@ -188,9 +188,10 @@ struct DeveloperSettingsView: View {
 
         LoggingConfiguration.enabledCategories = categories
 
-        print("✅ [Developer Settings] Logging configuration updated")
-        print("   Level: \(loggingLevel)")
-        print("   Categories: \(categories.map { "\($0)" }.joined(separator: ", "))")
+        Log.info(
+            "[Developer Settings] Logging configuration updated (level=\(loggingLevel), categories=\(categories.map { "\($0)" }.joined(separator: ", ")))",
+            category: .initialization
+        )
     }
 
     private func applyProductionPreset() {
@@ -209,7 +210,7 @@ struct DeveloperSettingsView: View {
         enablePipelineLogs = true
         enablePerformanceLogs = true
         enableLLMLogs = true
-        enableStreamingLogs = false  // Keep disabled to reduce spam
+        enableStreamingLogs = false // Keep disabled to reduce spam
         enableVectorDBLogs = true
         enableTelemetryLogs = false
         applyLoggingSettings()
