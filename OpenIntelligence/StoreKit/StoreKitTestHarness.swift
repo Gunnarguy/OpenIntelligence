@@ -6,7 +6,7 @@ import Foundation
 enum StoreKitTestHarness {
     static func startIfNeeded() {
         #if DEBUG
-        Log.info("StoreKit test harness disabled (linking issues with StoreKitTest framework)", category: .billing)
+            Log.info("StoreKit test harness disabled (StoreKitTest framework linking not available in this build)", category: .billing)
         #endif
     }
 }
