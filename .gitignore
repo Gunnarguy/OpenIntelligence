@@ -31,9 +31,6 @@ venv/
 .venv/
 *.egg-info/
 
-# Local website working copy (separate repo)
-gunzino-site/
-
 # IDE
 .vscode/
 .idea/
