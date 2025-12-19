@@ -124,10 +124,41 @@ open OpenIntelligence.xcodeproj  # ⌘R
 
 ## 4. StoreKit Testing
 
-### Enable in Xcode
-1. Product → Scheme → Edit Scheme
-2. Run → Options → StoreKit Configuration
-3. Select: `OpenIntelligence/StoreKit/StoreKitConfiguration.storekit`
+### Two Modes (Best Practice)
+
+**🔧 Development (Local StoreKit)** — Use 99% of the time
+- **What it is**: The `.storekit` file simulates purchases locally
+- **Pros**: Instant, no network, no sandbox accounts needed
+- **Your Apple ID appears but NO CHARGES EVER HAPPEN**
+- **Setup**: Already configured in your scheme
+- **Reset purchases**: Debug menu (in-app) → StoreKit → Clear Transactions
+
+**☁️ Pre-Submission Sandbox** — Use once before App Store upload
+- **What it is**: Tests real StoreKit servers with fake accounts
+- **When**: Final smoke test before submission only
+- **Setup**: See "Switch to Sandbox" below
+
+### Current Setup (Local StoreKit — RECOMMENDED)
+
+Your scheme is configured to use `StoreKitConfiguration.storekit`. This is **correct** for development.
+
+**When you tap Purchase:**
+- ✅ Shows your real Apple ID (`gunnarguy@me.com`)
+- ✅ This is NORMAL and SAFE — you will NOT be charged
+- ✅ Simulates purchases instantly without network calls
+
+**Don't change this** unless you're doing the final pre-submission validation.
+
+### Switch to Sandbox (Only Before App Store Upload)
+
+1. **Xcode**: Product → Scheme → Edit Scheme → Run → Options
+2. Change **StoreKit Configuration** from `.storekit` to **"None"**
+3. [App Store Connect](https://appstoreconnect.apple.com) → Users and Access → Sandbox → Add Tester
+   - Email: `test+oi1@yourdomain.com` (can be fake, Apple sends confirmation)
+   - Password: Set something memorable
+4. **Device/Simulator**: Settings → App Store → Sandbox Account → Sign in with sandbox tester
+5. Run app → Test one purchase → Verify it completes
+6. **Switch back to Local StoreKit** after validation
 
 ### Product Catalog
 

@@ -127,6 +127,7 @@
 | NLContextualEmbedding | ✅ Done | Agent | 15-25% accuracy boost via contextual embeddings |
 | @Generable Response Types | ✅ Done | Agent | RAGAnswer, RAGSearchResults, RAGDocumentSummary |
 | High-Accuracy Container Factory | ✅ Done | Agent | KnowledgeContainer.highAccuracy() helper |
+| Fix ingestion re-upload loop | ✅ Done | Agent | Prevent self-tuning rebuild recursion during auto-reembed |
 
 ---
 

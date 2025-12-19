@@ -891,6 +891,9 @@ class RAGService: ObservableObject {
             throw quotaError
         }
         let activeContainerId = await MainActor.run { self.containerService.activeContainerId }
+        let preExistingDocumentsInContainerCount = await MainActor.run {
+            self.documentsForContainer(activeContainerId).count
+        }
 
         // Get the active container to determine which embedding provider to use
         var container = await MainActor.run {
@@ -1064,7 +1067,18 @@ class RAGService: ObservableObject {
                 }
 
                 if context.allowsSelfTuningScheduling, !autoReasons.isEmpty {
-                    pendingSelfTuneReasons = autoReasons
+                    // If this is the first document in the container, we've already applied the
+                    // updated config *before* embedding, so there is nothing to rebuild yet.
+                    // Without this guard, the app will immediately re-embed the just-added doc,
+                    // which looks like an infinite “re-upload” loop to the user.
+                    if preExistingDocumentsInContainerCount > 0 {
+                        pendingSelfTuneReasons = autoReasons
+                    } else {
+                        Log.info(
+                            "Skipping self-tuning rebuild: config updated during first ingest and there are no prior documents to rebuild.",
+                            category: .ingestion
+                        )
+                    }
                 }
             }
 
@@ -1607,6 +1621,16 @@ class RAGService: ObservableObject {
         report: LibraryIntelligenceCenter.IntelligenceReport,
         triggerAllowsScheduling: Bool
     ) async {
+        // IMPORTANT:
+        // Self-tuning rebuilds call `reembedDocuments()`, which removes and re-adds documents.
+        // `addDocument()` triggers `refreshIntelligence(force: true)`, which can re-enter this
+        // method. Without a guard, we can accidentally schedule a *new* rebuild while the
+        // current rebuild is still running, creating an infinite “re-upload/re-embed” loop.
+        let isSelfTuningInFlight = await MainActor.run { self.selfTuningInFlight.contains(containerId) }
+        if isSelfTuningInFlight {
+            return
+        }
+
         guard let container = await MainActor.run(
             resultType: KnowledgeContainer?.self,
             body: {

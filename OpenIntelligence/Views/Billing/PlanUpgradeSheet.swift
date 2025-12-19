@@ -246,7 +246,7 @@ private extension PlanUpgradeSheet {
             price: priceLabel(for: option.product),
             priceSuffix: priceSuffix(for: option.product),
             hasAccess: entitlementStore.activeTier.isAtLeast(option.tier),
-            canPurchase: canPurchase(option.product),
+            canPurchase: canAttemptPurchase(option.product),
             isProcessing: purchasingProduct == option.product,
             ctaAction: { purchase(option.product) }
         )
@@ -308,7 +308,7 @@ private extension PlanUpgradeSheet {
                 .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
-            .disabled(isCapped || purchasingProduct == .documentPackAddOn || !canPurchase(.documentPackAddOn))
+            .disabled(isCapped || purchasingProduct == .documentPackAddOn || !canAttemptPurchase(.documentPackAddOn))
         }
         .padding()
         .background(DSColors.surface)
@@ -382,7 +382,7 @@ private extension PlanUpgradeSheet {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
-            .disabled(purchasingProduct == .documentPackAddOn || !canPurchase(.documentPackAddOn))
+            .disabled(purchasingProduct == .documentPackAddOn || !canAttemptPurchase(.documentPackAddOn))
         }
         .padding()
         .background(
@@ -457,6 +457,16 @@ private extension PlanUpgradeSheet {
         entitlementStore.product(for: product) != nil
     }
 
+    func canAttemptPurchase(_ product: BillingProduct) -> Bool {
+        if canPurchase(product) { return true }
+        #if DEBUG
+            // In DEBUG builds we allow simulating purchases when StoreKit can't load products.
+            return true
+        #else
+            return false
+        #endif
+    }
+
     func priceLabel(for product: BillingProduct) -> String {
         if let storeProduct = entitlementStore.product(for: product) {
             return storeProduct.displayPrice
@@ -505,17 +515,26 @@ private extension PlanUpgradeSheet {
     func purchase(_ product: BillingProduct) {
         guard purchasingProduct != product else { return }
         guard canPurchase(product) else {
-            alertMessage = "Purchases aren’t available yet. Please wait a moment and try again."
-            TelemetryCenter.emitBillingEvent(
-                "Paywall purchase blocked",
-                severity: .warning,
-                metadata: [
-                    "product": product.rawValue,
-                    "reason": "productNotLoaded",
-                    "entryPoint": entryPoint.analyticsValue,
-                ]
-            )
-            return
+            #if DEBUG
+                // DEBUG fallback: StoreKit can legitimately return an empty catalog when Sandbox/
+                // agreements/devices aren't configured yet. For local UI validation we simulate
+                // the entitlement unlock so you can verify gating behavior immediately.
+                entitlementStore.simulateDebugPurchase(product)
+                alertMessage = "Simulated purchase (DEBUG) because StoreKit products are unavailable."
+                return
+            #else
+                alertMessage = "Purchases aren’t available yet. Please wait a moment and try again."
+                TelemetryCenter.emitBillingEvent(
+                    "Paywall purchase blocked",
+                    severity: .warning,
+                    metadata: [
+                        "product": product.rawValue,
+                        "reason": "productNotLoaded",
+                        "entryPoint": entryPoint.analyticsValue,
+                    ]
+                )
+                return
+            #endif
         }
         if product == .documentPackAddOn, entitlementStore.hasReachedDocumentPackCap {
             TelemetryCenter.emitBillingEvent(

@@ -39,7 +39,7 @@ final class EntitlementStore: ObservableObject {
     @Published private(set) var isLoading: Bool = true
     @Published var lastError: String?
     @Published private(set) var availableProducts: [BillingProduct: Product] = [:]
-    @Published private(set) fileprivate var documentPacks: [DocumentPackEntry] = []
+    @Published fileprivate private(set) var documentPacks: [DocumentPackEntry] = []
     @Published private(set) var localModelPreviewRemaining: Int
     private var previewRunsConsumed: Int
     private var previewConversionLoggedRuns: Int
@@ -66,7 +66,7 @@ final class EntitlementStore: ObservableObject {
 
     private enum Keys {
         static let tier = "entitlement.activeTier"
-        static let addOns = "entitlement.docAddOns"  // Legacy storage, retained for migration
+        static let addOns = "entitlement.docAddOns" // Legacy storage, retained for migration
         static let packs = "entitlement.docPackLedger"
         static let localPreviewRemaining = "entitlement.localPreviewRemaining"
         static let previewRunsConsumed = "entitlement.previewRunsConsumed"
@@ -80,20 +80,20 @@ final class EntitlementStore: ObservableObject {
         self.defaults = defaults
         let storedTier = defaults.string(forKey: Keys.tier)
         let resolvedTier = WorkspaceTier(rawValue: storedTier ?? "") ?? .free
-        self.activeTier = resolvedTier
+        activeTier = resolvedTier
         let loadedPacks = Self.loadDocumentPacks(from: defaults)
         let prunedPacks = Self.pruneExpiredPacks(loadedPacks)
-        self.documentPacks = prunedPacks
+        documentPacks = prunedPacks
         let documentCredits = Self.totalCredits(for: prunedPacks)
-        self.documentLimit = QuotaPolicy.documentLimit(for: resolvedTier) + documentCredits
-        self.libraryLimit = QuotaPolicy.libraryLimit(for: resolvedTier)
+        documentLimit = QuotaPolicy.documentLimit(for: resolvedTier) + documentCredits
+        libraryLimit = QuotaPolicy.libraryLimit(for: resolvedTier)
         let storedPreview = defaults.object(forKey: Keys.localPreviewRemaining) as? Int
-        self.localModelPreviewRemaining = Self.initialPreviewAllowance(
+        localModelPreviewRemaining = Self.initialPreviewAllowance(
             storedValue: storedPreview,
             tier: resolvedTier
         )
-        self.previewRunsConsumed = defaults.integer(forKey: Keys.previewRunsConsumed)
-        self.previewConversionLoggedRuns = defaults.integer(forKey: Keys.previewConversionRunMarker)
+        previewRunsConsumed = defaults.integer(forKey: Keys.previewRunsConsumed)
+        previewConversionLoggedRuns = defaults.integer(forKey: Keys.previewConversionRunMarker)
         eventTask = Task { await observeBillingEvents() }
         Task { await billingService.refreshProducts() }
         if prunedPacks.count != loadedPacks.count {
@@ -123,7 +123,7 @@ final class EntitlementStore: ObservableObject {
         let clamped = min(legacyCount, 3)
         defaults.removeObject(forKey: Keys.addOns)
         let now = Date()
-        let migratedPacks = (0..<clamped).map { _ in
+        let migratedPacks = (0 ..< clamped).map { _ in
             DocumentPackEntry(
                 id: UUID(),
                 transactionId: nil,
@@ -205,7 +205,7 @@ final class EntitlementStore: ObservableObject {
                 "Document pack ignored – cap reached",
                 severity: .warning,
                 metadata: [
-                    "transactionId": String(transaction.id)
+                    "transactionId": String(transaction.id),
                 ]
             )
             return
@@ -233,7 +233,8 @@ final class EntitlementStore: ObservableObject {
         }
 
         if documentPacks.count == originalCount,
-           let fallbackIndex = documentPacks.firstIndex(where: { !$0.isExpired }) {
+           let fallbackIndex = documentPacks.firstIndex(where: { !$0.isExpired })
+        {
             documentPacks.remove(at: fallbackIndex)
         }
 
@@ -286,7 +287,7 @@ final class EntitlementStore: ObservableObject {
             metadata: [
                 "backend": backend.rawValue,
                 "remaining": String(remaining),
-                "tier": activeTier.rawValue
+                "tier": activeTier.rawValue,
             ]
         )
         if remaining == 0 {
@@ -294,7 +295,7 @@ final class EntitlementStore: ObservableObject {
                 "preview_exhausted",
                 metadata: [
                     "backend": backend.rawValue,
-                    "tier": activeTier.rawValue
+                    "tier": activeTier.rawValue,
                 ]
             )
         }
@@ -306,7 +307,7 @@ final class EntitlementStore: ObservableObject {
             "preview_gate_triggered",
             metadata: [
                 "backend": backend.rawValue,
-                "tier": activeTier.rawValue
+                "tier": activeTier.rawValue,
             ]
         )
     }
@@ -315,13 +316,67 @@ final class EntitlementStore: ObservableObject {
         availableProducts[product]
     }
 
-    func setDebugTier(_ tier: WorkspaceTier) {
-        let previousTier = activeTier
-        activeTier = tier
-        adjustPreviewAllowanceForTierChange(from: previousTier, to: tier)
-        persistState()
-        recalculateAllowances()
-    }
+    #if DEBUG
+        /// DEBUG-only helper to simulate a consumable purchase when StoreKit is unavailable.
+        /// This keeps UI development unblocked when `Product.products(for:)` returns an empty catalog.
+        func addDebugDocumentPack() {
+            guard !hasReachedDocumentPackCap else {
+                lastError = "Document pack cap reached (DEBUG simulation)"
+                return
+            }
+            let entry = DocumentPackEntry(
+                id: UUID(),
+                transactionId: nil,
+                purchaseDate: Date(),
+                credits: QuotaPolicy.addOnDocumentIncrement,
+                expirationDate: nil
+            )
+            documentPacks.append(entry)
+            persistState()
+            recalculateAllowances()
+            lastError = nil
+            TelemetryCenter.emitBillingEvent(
+                "debug_purchase_simulated",
+                metadata: [
+                    "product": BillingProduct.documentPackAddOn.rawValue,
+                    "credits": String(QuotaPolicy.addOnDocumentIncrement),
+                ]
+            )
+        }
+
+        /// DEBUG-only helper to simulate a tier unlock when StoreKit is unavailable.
+        func simulateDebugPurchase(_ product: BillingProduct) {
+            if let tier = product.associatedTier {
+                setDebugTier(tier)
+                lastError = nil
+                TelemetryCenter.emitBillingEvent(
+                    "debug_purchase_simulated",
+                    metadata: [
+                        "product": product.rawValue,
+                        "tier": tier.rawValue,
+                    ]
+                )
+                return
+            }
+
+            if product == .documentPackAddOn {
+                addDebugDocumentPack()
+                return
+            }
+        }
+    #endif
+
+    #if DEBUG
+        /// DEBUG-only helper to force the active tier without a StoreKit transaction.
+        /// Used by local purchase simulation and developer tooling.
+        func setDebugTier(_ tier: WorkspaceTier) {
+            let previousTier = activeTier
+            activeTier = tier
+            adjustPreviewAllowanceForTierChange(from: previousTier, to: tier)
+            persistState()
+            recalculateAllowances()
+        }
+    #endif
 
     private func observeBillingEvents() async {
         for await event in billingService.events {
@@ -331,17 +386,17 @@ final class EntitlementStore: ObservableObject {
 
     private func handle(_ event: BillingEvent) {
         switch event {
-        case .productsLoaded(let mapping):
+        case let .productsLoaded(mapping):
             availableProducts = mapping
-        case .purchaseSucceeded(let product, let transaction):
+        case let .purchaseSucceeded(product, transaction):
             applyPurchase(for: product, transaction: transaction)
-        case .transactionUpdated(let product, let transaction):
+        case let .transactionUpdated(product, transaction):
             if transaction.revocationDate != nil {
                 handleRevocation(for: product, transaction: transaction)
             } else {
                 applyPurchase(for: product, transaction: transaction)
             }
-        case .purchaseFailed(_, let error):
+        case let .purchaseFailed(_, error):
             lastError = error.errorDescription
         case .userCancelled:
             lastError = nil
@@ -364,7 +419,7 @@ final class EntitlementStore: ObservableObject {
             "Purchase processed",
             metadata: [
                 "product": product.rawValue,
-                "transactionId": String(transaction.id)
+                "transactionId": String(transaction.id),
             ]
         )
     }
@@ -385,7 +440,7 @@ final class EntitlementStore: ObservableObject {
             severity: .warning,
             metadata: [
                 "product": product.rawValue,
-                "transactionId": String(transaction.id)
+                "transactionId": String(transaction.id),
             ]
         )
     }
@@ -418,7 +473,7 @@ final class EntitlementStore: ObservableObject {
         let baseLimit = QuotaPolicy.documentLimit(for: activeTier)
         documentLimit = baseLimit + availableDocumentCredits
         libraryLimit = QuotaPolicy.libraryLimit(for: activeTier)
-        if activeTier.isAtLeast(.pro) && localModelPreviewRemaining != 0 {
+        if activeTier.isAtLeast(.pro), localModelPreviewRemaining != 0 {
             localModelPreviewRemaining = 0
             persistPreviewState()
         }
@@ -429,7 +484,7 @@ final class EntitlementStore: ObservableObject {
         to newTier: WorkspaceTier
     ) {
         guard previousTier != newTier else { return }
-        if newTier.isAtLeast(.pro) && localModelPreviewRemaining != 0 {
+        if newTier.isAtLeast(.pro), localModelPreviewRemaining != 0 {
             localModelPreviewRemaining = 0
             persistPreviewState()
         }
@@ -445,7 +500,7 @@ final class EntitlementStore: ObservableObject {
             metadata: [
                 "product": product.rawValue,
                 "tier": tier.rawValue,
-                "preview_runs": String(previewRunsConsumed)
+                "preview_runs": String(previewRunsConsumed),
             ]
         )
     }
