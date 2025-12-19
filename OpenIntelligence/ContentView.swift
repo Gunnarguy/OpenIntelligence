@@ -16,9 +16,9 @@ struct ContentView: View {
     @State private var selectedTab: Tab = .chat
 
     init() {
-#if DEBUG
-        StoreKitTestHarness.startIfNeeded()
-#endif
+        #if DEBUG
+            StoreKitTestHarness.startIfNeeded()
+        #endif
         let containerSvc = ContainerService()
         let billingSvc = StoreKitBillingService()
         let entitlementStore = EntitlementStore(billingService: billingSvc)
@@ -67,6 +67,16 @@ struct ContentView: View {
         .animation(.spring(response: 0.35, dampingFraction: 0.82), value: onboardingStore.isChecklistVisible)
         .environmentObject(onboardingStore)
         .environmentObject(entitlementStore)
+        // `DocumentLibraryView` (and other tabs) relies on SettingsStore via @EnvironmentObject.
+        // Previously we only injected it on the Settings tab, which caused a runtime crash when
+        // Documents tried to create a new library (it reads settings.useHighAccuracyEmbeddings).
+        .environmentObject(settingsStore)
+        // Proactively refresh StoreKit products once the root view appears.
+        // In production this fetches App Store Connect products; in DEBUG/simulator,
+        // this will emit a single warning if no StoreKit configuration is present.
+        .task {
+            await entitlementStore.billingService.refreshProducts()
+        }
         .onReceive(settingsStore.$hasUserPrimaryOverride) { hasOverride in
             guard hasOverride else { return }
             onboardingStore.markModelSelectionAcknowledged()
@@ -80,7 +90,7 @@ struct ContentView: View {
                 ChatScreen(ragService: ragService)
             }
             #if os(iOS)
-                .navigationViewStyle(.stack)
+            .navigationViewStyle(.stack)
             #endif
             .tabItem {
                 Label("Chat", systemImage: "bubble.left.and.bubble.right")
@@ -95,7 +105,7 @@ struct ContentView: View {
                 )
             }
             #if os(iOS)
-                .navigationViewStyle(.stack)
+            .navigationViewStyle(.stack)
             #endif
             .tabItem {
                 Label("Documents", systemImage: "doc.text.magnifyingglass")
@@ -108,7 +118,7 @@ struct ContentView: View {
                     .environmentObject(containerService)
             }
             #if os(iOS)
-                .navigationViewStyle(.stack)
+            .navigationViewStyle(.stack)
             #endif
             .tabItem {
                 Label("Visualizations", systemImage: "cube.transparent")
@@ -119,7 +129,7 @@ struct ContentView: View {
                 SettingsView(ragService: ragService)
             }
             #if os(iOS)
-                .navigationViewStyle(.stack)
+            .navigationViewStyle(.stack)
             #endif
             .environmentObject(settingsStore)
             .environmentObject(entitlementStore)

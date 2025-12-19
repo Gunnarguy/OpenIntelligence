@@ -99,7 +99,7 @@ struct CloudConsentPromptView: View {
                 DSHaptics.success()
                 onDecision(.allowAndRemember)
             } label: {
-                Label("Always Allow for \(record.provider.shortName)", systemImage: "shield.checkerboard")
+                Label("Always Allow for \(record.provider.shortName)", systemImage: "shield.checkered")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)
