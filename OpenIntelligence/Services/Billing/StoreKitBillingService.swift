@@ -60,7 +60,21 @@ final class StoreKitBillingService: BillingService {
                 // Only emit once per session to reduce noisy duplicate warnings.
                 if !hasEmittedEmptyCatalogWarning {
                     hasEmittedEmptyCatalogWarning = true
-                    Log.warning("StoreKit returned an empty product catalog", category: .billing)
+                    #if DEBUG
+                        #if targetEnvironment(simulator)
+                            Log.warning(
+                                "StoreKit returned an empty product catalog. If you’re on Simulator, enable a StoreKit Configuration (.storekit) in the scheme (Run → Options → StoreKit Configuration).",
+                                category: .billing
+                            )
+                        #else
+                            Log.warning(
+                                "StoreKit returned an empty product catalog. If you’re on a device, verify Sandbox sign-in and App Store Connect IAP availability.",
+                                category: .billing
+                            )
+                        #endif
+                    #else
+                        Log.warning("StoreKit returned an empty product catalog", category: .billing)
+                    #endif
                     emitBilling(
                         "Products unavailable",
                         severity: .warning,
