@@ -10,6 +10,7 @@ struct PlanUpgradeSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var purchasingProduct: BillingProduct?
     @State private var alertMessage: String?
+    @State private var isRefreshingProducts: Bool = false
     @State private var isRestoring = false
     @State private var selectedStoryIndex = 0
     @State private var showingTerms = false
@@ -246,8 +247,10 @@ private extension PlanUpgradeSheet {
             price: priceLabel(for: option.product),
             priceSuffix: priceSuffix(for: option.product),
             hasAccess: entitlementStore.activeTier.isAtLeast(option.tier),
-            canPurchase: canAttemptPurchase(option.product),
-            isProcessing: purchasingProduct == option.product,
+            // "canPurchase" here means StoreKit metadata has been loaded.
+            // We still allow tapping the CTA while loading; the tap will refresh and retry.
+            canPurchase: canPurchase(option.product),
+            isProcessing: purchasingProduct == option.product || isRefreshingProducts,
             ctaAction: { purchase(option.product) }
         )
     }
@@ -308,7 +311,7 @@ private extension PlanUpgradeSheet {
                 .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
-            .disabled(isCapped || purchasingProduct == .documentPackAddOn || !canAttemptPurchase(.documentPackAddOn))
+            .disabled(isCapped || isRefreshingProducts || purchasingProduct != nil)
         }
         .padding()
         .background(DSColors.surface)
@@ -382,7 +385,7 @@ private extension PlanUpgradeSheet {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
-            .disabled(purchasingProduct == .documentPackAddOn || !canAttemptPurchase(.documentPackAddOn))
+            .disabled(purchasingProduct != nil || isRefreshingProducts)
         }
         .padding()
         .background(
@@ -457,16 +460,6 @@ private extension PlanUpgradeSheet {
         entitlementStore.product(for: product) != nil
     }
 
-    func canAttemptPurchase(_ product: BillingProduct) -> Bool {
-        if canPurchase(product) { return true }
-        #if DEBUG
-            // In DEBUG builds we allow simulating purchases when StoreKit can't load products.
-            return true
-        #else
-            return false
-        #endif
-    }
-
     func priceLabel(for product: BillingProduct) -> String {
         if let storeProduct = entitlementStore.product(for: product) {
             return storeProduct.displayPrice
@@ -513,29 +506,15 @@ private extension PlanUpgradeSheet {
     }
 
     func purchase(_ product: BillingProduct) {
-        guard purchasingProduct != product else { return }
-        guard canPurchase(product) else {
-            #if DEBUG
-                // DEBUG fallback: StoreKit can legitimately return an empty catalog when Sandbox/
-                // agreements/devices aren't configured yet. For local UI validation we simulate
-                // the entitlement unlock so you can verify gating behavior immediately.
-                entitlementStore.simulateDebugPurchase(product)
-                alertMessage = "Simulated purchase (DEBUG) because StoreKit products are unavailable."
-                return
-            #else
-                alertMessage = "Purchases aren’t available yet. Please wait a moment and try again."
-                TelemetryCenter.emitBillingEvent(
-                    "Paywall purchase blocked",
-                    severity: .warning,
-                    metadata: [
-                        "product": product.rawValue,
-                        "reason": "productNotLoaded",
-                        "entryPoint": entryPoint.analyticsValue,
-                    ]
-                )
-                return
-            #endif
+        // Avoid overlapping purchase flows. StoreKit itself has protection, but keeping the UI
+        // single-flight prevents confusing state (multiple spinners/alerts).
+        guard purchasingProduct == nil else { return }
+        if isRefreshingProducts {
+            alertMessage = "Purchases are still loading. Please try again in a moment."
+            return
         }
+
+        // This gate does not require StoreKit metadata.
         if product == .documentPackAddOn, entitlementStore.hasReachedDocumentPackCap {
             TelemetryCenter.emitBillingEvent(
                 "Paywall CTA blocked",
@@ -548,6 +527,56 @@ private extension PlanUpgradeSheet {
             )
             alertMessage = "You already have the maximum number of document packs active. Remove documents or upgrade your workspace to unlock more capacity."
             return
+        }
+
+        guard canPurchase(product) else {
+            #if DEBUG
+                // DEBUG fallback: StoreKit can legitimately return an empty catalog when Sandbox/
+                // agreements/devices aren't configured yet. For local UI validation we simulate
+                // the entitlement unlock so you can verify gating behavior immediately.
+                entitlementStore.simulateDebugPurchase(product)
+                #if targetEnvironment(simulator)
+                    let hint = "You’re running in the iOS Simulator. Real App Store Connect products won’t load here unless you enable a StoreKit Configuration (.storekit) in the scheme."
+                #else
+                    let hint = "If you’re testing on a device, ensure you’re signed into a Sandbox account (Settings → App Store → Sandbox Account) and that your IAPs/subscriptions exist and are available in App Store Connect."
+                #endif
+
+                alertMessage = "StoreKit didn’t return product metadata, so this purchase was simulated (DEBUG-only).\n\n\(hint)"
+                return
+            #else
+                // Release behavior: products can take a moment to load on cold start.
+                // When the user taps, force a refresh and retry once.
+                isRefreshingProducts = true
+                purchasingProduct = product
+
+                Task {
+                    defer {
+                        purchasingProduct = nil
+                        isRefreshingProducts = false
+                    }
+
+                    await entitlementStore.billingService.refreshProducts()
+
+                    do {
+                        _ = try await entitlementStore.billingService.purchase(product)
+                    } catch {
+                        alertMessage = (error as? LocalizedError)?.errorDescription
+                            ?? "Purchases aren’t available right now. Please check your internet connection and try again."
+
+                        TelemetryCenter.emitBillingEvent(
+                            "Paywall purchase blocked",
+                            severity: .warning,
+                            metadata: [
+                                "product": product.rawValue,
+                                "reason": "productNotLoadedOrPurchaseFailed",
+                                "entryPoint": entryPoint.analyticsValue,
+                                "error": error.localizedDescription,
+                            ]
+                        )
+                    }
+                }
+                return
+            #endif
         }
         purchasingProduct = product
         TelemetryCenter.emitBillingEvent(
