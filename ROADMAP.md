@@ -128,6 +128,10 @@
 | @Generable Response Types | ✅ Done | Agent | RAGAnswer, RAGSearchResults, RAGDocumentSummary |
 | High-Accuracy Container Factory | ✅ Done | Agent | KnowledgeContainer.highAccuracy() helper |
 | Fix ingestion re-upload loop | ✅ Done | Agent | Prevent self-tuning rebuild recursion during auto-reembed |
+| Fix Documents “New Library” crash | ✅ Done | Agent | Inject SettingsStore at root; Documents tab reads settings.useHighAccuracyEmbeddings |
+| DEBUG paywall purchase simulation | ✅ Done | Agent | Allow testing entitlement unlocks even when StoreKit returns an empty catalog |
+| DEBUG doc-pack refill simulation | ✅ Done | Agent | Mirror paywall simulation when doc pack Product metadata is unavailable |
+| De-dupe empty-catalog billing warnings | ✅ Done | Agent | Reduce repeated “StoreKit returned an empty product catalog” / “Products unavailable” spam |
 
 ---
 

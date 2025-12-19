@@ -8,6 +8,9 @@ final class StoreKitBillingService: BillingService {
     private var purchasesInFlight = Set<BillingProduct>()
     private var updatesTask: Task<Void, Never>?
 
+    private var refreshInFlight = false
+    private var hasEmittedEmptyCatalogWarning = false
+
     let events: AsyncStream<BillingEvent>
     private let continuation: AsyncStream<BillingEvent>.Continuation
 
@@ -29,7 +32,6 @@ final class StoreKitBillingService: BillingService {
         #endif
 
         updatesTask = Task { [weak self] in await self?.listenForTransactions() }
-        Task { await refreshProducts() }
     }
 
     deinit {
@@ -38,6 +40,9 @@ final class StoreKitBillingService: BillingService {
     }
 
     func refreshProducts() async {
+        guard !refreshInFlight else { return }
+        refreshInFlight = true
+        defer { refreshInFlight = false }
         do {
             let ids = BillingProduct.allCases.map(\.rawValue)
             let storeProducts = try await Product.products(for: ids)
@@ -50,12 +55,18 @@ final class StoreKitBillingService: BillingService {
             continuation.yield(.productsLoaded(mapping))
             emitBilling("Products refreshed", metadata: ["count": String(mapping.count)])
             if mapping.isEmpty {
-                Log.warning("StoreKit returned an empty product catalog", category: .billing)
-                emitBilling(
-                    "Products unavailable",
-                    severity: .warning,
-                    metadata: ["requested": ids.joined(separator: ",")]
-                )
+                // This can legitimately happen in Simulator/DEBUG when StoreKit testing isn't configured,
+                // or when ASC agreements / sandbox accounts are not fully set up.
+                // Only emit once per session to reduce noisy duplicate warnings.
+                if !hasEmittedEmptyCatalogWarning {
+                    hasEmittedEmptyCatalogWarning = true
+                    Log.warning("StoreKit returned an empty product catalog", category: .billing)
+                    emitBilling(
+                        "Products unavailable",
+                        severity: .warning,
+                        metadata: ["requested": ids.joined(separator: ",")]
+                    )
+                }
             }
         } catch {
             Log.error("Failed to load StoreKit products: \(error.localizedDescription)", category: .billing)

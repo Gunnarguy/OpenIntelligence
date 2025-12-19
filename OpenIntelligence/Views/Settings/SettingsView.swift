@@ -335,7 +335,7 @@ private extension SettingsView {
                 Button("Always Allow", systemImage: "checkmark.shield") {
                     Task { @MainActor in ragService.setCloudConsentState(.allowed, for: provider) }
                 }
-                Button("Ask Each Time", systemImage: "questionmark.shield") {
+                Button("Ask Each Time", systemImage: "questionmark.circle") {
                     Task { @MainActor in ragService.setCloudConsentState(.notDetermined, for: provider) }
                 }
                 Button("Never Allow", systemImage: "xmark.shield") {
@@ -355,7 +355,7 @@ private extension SettingsView {
             Text("Last Transmission")
                 .font(.subheadline.weight(.semibold))
             HStack(spacing: DSSpacing.md) {
-                Label(record.provider.shortName, systemImage: "shield.checkerboard")
+                Label(record.provider.shortName, systemImage: "shield.checkered")
                 Text(record.timestamp.formatted(.relative(presentation: .named)))
                     .foregroundColor(.secondary)
                     .font(.caption)

@@ -64,7 +64,7 @@ struct ContainerSettingsSheet: View {
                     Toggle("Strict Mode (medical-grade)", isOn: $strictMode)
 
                     SettingHelpCallout(
-                        icon: "shield.checkerboard",
+                        icon: "shield.checkered",
                         title: "What Strict Mode enforces",
                         description: "Keeps the assistant cautious when evidence is weak—perfect for compliance, medical, or legal sets.",
                         bullets: [
@@ -398,7 +398,7 @@ struct ContainerSettingsSheet: View {
                 supportedDimensions: [1024],
                 metrics: [
                     OptionMetric(icon: "wifi", text: "Calls Apple PCC"),
-                    OptionMetric(icon: "shield.lefthalf.filled", text: "Consent logged"),
+                    OptionMetric(icon: "shield.lefthalf.fill", text: "Consent logged"),
                     OptionMetric(icon: "dial.max.fill", text: "1024 dimensions"),
                 ],
                 alert: ProviderAvailabilityAlert(

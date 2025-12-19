@@ -361,6 +361,25 @@ struct DocumentLibraryView: View {
                         "limit": String(documentLimit),
                     ]
                 )
+
+                // Keep development/testing unblocked when StoreKit returns an empty product catalog.
+                // In that scenario `billingService.purchase(...)` will throw `.productUnavailable`.
+                // We mirror the paywall's DEBUG-only simulation behavior here.
+                if entitlementStore.product(for: .documentPackAddOn) == nil {
+                    #if DEBUG
+                        entitlementStore.simulateDebugPurchase(.documentPackAddOn)
+                        TelemetryCenter.emitBillingEvent(
+                            "Doc pack purchase simulated (DEBUG)",
+                            severity: .warning,
+                            metadata: [
+                                "product": BillingProduct.documentPackAddOn.rawValue,
+                                "reason": "storeKitProductNotLoaded",
+                            ]
+                        )
+                        return
+                    #endif
+                }
+
                 _ = try await entitlementStore.billingService.purchase(.documentPackAddOn)
                 TelemetryCenter.emitBillingEvent(
                     "Doc pack purchase succeeded",
@@ -379,9 +398,11 @@ struct DocumentLibraryView: View {
         let billingService = PreviewBillingService()
         let entitlementStore = EntitlementStore(billingService: billingService)
         let ragService = RAGService(containerService: containerService, entitlementStore: entitlementStore)
+        let settingsStore = SettingsStore(ragService: ragService)
         DocumentLibraryView(ragService: ragService, containerService: containerService)
             .environmentObject(OnboardingStateStore())
             .environmentObject(entitlementStore)
+            .environmentObject(settingsStore)
     }
 
     @MainActor
