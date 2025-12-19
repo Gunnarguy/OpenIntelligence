@@ -14,6 +14,7 @@ import NaturalLanguage
 #endif
 
 // MARK: - Apple Intelligence Framework Imports (iOS 18.1+)
+
 // These frameworks provide access to Apple's AI capabilities:
 // - FoundationModels: On-device and Private Cloud Compute LLMs
 // - AppIntents: Siri integration and system AI service access
@@ -92,17 +93,17 @@ enum LLMStreamingContext {
         struct Arguments {
             @Guide(
                 description:
-                    "The search query to find relevant document chunks. Be specific and use keywords from the user's question."
+                "The search query to find relevant document chunks. Be specific and use keywords from the user's question."
             )
             var query: String
             @Guide(
                 description:
-                    "Optional maximum number of chunks to retrieve. Use 2–4 for brief summaries, 8–12 for deep dives."
+                "Optional maximum number of chunks to retrieve. Use 2–4 for brief summaries, 8–12 for deep dives."
             )
             var topK: Int?
             @Guide(
                 description:
-                    "Optional minimum semantic similarity threshold (0.0–1.0). Use 0.35 by default; increase to filter noise."
+                "Optional minimum semantic similarity threshold (0.0–1.0). Use 0.35 by default; increase to filter noise."
             )
             var minSimilarity: Float?
         }
@@ -134,7 +135,7 @@ enum LLMStreamingContext {
             // No arguments needed for listing
         }
 
-        func call(arguments: Arguments) async throws -> String {
+        func call(arguments _: Arguments) async throws -> String {
             guard let ragService = ragService else {
                 return "Error: Document service unavailable"
             }
@@ -156,7 +157,7 @@ enum LLMStreamingContext {
         struct Arguments {
             @Guide(
                 description:
-                    "The exact name of the document to get details about. Use list_documents first to see available names."
+                "The exact name of the document to get details about. Use list_documents first to see available names."
             )
             var documentName: String
         }
@@ -178,8 +179,8 @@ struct LLMResponse {
     let tokensGenerated: Int
     let timeToFirstToken: TimeInterval?
     let totalTime: TimeInterval
-    let modelName: String?  // Actual model used (includes execution location)
-    let toolCallsMade: Int  // Number of tool calls executed (for agentic RAG metrics)
+    let modelName: String? // Actual model used (includes execution location)
+    let toolCallsMade: Int // Number of tool calls executed (for agentic RAG metrics)
 
     var tokensPerSecond: Float? {
         guard totalTime > 0 else { return nil }
@@ -188,6 +189,7 @@ struct LLMResponse {
 }
 
 // MARK: - Apple Foundation Models (iOS 26+) - REAL Apple Intelligence LLM
+
 // This is Apple's on-device language model with automatic Private Cloud Compute fallback
 // Announced at WWDC 2025 - sessions 286, 301, 259
 // Requires iOS 26.0+, A17 Pro / M1 or later
@@ -198,7 +200,6 @@ struct LLMResponse {
 
     @available(iOS 26.0, *)
     class AppleFoundationLLMService: LLMService {
-
         private var session: LanguageModelSession?
 
         /// Tool handler for agentic RAG function calling
@@ -259,7 +260,7 @@ struct LLMResponse {
             switch model.availability {
             case .available:
                 return nil
-            case .unavailable(let reason):
+            case let .unavailable(reason):
                 switch reason {
                 case .deviceNotEligible:
                     return "Device not eligible (requires A17 Pro+ or M-series chip)"
@@ -316,7 +317,7 @@ struct LLMResponse {
 
                 // Just consume first token to trigger model load
                 for try await _ in responseStream {
-                    break  // Only need first token to warm up
+                    break // Only need first token to warm up
                 }
 
                 let loadTime = Date().timeIntervalSince(startTime)
@@ -364,7 +365,7 @@ struct LLMResponse {
 
                 // Create language model session with hybrid RAG+LLM instructions
                 // This enables BOTH document-based RAG and general conversational AI
-                self.session = LanguageModelSession(
+                session = LanguageModelSession(
                     model: model,
                     tools: tools,
                     instructions: Instructions(
@@ -395,7 +396,7 @@ struct LLMResponse {
 
                 Log.info("Apple Foundation Model session initialized (Agentic RAG)", category: .llm)
 
-            case .unavailable(let reason):
+            case let .unavailable(reason):
                 let reasonStr: String
                 switch reason {
                 case .deviceNotEligible:
@@ -439,27 +440,27 @@ struct LLMResponse {
             if let context = context, !context.isEmpty {
                 Log.debug("RAG mode: context=\(context.count) chars, prompt=\(prompt.prefix(50))...", category: .llm)
                 fullPrompt = """
-                    Below is text content that has been provided for you to analyze. Please read this content carefully and answer the question that follows.
+                Below is text content that has been provided for you to analyze. Please read this content carefully and answer the question that follows.
 
-                    CONTENT TO ANALYZE:
-                    \(context)
+                CONTENT TO ANALYZE:
+                \(context)
 
-                    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-                    Based on the content above, please answer this question with comprehensive detail:
+                Based on the content above, please answer this question with comprehensive detail:
 
-                    \(prompt)
+                \(prompt)
 
-                    Instructions:
-                    • Synthesize information from the provided content
-                    • Provide specific examples and details from the text
-                    • Make connections between different parts of the content when relevant
-                    • If the content contains partial information, explain what you found
-                    • Structure your response clearly
-                    • If the content doesn't address the question, state that clearly
+                Instructions:
+                • Synthesize information from the provided content
+                • Provide specific examples and details from the text
+                • Make connections between different parts of the content when relevant
+                • If the content contains partial information, explain what you found
+                • Structure your response clearly
+                • If the content doesn't address the question, state that clearly
 
-                    Your detailed answer:
-                    """
+                Your detailed answer:
+                """
             } else {
                 Log.debug("General chat mode: prompt=\(prompt.prefix(50))...", category: .llm)
                 fullPrompt = prompt
@@ -467,14 +468,14 @@ struct LLMResponse {
 
             // Estimate token count for routing decisions
             let promptLength = fullPrompt.count
-            let estimatedTokens = promptLength / 4  // Rough estimate: 1 token ≈ 4 chars
+            let estimatedTokens = promptLength / 4 // Rough estimate: 1 token ≈ 4 chars
             Log.debug("Generation: ~\(estimatedTokens) tokens, exec=\(config.executionContext)", category: .llm)
 
             // Generate response using streaming API with execution context
             var responseText = ""
             var tokenCount = 0
             var firstTokenTime: TimeInterval?
-            var actualExecutionLocation: String = "Unknown"
+            var actualExecutionLocation = "Unknown"
 
             // ✅ GAP #3: Use available generation parameters
             // Note: iOS 26 GenerationOptions only supports temperature currently
@@ -552,7 +553,8 @@ struct LLMResponse {
             if forcedLocalFallback {
                 let local = OnDeviceAnalysisService()
                 let fallback = try await local.generate(
-                    prompt: prompt, context: context, config: config)
+                    prompt: prompt, context: context, config: config
+                )
                 let totalTime = Date().timeIntervalSince(startTime)
                 TelemetryCenter.emit(
                     .generation,
@@ -613,29 +615,29 @@ struct LLMResponse {
         }
     }
 
-// NOTE: Private Cloud Compute (PCC) is AUTOMATIC in Foundation Models
-// The system intelligently decides when to use on-device vs. Apple's PCC servers
-// based on query complexity and available resources. PCC provides:
-// - Apple Silicon servers (same architecture as device)
-// - Cryptographic zero-retention guarantee
-// - End-to-end encryption
-// - Seamless fallback for complex queries
-// You don't need a separate service - it's built into AppleFoundationLLMService above
+    // NOTE: Private Cloud Compute (PCC) is AUTOMATIC in Foundation Models
+    // The system intelligently decides when to use on-device vs. Apple's PCC servers
+    // based on query complexity and available resources. PCC provides:
+    // - Apple Silicon servers (same architecture as device)
+    // - Cryptographic zero-retention guarantee
+    // - End-to-end encryption
+    // - Seamless fallback for complex queries
+    // You don't need a separate service - it's built into AppleFoundationLLMService above
 
 #endif
 
 // MARK: - On-Device Document Analysis (NaturalLanguage Framework)
+
 // FALLBACK for devices without Foundation Models support
 // This is NOT an LLM - it's an extractive QA system using Apple's NaturalLanguage framework
 // It analyzes your query, finds relevant sentences from retrieved context, and presents them
 // This runs 100% on-device with zero network calls and zero AI model downloads
 
 class OnDeviceAnalysisService: LLMService {
-
     private let tagger = NLTagger(tagSchemes: [.lexicalClass, .nameType, .lemma])
     private let languageRecognizer = NLLanguageRecognizer()
 
-    var toolHandler: RAGToolHandler?  // Not used by extractive QA
+    var toolHandler: RAGToolHandler? // Not used by extractive QA
 
     var isAvailable: Bool { true }
     var modelName: String { "On-Device Analysis (Extractive QA)" }
@@ -644,7 +646,7 @@ class OnDeviceAnalysisService: LLMService {
         Log.debug("On-Device Analysis Service initialized", category: .llm)
     }
 
-    func generate(prompt: String, context: String?, config: InferenceConfig) async throws
+    func generate(prompt: String, context: String?, config _: InferenceConfig) async throws
         -> LLMResponse
     {
         let startTime = Date()
@@ -678,10 +680,10 @@ class OnDeviceAnalysisService: LLMService {
     private func analyzeAndExtract(prompt: String, context: String?) -> String {
         guard let context = context, !context.isEmpty else {
             return """
-                I don't have any documents loaded yet. Please add documents to your library so I can analyze and extract information.
+            I don't have any documents loaded yet. Please add documents to your library so I can analyze and extract information.
 
-                [On-Device Analysis Ready - No AI model required]
-                """
+            [On-Device Analysis Ready - No AI model required]
+            """
         }
 
         return extractRelevantInformation(query: prompt, retrievedContent: context)
@@ -746,7 +748,7 @@ class OnDeviceAnalysisService: LLMService {
         // Extract keywords using NLTagger
         tagger.string = query
         tagger.enumerateTags(
-            in: query.startIndex..<query.endIndex, unit: .word, scheme: .lexicalClass
+            in: query.startIndex ..< query.endIndex, unit: .word, scheme: .lexicalClass
         ) { tag, range in
             if let tag = tag {
                 let word = String(query[range])
@@ -761,8 +763,7 @@ class OnDeviceAnalysisService: LLMService {
         }
 
         // Extract named entities
-        tagger.enumerateTags(in: query.startIndex..<query.endIndex, unit: .word, scheme: .nameType)
-        { tag, range in
+        tagger.enumerateTags(in: query.startIndex ..< query.endIndex, unit: .word, scheme: .nameType) { tag, range in
             if let tag = tag {
                 let entity = String(query[range])
                 if tag == .personalName || tag == .placeName || tag == .organizationName {
@@ -782,7 +783,7 @@ class OnDeviceAnalysisService: LLMService {
         // Split into sentences using NLTokenizer
         let tokenizer = NLTokenizer(unit: .sentence)
         tokenizer.string = context
-        tokenizer.enumerateTokens(in: context.startIndex..<context.endIndex) { range, _ in
+        tokenizer.enumerateTokens(in: context.startIndex ..< context.endIndex) { range, _ in
             let sentence = String(context[range]).trimmingCharacters(in: .whitespacesAndNewlines)
             if sentence.count > 20 {
                 // Analyze sentence
@@ -802,7 +803,7 @@ class OnDeviceAnalysisService: LLMService {
         // Extract named entities from context
         tagger.string = context
         tagger.enumerateTags(
-            in: context.startIndex..<context.endIndex, unit: .word, scheme: .nameType
+            in: context.startIndex ..< context.endIndex, unit: .word, scheme: .nameType
         ) { tag, range in
             if let tag = tag {
                 let entity = String(context[range])
@@ -821,7 +822,7 @@ class OnDeviceAnalysisService: LLMService {
 
         tagger.string = text
         tagger.enumerateTags(
-            in: text.startIndex..<text.endIndex, unit: .word, scheme: .lexicalClass
+            in: text.startIndex ..< text.endIndex, unit: .word, scheme: .lexicalClass
         ) { tag, range in
             if let tag = tag {
                 let word = String(text[range])
@@ -865,9 +866,8 @@ class OnDeviceAnalysisService: LLMService {
         queryKeywords: Set<String>,
         queryEntities: [String],
         contextSentences: [SentenceInfo],
-        contextEntities: [String]
+        contextEntities _: [String]
     ) -> [SentenceInfo] {
-
         var scoredSentences: [(sentence: SentenceInfo, score: Double)] = []
 
         for sentence in contextSentences {
@@ -917,17 +917,16 @@ class OnDeviceAnalysisService: LLMService {
     }
 
     private func buildExtractiveResponse(
-        query: String,
+        query _: String,
         queryType: QueryType,
         relevantSentences: [SentenceInfo]
     ) -> String {
-
         guard !relevantSentences.isEmpty else {
             return """
-                I found your documents but couldn't identify specific information matching your query. Try rephrasing your question or asking about general topics covered in your documents.
+            I found your documents but couldn't identify specific information matching your query. Try rephrasing your question or asking about general topics covered in your documents.
 
-                [On-Device Analysis - No matches found]
-                """
+            [On-Device Analysis - No matches found]
+            """
         }
 
         // Generate introduction based on query type
@@ -952,8 +951,8 @@ class OnDeviceAnalysisService: LLMService {
         // Combine top sentences into coherent response
         let mainContent =
             relevantSentences
-            .map { $0.text }
-            .joined(separator: "\n\n")
+                .map { $0.text }
+                .joined(separator: "\n\n")
 
         // Add footer explaining this is extractive, not generative
         let footer =
@@ -965,13 +964,13 @@ class OnDeviceAnalysisService: LLMService {
     // MARK: - Helper Types
 
     private enum QueryType {
-        case definition  // "What is..."
-        case instruction  // "How to..."
-        case explanation  // "Why..."
-        case temporal  // "When..."
-        case location  // "Where..."
-        case description  // "Tell me about...", "List..."
-        case general  // Other
+        case definition // "What is..."
+        case instruction // "How to..."
+        case explanation // "Why..."
+        case temporal // "When..."
+        case location // "Where..."
+        case description // "Tell me about...", "List..."
+        case general // Other
     }
 
     private struct QueryAnalysis {
@@ -993,6 +992,7 @@ class OnDeviceAnalysisService: LLMService {
 }
 
 // MARK: - Apple Intelligence ChatGPT Extension (iOS 18.1+)
+
 // REAL Apple Intelligence API - Uses Apple's built-in ChatGPT integration
 // Requires iOS 18.1+, user must enable ChatGPT in Settings > Apple Intelligence & Siri
 // NO OpenAI account required, free tier available, user consents per request
@@ -1006,8 +1006,8 @@ class OnDeviceAnalysisService: LLMService {
     @available(iOS 18.1, *)
     struct AssistChatIntent: AppIntent {
         static var title: LocalizedStringResource = "Ask AI Assistant"
-        static var description: IntentDescription = IntentDescription(
-            "Send a query to an AI assistant via Apple Intelligence")
+        static var description: IntentDescription = .init(
+            "Send a query to a built-in AI assistant")
         static var openAppWhenRun: Bool = false
 
         @Parameter(title: "Query")
@@ -1028,12 +1028,12 @@ class OnDeviceAnalysisService: LLMService {
             return .result(
                 dialog: IntentDialog(
                     stringLiteral: """
-                        ChatGPT Extension requires full Apple Intelligence integration.
+                    ChatGPT Extension requires full Apple Intelligence integration.
 
-                        Current status: iOS 18.1+ API is documented but requires private entitlements.
+                    Current status: iOS 18.1+ API is documented but requires private entitlements.
 
-                        Alternative: Use OpenAI Direct in Settings (bring your own API key).
-                        """)
+                    Alternative: Use OpenAI Direct in Settings (bring your own API key).
+                    """)
             )
         }
     }
@@ -1042,8 +1042,8 @@ class OnDeviceAnalysisService: LLMService {
     @available(iOS 18.1, *)
     enum AssistantProvider: String, AppEnum, Sendable {
         case chatGPT = "ChatGPT"
-        case claude = "Claude"  // May be added in future iOS versions
-        case gemini = "Gemini"  // May be added in future iOS versions
+        case claude = "Claude" // May be added in future iOS versions
+        case gemini = "Gemini" // May be added in future iOS versions
 
         static var typeDisplayRepresentation: TypeDisplayRepresentation {
             TypeDisplayRepresentation(name: "AI Assistant Provider")
@@ -1068,8 +1068,7 @@ class OnDeviceAnalysisService: LLMService {
 
     @available(iOS 18.1, *)
     class AppleChatGPTExtensionService: LLMService {
-
-        var toolHandler: RAGToolHandler?  // Not used by ChatGPT Extension
+        var toolHandler: RAGToolHandler? // Not used by ChatGPT Extension
 
         var isAvailable: Bool {
             // Check if ChatGPT extension is enabled in system settings
@@ -1087,7 +1086,7 @@ class OnDeviceAnalysisService: LLMService {
             }
         }
 
-        func generate(prompt: String, context: String?, config: InferenceConfig) async throws
+        func generate(prompt: String, context: String?, config _: InferenceConfig) async throws
             -> LLMResponse
         {
             guard isAvailable else {
@@ -1100,13 +1099,13 @@ class OnDeviceAnalysisService: LLMService {
             let fullPrompt: String
             if let context = context, !context.isEmpty {
                 fullPrompt = """
-                    Context from user's documents:
-                    \(context)
+                Context from user's documents:
+                \(context)
 
-                    User question: \(prompt)
+                User question: \(prompt)
 
-                    Please answer based on the provided context.
-                    """
+                Please answer based on the provided context.
+                """
             } else {
                 fullPrompt = prompt
             }
@@ -1173,7 +1172,7 @@ class OnDeviceAnalysisService: LLMService {
 
                     // On real devices, availability depends on hardware + Settings.
                     // We assume user can enable it; actual calls will fail gracefully if not enabled.
-                    return true  // Assume available on iOS 18.1+ for now
+                    return true // Assume available on iOS 18.1+ for now
                 #else
                     // UIKit not available (e.g., macOS target for this code path) -> not available
                     return false
@@ -1196,7 +1195,7 @@ class OnDeviceAnalysisService: LLMService {
 
             let intent = AssistChatIntent()
             intent.query = prompt
-            intent.provider = .chatGPT  // Use ChatGPT provider
+            intent.provider = .chatGPT // Use ChatGPT provider
 
             do {
                 // Perform the intent - this triggers the system consent dialog
@@ -1237,7 +1236,7 @@ class OnDeviceAnalysisService: LLMService {
         var isAvailable: Bool { false }
         var modelName: String { "ChatGPT Extension (Requires iOS 18.1+)" }
 
-        func generate(prompt: String, context: String?, config: InferenceConfig) async throws
+        func generate(prompt _: String, context _: String?, config _: InferenceConfig) async throws
             -> LLMResponse
         {
             throw LLMError.modelUnavailable
@@ -1246,10 +1245,10 @@ class OnDeviceAnalysisService: LLMService {
 #endif
 
 // MARK: - Core ML Implementation (Pathway B1)
+
 // For custom models converted to .mlpackage format
 
 class CoreMLLLMService: LLMService {
-
     // MARK: - Persistence Keys
 
     static let selectedModelIdKey = "selectedCoreMLModelId"
@@ -1263,7 +1262,7 @@ class CoreMLLLMService: LLMService {
     private var model: MLModel?
     private let _modelName: String
 
-    var toolHandler: RAGToolHandler?  // Not used by Core ML models
+    var toolHandler: RAGToolHandler? // Not used by Core ML models
 
     var isAvailable: Bool {
         FileManager.default.fileExists(atPath: modelURL.path) && model != nil
@@ -1280,11 +1279,11 @@ class CoreMLLLMService: LLMService {
         self.modelId = modelId
         self.installedModel = installedModel
         if let installedModel {
-            self._modelName = "Core ML • \(installedModel.name)"
+            _modelName = "Core ML • \(installedModel.name)"
         } else {
-            self._modelName = "Core ML • \(modelURL.deletingPathExtension().lastPathComponent)"
+            _modelName = "Core ML • \(modelURL.deletingPathExtension().lastPathComponent)"
         }
-        self.model = CoreMLLLMService.loadModel(at: modelURL)
+        model = CoreMLLLMService.loadModel(at: modelURL)
         if let installedModel {
             let shortId = String(installedModel.id.uuidString.prefix(8))
             Log.info(
@@ -1301,13 +1300,14 @@ class CoreMLLLMService: LLMService {
 
         do {
             let configuration = MLModelConfiguration()
-            configuration.computeUnits = .all  // CPU + GPU + Neural Engine
+            configuration.computeUnits = .all // CPU + GPU + Neural Engine
             let loaded = try MLModel(contentsOf: url, configuration: configuration)
             Log.info("Successfully loaded Core ML model: \(url.lastPathComponent)", category: .llm)
             return loaded
         } catch {
             Log.error(
-                "✗ Failed to load Core ML model: \(error.localizedDescription)", category: .llm)
+                "✗ Failed to load Core ML model: \(error.localizedDescription)", category: .llm
+            )
             return nil
         }
     }
@@ -1333,11 +1333,11 @@ class CoreMLLLMService: LLMService {
     private static func resolveRegistrySelection() -> (UUID, InstalledModel, URL)? {
         let defaults = UserDefaults.standard
         guard let idString = defaults.string(forKey: selectedModelIdKey),
-            let id = UUID(uuidString: idString),
-            let model = ModelRegistry.shared.model(id: id),
-            model.backend == .coreML,
-            let url = model.localURL,
-            FileManager.default.fileExists(atPath: url.path)
+              let id = UUID(uuidString: idString),
+              let model = ModelRegistry.shared.model(id: id),
+              model.backend == .coreML,
+              let url = model.localURL,
+              FileManager.default.fileExists(atPath: url.path)
         else {
             return nil
         }
@@ -1371,7 +1371,8 @@ class CoreMLLLMService: LLMService {
         await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 let service = CoreMLLLMService(
-                    modelURL: url, modelId: modelId, installedModel: installedModel)
+                    modelURL: url, modelId: modelId, installedModel: installedModel
+                )
                 continuation.resume(returning: service.isAvailable ? service : nil)
             }
         }
@@ -1391,12 +1392,12 @@ class CoreMLLLMService: LLMService {
         let augmentedPrompt: String
         if let context = context, !context.isEmpty {
             augmentedPrompt = """
-                Context: \(context)
+            Context: \(context)
 
-                Question: \(prompt)
+            Question: \(prompt)
 
-                Answer:
-                """
+            Answer:
+            """
         } else {
             augmentedPrompt = prompt
         }
@@ -1426,21 +1427,22 @@ class CoreMLLLMService: LLMService {
     // MARK: - Tokenization (Placeholder)
 
     private func tokenize(_ text: String) -> [Int] {
-        text.split(separator: " ").map { _ in Int.random(in: 0..<50_000) }
+        text.split(separator: " ").map { _ in Int.random(in: 0 ..< 50000) }
     }
 
-    private func createInputFeatures(tokens: [Int], config: InferenceConfig) throws
+    private func createInputFeatures(tokens _: [Int], config _: InferenceConfig) throws
         -> MLFeatureProvider
     {
         throw LLMError.notImplemented
     }
 
-    private func decodeOutput(_ prediction: MLFeatureProvider) throws -> String {
+    private func decodeOutput(_: MLFeatureProvider) throws -> String {
         throw LLMError.notImplemented
     }
 }
 
 // MARK: - OpenAI Direct API (User's Own API Key)
+
 // Direct integration with OpenAI API - bypasses Apple Intelligence
 // User provides their own OpenAI API key
 // Supports all OpenAI models: GPT-4o, GPT-4o-mini, GPT-4-turbo, etc.
@@ -1450,7 +1452,7 @@ class OpenAILLMService: LLMService {
     private let model: String
     private let endpoint = "https://api.openai.com/v1/chat/completions"
 
-    var toolHandler: RAGToolHandler?  // Not used by OpenAI direct API
+    var toolHandler: RAGToolHandler? // Not used by OpenAI direct API
 
     var isAvailable: Bool { !apiKey.isEmpty }
     var modelName: String { model }
@@ -1482,12 +1484,12 @@ class OpenAILLMService: LLMService {
         If the context doesn't contain relevant information, say so clearly. Always be helpful \
         and conversational.
         """
-        
+
         var messages: [[String: String]] = [
             [
                 "role": "system",
                 "content": config.systemPrompt ?? defaultSystemPrompt,
-            ]
+            ],
         ]
 
         // Add context and user query
@@ -1564,7 +1566,7 @@ class OpenAILLMService: LLMService {
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = jsonData
-        request.timeoutInterval = 60  // 60 second timeout
+        request.timeoutInterval = 60 // 60 second timeout
 
         // Make API call
         let (data, response) = try await URLSession.shared.data(for: request)
@@ -1590,9 +1592,9 @@ class OpenAILLMService: LLMService {
         }
 
         guard let choices = json["choices"] as? [[String: Any]],
-            let firstChoice = choices.first,
-            let message = firstChoice["message"] as? [String: Any],
-            let content = message["content"] as? String
+              let firstChoice = choices.first,
+              let message = firstChoice["message"] as? [String: Any],
+              let content = message["content"] as? String
         else {
             Log.error("[OpenAI] Invalid response structure", category: .llm)
             throw LLMError.generationFailed("Failed to parse response")
@@ -1601,7 +1603,7 @@ class OpenAILLMService: LLMService {
         // Extract usage statistics
         let tokensGenerated: Int
         if let usage = json["usage"] as? [String: Any],
-            let completionTokens = usage["completion_tokens"] as? Int
+           let completionTokens = usage["completion_tokens"] as? Int
         {
             tokensGenerated = completionTokens
         } else {
@@ -1628,6 +1630,7 @@ class OpenAILLMService: LLMService {
 }
 
 // MARK: - REMOVED: Mock Implementation
+
 // Mock services removed - use real implementations only:
 // 1. OnDeviceAnalysisService - extractive QA with NaturalLanguage framework
 // 2. AppleChatGPTExtensionService - Apple's ChatGPT integration (iOS 18.1+)
@@ -1645,7 +1648,7 @@ enum LLMError: LocalizedError {
         switch self {
         case .modelUnavailable:
             return "LLM model is not available on this device"
-        case .generationFailed(let message):
+        case let .generationFailed(message):
             return "Text generation failed: \(message)"
         case .notImplemented:
             return "Feature not yet implemented"
