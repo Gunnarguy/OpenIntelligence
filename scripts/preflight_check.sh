@@ -35,4 +35,21 @@ if [[ $missing -ne 0 ]]; then
   exit 1
 fi
 
+echo "🧹 Checking for nested git repositories..."
+# Keeping other repos (like a website repo) inside this workspace has caused confusion before.
+# For release preflight, fail fast if we detect nested `.git/` folders.
+nested_git_dirs=$(find "$ROOT_DIR" -mindepth 2 -name .git -type d \
+  -not -path "$ROOT_DIR/.git/*" \
+  -not -path "*/.build/*" \
+  -not -path "*/.swiftpm/*" \
+  -not -path "*/DerivedData/*" \
+  -not -path "*/build/*" \
+  -print || true)
+if [[ -n "$nested_git_dirs" ]]; then
+  echo "❌ preflight: nested git repositories found inside the OpenIntelligence workspace:" >&2
+  echo "$nested_git_dirs" >&2
+  echo "Move these folders outside of $ROOT_DIR before shipping." >&2
+  exit 1
+fi
+
 echo "✅ preflight: secrets clean and privacy keys present"
