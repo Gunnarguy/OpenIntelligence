@@ -367,16 +367,18 @@ struct DocumentLibraryView: View {
                 // We mirror the paywall's DEBUG-only simulation behavior here.
                 if entitlementStore.product(for: .documentPackAddOn) == nil {
                     #if DEBUG
-                        entitlementStore.simulateDebugPurchase(.documentPackAddOn)
-                        TelemetryCenter.emitBillingEvent(
-                            "Doc pack purchase simulated (DEBUG)",
-                            severity: .warning,
-                            metadata: [
-                                "product": BillingProduct.documentPackAddOn.rawValue,
-                                "reason": "storeKitProductNotLoaded",
-                            ]
-                        )
-                        return
+                        if entitlementStore.isDebugBillingSimulationEnabled {
+                            entitlementStore.simulateDebugPurchase(.documentPackAddOn)
+                            TelemetryCenter.emitBillingEvent(
+                                "Doc pack purchase simulated (DEBUG)",
+                                severity: .warning,
+                                metadata: [
+                                    "product": BillingProduct.documentPackAddOn.rawValue,
+                                    "reason": "storeKitProductNotLoaded",
+                                ]
+                            )
+                            return
+                        }
                     #endif
                 }
 

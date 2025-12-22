@@ -317,6 +317,18 @@ final class EntitlementStore: ObservableObject {
     }
 
     #if DEBUG
+        private enum DebugKeys {
+            /// When enabled, the UI may simulate purchases if StoreKit metadata fails to load.
+            /// Default is `false` so Debug builds exercise the same StoreKit path as Release.
+            static let enableBillingSimulation = "billing.debugSimulationEnabled"
+        }
+
+        /// Opt-in flag controlling whether the app should simulate purchases when StoreKit
+        /// returns an empty/partial product catalog in DEBUG builds.
+        var isDebugBillingSimulationEnabled: Bool {
+            defaults.bool(forKey: DebugKeys.enableBillingSimulation)
+        }
+
         /// DEBUG-only helper to simulate a consumable purchase when StoreKit is unavailable.
         /// This keeps UI development unblocked when `Product.products(for:)` returns an empty catalog.
         func addDebugDocumentPack() {
