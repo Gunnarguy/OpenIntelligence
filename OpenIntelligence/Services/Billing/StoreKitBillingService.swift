@@ -11,6 +11,10 @@ final class StoreKitBillingService: BillingService {
     private var refreshInFlight = false
     private var hasEmittedEmptyCatalogWarning = false
 
+    /// Cached diagnostics for this process (receipt existence can change, but this provides
+    /// high-signal context when debugging “empty product catalog” on-device).
+    private lazy var cachedStoreKitDiagnostics: [String: String] = Self.makeStoreKitDiagnostics()
+
     let events: AsyncStream<BillingEvent>
     private let continuation: AsyncStream<BillingEvent>.Continuation
 
@@ -20,16 +24,6 @@ final class StoreKitBillingService: BillingService {
             streamContinuation = continuation
         }
         continuation = streamContinuation
-
-        #if DEBUG
-            // Enable StoreKit testing mode with local configuration file
-            if let configURL = Bundle.main.url(forResource: "StoreKitConfiguration", withExtension: "storekit") {
-                Log.info("✅ StoreKit test configuration found at: \(configURL.path)", category: .billing)
-                // Note: Configuration file must also be set in scheme's StoreKit Configuration option
-            } else {
-                Log.warning("⚠️ StoreKit test configuration not found - products may be unavailable", category: .billing)
-            }
-        #endif
 
         updatesTask = Task { [weak self] in await self?.listenForTransactions() }
     }
@@ -45,15 +39,50 @@ final class StoreKitBillingService: BillingService {
         defer { refreshInFlight = false }
         do {
             let ids = BillingProduct.allCases.map(\.rawValue)
+            let diagnostics = cachedStoreKitDiagnostics
+            Log.info("🔍 Requesting \(ids.count) products from StoreKit: \(ids.joined(separator: ", "))", category: .billing)
+            Log.info(
+                "🧾 StoreKit diagnostics: \(Self.formatDiagnostics(diagnostics))",
+                category: .billing
+            )
+
             let storeProducts = try await Product.products(for: ids)
+            Log.info("📦 StoreKit returned \(storeProducts.count) products", category: .billing)
+
             var mapping: [BillingProduct: Product] = [:]
             for product in storeProducts {
-                guard let billingProduct = BillingProduct(rawValue: product.id) else { continue }
+                Log.info("  ✅ Loaded: \(product.id) - \(product.displayName) (\(product.displayPrice))", category: .billing)
+                guard let billingProduct = BillingProduct(rawValue: product.id) else {
+                    Log.warning("  ⚠️ Unknown product ID: \(product.id)", category: .billing)
+                    continue
+                }
                 mapping[billingProduct] = product
             }
+
             products = mapping
             continuation.yield(.productsLoaded(mapping))
-            emitBilling("Products refreshed", metadata: ["count": String(mapping.count)])
+
+            let loadedIDs = mapping.keys.map(\.rawValue).sorted()
+            let missingIDs = ids.filter { id in !loadedIDs.contains(id) }
+
+            if !missingIDs.isEmpty {
+                Log.warning("❌ Missing products: \(missingIDs.joined(separator: ", "))", category: .billing)
+            }
+
+            emitBilling(
+                "Products refreshed",
+                metadata: [
+                    "environment": diagnostics["environment"] ?? "unknown",
+                    "bundleId": diagnostics["bundleId"] ?? "unknown",
+                    "receiptPresent": diagnostics["receiptPresent"] ?? "unknown",
+                    "receiptSandboxHint": diagnostics["receiptSandboxHint"] ?? "unknown",
+                    "loaded": String(mapping.count),
+                    "expected": String(ids.count),
+                    "loadedIDs": loadedIDs.joined(separator: ","),
+                    "missingIDs": missingIDs.joined(separator: ","),
+                ]
+            )
+
             if mapping.isEmpty {
                 // This can legitimately happen in Simulator/DEBUG when StoreKit testing isn't configured,
                 // or when ASC agreements / sandbox accounts are not fully set up.
@@ -78,7 +107,13 @@ final class StoreKitBillingService: BillingService {
                     emitBilling(
                         "Products unavailable",
                         severity: .warning,
-                        metadata: ["requested": ids.joined(separator: ",")]
+                        metadata: [
+                            "requested": ids.joined(separator: ","),
+                            "environment": diagnostics["environment"] ?? "unknown",
+                            "bundleId": diagnostics["bundleId"] ?? "unknown",
+                            "receiptPresent": diagnostics["receiptPresent"] ?? "unknown",
+                            "receiptSandboxHint": diagnostics["receiptSandboxHint"] ?? "unknown",
+                        ]
                     )
                 }
             }
@@ -87,7 +122,13 @@ final class StoreKitBillingService: BillingService {
             emitBilling(
                 "Product refresh failed",
                 severity: .error,
-                metadata: ["reason": error.localizedDescription]
+                metadata: [
+                    "reason": error.localizedDescription,
+                    "environment": cachedStoreKitDiagnostics["environment"] ?? "unknown",
+                    "bundleId": cachedStoreKitDiagnostics["bundleId"] ?? "unknown",
+                    "receiptPresent": cachedStoreKitDiagnostics["receiptPresent"] ?? "unknown",
+                    "receiptSandboxHint": cachedStoreKitDiagnostics["receiptSandboxHint"] ?? "unknown",
+                ]
             )
         }
     }
@@ -130,6 +171,32 @@ final class StoreKitBillingService: BillingService {
 
     func restorePurchases() async {
         emitBilling("Restore started")
+
+        // On-device sandbox debugging quality-of-life:
+        // `AppStore.sync()` can prompt the user to sign in (including Sandbox) and refresh receipts.
+        // This often resolves the “nothing restores / products unavailable” state after account changes.
+        do {
+            try await AppStore.sync()
+            emitBilling(
+                "App Store sync succeeded",
+                metadata: [
+                    "environment": cachedStoreKitDiagnostics["environment"] ?? "unknown",
+                    "receiptPresent": cachedStoreKitDiagnostics["receiptPresent"] ?? "unknown",
+                    "receiptSandboxHint": cachedStoreKitDiagnostics["receiptSandboxHint"] ?? "unknown",
+                ]
+            )
+        } catch {
+            Log.warning("AppStore.sync() failed: \(error.localizedDescription)", category: .billing)
+            emitBilling(
+                "App Store sync failed",
+                severity: .warning,
+                metadata: [
+                    "reason": error.localizedDescription,
+                    "environment": cachedStoreKitDiagnostics["environment"] ?? "unknown",
+                ]
+            )
+        }
+
         for await result in Transaction.currentEntitlements {
             do {
                 let transaction = try checkVerified(result)
@@ -257,5 +324,55 @@ final class StoreKitBillingService: BillingService {
         metadata: [String: String] = [:]
     ) {
         TelemetryCenter.emitBillingEvent(title, severity: severity, metadata: metadata)
+    }
+
+    // MARK: - StoreKit diagnostics
+
+    private static func makeStoreKitDiagnostics() -> [String: String] {
+        let bundleId = Bundle.main.bundleIdentifier ?? "unknown"
+        let appVersion = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "unknown"
+        let buildNumber = (Bundle.main.infoDictionary?["CFBundleVersion"] as? String) ?? "unknown"
+
+        let receiptURL = Bundle.main.appStoreReceiptURL
+        let receiptPath = receiptURL?.path ?? ""
+        let receiptPresent = (!receiptPath.isEmpty) && FileManager.default.fileExists(atPath: receiptPath)
+
+        // Heuristic: sandbox receipts commonly contain “sandboxReceipt” in the filename.
+        // We use this as a hint only; it is not authoritative.
+        let receiptSandboxHint = receiptPath.localizedCaseInsensitiveContains("sandbox")
+
+        #if targetEnvironment(simulator)
+            let environment = "simulator"
+        #else
+            let environment = "device"
+        #endif
+
+        return [
+            "environment": environment,
+            "bundleId": bundleId,
+            "appVersion": appVersion,
+            "buildNumber": buildNumber,
+            "receiptPresent": receiptPresent ? "true" : "false",
+            "receiptSandboxHint": receiptSandboxHint ? "true" : "false",
+        ]
+    }
+
+    private static func formatDiagnostics(_ diagnostics: [String: String]) -> String {
+        // Stable ordering keeps logs diffable.
+        let keys = [
+            "environment",
+            "bundleId",
+            "appVersion",
+            "buildNumber",
+            "receiptPresent",
+            "receiptSandboxHint",
+        ]
+
+        return keys
+            .compactMap { key in
+                guard let value = diagnostics[key] else { return nil }
+                return "\(key)=\(value)"
+            }
+            .joined(separator: ", ")
     }
 }

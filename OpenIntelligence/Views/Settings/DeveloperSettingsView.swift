@@ -15,6 +15,7 @@ struct DeveloperSettingsView: View {
     @AppStorage("enableStreamingLogs") private var enableStreamingLogs: Bool = false
     @AppStorage("enableVectorDBLogs") private var enableVectorDBLogs: Bool = true
     @AppStorage("enableTelemetryLogs") private var enableTelemetryLogs: Bool = true
+    @AppStorage("billing.debugSimulationEnabled") private var enableBillingDebugSimulation: Bool = false
 
     private var loggingLevel: LoggingConfiguration.Level {
         get { LoggingConfiguration.Level(rawValue: loggingLevelRaw) ?? .info }
@@ -78,6 +79,13 @@ struct DeveloperSettingsView: View {
                 }
                 .font(.callout)
                 Text("Quick presets for common scenarios. Production: minimal logs. Development: balanced. Debug: maximum detail.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            }
+
+            Section("Billing (Debug)") {
+                Toggle("Enable simulated purchases", isOn: $enableBillingDebugSimulation)
+                Text("When enabled, the paywall may simulate tier/doc-pack unlocks if StoreKit product metadata fails to load. Keep this OFF to exercise real StoreKit behavior in Debug.")
                     .font(.footnote)
                     .foregroundColor(.secondary)
             }
