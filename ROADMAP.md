@@ -39,6 +39,8 @@
 - [x] **CloudTransmission Records**: Full transparency logging
 - [x] **Private Cloud Compute (PCC)**: Cryptographic zero-retention
 - [x] **Execution Location Badges**: 📱 On-Device / ☁️ Cloud / 🔑 API Key
+- [x] **Privacy Manifest**: `PrivacyInfo.xcprivacy` with required-reason API declarations
+- [x] **User Report/Hide Controls**: In-chat Hide/Unhide + Report actions for assistant messages
 
 ### UI Components
 - [x] **ChatView (V2)**: Streaming messages, context viewer, performance metrics

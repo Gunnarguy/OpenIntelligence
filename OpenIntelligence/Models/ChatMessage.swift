@@ -15,7 +15,14 @@ struct ChatMessage: Identifiable {
     var metadata: ResponseMetadata?
     var retrievedChunks: [RetrievedChunk]?
     var containerId: UUID? = nil
-    
+
+    // User safety controls (GenAI/UGC compliance): allow hiding/reporting individual assistant messages.
+    // Note: ChatV2 currently stores messages in-memory only (not persisted), so this is intentionally lightweight.
+    var isHidden: Bool = false
+    var userReportedAt: Date? = nil
+    var userReportReason: String? = nil
+    var userReportNotes: String? = nil
+
     enum Role {
         case user
         case assistant

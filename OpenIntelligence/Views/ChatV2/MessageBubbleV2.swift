@@ -7,39 +7,45 @@
 
 import SwiftUI
 #if canImport(UIKit)
-import UIKit
+    import UIKit
 #endif
 
 struct MessageBubbleV2: View {
-    let message: ChatMessage
+    @Binding var message: ChatMessage
     let showMetadata: Bool
     let onRegenerate: (() -> Void)?
-    
+
     @State private var showActions = false
     @State private var showDetails = false
     @State private var showFullMetrics = false
-    
-    init(message: ChatMessage, showMetadata: Bool = true, onRegenerate: (() -> Void)? = nil) {
-        self.message = message
+    @State private var showReportSheet = false
+    @State private var sharePayload: SharePayload? = nil
+
+    init(message: Binding<ChatMessage>, showMetadata: Bool = true, onRegenerate: (() -> Void)? = nil) {
+        _message = message
         self.showMetadata = showMetadata
         self.onRegenerate = onRegenerate
     }
-    
+
     private var isUser: Bool { message.role == .user }
-    
+
     var body: some View {
         VStack(alignment: isUser ? .trailing : .leading, spacing: 6) {
             // Main bubble with tap-to-reveal actions
             HStack(alignment: .bottom, spacing: 0) {
                 if isUser { Spacer(minLength: 60) }
-                
+
                 VStack(alignment: .leading, spacing: 0) {
-                    // Message content
-                    MarkdownText(
-                        message.content,
-                        font: .system(size: 15, weight: .regular),
-                        foregroundColor: isUser ? .white : DSColors.primaryText
-                    )
+                    if !isUser, message.isHidden {
+                        hiddenMessageView
+                    } else {
+                        // Message content
+                        MarkdownText(
+                            message.content,
+                            font: .system(size: 15, weight: .regular),
+                            foregroundColor: isUser ? .white : DSColors.primaryText
+                        )
+                    }
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
@@ -51,10 +57,10 @@ struct MessageBubbleV2: View {
                         showActions.toggle()
                     }
                 }
-                
+
                 if !isUser { Spacer(minLength: 60) }
             }
-            
+
             // Action bar (appears on tap)
             if showActions {
                 MessageActionsBar(
@@ -64,11 +70,13 @@ struct MessageBubbleV2: View {
                     },
                     onRegenerate: isUser ? nil : onRegenerate,
                     onShowDetails: message.metadata != nil ? { showDetails = true } : nil,
-                    onShare: { shareMessage() }
+                    onShare: { shareMessage() },
+                    onToggleHidden: (!isUser ? { toggleHidden() } : nil),
+                    onReport: (!isUser ? { showReportSheet = true } : nil)
                 )
                 .transition(.scale.combined(with: .opacity))
             }
-            
+
             // Metadata row (compact badges)
             if showMetadata && !showActions {
                 HStack(spacing: 6) {
@@ -79,18 +87,18 @@ struct MessageBubbleV2: View {
                                 modelName: meta.modelUsed,
                                 ttft: meta.timeToFirstToken
                             )
-                            
+
                             // Tokens per second badge
                             if let tps = meta.tokensPerSecond, tps > 0 {
                                 TokenSpeedBadge(tokensPerSecond: tps)
                             }
-                            
+
                             if let tools = meta.toolCallsMade, tools > 0 {
                                 CompactToolBadge(count: tools)
                             }
                         }
                     }
-                    
+
                     // Relative timestamp
                     Text(relativeTime(message.timestamp))
                         .font(.system(size: 10))
@@ -98,18 +106,18 @@ struct MessageBubbleV2: View {
                 }
                 .padding(.horizontal, isUser ? 0 : 4)
             }
-            
+
             // Source chips with quality indicator
             if !isUser, let chunks = message.retrievedChunks, !chunks.isEmpty {
                 HStack(spacing: 6) {
                     CompactSourceChips(chunks: chunks) {
                         showDetails = true
                     }
-                    
+
                     CompactQualityIndicator(chunks: chunks)
                 }
             }
-            
+
             // Expandable metrics panel (assistant only)
             if !isUser && showFullMetrics, let meta = message.metadata {
                 MessageMetadataPanel(
@@ -127,8 +135,35 @@ struct MessageBubbleV2: View {
                 )
             }
         }
+        .sheet(isPresented: $showReportSheet) {
+            ReportMessageSheet(
+                message: message,
+                onSubmit: { reason, notes, shouldHide, includeDebugContext in
+                    submitReport(reason: reason, notes: notes, shouldHide: shouldHide, includeDebugContext: includeDebugContext)
+                }
+            )
+        }
+        .sheet(item: $sharePayload) { payload in
+            ActivityView(activityItems: payload.items)
+        }
     }
-    
+
+    @ViewBuilder
+    private var hiddenMessageView: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Image(systemName: "eye.slash")
+                    .font(.system(size: 12, weight: .semibold))
+                Text("Message hidden")
+                    .font(.system(size: 13, weight: .semibold))
+            }
+            Text("Tap to view actions")
+                .font(.system(size: 12))
+                .foregroundStyle(Color.secondary)
+        }
+        .foregroundStyle(DSColors.primaryText)
+    }
+
     @ViewBuilder
     private var bubbleBackground: some View {
         if isUser {
@@ -141,7 +176,7 @@ struct MessageBubbleV2: View {
             Color(uiColor: .secondarySystemBackground)
         }
     }
-    
+
     private func relativeTime(_ date: Date) -> String {
         let interval = Date().timeIntervalSince(date)
         if interval < 60 { return "just now" }
@@ -149,17 +184,68 @@ struct MessageBubbleV2: View {
         if interval < 86400 { return "\(Int(interval / 3600))h ago" }
         return date.formatted(date: .abbreviated, time: .shortened)
     }
-    
+
     private func shareMessage() {
-        #if canImport(UIKit)
-        let text = message.content
-        let activityVC = UIActivityViewController(activityItems: [text], applicationActivities: nil)
-        
-        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-           let rootVC = windowScene.windows.first?.rootViewController {
-            rootVC.present(activityVC, animated: true)
+        sharePayload = SharePayload(items: [message.content])
+    }
+
+    private func toggleHidden() {
+        message.isHidden.toggle()
+        DSHaptics.selection()
+        withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
+            showActions = false
         }
+    }
+
+    private func submitReport(
+        reason: ReportReason,
+        notes: String,
+        shouldHide: Bool,
+        includeDebugContext: Bool
+    ) {
+        // Persist minimal local state.
+        message.userReportedAt = Date()
+        message.userReportReason = reason.rawValue
+        message.userReportNotes = notes.isEmpty ? nil : notes
+        if shouldHide {
+            message.isHidden = true
+        }
+
+        // Emit local telemetry (no network transmission).
+        TelemetryCenter.emit(
+            .system,
+            severity: .warning,
+            title: "User reported assistant message",
+            metadata: [
+                "messageId": message.id.uuidString,
+                "reason": reason.rawValue,
+                "hasNotes": notes.isEmpty ? "false" : "true",
+            ]
+        )
+
+        // Prepare a shareable payload so the user can send it to support.
+        let reportText = ReportMessageSheet.buildReportText(
+            message: message,
+            reason: reason,
+            notes: notes,
+            includeDebugContext: includeDebugContext
+        )
+
+        #if canImport(UIKit)
+            UIPasteboard.general.string = reportText
         #endif
+
+        DSHaptics.success()
+        sharePayload = SharePayload(items: [reportText])
+
+        withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
+            showActions = false
+        }
+    }
+
+    private struct SharePayload: Identifiable {
+        let id = UUID()
+        let items: [Any]
     }
 }
 
@@ -167,14 +253,14 @@ struct MessageBubbleV2: View {
 
 private struct TokenSpeedBadge: View {
     let tokensPerSecond: Float
-    
+
     private var speedInfo: (label: String, color: Color) {
         if tokensPerSecond > 40 { return ("Fast", .green) }
         if tokensPerSecond > 20 { return ("Good", .blue) }
         if tokensPerSecond > 10 { return ("OK", .orange) }
         return ("Slow", .red)
     }
-    
+
     var body: some View {
         HStack(spacing: 3) {
             Image(systemName: "bolt.fill")
@@ -195,27 +281,27 @@ private struct TokenSpeedBadge: View {
 // Custom bubble shape with tail
 private struct BubbleShape: Shape {
     let isUser: Bool
-    
+
     func path(in rect: CGRect) -> Path {
         let radius: CGFloat = 18
         let tailSize: CGFloat = 6
-        
+
         var path = Path()
-        
+
         if isUser {
             path.addRoundedRect(
-                in: CGRect(x: 0, y: 0, width: rect.width - tailSize/2, height: rect.height),
+                in: CGRect(x: 0, y: 0, width: rect.width - tailSize / 2, height: rect.height),
                 cornerSize: CGSize(width: radius, height: radius),
                 style: .continuous
             )
         } else {
             path.addRoundedRect(
-                in: CGRect(x: tailSize/2, y: 0, width: rect.width - tailSize/2, height: rect.height),
+                in: CGRect(x: tailSize / 2, y: 0, width: rect.width - tailSize / 2, height: rect.height),
                 cornerSize: CGSize(width: radius, height: radius),
                 style: .continuous
             )
         }
-        
+
         return path
     }
 }
@@ -224,7 +310,7 @@ private struct BubbleShape: Shape {
 private struct CompactExecutionBadge: View {
     let modelName: String
     let ttft: TimeInterval?
-    
+
     private var info: (icon: String, label: String, color: Color) {
         if modelName.contains("On-Device") || (ttft ?? 1.0) < 0.3 {
             return ("iphone", "Device", .blue)
@@ -235,7 +321,7 @@ private struct CompactExecutionBadge: View {
         }
         return ("sparkles", "AI", .purple)
     }
-    
+
     var body: some View {
         HStack(spacing: 3) {
             Image(systemName: info.icon)
@@ -256,7 +342,7 @@ private struct CompactExecutionBadge: View {
         .background(info.color.opacity(0.12))
         .clipShape(Capsule())
     }
-    
+
     private func formatTTFT(_ t: TimeInterval) -> String {
         if t < 1.0 {
             return String(format: "%.0fms", t * 1000)
@@ -268,7 +354,7 @@ private struct CompactExecutionBadge: View {
 // Compact tool call badge
 private struct CompactToolBadge: View {
     let count: Int
-    
+
     var body: some View {
         HStack(spacing: 3) {
             Image(systemName: "wrench.and.screwdriver")
@@ -288,7 +374,7 @@ private struct CompactToolBadge: View {
 private struct CompactSourceChips: View {
     let chunks: [RetrievedChunk]
     let onTap: () -> Void
-    
+
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: 4) {
@@ -311,8 +397,8 @@ private struct CompactSourceChips: View {
 
 #Preview {
     VStack(spacing: 16) {
-        MessageBubbleV2(message: ChatMessage(role: .user, content: "What's in my documents about machine learning?"))
-        MessageBubbleV2(message: ChatMessage(role: .assistant, content: "Based on your documents, I found several references to machine learning concepts including neural networks, gradient descent, and backpropagation."))
+        MessageBubbleV2(message: .constant(ChatMessage(role: .user, content: "What's in my documents about machine learning?")))
+        MessageBubbleV2(message: .constant(ChatMessage(role: .assistant, content: "Based on your documents, I found several references to machine learning concepts including neural networks, gradient descent, and backpropagation.")))
     }
     .padding()
     .background(DSColors.background)
