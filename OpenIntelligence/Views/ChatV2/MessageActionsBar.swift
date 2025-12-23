@@ -17,6 +17,8 @@ struct MessageActionsBar: View {
     let onRegenerate: (() -> Void)?
     let onShowDetails: (() -> Void)?
     let onShare: (() -> Void)?
+    let onToggleHidden: (() -> Void)?
+    let onReport: (() -> Void)?
 
     @State private var copiedFeedback = false
 
@@ -44,6 +46,24 @@ struct MessageActionsBar: View {
             if !isUser, message.metadata != nil, let onShowDetails {
                 ActionButton(icon: "info.circle", label: "Details", color: .blue) {
                     onShowDetails()
+                }
+            }
+
+            // Hide / Unhide (assistant only)
+            if !isUser, let onToggleHidden {
+                ActionButton(
+                    icon: message.isHidden ? "eye" : "eye.slash",
+                    label: message.isHidden ? "Unhide" : "Hide",
+                    color: .secondary
+                ) {
+                    onToggleHidden()
+                }
+            }
+
+            // Report (assistant only)
+            if !isUser, let onReport {
+                ActionButton(icon: "flag", label: "Report", color: .red) {
+                    onReport()
                 }
             }
 
@@ -237,7 +257,9 @@ private struct MetricRow: View {
             onCopy: {},
             onRegenerate: {},
             onShowDetails: {},
-            onShare: {}
+            onShare: {},
+            onToggleHidden: {},
+            onReport: {}
         )
 
         MessageActionsBar(
@@ -245,7 +267,9 @@ private struct MetricRow: View {
             onCopy: {},
             onRegenerate: nil,
             onShowDetails: nil,
-            onShare: {}
+            onShare: {},
+            onToggleHidden: nil,
+            onReport: nil
         )
     }
     .padding()

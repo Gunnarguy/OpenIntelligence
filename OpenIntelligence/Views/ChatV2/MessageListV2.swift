@@ -13,9 +13,9 @@ struct MessageListV2: View {
     let isStreaming: Bool
     let generationStart: Date?
     var onRegenerate: ((ChatMessage) -> Void)?
-    
+
     @State private var scrollProxy: ScrollViewProxy?
-    
+
     init(
         messages: Binding<[ChatMessage]>,
         streamingText: String,
@@ -23,13 +23,13 @@ struct MessageListV2: View {
         generationStart: Date? = nil,
         onRegenerate: ((ChatMessage) -> Void)? = nil
     ) {
-        self._messages = messages
+        _messages = messages
         self.streamingText = streamingText
         self.isStreaming = isStreaming
         self.generationStart = generationStart
         self.onRegenerate = onRegenerate
     }
-    
+
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
@@ -39,18 +39,19 @@ struct MessageListV2: View {
                             .id("empty")
                             .padding(.top, 100)
                     } else {
-                        ForEach(messages) { message in
+                        ForEach($messages) { $message in
+                            let snapshot = $message.wrappedValue
                             MessageBubbleV2(
-                                message: message,
-                                onRegenerate: message.role == .assistant ? { onRegenerate?(message) } : nil
+                                message: $message,
+                                onRegenerate: snapshot.role == .assistant ? { onRegenerate?(snapshot) } : nil
                             )
-                            .id(message.id)
+                            .id(snapshot.id)
                             .transition(.asymmetric(
                                 insertion: .opacity.combined(with: .move(edge: .bottom)),
                                 removal: .opacity
                             ))
                         }
-                        
+
                         // Streaming message with live metrics
                         if isStreaming && !streamingText.isEmpty {
                             StreamingBubbleV2(
@@ -60,7 +61,7 @@ struct MessageListV2: View {
                             .id("streaming")
                             .transition(.opacity)
                         }
-                        
+
                         // Bottom anchor
                         Color.clear.frame(height: 1).id("bottom")
                     }
@@ -82,7 +83,7 @@ struct MessageListV2: View {
             }
         }
     }
-    
+
     private func scrollToBottom(proxy: ScrollViewProxy, animated: Bool) {
         if animated {
             withAnimation(.easeOut(duration: 0.2)) {
@@ -102,17 +103,17 @@ private struct EmptyStateV2: View {
                 Circle()
                     .fill(DSColors.accent.opacity(0.1))
                     .frame(width: 80, height: 80)
-                
+
                 Image(systemName: "bubble.left.and.bubble.right")
                     .font(.system(size: 32, weight: .light))
                     .foregroundStyle(DSColors.accent.opacity(0.6))
             }
-            
+
             VStack(spacing: 8) {
                 Text("Start a conversation")
                     .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(DSColors.primaryText)
-                
+
                 Text("Ask questions about your documents\nor chat with AI")
                     .font(.system(size: 15))
                     .foregroundStyle(Color.secondary)
@@ -128,26 +129,26 @@ private struct EmptyStateV2: View {
 private struct StreamingBubbleV2: View {
     let text: String
     let generationStart: Date?
-    
+
     @State private var cursorVisible = true
     @State private var speedHistory: [Double] = []
     @State private var lastTokenCount: Int = 0
-    @State private var lastSpeedUpdate: Date = Date()
-    
+    @State private var lastSpeedUpdate: Date = .init()
+
     private var tokensApprox: Int {
         text.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
     }
-    
+
     private var elapsedTime: TimeInterval {
         guard let start = generationStart else { return 0 }
         return Date().timeIntervalSince(start)
     }
-    
+
     private var tokensPerSecond: Double {
         guard elapsedTime > 0.1 else { return 0 }
         return Double(tokensApprox) / elapsedTime
     }
-    
+
     var body: some View {
         HStack(alignment: .bottom, spacing: 0) {
             VStack(alignment: .leading, spacing: 8) {
@@ -158,14 +159,14 @@ private struct StreamingBubbleV2: View {
                         font: .system(size: 15),
                         foregroundColor: DSColors.primaryText
                     )
-                    
+
                     // Blinking cursor
                     Rectangle()
                         .fill(DSColors.accent)
                         .frame(width: 2, height: 16)
                         .opacity(cursorVisible ? 1 : 0)
                 }
-                
+
                 // Live streaming metrics bar
                 LiveStreamingMetrics(
                     tokensApprox: tokensApprox,
@@ -180,7 +181,7 @@ private struct StreamingBubbleV2: View {
             .background(Color(uiColor: .secondarySystemBackground))
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             .shadow(color: .black.opacity(0.04), radius: 2, x: 0, y: 1)
-            
+
             Spacer(minLength: 60)
         }
         .onAppear {
@@ -211,7 +212,7 @@ private struct StreamingBubbleV2: View {
 #Preview {
     let messages: [ChatMessage] = [
         ChatMessage(role: .user, content: "What's machine learning?"),
-        ChatMessage(role: .assistant, content: "Machine learning is a branch of artificial intelligence that enables computers to learn from data and improve their performance over time without being explicitly programmed.")
+        ChatMessage(role: .assistant, content: "Machine learning is a branch of artificial intelligence that enables computers to learn from data and improve their performance over time without being explicitly programmed."),
     ]
     return MessageListV2(
         messages: .constant(messages),
