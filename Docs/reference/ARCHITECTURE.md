@@ -1,7 +1,7 @@
 # OpenIntelligence Technical Architecture
 
-**Version**: 2.0  
-**Date**: October 2025  
+**Version**: 2.0
+**Date**: October 2025
 **Status**: Production-Ready
 
 ## Executive Summary
@@ -152,9 +152,9 @@ User Query Input
 
 **Purpose**: Store and retrieve document chunks by semantic similarity
 
-**Protocol**: Defines `store`, `search`, `clear` operations  
+**Protocol**: Defines `store`, `search`, `clear` operations
 
-**Implementation**: `InMemoryVectorDatabase` with linear scan  
+**Implementation**: `InMemoryVectorDatabase` with linear scan
 
 **Search**: k-NN using cosine similarity
 
@@ -175,10 +175,14 @@ User Query Input
 **Implementations**:
 
 1. **AppleFoundationLLMService** (iOS 26+)
-   - Uses `LanguageModelSession` for on-device inference
-   - Automatic Private Cloud Compute fallback
-   - Streaming response support
-   - Zero data retention
+   - Uses `LanguageModelSession` from FoundationModels framework
+   - Context window: **4,096 tokens** on-device (per [TN3193](https://developer.apple.com/documentation/technotes/tn3193-using-the-context-window-efficiently))
+   - Automatic Private Cloud Compute (PCC) fallback for complex queries
+   - Streaming via `streamResponse()` with TTFT tracking
+   - `prewarm(promptPrefix:)` for latency optimization
+   - Full `GenerationError` handling (context overflow, guardrails, rate limits)
+   - Zero data retention; encrypted PCC hops
+   - Agentic tools: `SearchDocumentsTool`, `ListDocumentsTool`, `GetDocumentSummaryTool`
 
 2. **OpenAILLMService**
    - Direct API integration (production-ready)

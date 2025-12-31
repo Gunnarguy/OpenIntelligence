@@ -24,6 +24,23 @@ struct VisualizationsView: View {
 
     init(onRequestAddDocuments: (() -> Void)? = nil) {
         self.onRequestAddDocuments = onRequestAddDocuments
+
+        #if DEBUG
+            if LaunchArguments.has("--screenshot") || LaunchArguments.has("screenshot") {
+                if let raw = LaunchArguments.valueEither(for: "screenshot-viz-tab")?.lowercased() {
+                    switch raw {
+                    case "overview":
+                        _selectedTab = State(initialValue: .overview)
+                    case "retrieval":
+                        _selectedTab = State(initialValue: .retrieval)
+                    case "clustering":
+                        _selectedTab = State(initialValue: .clustering)
+                    default:
+                        break
+                    }
+                }
+            }
+        #endif
     }
 
     enum DashboardTab: String, CaseIterable, Identifiable {

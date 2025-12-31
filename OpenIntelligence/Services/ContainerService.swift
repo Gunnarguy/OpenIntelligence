@@ -12,9 +12,9 @@ import Combine
 final class ContainerService: ObservableObject {
     @Published private(set) var containers: [KnowledgeContainer] = []
     @Published var activeContainerId: UUID
-    
+
     private let fm = FileManager.default
-    
+
     init() {
         // Load containers from disk, or create a default container
         let loaded = Self.loadContainers()
@@ -37,17 +37,17 @@ final class ContainerService: ObservableObject {
         // Persist active ID
         UserDefaults.standard.set(activeContainerId.uuidString, forKey: "activeContainerId")
     }
-    
+
     var activeContainer: KnowledgeContainer? {
         containers.first(where: { $0.id == activeContainerId })
     }
-    
+
     func setActive(_ id: UUID) {
         guard containers.contains(where: { $0.id == id }) else { return }
         activeContainerId = id
         UserDefaults.standard.set(id.uuidString, forKey: "activeContainerId")
     }
-    
+
     func createContainer(
         name: String,
         icon: String = "folder.fill",
@@ -72,13 +72,13 @@ final class ContainerService: ObservableObject {
         Self.saveContainers(containers)
         return container
     }
-    
+
     func updateContainer(_ updated: KnowledgeContainer) {
         guard let idx = containers.firstIndex(where: { $0.id == updated.id }) else { return }
         containers[idx] = updated
         Self.saveContainers(containers)
     }
-    
+
     func deleteContainer(id: UUID) {
         // Prevent deleting the last container; ensure at least one remains
         guard containers.count > 1 else { return }
@@ -88,13 +88,13 @@ final class ContainerService: ObservableObject {
             UserDefaults.standard.set(first.id.uuidString, forKey: "activeContainerId")
         }
         Self.saveContainers(containers)
-        
+
         // Optionally, clean up per-container files (documents + vectors)
         // Leave files in place for safety unless we add a confirmed destructive action elsewhere.
     }
-    
+
     // MARK: - Stats update helpers
-    
+
     func updateStats(
         for containerId: UUID,
         totalDocuments: Int? = nil,
@@ -111,9 +111,9 @@ final class ContainerService: ObservableObject {
         containers[idx] = c
         Self.saveContainers(containers)
     }
-    
+
     // MARK: - Persistence
-    
+
     private static func loadContainers() -> [KnowledgeContainer] {
         let url = AppSupportPaths.containersListURL()
         guard FileManager.default.fileExists(atPath: url.path) else { return [] }
@@ -126,7 +126,7 @@ final class ContainerService: ObservableObject {
             return []
         }
     }
-    
+
     private static func saveContainers(_ containers: [KnowledgeContainer]) {
         let url = AppSupportPaths.containersListURL()
         do {
@@ -138,7 +138,19 @@ final class ContainerService: ObservableObject {
             Log.error("[ContainerService] Failed to save containers: \(error.localizedDescription)", category: .initialization)
         }
     }
-    
+
+    // MARK: - Quick Accessors
+
+    /// Get document count for a specific container
+    func documentCount(for containerId: UUID) -> Int {
+        containers.first(where: { $0.id == containerId })?.totalDocuments ?? 0
+    }
+
+    /// Get chunk count for a specific container
+    func chunkCount(for containerId: UUID) -> Int {
+        containers.first(where: { $0.id == containerId })?.totalChunks ?? 0
+    }
+
     private static func defaultContainer() -> KnowledgeContainer {
         KnowledgeContainer(
             name: "General",

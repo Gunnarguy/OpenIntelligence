@@ -2,7 +2,8 @@
 //  ModelInfoCard.swift
 //  OpenIntelligence
 //
-//  Created by GitHub Copilot on 10/24/25.
+//  Summarises the capabilities and availability of the currently selected model.
+//  Simplified: only Apple Intelligence and On-Device Analysis are supported.
 //
 
 import SwiftUI
@@ -55,19 +56,11 @@ struct ModelInfoCard: View {
     private var icon: Image {
         switch modelType {
         case .appleIntelligence:
-            return capabilities.supportsFoundationModels ? Image(systemName: "brain.head.profile") : Image(systemName: "sparkles")
-        case .chatGPTExtension:
-            return Image(systemName: "bubble.left.and.bubble.right.fill")
+            return capabilities.supportsFoundationModels
+                ? Image(systemName: "brain.head.profile")
+                : Image(systemName: "sparkles")
         case .onDeviceAnalysis:
             return Image(systemName: "doc.text.magnifyingglass")
-        case .openAIDirect:
-            return Image(systemName: "key.fill")
-        case .mlxLocal:
-            return Image(systemName: "server.rack")
-        case .ggufLocal:
-            return Image(systemName: "doc.badge.gearshape")
-        case .coreMLLocal:
-            return Image(systemName: "cpu")
         }
     }
 
@@ -98,27 +91,7 @@ struct ModelInfoCard: View {
         switch modelType {
         case .appleIntelligence:
             return capabilities.supportsAppleIntelligence || capabilities.supportsFoundationModels
-        case .chatGPTExtension:
-            return capabilities.supportsAppleIntelligence
         case .onDeviceAnalysis:
-            return true
-        case .openAIDirect:
-            return true
-        case .mlxLocal:
-            #if os(macOS)
-                return true
-            #else
-                return false
-            #endif
-        case .ggufLocal:
-            #if os(iOS)
-            // Available when a GGUF model is selected from the registry
-            return (UserDefaults.standard.string(forKey: LlamaCPPiOSLLMService.selectedModelIdKey) ?? "").isEmpty == false
-            #else
-            return false
-            #endif
-        case .coreMLLocal:
-            // Core ML is available on Apple platforms; actual usability depends on configured model
             return true
         }
     }
@@ -132,28 +105,10 @@ struct ModelInfoCard: View {
             if capabilities.iOSMajor < 18 {
                 return "Requires iOS 18.1 or later"
             }
-            return capabilities.appleIntelligenceUnavailableReason ?? capabilities.foundationModelUnavailableReason ?? "Enable Apple Intelligence in Settings"
-        case .chatGPTExtension:
-            return capabilities.supportsAppleIntelligence ? nil : "Requires Apple Intelligence (iOS 18.1+, A17 Pro+ or M1+)"
+            return capabilities.appleIntelligenceUnavailableReason
+                ?? capabilities.foundationModelUnavailableReason
+                ?? "Enable Apple Intelligence in Settings"
         case .onDeviceAnalysis:
-            return nil
-        case .openAIDirect:
-            return nil
-        case .mlxLocal:
-            #if os(macOS)
-                return nil
-            #else
-                return "Available on macOS only"
-            #endif
-        case .ggufLocal:
-            #if os(iOS)
-            let configured = (UserDefaults.standard.string(forKey: LlamaCPPiOSLLMService.selectedModelIdKey) ?? "").isEmpty == false
-            return configured ? nil : "Download a model from Model Gallery to enable"
-            #else
-            return "Available on iOS only"
-            #endif
-        case .coreMLLocal:
-            // Could reflect model configuration status in future
             return nil
         }
     }
@@ -167,7 +122,7 @@ struct ModelInfoCard: View {
                     "On-device + Private Cloud Compute",
                     "~3B parameters, 8K context",
                     "Zero data retention",
-                    "Works offline for simple queries"
+                    "Works offline for simple queries",
                 ]
             }
             return [
@@ -175,15 +130,7 @@ struct ModelInfoCard: View {
                 "Automatic on-device/cloud routing",
                 "Zero data retention (PCC)",
                 "No API key needed",
-                "Private and secure"
-            ]
-        case .chatGPTExtension:
-            return [
-                "System-level ChatGPT integration",
-                "User consent per request",
-                "Free tier (no OpenAI account)",
-                "Routed through Apple's proxy",
-                "Zero data retention by Apple"
+                "Private and secure",
             ]
         case .onDeviceAnalysis:
             return [
@@ -191,37 +138,36 @@ struct ModelInfoCard: View {
                 "NaturalLanguage framework",
                 "No AI model required",
                 "Works on all devices",
-                "100% private, no network"
-            ]
-        case .openAIDirect:
-            return [
-                "Bring your own OpenAI API key",
-                "Access GPT-5, GPT-4o, and o1",
-                "Pay-as-you-go pricing",
-                "Full control over usage",
-                "Up to 400K context window"
-            ]
-        case .mlxLocal:
-            return [
-                "Connect to mlx_lm.server on your Mac",
-                "Low-latency Server-Sent Events streaming",
-                "Tool calling support for document search",
-                "No cloud hops — traffic stays on-device"
-            ]
-        case .ggufLocal:
-            return [
-                "Run quantized GGUF models entirely on-device",
-                "Embedded llama.cpp core optimized for Metal/ANE",
-                "Zero network usage or external dependencies",
-                "Great for Gemma/Qwen 2-4B class models"
-            ]
-        case .coreMLLocal:
-            return [
-                "Custom Core ML LLM (.mlpackage)",
-                "Accelerated by Neural Engine where available",
-                "100% offline inference",
-                "Bring your own converted model"
+                "100% private, no network",
             ]
         }
     }
+}
+
+#Preview {
+    VStack(spacing: 16) {
+        ModelInfoCard(
+            modelType: .appleIntelligence,
+            capabilities: DeviceCapabilities(
+                iOSMajor: 26,
+                supportsAppleIntelligence: true,
+                appleIntelligenceUnavailableReason: nil,
+                supportsFoundationModels: true,
+                foundationModelUnavailableReason: nil,
+                supportsCoreML: true
+            )
+        )
+        ModelInfoCard(
+            modelType: .onDeviceAnalysis,
+            capabilities: DeviceCapabilities(
+                iOSMajor: 17,
+                supportsAppleIntelligence: false,
+                appleIntelligenceUnavailableReason: "Device not supported",
+                supportsFoundationModels: false,
+                foundationModelUnavailableReason: nil,
+                supportsCoreML: true
+            )
+        )
+    }
+.padding()
 }

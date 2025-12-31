@@ -1,1976 +1,489 @@
+//
+//  SettingsView.swift
+//  OpenIntelligence
+//
+//  Simplified settings view. Only Apple Intelligence and On-Device Analysis are supported.
+//
+
 import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var ragService: RAGService
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var entitlementStore: EntitlementStore
-    @StateObject private var downloadService = ModelDownloadService.shared
-    @StateObject private var modelRegistry = ModelRegistry.shared
 
     @State private var deviceCapabilities = DeviceCapabilities()
     @State private var pipelineStages: [ModelPipelineStage] = []
-    @State private var apiKeyStatus: APIKeyValidationStatus = .unknown
-    @State private var isValidatingAPIKey = false
-    @State private var isApplyingModel = false
-    @State private var showAPIKey = false
-    @State private var showModelManager = false
     @State private var showModelSelector = false
-    @State private var showWhyUnavailable = false
     @State private var showPlanSheet = false
     @State private var planEntryPoint: PlanUpgradeEntryPoint = .settings
-    @State private var isRestoringPurchases = false
-    @State private var applyTask: Task<Void, Never>? = nil
-    @FocusState private var apiKeyFieldFocused: Bool
 
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 20) {
                 heroCard
                 billingCard
-
-                // Core Intelligence Settings
                 modelSelectionCard
                 executionCard
                 cloudConsentCard
                 fallbackCard
-
-                // Advanced Controls
                 generationCard
                 retrievalCard
-                pipelineCard
-
-                #if os(macOS)
-                    openAICard
-                #endif
-
-                // App Management
-                downloadsCard
                 developerCard
                 aboutCard
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 24)
+.padding()
         }
-        .background(
-            LinearGradient(
-                colors: [
-                    DSColors.background,
-                    DSColors.surface.opacity(0.4),
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
-        )
-        .navigationTitle("Settings")
-        #if os(iOS)
-            .navigationBarTitleDisplayMode(.large)
-        #endif
-            .task { await bootstrap() }
-            .onDisappear { applyTask?.cancel() }
-            .onChange(of: settings.selectedModel) {
-                normalizeFallbacks()
-                applyNow()
-            }
-            .onChange(of: settings.firstFallback, initial: false) {
-                normalizeFallbacks()
-                if settings.enableFirstFallback {
-                    applyNow()
-                }
-            }
-            .onChange(of: settings.secondFallback, initial: false) {
-                normalizeFallbacks()
-                if settings.enableSecondFallback {
-                    applyNow()
-                }
-            }
-            .onChange(of: settings.enableFirstFallback, initial: false) {
-                refreshPipeline()
-                applyNow()
-            }
-            .onChange(of: settings.enableSecondFallback, initial: false) {
-                refreshPipeline()
-                applyNow()
-            }
-            .onChange(of: settings.allowPrivateCloudCompute, initial: false) { refreshPipeline() }
-            .onChange(of: settings.localComputePreference, initial: false) { applyNow() }
-        #if os(macOS)
-            .onChange(of: settings.openaiAPIKey, initial: false) {
-                apiKeyStatus = .unknown
-                refreshPipeline()
-            }
-        #endif
-            .sheet(isPresented: $showModelManager) {
-                ModelManagerSheet(ragService: ragService)
-                    .environmentObject(entitlementStore)
-            }
-            .sheet(isPresented: $showModelSelector) {
-                ModelSelectorSheet(ragService: ragService)
-                    .environmentObject(entitlementStore)
-            }
-            .sheet(isPresented: $showPlanSheet) {
-                PlanUpgradeSheet(entryPoint: planEntryPoint)
-                    .environmentObject(entitlementStore)
-            }
-            .sheet(isPresented: $showWhyUnavailable) {
-                NavigationStack {
-                    ScrollView {
-                        Text(gatingHelpText(for: settings.selectedModel, status: selectedModelStatus))
-                            .font(.callout)
-                            .padding()
-                            .textSelection(.enabled)
-                    }
-                    .navigationTitle("Why Unavailable?")
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("Done") { showWhyUnavailable = false }
-                        }
-                    }
-                }
-                #if os(iOS)
-                .presentationDetents([.medium, .large])
-                #endif
-            }
-    }
+.background(DSColors.background.ignoresSafeArea())
+    .navigationTitle("Settings")
+.sheet(isPresented: $showModelSelector) {
+    ModelSelectorSheet(ragService: ragService)
+        }
+        .sheet(isPresented: $showPlanSheet) {
+            PlanUpgradeSheet(entryPoint: planEntryPoint)
+        }
+.onAppear {
+    deviceCapabilities = RAGService.checkDeviceCapabilities()
+    updatePipelineStages()
 }
+.onChange(of: settings.selectedModel) { _, _ in
+    updatePipelineStages()
+}
+    }
 
-private extension SettingsView {
+    // MARK: - Hero Card
+
     @ViewBuilder
-    var billingCard: some View {
-        SurfaceCard {
-            SectionHeader(
-                icon: "creditcard",
-                title: "Workspace Plan",
-                caption: "Manage entitlements and quotas"
-            )
+    private var heroCard: some View {
+        VStack(spacing: 12) {
+            Image(systemName: settings.selectedModel.iconName)
+                .font(.system(size: 48))
+                .foregroundColor(.accentColor)
+            Text(settings.selectedModel.displayName)
+                .font(.title2.bold())
+            Text(statusText)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+        }
+.frame(maxWidth: .infinity)
+.padding(.vertical, 24)
+    .background(DSColors.surface)
+    .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
 
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(entitlementStore.activeTier.displayName)
-                            .font(.headline)
-                        Text(quotaSummaryText)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    Spacer()
-                    Text("\(ragService.documents.count)/\(entitlementStore.documentLimit) docs")
-                        .font(.caption.weight(.semibold))
-                        .foregroundColor(.secondary)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(Color.accentColor.opacity(0.1))
-                        .clipShape(Capsule())
-                }
+    private var statusText: String {
+        switch settings.selectedModel {
+        case .appleIntelligence:
+            return deviceCapabilities.supportsFoundationModels
+                ? "Ready • On-device + PCC"
+                : "Preparing..."
+        case .onDeviceAnalysis:
+            return "Ready • Extractive QA"
+        }
+    }
 
-                ProgressView(value: documentUsageProgress)
-                    .tint(documentUsageProgress >= 1 ? .orange : .accentColor)
+    // MARK: - Billing Card
 
-                Text("Libraries: \(containerServiceSummary)")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-            }
-
+    @ViewBuilder
+    private var billingCard: some View {
+        VStack(alignment: .leading, spacing: 12) { 
+            // Header with tier badge
             HStack {
-                Button {
-                    presentPlanSheet(from: .settings)
-                } label: {
-                    Label("Manage Plan", systemImage: "arrow.up.forward.app")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-
-                Button {
-                    restorePurchases()
-                } label: {
-                    if isRestoringPurchases {
-                        ProgressView()
-                            .scaleEffect(0.8)
-                    } else {
-                        Label("Restore", systemImage: "arrow.clockwise")
-                    }
-                }
-                .buttonStyle(.bordered)
-                .disabled(isRestoringPurchases)
-
-                Button {
-                    openContactSupport()
-                } label: {
-                    Image(systemName: "envelope")
-                }
-                .buttonStyle(.bordered)
-            }
-            .controlSize(.small)
-
-            Text("Designed for solo researchers who need to chat with piles of documents—no enterprise contract required.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            SectionFooter("Use Manage Plan to review upgrades, add-ons, and quota boosts.")
-        }
-    }
-
-    @ViewBuilder
-    var heroCard: some View {
-        ZStack(alignment: .leading) {
-            LinearGradient(
-                colors: [
-                    Color.accentColor.opacity(0.9),
-                    Color.accentColor.opacity(0.6),
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Intelligence Pipeline")
-                    .font(.headline.weight(.semibold))
-                    .foregroundColor(.white.opacity(0.9))
-
-                Text(settings.selectedModel.displayName)
-                    .font(.title.bold())
-                    .foregroundColor(.white)
-
-                if !pipelineStages.isEmpty {
-                    Text(pipelineHeadline())
+                Image(systemName: "creditcard.fill")
+                    .font(.title2)
+                    .foregroundColor(.accentColor)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Subscription")
+                        .font(.headline)
+                    Text(subscriptionStatusText)
                         .font(.caption)
-                        .foregroundColor(.white.opacity(0.8))
+.foregroundColor(.secondary)
                 }
-
-                HStack(spacing: 16) {
-                    HeroStat(value: "\(ragService.documents.count)", label: "Documents")
-                    HeroStat(value: "\(ragService.totalChunksStored)", label: "Chunks")
-                    HeroStat(value: settings.executionContext.description, label: "Execution")
-                }
-
-                Button {
-                    applyNow()
-                } label: {
-                    HStack(spacing: 8) {
-                        if isApplyingModel {
-                            ProgressView()
-                                .scaleEffect(0.85)
-                            Text("Applying...")
-                        } else {
-                            Label("Apply Now", systemImage: "arrow.triangle.2.circlepath")
-                        }
-                    }
-                    .font(.callout.weight(.semibold))
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 9)
-                    .background(Color.white.opacity(0.16))
-                    .clipShape(Capsule())
-                }
-                .buttonStyle(.plain)
-                .foregroundColor(.white)
-                .disabled(isApplyingModel)
-            }
-            .padding(24)
-        }
-    }
-
-    @ViewBuilder
-    var executionCard: some View {
-        SurfaceCard {
-            SectionHeader(
-                icon: "cloud.fill", title: "Execution & Privacy",
-                caption: "Control where inference runs"
-            )
-            Toggle("Allow Private Cloud Compute", isOn: $settings.allowPrivateCloudCompute)
-            Toggle("Prefer Private Cloud", isOn: $settings.preferPrivateCloudCompute)
-                .disabled(!settings.allowPrivateCloudCompute)
-            Picker("Execution Strategy", selection: $settings.executionContext) {
-                ForEach(executionOptions, id: \.self) { option in
-                    Text(option.description).tag(option)
-                }
-            }
-            SectionFooter(executionSummaryText)
-        }
-    }
-
-    @ViewBuilder
-    var cloudConsentCard: some View {
-        SurfaceCard {
-            SectionHeader(
-                icon: "shield.lefthalf.fill",
-                title: "Cloud Consent",
-                caption: "Review approvals and recent transmissions"
-            )
-
-            ForEach(CloudProvider.allCases, id: \.self) { provider in
-                providerRow(for: provider)
-                if provider != CloudProvider.allCases.last {
-                    Divider()
-                }
+                Spacer()
+                tierBadge
             }
 
-            if let record = ragService.lastCloudTransmission {
-                Divider()
-                lastTransmissionView(record)
-            }
+            Divider()
 
-            SectionFooter("Prompt previews stay on-device; only hashed chunks and counts are logged.")
-        }
-    }
-
-    @ViewBuilder
-    private func providerRow(for provider: CloudProvider) -> some View {
-        let state = ragService.cloudConsent[provider] ?? .notDetermined
-        VStack(alignment: .leading, spacing: DSSpacing.sm) {
-            HStack(alignment: .center, spacing: DSSpacing.sm) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(provider.displayName)
-                        .font(.subheadline.weight(.semibold))
-                    Text(stateDescription(for: state))
+            // Always show a button to access subscription management
+            Button { 
+                planEntryPoint = .settings
+                showPlanSheet = true
+            } label: { 
+                HStack {
+                    Image(systemName: entitlementStore.activeTier == .free ? "arrow.up.circle" : "gearshape")
+                    Text(entitlementStore.activeTier == .free ? "Upgrade Plan" : "Manage Subscription")
+                    Spacer()
+                    Image(systemName: "chevron.right")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
-                Spacer(minLength: 8)
-                Text(state.displayName)
-                    .chipStyle(tint: stateTint(for: state))
+.font(.subheadline.weight(.medium))
+    .padding(.vertical, 10)
+    .padding(.horizontal, 14)
+    .background(entitlementStore.activeTier == .free ? Color.accentColor : Color.accentColor.opacity(0.1))
+    .foregroundColor(entitlementStore.activeTier == .free ? .white : .accentColor)
+    .clipShape(RoundedRectangle(cornerRadius: 10))
             }
+            .buttonStyle(.plain)
 
-            Menu {
-                Button("Always Allow", systemImage: "checkmark.shield") {
-                    Task { @MainActor in ragService.setCloudConsentState(.allowed, for: provider) }
-                }
-                Button("Ask Each Time", systemImage: "questionmark.circle") {
-                    Task { @MainActor in ragService.setCloudConsentState(.notDetermined, for: provider) }
-                }
-                Button("Never Allow", systemImage: "xmark.shield") {
-                    Task { @MainActor in ragService.setCloudConsentState(.denied, for: provider) }
-                }
-            } label: {
-                Label("Change Decision", systemImage: "slider.horizontal.3")
-                    .font(.caption.weight(.semibold))
+            // Show quota info
+            HStack(spacing: 16) {
+                quotaItem(
+                    icon: "doc.text",
+                    value: "\(entitlementStore.documentLimit)",
+                    label: "Documents"
+                )
+                quotaItem(
+                    icon: "folder",
+                    value: "\(entitlementStore.libraryLimit)",
+                    label: "Libraries"
+                )
             }
-            .menuOrder(.priority)
+        }
+.padding()
+    .background(DSColors.surface)
+    .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    private var subscriptionStatusText: String {
+        switch entitlementStore.activeTier {
+        case .free:
+            return "Free tier • Limited features"
+        case .starter:
+            return "Starter plan • Active"
+        case .pro:
+            return "Pro plan • Active"
+        case .lifetime:
+            return "Lifetime • Unlimited"
         }
     }
 
     @ViewBuilder
-    private func lastTransmissionView(_ record: CloudTransmissionRecord) -> some View {
-        VStack(alignment: .leading, spacing: DSSpacing.sm) {
-            Text("Last Transmission")
-                .font(.subheadline.weight(.semibold))
-            HStack(spacing: DSSpacing.md) {
-                Label(record.provider.shortName, systemImage: "shield.checkered")
-                Text(record.timestamp.formatted(.relative(presentation: .named)))
-                    .foregroundColor(.secondary)
-                    .font(.caption)
-            }
+    private var tierBadge: some View {
+        Text(entitlementStore.activeTier.displayName)
             .font(.caption.weight(.semibold))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(tierBadgeColor.opacity(0.15))
+            .foregroundColor(tierBadgeColor)
+            .clipShape(Capsule())
+    }
 
-            Text(record.promptPreview)
-                .font(.system(.footnote, design: .monospaced))
-                .foregroundColor(DSColors.secondaryText)
-                .lineLimit(4)
-
-            HStack(spacing: DSSpacing.md) {
-                metricChip(label: "Prompt chars", value: "\(record.promptCharacterCount)")
-                metricChip(label: "Chunks", value: "\(record.contextChunkCount)")
-                metricChip(label: "Size", value: formattedKilobytes(record.estimatedBytes))
-            }
+    private var tierBadgeColor: Color {
+        switch entitlementStore.activeTier {
+        case .free: return .gray
+        case .starter: return .blue
+        case .pro: return .purple
+        case .lifetime: return .orange
         }
     }
 
-    private func stateDescription(for state: CloudConsentState) -> String {
-        switch state {
-        case .allowed:
-            return "Approved without asking."
-        case .denied:
-            return "Blocked until you change this setting."
-        case .notDetermined:
-            return "Ask before sending each request."
-        }
-    }
-
-    private func stateTint(for state: CloudConsentState) -> Color {
-        switch state {
-        case .allowed:
-            return DSColors.success
-        case .denied:
-            return DSColors.danger
-        case .notDetermined:
-            return DSColors.warning
-        }
-    }
-
-    private func metricChip(label: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(label.uppercased())
-                .font(.caption2.weight(.semibold))
+    @ViewBuilder
+    private func quotaItem(icon: String, value: String, label: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.caption)
                 .foregroundColor(.secondary)
             Text(value)
-                .font(.caption.weight(.semibold))
+.font(.subheadline.weight(.semibold))
+Text(label)
+    .font(.caption)
+    .foregroundColor(.secondary)
         }
-        .padding(.horizontal, DSSpacing.sm)
-        .padding(.vertical, 6)
-        .background(DSColors.surfaceElevated)
-        .cornerRadius(DSCorners.chip)
     }
 
-    private func formattedKilobytes(_ bytes: Int) -> String {
-        let kb = Double(bytes) / 1024.0
-        if kb < 1 { return "<1 KB" }
-        return String(format: "%.1f KB", kb)
-    }
+    // MARK: - Model Selection Card
 
     @ViewBuilder
-    var modelSelectionCard: some View {
-        SurfaceCard {
-            SectionHeader(
-                icon: "brain.head.profile", title: "Model Selection",
-                caption: "Primary intelligence pathway"
-            )
+    private var modelSelectionCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "brain.head.profile")
+                    .foregroundColor(.accentColor)
+                Text("AI Model")
+                    .font(.headline)
+                Spacer()
+            }
 
-            // Current model display - tappable card
             Button {
                 showModelSelector = true
             } label: {
-                HStack(spacing: 14) {
-                    // Model icon
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.accentColor.opacity(0.15))
-                            .frame(width: 52, height: 52)
-                        Image(systemName: settings.selectedModel.iconName)
-                            .font(.title2)
-                            .foregroundColor(.accentColor)
-                    }
-
-                    // Model info
-                    VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Image(systemName: settings.selectedModel.iconName)
+                        .font(.title2)
+                        .foregroundColor(.accentColor)
+.frame(width: 40)
+VStack(alignment: .leading, spacing: 2) { 
                         Text(settings.selectedModel.displayName)
-                            .font(.headline)
-                            .foregroundColor(.primary)
-                        Text("Tap to change model")
+.font(.body)
+Text(settings.selectedModel.description)
                             .font(.caption)
                             .foregroundColor(.secondary)
+.lineLimit(1)
                     }
-
                     Spacer()
-
                     Image(systemName: "chevron.right")
-                        .font(.caption.weight(.semibold))
                         .foregroundColor(.secondary)
                 }
-                .padding(14)
-                .background(DSColors.surface.opacity(0.6))
-                .clipShape(RoundedRectangle(cornerRadius: 14))
+.padding(12)
+    .background(Color.accentColor.opacity(0.1))
+    .clipShape(RoundedRectangle(cornerRadius: 12))
             }
-            .buttonStyle(.plain)
-
-            if let primaryStage = pipelineStages.first {
-                PipelineStageRow(stage: primaryStage)
-            }
-            SectionFooter(modelSummary(for: settings.selectedModel))
-
-            if shouldShowWhyUnavailable {
-                Button {
-                    showWhyUnavailable = true
-                } label: {
-                    Label("Why Unavailable?", systemImage: "questionmark.circle")
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-            }
-
-            localModelInlineManager
+.buttonStyle(.plain)
         }
+.padding()
+    .background(DSColors.surface)
+    .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
-    @ViewBuilder
-    var localModelInlineManager: some View {
-        Divider()
-            .padding(.vertical, 6)
+    // MARK: - Execution Card
 
+    @ViewBuilder
+    private var executionCard: some View { 
+        VStack(alignment: .leading, spacing: 12) { 
+            HStack { 
+                Image(systemName: "gearshape.2")
+                    .foregroundColor(.accentColor)
+                Text("Execution")
+                    .font(.headline)
+                Spacer()
+            }
+
+            Picker("Run on", selection: Binding(
+                get: { settings.executionContext },
+                set: { settings.executionContext = $0 }
+            )) {
+                Text("Auto").tag(ExecutionContext.automatic)
+                Text("On-Device").tag(ExecutionContext.onDeviceOnly)
+                Text("Prefer Cloud").tag(ExecutionContext.preferCloud)
+                Text("Cloud Only").tag(ExecutionContext.cloudOnly)
+            }
+.pickerStyle(.segmented)
+        }
+.padding()
+    .background(DSColors.surface)
+    .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    // MARK: - Cloud Consent Card
+
+    @ViewBuilder
+    private var cloudConsentCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            localModelsHeader
-            localModelsList
-            localModelActionButtons
-        }
-        .padding(.top, 8)
-    }
-
-    @ViewBuilder
-    private var localModelsHeader: some View {
-        HStack {
-            Label("Local Models", systemImage: "externaldrive")
-                .font(.subheadline.weight(.semibold))
-            Spacer()
-            computePreferenceMenu
-        }
-        HStack(spacing: 8) {
-            if downloadService.isLoadingCatalog {
-                ProgressView()
-                    .scaleEffect(0.7)
-            } else {
-                Text(localModelsSummaryText)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+            HStack { 
+                Image(systemName: "lock.shield")
+                    .foregroundColor(.accentColor)
+                Text("Privacy")
+                    .font(.headline)
+                Spacer()
             }
-            Text(computePreferenceSummary)
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
 
-        let accessState = entitlementStore.localModelAccessState()
-        if case .blocked = accessState {
-            Button {
-                presentPlanSheet(from: .localModelGated)
-            } label: {
-                Text(localModelStatusText)
-                    .font(.caption)
-                    .foregroundColor(.orange)
-            }
-            .buttonStyle(.plain)
-        } else {
-            Text(localModelStatusText)
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
-    }
+            Toggle("Allow Private Cloud Compute", isOn: $settings.allowPrivateCloudCompute)
 
-    @ViewBuilder
-    private var localModelsList: some View {
-        if installedLocalModels.isEmpty {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("No local models yet")
-                    .font(.caption.weight(.medium))
-                Text("Browse the gallery or import your own pack to enable fully offline chat.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.accentColor.opacity(0.06))
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        } else {
-            VStack(alignment: .leading, spacing: 8) {
-                ForEach(installedLocalModels) { model in
-                    Button {
-                        activateLocalModel(model)
-                    } label: {
-                        LocalModelRow(
-                            model: model,
-                            formatBytes: formatBytes,
-                            isActive: isActiveInstalledModel(model),
-                            canActivate: canActivateInstalledModel(model),
-                            activePreference: isActiveInstalledModel(model)
-                                ? settings.localComputePreference : nil
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(!canActivateInstalledModel(model))
-                }
-
-                Text("Tap a model to make it your local primary. Manage installs for more options.")
+            if settings.allowPrivateCloudCompute {
+                Text("Apple's PCC provides cryptographic privacy guarantees. Your data is never retained.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
         }
+.padding()
+    .background(DSColors.surface)
+    .clipShape(RoundedRectangle(cornerRadius: 16))
     }
+
+    // MARK: - Fallback Card
 
     @ViewBuilder
-    private var localModelActionButtons: some View {
-        HStack {
-            Button {
-                showModelManager = true
-            } label: {
-                Label("Manage Models", systemImage: "slider.horizontal.3")
-                    .font(.callout.weight(.semibold))
+    private var fallbackCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .foregroundColor(.accentColor)
+                Text("Fallbacks")
+                    .font(.headline)
+                Spacer()
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.small)
 
-            Spacer(minLength: 12)
+            Toggle("Enable Fallback", isOn: $settings.enableFirstFallback)
 
-            Menu {
-                Button {
-                    showModelManager = true
-                } label: {
-                    Label("Browse Catalog", systemImage: "tray.and.arrow.down")
-                }
-                Button {
-                    showModelManager = true
-                } label: {
-                    Label("Import Local Package", systemImage: "square.and.arrow.down")
-                }
-            } label: {
-                Label("More Actions", systemImage: "ellipsis.circle")
-                    .font(.callout)
-            }
-            .menuStyle(.borderlessButton)
-            .controlSize(.small)
-        }
-    }
-
-    private var installedLocalModels: [InstalledModel] {
-        modelRegistry.installed.sorted {
-            $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
-        }
-    }
-
-    private var activeLocalModel: InstalledModel? {
-        switch settings.selectedModel {
-        case .ggufLocal:
-            guard let id = selectedGGUFModelId else { return nil }
-            return installedLocalModels.first { $0.id == id }
-        case .coreMLLocal:
-            guard let id = selectedCoreMLModelId else { return nil }
-            return installedLocalModels.first { $0.id == id }
-        default:
-            return nil
-        }
-    }
-
-    private var localModelsSummaryText: String {
-        let count = installedLocalModels.count
-        return count == 0 ? "None installed" : "\(count) installed"
-    }
-
-    private var localModelStatusText: String {
-        let base: String
-        if let active = activeLocalModel {
-            base = "Currently using \(active.name) for offline inference."
-        } else if installedLocalModels.isEmpty {
-            base = "Install a GGUF or Core ML pack to unlock on-device responses."
-        } else {
-            base = "Tap a local model below to activate it for offline chat."
-        }
-
-        let accessSuffix: String
-        switch entitlementStore.localModelAccessState() {
-        case .unlocked:
-            accessSuffix = "Unlocked with the \(entitlementStore.activeTier.displayName) plan."
-        case let .preview(remaining):
-            let total = max(entitlementStore.localModelPreviewTotal, max(remaining, 3))
-            let plural = remaining == 1 ? "run" : "runs"
-            accessSuffix = "⚡ Preview mode: \(remaining)/\(total) \(plural) left. Upgrade for unlimited access."
-        case .blocked:
-            accessSuffix = "🔒 Preview exhausted. Tap to upgrade for unlimited private inference."
-        }
-
-        return base + " " + accessSuffix
-    }
-
-    private var computePreferenceSummary: String {
-        "Compute: \(settings.localComputePreference.title)"
-    }
-
-    private func activateLocalModel(_ model: InstalledModel) {
-        guard canActivateInstalledModel(model) else {
-            presentPlanSheet(from: .localModelGated)
-            entitlementStore.markPreviewGateTriggered(for: model.backend)
-            return
-        }
-        Task {
-            await ModelActivationService.activate(
-                model, ragService: ragService, settings: settings
-            )
-            await MainActor.run { refreshPipeline() }
-        }
-    }
-
-    @ViewBuilder
-    private var computePreferenceMenu: some View {
-        Menu {
-            ForEach(LocalComputePreference.allCases) { preference in
-                Button {
-                    settings.localComputePreference = preference
-                } label: {
-                    Label(preference.title, systemImage: preference.iconName)
-                    if preference == settings.localComputePreference {
-                        Image(systemName: "checkmark")
-                    }
-                }
-            }
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: settings.localComputePreference.iconName)
-                Text(settings.localComputePreference.badgeText)
-                    .font(.caption.weight(.semibold))
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(Color.accentColor.opacity(0.12))
-            .clipShape(Capsule())
-        }
-        .menuStyle(.borderlessButton)
-        .controlSize(.small)
-    }
-
-    @ViewBuilder
-    var fallbackCard: some View {
-        SurfaceCard {
-            SectionHeader(
-                icon: "arrow.triangle.2.circlepath", title: "Fallback Strategy",
-                caption: "Stay responsive when networks fluctuate"
-            )
-            Toggle("Enable First Fallback", isOn: $settings.enableFirstFallback)
             if settings.enableFirstFallback {
-                Picker("First Fallback", selection: $settings.firstFallback) {
-                    ForEach(firstFallbackOptions, id: \.self) { model in
-                        Label(model.displayName, systemImage: model.iconName)
-                            .tag(model)
+                Picker("Fallback Model", selection: $settings.firstFallback) {
+                    ForEach(settings.fallbackOptions(excluding: [settings.selectedModel]), id: \.self) { m in
+                        Text(m.displayName).tag(m)
                     }
                 }
+.pickerStyle(.menu)
             }
-            Toggle("Enable Second Fallback", isOn: $settings.enableSecondFallback)
-            if settings.enableSecondFallback {
-                Picker("Second Fallback", selection: $settings.secondFallback) {
-                    ForEach(secondFallbackOptions, id: \.self) { model in
-                        Label(model.displayName, systemImage: model.iconName)
-                            .tag(model)
-                    }
-                }
-            }
-            SectionFooter(
-                "Fallback models engage automatically if the primary pathway is unavailable.")
         }
+.padding()
+    .background(DSColors.surface)
+    .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
-    @ViewBuilder
-    var pipelineCard: some View {
-        SurfaceCard {
-            SectionHeader(
-                icon: "bolt.horizontal", title: "Execution Pipeline",
-                caption: "Current model order and status"
-            )
-            ForEach(pipelineStages) { stage in
-                PipelineStageRow(stage: stage)
-                if stage.id != pipelineStages.last?.id {
-                    Divider()
-                }
-            }
-            if pipelineStages.isEmpty {
-                Text("No models configured")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .padding(.vertical, 8)
-            }
-            Button {
-                refreshPipeline()
-            } label: {
-                Label("Refresh Status", systemImage: "arrow.clockwise")
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-            SectionFooter(
-                "Models are tried in order. If the primary fails, fallbacks engage automatically.")
-        }
-    }
-
-    #if os(macOS)
-        @ViewBuilder
-        var openAICard: some View {
-            SurfaceCard {
-                SectionHeader(
-                    icon: "key.fill", title: "OpenAI Direct", caption: "Use your own API key"
-                )
-                apiKeyEntry
-                Picker("Model", selection: $settings.openaiModel) {
-                    ForEach(openAIModelOptions, id: \.id) { option in
-                        Text(option.name).tag(option.id)
-                    }
-                }
-                Divider()
-                Toggle("Send reasoning settings", isOn: $settings.responsesIncludeReasoning)
-                Toggle("Send verbosity hint", isOn: $settings.responsesIncludeVerbosity)
-                Toggle("Link previous CoT", isOn: $settings.responsesIncludeCoT)
-                Toggle("Enforce max tokens", isOn: $settings.responsesIncludeMaxTokens)
-                    .padding(.bottom, 4)
-                apiKeyStatusView
-                HStack {
-                    Button(role: .destructive) {
-                        settings.openaiAPIKey = ""
-                        apiKeyStatus = .unknown
-                    } label: {
-                        Label("Clear Key", systemImage: "xmark.circle")
-                    }
-                    .disabled(settings.openaiAPIKey.isEmpty)
-
-                    Spacer()
-
-                    Button {
-                        Task { await validateAPIKey() }
-                    } label: {
-                        if isValidatingAPIKey {
-                            ProgressView()
-                        } else {
-                            Label("Validate Key", systemImage: "checkmark.shield")
-                        }
-                    }
-                    .disabled(trimmedAPIKey.isEmpty || isValidatingAPIKey)
-                }
-                .font(.callout)
-                SectionFooter(openAIContextFooter)
-            }
-        }
-    #endif
+    // MARK: - Generation Card
 
     @ViewBuilder
-    var generationCard: some View {
-        SurfaceCard {
-            SectionHeader(icon: "slider.horizontal.3", title: "Generation Parameters")
-            VStack(alignment: .leading, spacing: 12) {
+    private var generationCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack { 
+                Image(systemName: "slider.horizontal.3")
+                    .foregroundColor(.accentColor)
+                Text("Generation")
+                    .font(.headline)
+                Spacer()
+            }
+
+            VStack(alignment: .leading, spacing: 8) { 
                 HStack {
                     Text("Temperature")
                     Spacer()
                     Text(String(format: "%.2f", settings.temperature))
-                        .font(.system(.body, design: .monospaced))
                         .foregroundColor(.secondary)
                 }
-                Slider(value: $settings.temperature, in: 0 ... 1, step: 0.05)
+                Slider(value: $settings.temperature, in: 0 ... 2, step: 0.05)
+            }
+
+            VStack(alignment: .leading, spacing: 8) { 
                 HStack {
                     Text("Max Tokens")
                     Spacer()
                     Text("\(settings.maxTokens)")
-                        .font(.system(.body, design: .monospaced))
                         .foregroundColor(.secondary)
                 }
-                Slider(
-                    value: Binding(
-                        get: { Double(settings.maxTokens) },
-                        set: { settings.maxTokens = Int($0) }
-                    ),
-                    in: 100 ... 16000,
-                    step: 100
-                )
+                Slider(value: Binding(
+                    get: { Double(settings.maxTokens) },
+                    set: { settings.maxTokens = Int($0) }
+                ), in: 100 ... 4000, step: 100)
             }
-            SectionFooter(
-                "Lower temperature keeps answers grounded. Increase max tokens for longer responses."
-            )
         }
+.padding()
+    .background(DSColors.surface)
+    .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
+    // MARK: - Retrieval Card
+
     @ViewBuilder
-    var retrievalCard: some View {
-        SurfaceCard {
-            SectionHeader(icon: "magnifyingglass", title: "Retrieval Settings")
+    private var retrievalCard: some View {
+        VStack(alignment: .leading, spacing: 12) { 
             HStack {
-                Text("Top-K Chunks")
+                Image(systemName: "magnifyingglass")
+                    .foregroundColor(.accentColor)
+                Text("Retrieval")
+                    .font(.headline)
                 Spacer()
-                Text("\(settings.topK)")
-                    .font(.system(.body, design: .monospaced))
-                    .foregroundColor(.secondary)
             }
-            Slider(
-                value: Binding(
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Top K")
+                    Spacer()
+                    Text("\(settings.topK)")
+                        .foregroundColor(.secondary)
+                }
+                Slider(value: Binding(
                     get: { Double(settings.topK) },
                     set: { settings.topK = Int($0) }
-                ),
-                in: 1 ... 30,
-                step: 1
-            )
-            Toggle("Lenient Retrieval Mode", isOn: $settings.lenientRetrievalMode)
-            SectionFooter(
-                "Higher K values surface more context but may include noise. Lenient mode relaxes similarity thresholds."
-            )
+                ), in: 1 ... 20, step: 1)
+            }
+
         }
+.padding()
+    .background(DSColors.surface)
+    .clipShape(RoundedRectangle(cornerRadius: 16))
     }
+
+    // MARK: - Developer Card
 
     @ViewBuilder
-    var downloadsCard: some View {
-        SurfaceCard {
-            SectionHeader(
-                icon: "tray.and.arrow.down", title: "Model Downloads",
-                caption: "Manage local models"
-            )
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Label("Catalog", systemImage: "list.bullet.rectangle")
-                    Spacer()
-                    if downloadService.isLoadingCatalog {
-                        ProgressView()
-                    } else {
-                        Text("\(downloadService.catalog.count)")
-                            .foregroundColor(.secondary)
-                    }
-                }
-                HStack {
-                    Label("Installed Models", systemImage: "externaldrive")
-                    Spacer()
-                    Text("\(modelRegistry.installed.count)")
-                        .foregroundColor(.secondary)
-                }
-            }
-            Divider()
-            NavigationLink {
-                ModelManagerView(ragService: ragService)
-            } label: {
-                Label("Open Model Manager", systemImage: "brain.head.profile")
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.regular)
-        }
-    }
-
-    @ViewBuilder
-    var developerCard: some View {
-        SurfaceCard {
-            SectionHeader(icon: "wrench.and.screwdriver", title: "Developer & Diagnostics")
-            NavigationLink {
-                DeveloperDiagnosticsHubView(ragService: ragService)
-            } label: {
-                Label("Diagnostics Hub", systemImage: "waveform.path.ecg")
-            }
-            NavigationLink {
-                DeveloperSettingsView()
-            } label: {
-                Label("Developer Settings", systemImage: "hammer.fill")
-            }
-
-            #if DEBUG
-                Toggle(isOn: $settings.reviewerModeEnabled) {
-                    Label("Reviewer Mode", systemImage: "checklist")
-                }
-                .tint(.purple)
-
-                if settings.reviewerModeEnabled {
-                    Text("Reviewer mode enables direct OpenAI API access for App Review testing. Disable for production use.")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .padding(.top, 4)
-                }
-            #endif
-        }
-    }
-
-    @ViewBuilder
-    var aboutCard: some View {
-        SurfaceCard {
-            SectionHeader(icon: "info.circle", title: "About")
-            NavigationLink {
-                AboutView()
-            } label: {
-                Label("About OpenIntelligence", systemImage: "sparkles")
-            }
-        }
-    }
-
-    #if os(macOS)
-        @ViewBuilder
-        var apiKeyEntry: some View {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("API Key")
-                        .font(.subheadline.weight(.medium))
-                    Spacer()
-                    Button(showAPIKey ? "Hide" : "Show") {
-                        showAPIKey.toggle()
-                    }
-                    .font(.caption)
-                }
-                HStack(spacing: 8) {
-                    Group {
-                        if showAPIKey {
-                            TextField("sk-...", text: $settings.openaiAPIKey)
-                        } else {
-                            SecureField("sk-...", text: $settings.openaiAPIKey)
-                        }
-                    }
-                    .focused($apiKeyFieldFocused)
-                    .textFieldStyle(.roundedBorder)
-                    .autocorrectionDisabled()
-                    #if canImport(UIKit)
-                        .textInputAutocapitalization(.never)
-                    #endif
-
-                    if !settings.openaiAPIKey.isEmpty {
-                        Button {
-                            settings.openaiAPIKey = ""
-                            apiKeyStatus = .unknown
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundColor(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-        }
-
-        @ViewBuilder
-        var apiKeyStatusView: some View {
-            switch apiKeyStatus {
-            case .unknown:
-                EmptyView()
-            case .validating:
-                HStack(spacing: 8) {
-                    ProgressView()
-                        .scaleEffect(0.8)
-                    Text("Validating...")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Spacer()
-                }
-                .padding(.top, 4)
-            case .valid, .invalid:
-                HStack(spacing: 8) {
-                    Image(systemName: apiKeyStatus.icon)
-                        .foregroundColor(apiKeyStatus.color)
-                    Text(apiKeyStatus.message)
-                        .font(.caption)
-                        .foregroundColor(apiKeyStatus.color)
-                    Spacer()
-                }
-                .padding(.top, 4)
-            }
-        }
-    #endif
-
-    var executionOptions: [ExecutionContext] {
-        [.automatic, .onDeviceOnly, .preferCloud, .cloudOnly]
-    }
-
-    #if os(macOS)
-        var openAIModelOptions: [(id: String, name: String)] {
-            [
-                ("gpt-5", "GPT-5 (Reasoning)"),
-                ("gpt-5-mini", "GPT-5 Mini"),
-                ("o1", "o1 (Reasoning)"),
-                ("o1-mini", "o1 Mini"),
-                ("gpt-4o", "GPT-4o"),
-                ("gpt-4o-mini", "GPT-4o Mini"),
-                ("gpt-4-turbo-preview", "GPT-4 Turbo"),
-                ("gpt-4.1-mini", "GPT-4.1 Mini"),
-            ]
-        }
-    #endif
-
-    var executionSummaryText: String {
-        var base: String
-        switch settings.executionContext {
-        case .automatic:
-            base =
-                "Automatic uses on-device compute first and seamlessly requests Private Cloud Compute when needed."
-        case .onDeviceOnly:
-            base =
-                "On-device only keeps every token local. Complex requests may return concise answers."
-        case .preferCloud:
-            base =
-                "Prefer cloud leans on Private Cloud Compute for richer responses, falling back on-device when offline."
-        case .cloudOnly:
-            base =
-                "Cloud only routes all prompts through Private Cloud Compute. Requires connectivity."
-        }
-        if !settings.allowPrivateCloudCompute && settings.executionContext != .onDeviceOnly {
-            base += " Enable Private Cloud Compute to unlock richer responses."
-        }
-        return base
-    }
-
-    #if os(macOS)
-        var openAIContextFooter: String {
-            if trimmedAPIKey.isEmpty {
-                return
-                    "Add an API key to enable OpenAI Direct. Keys stay on device and are stored securely."
-            }
-            return
-                "OpenAI Direct bypasses Apple Intelligence. Usage is billed by OpenAI under your account."
-        }
-    #endif
-
-    func pipelineHeadline() -> String {
-        pipelineStages
-            .map { "[\($0.role.shortCode)] \($0.name)" }
-            .joined(separator: "  ->  ")
-    }
-
-    func formatBytes(_ bytes: Int64?) -> String {
-        guard let bytes = bytes else { return "—" }
-        if bytes < 1024 { return "\(bytes) B" }
-        let kb = Double(bytes) / 1024.0
-        if kb < 1024.0 { return String(format: "%.1f KB", kb) }
-        let mb = kb / 1024.0
-        if mb < 1024.0 { return String(format: "%.2f MB", mb) }
-        let gb = mb / 1024.0
-        return String(format: "%.2f GB", gb)
-    }
-
-    func canActivateInstalledModel(_ model: InstalledModel) -> Bool {
-        guard let url = model.localURL else { return false }
-        guard FileManager.default.fileExists(atPath: url.path) else { return false }
-        return entitlementStore.canUseLocalModels
-    }
-
-    func isActiveInstalledModel(_ model: InstalledModel) -> Bool {
-        switch model.backend {
-        case .gguf:
-            return settings.selectedModel == .ggufLocal && selectedGGUFModelId == model.id
-        case .coreML:
-            return settings.selectedModel == .coreMLLocal && selectedCoreMLModelId == model.id
-        default:
-            return false
-        }
-    }
-
-    var selectedGGUFModelId: UUID? {
-        guard
-            let idString = UserDefaults.standard.string(
-                forKey: LlamaCPPiOSLLMService.selectedModelIdKey)
-        else { return nil }
-        return UUID(uuidString: idString)
-    }
-
-    var selectedCoreMLModelId: UUID? {
-        guard
-            let idString = UserDefaults.standard.string(forKey: CoreMLLLMService.selectedModelIdKey)
-        else { return nil }
-        return UUID(uuidString: idString)
-    }
-
-    func modelSummary(for type: LLMModelType) -> String {
-        switch type {
-        case .appleIntelligence:
-            return
-                "Apple Foundation Models with instant Private Cloud Compute fallback when queries demand it."
-        case .chatGPTExtension:
-            return
-                "Uses Apple's ChatGPT integration (iOS 18.1+). User consent is requested by the system."
-        case .onDeviceAnalysis:
-            return
-                "Extracts answers from your documents using NaturalLanguage on-device with zero AI downloads."
-        case .openAIDirect:
-            return "Calls OpenAI directly using your API key. Ideal for GPT-4o/GPT-5 experiments."
-        case .ggufLocal:
-            return "Runs an embedded GGUF model in-process on iOS for fully offline inference."
-        case .coreMLLocal:
-            return "Loads a custom Core ML model package for private on-device inference."
-        case .mlxLocal:
-            return "Connects to a local MLX tensor server on your Mac for high-throughput private inference."
-        }
-    }
-
-    func bootstrap() async {
-        await MainActor.run {
-            deviceCapabilities = RAGService.checkDeviceCapabilities()
-        }
-        await MainActor.run { refreshPipeline() }
-        if downloadService.catalog.isEmpty, !downloadService.isLoadingCatalog {
-            await downloadService.loadCatalog(from: nil)
-        }
-        if modelRegistry.installed.isEmpty {
-            await modelRegistry.load()
-        }
-    }
-
-    @MainActor
-    func refreshPipeline() {
-        pipelineStages = buildPipelineStages()
-    }
-
-    @MainActor
-    func normalizeFallbacks() {
-        if settings.firstFallback == settings.selectedModel {
-            if let replacement = firstFallbackOptions.first(where: { $0 != settings.selectedModel }) {
-                settings.firstFallback = replacement
-            }
-        }
-        if settings.secondFallback == settings.selectedModel
-            || settings.secondFallback == settings.firstFallback
-        {
-            if let replacement = secondFallbackOptions.first(where: {
-                $0 != settings.selectedModel && $0 != settings.firstFallback
-            }) {
-                settings.secondFallback = replacement
-            }
-        }
-        refreshPipeline()
-    }
-
-    func buildPipelineStages() -> [ModelPipelineStage] {
-        let preferences = preferredModelOrder()
-        let currentActive = ragService.currentModelName
-
-        return preferences.enumerated().map { index, entry in
-            let role: ModelPipelineStage.Role =
-                index == 0 ? .primary : (entry.enabled ? .fallback : .optional)
-            let stage = self.stage(for: entry.type, role: role, enabled: entry.enabled)
-
-            // Mark as active if this is the currently running model
-            if stage.name.contains(currentActive) || currentActive.contains(entry.type.displayName) {
-                return ModelPipelineStage(
-                    name: stage.name,
-                    role: stage.role,
-                    detail: stage.detail,
-                    status: .active,
-                    icon: stage.icon
-                )
-            }
-
-            return stage
-        }
-    }
-
-    func stage(for type: LLMModelType, role: ModelPipelineStage.Role, enabled: Bool)
-        -> ModelPipelineStage
-    {
-        ModelPipelineStage(
-            name: type.displayName,
-            role: role,
-            detail: stageDetail(for: type),
-            status: stageStatus(for: type, enabled: enabled),
-            icon: type.iconName
-        )
-    }
-
-    func stageStatus(for type: LLMModelType, enabled: Bool) -> ModelPipelineStage.Status {
-        guard enabled else { return .disabled }
-        switch type {
-        case .appleIntelligence:
-            if deviceCapabilities.supportsFoundationModels {
-                return .available
-            }
-            if deviceCapabilities.supportsAppleIntelligence {
-                return settings.allowPrivateCloudCompute
-                    ? .requiresConfiguration(message: "Foundation Models are still downloading.")
-                    : .requiresConfiguration(
-                        message: "Enable Private Cloud Compute to unlock the full model.")
-            }
-            return .unavailable(reason: deviceCapabilities.appleIntelligenceStatus)
-        case .chatGPTExtension:
-            #if os(iOS)
-                if #available(iOS 18.1, *) {
-                    return deviceCapabilities.supportsAppleIntelligence
-                        ? .available : .unavailable(reason: "Requires Apple Intelligence hardware")
-                } else {
-                    return .unavailable(reason: "Requires iOS 18.1+")
-                }
-            #else
-                return .unavailable(reason: "Available on iOS only")
-            #endif
-        case .openAIDirect:
-            #if os(macOS)
-                guard settings.reviewerModeEnabled else {
-                    return .unavailable(reason: "Reviewer utilities disabled in production builds")
-                }
-                guard !trimmedAPIKey.isEmpty else {
-                    return .requiresConfiguration(message: "Add your API key to enable this pathway.")
-                }
-                return .available
-            #else
-                return .unavailable(reason: "Hidden outside reviewer mode")
-            #endif
-        case .onDeviceAnalysis:
-            return .available
-        case .ggufLocal:
-            #if os(iOS)
-                guard LlamaCPPiOSLLMService.runtimeAvailable else {
-                    return .unavailable(reason: "GGUF runtime not bundled in this build")
-                }
-                return ggufConfigured
-                    ? .available
-                    : .requiresConfiguration(message: "Import a GGUF model via Model Manager.")
-            #else
-                return .unavailable(reason: "iOS only")
-            #endif
-        case .coreMLLocal:
-            guard deviceCapabilities.supportsCoreML else {
-                return .unavailable(reason: "Requires Core ML capable hardware")
-            }
-            return CoreMLLLMService.selectionIsReady()
-                ? .available
-                : .requiresConfiguration(
-                    message: "Select a Core ML model package via Model Manager.")
-        case .mlxLocal:
-            #if os(macOS)
-                guard entitlementStore.canUseLocalModels else {
-                    return .unavailable(reason: "Upgrade plan to unlock MLX Local")
-                }
-                guard MLXLLMService.Config.fromDefaults() != nil else {
-                    return .requiresConfiguration(
-                        message: "Set the MLX server URL/model under Diagnostics → MLX")
-                }
-                guard let status = ragService.mlxServerStatus else {
-                    return .requiresConfiguration(message: "Waiting for MLX health check…")
-                }
-                switch status.health {
-                case .healthy:
-                    return .available
-                case let .degraded(_, reason):
-                    return .requiresConfiguration(message: reason)
-                case let .unreachable(_, reason):
-                    return .unavailable(reason: reason)
-                case .unknown:
-                    return .requiresConfiguration(message: "Health unknown — tap Refresh")
-                }
-            #else
-                return .unavailable(reason: "macOS only")
-            #endif
-        }
-    }
-
-    func stageDetail(for type: LLMModelType) -> String {
-        switch type {
-        case .appleIntelligence:
-            return "Apple Foundation Models with automatic PCC fallback"
-        case .chatGPTExtension:
-            return "System-level ChatGPT (Apple Intelligence)"
-        case .onDeviceAnalysis:
-            return "Extractive QA powered by NaturalLanguage"
-        case .openAIDirect:
-            return "OpenAI API using your credentials"
-        case .ggufLocal:
-            return "Embedded GGUF runtime (iOS)"
-        case .coreMLLocal:
-            return "Custom Core ML LLM package"
-        case .mlxLocal:
-            return "Connects to your MLX tensor server"
-        }
-    }
-
-    func preferredModelOrder() -> [(type: LLMModelType, enabled: Bool)] {
-        var order: [(LLMModelType, Bool)] = []
-        var seen = Set<LLMModelType>()
-        let entries: [(LLMModelType, Bool)] = [
-            (settings.selectedModel, true),
-            (settings.firstFallback, settings.enableFirstFallback),
-            (settings.secondFallback, settings.enableSecondFallback),
-            (.onDeviceAnalysis, true),
-        ]
-        let allowed = Set(availablePrimaryModels)
-        for entry in entries where !seen.contains(entry.0) && allowed.contains(entry.0) {
-            order.append(entry)
-            seen.insert(entry.0)
-        }
-        return order
-    }
-
-    @MainActor
-    func applyNow() {
-        applyTask?.cancel()
-        isApplyingModel = true
-        applyTask = Task {
-            defer { self.isApplyingModel = false }
-            await self.applyPreferredService()
-        }
-    }
-
-    @MainActor
-    func applyPreferredService() async {
-        let preferences = preferredModelOrder()
-
-        // Build chain: collect all available services
-        var serviceChain: [LLMService] = []
-        for entry in preferences {
-            if let service = await instantiateService(for: entry.type, enabled: entry.enabled) {
-                serviceChain.append(service)
-            }
-        }
-
-        guard !serviceChain.isEmpty else {
-            // Ultimate fallback if nothing works
-            let ultimateFallback = OnDeviceAnalysisService()
-            ragService.updateLLMService(ultimateFallback, fallbacks: [])
-            refreshPipeline()
-            return
-        }
-
-        // Primary is first, rest are fallbacks
-        let primary = serviceChain[0]
-        let fallbacks = Array(serviceChain.dropFirst())
-
-        ragService.updateLLMService(primary, fallbacks: fallbacks)
-        refreshPipeline()
-        DSHaptics.success()
-    }
-
-    func instantiateService(for type: LLMModelType, enabled: Bool) async -> LLMService? {
-        guard enabled else { return nil }
-        switch type {
-        case .appleIntelligence:
-            #if canImport(FoundationModels)
-                if #available(iOS 26.0, macOS 15.0, *) {
-                    return await MainActor.run {
-                        let service = AppleFoundationLLMService()
-                        service.toolHandler = ragService
-                        return service.isAvailable ? service : nil
-                    }
-                }
-            #endif
-            return nil
-        case .chatGPTExtension:
-            #if os(iOS)
-                let service = AppleChatGPTExtensionService()
-                return service.isAvailable ? service : nil
-            #else
-                return nil
-            #endif
-        case .openAIDirect:
-            #if os(macOS)
-                guard settings.reviewerModeEnabled, !trimmedAPIKey.isEmpty else { return nil }
-                return OpenAILLMService(apiKey: trimmedAPIKey, model: settings.openaiModel)
-            #else
-                return nil
-            #endif
-        case .onDeviceAnalysis:
-            return OnDeviceAnalysisService()
-        case .ggufLocal:
-            #if os(iOS)
-                guard entitlementStore.canUseLocalModels else {
-                    await MainActor.run {
-                        presentPlanSheet(from: .localModelGated)
-                        entitlementStore.markPreviewGateTriggered(for: .gguf)
-                    }
-                    return nil
-                }
-                return await MainActor.run { LlamaCPPiOSLLMService.fromRegistry() }
-            #else
-                return nil
-            #endif
-        case .coreMLLocal:
-            guard entitlementStore.canUseLocalModels else {
-                await MainActor.run {
-                    presentPlanSheet(from: .localModelGated)
-                    entitlementStore.markPreviewGateTriggered(for: .coreML)
-                }
-                return nil
-            }
-            return await CoreMLLLMService.fromRegistry()
-        case .mlxLocal:
-            #if os(macOS)
-                guard entitlementStore.canUseLocalModels else {
-                    await MainActor.run {
-                        presentPlanSheet(from: .localModelGated)
-                        entitlementStore.markPreviewGateTriggered(for: .mlx)
-                    }
-                    return nil
-                }
-                guard let config = MLXLLMService.Config.fromDefaults() else {
-                    return nil
-                }
-                let service = MLXLLMService(config: config)
-                service.toolHandler = ragService
-                return service
-            #else
-                return nil
-            #endif
-        }
-    }
-
-    #if os(macOS)
-        func validateAPIKey() async {
-            let key = trimmedAPIKey
-            guard !key.isEmpty else {
-                apiKeyStatus = .unknown
-                return
-            }
-            await MainActor.run {
-                isValidatingAPIKey = true
-                apiKeyStatus = .validating
-            }
-            let config = InferenceConfig(maxTokens: 8, temperature: 0)
-            let service = OpenAILLMService(apiKey: key, model: settings.openaiModel)
-            do {
-                let response = try await service.generate(
-                    prompt: "pong", context: nil, config: config
-                )
-                await MainActor.run {
-                    apiKeyStatus = response.text.isEmpty ? .invalid : .valid
-                    isValidatingAPIKey = false
-                }
-            } catch {
-                await MainActor.run {
-                    apiKeyStatus = .invalid
-                    isValidatingAPIKey = false
-                }
-            }
-        }
-    #endif
-
-    var trimmedAPIKey: String {
-        settings.openaiAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    var availablePrimaryModels: [LLMModelType] {
-        var options = settings.primaryModelOptions
-        if !options.contains(settings.selectedModel) {
-            options.append(settings.selectedModel)
-        }
-        var deduped: [LLMModelType] = []
-        deduped.reserveCapacity(options.count)
-        var seen = Set<LLMModelType>()
-        for option in options {
-            if seen.insert(option).inserted {
-                deduped.append(option)
-            }
-        }
-        return deduped
-    }
-
-    var firstFallbackOptions: [LLMModelType] {
-        settings.fallbackOptions(excluding: Set([settings.selectedModel]))
-    }
-
-    var secondFallbackOptions: [LLMModelType] {
-        settings.fallbackOptions(excluding: Set([settings.selectedModel, settings.firstFallback]))
-    }
-
-    var selectedModelStatus: ModelPipelineStage.Status {
-        stageStatus(for: settings.selectedModel, enabled: true)
-    }
-
-    var shouldShowWhyUnavailable: Bool {
-        switch selectedModelStatus {
-        case .unavailable, .requiresConfiguration:
-            return true
-        default:
-            return false
-        }
-    }
-
-    func gatingHelpText(for type: LLMModelType, status: ModelPipelineStage.Status)
-        -> String
-    {
-        switch type {
-        case .ggufLocal:
-            #if os(iOS)
-                var reasons = ""
-                switch status {
-                case let .unavailable(reason):
-                    reasons = reason
-                case let .requiresConfiguration(msg):
-                    reasons = msg
-                default:
-                    reasons = "Unknown configuration issue."
-                }
-                let runtimeNote: String =
-                    LlamaCPPiOSLLMService.runtimeAvailable
-                        ? ""
-                        : """
-                        • GGUF runtime not bundled. Add the LocalLLMClient package and link its products to the app target:
-                          - Xcode: File → Add Packages… → Add Local Package → select Vendor/LocalLLMClient
-                          - Add products: LocalLLMClient, LocalLLMClientCore, LocalLLMClientLlama, LocalLLMClientLlamaC
-                          - Build for a real device (recommended).
-                        """
-
-                return """
-                GGUF Local (iOS) runs an embedded llama.cpp runtime fully on-device.
-
-                Why unavailable:
-                - \(reasons)
-                \(runtimeNote)
-
-                Next steps:
-                1) Open Model Manager and import a small .gguf (e.g., 2–3B, 4-bit).
-                2) Set Local Primary → GGUF for your installed model.
-                3) Open Developer & Diagnostics → Backend Health → GGUF Local.
-                   - Run “Verify Model File”, then “Smoke Test” or “Benchmark”.
-
-                Tip: Use iPhone 16 Pro/Max or newer for best performance.
-                """
-            #else
-                return "GGUF Local is available on iOS only."
-            #endif
-
-        case .coreMLLocal:
-            var reasons = ""
-            switch status {
-            case let .unavailable(reason):
-                reasons = reason
-            case let .requiresConfiguration(msg):
-                reasons = msg
-            default:
-                reasons = "No Core ML model selected."
-            }
-            return """
-            Core ML Local runs a custom .mlpackage fully on-device.
-
-            Why unavailable:
-            - \(reasons)
-
-            Next steps:
-            1) Import a Core ML LLM package via Model Manager.
-            2) Set Local Primary → Core ML.
-            3) Apply and test in Backend Health.
-            """
-
-        case .appleIntelligence:
-            return """
-            Apple Intelligence (Foundation Models) runs on-device and can seamlessly use Private Cloud Compute when allowed.
-
-            Status: \(deviceCapabilities.appleIntelligenceStatus)
-
-            Next steps:
-            • Ensure device meets requirements (A17 Pro+/M‑series) and Apple Intelligence is enabled in Settings.
-            • On iOS 26+, the model may be downloading; try again later.
-            • Use Execution & Privacy to force On‑Device Only or allow PCC.
-            """
-
-        case .mlxLocal:
-            #if os(macOS)
-                let reason: String
-                switch status {
-                case let .unavailable(r):
-                    reason = r
-                case let .requiresConfiguration(msg):
-                    reason = msg
-                case .active, .available:
-                    reason = "Ready to run."
-                case .disabled:
-                    reason = "MLX Local is disabled in this pipeline slot."
-                }
-                return """
-                MLX Local connects to a tensor server running on your Mac for high-throughput private inference.
-
-                Status:
-                - \(reason)
-
-                Next steps:
-                1) Launch your MLX server (mlx-launch or `python server.py`).
-                2) Open Developer & Diagnostics → MLX and set the Base URL + Model ID.
-                3) Tap “Refresh Health” or run the MLX smoke test to verify connectivity.
-                4) Return here and Apply to route primary inference through MLX.
-                """
-            #else
-                return "MLX Local is available on macOS only."
-            #endif
-
-        default:
-            return "No additional information for this model."
-        }
-    }
-
-    #if os(iOS)
-        var ggufConfigured: Bool {
-            guard LlamaCPPiOSLLMService.runtimeAvailable else { return false }
-            guard
-                let idString = UserDefaults.standard.string(
-                    forKey: LlamaCPPiOSLLMService.selectedModelIdKey),
-                UUID(uuidString: idString) != nil
-            else { return false }
-            return modelRegistry.installed.contains(where: { $0.backend == .gguf })
-        }
-    #endif
-}
-
-private enum APIKeyValidationStatus {
-    case unknown
-    case validating
-    case valid
-    case invalid
-
-    var icon: String {
-        switch self {
-        case .unknown: return "questionmark.circle"
-        case .validating: return "hourglass"
-        case .valid: return "checkmark.seal.fill"
-        case .invalid: return "xmark.octagon.fill"
-        }
-    }
-
-    var color: Color {
-        switch self {
-        case .unknown: return .secondary
-        case .validating: return .orange
-        case .valid: return .green
-        case .invalid: return .red
-        }
-    }
-
-    var message: String {
-        switch self {
-        case .unknown: return ""
-        case .validating: return "Validating key..."
-        case .valid: return "API key verified."
-        case .invalid: return "Could not validate key."
-        }
-    }
-}
-
-extension SettingsView {
-    @MainActor
-    private func restorePurchases() {
-        guard !isRestoringPurchases else { return }
-        isRestoringPurchases = true
-        Task {
-            await entitlementStore.billingService.restorePurchases()
-            await MainActor.run { self.isRestoringPurchases = false }
-        }
-    }
-
-    private func presentPlanSheet(from entryPoint: PlanUpgradeEntryPoint) {
-        planEntryPoint = entryPoint
-        showPlanSheet = true
-        TelemetryCenter.emitBillingEvent(
-            "Paywall presented",
-            metadata: ["entryPoint": entryPoint.analyticsValue]
-        )
-    }
-
-    private func openContactSupport() {
-        TelemetryCenter.emitBillingEvent(
-            "Contact support CTA tapped",
-            metadata: ["source": "settings"]
-        )
-        if let encoded = "mailto:Gunnarguy@me.com?subject=OpenIntelligence%20Support&body=Please%20describe%20your%20issue%20or%20question:%0A%0A"
-            .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-            let url = URL(string: encoded)
-        {
-            #if os(iOS)
-                UIApplication.shared.open(url)
-            #elseif os(macOS)
-                NSWorkspace.shared.open(url)
-            #endif
-        }
-    }
-
-    private var documentUsageProgress: Double {
-        let limit = max(entitlementStore.documentLimit, 1)
-        return min(Double(ragService.documents.count) / Double(limit), 1)
-    }
-
-    private var quotaSummaryText: String {
-        "Up to \(entitlementStore.documentLimit) documents • \(entitlementStore.libraryLimit) library\(entitlementStore.libraryLimit == 1 ? "" : "ies")"
-    }
-
-    private var containerServiceSummary: String {
-        let active = ragService.containerService.containers.count
-        return "\(active) active / \(entitlementStore.libraryLimit) allowed"
-    }
-}
-
-private struct HeroStat: View {
-    let value: String
-    let label: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(value)
-                .font(.headline)
-                .foregroundColor(.white)
-            Text(label.uppercased())
-                .font(.caption2.weight(.semibold))
-                .foregroundColor(.white.opacity(0.7))
-        }
-    }
-}
-
-private struct PipelineStageRow: View {
-    let stage: ModelPipelineStage
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: stage.icon)
-                .font(.title3)
-                .foregroundColor(stage.role.tint)
-                .frame(width: 28)
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text("\(stage.role.title) · \(stage.name)")
-                        .font(.headline)
-                    Spacer()
-                    StageChip(status: stage.status)
-                }
-                Text(stage.detail)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                if case let .unavailable(reason) = stage.status {
-                    Text(reason)
-                        .font(.caption2)
-                        .foregroundColor(.red)
-                }
-                if case let .requiresConfiguration(message) = stage.status {
-                    Text(message)
-                        .font(.caption2)
-                        .foregroundColor(.orange)
-                }
-            }
-        }
-    }
-}
-
-private struct StageChip: View {
-    let status: ModelPipelineStage.Status
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: status.icon)
-            Text(status.label)
-        }
-        .font(.caption2.weight(.semibold))
-        .foregroundColor(status.tint)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(status.tint.opacity(0.12))
-        .clipShape(Capsule())
-    }
-}
-
-private struct LocalModelRow: View {
-    let model: InstalledModel
-    let formatBytes: (Int64?) -> String
-    let isActive: Bool
-    let canActivate: Bool
-    let activePreference: LocalComputePreference?
-
-    private var iconName: String {
-        switch model.backend {
-        case .gguf: return "doc.badge.gearshape"
-        case .coreML: return "cpu"
-        default: return "server.rack"
-        }
-    }
-
-    private static let relativeFormatter: RelativeDateTimeFormatter = {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
-        return formatter
-    }()
-
-    var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color.accentColor.opacity(0.12))
-                    .frame(width: 42, height: 42)
-                Image(systemName: iconName)
-                    .font(.headline)
+    private var developerCard: some View {
+        NavigationLink {
+            DeveloperSettingsView()
+        } label: { 
+            HStack {
+                Image(systemName: "wrench.and.screwdriver")
                     .foregroundColor(.accentColor)
+                Text("Developer & Diagnostics")
+                    .font(.headline)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .foregroundColor(.secondary)
             }
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(model.name)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundColor(.primary)
-                    .lineLimit(1)
-
-                HStack(spacing: 8) {
-                    if let vendor = model.vendor {
-                        Label(vendor, systemImage: "tag")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-                    if let size = model.sizeBytes {
-                        Label(formatBytes(size), systemImage: "externaldrive")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-                    if let quant = model.quantization {
-                        Label(quant, systemImage: "dial.low")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-                }
-
-                if let meta = metadataLine() {
-                    Text(meta)
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                }
-            }
-
-            Spacer()
-
-            if isActive {
-                HStack(spacing: 6) {
-                    Label("Active", systemImage: "checkmark.circle.fill")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundColor(.accentColor)
-                    if let preference = activePreference {
-                        Text(preference.badgeText)
-                            .font(.caption2.weight(.semibold))
-                            .foregroundColor(.accentColor)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.accentColor.opacity(0.12))
-                            .clipShape(Capsule())
-                    }
-                }
-            } else {
-                Image(systemName: "play.circle")
-                    .font(.title3)
-                    .foregroundColor(.accentColor.opacity(canActivate ? 1.0 : 0.4))
-            }
+.padding()
+    .background(DSColors.surface)
+    .clipShape(RoundedRectangle(cornerRadius: 16))
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(rowBackground)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(isActive ? Color.accentColor : Color.clear, lineWidth: 1)
-        )
-        .opacity(canActivate ? 1 : 0.55)
-        .animation(.easeInOut(duration: 0.2), value: isActive)
+.buttonStyle(.plain)
     }
 
-    private var rowBackground: some View {
-        RoundedRectangle(cornerRadius: 12, style: .continuous)
-            .fill(isActive ? Color.accentColor.opacity(0.12) : DSColors.surface.opacity(0.9))
+    // MARK: - About Card
+
+    @ViewBuilder
+    private var aboutCard: some View {
+        NavigationLink {
+            AboutView()
+        } label: { 
+            HStack { 
+                Image(systemName: "info.circle")
+                    .foregroundColor(.accentColor)
+                Text("About")
+                    .font(.headline)
+                Spacer()
+                Text(Bundle.main.appVersion)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                Image(systemName: "chevron.right")
+                    .foregroundColor(.secondary)
+            }
+.padding()
+    .background(DSColors.surface)
+    .clipShape(RoundedRectangle(cornerRadius: 16))
+        }
+.buttonStyle(.plain)
     }
 
-    private func metadataLine() -> String? {
-        var components: [String] = []
-        if let installedText = installDescriptor() {
-            components.append(installedText)
-        }
-        if model.supportsToolUse {
-            components.append("Tool Calls")
-        }
-        if let context = model.contextWindow {
-            components.append("Context \(context)T")
-        }
-        return components.isEmpty ? nil : components.joined(separator: " · ")
-    }
+    // MARK: - Helpers
 
-    private func installDescriptor() -> String? {
-        let relative = LocalModelRow.relativeFormatter.localizedString(
-            for: model.installedAt, relativeTo: Date()
-        )
-        return "Installed \(relative)"
+    private func updatePipelineStages() {
+        pipelineStages = [
+            ModelPipelineStage(
+                name: "Embedding",
+                role: .primary,
+                detail: "NLEmbedding (512-dim)",
+                status: .active, 
+                icon: "rectangle.3.group"
+            ),
+            ModelPipelineStage(
+                name: "Retrieval",
+                role: .primary,
+                detail: "Hybrid Vector + BM25",
+                status: .active,
+                icon: "magnifyingglass"
+            ),
+            ModelPipelineStage(
+                    name: "Generation",
+                    role: .primary,
+                    detail: settings.selectedModel.displayName,
+                    status: deviceCapabilities.supportsFoundationModels ? .active : .unavailable(reason: "Not available"),
+                    icon: "text.bubble"
+                )
+        ]
     }
 }
 
-private struct ModelManagerSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @ObservedObject var ragService: RAGService
+// MARK: - Bundle Extension
 
-    var body: some View {
-        NavigationStack {
-            ModelManagerView(ragService: ragService)
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Done") { dismiss() }
-                    }
-                }
-        }
-        // Full screen presentation - no detents to avoid scroll bugs
+extension Bundle {
+    var appVersion: String {
+        "\(infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0") (\(infoDictionary?["CFBundleVersion"] as? String ?? "1"))"
     }
 }
 
-private extension ModelPipelineStage.Status {
-    var label: String {
-        switch self {
-        case .active: return "Active"
-        case .available: return "Available"
-        case .unavailable: return "Unavailable"
-        case .requiresConfiguration: return "Configure"
-        case .disabled: return "Disabled"
-        }
-    }
-
-    var tint: Color {
-        switch self {
-        case .active: return .green
-        case .available: return .accentColor
-        case .unavailable: return .red
-        case .requiresConfiguration: return .orange
-        case .disabled: return .secondary
-        }
-    }
-
-    var icon: String {
-        switch self {
-        case .active: return "checkmark.circle.fill"
-        case .available: return "bolt.circle.fill"
-        case .unavailable: return "xmark.octagon.fill"
-        case .requiresConfiguration: return "gearshape.2"
-        case .disabled: return "pause.circle"
-        }
+#Preview {
+    NavigationStack { 
+        SettingsView(ragService: RAGService())
+            .environmentObject(SettingsStore(ragService: RAGService()))
+            .environmentObject(EntitlementStore(billingService: StoreKitBillingService()))
     }
 }

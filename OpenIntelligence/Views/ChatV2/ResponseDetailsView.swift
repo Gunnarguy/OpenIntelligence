@@ -512,8 +512,6 @@ private struct ModelExecutionBadge: View {
             } else {
                 return ("sparkles", "Apple AI", .indigo)
             }
-        } else if modelName.contains("ChatGPT") {
-            return ("bubble.left.and.bubble.right", "ChatGPT", .green)
         } else if modelName.contains("OpenAI") || modelName.contains("GPT") {
             return ("key.fill", "OpenAI API", .orange)
         } else if modelName.contains("MLX") {

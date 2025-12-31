@@ -19,8 +19,6 @@ struct SettingsRootView: View {
         case openAI = "OpenAI"
         case generation = "Generation"
         case retrieval = "Retrieval"
-        case gallery = "Model Gallery"
-        case providers = "Local Providers"
         case systemStatus = "System Status"
         case developer = "Developer & Diagnostics"
         case about = "About"
@@ -35,8 +33,6 @@ struct SettingsRootView: View {
             case .openAI: return "key"
             case .generation: return "slider.horizontal.3"
             case .retrieval: return "magnifyingglass"
-            case .gallery: return "rectangle.stack"
-            case .providers: return "bolt.horizontal"
             case .systemStatus: return "waveform.path.ecg"
             case .developer: return "wrench.and.screwdriver"
             case .about: return "info.circle"
@@ -50,9 +46,7 @@ struct SettingsRootView: View {
                     .modelSelection,
                     .fallbacks,
                     .generation,
-                    .retrieval,
-                    .gallery,
-                    .providers,
+.retrieval,
                     .systemStatus,
                     .developer,
                     .about,
@@ -66,9 +60,7 @@ struct SettingsRootView: View {
                     .fallbacks,
                     .openAI,
                     .generation,
-                    .retrieval,
-                    .gallery,
-                    .providers,
+.retrieval,
                     .systemStatus,
                     .developer,
                     .about,
@@ -131,9 +123,7 @@ struct SettingsRootView: View {
                 .modelSelection,
                 .fallbacks,
                 .generation,
-                .retrieval,
-                .gallery,
-                .providers,
+.retrieval,
                 .systemStatus,
                 .developer,
                 .about,
@@ -145,9 +135,7 @@ struct SettingsRootView: View {
                 .fallbacks,
                 .openAI,
                 .generation,
-                .retrieval,
-                .gallery,
-                .providers,
+.retrieval,
                 .systemStatus,
                 .developer,
                 .about,
@@ -178,8 +166,6 @@ struct SettingsRootView: View {
         case .openAI: OpenAISettingsView()
         case .generation: GenerationParametersView()
         case .retrieval: RetrievalSettingsView()
-        case .gallery: ModelGalleryView()
-        case .providers: LocalProvidersView()
         case .systemStatus: SystemStatusView()
         case .developer: DeveloperDiagnosticsView()
         case .about: AboutSettingsView()
@@ -480,47 +466,7 @@ struct RetrievalSettingsView: View {
     }
 }
 
-struct ModelGalleryView: View {
-    var body: some View {
-        List {
-            Section("Downloads") {
-                Text("Model Gallery will be moved here.")
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .navigationTitle("Model Gallery")
-    }
-}
-
-struct LocalProvidersView: View {
-    @EnvironmentObject private var settings: SettingsStore
-    var body: some View {
-        List {
-            Section("Compute Preference") {
-                Picker("Execution Strategy", selection: $settings.localComputePreference) {
-                    Text("Automatic").tag(LocalComputePreference.automatic)
-                    Text("GPU (Metal)").tag(LocalComputePreference.gpuPreferred)
-                    Text("CPU Only").tag(LocalComputePreference.cpuOnly)
-                }
-                #if os(iOS)
-                .pickerStyle(.menu)
-                #endif
-                Text("Choose 'GPU' for best performance on Apple Silicon. 'CPU' may be more stable for very large models.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-
-            Section("Local Providers") {
-                #if os(macOS)
-                    Text("Configure MLX, llama.cpp, and Ollama (macOS).")
-                #else
-                    Text("Local providers available on macOS.")
-                #endif
-            }
-        }
-        .navigationTitle("Local Providers")
-    }
-}
+// ModelGalleryView and LocalProvidersView removed - local downloadable models no longer supported
 
 struct SystemStatusView: View {
     var body: some View {

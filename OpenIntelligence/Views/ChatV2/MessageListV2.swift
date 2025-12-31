@@ -14,6 +14,10 @@ struct MessageListV2: View {
     let generationStart: Date?
     var onRegenerate: ((ChatMessage) -> Void)?
 
+    // iOS 26+: Apple Intelligence feedback callbacks
+    var onThumbsUp: (() -> Void)?
+    var onThumbsDown: (() -> Void)?
+
     @State private var scrollProxy: ScrollViewProxy?
 
     init(
@@ -21,13 +25,17 @@ struct MessageListV2: View {
         streamingText: String,
         isStreaming: Bool,
         generationStart: Date? = nil,
-        onRegenerate: ((ChatMessage) -> Void)? = nil
+        onRegenerate: ((ChatMessage) -> Void)? = nil,
+        onThumbsUp: (() -> Void)? = nil,
+        onThumbsDown: (() -> Void)? = nil
     ) {
         _messages = messages
         self.streamingText = streamingText
         self.isStreaming = isStreaming
         self.generationStart = generationStart
         self.onRegenerate = onRegenerate
+        self.onThumbsUp = onThumbsUp
+        self.onThumbsDown = onThumbsDown
     }
 
     var body: some View {
@@ -43,7 +51,9 @@ struct MessageListV2: View {
                             let snapshot = $message.wrappedValue
                             MessageBubbleV2(
                                 message: $message,
-                                onRegenerate: snapshot.role == .assistant ? { onRegenerate?(snapshot) } : nil
+                                onRegenerate: snapshot.role == .assistant ? { onRegenerate?(snapshot) } : nil,
+                                onThumbsUp: snapshot.role == .assistant ? onThumbsUp : nil,
+                                onThumbsDown: snapshot.role == .assistant ? onThumbsDown : nil
                             )
                             .id(snapshot.id)
                             .transition(.asymmetric(

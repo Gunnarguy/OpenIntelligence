@@ -18,7 +18,7 @@ struct DeveloperDiagnosticsHubView: View {
                 endPoint: .bottom
             )
             .ignoresSafeArea()
-            
+
             ScrollView {
                 VStack(spacing: 16) {
                     // Diagnostics
@@ -30,25 +30,25 @@ struct DeveloperDiagnosticsHubView: View {
                             } label: {
                                 Label("Core Validation", systemImage: "checkmark.circle")
                             }
-                            
+
                             NavigationLink {
                                 TelemetryDashboardView()
                             } label: {
                                 Label("Telemetry Dashboard", systemImage: "waveform.path.ecg")
                             }
-                            
+
                             NavigationLink {
                                 ContainerScopingSelfTestsView(ragService: ragService)
                             } label: {
                                 Label("Container Scoping Self-Tests", systemImage: "magnifyingglass.circle")
                             }
-                            
+
                             NavigationLink {
                                 BackendHealthDiagnosticsView(ragService: ragService)
                             } label: {
                                 Label("Backend Health", systemImage: "server.rack")
                             }
-                            
+
                             NavigationLink {
                                 NLChunkingDiagnosticsView()
                             } label: {
@@ -56,24 +56,18 @@ struct DeveloperDiagnosticsHubView: View {
                             }
                         }
                     }
-                    
+
                     // Developer Tools
                     SurfaceCard {
                         SectionHeader(icon: "hammer.fill", title: "Developer Tools")
-                        VStack(alignment: .leading, spacing: 8) {
-                            NavigationLink {
-                                ModelManagerView(ragService: ragService)
-                            } label: {
-                                Label("Model Manager", systemImage: "brain.head.profile")
-                            }
-                            
+                        VStack(alignment: .leading, spacing: 8) { 
                             NavigationLink {
                                 VisualizationsView()
                                     .environmentObject(ragService)
                             } label: {
                                 Label("Visualizations", systemImage: "chart.xyaxis.line")
                             }
-                            
+
                             NavigationLink {
                                 DeveloperSettingsView()
                             } label: {

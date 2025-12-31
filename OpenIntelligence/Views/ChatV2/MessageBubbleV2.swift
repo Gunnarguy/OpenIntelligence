@@ -15,16 +15,28 @@ struct MessageBubbleV2: View {
     let showMetadata: Bool
     let onRegenerate: (() -> Void)?
 
+    // iOS 26+: Apple Intelligence feedback callbacks
+    let onThumbsUp: (() -> Void)?
+    let onThumbsDown: (() -> Void)?
+
     @State private var showActions = false
     @State private var showDetails = false
     @State private var showFullMetrics = false
     @State private var showReportSheet = false
     @State private var sharePayload: SharePayload? = nil
 
-    init(message: Binding<ChatMessage>, showMetadata: Bool = true, onRegenerate: (() -> Void)? = nil) {
+    init(
+        message: Binding<ChatMessage>,
+        showMetadata: Bool = true,
+        onRegenerate: (() -> Void)? = nil,
+        onThumbsUp: (() -> Void)? = nil,
+        onThumbsDown: (() -> Void)? = nil
+    ) { 
         _message = message
         self.showMetadata = showMetadata
         self.onRegenerate = onRegenerate
+        self.onThumbsUp = onThumbsUp
+        self.onThumbsDown = onThumbsDown
     }
 
     private var isUser: Bool { message.role == .user }
@@ -72,7 +84,9 @@ struct MessageBubbleV2: View {
                     onShowDetails: message.metadata != nil ? { showDetails = true } : nil,
                     onShare: { shareMessage() },
                     onToggleHidden: (!isUser ? { toggleHidden() } : nil),
-                    onReport: (!isUser ? { showReportSheet = true } : nil)
+                    onReport: (!isUser ? { showReportSheet = true } : nil),
+                    onThumbsUp: onThumbsUp,
+                    onThumbsDown: onThumbsDown
                 )
                 .transition(.scale.combined(with: .opacity))
             }
@@ -312,14 +326,78 @@ private struct CompactExecutionBadge: View {
     let ttft: TimeInterval?
 
     private var info: (icon: String, label: String, color: Color) {
-        if modelName.contains("On-Device") || (ttft ?? 1.0) < 0.3 {
-            return ("iphone", "Device", .blue)
-        } else if modelName.contains("PCC") || modelName.contains("Cloud") || (ttft ?? 0) > 0.5 {
-            return ("cloud", "PCC", .green)
-        } else if modelName.contains("OpenAI") || modelName.contains("GPT") {
-            return ("globe", "Cloud", .orange)
+        // Priority 1: Check for explicit local model types by name (most reliable)
+        if modelName.contains("GGUF") {
+            // Local GGUF model via llama.cpp - show actual model name as label
+            let shortName = extractGGUFModelName(modelName)
+            return ("cpu.fill", shortName, .indigo)
+        } else if modelName.contains("MLX") {
+            // Local MLX model
+            let shortName = extractMLXModelName(modelName)
+            return ("cpu.fill", shortName, .cyan)
+        } else if modelName.contains("CoreML") || modelName.contains("coreML") {
+            return ("cpu.fill", "CoreML", .teal)
+        } else if modelName.contains("Ollama") {
+            return ("server.rack", "Ollama", .mint)
+        } else if modelName.contains("llama.cpp") {
+            return ("cpu.fill", "llama.cpp", .indigo)
         }
+
+        // Priority 2: Apple Foundation Models (check before generic cloud checks)
+        if modelName.contains("On-Device") || modelName.contains("Apple Foundation Model (On-Device)") { 
+            return ("iphone", "Device", .blue)
+        } else if modelName.contains("Private Cloud Compute") || modelName.contains("Apple Foundation Model (PCC)") {
+            return ("apple.logo", "PCC", .green)
+        }
+
+        // Priority 3: Extractive QA (fallback, no LLM)
+        if modelName.contains("Extractive QA") || modelName.contains("On-Device Analysis") {
+            return ("doc.text.magnifyingglass", "Analysis", .gray)
+        }
+
+        // Priority 4: External cloud providers
+        if modelName.contains("OpenAI") || modelName.contains("GPT") || modelName.contains("o1") || modelName.contains("o3") {
+            return ("globe", "OpenAI", .orange)
+        } else if modelName.contains("Claude") || modelName.contains("Anthropic") {
+            return ("globe", "Claude", .orange)
+        }
+
+        // Fallback: unknown model
         return ("sparkles", "AI", .purple)
+    }
+
+    /// Extract a short display name from GGUF model string like "GGUF • Llama-3.2-1B-Q4_K_M.gguf"
+    private func extractGGUFModelName(_ fullName: String) -> String {
+        // Remove "GGUF • " prefix if present
+        var name = fullName.replacingOccurrences(of: "GGUF • ", with: "")
+        // Remove .gguf extension
+        name = name.replacingOccurrences(of: ".gguf", with: "")
+        // If still too long, truncate intelligently
+        if name.count > 16 {
+            // Try to keep the model family and size (e.g., "Llama-3.2-1B")
+            let parts = name.split(separator: "-")
+            if parts.count >= 3 {
+                name = parts.prefix(3).joined(separator: "-")
+            } else {
+                name = String(name.prefix(14)) + "…"
+            }
+        }
+        return name
+    }
+
+    /// Extract a short display name from MLX model string like "MLX Cartridge (mistral-7b-v0.1)"
+    private func extractMLXModelName(_ fullName: String) -> String {
+        // Extract content in parentheses if present
+        if let start = fullName.firstIndex(of: "("),
+           let end = fullName.firstIndex(of: ")")
+        {
+            let name = String(fullName[fullName.index(after: start) ..< end])
+            if name.count > 14 {
+                return String(name.prefix(12)) + "…"
+            }
+            return name
+        }
+        return "MLX"
     }
 
     var body: some View {

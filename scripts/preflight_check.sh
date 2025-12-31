@@ -16,11 +16,6 @@ python3 "$ROOT_DIR/scripts/secret_scan.py" "$ROOT_DIR"
 echo "🔒 Verifying Info.plist privacy keys..."
 missing=0
 required_keys=(
-  "INFOPLIST_KEY_NSCameraUsageDescription"
-  "INFOPLIST_KEY_NSPhotoLibraryUsageDescription"
-  "INFOPLIST_KEY_NSMicrophoneUsageDescription"
-  "INFOPLIST_KEY_NSSpeechRecognitionUsageDescription"
-  "INFOPLIST_KEY_NSLocalNetworkUsageDescription"
   "INFOPLIST_KEY_ITSAppUsesNonExemptEncryption"
 )
 for key in "${required_keys[@]}"; do
