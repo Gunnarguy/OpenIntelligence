@@ -25,6 +25,11 @@ struct DocumentLibraryView: View {
     @State private var sampleImportStatusMessage: String?
     @State private var showingPlanSheet = false
     @State private var activePaywallEntryPoint: PlanUpgradeEntryPoint = .documents
+
+    // New library naming
+    @State private var showingNewLibraryPrompt = false
+    @State private var newLibraryName = ""
+
     let onViewVisualizations: (() -> Void)?
 
     private var documentLimit: Int { entitlementStore.documentLimit }
@@ -253,6 +258,17 @@ struct DocumentLibraryView: View {
                 PlanUpgradeSheet(entryPoint: activePaywallEntryPoint)
                     .environmentObject(entitlementStore)
             }
+.alert("New Library", isPresented: $showingNewLibraryPrompt) {
+    TextField("Library name", text: $newLibraryName)
+    Button("Cancel", role: .cancel) {
+        newLibraryName = ""
+    }
+    Button("Create") {
+        createNewLibrary()
+    }
+} message: {
+    Text("Enter a name for your new library")
+}
     }
 
     /// Launches the file picker if the user still has document quota remaining.
@@ -327,8 +343,15 @@ struct DocumentLibraryView: View {
             return
         }
 
-        let newIndex = currentCount + 1
-        let libraryName = "Library \(newIndex)"
+        // Suggest a default name but let user customize
+        newLibraryName = "Library \(currentCount + 1)"
+        showingNewLibraryPrompt = true
+    }
+
+    @MainActor
+    private func createNewLibrary() {
+        let trimmedName = newLibraryName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let libraryName = trimmedName.isEmpty ? "Library \(containerService.containers.count + 1)" : trimmedName
 
         // Use high-accuracy contextual embeddings if enabled in settings
         let embeddingProvider = settings.useHighAccuracyEmbeddings ? "nl_contextual_embedding" : "nl_embedding"
@@ -338,6 +361,7 @@ struct DocumentLibraryView: View {
             embeddingProviderId: embeddingProvider
         )
         containerService.setActive(newContainer.id)
+        newLibraryName = "" // Reset for next time
     }
 
     @MainActor

@@ -7,8 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		B0F9A0C52E9F0001001274A2 /* LocalLLMClient in Frameworks */ = {isa = PBXBuildFile; productRef = B0F9A0C32E9F0001001274A2 /* LocalLLMClient */; };
-		B0F9A0C62E9F0001001274A2 /* LocalLLMClientLlama in Frameworks */ = {isa = PBXBuildFile; productRef = B0F9A0C42E9F0001001274A2 /* LocalLLMClientLlama */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -28,8 +26,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				B0F9A0C52E9F0001001274A2 /* LocalLLMClient in Frameworks */,
-				B0F9A0C62E9F0001001274A2 /* LocalLLMClientLlama in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -72,8 +68,6 @@
 			);
 			name = OpenIntelligence;
 			packageProductDependencies = (
-				B0F9A0C32E9F0001001274A2 /* LocalLLMClient */,
-				B0F9A0C42E9F0001001274A2 /* LocalLLMClientLlama */,
 			);
 			productName = OpenIntelligence;
 			productReference = B0D565DE2E98AC50001274A2 /* OpenIntelligence.app */;
@@ -104,7 +98,6 @@
 			mainGroup = B0D565D52E98AC50001274A2;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				B0F9A0C22E9F0001001274A2 /* XCLocalSwiftPackageReference "Vendor/LocalLLMClient" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = B0D565DF2E98AC50001274A2 /* Products */;
@@ -273,11 +266,8 @@
 				INFOPLIST_KEY_CFBundleDisplayName = OpenIntelligence;
 				INFOPLIST_KEY_CFBundleName = OpenIntelligence;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
-				INFOPLIST_KEY_NSCameraUsageDescription = "Used to capture images for document ingestion and OCR.";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Needed to discover optional local model servers when the user enables them.";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Used to capture audio queries when voice input is enabled.";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Used to import documents or images for semantic search and on-device processing.";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Used to transcribe voice queries into text when the user opts in.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Take photos of documents or whiteboards for OCR and semantic search.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Select images from your library to extract text and add to your knowledge base.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -326,11 +316,8 @@
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
-				INFOPLIST_KEY_NSCameraUsageDescription = "Used to capture images for document ingestion and OCR.";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Needed to discover optional local model servers when the user enables them.";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Used to capture audio queries when voice input is enabled.";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Used to import documents or images for semantic search and on-device processing.";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Used to transcribe voice queries into text when the user opts in.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Take photos of documents or whiteboards for OCR and semantic search.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Select images from your library to extract text and add to your knowledge base.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -388,25 +375,7 @@
 		};
 /* End XCConfigurationList section */
 
-/* Begin XCLocalSwiftPackageReference section */
-		B0F9A0C22E9F0001001274A2 /* XCLocalSwiftPackageReference "Vendor/LocalLLMClient" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = Vendor/LocalLLMClient;
-		};
-/* End XCLocalSwiftPackageReference section */
 
-/* Begin XCSwiftPackageProductDependency section */
-		B0F9A0C32E9F0001001274A2 /* LocalLLMClient */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = B0F9A0C22E9F0001001274A2 /* XCLocalSwiftPackageReference "Vendor/LocalLLMClient" */;
-			productName = LocalLLMClient;
-		};
-		B0F9A0C42E9F0001001274A2 /* LocalLLMClientLlama */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = B0F9A0C22E9F0001001274A2 /* XCLocalSwiftPackageReference "Vendor/LocalLLMClient" */;
-			productName = LocalLLMClientLlama;
-		};
-/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = B0D565D62E98AC50001274A2 /* Project object */;
 }

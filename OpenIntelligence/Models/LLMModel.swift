@@ -19,9 +19,9 @@ struct LLMModel: Identifiable, Codable {
     let contextDescription: String?
     let availabilityNote: String?
     let isAvailable: Bool
-    
-    init(id: UUID = UUID(), 
-         name: String, 
+
+    init(id: UUID = UUID(),
+         name: String,
          modelType: ModelType, 
          filePath: URL? = nil,
          parameterCount: String,
@@ -61,26 +61,41 @@ enum InferencePathway {
 }
 
 /// Configuration for model inference performance
+///
+/// **Parameter Support by Provider:**
+/// | Parameter | Apple FM (iOS 26) | OpenAI |
+/// |-----------|-------------------|--------|
+/// | maxTokens | ✅ `maximumResponseTokens` | ✅ `max_tokens` |
+/// | temperature | ✅ 0.0-2.0 | ✅ 0.0-2.0 |
+/// | topP | ✅ `SamplingMode.random(probabilityThreshold:)` | ✅ `top_p` |
+/// | topK | ✅ `SamplingMode.random(top:)` | ❌ Not supported |
+/// | frequencyPenalty | ❌ Not supported | ✅ `frequency_penalty` |
+/// | presencePenalty | ❌ Not supported | ✅ `presence_penalty` |
+/// | stopSequences | ❌ Not supported | ✅ `stop` |
 struct InferenceConfig {
+    // MARK: - Universal Parameters (supported by both FM and OpenAI)
     var maxTokens: Int = 512
     var temperature: Float = 0.7
     var topP: Float = 0.9
     var topK: Int = 40
-    var useKVCache: Bool = true
-    var systemPrompt: String? = nil
-    var contextLength: Int? = nil
-    
-    // ✅ GAP #3 FIXED: Advanced Generation Parameters (iOS 26+)
-    // These parameters improve response quality and reduce repetition
-    var frequencyPenalty: Float = 0.0   // 0.0-2.0: Reduce word repetition
-    var presencePenalty: Float = 0.0    // 0.0-2.0: Encourage topic diversity
-    var repetitionPenalty: Float = 1.0  // 1.0-2.0: Stronger anti-repeat (1.0 = off)
-    var stopSequences: [String] = []    // Stop generation at these strings
-    
+
+    // MARK: - Legacy/OpenAI-Only Parameters
+
+    // These are NOT used by Apple FoundationModels but kept for OpenAI compatibility
+    var useKVCache: Bool = true // Not applicable to FM
+    var systemPrompt: String? // FM uses Instructions(...) instead
+    var contextLength: Int? // FM context is fixed at 4096 tokens (TN3193)
+
+    // ⚠️ OpenAI-Only: These parameters have NO effect on Apple Foundation Models
+    var frequencyPenalty: Float = 0.0 // OpenAI: 0.0-2.0, FM: Not supported
+    var presencePenalty: Float = 0.0 // OpenAI: 0.0-2.0, FM: Not supported
+    var repetitionPenalty: Float = 1.0 // OpenAI-compatible: Not in official API
+    var stopSequences: [String] = [] // OpenAI: `stop`, FM: Not supported
+
     // Apple Intelligence Execution Context (iOS 26+)
     var executionContext: ExecutionContext = .automatic
     var allowPrivateCloudCompute: Bool = true  // User-controlled PCC permission
-    
+
     /// Preset for RAG queries (factual, non-repetitive, focused)
     static var ragOptimized: InferenceConfig {
         var config = InferenceConfig()
@@ -93,7 +108,7 @@ struct InferenceConfig {
         config.stopSequences = ["</answer>", "\n\nQuestion:", "[END]"]
         return config
     }
-    
+
     /// Preset for creative responses (more diverse, less constrained)
     static var creative: InferenceConfig {
         var config = InferenceConfig()
@@ -104,7 +119,7 @@ struct InferenceConfig {
         config.presencePenalty = 0.5
         return config
     }
-    
+
     /// Preset for precise, deterministic responses
     static var precise: InferenceConfig {
         var config = InferenceConfig()
@@ -123,7 +138,7 @@ enum ExecutionContext {
     case onDeviceOnly   // Force on-device only (will fail if too complex)
     case preferCloud    // Prefer Private Cloud Compute for better quality
     case cloudOnly      // Force PCC (requires network)
-    
+
     var description: String {
         switch self {
         case .automatic:
@@ -136,7 +151,7 @@ enum ExecutionContext {
             return "Cloud Only"
         }
     }
-    
+
     var emoji: String {
         switch self {
         case .automatic:

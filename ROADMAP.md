@@ -1,7 +1,7 @@
 # OpenIntelligence Roadmap
 
-**Last Updated**: December 2025  
-**Version**: 1.0.0  
+**Last Updated**: December 2025
+**Version**: 1.0.0
 **Status**: Production (App Store Ready)
 
 ---
@@ -22,12 +22,18 @@
 - [x] **AppleFoundationLLMService**: iOS 26 Foundation Models with PCC fallback
 - [x] **Agentic Tool Calling**: @Generable + Tool protocol for SearchDocumentsTool, ListDocumentsTool, GetDocumentSummaryTool
 - [x] **@Generable Structured Responses**: RAGAnswer, RAGSearchResults, RAGDocumentSummary types
-- [x] **OpenAILLMService**: GPT-4/3.5 API integration with streaming
-- [x] **LlamaCPPiOSLLMService**: Local GGUF inference via llama.cpp
-- [x] **MLXLLMService**: MLX tensor server integration (macOS)
-- [x] **LocalOpenAIServerLLMService**: OpenAI-compatible local server support
 - [x] **OnDeviceAnalysisService**: Extractive QA fallback (always available)
 - [x] **OpenAIResponsesAPIService**: GPT-5 Responses API integration
+- [x] **Local Model Removal**: Removed GGUF/CoreML/MLX downloadable models (Dec 2025)
+  *Note*: App now uses Apple Intelligence + On-Device Analysis only. Simplifies maintenance and reduces binary size.
+- [x] **Apple FM API Audit (Dec 2025)**: Full FoundationModels framework compliance
+  - `prewarm(promptPrefix:)` for latency optimization
+  - `SamplingMode.random(top:)` / `.random(probabilityThreshold:)` for topK/topP
+  - Exhaustive `GenerationError` handling (9 cases with user-friendly messages)
+  - `Transcript` access for debugging/replay
+  - `LanguageModelFeedback` integration (thumbs up/down in chat UI)
+  - Context window corrected to 4,096 tokens per TN3193
+  - Tool `@Guide` with `.range()` constraints
 
 ### Agentic Tooling
 - [x] **12+ @Tool Functions**: Autonomous search, summarization, analysis
@@ -66,31 +72,31 @@
 ## 2. Technical Debt (The Cracks)
 
 ### High Priority
-- [x] **Page Number Tracking**: DocumentProcessor now builds page→text mappings  
-  *Location*: [DocumentProcessor.swift](OpenIntelligence/Services/DocumentProcessor.swift#L340)  
+- [x] **Page Number Tracking**: DocumentProcessor now builds page→text mappings
+  *Location*: [DocumentProcessor.swift](OpenIntelligence/Services/DocumentProcessor.swift#L340)
   *Status*: Implemented - PDF extraction tracks page ranges, passed to SemanticChunker for accurate citations
 
-- [x] **CoreML Sentence Embeddings**: WordPiece tokenization implemented  
-  *Location*: [CoreMLSentenceEmbeddingProvider.swift](OpenIntelligence/Services/Embeddings/CoreMLSentenceEmbeddingProvider.swift)  
+- [x] **CoreML Sentence Embeddings**: WordPiece tokenization implemented
+  *Location*: [CoreMLSentenceEmbeddingProvider.swift](OpenIntelligence/Services/Embeddings/CoreMLSentenceEmbeddingProvider.swift)
   *Status*: Scaffold complete - tokenizer protocol, WordPiece implementation, CoreML inference pipeline ready
 
 ### Medium Priority
-- [ ] **RAGService Size**: 4250 LOC monolith needs decomposition  
+- [ ] **RAGService Size**: 4250 LOC monolith needs decomposition
   *Impact*: Difficult to test and maintain
 
-- [ ] **Error Recovery**: Some LLM failures don't surface user-friendly messages  
+- [ ] **Error Recovery**: Some LLM failures don't surface user-friendly messages
   *Impact*: Users see generic errors
 
-- [x] **Test Coverage**: HybridSearchService edge cases now covered  
-  *Location*: [HybridSearchServiceTests.swift](OpenIntelligenceTests/HybridSearchServiceTests.swift)  
+- [x] **Test Coverage**: HybridSearchService edge cases now covered
+  *Location*: [HybridSearchServiceTests.swift](OpenIntelligenceTests/HybridSearchServiceTests.swift)
   *Status*: Added 12+ edge case tests for RRF fusion, BM25 scoring, Unicode handling, and metadata
 
 ### Low Priority
-- [ ] **MLX macOS-Only**: Conditional compilation limits testing surface  
-  *Impact*: Developer experience on iOS-only machines
+- [x] **MLX macOS-Only**: Removed with local model cleanup (Dec 2025)
+  *Status*: No longer applicable - local models removed
 
-- [ ] **Vendor LocalLLMClient**: Contains upstream TODOs (json-schema, threading)  
-  *Impact*: Inherited technical debt, not blocking
+- [x] **Vendor LocalLLMClient**: Removed from project (Dec 2025)
+  *Status*: Package removed entirely - no longer needed
 
 ---
 
@@ -102,7 +108,7 @@
 - [ ] **Conversation Memory**: Persistent chat context with summarization
 
 ### Phase 2.1 — Model Ecosystem
-- [ ] **Model Marketplace**: Browse/download GGUF models in-app
+- [x] **Model Marketplace**: Removed - app focuses on Apple Intelligence + PCC
 - [ ] **Custom Embedding Models**: User-provided Core ML embedders
 - [ ] **Fine-Tuning Pipeline**: LoRA adapters for domain-specific performance
 
@@ -135,6 +141,11 @@
 | DEBUG doc-pack refill simulation | ✅ Done | Agent | Mirror paywall simulation when doc pack Product metadata is unavailable |
 | De-dupe empty-catalog billing warnings | ✅ Done | Agent | Reduce repeated “StoreKit returned an empty product catalog” / “Products unavailable” spam |
 | Isolate StoreKit config to test scheme | ✅ Done | Agent | Move StoreKit .storekit config off main Run action to prevent debug simulation popups and ensure sandbox/App Store paths behave normally |
+| Remove local downloadable models | ✅ Done | Agent | Removed GGUF/CoreML/MLX support; simplified to Apple Intelligence + On-Device Analysis only |
+| Apple Intelligence API Audit | ✅ Done | Agent | Full FoundationModels API audit: prewarm(), SamplingMode, GenerationError handling, Transcript, LanguageModelFeedback, 4096-token context (TN3193) |
+| Tool @Guide Constraints | ✅ Done | Agent | Added .range() constraints to SearchDocumentsTool topK/minSimilarity parameters |
+| FM Feedback Integration | ✅ Done | Agent | Thumbs up/down in chat UI submits LanguageModelFeedback to Apple |
+| Chat Attachment Race Condition | ✅ Done | Agent | Fixed: attachments now fully processed before query runs (was sending query before documents indexed) |
 
 ---
 

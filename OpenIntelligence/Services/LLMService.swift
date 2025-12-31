@@ -98,12 +98,14 @@ enum LLMStreamingContext {
             var query: String
             @Guide(
                 description:
-                "Optional maximum number of chunks to retrieve. Use 2–4 for brief summaries, 8–12 for deep dives."
+                "Maximum number of chunks to retrieve. Use 2–4 for brief summaries, 8–12 for deep dives.",
+                .range(1 ... 20)
             )
             var topK: Int?
             @Guide(
                 description:
-                "Optional minimum semantic similarity threshold (0.0–1.0). Use 0.35 by default; increase to filter noise."
+                "Minimum semantic similarity threshold. Use 0.35 by default; increase to filter noise.",
+                .range(0.0 ... 1.0)
             )
             var minSimilarity: Float?
         }
@@ -275,6 +277,106 @@ struct LLMResponse {
             }
         }
 
+        // MARK: - Language Support (iOS 26+)
+
+        /// Check if the current device locale is supported by Apple Intelligence
+        var supportsCurrentLocale: Bool {
+            guard Thread.isMainThread else { return false }
+            return model.supportsLocale()
+        }
+
+        /// Check if a specific locale is supported
+        func supportsLocale(_ locale: Locale) -> Bool {
+            guard Thread.isMainThread else { return false }
+            return model.supportsLocale(locale)
+        }
+
+        /// Get all supported languages for display in UI
+        var supportedLanguages: Set<Locale.Language> {
+            guard Thread.isMainThread else { return [] }
+            return model.supportedLanguages
+        }
+
+        /// Context window size for on-device model (4096 tokens per TN3193)
+        static let contextWindowSize: Int = 4096
+
+        /// Approximate token count for a string (3-4 chars per token for Latin)
+        static func estimateTokens(for text: String) -> Int {
+            return text.count / 4 // Conservative estimate
+        }
+
+        // MARK: - Transcript Access (iOS 26+)
+
+        /// Access the session transcript for debugging/replay
+        /// Contains all prompts, responses, and tool calls in order
+        var transcript: Transcript? {
+            guard Thread.isMainThread else { return nil }
+            return session?.transcript
+        }
+
+        /// Get a text representation of the current conversation history
+        /// Transcript conforms to Collection, so iterate directly over it
+        var transcriptDescription: String {
+            guard let transcript = transcript else { return "No transcript available" }
+            var description = "Session Transcript (\(transcript.count) entries):\n"
+            for (index, entry) in transcript.enumerated() {
+                switch entry {
+                case let .instructions(inst):
+                    description += "[\(index + 1)] Instructions: \(String(describing: inst).prefix(80))...\n"
+                case let .prompt(prompt):
+                    description += "[\(index + 1)] Prompt: \(String(describing: prompt).prefix(80))...\n"
+                case let .response(resp):
+                    description += "[\(index + 1)] Response: \(String(describing: resp).prefix(80))...\n"
+                case let .toolCalls(calls):
+                    description += "[\(index + 1)] ToolCalls: \(calls.count) call(s)\n"
+                case let .toolOutput(output):
+                    description += "[\(index + 1)] ToolOutput: \(String(describing: output).prefix(80))...\n"
+                @unknown default:
+                    description += "[\(index + 1)] Unknown entry type\n"
+                }
+            }
+            return description
+        }
+
+        // MARK: - Feedback API (iOS 26+)
+
+        /// Submit feedback for the last response to help Apple improve model quality
+        /// Returns serialized feedback data suitable for Feedback Assistant attachment
+        func logFeedback(
+            sentiment: LanguageModelFeedback.Sentiment,
+            issues: [LanguageModelFeedback.Issue] = [],
+            desiredOutput: Transcript.Entry? = nil
+        ) -> Data? {
+            guard Thread.isMainThread, let session = session else { return nil }
+            let feedbackData = session.logFeedbackAttachment(
+                sentiment: sentiment,
+                issues: issues,
+                desiredOutput: desiredOutput
+            )
+            Log.debug("[FM] Feedback logged: \(sentiment)", category: .llm)
+            return feedbackData
+        }
+
+        /// Convenience: Submit positive feedback
+        func submitPositiveFeedback() -> Data? {
+            return logFeedback(sentiment: .positive)
+        }
+
+        /// Convenience: Submit negative feedback with optional issue details
+        func submitNegativeFeedback(
+            category: LanguageModelFeedback.Issue.Category? = nil,
+            explanation: String? = nil
+        ) -> Data? {
+            var issues: [LanguageModelFeedback.Issue] = []
+            if let category = category {
+                issues.append(LanguageModelFeedback.Issue(
+                    category: category,
+                    explanation: explanation
+                ))
+            }
+            return logFeedback(sentiment: .negative, issues: issues)
+        }
+
         init() {
             // SAFETY: We no longer access SystemLanguageModel.default in init
             // Instead, we defer it until the model property is accessed
@@ -293,7 +395,7 @@ struct LLMResponse {
         }
 
         /// Preload the Foundation Model to eliminate first-query latency
-        /// This runs in the background and makes the first real query instant
+        /// Uses official prewarm() API instead of throwaway prompts (saves tokens)
         @MainActor
         private func warmUpModel() async {
             Log.debug("[Warm-up] Starting Foundation Model preload...", category: .llm)
@@ -308,20 +410,13 @@ struct LLMResponse {
                     return
                 }
 
-                // Send a minimal throwaway query to fully initialize the model
-                let warmupPrompt = "Hi"
-                let options = GenerationOptions(temperature: 0.0)
-
-                // Use streaming (the actual API available) and consume minimal response
-                let responseStream = session.streamResponse(to: warmupPrompt, options: options)
-
-                // Just consume first token to trigger model load
-                for try await _ in responseStream {
-                    break // Only need first token to warm up
-                }
+                // ✅ Use official prewarm() API - no wasted tokens!
+                // Optionally cache a common prompt prefix for RAG queries
+                let ragPromptPrefix = Prompt("Based on the following document content, please answer:")
+                session.prewarm(promptPrefix: ragPromptPrefix)
 
                 let loadTime = Date().timeIntervalSince(startTime)
-                Log.info("[Warm-up] Foundation Model preloaded in \(String(format: "%.2f", loadTime))s", category: .llm)
+                Log.info("[Warm-up] Foundation Model preloaded in \(String(format: "%.2f", loadTime))s (using prewarm API)", category: .llm)
 
             } catch {
                 let failTime = Date().timeIntervalSince(startTime)
@@ -477,18 +572,35 @@ struct LLMResponse {
             var firstTokenTime: TimeInterval?
             var actualExecutionLocation = "Unknown"
 
-            // ✅ GAP #3: Use available generation parameters
-            // Note: iOS 26 GenerationOptions only supports temperature currently
-            // Other parameters like topP, topK may be in future releases
+            // ✅ Full GenerationOptions with SamplingMode support
+            // iOS 26 supports: temperature, sampling (topK/topP), maximumResponseTokens
+            let samplingMode: GenerationOptions.SamplingMode?
+            if config.topK > 0, config.topK < 100 {
+                // Top-K sampling: consider K highest probability tokens
+                samplingMode = .random(top: config.topK)
+            } else if config.topP < 1.0, config.topP > 0.0 {
+                // Nucleus/Top-P sampling: consider tokens until cumulative probability
+                samplingMode = .random(probabilityThreshold: Double(config.topP))
+            } else {
+                // Default: let system decide
+                samplingMode = nil
+            }
+
             let options = GenerationOptions(
-                temperature: Double(config.temperature)
+                sampling: samplingMode,
+                temperature: Double(config.temperature),
+                maximumResponseTokens: config.maxTokens > 0 ? config.maxTokens : nil
             )
 
             let responseStream = session.streamResponse(to: fullPrompt, options: options)
 
             var snapshotCount = 0
             var forcedLocalFallback = false
+            var contextWindowExceeded = false
+            var guardrailViolation = false
+            var unsupportedLanguage = false
 
+            do { 
             for try await snapshot in responseStream {
                 snapshotCount += 1
 
@@ -548,6 +660,65 @@ struct LLMResponse {
                     LLMStreamingContext.emit(text: chunk, isFinal: false)
                 }
             }
+            } catch let error as LanguageModelSession.GenerationError {
+                // ✅ Handle iOS 26 FoundationModels-specific errors (exhaustive)
+                switch error {
+                case let .exceededContextWindowSize(context):
+                    Log.warning("[FM] Context window exceeded (4096 tokens): \(context)", category: .llm)
+                    contextWindowExceeded = true
+                    TelemetryCenter.emit(
+                        .system,
+                        severity: .warning,
+                        title: "Context window exceeded",
+                        metadata: ["estimatedTokens": "\(estimatedTokens)"]
+                    )
+                case let .guardrailViolation(context):
+                    Log.warning("[FM] Guardrail violation - content filtered: \(context)", category: .llm)
+                    guardrailViolation = true
+                    TelemetryCenter.emit(
+                        .system,
+                        severity: .warning,
+                        title: "Guardrail violation",
+                        metadata: [:]
+                    )
+                case let .unsupportedLanguageOrLocale(context):
+                    Log.warning("[FM] Unsupported language/locale: \(context)", category: .llm)
+                    unsupportedLanguage = true
+                case let .rateLimited(context):
+                    Log.warning("[FM] Rate limited: \(context)", category: .llm)
+                    throw LLMError.generationFailed(
+                        "Apple Intelligence is temporarily rate-limited. Please wait a moment and try again."
+                    )
+                case let .refusal(refusal, context):
+                    Log.warning("[FM] Model refused request: \(refusal) - \(context)", category: .llm)
+                    throw LLMError.generationFailed(
+                        "Apple Intelligence declined this request. Try rephrasing your question."
+                    )
+                case let .assetsUnavailable(context):
+                    Log.error("[FM] Model assets unavailable: \(context)", category: .llm)
+                    throw LLMError.generationFailed(
+                        "Apple Intelligence models are not currently available. Ensure Apple Intelligence is enabled in Settings."
+                    )
+                case let .decodingFailure(context):
+                    Log.error("[FM] Decoding failure: \(context)", category: .llm)
+                    throw LLMError.generationFailed(
+                        "Failed to decode model response. This is an internal error—please try again."
+                    )
+                case let .concurrentRequests(context):
+                    Log.warning("[FM] Concurrent requests blocked: \(context)", category: .llm)
+                    throw LLMError.generationFailed(
+                        "A request is already in progress. Please wait for it to complete."
+                    )
+                case let .unsupportedGuide(context):
+                    Log.error("[FM] Unsupported generation guide: \(context)", category: .llm)
+                    throw LLMError.generationFailed(
+                        "An internal tool configuration error occurred. Please report this bug."
+                    )
+                @unknown default:
+                    Log.error("[FM] Unknown generation error: \(error)", category: .llm)
+                    throw error
+                }
+            }
 
             // If PCC was blocked and we aborted the FM stream, fall back to On-Device Analysis now
             if forcedLocalFallback {
@@ -572,6 +743,29 @@ struct LLMResponse {
                     totalTime: totalTime,
                     modelName: local.modelName,
                     toolCallsMade: 0
+                )
+            }
+
+            // Handle generation errors with user-friendly messages
+            if contextWindowExceeded {
+                throw LLMError.generationFailed(
+                    "Your query and documents exceed the 4096 token context limit. " +
+                        "Try asking a more specific question or reducing the number of retrieved chunks."
+                )
+            }
+
+            if guardrailViolation {
+                throw LLMError.generationFailed(
+                    "Apple's safety guardrails prevented this response. " +
+                        "Please rephrase your question to avoid sensitive topics."
+                )
+            }
+
+            if unsupportedLanguage {
+                let supportedList = supportedLanguages.prefix(5).map { $0.languageCode?.identifier ?? "?" }.joined(separator: ", ")
+                throw LLMError.generationFailed(
+                    "Your language is not yet supported by Apple Intelligence. " +
+                        "Supported: \(supportedList)..."
                 )
             }
 
@@ -1244,398 +1438,17 @@ class OnDeviceAnalysisService: LLMService {
     }
 #endif
 
-// MARK: - Core ML Implementation (Pathway B1)
-
-// For custom models converted to .mlpackage format
-
-class CoreMLLLMService: LLMService {
-    // MARK: - Persistence Keys
-
-    static let selectedModelIdKey = "selectedCoreMLModelId"
-    static let selectedModelPathKey = "selectedCoreMLModelPath"
-
-    // MARK: - Properties
-
-    private let modelURL: URL
-    private let modelId: UUID?
-    private let installedModel: InstalledModel?
-    private var model: MLModel?
-    private let _modelName: String
-
-    var toolHandler: RAGToolHandler? // Not used by Core ML models
-
-    var isAvailable: Bool {
-        FileManager.default.fileExists(atPath: modelURL.path) && model != nil
-    }
-
-    var modelName: String {
-        _modelName
-    }
-
-    // MARK: - Initialization
-
-    init(modelURL: URL, modelId: UUID? = nil, installedModel: InstalledModel? = nil) {
-        self.modelURL = modelURL
-        self.modelId = modelId
-        self.installedModel = installedModel
-        if let installedModel {
-            _modelName = "Core ML • \(installedModel.name)"
-        } else {
-            _modelName = "Core ML • \(modelURL.deletingPathExtension().lastPathComponent)"
-        }
-        model = CoreMLLLMService.loadModel(at: modelURL)
-        if let installedModel {
-            let shortId = String(installedModel.id.uuidString.prefix(8))
-            Log.info(
-                "✓ Configured Core ML model: \(installedModel.name) [id=\(shortId)]", category: .llm
-            )
-        }
-    }
-
-    private static func loadModel(at url: URL) -> MLModel? {
-        guard FileManager.default.fileExists(atPath: url.path) else {
-            Log.error("✗ Core ML model file missing: \(url.lastPathComponent)", category: .llm)
-            return nil
-        }
-
-        do {
-            let configuration = MLModelConfiguration()
-            configuration.computeUnits = .all // CPU + GPU + Neural Engine
-            let loaded = try MLModel(contentsOf: url, configuration: configuration)
-            Log.info("Successfully loaded Core ML model: \(url.lastPathComponent)", category: .llm)
-            return loaded
-        } catch {
-            Log.error(
-                "✗ Failed to load Core ML model: \(error.localizedDescription)", category: .llm
-            )
-            return nil
-        }
-    }
-
-    // MARK: - Selection Persistence
-
-    static func saveSelection(modelId: UUID, modelURL: URL) {
-        let defaults = UserDefaults.standard
-        defaults.set(modelId.uuidString, forKey: selectedModelIdKey)
-        defaults.set(modelURL.path, forKey: selectedModelPathKey)
-        let shortId = String(modelId.uuidString.prefix(8))
-        Log.info("💾 Saved Core ML selection [id=\(shortId)]", category: .llm)
-    }
-
-    static func clearSelection() {
-        let defaults = UserDefaults.standard
-        defaults.removeObject(forKey: selectedModelIdKey)
-        defaults.removeObject(forKey: selectedModelPathKey)
-        Log.info("Cleared Core ML selection", category: .llm)
-    }
-
-    @MainActor
-    private static func resolveRegistrySelection() -> (UUID, InstalledModel, URL)? {
-        let defaults = UserDefaults.standard
-        guard let idString = defaults.string(forKey: selectedModelIdKey),
-              let id = UUID(uuidString: idString),
-              let model = ModelRegistry.shared.model(id: id),
-              model.backend == .coreML,
-              let url = model.localURL,
-              FileManager.default.fileExists(atPath: url.path)
-        else {
-            return nil
-        }
-        return (id, model, url)
-    }
-
-    static func selectionIsReady() -> Bool {
-        let defaults = UserDefaults.standard
-        guard let path = defaults.string(forKey: selectedModelPathKey) else { return false }
-        return FileManager.default.fileExists(atPath: path)
-    }
-
-    static func loadFromDefaults() -> CoreMLLLMService? {
-        let defaults = UserDefaults.standard
-        guard let path = defaults.string(forKey: selectedModelPathKey) else { return nil }
-        let url = URL(fileURLWithPath: path)
-        let service = CoreMLLLMService(modelURL: url)
-        return service.isAvailable ? service : nil
-    }
-
-    static func fromRegistry() async -> CoreMLLLMService? {
-        if let payload = await MainActor.run(body: { resolveRegistrySelection() }) {
-            return await makeService(url: payload.2, modelId: payload.0, installedModel: payload.1)
-        }
-        return loadFromDefaults()
-    }
-
-    private static func makeService(url: URL, modelId: UUID?, installedModel: InstalledModel?) async
-        -> CoreMLLLMService?
-    {
-        await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                let service = CoreMLLLMService(
-                    modelURL: url, modelId: modelId, installedModel: installedModel
-                )
-                continuation.resume(returning: service.isAvailable ? service : nil)
-            }
-        }
-    }
-
-    // MARK: - Generation
-
-    func generate(prompt: String, context: String?, config: InferenceConfig) async throws
-        -> LLMResponse
-    {
-        guard let model = model else {
-            throw LLMError.modelUnavailable
-        }
-
-        let startTime = Date()
-
-        let augmentedPrompt: String
-        if let context = context, !context.isEmpty {
-            augmentedPrompt = """
-            Context: \(context)
-
-            Question: \(prompt)
-
-            Answer:
-            """
-        } else {
-            augmentedPrompt = prompt
-        }
-
-        let inputTokens = tokenize(augmentedPrompt)
-        let inputFeatures = try createInputFeatures(tokens: inputTokens, config: config)
-        let prediction = try await model.prediction(from: inputFeatures)
-        let outputText = try decodeOutput(prediction)
-
-        let totalTime = Date().timeIntervalSince(startTime)
-
-        if !outputText.isEmpty {
-            LLMStreamingContext.emit(text: outputText, isFinal: false)
-        }
-        LLMStreamingContext.emit(text: "", isFinal: true)
-
-        return LLMResponse(
-            text: outputText,
-            tokensGenerated: outputText.split(separator: " ").count,
-            timeToFirstToken: nil,
-            totalTime: totalTime,
-            modelName: modelName,
-            toolCallsMade: 0
-        )
-    }
-
-    // MARK: - Tokenization (Placeholder)
-
-    private func tokenize(_ text: String) -> [Int] {
-        text.split(separator: " ").map { _ in Int.random(in: 0 ..< 50000) }
-    }
-
-    private func createInputFeatures(tokens _: [Int], config _: InferenceConfig) throws
-        -> MLFeatureProvider
-    {
-        throw LLMError.notImplemented
-    }
-
-    private func decodeOutput(_: MLFeatureProvider) throws -> String {
-        throw LLMError.notImplemented
-    }
-}
-
-// MARK: - OpenAI Direct API (User's Own API Key)
-
-// Direct integration with OpenAI API - bypasses Apple Intelligence
-// User provides their own OpenAI API key
-// Supports all OpenAI models: GPT-4o, GPT-4o-mini, GPT-4-turbo, etc.
-
-class OpenAILLMService: LLMService {
-    private let apiKey: String
-    private let model: String
-    private let endpoint = "https://api.openai.com/v1/chat/completions"
-
-    var toolHandler: RAGToolHandler? // Not used by OpenAI direct API
-
-    var isAvailable: Bool { !apiKey.isEmpty }
-    var modelName: String { model }
-
-    init(apiKey: String, model: String = "gpt-4o-mini") {
-        self.apiKey = apiKey
-        self.model = model
-
-        if isAvailable {
-            Log.info("OpenAI Direct API initialized (model: \(model))", category: .llm)
-        }
-    }
-
-    func generate(prompt: String, context: String?, config: InferenceConfig) async throws
-        -> LLMResponse
-    {
-        guard !apiKey.isEmpty else {
-            throw LLMError.modelUnavailable
-        }
-
-        Log.debug("[OpenAI] Starting API call (model: \(model), prompt: \(prompt.count) chars)", category: .llm)
-
-        let startTime = Date()
-
-        // Construct messages with system prompt and user query
-        let defaultSystemPrompt = """
-        You are a helpful AI assistant with access to documents. When provided with context \
-        from documents, use that information to answer questions accurately and concisely. \
-        If the context doesn't contain relevant information, say so clearly. Always be helpful \
-        and conversational.
-        """
-
-        var messages: [[String: String]] = [
-            [
-                "role": "system",
-                "content": config.systemPrompt ?? defaultSystemPrompt,
-            ],
-        ]
-
-        // Add context and user query
-        if let context = context, !context.isEmpty {
-            messages.append([
-                "role": "user",
-                "content": """
-                Here is relevant information from the documents:
-
-                \(context)
-
-                Based on this information, please answer: \(prompt)
-                """,
-            ])
-        } else {
-            messages.append([
-                "role": "user",
-                "content": prompt,
-            ])
-        }
-
-        // Prepare request body with model-specific parameters
-        // IMPORTANT: OpenAI API parameter differences by model family:
-        //
-        // Standard models (GPT-4, GPT-4o, GPT-4-turbo, GPT-3.5):
-        //   - Use "max_tokens" parameter
-        //   - Support "temperature" for controlling randomness
-        //
-        // GPT-5 reasoning models (gpt-5, gpt-5-mini, gpt-5-nano):
-        //   - Use "max_completion_tokens" instead of "max_tokens"
-        //   - DO NOT support "temperature" - uses reasoning tokens instead
-        //   - Default reasoning effort: "medium" (can be: minimal, medium, high via Responses API)
-        //   - New features: verbosity, reasoning effort, CFG (via Responses API)
-        //   - Similar reasoning approach to o1 but with more configurability
-        //
-        // o1 reasoning models (o1, o1-mini):
-        //   - Use "max_completion_tokens" instead of "max_tokens"
-        //   - Do NOT support "temperature" - uses reasoning tokens
-        //   - Extended thinking process before responding
-        //
-        // See: https://platform.openai.com/docs/guides/reasoning
-        // See: https://cookbook.openai.com/examples/gpt-5/gpt-5_new_params_and_tools
-
-        var requestBody: [String: Any] = [
-            "model": model,
-            "messages": messages,
-        ]
-
-        // Determine which models need special parameter handling
-        let isReasoningModel = model.hasPrefix("o1") || model.hasPrefix("gpt-5")
-
-        // Temperature is NOT supported by reasoning models (o1, GPT-5)
-        if !isReasoningModel {
-            requestBody["temperature"] = Double(config.temperature)
-            requestBody["top_p"] = Double(config.topP)
-            requestBody["frequency_penalty"] = Double(config.frequencyPenalty)
-            requestBody["presence_penalty"] = Double(config.presencePenalty)
-        }
-
-        // Reasoning models use max_completion_tokens instead of max_tokens
-        if isReasoningModel {
-            requestBody["max_completion_tokens"] = config.maxTokens
-        } else {
-            requestBody["max_tokens"] = config.maxTokens
-        }
-
-        guard let jsonData = try? JSONSerialization.data(withJSONObject: requestBody) else {
-            throw LLMError.generationFailed("Failed to encode request")
-        }
-
-        // Create request
-        var request = URLRequest(url: URL(string: endpoint)!)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = jsonData
-        request.timeoutInterval = 60 // 60 second timeout
-
-        // Make API call
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        let apiTime = Date().timeIntervalSince(startTime)
-        Log.debug("[OpenAI] Response received in \(String(format: "%.2f", apiTime))s", category: .llm)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw LLMError.generationFailed("Invalid response")
-        }
-
-        guard httpResponse.statusCode == 200 else {
-            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
-            throw LLMError.generationFailed(
-                "API error (\(httpResponse.statusCode)): \(errorMessage)")
-        }
-
-        // Parse response
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            let errorString = String(data: data, encoding: .utf8) ?? "Unknown error"
-            Log.error("[OpenAI] Failed to parse JSON: \(errorString)", category: .llm)
-            throw LLMError.generationFailed("Failed to parse response")
-        }
-
-        guard let choices = json["choices"] as? [[String: Any]],
-              let firstChoice = choices.first,
-              let message = firstChoice["message"] as? [String: Any],
-              let content = message["content"] as? String
-        else {
-            Log.error("[OpenAI] Invalid response structure", category: .llm)
-            throw LLMError.generationFailed("Failed to parse response")
-        }
-
-        // Extract usage statistics
-        let tokensGenerated: Int
-        if let usage = json["usage"] as? [String: Any],
-           let completionTokens = usage["completion_tokens"] as? Int
-        {
-            tokensGenerated = completionTokens
-        } else {
-            tokensGenerated = content.split(separator: " ").count
-        }
-
-        let totalTime = Date().timeIntervalSince(startTime)
-        Log.info("[OpenAI] Generation complete: \(tokensGenerated) tokens in \(String(format: "%.2f", totalTime))s", category: .llm)
-
-        if !content.isEmpty {
-            LLMStreamingContext.emit(text: content, isFinal: false)
-        }
-        LLMStreamingContext.emit(text: "", isFinal: true)
-
-        return LLMResponse(
-            text: content,
-            tokensGenerated: tokensGenerated,
-            timeToFirstToken: nil,
-            totalTime: totalTime,
-            modelName: "OpenAI \(model)",
-            toolCallsMade: 0
-        )
-    }
-}
-
-// MARK: - REMOVED: Mock Implementation
-
-// Mock services removed - use real implementations only:
-// 1. OnDeviceAnalysisService - extractive QA with NaturalLanguage framework
-// 2. AppleChatGPTExtensionService - Apple's ChatGPT integration (iOS 18.1+)
-// 3. OpenAILLMService - direct OpenAI API with user's key
-// 4. CoreMLLLMService - custom models (optional enhancement)
+// MARK: - REMOVED: Local Model Implementations
+
+// The following implementations have been removed to simplify the app:
+// - CoreMLLLMService: Custom Core ML models (.mlpackage)
+// - OpenAILLMService: Direct OpenAI API with user's key
+// - LlamaCPPiOSLLMService: GGUF models via llama.cpp (was in separate file)
+// - MLXLLMService: MLX tensor server (macOS only, was in separate file)
+//
+// The app now uses only:
+// 1. AppleFoundationLLMService - Apple Intelligence with PCC (iOS 26+)
+// 2. OnDeviceAnalysisService - Extractive QA with NaturalLanguage framework (always available)
 
 // MARK: - Errors
 

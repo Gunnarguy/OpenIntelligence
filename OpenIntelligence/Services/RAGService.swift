@@ -14,17 +14,8 @@ import NaturalLanguage
     import FoundationModels
 #endif
 
-enum LocalModelAccessError: LocalizedError {
-    case previewsExhausted
-
-    var errorDescription: String? {
-        "You've used all 3 on-device preview runs. Upgrade to Pro or Lifetime for unlimited private inference."
-    }
-
-    var recoverySuggestion: String? {
-        "Open Settings → Upgrade Plan to continue using GGUF/Core ML locally."
-    }
-}
+// NOTE: Local model support (GGUF, CoreML, MLX) has been removed.
+// The app now uses Apple Intelligence and On-Device Analysis only.
 
 struct RetrievalLogEntry: Identifiable, Sendable {
     let id = UUID()
@@ -177,12 +168,10 @@ class RAGService: ObservableObject {
     @MainActor @Published private(set) var cloudConsent: [CloudProvider: CloudConsentState] = [:]
     @MainActor @Published private(set) var containerIntelligence: [UUID: LibraryIntelligenceCenter.IntelligenceReport] = [:]
     @MainActor @Published var thinkingEvents: [ThinkingEvent] = []
+
+    /// Published model name for UI binding - updates when LLM service changes
+    @MainActor @Published private(set) var activeModelName: String = "Loading..."
     @MainActor private var selfTuningInFlight: Set<UUID> = []
-    #if os(macOS)
-        @MainActor @Published private(set) var mlxServerStatus: MLXLLMService.ServerStatus? = nil
-        @MainActor private weak var observedMLXService: MLXLLMService?
-        @MainActor private var mlxStatusBootstrapTask: Task<Void, Never>?
-    #endif
 
     private(set) var totalChunksStored: Int = 0
     private let retrievalHistoryLimit = 50
@@ -280,9 +269,7 @@ class RAGService: ObservableObject {
         if let service = llmService {
             // User provided custom service (e.g., from Settings)
             _llmService = service
-            #if os(macOS)
-                configureMLXObserver(for: service)
-            #endif
+            activeModelName = service.modelName
             Log.info("✓ Using custom LLM service: \(service.modelName)", category: .initialization)
         } else {
             // Check user's selected model from Settings
@@ -332,21 +319,12 @@ class RAGService: ObservableObject {
             }
 
             _llmService = resolvedService
+            activeModelName = resolvedService.modelName
             _fallbackServices = fallbackServices
-            #if os(macOS)
-                configureMLXObserver(for: resolvedService)
-            #endif
 
             // Connect tool handler for agentic RAG (Foundation Models only)
             _llmService.toolHandler = self
             Log.info("🔗 Tool handler connected for agentic RAG", category: .initialization)
-            #if os(iOS)
-                if selectedModelRaw == LLMModelType.ggufLocal.rawValue {
-                    Task { @MainActor in
-                        self.activatePersistedGGUFModel(reason: "startup selection")
-                    }
-                }
-            #endif
         }
 
         // Load persisted documents metadata
@@ -503,7 +481,7 @@ class RAGService: ObservableObject {
 
     private func cloudProvider(for service: LLMService) -> CloudProvider? {
         switch service {
-        case is OpenAILLMService, is OpenAIResponsesAPIService:
+        case is OpenAIResponsesAPIService:
             return .openAI
         #if canImport(FoundationModels)
             case is AppleFoundationLLMService:
@@ -793,9 +771,7 @@ class RAGService: ObservableObject {
     func updateLLMService(_ newService: LLMService) async {
         await MainActor.run {
             self._llmService = newService
-            #if os(macOS)
-                configureMLXObserver(for: newService)
-            #endif
+            self.activeModelName = newService.modelName // Update published property for UI
             Log.info("✓ Switched to: \(newService.modelName)", category: .initialization)
         }
     }
@@ -2384,7 +2360,7 @@ class RAGService: ObservableObject {
                 //   - GPT-4o: 128K tokens (~512K chars)
                 //   - GPT-5: 400K tokens (~1.6M chars) 🚀
                 let maxContextChars: Int
-                if llmService is OpenAILLMService {
+                if llmService is OpenAIResponsesAPIService { 
                     // GPT-5 has 400K token context (~1.6M chars theoretical)
                     // Use 200K chars conservatively (leaves ~200K for prompt + response)
                     maxContextChars = 200_000 // 200K chars = ~50K tokens
@@ -2941,6 +2917,7 @@ class RAGService: ObservableObject {
     @MainActor
     func updateLLMService(_ primary: LLMService, fallbacks: [LLMService] = []) {
         _llmService = primary
+        activeModelName = primary.modelName
         _fallbackServices = fallbacks
         #if os(macOS)
             configureMLXObserver(for: primary)
@@ -2956,6 +2933,7 @@ class RAGService: ObservableObject {
     func switchModel(to service: LLMService) async {
         await MainActor.run {
             self._llmService = service
+            self.activeModelName = service.modelName
             Log.info("✓ Switched to model: \(service.modelName)", category: .initialization)
         }
     }
@@ -2968,6 +2946,41 @@ class RAGService: ObservableObject {
     var currentModelName: String {
         llmService.modelName
     }
+
+    // MARK: - Apple Intelligence Feedback (iOS 26+)
+
+    #if canImport(FoundationModels)
+        /// Submit positive feedback for the last Apple Intelligence response
+        /// This helps Apple improve model quality
+        @available(iOS 26.0, *)
+        func submitPositiveFeedback() {
+            guard let fmService = _llmService as? AppleFoundationLLMService else {
+                Log.debug("Feedback skipped: not using Apple Foundation Model", category: .llm)
+                return
+            }
+            _ = fmService.submitPositiveFeedback()
+            Log.info("✓ Positive feedback submitted to Apple Intelligence", category: .llm)
+        }
+
+        /// Submit negative feedback for the last Apple Intelligence response
+        @available(iOS 26.0, *)
+        func submitNegativeFeedback() {
+            guard let fmService = _llmService as? AppleFoundationLLMService else {
+                Log.debug("Feedback skipped: not using Apple Foundation Model", category: .llm)
+                return
+            }
+            _ = fmService.submitNegativeFeedback()
+            Log.info("✓ Negative feedback submitted to Apple Intelligence", category: .llm)
+        }
+
+        /// Check if feedback is available (using Apple Intelligence)
+        var canSubmitFeedback: Bool {
+            if #available(iOS 26.0, *) {
+                return _llmService is AppleFoundationLLMService
+            }
+            return false
+        }
+    #endif
 
     // MARK: - Fallback-Aware Generation
 
@@ -3075,95 +3088,37 @@ class RAGService: ObservableObject {
 
     // MARK: - Private Helpers
 
+    /// Local model preview tracking has been removed along with downloadable models.
+    /// These functions are retained as no-ops for call-site compatibility.
     private func preparePreviewTicketIfNeeded(for service: LLMService) throws
         -> (LocalModelPreviewTicket?, ModelBackend?)
     {
-        guard let backend = localBackend(for: service) else { return (nil, nil) }
-        guard let store = entitlementStore else { return (nil, backend) }
-        guard let ticket = store.issueLocalModelPreviewTicket() else {
-            store.markPreviewGateTriggered(for: backend)
-            throw LocalModelAccessError.previewsExhausted
-        }
-        return (ticket, backend)
+        // Local backends removed - always return nil
+        return (nil, nil)
     }
 
     private func consumePreviewIfNeeded(
         ticket: LocalModelPreviewTicket?,
         backend: ModelBackend?
     ) {
-        guard let backend else { return }
-        let remaining = entitlementStore?.consumeLocalModelPreviewIfNeeded(
-            ticket: ticket,
-            backend: backend
-        )
-        if let remaining, remaining == 0 {
-            handlePreviewExhaustion()
-        }
+        // Local model preview tracking removed - no-op
     }
 
     private func localBackend(for service: LLMService) -> ModelBackend? {
-        switch service {
-        case is LlamaCPPiOSLLMService:
-            return .gguf
-        case is CoreMLLLMService:
-            return .coreML
-        case is MLXLLMService:
-            return .mlx
-        default:
-            return nil
-        }
-    }
-
-    private func handlePreviewExhaustion() {
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            if settingsStore?.selectedModel == .ggufLocal
-                || settingsStore?.selectedModel == .coreMLLocal
-            {
-                settingsStore?.selectedModel = .onDeviceAnalysis
-            }
-            lastError = LocalModelAccessError.previewsExhausted.errorDescription
-        }
+        // Local model backends have been removed
+        return nil
     }
 
     /// Returns a configured service for the given settings key, if available.
+    /// Simplified: only Apple Intelligence and On-Device Analysis are supported.
     private static func instantiateService(
         for modelKey: String,
         entitlementStore: EntitlementStore?
     ) -> LLMService? {
-        switch modelKey {
-        case "openai":
-            #if os(macOS)
-                guard
-                    let storedKey = UserDefaults.standard.string(forKey: "openaiAPIKey")?
-                    .trimmingCharacters(in: .whitespacesAndNewlines),
-                    !storedKey.isEmpty
-                else {
-                    Log.warning(
-                        "OpenAI Direct selected but API key is missing", category: .initialization
-                    )
-                    return nil
-                }
-                let model = UserDefaults.standard.string(forKey: "openaiModel") ?? "gpt-4o-mini"
-                if model.hasPrefix("gpt-5") {
-                    Log.info(
-                        "✓ Using OpenAI Direct (Responses API): \(model)", category: .initialization
-                    )
-                    return OpenAIResponsesAPIService(apiKey: storedKey, model: model)
-                } else {
-                    Log.info(
-                        "✓ Using OpenAI Direct (Chat Completions): \(model)",
-                        category: .initialization
-                    )
-                    return OpenAILLMService(apiKey: storedKey, model: model)
-                }
-            #else
-                Log.info(
-                    "OpenAI Direct disabled on iOS for Apple-native configuration",
-                    category: .initialization
-                )
-                return nil
-            #endif
+        // Migrate deprecated model keys to supported types
+        let effectiveKey = LLMModelType.isDeprecatedRawValue(modelKey) ? "apple_intelligence" : modelKey
+
+        switch effectiveKey { 
         case "apple_intelligence":
             #if canImport(FoundationModels)
                 if #available(iOS 26.0, *) {
@@ -3192,134 +3147,13 @@ class RAGService: ObservableObject {
                 }
             #endif
             return nil
-        case "chatgpt_extension":
-            if #available(iOS 18.1, *) {
-                let chatGPTService = AppleChatGPTExtensionService()
-                if chatGPTService.isAvailable {
-                    Log.info(
-                        "✓ Using ChatGPT Extension (Apple Intelligence)", category: .initialization
-                    )
-                    return chatGPTService
-                } else {
-                    Log.warning(
-                        "ChatGPT Extension not available - check Settings > Apple Intelligence & Siri",
-                        category: .initialization
-                    )
-                }
-            } else {
-                Log.warning(
-                    "ChatGPT Extension requires iOS 18.1 or later", category: .initialization
-                )
-            }
-            return nil
         case "on_device_analysis":
             Log.info("✓ Using On-Device Analysis (extractive QA)", category: .initialization)
             return OnDeviceAnalysisService()
-        case "mlx_local":
-            #if os(macOS)
-                if let store = entitlementStore, !store.canUseLocalModels {
-                    Log.warning(
-                        "MLX Local requires Pro or Lifetime tier (current: \(store.activeTier.rawValue))",
-                        category: .initialization
-                    )
-                    store.markPreviewGateTriggered(for: .mlx)
-                    return nil
-                }
-                guard let config = MLXLLMService.Config.fromDefaults() else {
-                    Log.warning(
-                        "MLX Local selected but configuration is invalid",
-                        category: .initialization
-                    )
-                    return nil
-                }
-                Log.info(
-                    "✓ Using MLX Local (URL: \(config.baseURL.absoluteString), model: \(config.model))",
-                    category: .initialization
-                )
-                return MLXLLMService(config: config)
-            #else
-                Log.warning(
-                    "MLX Local presets are only available on macOS", category: .initialization
-                )
-                return nil
-            #endif
-        case "coreml_local":
-            // Enforce tier gating for Core ML (Lifetime/Pro required)
-            if let store = entitlementStore, !store.activeTier.isAtLeast(.lifetime) {
-                Log.warning(
-                    "Core ML Local requires Lifetime or Pro tier (current: \(store.activeTier.rawValue))",
-                    category: .initialization
-                )
-                TelemetryCenter.emitBillingEvent(
-                    "Local model blocked at service init",
-                    metadata: ["tier": store.activeTier.rawValue, "type": "coreml"]
-                )
-                return nil
-            }
-            if let coreMLService = CoreMLLLMService.loadFromDefaults() {
-                Log.info(
-                    "✓ Using Core ML Local: \(coreMLService.modelName)", category: .initialization
-                )
-                return coreMLService
-            } else {
-                Log.warning(
-                    "Core ML Local selected but no model configured", category: .initialization
-                )
-                return nil
-            }
-        case "llama_cpp_local":
-            #if os(macOS)
-                Log.info("✓ Using llama.cpp Local (defaults)", category: .initialization)
-                return LlamaCPPPresetLLMService()
-            #else
-                Log.warning(
-                    "llama.cpp local preset is only available on macOS", category: .initialization
-                )
-                return nil
-            #endif
-        case "ollama_local":
-            #if os(macOS)
-                Log.info("✓ Using Ollama Local (defaults)", category: .initialization)
-                return OllamaPresetLLMService()
-            #else
-                Log.warning(
-                    "Ollama local preset is only available on macOS", category: .initialization
-                )
-                return nil
-            #endif
-        case "gguf_local":
-            #if os(iOS)
-                if let store = entitlementStore, !store.canUseLocalModels {
-                    Log.warning(
-                        "GGUF Local requires Pro or Lifetime tier (current: \(store.activeTier.rawValue))",
-                        category: .initialization
-                    )
-                    store.markPreviewGateTriggered(for: .gguf)
-                    return nil
-                }
-                guard LlamaCPPiOSLLMService.runtimeAvailable else {
-                    Log.warning(
-                        "GGUF runtime not bundled; unable to activate immediately",
-                        category: .initialization
-                    )
-                    return nil
-                }
-                if let service = LlamaCPPiOSLLMService.fromRegistry() {
-                    Log.info("✓ Using GGUF Local: \(service.modelName)", category: .initialization)
-                    return service
-                }
-                Log.warning(
-                    "GGUF Local selected but no installed model was found",
-                    category: .initialization
-                )
-                return nil
-            #else
-                Log.warning("GGUF Local preset is only supported on iOS", category: .initialization)
-                return nil
-            #endif
         default:
-            Log.warning("Unknown model type: \(modelKey)", category: .initialization)
-            return nil
+            // Unknown or deprecated model type - fall back to On-Device Analysis
+            Log.warning("Unknown or deprecated model type: \(modelKey); using On-Device Analysis", category: .initialization)
+            return OnDeviceAnalysisService()
         }
     }
 
@@ -3348,70 +3182,6 @@ class RAGService: ObservableObject {
 
         return fallbacks
     }
-
-    #if os(macOS)
-        @MainActor
-        private func configureMLXObserver(for service: LLMService) {
-            observedMLXService?.setStatusObserver(nil)
-            mlxStatusBootstrapTask?.cancel()
-            mlxStatusBootstrapTask = nil
-
-            guard let mlxService = service as? MLXLLMService else {
-                mlxServerStatus = nil
-                observedMLXService = nil
-                return
-            }
-
-            observedMLXService = mlxService
-            mlxService.setStatusObserver { [weak self] status in
-                self?.mlxServerStatus = status
-            }
-
-            mlxStatusBootstrapTask = Task { [weak self] in
-                let status = await mlxService.currentServerStatus()
-                await MainActor.run {
-                    self?.mlxServerStatus = status
-                }
-            }
-        }
-    #endif
-
-    #if os(iOS)
-        /// Reactivates the previously selected GGUF model once the runtime and registry entry are ready.
-        @MainActor
-        private func activatePersistedGGUFModel(reason: String) {
-            if _llmService is LlamaCPPiOSLLMService {
-                Log.debug("GGUF service already active (\(reason))", category: .initialization)
-                return
-            }
-            guard LlamaCPPiOSLLMService.runtimeAvailable else {
-                Log.warning("GGUF runtime unavailable (\(reason))", category: .initialization)
-                return
-            }
-            guard let service = LlamaCPPiOSLLMService.fromRegistry() else {
-                Log.warning(
-                    "GGUF selection persisted but no model found (\(reason))",
-                    category: .initialization
-                )
-                return
-            }
-            service.toolHandler = self
-            _llmService = service
-            _llmService.toolHandler = self
-            AutoTuneService.tuneForSelection(selectedModel: .ggufLocal)
-            TelemetryCenter.emit(
-                .system,
-                title: "GGUF model activated",
-                metadata: [
-                    "reason": reason,
-                    "model": service.modelName,
-                ]
-            )
-            Log.info(
-                "✓ Activated GGUF Local model (\(service.modelName))", category: .initialization
-            )
-        }
-    #endif
 
     /// Log structured query statistics for debugging and telemetry dashboards
     @MainActor

@@ -333,13 +333,10 @@ final class StoreKitBillingService: BillingService {
         let appVersion = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "unknown"
         let buildNumber = (Bundle.main.infoDictionary?["CFBundleVersion"] as? String) ?? "unknown"
 
-        let receiptURL = Bundle.main.appStoreReceiptURL
-        let receiptPath = receiptURL?.path ?? ""
-        let receiptPresent = (!receiptPath.isEmpty) && FileManager.default.fileExists(atPath: receiptPath)
-
-        // Heuristic: sandbox receipts commonly contain “sandboxReceipt” in the filename.
-        // We use this as a hint only; it is not authoritative.
-        let receiptSandboxHint = receiptPath.localizedCaseInsensitiveContains("sandbox")
+        // Non-async heuristics (no deprecated APIs): we cannot synchronously query StoreKit transactions.
+        // Fall back to conservative defaults; detailed receipt info will be captured in event streams elsewhere.
+        let receiptPresent = "unknown"
+        let receiptSandboxHint = "unknown"
 
         #if targetEnvironment(simulator)
             let environment = "simulator"
@@ -352,8 +349,8 @@ final class StoreKitBillingService: BillingService {
             "bundleId": bundleId,
             "appVersion": appVersion,
             "buildNumber": buildNumber,
-            "receiptPresent": receiptPresent ? "true" : "false",
-            "receiptSandboxHint": receiptSandboxHint ? "true" : "false",
+            "receiptPresent": receiptPresent,
+            "receiptSandboxHint": receiptSandboxHint,
         ]
     }
 

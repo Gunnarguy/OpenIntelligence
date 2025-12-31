@@ -14,10 +14,14 @@ struct ContentView: View {
     @StateObject private var onboardingStore: OnboardingStateStore
     @StateObject private var entitlementStore: EntitlementStore
     @State private var selectedTab: Tab = .chat
+    private let screenshotMode: ScreenshotMode
 
     init() {
+        self.screenshotMode = ScreenshotMode.current
         #if DEBUG
-            StoreKitTestHarness.startIfNeeded()
+            if !screenshotMode.isEnabled { 
+                StoreKitTestHarness.startIfNeeded()
+            }
         #endif
         let containerSvc = ContainerService()
         let billingSvc = StoreKitBillingService()
@@ -26,8 +30,19 @@ struct ContentView: View {
         _containerService = StateObject(wrappedValue: containerSvc)
         _ragService = StateObject(wrappedValue: ragSvc)
         _settingsStore = StateObject(wrappedValue: SettingsStore(ragService: ragSvc))
-        _onboardingStore = StateObject(wrappedValue: OnboardingStateStore())
+        if screenshotMode.isEnabled {
+            let suite = "OpenIntelligence.Screenshots"
+            let defaults = UserDefaults(suiteName: suite) ?? .standard
+            defaults.removePersistentDomain(forName: suite)
+            _onboardingStore = StateObject(wrappedValue: OnboardingStateStore(defaults: defaults))
+        } else { 
+            _onboardingStore = StateObject(wrappedValue: OnboardingStateStore())
+        }
         _entitlementStore = StateObject(wrappedValue: entitlementStore)
+
+        if let initialTab = screenshotMode.initialTab {
+            _selectedTab = State(initialValue: initialTab)
+        }
     }
 
     enum Tab {
@@ -35,14 +50,15 @@ struct ContentView: View {
     }
 
     private var shouldShowChecklistLauncher: Bool {
-        onboardingStore.hasOutstandingSteps && !onboardingStore.isChecklistVisible
+        guard !screenshotMode.isEnabled else { return false }
+        return onboardingStore.hasOutstandingSteps && !onboardingStore.isChecklistVisible
     }
 
     var body: some View {
         ZStack {
             tabViewContent
 
-            if onboardingStore.isChecklistVisible {
+            if onboardingStore.isChecklistVisible, !screenshotMode.isEnabled { 
                 OnboardingChecklistView(
                     ragService: ragService,
                     onOpenSettings: { selectedTab = .settings },
@@ -76,6 +92,10 @@ struct ContentView: View {
         // this will emit a single warning if no StoreKit configuration is present.
         .task {
             await entitlementStore.billingService.refreshProducts()
+
+            if screenshotMode.shouldImportSamples {
+                await importSamplesIfNeeded()
+            }
         }
         .onReceive(settingsStore.$hasUserPrimaryOverride) { hasOverride in
             guard hasOverride else { return }
@@ -138,6 +158,45 @@ struct ContentView: View {
             }
             .tag(Tab.settings)
         }
+    }
+
+    @MainActor
+    private func importSamplesIfNeeded() async {
+        guard ragService.documents.isEmpty else { return }
+        do {
+            try await SampleDocumentManager.shared.importSamples(into: ragService)
+        } catch {
+            // Screenshot mode should never block the UI if samples fail.
+        }
+    }
+}
+
+private struct ScreenshotMode {
+    let isEnabled: Bool
+    let initialTab: ContentView.Tab?
+    let shouldImportSamples: Bool
+
+    static var current: ScreenshotMode {
+        #if DEBUG
+            let enabled = LaunchArguments.has("--screenshot") || LaunchArguments.has("screenshot")
+            let tabRaw = LaunchArguments.valueEither(for: "screenshot-tab")
+                ?? LaunchArguments.valueEither(for: "tab")
+            let initialTab: ContentView.Tab? = {
+                guard let t = tabRaw?.lowercased() else { return nil }
+                switch t {
+                case "chat": return .chat
+                case "documents", "docs": return .documents
+                case "visualizations", "telemetry": return .visualizations
+                case "settings": return .settings
+                default: return nil
+                }
+            }()
+            let importSamples = LaunchArguments.has("--screenshot-import-samples")
+                || LaunchArguments.has("screenshot-import-samples")
+            return ScreenshotMode(isEnabled: enabled, initialTab: initialTab, shouldImportSamples: enabled && importSamples)
+        #else
+            return ScreenshotMode(isEnabled: false, initialTab: nil, shouldImportSamples: false)
+        #endif
     }
 }
 

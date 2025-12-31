@@ -6,6 +6,9 @@
 //  Bridges SwiftUI bindings to UserDefaults-backed storage keys used across the app.
 //  Debounces change notifications for downstream application (e.g., model switching).
 //
+//  NOTE: Local model support (GGUF, CoreML, MLX) has been removed.
+//  The app now uses Apple Intelligence and On-Device Analysis only.
+//
 
 import Combine
 import Foundation
@@ -41,9 +44,8 @@ final class SettingsStore: ObservableObject {
         static let firstFB = "firstFallbackModel" // LLMModelType.rawValue
         static let secondFB = "secondFallbackModel" // LLMModelType.rawValue
         static let primaryModelUserOverride = "primaryModelUserOverride"
-        static let localComputePreference = "ggufLocalComputePreference"
 
-        // Responses API options
+        // Responses API options (kept for future use)
         static let responsesIncludeReasoning = "responsesIncludeReasoning"
         static let responsesIncludeVerbosity = "responsesIncludeVerbosity"
         static let responsesIncludeCoT = "responsesIncludeCoT"
@@ -63,14 +65,10 @@ final class SettingsStore: ObservableObject {
 
     /// Primary inference pathway the user selected.
     @Published var selectedModel: LLMModelType
-    /// Stored OpenAI API key (macOS only in the current build).
+    /// Stored OpenAI API key (kept for future/macOS use).
     @Published var openaiAPIKey: String
     /// Selected OpenAI model identifier.
     @Published var openaiModel: String
-    /// Normalised API key value used for availability checks.
-    private var trimmedAPIKey: String {
-        openaiAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
 
     /// Whether Private Cloud Compute should be preferred when available.
     @Published var preferPrivateCloudCompute: Bool
@@ -101,9 +99,6 @@ final class SettingsStore: ObservableObject {
     /// Loosens similarity thresholds during retrieval when enabled.
     @Published var lenientRetrievalMode: Bool
 
-    /// Preferred compute units for local inference backends (GGUF/Core ML).
-    @Published var localComputePreference: LocalComputePreference
-
     /// Controls whether the first fallback model participates in routing.
     @Published var enableFirstFallback: Bool
     /// Controls whether the second fallback model participates in routing.
@@ -113,7 +108,7 @@ final class SettingsStore: ObservableObject {
     /// Secondary fallback when both primary and first fallback are unavailable.
     @Published var secondFallback: LLMModelType
 
-    // Responses API (OpenAI) options
+    // Responses API (OpenAI) options - kept for future use
     /// Whether to send the ``reasoning`` flag to OpenAI Responses API.
     @Published var responsesIncludeReasoning: Bool
     /// Whether to request verbose traces from OpenAI Responses API.
@@ -152,10 +147,10 @@ final class SettingsStore: ObservableObject {
 
     // MARK: - Model Availability
 
-    /// Models that can be shown in the primary picker given current hardware and installs.
+    /// Models that can be shown in the primary picker given current hardware.
+    /// Simplified: only Apple Intelligence and On-Device Analysis.
     var primaryModelOptions: [LLMModelType] {
         var options: [LLMModelType] = []
-        let allowOpenAIDirect = reviewerModeEnabled && !trimmedAPIKey.isEmpty
 
         if deviceCapabilities.supportsAppleIntelligence
             || deviceCapabilities.supportsFoundationModels
@@ -163,45 +158,13 @@ final class SettingsStore: ObservableObject {
             options.append(.appleIntelligence)
         }
 
-        #if os(iOS)
-            // Include GGUF Local if runtime is available OR if a GGUF model is installed
-            // This prevents the Picker from going blank when a model is activated
-            if LlamaCPPiOSLLMService.runtimeAvailable
-                || !ModelRegistry.shared.installed.filter({ $0.backend == .gguf }).isEmpty
-            {
-                options.append(.ggufLocal)
-            }
-            if allowOpenAIDirect {
-                options.append(.openAIDirect)
-            }
-        #elseif os(macOS)
-            options.append(.mlxLocal)
-            if allowOpenAIDirect {
-                options.append(.openAIDirect)
-            }
-        #endif
-
-        if deviceCapabilities.supportsCoreML {
-            #if os(iOS)
-                let hasCoreMLCartridge = ModelRegistry.shared.installed.contains {
-                    $0.backend == .coreML
-                }
-                if hasCoreMLCartridge || CoreMLLLMService.selectionIsReady() {
-                    options.append(.coreMLLocal)
-                }
-            #else
-                options.append(.coreMLLocal)
-            #endif
-        }
-
-        if !options.contains(selectedModel) {
-            options.append(selectedModel)
-        }
+        // On-Device Analysis is always available
+        options.append(.onDeviceAnalysis)
 
         return options
     }
 
-    /// Canonical fallback order before user-specific exclusions are applied.
+    /// Canonical fallback order.
     private var fallbackBaseOptions: [LLMModelType] {
         var ordered: [LLMModelType] = []
         var seen = Set<LLMModelType>()
@@ -217,35 +180,8 @@ final class SettingsStore: ObservableObject {
             append(.appleIntelligence)
         }
 
-        // Then add other primary options
-        for option in primaryModelOptions {
-            if option != .appleIntelligence {
-                append(option)
-            }
-        }
-
-        // On-device analysis comes after primary options
+        // On-device analysis is always the ultimate fallback
         append(.onDeviceAnalysis)
-
-        #if os(iOS)
-            if deviceCapabilities.supportsAppleIntelligence {
-                append(.chatGPTExtension)
-            }
-        #else
-            if deviceCapabilities.supportsAppleIntelligence {
-                append(.chatGPTExtension)
-            }
-        #endif
-
-        #if os(macOS)
-            if reviewerModeEnabled, !trimmedAPIKey.isEmpty {
-                append(.openAIDirect)
-            }
-        #elseif os(iOS)
-            if reviewerModeEnabled, !trimmedAPIKey.isEmpty {
-                append(.openAIDirect)
-            }
-        #endif
 
         return ordered
     }
@@ -282,44 +218,7 @@ final class SettingsStore: ObservableObject {
         case .appleIntelligence:
             return deviceCapabilities.supportsAppleIntelligence
                 || deviceCapabilities.supportsFoundationModels
-        case .ggufLocal:
-            #if os(iOS)
-                let hasInstalledGGUF = ModelRegistry.shared.installed.contains { $0.backend == .gguf }
-                return LlamaCPPiOSLLMService.runtimeAvailable && hasInstalledGGUF
-            #else
-                return false
-            #endif
-        case .coreMLLocal:
-            guard deviceCapabilities.supportsCoreML else { return false }
-            #if os(iOS)
-                let hasCoreMLCartridge = ModelRegistry.shared.installed.contains { $0.backend == .coreML }
-                return hasCoreMLCartridge || CoreMLLLMService.selectionIsReady()
-            #else
-                return true
-            #endif
-        case .chatGPTExtension:
-            #if os(iOS)
-                return deviceCapabilities.supportsAppleIntelligence
-            #else
-                return false
-            #endif
-        case .openAIDirect:
-            #if os(macOS)
-                return reviewerModeEnabled && !trimmedAPIKey.isEmpty
-            #elseif os(iOS)
-                return reviewerModeEnabled && !trimmedAPIKey.isEmpty
-            #else
-                return false
-            #endif
         case .onDeviceAnalysis:
-            return true
-        case .mlxLocal:
-            #if os(macOS)
-                return true
-            #else
-                return false
-            #endif
-        @unknown default:
             return true
         }
     }
@@ -332,10 +231,9 @@ final class SettingsStore: ObservableObject {
         deviceCapabilities = RAGService.checkDeviceCapabilities()
 
         // Load persisted values with sensible defaults
-        if let raw = defaults.string(forKey: Keys.selectedModel),
-           let t = LLMModelType(rawValue: raw)
-        {
-            selectedModel = t
+        // Migrate deprecated model types to Apple Intelligence
+        if let raw = defaults.string(forKey: Keys.selectedModel) {
+            selectedModel = LLMModelType.migrate(from: raw)
         } else {
             // Default to Apple Intelligence on capable devices, otherwise On-Device Analysis
             if deviceCapabilities.supportsAppleIntelligence || deviceCapabilities.supportsFoundationModels {
@@ -374,31 +272,21 @@ final class SettingsStore: ObservableObject {
         topK = (defaults.object(forKey: Keys.topK) as? Int) ?? 3
 
         lenientRetrievalMode = defaults.object(forKey: Keys.lenient) as? Bool ?? false
-        localComputePreference = LocalComputePreference.load(
-            from: defaults, key: Keys.localComputePreference, fallback: .automatic
-        )
 
         enableFirstFallback = defaults.object(forKey: Keys.enableFB1) as? Bool ?? true
         enableSecondFallback = defaults.object(forKey: Keys.enableFB2) as? Bool ?? true
 
-        if let raw1 = defaults.string(forKey: Keys.firstFB),
-           let t1 = LLMModelType(rawValue: raw1)
-        {
-            firstFallback = t1
+        // Migrate deprecated fallback selections
+        if let raw1 = defaults.string(forKey: Keys.firstFB) {
+            firstFallback = LLMModelType.migrate(from: raw1)
         } else {
             firstFallback = .onDeviceAnalysis
         }
 
-        if let raw2 = defaults.string(forKey: Keys.secondFB),
-           let t2 = LLMModelType(rawValue: raw2)
-        {
-            secondFallback = t2
+        if let raw2 = defaults.string(forKey: Keys.secondFB) {
+            secondFallback = LLMModelType.migrate(from: raw2)
         } else {
-            #if os(iOS)
-                secondFallback = .chatGPTExtension
-            #else
-                secondFallback = .onDeviceAnalysis
-            #endif
+            secondFallback = .onDeviceAnalysis
         }
 
         responsesIncludeReasoning =
@@ -413,7 +301,7 @@ final class SettingsStore: ObservableObject {
         reviewerModeEnabled =
             defaults.object(forKey: Keys.reviewerModeEnabled) as? Bool ?? false
         #if !DEBUG
-            // Release builds must never persist reviewer mode; force-disable in case a debug build wrote it.
+            // Release builds must never persist reviewer mode; force-disable.
             reviewerModeEnabled = false
             defaults.set(false, forKey: Keys.reviewerModeEnabled)
         #endif
@@ -429,15 +317,6 @@ final class SettingsStore: ObservableObject {
         // Embedding provider settings
         defaultEmbeddingProvider = defaults.string(forKey: Keys.defaultEmbeddingProvider) ?? "nl_embedding"
         useHighAccuracyEmbeddings = defaults.object(forKey: Keys.useHighAccuracyEmbeddings) as? Bool ?? false
-
-        // Auto-upgrade from GGUF to Apple Intelligence if device is now capable
-        // (e.g., user upgraded from iPhone 15 to iPhone 16 Pro)
-        if selectedModel == .ggufLocal,
-           !hasUserPrimaryOverride,
-           isPrimarySelectionAvailable(.appleIntelligence)
-        {
-            setSelectedModelProgrammatically(.appleIntelligence)
-        }
 
         // Auto-upgrade from On-Device Analysis to Apple Intelligence if device is capable
         if selectedModel == .onDeviceAnalysis,
@@ -489,7 +368,6 @@ final class SettingsStore: ObservableObject {
             $enableSecondFallback.map { _ in () }.eraseToAnyPublisher(),
             $firstFallback.map { _ in () }.eraseToAnyPublisher(),
             $secondFallback.map { _ in () }.eraseToAnyPublisher(),
-            $localComputePreference.map { _ in () }.eraseToAnyPublisher(),
             $responsesIncludeReasoning.map { _ in () }.eraseToAnyPublisher(),
             $responsesIncludeVerbosity.map { _ in () }.eraseToAnyPublisher(),
             $responsesIncludeCoT.map { _ in () }.eraseToAnyPublisher(),
@@ -516,7 +394,7 @@ final class SettingsStore: ObservableObject {
             .store(in: &cancellables)
 
         #if !DEBUG
-            // Guardrail: ignore any reviewer mode toggles in release builds to keep OpenAI Direct inaccessible.
+            // Guardrail: ignore any reviewer mode toggles in release builds.
             $reviewerModeEnabled
                 .dropFirst()
                 .sink { [weak self] enabled in
@@ -525,13 +403,6 @@ final class SettingsStore: ObservableObject {
                 }
                 .store(in: &cancellables)
         #endif
-
-        $openaiAPIKey
-            .dropFirst()
-            .sink { [weak self] _ in
-                self?.sanitizeModelSelectionForPlatform()
-            }
-            .store(in: &cancellables)
 
         // Sync high-accuracy toggle with embedding provider selection
         $useHighAccuracyEmbeddings
@@ -544,31 +415,6 @@ final class SettingsStore: ObservableObject {
                     self.defaultEmbeddingProvider = "nl_embedding"
                 }
                 Log.info("Embedding provider switched to: \(self.defaultEmbeddingProvider)", category: .embedding)
-            }
-            .store(in: &cancellables)
-
-        // Observe ModelRegistry changes to refresh available model options
-        ModelRegistry.shared.$installed
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
-                guard let self else { return }
-                // Normalise selections before invalidating views so Pickers never render stale tags.
-                self.sanitizeModelSelectionForPlatform()
-                self.objectWillChange.send()
-            }
-            .store(in: &cancellables)
-
-        NotificationCenter.default.publisher(for: .installedModelAutoSelected)
-            .compactMap { notification -> ModelBackend? in
-                guard
-                    let raw = notification.userInfo?[ModelAutoSelectionPayload.backend] as? String,
-                    let backend = ModelBackend(rawValue: raw)
-                else { return nil }
-                return backend
-            }
-            .sink { [weak self] backend in
-                guard let self else { return }
-                self.applyAutoSelectionIfEligible(for: backend)
             }
             .store(in: &cancellables)
 
@@ -613,7 +459,6 @@ final class SettingsStore: ObservableObject {
         defaults.set(enableSecondFallback, forKey: Keys.enableFB2)
         defaults.set(firstFallback.rawValue, forKey: Keys.firstFB)
         defaults.set(secondFallback.rawValue, forKey: Keys.secondFB)
-        localComputePreference.persist(in: defaults, key: Keys.localComputePreference)
 
         defaults.set(responsesIncludeReasoning, forKey: Keys.responsesIncludeReasoning)
         defaults.set(responsesIncludeVerbosity, forKey: Keys.responsesIncludeVerbosity)
@@ -633,14 +478,11 @@ final class SettingsStore: ObservableObject {
 
     /// Emits telemetry once a batch of setting changes has settled.
     private func applySettingsDebounced() {
-        // Phase 1: Emit lightweight telemetry and return
-        // Phase 2: Wire model switching here (extract shared logic from SettingsRootView)
         TelemetryCenter.emit(
             .system, title: "Settings changed",
             metadata: [
                 "model": selectedModel.rawValue,
                 "exec": executionContext.rawString,
-                "localCompute": localComputePreference.rawValue,
                 "openaiModel": openaiModel,
                 "fallbacks":
                     "\(enableFirstFallback ? "1" : "0")\(enableSecondFallback ? "+1" : "")",
@@ -682,7 +524,6 @@ extension SettingsStore {
 
 extension SettingsStore {
     /// Ensures persisted selections remain valid for the running platform.
-    /// Ensures persisted selections remain valid for the running platform.
     fileprivate func sanitizeModelSelectionForPlatform() {
         let primaryOptions = primaryModelOptions
         let fallbackUniverse = fallbackBaseOptions
@@ -718,35 +559,66 @@ extension SettingsStore {
             secondFallback = secondCandidates.first!
         }
     }
+}
 
-    /// Aligns UI selection with auto-selected cartridges when the user has not made an explicit override.
-    /// Aligns UI selection with auto-selected cartridges when the user has not made an explicit override.
-    private func applyAutoSelectionIfEligible(for backend: ModelBackend) {
-        if isPrimarySelectionAvailable(selectedModel) {
-            return
-        }
+// MARK: - Model Clarity Properties
+
+extension SettingsStore {
+    /// Human-readable description of why this model is active
+    var modelSelectionReason: String {
         if hasUserPrimaryOverride {
-            return
+            return "Selected by you"
         }
-        switch backend {
-        case .gguf:
-            guard selectedModel != .ggufLocal else { return }
-            guard primaryModelOptions.contains(.ggufLocal) else { return }
-            let autoEligible: Set<LLMModelType> = [.appleIntelligence, .onDeviceAnalysis]
-            guard autoEligible.contains(selectedModel) else { return }
-            setSelectedModelProgrammatically(.ggufLocal)
-            AutoTuneService.tuneForSelection(selectedModel: .ggufLocal)
-        case .coreML:
-            guard selectedModel != .coreMLLocal else { return }
-            guard primaryModelOptions.contains(.coreMLLocal) else { return }
-            let autoEligible: Set<LLMModelType> = [.appleIntelligence, .onDeviceAnalysis]
-            guard autoEligible.contains(selectedModel) else { return }
-            setSelectedModelProgrammatically(.coreMLLocal)
-            AutoTuneService.tuneForSelection(selectedModel: .coreMLLocal)
-        case .mlx:
-            Log.info("Auto-selection skipped for MLX cartridges (manual activation only)", category: .llm)
-        case .mlxServer:
-            Log.info("Ignoring auto-selection for legacy MLX server", category: .llm)
+
+        switch selectedModel {
+        case .appleIntelligence:
+            return "Auto-selected (best available for this device)"
+        case .onDeviceAnalysis:
+            return "Fallback (always available)"
+        }
+    }
+
+    /// Description of where inference will run
+    var executionPathDescription: String {
+        switch selectedModel {
+        case .appleIntelligence:
+            switch executionContext {
+            case .automatic:
+                return "On-device with Private Cloud Compute fallback for complex queries"
+            case .onDeviceOnly:
+                return "On-device only (may fail for complex queries)"
+            case .preferCloud:
+                return "Prefer Private Cloud Compute (higher quality)"
+            case .cloudOnly:
+                return "Private Cloud Compute only (requires network)"
+            }
+
+        case .onDeviceAnalysis:
+            return "Fully on-device (never leaves your device)"
+        }
+    }
+
+    /// Privacy badge for the current configuration
+    var privacyBadge: (emoji: String, text: String) {
+        switch selectedModel {
+        case .onDeviceAnalysis:
+            return ("🔒", "Data stays on device")
+
+        case .appleIntelligence:
+            if executionContext == .onDeviceOnly {
+                return ("🔒", "Data stays on device")
+            }
+            return ("🔐", "E2E encrypted, zero retention")
+        }
+    }
+
+    /// Whether the current config may send data off-device
+    var mayTransmitData: Bool {
+        switch selectedModel {
+        case .onDeviceAnalysis:
+            return false
+        case .appleIntelligence:
+            return executionContext != .onDeviceOnly
         }
     }
 }

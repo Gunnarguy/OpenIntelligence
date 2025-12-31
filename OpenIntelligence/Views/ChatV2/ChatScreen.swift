@@ -17,6 +17,7 @@ struct ChatScreen: View {
     @AppStorage("retrievalTopK") private var retrievalTopK: Int = 3
     @State private var showScrollToBottom: Bool = false
     @State private var messages: [ChatMessage] = []
+    @State private var didSeedScreenshotDemo: Bool = false
     @State private var streamingText: String = ""
     @State private var streamingBuffer: String = ""
     @State private var streamingPumpTask: Task<Void, Never>? = nil
@@ -72,11 +73,12 @@ struct ChatScreen: View {
         ZStack(alignment: .top) {
             // Main content VStack
             VStack(spacing: 0) {
-                // Compact header with container + stats
+                // Compact header with container, model status, and stats
                 CompactChatHeader(
                     containerService: ragService.containerService,
                     docCount: activeDocCount,
                     chunkCount: activeChunkCount,
+                    ragService: ragService,
                     messageContainerOverride: $messageContainerOverride
                 )
 
@@ -97,10 +99,26 @@ struct ChatScreen: View {
                         generationStart: generationStart,
                         onRegenerate: { message in
                             regenerateResponse(for: message)
+                        },
+                        onThumbsUp: {
+                                #if canImport(FoundationModels)
+                                    if #available(iOS 26.0, *) {
+                                        ragService.submitPositiveFeedback()
+                                        DSHaptics.success()
+                                    }
+                                #endif
+                            },
+                        onThumbsDown: {
+                                #if canImport(FoundationModels)
+                                    if #available(iOS 26.0, *) {
+                                        ragService.submitNegativeFeedback()
+                                        DSHaptics.warning()
+                                    }
+                                #endif
                         }
                     )
                 }
-                
+
                 // Sources tray - only show AFTER we have sources (post-generation)
                 // During generation, sources aren't available yet from RAG pipeline
                 if !currentRetrievedChunks.isEmpty && !isProcessing {
@@ -137,19 +155,21 @@ struct ChatScreen: View {
                 Divider()
                     .opacity(0.5)
 
-                // Modern composer with stop button support
+                // Modern composer with stop button support and attachments
+                // Uses combined send to ensure attachments are processed BEFORE query
                 ChatComposerV2(
                     isProcessing: isProcessing,
                     onSend: sendMessage,
-                    onStop: stopGeneration
+                    onStop: stopGeneration,
+                    onSendWithAttachments: sendMessageWithAttachments
                 )
             }
-            
+
             // Toast overlay (appears above everything) - minimal use
             ToastStackView(items: toastManager.toasts, maxVisible: 1)
                 .padding(.top, 60) // Below nav bar
         }
-        .navigationTitle(ragService.currentModelName)
+.navigationTitle("Chat")
         #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
         #endif
@@ -187,7 +207,7 @@ struct ChatScreen: View {
                             Label("New Chat", systemImage: "square.and.pencil")
                         }
                         .disabled(messages.isEmpty)
-                        
+
                         Button(role: .destructive) {
                             guard !isProcessing else { return }
                             clearChat()
@@ -213,7 +233,7 @@ struct ChatScreen: View {
                             Label("New Chat", systemImage: "square.and.pencil")
                         }
                         .disabled(messages.isEmpty)
-                        
+
                         Button(role: .destructive) {
                             guard !isProcessing else { return }
                             clearChat()
@@ -261,6 +281,134 @@ struct ChatScreen: View {
             .presentationDetents([.medium, .large])
 #endif
         }
+.onAppear {
+    seedScreenshotDemoIfNeeded()
+}
+    }
+
+    private func seedScreenshotDemoIfNeeded() {
+        #if DEBUG
+            guard !didSeedScreenshotDemo else { return }
+            guard LaunchArguments.has("--screenshot") || LaunchArguments.has("screenshot") else { return }
+
+            let wantsHero = LaunchArguments.has("--screenshot-chat-hero") || LaunchArguments.has("screenshot-chat-hero")
+            let wantsDemo = LaunchArguments.has("--screenshot-chat-demo") || LaunchArguments.has("screenshot-chat-demo")
+            let wantsSources = LaunchArguments.has("--screenshot-chat-sources") || LaunchArguments.has("screenshot-chat-sources")
+            let wantsDetails = LaunchArguments.has("--screenshot-chat-details") || LaunchArguments.has("screenshot-chat-details")
+            let wantsConsent = LaunchArguments.has("--screenshot-cloud-consent") || LaunchArguments.has("screenshot-cloud-consent")
+
+            guard wantsHero || wantsDemo || wantsSources || wantsDetails || wantsConsent else { return }
+            didSeedScreenshotDemo = true
+
+            // Reset state
+            streamingText = ""
+            currentRetrievedChunks = []
+            currentMetadata = nil
+            showRetrievedDetails = false
+            activeCloudConsent = nil
+
+            // 1) Cloud consent modal (if requested)
+            if wantsConsent {
+                activeCloudConsent = CloudTransmissionRecord(
+                    provider: .applePCC,
+                    modelName: "Apple Private Cloud Compute",
+                    promptPreview: "Summarize the attached library and cite sources.",
+                    promptCharacterCount: 1480,
+                    contextChunkCount: 3,
+                    contextHashes: ["a9f3…", "c18b…", "09d1…"],
+                    estimatedBytes: 32000
+                )
+            }
+
+            // 2) Chat hero (blank chat with starter prompts)
+            if wantsHero {
+                messages = []
+                return
+            }
+
+            // 3) Base chat demo
+            messages = [
+                ChatMessage(role: .user, content: "Summarize the pricing brief in three customer-ready bullets."),
+                ChatMessage(
+                    role: .assistant,
+                    content:
+                    "• Privacy-first: Your docs stay on-device by default, with optional Private Cloud Compute.\n" +
+                        "• Fast, grounded answers: Hybrid search + re-ranking helps keep responses tied to your library.\n" +
+                        "• Upgrade when ready: Starter expands libraries/docs; Pro unlocks full private inference and automation."
+                ),
+            ]
+
+            // 4) Sources tray / details sheet
+            if wantsSources || wantsDetails {
+                let docId = UUID()
+                func makeChunk(rank: Int, title: String, page: Int, snippet: String, score: Float) -> RetrievedChunk {
+                    let meta = ChunkMetadata(
+                        chunkIndex: rank,
+                        pageNumber: page,
+                        sectionTitle: title,
+                        keywords: ["privacy", "retrieval", "pricing"],
+                        hasNumericData: true,
+                        hasListStructure: true,
+                        wordCount: snippet.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count,
+                        characterCount: snippet.count
+                    )
+                    let chunk = DocumentChunk(
+                        documentId: docId,
+                        content: snippet,
+                        embedding: [0, 0, 0, 0],
+                        metadata: meta
+                    )
+                    return RetrievedChunk(
+                        chunk: chunk,
+                        similarityScore: score,
+                        rank: rank,
+                        sourceDocument: "Sample Pricing Brief",
+                        pageNumber: page
+                    )
+                }
+
+                currentRetrievedChunks = [
+                    makeChunk(
+                        rank: 1,
+                        title: "Value Ladder",
+                        page: 1,
+                        snippet: "Starter expands document limits and adds weekly rerank refresh; Pro unlocks unlimited docs and automation hooks.",
+                        score: 0.86
+                    ),
+                    makeChunk(
+                        rank: 2,
+                        title: "Messaging Pillars",
+                        page: 1,
+                        snippet: "Privacy-first: data stays on-device or Apple PCC. Retrieval speed: hybrid search + MMR. Collaboration: share libraries.",
+                        score: 0.81
+                    ),
+                    makeChunk(
+                        rank: 3,
+                        title: "Launch Tasks",
+                        page: 1,
+                        snippet: "Sync App Store screenshots, include privacy copy, and instrument upgrade funnels.",
+                        score: 0.77
+                    ),
+                ]
+
+                currentMetadata = ResponseMetadata(
+                    timeToFirstToken: 0.35,
+                    totalGenerationTime: 1.9,
+                    tokensGenerated: 168,
+                    tokensPerSecond: 62,
+                    modelUsed: "On-device / PCC (auto)",
+                    retrievalTime: 0.12,
+                    strictModeEnabled: false,
+                    gatingDecision: "allowed",
+                    toolCallsMade: 2,
+                    embeddingProvider: "nl_embedding"
+                )
+
+                if wantsDetails {
+                    showRetrievedDetails = true
+                }
+            }
+        #endif
     }
 
     // MARK: - Active-container counts
@@ -362,7 +510,7 @@ struct ChatScreen: View {
             resetStreamingState()
             isProcessing = false
         }
-        
+
         messages.removeAll()
         stage = .idle
         execution = .unknown
@@ -387,7 +535,7 @@ struct ChatScreen: View {
             resetStreamingState()
             isProcessing = false
         }
-        
+
         messages.removeAll()
         stage = .idle
         generationStart = nil
@@ -403,14 +551,14 @@ struct ChatScreen: View {
         showRetrievedDetails = false
         thinkingEvents.removeAll()
     }
-    
+
     /// Stops generation immediately and preserves partial response
     private func stopGeneration() {
         guard isProcessing else { return }
-        
+
         // Flush any buffered text immediately
         flushStreamingBufferToVisibleText()
-        
+
         // If we have partial text, save it as a message
         if !streamingText.isEmpty {
             var partial = ChatMessage(
@@ -420,19 +568,19 @@ struct ChatScreen: View {
             partial.containerId = ragService.containerService.activeContainerId
             messages.append(partial)
         }
-        
+
         // Reset all processing state
         resetStreamingState()
         isProcessing = false
         stage = .idle
         DSHaptics.selection()
     }
-    
+
     /// Regenerates a response by finding the preceding user query
     private func regenerateResponse(for message: ChatMessage) {
         guard message.role == .assistant else { return }
         guard !isProcessing else { return }
-        
+
         // Find the user message that preceded this assistant response
         if let index = messages.firstIndex(where: { $0.id == message.id }),
            index > 0 {
@@ -440,10 +588,10 @@ struct ChatScreen: View {
             if previousMessage.role == .user {
                 // Remove the assistant response we're regenerating
                 messages.remove(at: index)
-                
+
                 // Remove the user message too (sendMessage will re-add it)
                 messages.remove(at: index - 1)
-                
+
                 // Re-send the query
                 DSHaptics.selection()
                 sendMessage(previousMessage.content)
@@ -451,13 +599,179 @@ struct ChatScreen: View {
         }
     }
 
+    // MARK: - Attachment Handling
+
+    /// Combined send: process attachments FIRST, wait for completion, THEN send query
+    /// This ensures documents are indexed before the RAG query runs
+    private func sendMessageWithAttachments(_ query: String, _ urls: [URL]) {
+        guard !query.isEmpty else { return }
+
+        // If no attachments, just send the message directly
+        guard !urls.isEmpty else {
+            sendMessage(query)
+            return
+        }
+
+        // Prevent concurrent operations
+        guard !isProcessing else { return }
+
+        let count = urls.count
+        let noun = count == 1 ? "file" : "files"
+
+        // Show processing state
+        isProcessing = true
+        stage = .embedding
+
+        // Show immediate feedback
+        toastManager.show(
+            ToastItem(
+                title: "Processing \(count) \(noun) before query...",
+                icon: "doc.badge.gearshape",
+                tint: DSColors.accent
+            ),
+            duration: 3.0
+        )
+
+        Task {
+            var successCount = 0
+            var failCount = 0
+
+            // Step 1: Process all attachments first
+            for url in urls {
+                do {
+                    try await ragService.addDocument(at: url)
+                    successCount += 1
+                    Log.info("[ChatScreen] Ingested attachment: \(url.lastPathComponent)", category: .ingestion)
+                } catch {
+                    failCount += 1
+                    Log.error("[ChatScreen] Failed to ingest \(url.lastPathComponent): \(error)", category: .ingestion)
+                }
+            }
+
+            // Refresh counts
+            await recalcActiveCounts()
+
+            // Step 2: Now send the query (documents are indexed!)
+            await MainActor.run {
+                if successCount > 0 {
+                    // Show success before sending query
+                    toastManager.show(
+                        ToastItem(
+                            title: "Added \(successCount) \(successCount == 1 ? "document" : "documents") • Querying...",
+                            icon: "checkmark.circle.fill",
+                            tint: .green,
+                            haptic: false
+                        ),
+                        duration: 2.0
+                    )
+                    DSHaptics.success()
+
+                    // Reset processing state so sendMessage can start fresh
+                    isProcessing = false
+
+                    // Now send the actual query against the newly indexed content
+                    sendMessage(query)
+                } else {
+                    // All attachments failed - still send query but warn user
+                    isProcessing = false
+                    toastManager.show(
+                        ToastItem(
+                            title: "Failed to process attachments",
+                            icon: "xmark.circle.fill",
+                            tint: .red
+                        ),
+                        duration: 3.0
+                    )
+                    DSHaptics.warning()
+
+                    // Still send the query (might work with existing docs)
+                    sendMessage(query)
+                }
+            }
+        }
+    }
+
+    /// Legacy: Ingest attachments (documents, photos, camera captures) into the active container
+    /// Note: Prefer sendMessageWithAttachments() for combined send operations
+    private func handleAttachments(_ urls: [URL]) {
+        guard !urls.isEmpty else { return }
+
+        let count = urls.count
+        let noun = count == 1 ? "file" : "files"
+
+        // Show immediate feedback
+        toastManager.show(
+            ToastItem(
+                title: "Processing \(count) \(noun)...",
+                icon: "doc.badge.gearshape",
+                tint: DSColors.accent
+            ),
+            duration: 2.0
+        )
+
+        Task {
+            var successCount = 0
+            var failCount = 0
+
+            for url in urls {
+                do {
+                    try await ragService.addDocument(at: url)
+                    successCount += 1
+                    Log.info("[ChatScreen] Ingested attachment: \(url.lastPathComponent)", category: .ingestion)
+                } catch {
+                    failCount += 1
+                    Log.error("[ChatScreen] Failed to ingest \(url.lastPathComponent): \(error)", category: .ingestion)
+                }
+            }
+
+            // Refresh counts
+            await recalcActiveCounts()
+
+            // Show completion feedback
+            await MainActor.run {
+                if failCount == 0 {
+                    toastManager.show(
+                        ToastItem(
+                            title: "Added \(successCount) \(successCount == 1 ? "document" : "documents")",
+                            icon: "checkmark.circle.fill",
+                            tint: .green,
+                            haptic: false
+                        ),
+                        duration: 2.0
+                    )
+                    DSHaptics.success()
+                } else if successCount > 0 {
+                    toastManager.show(
+                        ToastItem(
+                            title: "Added \(successCount), failed \(failCount)",
+                            icon: "exclamationmark.triangle.fill",
+                            tint: .orange
+                        ),
+                        duration: 3.0
+                    )
+                    DSHaptics.warning()
+                } else {
+                    toastManager.show(
+                        ToastItem(
+                            title: "Failed to process attachments",
+                            icon: "xmark.circle.fill",
+                            tint: .red
+                        ),
+                        duration: 3.0
+                    )
+                    DSHaptics.warning()
+                }
+            }
+        }
+    }
+
     private func sendMessage(_ text: String) {
         let query = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return }
-        
+
         // Prevent concurrent queries
         guard !isProcessing else { return }
-        
+
         onboardingStore.markAskedFirstQuery()
 
         // Append user message with selected container (override or active)
@@ -501,7 +815,7 @@ struct ChatScreen: View {
                     }
                 }
             }
-            
+
             do {
                 // Clarify the user's query using Writing Tools if available (improves retrieval quality)
                 var capturedQuery = query
@@ -602,7 +916,7 @@ struct ChatScreen: View {
                     // No need to reset again here - would race with final flush
                     self.messages.append(assistant)
                     self.stage = .complete
-                    
+
                     // Show completion toast with token count
                     let tokenCount = response.metadata.tokensGenerated
                     self.toastManager.clearAll()
@@ -628,11 +942,11 @@ struct ChatScreen: View {
                 await MainActor.run {
                     self.stage = .idle
                     self.resetStreamingState()
-                    
+
                     // Clear any pending toasts and show error
                     self.toastManager.clearAll()
                     self.pushToast("Error occurred", icon: "exclamationmark.triangle.fill", tint: .red)
-                    
+
                     // Add error message to chat
                     let errorMsg = ChatMessage(
                         role: .assistant,
@@ -702,12 +1016,12 @@ struct ChatScreen: View {
             let nextChunk = String(streamingBuffer.prefix(takeCount))
             streamingBuffer.removeFirst(takeCount)
             pumpedCount += 1
-            
+
             // Force immediate UI update with explicit animation
             withAnimation(.linear(duration: 0.04)) {
                 streamingText.append(nextChunk)
             }
-            
+
             do {
                 try await Task.sleep(nanoseconds: cadence)
             } catch {
@@ -753,7 +1067,7 @@ struct ChatScreen: View {
                 }
             }
         }
-        
+
         // Also strip standalone "null" if the entire chunk is just "null"
         if cleaned.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "null" {
             Log.debug("Dropped standalone 'null' chunk", category: .streaming)
@@ -762,12 +1076,12 @@ struct ChatScreen: View {
 
         return cleaned.isEmpty ? nil : cleaned
     }
-    
+
     /// Sanitizes the final response text before displaying in message bubble.
     /// Strips leading "null" artifacts and other malformed prefixes.
     private func sanitizeFinalResponse(_ text: String) -> String {
         var cleaned = text
-        
+
         // Strip leading "null" or "(null)" with optional separator
         if let range = cleaned.range(
             of: #"^\s*(?:\(null\)|null)[\s\-–—:]*"#,
@@ -780,7 +1094,7 @@ struct ChatScreen: View {
                 Log.warning("Stripped malformed response prefix: \(prefixSample)", category: .llm)
             }
         }
-        
+
         return cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
@@ -869,97 +1183,65 @@ struct ContextStatusBarView: View {
 
 // MARK: - Compact Chat Header V2
 
-/// Modern, minimal header with container selector and document stats
+/// Modern, minimal header with inline container picker strip, model status, and document stats
 struct CompactChatHeader: View {
     @ObservedObject var containerService: ContainerService
+    @EnvironmentObject private var settings: SettingsStore
     let docCount: Int
     let chunkCount: Int
+    let ragService: RAGService
     @Binding var messageContainerOverride: UUID?
-    
-    @State private var showContainerPicker = false
-    
-    private var activeContainerName: String {
-        containerService.activeContainer?.name ?? "Default"
+
+    @State private var showModelDetails = false
+    @State private var deviceCapabilities = DeviceCapabilities()
+
+    private var activeContainer: KnowledgeContainer? {
+        containerService.activeContainer
     }
-    
+
     var body: some View {
-        HStack(spacing: 12) {
-            // Container selector button
-            Button {
-                showContainerPicker = true
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "folder.fill")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.secondary)
-                    
-                    Text(activeContainerName)
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(DSColors.primaryText)
-                        .lineLimit(1)
-                    
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.tertiary)
+        VStack(spacing: 10) {
+            // Top row: Library picker strip (scrollable)
+            libraryPickerStrip
+
+            // Bottom row: Model status + Stats
+            HStack(spacing: 10) {
+                // Model indicator (compact)
+                ModelStatusIndicator(deviceCapabilities: deviceCapabilities)
+
+                Spacer()
+
+                // Stats for active container
+                HStack(spacing: 8) {
+                    StatChip(icon: "doc.fill", value: "\(docCount)", color: .blue)
+                    StatChip(icon: "square.grid.3x3.fill", value: "\(chunkCount)", color: .purple)
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(.ultraThinMaterial)
-                )
-            }
-            .buttonStyle(.plain)
-            
-            // Stats chips
-            HStack(spacing: 8) {
-                StatChip(icon: "doc.fill", value: "\(docCount)", color: .blue)
-                StatChip(icon: "square.grid.3x3.fill", value: "\(chunkCount)", color: .purple)
-            }
-            
-            Spacer()
-            
-            // Override indicator
-            if messageContainerOverride != nil {
-                Button {
-                    messageContainerOverride = nil
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.uturn.left")
-                            .font(.system(size: 10, weight: .semibold))
-                        Text("Override")
-                            .font(.system(size: 11, weight: .medium))
-                    }
-                    .foregroundStyle(.orange)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 5)
-                    .background(
-                        Capsule()
-                            .fill(.orange.opacity(0.12))
-                    )
-                }
-                .buttonStyle(.plain)
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
-        .confirmationDialog("Select Library", isPresented: $showContainerPicker) {
-            ForEach(containerService.containers, id: \.id) { container in
-                Button(container.name) {
-                    containerService.setActive(container.id)
+.onAppear {
+    deviceCapabilities = RAGService.checkDeviceCapabilities()
+}
+    }
+
+    // MARK: - Library Picker Strip
+
+    private var libraryPickerStrip: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(containerService.containers) { container in
+                    LibraryChip(
+                        container: container,
+                        isActive: containerService.activeContainerId == container.id,
+                        docCount: containerService.documentCount(for: container.id)
+                    ) {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            containerService.setActive(container.id)
+                        }
+                    }
                 }
             }
-            
-            Divider()
-            
-            Button("Override This Message…") {
-                // Show override picker
-                if let first = containerService.containers.first {
-                    messageContainerOverride = first.id
-                }
-            }
-        } message: {
-            Text("Choose which library to search")
         }
     }
 }
@@ -969,7 +1251,7 @@ private struct StatChip: View {
     let icon: String
     let value: String
     let color: Color
-    
+
     var body: some View {
         HStack(spacing: 4) {
             Image(systemName: icon)
@@ -984,6 +1266,53 @@ private struct StatChip: View {
             Capsule()
                 .fill(color.opacity(0.1))
         )
+    }
+}
+
+/// Library chip for horizontal picker strip in chat header
+private struct LibraryChip: View {
+    let container: KnowledgeContainer
+    let isActive: Bool
+    let docCount: Int
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 6) {
+                Image(systemName: container.icon)
+                    .font(.system(size: 11, weight: .medium))
+
+                Text(container.name)
+                    .font(.system(size: 13, weight: .medium))
+                    .lineLimit(1)
+
+                // Show doc count badge for active container
+                if docCount > 0 {
+                    Text("\(docCount)")
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .foregroundStyle(isActive ? .white.opacity(0.9) : .secondary)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(
+                            Capsule()
+                                .fill(isActive ? .white.opacity(0.25) : Color.secondary.opacity(0.15))
+                        )
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                Capsule()
+                    .fill(isActive ? DSColors.accent : Color(.systemGray6))
+            )
+            .foregroundStyle(isActive ? .white : DSColors.primaryText)
+            .overlay(
+                Capsule()
+                    .strokeBorder(isActive ? Color.clear : Color.secondary.opacity(0.2), lineWidth: 1)
+            )
+            .shadow(color: isActive ? DSColors.accent.opacity(0.3) : .clear, radius: 4, x: 0, y: 2)
+        }
+        .buttonStyle(.plain)
     }
 }
 
