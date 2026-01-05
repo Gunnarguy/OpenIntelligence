@@ -50,6 +50,12 @@ struct DeveloperDiagnosticsHubView: View {
                             }
 
                             NavigationLink {
+                                RAGPipelineAuditView(ragService: ragService)
+                            } label: {
+                                Label("RAG Audit", systemImage: "waveform.path.ecg")
+                            }
+
+                            NavigationLink {
                                 NLChunkingDiagnosticsView()
                             } label: {
                                 Label("NL Chunking Diagnostics", systemImage: "text.magnifyingglass")

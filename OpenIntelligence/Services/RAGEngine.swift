@@ -10,7 +10,7 @@
 import Foundation
 import NaturalLanguage
 #if DEBUG
-import os.signpost
+    import os.signpost
 #endif
 
 /// Background executor for pure RAG computations (no UI/IO access)
@@ -27,16 +27,16 @@ actor RAGEngine {
     /// - Returns: Diverse set of chunks balancing relevance and novelty
     func applyMMR(
         candidates: [RetrievedChunk],
-        queryEmbedding: [Float],
+        queryEmbedding _: [Float],
         topK: Int,
         lambda: Float = 0.7
     ) async -> [RetrievedChunk] {
-#if DEBUG
-    let log = OSLog(subsystem: "OpenIntelligence", category: "RAGEngine")
-        let spid = OSSignpostID(log: log)
-        os_signpost(.begin, log: log, name: "applyMMR", signpostID: spid)
-        defer { os_signpost(.end, log: log, name: "applyMMR", signpostID: spid) }
-#endif
+        #if DEBUG
+            let log = OSLog(subsystem: "OpenIntelligence", category: "RAGEngine")
+            let spid = OSSignpostID(log: log)
+            os_signpost(.begin, log: log, name: "applyMMR", signpostID: spid)
+            defer { os_signpost(.end, log: log, name: "applyMMR", signpostID: spid) }
+        #endif
         guard !candidates.isEmpty else { return [] }
         guard topK > 1 else { return Array(candidates.prefix(1)) }
 
@@ -50,7 +50,7 @@ actor RAGEngine {
         }
 
         // Iteratively select chunks that maximize: λ * relevance - (1-λ) * max_similarity_to_selected
-        while selected.count < topK && !remaining.isEmpty {
+        while selected.count<topK, !remaining.isEmpty { 
             if Task.isCancelled { return selected }
 
             var bestScore: Float = -.infinity
@@ -95,7 +95,8 @@ actor RAGEngine {
         var magnitudeA: Float = 0
         var magnitudeB: Float = 0
 
-        for i in 0..<a.count {
+        for i in 0 ..< a.count {
+            
             dotProduct += a[i] * b[i]
             magnitudeA += a[i] * a[i]
             magnitudeB += b[i] * b[i]
@@ -137,12 +138,12 @@ actor RAGEngine {
         query: String,
         topK: Int
     ) async -> [RetrievedChunk] {
-#if DEBUG
-    let log = OSLog(subsystem: "OpenIntelligence", category: "RAGEngine")
-        let spid = OSSignpostID(log: log)
-        os_signpost(.begin, log: log, name: "rerank", signpostID: spid)
-        defer { os_signpost(.end, log: log, name: "rerank", signpostID: spid) }
-#endif
+        #if DEBUG
+            let log = OSLog(subsystem: "OpenIntelligence", category: "RAGEngine")
+            let spid = OSSignpostID(log: log)
+            os_signpost(.begin, log: log, name: "rerank", signpostID: spid)
+            defer { os_signpost(.end, log: log, name: "rerank", signpostID: spid) }
+        #endif
         guard !chunks.isEmpty else { return [] }
 
         // Build scored tuples
@@ -174,11 +175,11 @@ actor RAGEngine {
         if scored.count > 0 {
             // keep debug parity with existing logs
             let top = scored[0]
-                Log.debug("[RAGEngine] Re-ranking complete. Top score: \(String(format: "%.4f", top.score))", category: .retrieval)
-                Log.debug("[RAGEngine] Score breakdown:", category: .retrieval)
-                Log.debug("[RAGEngine] - Semantic: \(String(format: "%.3f", top.chunk.similarityScore))", category: .retrieval)
-                Log.debug("[RAGEngine] - Keywords: \(String(format: "%.3f", top.keyword))", category: .retrieval)
-                Log.debug("[RAGEngine] - Proximity: \(String(format: "%.3f", top.proximity))", category: .retrieval)
+            Log.debug("[RAGEngine] Re-ranking complete. Top score: \(String(format: "%.4f", top.score))", category: .retrieval)
+            Log.debug("[RAGEngine] Score breakdown:", category: .retrieval)
+            Log.debug("[RAGEngine] - Semantic: \(String(format: "%.3f", top.chunk.similarityScore))", category: .retrieval)
+            Log.debug("[RAGEngine] - Keywords: \(String(format: "%.3f", top.keyword))", category: .retrieval)
+            Log.debug("[RAGEngine] - Proximity: \(String(format: "%.3f", top.proximity))", category: .retrieval)
         }
 
         return Array(scored.prefix(topK)).map { $0.chunk }
@@ -204,16 +205,21 @@ actor RAGEngine {
     }
 
     /// Assemble a bounded context string and report number of chunks used
+    /// - Parameters:
+    ///   - chunks: Retrieved chunks sorted by relevance
+    ///   - maxChars: Maximum character budget for the context
+    ///   - compact: When true, uses minimal headers to maximize content density (for on-device 4K limit)
     func assembleContext(
         chunks: [RetrievedChunk],
-        maxChars: Int
+        maxChars: Int,
+        compact: Bool = false
     ) async -> (context: String, used: Int) {
-#if DEBUG
-    let log = OSLog(subsystem: "OpenIntelligence", category: "RAGEngine")
-        let spid = OSSignpostID(log: log)
-        os_signpost(.begin, log: log, name: "assembleContext", signpostID: spid)
-        defer { os_signpost(.end, log: log, name: "assembleContext", signpostID: spid) }
-#endif
+        #if DEBUG
+            let log = OSLog(subsystem: "OpenIntelligence", category: "RAGEngine")
+            let spid = OSSignpostID(log: log)
+            os_signpost(.begin, log: log, name: "assembleContext", signpostID: spid)
+            defer { os_signpost(.end, log: log, name: "assembleContext", signpostID: spid) }
+        #endif
         guard !chunks.isEmpty else { return ("", 0) }
 
         var builder = String()
@@ -224,8 +230,21 @@ actor RAGEngine {
             if Task.isCancelled { break }
             if i % 16 == 0 { await Task.yield() }
 
-            let header = "[Document Chunk \(i + 1), Similarity: \(String(format: "%.3f", r.similarityScore))]\n"
-            let block = header + r.chunk.content + (i != chunks.count - 1 ? "\n\n---\n\n" : "")
+            let block: String
+            if compact {
+                // Compact mode: minimal headers, no similarity scores, tighter separators
+                // Saves ~30-50 chars per chunk for more content in constrained budgets
+                let source = r.sourceDocument.isEmpty ? "" : URL(fileURLWithPath: r.sourceDocument).lastPathComponent
+                let sourceRef = source.isEmpty ? "" : "(\(source)) "
+                block = "[S\(i + 1)] \(sourceRef)\(r.chunk.content)" + (i != chunks.count - 1 ? "\n---\n" : "")
+            } else {
+                // Full mode: rich metadata for better citation context
+                let source = r.sourceDocument.isEmpty ? "Unknown" : r.sourceDocument
+                let page = r.pageNumber.map { " p.\($0)" } ?? ""
+                let header = "[S\(i + 1)] \(source)\(page) • sim \(String(format: "%.3f", r.similarityScore))\n"
+                block = header + r.chunk.content + (i != chunks.count - 1 ? "\n\n---\n\n" : "")
+            }
+
             if builder.count + block.count <= maxChars || used == 0 {
                 builder += block
                 used += 1
@@ -265,7 +284,7 @@ actor RAGEngine {
         // Factor 3: Source diversity
         let uniqueSources = Set(chunks.map { $0.sourceDocument })
         let sourceCount = uniqueSources.count
-        if sourceCount == 1 && totalDocs > 1 {
+        if sourceCount == 1, totalDocs > 1 { 
             warnings.append("Single source: Information from only one document")
         }
 
@@ -288,9 +307,9 @@ actor RAGEngine {
 
         let confidence = (
             similarityScore * similarityWeight +
-            chunkScore * chunkCountWeight +
-            diversityScore * sourceDiversityWeight +
-            queryScore * queryQualityWeight
+                chunkScore * chunkCountWeight +
+                    diversityScore * sourceDiversityWeight +
+                    queryScore * queryQualityWeight
         )
 
         return (confidence, warnings)
@@ -310,12 +329,12 @@ actor RAGEngine {
         topK: Int,
         chunkNorms: [UUID: Float]? = nil
     ) async -> [RetrievedChunk] {
-#if DEBUG
-    let log = OSLog(subsystem: "OpenIntelligence", category: "RAGEngine")
-        let spid = OSSignpostID(log: log)
-        os_signpost(.begin, log: log, name: "computeVectorSearch", signpostID: spid)
-        defer { os_signpost(.end, log: log, name: "computeVectorSearch", signpostID: spid) }
-#endif
+        #if DEBUG
+            let log = OSLog(subsystem: "OpenIntelligence", category: "RAGEngine")
+            let spid = OSSignpostID(log: log)
+            os_signpost(.begin, log: log, name: "computeVectorSearch", signpostID: spid)
+            defer { os_signpost(.end, log: log, name: "computeVectorSearch", signpostID: spid) }
+        #endif
         guard !chunks.isEmpty, topK > 0 else { return [] }
 
         // Precompute query norm if using optimized path
@@ -360,12 +379,12 @@ actor RAGEngine {
         candidates: [RetrievedChunk],
         snapshot: BM25Snapshot
     ) async -> [(chunk: RetrievedChunk, score: Float)] {
-#if DEBUG
-    let log = OSLog(subsystem: "OpenIntelligence", category: "RAGEngine")
-        let spid = OSSignpostID(log: log)
-        os_signpost(.begin, log: log, name: "bm25Scores", signpostID: spid)
-        defer { os_signpost(.end, log: log, name: "bm25Scores", signpostID: spid) }
-#endif
+        #if DEBUG
+            let log = OSLog(subsystem: "OpenIntelligence", category: "RAGEngine")
+            let spid = OSSignpostID(log: log)
+            os_signpost(.begin, log: log, name: "bm25Scores", signpostID: spid)
+            defer { os_signpost(.end, log: log, name: "bm25Scores", signpostID: spid) }
+        #endif
         guard !candidates.isEmpty else { return [] }
 
         // Tokenize query once
@@ -396,8 +415,8 @@ actor RAGEngine {
                 let tf = Float(termFreqs[q] ?? 0)
                 let df = Float(snapshot.documentFrequencies[q] ?? 1)
 
-            // IDF
-            let idf: Float = logf((Float(snapshot.totalDocuments) - df + 0.5) / (df + 0.5) + 1)
+                // IDF
+                let idf: Float = logf((Float(snapshot.totalDocuments) - df + 0.5) / (df + 0.5) + 1)
 
                 // BM25 with k1=1.5, b=0.75 (from scorer)
                 let k1: Float = 1.5
@@ -421,12 +440,12 @@ actor RAGEngine {
         vectorWeight: Float,
         keywordWeight: Float
     ) async -> [RetrievedChunk] {
-#if DEBUG
-    let log = OSLog(subsystem: "OpenIntelligence", category: "RAGEngine")
-        let spid = OSSignpostID(log: log)
-        os_signpost(.begin, log: log, name: "reciprocalRankFusion", signpostID: spid)
-        defer { os_signpost(.end, log: log, name: "reciprocalRankFusion", signpostID: spid) }
-#endif
+        #if DEBUG
+            let log = OSLog(subsystem: "OpenIntelligence", category: "RAGEngine")
+            let spid = OSSignpostID(log: log)
+            os_signpost(.begin, log: log, name: "reciprocalRankFusion", signpostID: spid)
+            defer { os_signpost(.end, log: log, name: "reciprocalRankFusion", signpostID: spid) }
+        #endif
         guard !vectorResults.isEmpty else { return [] }
 
         // Scores keyed by chunk id
@@ -454,14 +473,18 @@ actor RAGEngine {
     // Vector math helpers used by computeVectorSearch
     private func computeNorm(_ vector: [Float]) -> Float {
         var sum: Float = 0
-        for v in vector { sum += v * v }
+        for v in vector {
+            sum += v * v
+        }
         return sqrt(sum)
     }
 
     private func optimizedCosineSimilarity(_ a: [Float], _ b: [Float], queryNorm: Float, chunkNorm: Float) -> Float {
         guard a.count == b.count else { return 0 }
         var dot: Float = 0
-        for i in 0..<a.count { dot += a[i] * b[i] }
+        for i in 0 ..< a.count {
+            dot += a[i] * b[i]
+        }
         let denom = queryNorm * chunkNorm
         return denom > 0 ? dot / denom : 0
     }
@@ -471,7 +494,8 @@ actor RAGEngine {
         var dot: Float = 0
         var magA: Float = 0
         var magB: Float = 0
-        for i in 0..<a.count {
+        for i in 0 ..< a.count {
+            
             let av = a[i]; let bv = b[i]
             dot += av * bv
             magA += av * av
@@ -485,7 +509,7 @@ actor RAGEngine {
     private func tokenize(_ text: String) -> [String] {
         let tokenizer = NLTokenizer(unit: .word)
         tokenizer.string = text.lowercased()
-        return tokenizer.tokens(for: text.startIndex..<text.endIndex).compactMap { range in
+        return tokenizer.tokens(for: text.startIndex ..< text.endIndex).compactMap { range in
             let token = String(text[range]).trimmingCharacters(in: .punctuationCharacters)
             return token.isEmpty ? nil : token
         }
@@ -512,8 +536,9 @@ actor RAGEngine {
 
         var minDistance = Int.max
         if positions.allSatisfy({ !$0.isEmpty }) {
-            for i in 0..<(positions[0].count) {
-                for j in 0..<(positions[1].count) {
+            for i in 0 ..< (positions[0].count) {
+                for j in 0 ..< (positions[1].count) {
+                    
                     let distance = abs(positions[0][i] - positions[1][j])
                     minDistance = min(minDistance, distance)
                 }

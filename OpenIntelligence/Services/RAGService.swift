@@ -26,6 +26,73 @@ struct RetrievalLogEntry: Identifiable, Sendable {
     let chunks: [RetrievedChunk]
 }
 
+struct RAGAuditSnapshot: Identifiable, Sendable {
+    let id = UUID()
+    let timestamp: Date
+    let query: String
+    let containerId: UUID
+    let containerName: String
+
+    let embeddingProviderId: String
+    let embeddingDim: Int
+    let vectorDBKind: VectorDBKind
+    let chunkingTargetWords: Int
+    let chunkingOverlapWords: Int
+    let chunkingSource: String
+    let qualityMode: RAGQualityMode
+    let retrievalConfig: RetrievalConfig
+
+    let lenientRetrieval: Bool
+    let dynamicMin: Float
+    let topSim: Float
+    let secondSim: Float
+    let avgTop5: Float
+    let acceptanceOverride: Bool
+
+    let totalStoredChunks: Int
+    let candidatesCount: Int
+    let rerankedCount: Int
+    let filteredCount: Int
+    let droppedCount: Int
+    let mmrSelectedCount: Int
+    let uniqueDocCount: Int
+
+    let contextStrategy: String
+
+    let contextChars: Int
+    let contextWords: Int
+    let contextChunksUsed: Int
+    let maxContextChars: Int
+    let baseWindowTokens: Int
+    let safetyTokens: Int
+    let promptOverheadTokens: Int
+    let questionTokens: Int
+    let reservedOutputTokens: Int
+    let availableContextTokens: Int
+
+    let executionContext: ExecutionContext
+    let allowPrivateCloudCompute: Bool
+    let networkConnected: Bool
+    let wantsCloudContext: Bool
+    let reliabilityModeEnabled: Bool
+    let allowUngroundedFallback: Bool
+    let modelName: String
+}
+
+struct VectorStoreAudit: Identifiable, Sendable {
+    let id = UUID()
+    let timestamp: Date
+    let containerId: UUID
+    let containerName: String
+    let expectedDimension: Int
+    let totalChunks: Int
+    let mismatchedDimensions: Int
+    let uniqueDocuments: Int
+    let averageChunkWords: Double
+    let minChunkWords: Int
+    let maxChunkWords: Int
+}
+
 struct ReembedProgress: Sendable {
     let completed: Int
     let total: Int
@@ -81,6 +148,13 @@ class RAGService: ObservableObject {
         return containerIntelligence[id]
     }
 
+    /// Clear cached intelligence for a container (call when embedding/chunking config changes)
+    @MainActor
+    func clearIntelligence(for containerId: UUID) {
+        containerIntelligence.removeValue(forKey: containerId)
+        Log.info("[RAGService] Cleared intelligence cache for container \(containerId)", category: .retrieval)
+    }
+
     /// Recompute the intelligence snapshot for a container on demand.
     @discardableResult
     func refreshIntelligence(for containerId: UUID? = nil, force: Bool = false) -> Task<Void, Never> {
@@ -88,6 +162,49 @@ class RAGService: ObservableObject {
             guard let self else { return }
             await self.generateIntelligenceSnapshot(for: containerId, force: force)
         }
+    }
+
+    /// Run a storage integrity audit on the active container's vector database.
+    @discardableResult
+    func runVectorAudit(for containerId: UUID? = nil) async -> VectorStoreAudit? {
+        let resolvedId: UUID? = await MainActor.run {
+            containerId ?? self.containerService.activeContainerId
+        }
+        guard let targetId = resolvedId else { return nil }
+        let container = await MainActor.run {
+            self.containerService.containers.first { $0.id == targetId }
+        }
+        guard let container else { return nil }
+
+        let db = await dbFor(targetId)
+        let chunks = (try? await db.allChunks()) ?? []
+        let expectedDim = container.embeddingDim
+        let mismatched = chunks.filter { $0.embedding.count != expectedDim }.count
+        let wordCounts = chunks.map { $0.content.split(whereSeparator: { $0.isWhitespace }).count }
+        let totalWords = wordCounts.reduce(0, +)
+        let avgWords = wordCounts.isEmpty ? 0.0 : Double(totalWords) / Double(wordCounts.count)
+        let minWords = wordCounts.min() ?? 0
+        let maxWords = wordCounts.max() ?? 0
+        let uniqueDocs = Set(chunks.map { $0.documentId }).count
+
+        let audit = VectorStoreAudit(
+            timestamp: Date(),
+            containerId: targetId,
+            containerName: container.name,
+            expectedDimension: expectedDim,
+            totalChunks: chunks.count,
+            mismatchedDimensions: mismatched,
+            uniqueDocuments: uniqueDocs,
+            averageChunkWords: avgWords,
+            minChunkWords: minWords,
+            maxChunkWords: maxWords
+        )
+
+        await MainActor.run {
+            self.lastVectorAudit = audit
+        }
+
+        return audit
     }
 
     private func generateIntelligenceSnapshot(for containerId: UUID?, force: Bool) async {
@@ -133,24 +250,6 @@ class RAGService: ObservableObject {
         }
     }
 
-    /// Enrich retrieved chunks with source information for citations
-    @MainActor
-    private func addSourceInfo(_ chunks: [RetrievedChunk]) -> [RetrievedChunk] {
-        return chunks.map { retrieved in
-            let docName =
-                documents.first(where: { $0.id == retrieved.chunk.documentId })?.filename
-                    ?? "Unknown"
-            let pageNum = retrieved.chunk.metadata.pageNumber
-            return RetrievedChunk(
-                chunk: retrieved.chunk,
-                similarityScore: retrieved.similarityScore,
-                rank: retrieved.rank,
-                sourceDocument: docName,
-                pageNumber: pageNum
-            )
-        }
-    }
-
     // MARK: - Published State (MainActor-isolated for SwiftUI)
 
     /// The container context for the currently executing query (if any).
@@ -168,6 +267,8 @@ class RAGService: ObservableObject {
     @MainActor @Published private(set) var cloudConsent: [CloudProvider: CloudConsentState] = [:]
     @MainActor @Published private(set) var containerIntelligence: [UUID: LibraryIntelligenceCenter.IntelligenceReport] = [:]
     @MainActor @Published var thinkingEvents: [ThinkingEvent] = []
+    @MainActor @Published private(set) var lastAuditSnapshot: RAGAuditSnapshot?
+    @MainActor @Published private(set) var lastVectorAudit: VectorStoreAudit?
 
     /// Published model name for UI binding - updates when LLM service changes
     @MainActor @Published private(set) var activeModelName: String = "Loading..."
@@ -211,7 +312,7 @@ class RAGService: ObservableObject {
         let embeddingProviderId: String
         let dimension: Int
         let autoAdaptEnabled: Bool
-        let strictMode: Bool
+        let retrievalConfig: RetrievalConfig
         let documentCount: Int
         let chunkCount: Int
 
@@ -231,7 +332,6 @@ class RAGService: ObservableObject {
         static func key(for provider: CloudProvider) -> String {
             switch provider {
             case .applePCC: return "cloudConsent.applePCC"
-            case .openAI: return "cloudConsent.openAI"
             }
         }
     }
@@ -262,9 +362,8 @@ class RAGService: ObservableObject {
 
         // Priority order for LLM selection:
         // 1. Custom service provided by caller
-        // 2. OpenAI Direct (if API key configured)
-        // 3. Apple ChatGPT Extension (iOS 18.1+ with user consent)
-        // 4. On-Device Analysis (extractive QA, always available)
+        // 2. User-selected model from Settings
+        // 3. On-Device Analysis (extractive QA, always available)
 
         if let service = llmService {
             // User provided custom service (e.g., from Settings)
@@ -281,12 +380,20 @@ class RAGService: ObservableObject {
                 category: .initialization
             )
 
+            let selectedIsApple = (selectedModelRaw == "apple_intelligence")
             // Try to instantiate the user's selected model first
             let primaryService = Self.instantiateService(
                 for: selectedModelRaw,
                 entitlementStore: entitlementStore
             )
             var fallbackServices = Self.buildFallbackChain(excluding: selectedModelRaw)
+
+            // If the user's primary model is available, avoid surprising runtime fallbacks to
+            // On-Device Analysis. We still keep it as an initialization-time escape hatch when
+            // Apple Intelligence is unavailable on the device.
+            if primaryService != nil {
+                fallbackServices.removeAll { $0 is OnDeviceAnalysisService }
+            }
 
             let resolvedService: LLMService
             if let primaryService {
@@ -298,6 +405,9 @@ class RAGService: ObservableObject {
                     category: .initialization
                 )
                 Log.info("✓ Using \(fallback.modelName) as active model", category: .initialization)
+                if selectedIsApple {
+                    lastError = "Apple Intelligence is unavailable or disabled on this device. Using fallback instead."
+                }
                 resolvedService = fallback
                 #if canImport(FoundationModels)
                     if #available(iOS 26.0, *),
@@ -311,11 +421,17 @@ class RAGService: ObservableObject {
                     }
                 #endif
             } else {
-                Log.warning(
-                    "No configured LLM available; defaulting to On-Device Analysis",
+                Log.error(
+                    "No configured LLM available; Apple Intelligence is REQUIRED",
                     category: .initialization
                 )
-                resolvedService = OnDeviceAnalysisService()
+                #if targetEnvironment(simulator)
+                    lastError = "⚠️ Running in Simulator: Apple Intelligence requires a physical device with A17 Pro chip or later. Please run on a compatible iPhone."
+                #else
+                    lastError = "⚠️ Apple Intelligence is required but unavailable. Enable it in Settings → Apple Intelligence & Siri."
+                #endif
+                // Still need a service instance to avoid nil crashes, but it will always throw
+                resolvedService = AppleFoundationLLMServiceUnavailable()
             }
 
             _llmService = resolvedService
@@ -372,19 +488,51 @@ class RAGService: ObservableObject {
         }
     }
 
+    /// Rebuild the active LLM service and fallback chain from the current SettingsStore.
+    /// This keeps runtime routing aligned with Settings without requiring app restart.
+    @MainActor
+    func rebuildLLMServicesFromSettings() async {
+        guard let store = settingsStore else { return }
+
+        let primaryKey = store.selectedModel.rawValue
+        var primary: LLMService = Self.instantiateService(for: primaryKey, entitlementStore: entitlementStore)
+            ?? AppleFoundationLLMServiceUnavailable()
+
+        var fallbacks: [LLMService] = []
+        fallbacks.reserveCapacity(2)
+
+        if store.enableFirstFallback {
+            if let service = Self.instantiateService(for: store.firstFallback.rawValue, entitlementStore: entitlementStore),
+               service.modelName != primary.modelName
+            {
+                fallbacks.append(service)
+            }
+        }
+
+        if store.enableSecondFallback {
+            if let service = Self.instantiateService(for: store.secondFallback.rawValue, entitlementStore: entitlementStore),
+               service.modelName != primary.modelName,
+               !fallbacks.contains(where: { $0.modelName == service.modelName })
+            {
+                fallbacks.append(service)
+            }
+        }
+
+        // Ensure tool handler remains connected for agentic RAG.
+        primary.toolHandler = self
+        for i in fallbacks.indices {
+            fallbacks[i].toolHandler = self
+        }
+
+        updateLLMService(primary, fallbacks: fallbacks)
+    }
+
     @MainActor
     private func applyInitialCloudConsent(from store: SettingsStore) {
         if cloudConsent[.applePCC] != store.applePCCConsent {
             setCloudConsentState(
                 store.applePCCConsent,
                 for: .applePCC,
-                propagateToSettings: false
-            )
-        }
-        if cloudConsent[.openAI] != store.openAIConsent {
-            setCloudConsentState(
-                store.openAIConsent,
-                for: .openAI,
                 propagateToSettings: false
             )
         }
@@ -481,8 +629,6 @@ class RAGService: ObservableObject {
 
     private func cloudProvider(for service: LLMService) -> CloudProvider? {
         switch service {
-        case is OpenAIResponsesAPIService:
-            return .openAI
         #if canImport(FoundationModels)
             case is AppleFoundationLLMService:
                 return .applePCC
@@ -653,6 +799,18 @@ class RAGService: ObservableObject {
 
     // MARK: - Vector DB Access
 
+    /// Invalidate cached vector store for a container (call when dimension/DB kind changes)
+    /// Also clears persisted storage to ensure fresh start with new dimensions.
+    func invalidateVectorStore(for containerId: UUID, clearStorage: Bool = true) {
+        if clearStorage {
+            vectorRouter.invalidateAndClearStorage(containerId: containerId)
+            Log.info("[RAGService] Invalidated and cleared vector store for container \(containerId)", category: .retrieval)
+        } else {
+            vectorRouter.invalidate(containerId: containerId)
+            Log.info("[RAGService] Invalidated vector store cache for container \(containerId)", category: .retrieval)
+        }
+    }
+
     private func dbForActiveContainer() async -> VectorDatabase {
         return await MainActor.run {
             let container = self.containerService.activeContainer
@@ -699,7 +857,7 @@ class RAGService: ObservableObject {
             embeddingProviderId: containerDetails?.embeddingProviderId ?? context.providerId,
             dimension: containerDetails?.embeddingDim ?? context.dimension,
             autoAdaptEnabled: containerDetails?.autoAdaptDimension ?? false,
-            strictMode: containerDetails?.strictMode ?? false,
+            retrievalConfig: containerDetails?.retrievalConfig ?? .default,
             documentCount: containerDetails?.totalDocuments ?? 0,
             chunkCount: containerDetails?.totalChunks ?? 0
         )
@@ -801,15 +959,17 @@ class RAGService: ObservableObject {
             candidates = Array(candidates.prefix(topK))
         }
 
-        let ranked = candidates.enumerated().map { index, chunk in
-            RetrievedChunk(
+        let docsSnapshot = await snapshotDocuments()
+        let enriched = candidates.enumerated().map { index, chunk in
+            let docName = docsSnapshot.first(where: { $0.id == chunk.chunk.documentId })?.filename ?? "Unknown"
+            return RetrievedChunk(
                 chunk: chunk.chunk,
                 similarityScore: chunk.similarityScore,
-                rank: index + 1
+                rank: index + 1,
+                sourceDocument: docName,
+                pageNumber: chunk.chunk.metadata.pageNumber
             )
         }
-
-        let enriched = await MainActor.run { self.addSourceInfo(ranked) }
         TelemetryCenter.emit(
             .retrieval,
             title: "Semantic search",
@@ -884,6 +1044,13 @@ class RAGService: ObservableObject {
             id: providerId,
             targetDimension: initialDimension
         )
+
+        // Check if we got a fallback provider and update providerId accordingly
+        let actualProvider = containerEmbeddingService.actualProviderId
+        if actualProvider != providerId {
+            Log.warning("[RAGService] Requested provider '\(providerId)' fell back to '\(actualProvider)'", category: .ingestion)
+            providerId = actualProvider // Use actual provider for logging/tracking
+        }
 
         let pipelineStartTime = Date()
         TelemetryCenter.emit(
@@ -1459,12 +1626,25 @@ class RAGService: ObservableObject {
         container: KnowledgeContainer,
         plan: LibraryIntelligenceCenter.EmbeddingPlan
     ) -> EmbeddingAutoAction? {
+        // Don't override if user has very recently manually configured
+        // (within last 60 seconds indicates active user preference)
+        if let lastTune = container.lastSelfTuneAt,
+           Date().timeIntervalSince(lastTune) < 60
+        {
+            Log.debug("[AutoAdapt] Skipping embedding shift - user recently configured settings", category: .ingestion)
+            return nil
+        }
+
         let providerChanged = plan.providerId != container.embeddingProviderId
         let dimensionDelta = abs(plan.dimension - container.embeddingDim)
         guard providerChanged || dimensionDelta >= 64 else { return nil }
 
-        let confident = plan.confidence >= 0.35 || providerChanged
-        guard confident else { return nil }
+        // Require higher confidence to override user settings
+        let confident = plan.confidence >= 0.50
+        guard confident else {
+            Log.debug("[AutoAdapt] Skipping embedding shift - confidence \(plan.confidence) below threshold", category: .ingestion)
+            return nil
+        }
 
         let friendlyProvider: String
         switch plan.providerId {
@@ -1472,6 +1652,8 @@ class RAGService: ObservableObject {
             friendlyProvider = "Core ML Sentence"
         case "apple_fm_embed":
             friendlyProvider = "Apple FM"
+        case "nl_contextual_embedding":
+            friendlyProvider = "Contextual Embeddings"
         default:
             friendlyProvider = "Natural Language"
         }
@@ -1648,16 +1830,65 @@ class RAGService: ObservableObject {
     private func queryInternal(
         _ question: String, topK: Int, config: InferenceConfig?, containerId: UUID?
     ) async throws -> RAGResponse {
-        let inferenceConfig = config ?? InferenceConfig()
-        let strictMode: Bool = await MainActor.run {
+        var inferenceConfig = config ?? InferenceConfig()
+        let networkAvailable = NetworkMonitor.shared.isConnected
+        let reliabilityModeEnabled: Bool = await MainActor.run {
+            settingsStore?.reliabilityModeEnabled ?? true
+        }
+        if reliabilityModeEnabled {
+            Log.info("[RAG] Reliability-first fallbacks enabled", category: .pipeline)
+        }
+        let wantsCloudContext =
+            (_llmService is AppleFoundationLLMService)
+            && networkAvailable
+            && inferenceConfig.executionContext != .onDeviceOnly
+
+        // EXECUTION CONTEXT SELECTION:
+        // When online, force PCC to avoid 4096-token on-device limits.
+        // When offline, fall back to on-device.
+        #if targetEnvironment(simulator)
+            if _llmService is AppleFoundationLLMService {
+                inferenceConfig.executionContext = .onDeviceOnly
+                inferenceConfig.allowPrivateCloudCompute = false
+                Log.info("[RAG] Simulator → onDeviceOnly (PCC unavailable)", category: .pipeline)
+            }
+        #else
+            if _llmService is AppleFoundationLLMService {
+                if networkAvailable {
+                    // Force PCC for long-context reliability when online
+                    inferenceConfig.executionContext = .cloudOnly
+                    inferenceConfig.allowPrivateCloudCompute = true
+                    Log.info("[RAG] Network available → cloudOnly (force PCC 65K model)", category: .pipeline)
+                } else {
+                    inferenceConfig.executionContext = .onDeviceOnly
+                    inferenceConfig.allowPrivateCloudCompute = false
+                    Log.info("[RAG] Offline → onDeviceOnly (4096 tokens)", category: .pipeline)
+                }
+            }
+        #endif
+
+        // Get quality mode from settings (affects retrieval parameters)
+        let qualityMode: RAGQualityMode = await MainActor.run {
+            settingsStore?.ragQualityMode ?? .balanced
+        }
+
+        let developerTuningEnabled: Bool = await MainActor.run {
+            settingsStore?.developerRAGTuningEnabled ?? false
+        }
+
+        let allowUngroundedFallback = reliabilityModeEnabled || developerTuningEnabled
+
+        let rawRetrievalConfig: RetrievalConfig = await MainActor.run {
             if let id = containerId,
                let container = self.containerService.containers.first(where: { $0.id == id })
             {
-                return container.strictMode
+                return container.retrievalConfig
             } else {
-                return self.containerService.activeContainer?.strictMode ?? false
+                return self.containerService.activeContainer?.retrievalConfig ?? .default
             }
         }
+        let retrievalConfig =
+            rawRetrievalConfig == .highAccuracy ? .default : rawRetrievalConfig
 
         let embeddingContext = await resolveEmbeddingContext(preferredContainerId: containerId)
         let embeddingProviderId = embeddingContext.providerId
@@ -1665,6 +1896,18 @@ class RAGService: ObservableObject {
         let selectedId = embeddingContext.containerId
         let selectedName = embeddingContext.containerName
         let selectedDim = embeddingContext.dimension
+        let selectedContainer = await MainActor.run {
+            self.containerService.containers.first { $0.id == selectedId }
+        }
+
+        if let container = selectedContainer, !container.autoAdaptDimension {
+            var updated = container
+            updated.autoAdaptDimension = true
+            await MainActor.run {
+                self.containerService.updateContainer(updated)
+            }
+            refreshIntelligence(for: selectedId, force: true)
+        }
         let vdb = await dbFor(selectedId)
 
         // Establish query-scoped container context for downstream tool calls and listings
@@ -1678,11 +1921,36 @@ class RAGService: ObservableObject {
         defer {
             Task { await MainActor.run { self.currentQueryContainerId = nil } }
         }
-        // Query heuristics for short/generic prompts
+
+        // Adjust topK based on quality mode (quality mode is the default floor)
+        let requestedTopK = max(topK, qualityMode.initialTopK)
+        let baseTopK = requestedTopK
+
         let queryWords = question.split(separator: " ").count
-        let effectiveTopK = max(1, (queryWords <= 2) ? min(topK, 3) : min(topK, 10))
+        let isTrivial = isTrivialQuery(question)
+        let applyTrivialTopKCap = isTrivial && !wantsCloudContext
+        let effectiveTopK = max(1, applyTrivialTopKCap ? min(baseTopK, 8) : baseTopK)
+        if isTrivial {
+            let detail = applyTrivialTopKCap ? "fast topK cap (\(effectiveTopK))" : "PCC available - keeping full topK"
+            Log.info("[RAG] Trivial query detected - \(detail)", category: .retrieval)
+        }
         // Fetch current stored chunk count from vector database (fallback to cached total)
         let totalStored = (try? await vdb.count()) ?? totalChunksStored
+
+        var auditCandidatesCount = 0
+        var auditRerankedCount = 0
+        var auditFilteredCount = 0
+        var auditDroppedCount = 0
+        var auditMMRSelectedCount = 0
+        var auditUniqueDocCount = 0
+        var auditLenient = false
+        var auditDynamicMin: Float = retrievalConfig.minSimilarity
+        var auditTopSim: Float = 0
+        var auditSecondSim: Float = 0
+        var auditAvgTop5: Float = 0
+        var auditAcceptanceOverride = false
+        var usedRetrievalCascade = false
+        var retryCandidates: [RetrievedChunk] = []
 
         Log.box(
             "ENHANCED RAG QUERY PIPELINE",
@@ -1692,13 +1960,14 @@ class RAGService: ObservableObject {
                 "📝 Query: \(question)",
                 "🎯 Retrieving top \(effectiveTopK) chunks from \(totalStored) total",
                 "🧬 Embeddings: \(embeddingProviderId) • \(selectedDim)D",
+                "⚙️ Quality Mode: \(qualityMode.displayName)",
             ]
         )
 
         emitThinkingEvent(
             .planning,
             title: "Scoping query",
-            detail: "Top \(effectiveTopK) • \(selectedName) • \(selectedDim)D via \(embeddingProviderId)"
+            detail: "Top \(effectiveTopK) • \(selectedName) • \(qualityMode.displayName) mode"
         )
 
         TelemetryCenter.emit(
@@ -1708,15 +1977,19 @@ class RAGService: ObservableObject {
                 "question": String(question.prefix(80)),
                 "container": selectedName,
                 "containerId": selectedId.uuidString,
+                "qualityMode": qualityMode.rawValue,
                 "words": "\(queryWords)",
                 "characters": "\(question.count)",
                 "topK": "\(effectiveTopK)",
-                "strictMode": strictMode ? "true" : "false",
+                "minSimilarity": String(format: "%.2f", retrievalConfig.minSimilarity),
                 "embeddingProvider": embeddingProviderId,
                 "embeddingDim": "\(selectedDim)",
             ]
         )
 
+        var ragQuery: RAGQuery?
+        var recoveryRetrievedChunks: [RetrievedChunk] = []
+        var recoveryRetrievalTime: TimeInterval = 0
         do {
             // Clear any previous errors
             await MainActor.run {
@@ -1736,32 +2009,8 @@ class RAGService: ObservableObject {
             }
 
             let pipelineStartTime = Date()
-            let ragQuery = RAGQuery(query: question, topK: effectiveTopK)
-
-            // Small-talk/direct-chat bypass for trivial inputs (no RAG)
-            let lowerQ = question.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-            if queryWords <= 2 {
-                let smallTalkSet: Set<String> = [
-                    "hi", "hello", "hey", "yo", "sup", "ok", "thanks", "thank you", "bye",
-                    "goodbye", "hola", "hiya",
-                ]
-                if smallTalkSet.contains(lowerQ) {
-                    let response = try await generateDirectChatResponse(
-                        question: question,
-                        ragQuery: ragQuery,
-                        inferenceConfig: inferenceConfig,
-                        pipelineStartTime: pipelineStartTime,
-                        retrievalTime: 0,
-                        fallbackNote: "Short greeting detected; replied without document retrieval."
-                    )
-                    return await finalizeResponse(
-                        query: question,
-                        containerId: selectedId,
-                        containerName: selectedName,
-                        response: response
-                    )
-                }
-            }
+            let ragQueryValue = RAGQuery(query: question, topK: effectiveTopK)
+            ragQuery = ragQueryValue
 
             // Check if we have documents for RAG or just direct LLM chat (use live DB count)
             let hasDocuments = totalStored > 0
@@ -1855,18 +2104,23 @@ class RAGService: ObservableObject {
                     "Step 3: Hybrid Search (Vector + BM25)", level: .info, category: .pipeline
                 )
                 let retrievalStartTime = Date()
-                let hybridSearch = HybridSearchService(vectorDatabase: vdb)
+                let hybridSearch = HybridSearchService(
+                    vectorDatabase: vdb,
+                    vectorWeight: retrievalConfig.vectorWeight,
+                    keywordWeight: retrievalConfig.lexicalWeight
+                )
                 // Use expanded queries for keyword search (original for vector)
                 let retrievedChunks = try await hybridSearch.search(
                     query: expandedQueries.joined(separator: " "), // Combine expansions
                     embedding: queryEmbedding,
-                    topK: effectiveTopK * 2 // Retrieve 2x for re-ranking (clamped)
+                    topK: effectiveTopK * 3 // Retrieve 3x for better coverage on large docs
                 )
 
                 // Measure retrieval time before any MainActor work
-                let retrievalTime = Date().timeIntervalSince(retrievalStartTime)
+                var retrievalTime = Date().timeIntervalSince(retrievalStartTime)
+                recoveryRetrievalTime = retrievalTime
 
-                // Edge case: No relevant chunks found - gracefully fallback to direct chat
+                // Edge case: No relevant chunks found
                 if retrievedChunks.isEmpty {
                     Log.warning(
                         "⚠️  [RAGService] No chunks retrieved (database may be empty)",
@@ -1882,19 +2136,37 @@ class RAGService: ObservableObject {
                         duration: retrievalTime
                     )
                     emitThinkingEvent(
-                        .fallback,
-                        title: "Falling back to chat",
+.warning,
+                        title: "Insufficient evidence",
                         detail: "No relevant chunks found"
                     )
-                    // Fallback to direct LLM chat mode
-                    let response = try await generateDirectChatResponse(
+                    if allowUngroundedFallback {
+                        // Fallback to direct LLM chat mode
+                        let response = try await generateDirectChatResponse(
+                            question: question,
+                            ragQuery: ragQueryValue,
+                            inferenceConfig: inferenceConfig,
+                            pipelineStartTime: pipelineStartTime,
+                            retrievalTime: retrievalTime,
+                            fallbackNote:
+                                "No relevant document context found; replied without RAG context."
+                        )
+                        return await finalizeResponse(
+                            query: question,
+                            containerId: selectedId,
+                            containerName: selectedName,
+                            response: response
+                        )
+                    }
+                    let response = await makeGroundedAbstainResponse(
                         question: question,
-                        ragQuery: ragQuery,
-                        inferenceConfig: inferenceConfig,
-                        pipelineStartTime: pipelineStartTime,
+                        ragQuery: ragQueryValue,
+                        retrievedChunks: [],
                         retrievalTime: retrievalTime,
-                        fallbackNote:
-                        "No relevant document context found; replied without RAG context."
+                        retrievalConfig: retrievalConfig,
+                        embeddingProviderId: embeddingProviderId,
+                        reason: "I couldn't find relevant sources in your library for that question.",
+                        gatingDecision: "no_sources"
                     )
                     return await finalizeResponse(
                         query: question,
@@ -1919,6 +2191,8 @@ class RAGService: ObservableObject {
                         pageNumber: pageNum
                     )
                 }
+                auditCandidatesCount = chunksWithSources.count
+                recoveryRetrievedChunks = chunksWithSources
 
                 let chunkWordCounts = chunksWithSources.map { wordCount(of: $0.chunk.content) }
                 let totalChunkWords = chunkWordCounts.reduce(0, +)
@@ -1980,12 +2254,13 @@ class RAGService: ObservableObject {
                 Log.section("Step 4: Multi-Signal Re-ranking", level: .info, category: .pipeline)
                 let engine = RAGEngine()
                 let rerankStartTime = Date()
-                let rerankedChunks = await engine.rerank(
+                var rerankedChunks = await engine.rerank(
                     chunks: chunksWithSources,
                     query: question,
                     topK: effectiveTopK * 3 // Get more candidates for MMR diversification (clamped)
                 )
-                let rerankTime = Date().timeIntervalSince(rerankStartTime)
+                auditRerankedCount = rerankedChunks.count
+                var rerankTime = Date().timeIntervalSince(rerankStartTime)
                 Log.info(
                     "✓ Re-ranked to top \(rerankedChunks.count) in \(String(format: "%.0f", rerankTime * 1000))ms",
                     category: .retrieval
@@ -1999,23 +2274,133 @@ class RAGService: ObservableObject {
                     duration: rerankTime
                 )
 
+                let cascadeTopSim = rerankedChunks.first?.similarityScore ?? 0
+                let cascadeAvgTop5: Float = {
+                    let sims = rerankedChunks.prefix(5).map { $0.similarityScore }
+                    guard !sims.isEmpty else { return 0 }
+                    return sims.reduce(0, +) / Float(sims.count)
+                }()
+                let cascadeThreshold = max(0.32, min(0.45, retrievalConfig.minSimilarity - 0.05))
+                let cascadeNeedsMore = rerankedChunks.count < max(4, effectiveTopK / 2)
+                let isShortQueryForCascade = queryWords <= 6
+                let shouldCascade = !usedRetrievalCascade
+                    && !isTrivial
+                    && (cascadeTopSim < cascadeThreshold || cascadeNeedsMore || cascadeAvgTop5 < cascadeThreshold)
+
+                if shouldCascade {
+                    let baseCandidateCount = rerankedChunks.count
+                    let cascadeStartTime = Date()
+                    let lexicalBoost: Float = isShortQueryForCascade ? 0.2 : 0.12
+                    var cascadeLexical = min(0.55, retrievalConfig.lexicalWeight + lexicalBoost)
+                    var cascadeVector = max(0.45, 1.0 - cascadeLexical)
+                    let weightTotal = cascadeLexical + cascadeVector
+                    cascadeLexical = cascadeLexical / weightTotal
+                    cascadeVector = cascadeVector / weightTotal
+
+                    let cascadeQuery = (expandedQueries + [question]).joined(separator: " ")
+                    let cascadeTopK = min(max(effectiveTopK * 4, effectiveTopK * 3), max(1, totalStored))
+                    let cascadeHybrid = HybridSearchService(
+                        vectorDatabase: vdb,
+                        vectorWeight: cascadeVector,
+                        keywordWeight: cascadeLexical
+                    )
+                    let cascadeRetrieved = try await cascadeHybrid.search(
+                        query: cascadeQuery,
+                        embedding: queryEmbedding,
+                        topK: cascadeTopK
+                    )
+
+                    let cascadeTime = Date().timeIntervalSince(cascadeStartTime)
+                    if !cascadeRetrieved.isEmpty {
+                        let cascadeChunksWithSources: [RetrievedChunk] = cascadeRetrieved.map { retrieved in
+                            let docName =
+                                docsSnapshot.first(where: { $0.id == retrieved.chunk.documentId })?.filename
+                                    ?? "Unknown"
+                            let pageNum = retrieved.chunk.metadata.pageNumber
+                            return RetrievedChunk(
+                                chunk: retrieved.chunk,
+                                similarityScore: retrieved.similarityScore,
+                                rank: retrieved.rank,
+                                sourceDocument: docName,
+                                pageNumber: pageNum
+                            )
+                        }
+
+                        let mergedCandidates = mergeUniqueChunks(rerankedChunks, cascadeChunksWithSources)
+                        if mergedCandidates.count > rerankedChunks.count {
+                            let cascadeRerankStart = Date()
+                            rerankedChunks = await engine.rerank(
+                                chunks: mergedCandidates,
+                                query: question,
+                                topK: effectiveTopK * 3
+                            )
+                            let cascadeRerankTime = Date().timeIntervalSince(cascadeRerankStart)
+                            usedRetrievalCascade = true
+                            auditCandidatesCount = mergedCandidates.count
+                            auditRerankedCount = rerankedChunks.count
+                            retrievalTime += cascadeTime
+                            rerankTime += cascadeRerankTime
+                            recoveryRetrievalTime = retrievalTime
+
+                            let addedCount = max(0, mergedCandidates.count - baseCandidateCount)
+                            Log.info(
+                                "🔁 Retrieval cascade added \(addedCount) candidates (lexical \(String(format: "%.2f", cascadeLexical)))",
+                                category: .retrieval
+                            )
+                            TelemetryCenter.emit(
+                                .retrieval,
+                                title: "Retrieval cascade",
+                                metadata: [
+                                    "candidates": "\(mergedCandidates.count)",
+                                    "lexicalWeight": String(format: "%.2f", cascadeLexical),
+                                    "vectorWeight": String(format: "%.2f", cascadeVector),
+                                ],
+                                duration: cascadeTime
+                            )
+                            emitThinkingEvent(
+                                .retrieval,
+                                title: "Retrieval cascade",
+                                detail: "\(mergedCandidates.count) candidates • lex \(String(format: "%.2f", cascadeLexical))"
+                            )
+                        }
+                    }
+                }
+
                 if rerankedChunks.isEmpty {
                     Log.warning(
-                        "⚠️  [RAGService] Re-ranking yielded no candidates; falling back to direct chat",
+                        "⚠️  [RAGService] Re-ranking yielded no candidates",
                         category: .retrieval
                     )
                     emitThinkingEvent(
-                        .fallback,
+.warning,
                         title: "Re-ranking exhausted",
-                        detail: "Switching to direct chat"
+                        detail: "No viable candidates"
                     )
-                    let response = try await generateDirectChatResponse(
+                    if allowUngroundedFallback {
+                        let response = try await generateDirectChatResponse(
+                            question: question,
+                            ragQuery: ragQueryValue,
+                            inferenceConfig: inferenceConfig,
+                            pipelineStartTime: pipelineStartTime,
+                            retrievalTime: retrievalTime,
+                            fallbackNote: "No re-ranked candidates; replied without RAG context."
+                        )
+                        return await finalizeResponse(
+                            query: question,
+                            containerId: selectedId,
+                            containerName: selectedName,
+                            response: response
+                        )
+                    }
+                    let response = await makeGroundedAbstainResponse(
                         question: question,
-                        ragQuery: ragQuery,
-                        inferenceConfig: inferenceConfig,
-                        pipelineStartTime: pipelineStartTime,
+                        ragQuery: ragQueryValue,
+                        retrievedChunks: [],
                         retrievalTime: retrievalTime,
-                        fallbackNote: "No re-ranked candidates; replied without RAG context."
+                        retrievalConfig: retrievalConfig,
+                        embeddingProviderId: embeddingProviderId,
+                        reason: "I couldn't identify reliable sources after re-ranking.",
+                        gatingDecision: "rerank_empty"
                     )
                     return await finalizeResponse(
                         query: question,
@@ -2025,12 +2410,10 @@ class RAGService: ObservableObject {
                     )
                 }
 
-                // Step 4.3: Filter low-confidence chunks (critical for medical accuracy)
-                // Adaptive gating: consider "lenient" mode and trivial/short queries
+                // Step 4.3: Filter low-confidence chunks using container's retrieval config
+                // Adaptive gating: consider "lenient" mode, quality mode, and trivial/short queries
                 let lenient = UserDefaults.standard.bool(forKey: "lenientRetrievalMode")
-                let isTrivial =
-                    (queryWords <= 2)
-                        || ["test", "help", "hello", "hi", "hey", "ok", "okay"].contains(lowerQ)
+                auditLenient = lenient
 
                 // Relative-score metrics (computed on reranked results)
                 let topSim: Float = rerankedChunks.first?.similarityScore ?? 0
@@ -2040,9 +2423,32 @@ class RAGService: ObservableObject {
                     guard !sims.isEmpty else { return 0 }
                     return sims.reduce(0, +) / Float(sims.count)
                 }()
+                auditTopSim = topSim
+                auditSecondSim = secondSim
+                auditAvgTop5 = avgTop5
 
-                // Dynamic threshold: strict by default, relaxed when lenient or trivial
-                let dynamicMin: Float = (strictMode && !lenient && !isTrivial) ? 0.52 : 0.35
+                // Use quality mode's minSimilarity, adjusted for lenient/trivial
+                let qualityMinSim = qualityMode.minSimilarity
+                let baseMin: Float
+                if retrievalConfig == .highAccuracy {
+                    baseMin = retrievalConfig.minSimilarity
+                } else {
+                    switch qualityMode {
+                    case .fast:
+                        baseMin = min(retrievalConfig.minSimilarity, qualityMinSim)
+                    case .balanced:
+                        baseMin = retrievalConfig.minSimilarity
+                    case .thorough:
+                        baseMin = max(retrievalConfig.minSimilarity, qualityMinSim)
+                    }
+                }
+
+                var dynamicMin: Float = lenient ? min(baseMin, 0.35) : baseMin
+                if !lenient, avgTop5 > 0, avgTop5 < baseMin {
+                    dynamicMin = max(0.28, avgTop5 - 0.03)
+                }
+
+                auditDynamicMin = dynamicMin
                 var filteredChunks = await engine.filterBySimilarity(
                     chunks: rerankedChunks,
                     min: dynamicMin
@@ -2052,30 +2458,31 @@ class RAGService: ObservableObject {
                 let acceptanceOverride: Bool =
                     (topSim >= 0.50) || (topSim >= 0.38 && (topSim - avgTop5) >= 0.05)
                         || ((topSim - secondSim) >= 0.07)
+                auditAcceptanceOverride = acceptanceOverride
 
                 TelemetryCenter.emit(
                     .retrieval,
                     title: "Gating metrics",
                     metadata: [
-                        "strictMode": strictMode ? "true" : "false",
+                        "minSimilarity": String(format: "%.2f", retrievalConfig.minSimilarity),
                         "lenient": lenient ? "true" : "false",
-                        "isTrivial": isTrivial ? "true" : "false",
                         "topSim": String(format: "%.3f", topSim),
                         "secondSim": String(format: "%.3f", secondSim),
                         "avgTop5": String(format: "%.3f", avgTop5),
-                        "minSim": String(format: "%.2f", dynamicMin),
+                        "dynamicMin": String(format: "%.2f", dynamicMin),
                         "override": acceptanceOverride ? "true" : "false",
                     ]
                 )
 
                 emitThinkingEvent(
                     .gating,
-                    title: strictMode ? "Strict gate" : "Confidence gate",
+                    title: "Confidence gate (\(retrievalConfig.summary))",
                     detail: "min \(String(format: "%.2f", dynamicMin)) • top \(String(format: "%.2f", topSim))"
                 )
 
                 if filteredChunks.count < rerankedChunks.count {
                     let dropped = rerankedChunks.count - filteredChunks.count
+                    auditDroppedCount = dropped
                     Log.warning(
                         "   ⚠️  Filtered out \(dropped) low-confidence chunks (< \(String(format: "%.2f", dynamicMin)))",
                         category: .retrieval
@@ -2090,7 +2497,7 @@ class RAGService: ObservableObject {
 
                 // Edge case: No high-confidence chunks
                 if filteredChunks.isEmpty {
-                    if acceptanceOverride || lenient || isTrivial {
+                    if acceptanceOverride || lenient {
                         // Use top reranked results directly under override/lenient conditions
                         filteredChunks = Array(rerankedChunks.prefix(effectiveTopK * 2))
                         Log.info(
@@ -2106,62 +2513,39 @@ class RAGService: ObservableObject {
                                 "avgTop5": String(format: "%.3f", avgTop5),
                             ]
                         )
-                    } else {
-                        // Graceful fallback: try On-Device Analysis with extracted context
-                        Log.error(
-                            "   ❌ No high-confidence chunks found (all below threshold) — falling back to On‑Device Analysis",
+                    } else if allowUngroundedFallback {
+                        // Low-confidence retrieval: proceed with best-available reranked chunks under
+                        // explicit fallback allowances.
+                        Log.warning(
+                            "   ⚠️  No chunks met the confidence threshold; proceeding with best-available context",
                             category: .retrieval
                         )
                         emitThinkingEvent(
                             .fallback,
                             title: "Low-confidence context",
-                            detail: "Switching to On-Device Analysis"
+                            detail: "Proceeding with best-available chunks"
                         )
                         TelemetryCenter.emit(
                             .retrieval,
-                            severity: .error,
-                            title: "No high-confidence context (fallback to On‑Device Analysis)",
+                            severity: .warning,
+                            title: "Low-confidence context (proceeding)",
                             metadata: [
                                 "threshold": String(format: "%.2f", dynamicMin),
+                                "topSim": String(format: "%.3f", topSim),
                             ]
                         )
 
-                        // Assemble concise context from the best available reranked results
-                        let (fallbackContext, usedCount) = await engine.assembleContext(
-                            chunks: Array(rerankedChunks.prefix(max(effectiveTopK, 3))),
-                            maxChars: (llmService is AppleFoundationLLMService) ? 1200 : 2500
-                        )
-
-                        let local = OnDeviceAnalysisService()
-                        let fallbackResp = try await local.generate(
-                            prompt: question,
-                            context: fallbackContext.isEmpty ? nil : fallbackContext,
-                            config: inferenceConfig
-                        )
-
-                        let meta = ResponseMetadata(
-                            timeToFirstToken: fallbackResp.timeToFirstToken,
-                            totalGenerationTime: fallbackResp.totalTime,
-                            tokensGenerated: fallbackResp.tokensGenerated,
-                            tokensPerSecond: fallbackResp.tokensPerSecond,
-                            modelUsed: local.modelName,
+                        filteredChunks = Array(rerankedChunks.prefix(max(effectiveTopK, 3)))
+                    } else {
+                        let response = await makeGroundedAbstainResponse(
+                            question: question,
+                            ragQuery: ragQueryValue,
+                            retrievedChunks: rerankedChunks,
                             retrievalTime: retrievalTime,
-                            strictModeEnabled: strictMode,
-                            gatingDecision: "fallback_ondevice_low_confidence",
-                            toolCallsMade: fallbackResp.toolCallsMade,
-                            embeddingProvider: embeddingProviderId
-                        )
-
-                        let response = RAGResponse(
-                            queryId: ragQuery.id,
-                            retrievedChunks: Array(
-                                rerankedChunks.prefix(usedCount > 0 ? usedCount : effectiveTopK)),
-                            generatedResponse: fallbackResp.text,
-                            metadata: meta,
-                            confidenceScore: 0.0,
-                            qualityWarnings: [
-                                "Low-confidence retrieval: answered using extractive on‑device analysis",
-                            ]
+                            retrievalConfig: retrievalConfig,
+                            embeddingProviderId: embeddingProviderId,
+                            reason: "I couldn't find high-confidence evidence in your library for this query.",
+                            gatingDecision: "low_confidence"
                         )
                         return await finalizeResponse(
                             query: question,
@@ -2171,9 +2555,11 @@ class RAGService: ObservableObject {
                         )
                     }
                 }
+                auditFilteredCount = filteredChunks.count
 
                 // Step 4.4: Ensure multiple documents are represented before diversification
                 let uniqueDocCount = Set(rerankedChunks.map { $0.chunk.documentId }).count
+                auditUniqueDocCount = uniqueDocCount
                 if uniqueDocCount > 1 {
                     let desiredDocCoverage = min(
                         uniqueDocCount,
@@ -2212,22 +2598,27 @@ class RAGService: ObservableObject {
                 } else if filteredChunks.isEmpty {
                     filteredChunks = Array(rerankedChunks.prefix(max(effectiveTopK, 3)))
                 }
+                retryCandidates = filteredChunks.sorted {
+                    $0.similarityScore > $1.similarityScore
+                }
 
-                // Step 4.5: Apply MMR for diversity (critical for medical/comprehensive coverage)
+                // Step 4.5: Apply MMR for diversity using container's retrieval config
                 Log.section("Step 4.5: MMR Diversification", level: .info, category: .pipeline)
                 let mmrStartTime = Date()
+                let mmrLambda = retrievalConfig.mmrLambda
                 let diverseChunks = await engine.applyMMR(
                     candidates: filteredChunks,
                     queryEmbedding: queryEmbedding,
                     topK: effectiveTopK, // Clamped for short queries
-                    lambda: strictMode ? 0.75 : 0.7 // Strict mode favors relevance slightly more
+                    lambda: mmrLambda
                 )
+                auditMMRSelectedCount = diverseChunks.count
                 let mmrTime = Date().timeIntervalSince(mmrStartTime)
                 Log.info(
                     "✓ Selected \(diverseChunks.count) diverse chunks in \(String(format: "%.0f", mmrTime * 1000))ms",
                     category: .retrieval
                 )
-                Log.debug("  λ=0.7 (70% relevance, 30% diversity)", category: .retrieval)
+                Log.debug("  λ=\(String(format: "%.2f", mmrLambda)) (\(Int(mmrLambda * 100))% relevance, \(Int((1 - mmrLambda) * 100))% diversity)", category: .retrieval)
                 let contextWordCounts = diverseChunks.map { wordCount(of: $0.chunk.content) }
                 let totalContextWords = contextWordCounts.reduce(0, +)
                 let maxContextWords = contextWordCounts.max() ?? 0
@@ -2240,7 +2631,7 @@ class RAGService: ObservableObject {
                     title: "MMR diversification",
                     metadata: [
                         "selected": "\(diverseChunks.count)",
-                        "lambda": "0.7",
+                        "lambda": String(format: "%.2f", mmrLambda),
                         "totalWords": "\(totalContextWords)",
                         "avgWords": String(format: "%.1f", averageContextWords),
                         "maxWords": "\(maxContextWords)",
@@ -2256,22 +2647,40 @@ class RAGService: ObservableObject {
 
                 if diverseChunks.isEmpty {
                     Log.warning(
-                        "⚠️  [RAGService] MMR returned no candidates; falling back to direct chat",
+                        "⚠️  [RAGService] MMR returned no candidates",
                         category: .retrieval
                     )
                     emitThinkingEvent(
-                        .fallback,
+.warning,
                         title: "MMR exhausted",
-                        detail: "Switching to direct chat"
+                        detail: "No diverse candidates"
                     )
-                    let response = try await generateDirectChatResponse(
+                    if allowUngroundedFallback {
+                        let response = try await generateDirectChatResponse(
+                            question: question,
+                            ragQuery: ragQueryValue,
+                            inferenceConfig: inferenceConfig,
+                            pipelineStartTime: pipelineStartTime,
+                            retrievalTime: retrievalTime,
+                            fallbackNote:
+                                "No diverse candidates after MMR; replied without RAG context."
+                        )
+                        return await finalizeResponse(
+                            query: question,
+                            containerId: selectedId,
+                            containerName: selectedName,
+                            response: response
+                        )
+                    }
+                    let response = await makeGroundedAbstainResponse(
                         question: question,
-                        ragQuery: ragQuery,
-                        inferenceConfig: inferenceConfig,
-                        pipelineStartTime: pipelineStartTime,
+                        ragQuery: ragQueryValue,
+                        retrievedChunks: [],
                         retrievalTime: retrievalTime,
-                        fallbackNote:
-                        "No diverse candidates after MMR; replied without RAG context."
+                        retrievalConfig: retrievalConfig,
+                        embeddingProviderId: embeddingProviderId,
+                        reason: "I couldn't build a diverse evidence set to answer reliably.",
+                        gatingDecision: "mmr_empty"
                     )
                     return await finalizeResponse(
                         query: question,
@@ -2281,43 +2690,22 @@ class RAGService: ObservableObject {
                     )
                 }
 
-                Log.verbose("\nFinal diverse chunks:", category: .retrieval)
-                for (index, chunk) in diverseChunks.enumerated() {
-                    let preview = chunk.chunk.content.prefix(80).replacingOccurrences(
-                        of: "\n", with: " "
-                    )
-                    let source =
-                        chunk.sourceDocument.isEmpty
-                            ? ""
-                            : " | \(chunk.sourceDocument)\(chunk.pageNumber.map { " p.\($0)" } ?? "")"
-                    Log.verbose(
-                        "  [\(index + 1)] Similarity: \(String(format: "%.4f", chunk.similarityScore))\(source)",
-                        category: .retrieval
-                    )
-                    Log.verbose("      \"\(preview)...\"", category: .retrieval)
-                }
-
-                // Strict Mode enforcement: require sufficient high-confidence evidence
-                if strictMode && !(lenient || acceptanceOverride || isTrivial) {
-                    let supporting = diverseChunks.filter { $0.similarityScore >= 0.52 }
-                    if supporting.count < 3 {
+                // High Accuracy enforcement: require sufficient high-confidence evidence
+                let minConfidentChunks = retrievalConfig.minConfidentChunks
+                if retrievalConfig == .highAccuracy, !(lenient || acceptanceOverride) {
+                    let supporting = diverseChunks.filter { $0.similarityScore >= retrievalConfig.minSimilarity }
+                    if supporting.count<minConfidentChunks {
                         // Build cautious response with citations of top candidates
                         let topSources = diverseChunks.prefix(3).enumerated().map { idx, r in
                             let src = r.sourceDocument.isEmpty ? "Unknown" : r.sourceDocument
                             let page = r.pageNumber.map { " (p.\($0))" } ?? ""
-                            return
-                                "- [\(idx + 1)] \(src)\(page) — \(String(format: "%.0f%%", r.similarityScore * 100))"
+                            return "- [\(idx + 1)] \(src)\(page) — \(String(format: "%.0f%%", r.similarityScore * 100))"
                         }.joined(separator: "\n")
-                        let caution = """
-                        Strict Mode is enabled. Not enough high-confidence evidence (>= 52% similarity) across at least 3 chunks was found to answer reliably.
-
-                        Top sources retrieved:
-                        \(topSources)
-                        """
+                        let caution = "High Accuracy mode is enabled. Not enough high-confidence evidence across the retrieved sources to answer reliably. Top sources retrieved:\n\(topSources)"
 
                         emitThinkingEvent(
                             .warning,
-                            title: "Strict mode paused answer",
+                            title: "High accuracy mode paused answer",
                             detail: "\(supporting.count) strong chunk(s) found"
                         )
 
@@ -2328,19 +2716,19 @@ class RAGService: ObservableObject {
                             tokensPerSecond: nil,
                             modelUsed: llmService.modelName,
                             retrievalTime: retrievalTime,
-                            strictModeEnabled: strictMode,
-                            gatingDecision: "strict_blocked",
+                            retrievalConfigSummary: retrievalConfig.summary,
+                            gatingDecision: "high_accuracy_blocked",
                             toolCallsMade: 0,
                             embeddingProvider: embeddingProviderId
                         )
 
                         let response = RAGResponse(
-                            queryId: ragQuery.id,
+                            queryId: ragQueryValue.id,
                             retrievedChunks: diverseChunks,
                             generatedResponse: caution,
                             metadata: metadata,
                             confidenceScore: 0.0,
-                            qualityWarnings: ["Strict mode: insufficient supporting evidence"]
+                            qualityWarnings: ["High Accuracy mode: insufficient supporting evidence"]
                         )
                         return await finalizeResponse(
                             query: question,
@@ -2351,38 +2739,164 @@ class RAGService: ObservableObject {
                     }
                 }
 
-                // Step 5: Construct context from diverse chunks (off-main)
-                // Note: rawContext assembly is handled via engine.assembleContext with size limits
+                let isAppleFMOnDevice = llmService is AppleFoundationLLMService
+                var contextCandidates = diverseChunks
+                var contextStrategy = "mmr"
+                let strongTopSim =
+                    auditTopSim >= 0.72 || (auditTopSim >= 0.68 && (auditTopSim - auditAvgTop5) >= 0.03)
+                let shortQuery = queryWords <= 12
+                let topDocId = rerankedChunks.first?.chunk.documentId
+                let topDocSample = min(10, rerankedChunks.count)
+                let topDocHits = rerankedChunks.prefix(topDocSample).filter { $0.chunk.documentId == topDocId }.count
+                let topDocShare = topDocSample > 0 ? Double(topDocHits) / Double(topDocSample) : 0
+                let focusedDocScope = uniqueDocCount <= 2 || topDocShare >= 0.6
 
-                // Smart context assembly: Use as many chunks as fit within the model's context window
-                // Apple Intelligence: ~3500 chars for on-device/PCC (leaves room for prompt + response)
-                // OpenAI Context Windows:
-                //   - GPT-4o: 128K tokens (~512K chars)
-                //   - GPT-5: 400K tokens (~1.6M chars) 🚀
-                let maxContextChars: Int
-                if llmService is OpenAIResponsesAPIService { 
-                    // GPT-5 has 400K token context (~1.6M chars theoretical)
-                    // Use 200K chars conservatively (leaves ~200K for prompt + response)
-                    maxContextChars = 200_000 // 200K chars = ~50K tokens
-                } else if llmService is AppleFoundationLLMService {
-                    // Tighter context for Apple FM to leave room for tool scaffolding and output
-                    maxContextChars = 1500
-                } else {
-                    maxContextChars = 3500
+                if isAppleFMOnDevice,
+                   !wantsCloudContext,
+                   strongTopSim,
+                   shortQuery,
+                   focusedDocScope,
+                   let focusSeed = rerankedChunks.first
+                {
+                    let maxFocusedTotal = min(max(5, min(10, effectiveTopK)), rerankedChunks.count)
+                    let neighborsPerSeed = min(4, max(1, (maxFocusedTotal - 1) / 2))
+                    var focused = buildNeighborAwareFallback(
+                        seeds: [focusSeed],
+                        pool: rerankedChunks,
+                        maxTotal: maxFocusedTotal,
+                        neighborsPerSeed: neighborsPerSeed
+                    )
+                    if focused.count > 1 {
+                        focused.sort {
+                            if $0.chunk.documentId == $1.chunk.documentId {
+                                return $0.chunk.metadata.chunkIndex < $1.chunk.metadata.chunkIndex
+                            }
+                            return $0.similarityScore > $1.similarityScore
+                        }
+                        contextCandidates = focused
+                        contextStrategy = "focused_window"
+                        let sourceName = focusSeed.sourceDocument.isEmpty ? "unknown" : focusSeed.sourceDocument
+                        Log.info(
+                            "🔎 Focused context window (\(focused.count) chunks) • topSim \(String(format: "%.3f", auditTopSim)) • source \(sourceName)",
+                            category: .retrieval
+                        )
+                    }
                 }
 
+                // Step 5: Construct context from retrieved chunks (off-main)
+                // Note: rawContext assembly is handled via engine.assembleContext with size limits
+
+                // Smart context assembly: Use as many chunks as fit within the model's context window.
+                // Apple Intelligence on-device context is 4,096 tokens (TN3193). PCC behavior may vary.
+                var cloudConsentAllowed: Bool = await MainActor.run {
+                    cloudConsent[.applePCC] == .allowed
+                }
+
+                var hasTransientGrant: Bool = await MainActor.run {
+                    transientConsentGrants.contains(.applePCC)
+                }
+
+                if isAppleFMOnDevice,
+                   networkAvailable,
+                   inferenceConfig.allowPrivateCloudCompute,
+                   inferenceConfig.executionContext != .onDeviceOnly,
+                   !cloudConsentAllowed,
+                   !hasTransientGrant
+                {
+                    try await ensureCloudConsentIfNeeded(
+                        service: llmService,
+                        prompt: question,
+                        context: nil,
+                        sourceChunks: contextCandidates.map { $0.chunk },
+                        allowPrivateCloudCompute: inferenceConfig.allowPrivateCloudCompute
+                    )
+                    cloudConsentAllowed = await MainActor.run {
+                        cloudConsent[.applePCC] == .allowed
+                    }
+                    hasTransientGrant = await MainActor.run {
+                        transientConsentGrants.contains(.applePCC)
+                    }
+                }
+
+                // Use PCC (65K) on real device with network, otherwise on-device (4096)
+                // Simulator ALWAYS uses on-device since PCC isn't available
+                #if targetEnvironment(simulator)
+                    let canUsePCC = false
+                #else
+                    let canUsePCC = isAppleFMOnDevice && networkAvailable
+                #endif
+                let wantsCloudContext = canUsePCC
+                let allowLargeContext = wantsCloudContext && (cloudConsentAllowed || hasTransientGrant)
+                let applyTrivialCaps = isTrivial && !allowLargeContext
+                let conservativeCharsPerToken: Double = isAppleFMOnDevice ? 2.5 : 3.5
+
+                func estimateTokens(chars: Int) -> Int {
+                    max(1, Int(ceil(Double(chars) / conservativeCharsPerToken)))
+                }
+
+                // Use 65K for PCC (real device + network), 4096 for on-device/simulator
+                let baseWindowTokens: Int = {
+                    if llmService is AppleFoundationLLMService {
+                        return canUsePCC ? 65536 : 4096
+                    }
+                    return inferenceConfig.contextLength ?? 4096
+                }()
+
+                // More conservative token budgeting for Apple Intelligence's 4096 limit
+                func estimateTokensConservative(chars: Int) -> Int {
+                    max(1, Int(ceil(Double(chars) / conservativeCharsPerToken)))
+                }
+
+                // Use appropriate safety margin based on context size
+                let safetyTokens = isAppleFMOnDevice ? (canUsePCC ? 2000 : 900) : 600
+                let systemPromptTokens = estimateTokensConservative(chars: (inferenceConfig.systemPrompt ?? "").count)
+                let promptOverheadTokens = 200 + systemPromptTokens // Template overhead
+                let questionTokens = estimateTokensConservative(chars: question.count)
+
+                // Reserve room for output - more for PCC, less for on-device
+                let reservedOutputTokens = canUsePCC
+                    ? max(1024, min(inferenceConfig.maxTokens, 2048))
+                    : max(256, min(inferenceConfig.maxTokens, 512))
+                let availableForContextTokens = max(
+                    0,
+                    baseWindowTokens - safetyTokens - promptOverheadTokens - questionTokens - reservedOutputTokens
+                )
+                let cappedContextTokens = applyTrivialCaps
+                    ? min(availableForContextTokens, canUsePCC ? 3000 : 2600)
+                    : availableForContextTokens
+                // PCC: 150K chars, On-device/Simulator: 4000 chars (fits in 4096 tokens)
+                let maxContextCharsCap = isAppleFMOnDevice
+                    ? (canUsePCC ? (applyTrivialCaps ? 9000 : 150_000) : (applyTrivialCaps ? 3200 : 4000))
+                    : (applyTrivialCaps ? 7000 : 12000)
+                let maxContextChars = min(
+                    max(600, Int(Double(cappedContextTokens) * conservativeCharsPerToken)),
+                    maxContextCharsCap
+                )
+
+                // Use compact mode when on-device (simulator or offline) to maximize content in limited space
+                let useCompactMode = isAppleFMOnDevice && !canUsePCC
+
+                #if targetEnvironment(simulator)
+                    Log.info("[RAG] Simulator mode: using on-device context budget (4096 tokens, \(maxContextChars) chars)", category: .pipeline)
+                #endif
+
+                Log.debug("Context budget: base=\(baseWindowTokens), question=\(questionTokens), available=\(availableForContextTokens) tokens → \(maxContextChars) chars, compact=\(useCompactMode)", category: .pipeline)
+
                 let (context, actualChunksUsed) = await engine.assembleContext(
-                    chunks: diverseChunks,
-                    maxChars: maxContextChars
+                    chunks: contextCandidates,
+                    maxChars: maxContextChars,
+                    compact: useCompactMode
                 )
                 Log.info(
-                    "   ✓ Using \(actualChunksUsed)/\(diverseChunks.count) chunks (\(context.count) chars)",
+                    "   ✓ Using \(actualChunksUsed)/\(contextCandidates.count) chunks (\(context.count) chars)\(useCompactMode ? " [compact]" : "") • \(contextStrategy)",
                     category: .pipeline
                 )
 
                 let contextSize = context.count
                 let contextWords = context.split(separator: " ").count
-                let includedChunks = Array(diverseChunks.prefix(actualChunksUsed).map(\.chunk))
+                let includedRetrievedChunks = Array(contextCandidates.prefix(actualChunksUsed))
+                let includedChunks = includedRetrievedChunks.map { $0.chunk }
+                recoveryRetrievedChunks = includedRetrievedChunks
 
                 Log.section("Step 5: Context Assembly Complete", level: .info, category: .pipeline)
                 Log.info(
@@ -2406,24 +2920,100 @@ class RAGService: ObservableObject {
                     detail: "\(actualChunksUsed) chunks • \(contextWords) words"
                 )
 
+                let chunkingTarget = selectedContainer?.chunkingDirective?.targetWordWindow
+                    ?? documentProcessor.targetChunkSize
+                let chunkingOverlap = selectedContainer?.chunkingDirective?.overlapWords
+                    ?? documentProcessor.chunkOverlap
+                let chunkingSource = selectedContainer?.chunkingDirective?.source.rawValue
+                    ?? "baseline"
+                let vectorDBKind = selectedContainer?.vectorDBKind ?? .persistentJSON
+
+                let auditSnapshot = RAGAuditSnapshot(
+                    timestamp: Date(),
+                    query: question,
+                    containerId: selectedId,
+                    containerName: selectedName,
+                    embeddingProviderId: embeddingProviderId,
+                    embeddingDim: selectedDim,
+                    vectorDBKind: vectorDBKind,
+                    chunkingTargetWords: chunkingTarget,
+                    chunkingOverlapWords: chunkingOverlap,
+                    chunkingSource: chunkingSource,
+                    qualityMode: qualityMode,
+                    retrievalConfig: retrievalConfig,
+                    lenientRetrieval: auditLenient,
+                    dynamicMin: auditDynamicMin,
+                    topSim: auditTopSim,
+                    secondSim: auditSecondSim,
+                    avgTop5: auditAvgTop5,
+                    acceptanceOverride: auditAcceptanceOverride,
+                    totalStoredChunks: totalStored,
+                    candidatesCount: auditCandidatesCount,
+                    rerankedCount: auditRerankedCount,
+                    filteredCount: auditFilteredCount,
+                    droppedCount: auditDroppedCount,
+                    mmrSelectedCount: auditMMRSelectedCount,
+                    uniqueDocCount: auditUniqueDocCount,
+                    contextStrategy: contextStrategy,
+                    contextChars: contextSize,
+                    contextWords: contextWords,
+                    contextChunksUsed: actualChunksUsed,
+                    maxContextChars: maxContextChars,
+                    baseWindowTokens: baseWindowTokens,
+                    safetyTokens: safetyTokens,
+                    promptOverheadTokens: promptOverheadTokens,
+                    questionTokens: questionTokens,
+                    reservedOutputTokens: reservedOutputTokens,
+                    availableContextTokens: availableForContextTokens,
+                    executionContext: inferenceConfig.executionContext,
+                    allowPrivateCloudCompute: inferenceConfig.allowPrivateCloudCompute,
+                    networkConnected: networkAvailable,
+                    wantsCloudContext: wantsCloudContext,
+                    reliabilityModeEnabled: reliabilityModeEnabled,
+                    allowUngroundedFallback: allowUngroundedFallback,
+                    modelName: llmService.modelName
+                )
+
+                await MainActor.run {
+                    self.lastAuditSnapshot = auditSnapshot
+                }
+
                 // If context is empty, fallback to direct chat to avoid downstream failures
                 if actualChunksUsed == 0 || context.isEmpty {
                     Log.warning(
-                        "⚠️  [RAGService] Empty context after assembly; falling back to direct chat",
+                        "⚠️  [RAGService] Empty context after assembly",
                         category: .retrieval
                     )
                     emitThinkingEvent(
-                        .fallback,
+.warning,
                         title: "Context empty",
-                        detail: "Answering without RAG"
+                        detail: "Insufficient evidence"
                     )
-                    let response = try await generateDirectChatResponse(
+                    if allowUngroundedFallback {
+                        let response = try await generateDirectChatResponse(
+                            question: question,
+                            ragQuery: ragQueryValue,
+                            inferenceConfig: inferenceConfig,
+                            pipelineStartTime: pipelineStartTime,
+                            retrievalTime: retrievalTime,
+                            fallbackNote: "Empty assembled context; replied without RAG context."
+                        )
+                        return await finalizeResponse(
+                            query: question,
+                            containerId: selectedId,
+                            containerName: selectedName,
+                            response: response
+                        )
+                    }
+                    let response = await makeGroundedAbstainResponse(
                         question: question,
-                        ragQuery: ragQuery,
-                        inferenceConfig: inferenceConfig,
-                        pipelineStartTime: pipelineStartTime,
+                        ragQuery: ragQueryValue,
+                        retrievedChunks: [],
                         retrievalTime: retrievalTime,
-                        fallbackNote: "Empty assembled context; replied without RAG context."
+                        retrievalConfig: retrievalConfig,
+                        embeddingProviderId: embeddingProviderId,
+                        reason: "I couldn't assemble enough context to answer reliably.",
+                        gatingDecision: "context_empty"
                     )
                     return await finalizeResponse(
                         query: question,
@@ -2437,71 +3027,304 @@ class RAGService: ObservableObject {
                 Log.section("Step 6: LLM Generation", level: .info, category: .pipeline)
                 let generationStartTime = Date()
 
-                // Token budgeting for Apple FM (conservative ~4K window)
                 var genConfig = inferenceConfig
-                if strictMode {
+
+                // Adjust temperature based on quality mode for accuracy control
+                switch qualityMode {
+                case .fast:
+                    // Allow more creative responses
+                    break
+                case .balanced:
+                    genConfig.temperature = min(genConfig.temperature, 0.5)
+                case .thorough:
+                    // Very deterministic for maximum accuracy
+                    genConfig.temperature = min(genConfig.temperature, 0.3)
+                }
+
+                // High Accuracy retrieval config overrides quality mode
+                if retrievalConfig == .highAccuracy {
                     genConfig.temperature = min(genConfig.temperature, 0.2)
                 }
-                do {
-                    let window = 4000
-                    let safety = 400
-                    let estPromptTokens = max(0, (question.count + context.count) / 4)
-                    let available = max(128, window - safety - estPromptTokens)
-                    if genConfig.maxTokens > available {
-                        genConfig.maxTokens = available
+
+                // Provider-aware token budgeting (avoid hard 4K clamps for large-context providers).
+                let contextTokens = estimateTokensConservative(chars: context.count)
+                let availableForOutput = max(
+                    128,
+                    baseWindowTokens - safetyTokens - promptOverheadTokens - questionTokens - contextTokens
+                )
+                if genConfig.maxTokens > availableForOutput {
+                    genConfig.maxTokens = availableForOutput
+                }
+                if isTrivial, !allowLargeContext {
+                    let capped = min(genConfig.maxTokens, 384)
+                    if capped != genConfig.maxTokens {
+                        Log.info(
+                            "[RAG] Trivial query detected - limiting response to \(capped) tokens",
+                            category: .llm
+                        )
                     }
+                    genConfig.maxTokens = capped
+                }
+
+                let requiresCitations = retrievalConfig.requireExplicitCitations
+                    || qualityMode.requiresCitations
+                let promptForGeneration: String
+                if requiresCitations {
+                    promptForGeneration = question
+                        + "\n\nAnswer directly with no preamble. Cite sources using the bracket ids like [S1], [S2]. If the context is insufficient, say so."
+                } else {
+                    promptForGeneration = question
                 }
 
                 // Attempt generation with retry on context-overflow
                 var llmResponse: LLMResponse
+                var generationContext = context
+                var generationChunks = includedChunks
+                var generationRetrievedChunks = includedRetrievedChunks
+                var usedOverflowRetry = false
                 emitThinkingEvent(
                     .generation,
                     title: "Generating answer",
                     detail: llmService.modelName
                 )
+
                 do {
                     llmResponse = try await generateWithFallback(
-                        prompt: question,
-                        context: context,
+                        prompt: promptForGeneration,
+                        context: generationContext,
                         config: genConfig,
-                        sourceChunks: includedChunks
+                        sourceChunks: generationChunks
                     )
                 } catch {
-                    let message = error.localizedDescription.lowercased()
-                    if message.contains("context")
-                        && (message.contains("exceed") || message.contains("exceeded"))
-                    {
-                        // Retry with halved context and smaller maxTokens
-                        let reducedMax = max(512, genConfig.maxTokens / 2)
-                        let (context2, usedRetryChunks) = await engine.assembleContext(
-                            chunks: diverseChunks,
-                            maxChars: max(800, maxContextChars / 2)
-                        )
-                        let retryChunks = Array(diverseChunks.prefix(usedRetryChunks).map(\.chunk))
-                        var retryConfig = genConfig
-                        retryConfig.maxTokens = reducedMax
-                        TelemetryCenter.emit(
-                            .system,
-                            severity: .warning,
-                            title: "Retry due to context overflow",
-                            metadata: [
-                                "initialTokens": "\(genConfig.maxTokens)",
-                                "reducedTokens": "\(reducedMax)",
-                            ]
-                        )
-                        llmResponse = try await generateWithFallback(
-                            prompt: question,
-                            context: context2,
-                            config: retryConfig,
-                            sourceChunks: retryChunks
+                    // Check if this is a context overflow error
+                    let isOverflowError = isContextOverflowError(error)
+
+                    #if targetEnvironment(simulator)
+                        if isOverflowError {
+                            // SIMULATOR: PCC not available, must retry with smaller context
+                            Log.warning("[RAG] Simulator context overflow - building evidence pack", category: .llm)
+                            let reducedMax = max(256, min(genConfig.maxTokens, 384))
+                            let onDeviceMaxChars = 3500 // Conservative for 4096 tokens with overhead
+
+                            let targetChunkCount = min(
+                                contextCandidates.count,
+                                isTrivial ? 6 : 9
+                            )
+                            let maxCharsPerChunk = max(
+                                220,
+                                min(
+                                    isTrivial ? 600 : 800,
+                                    onDeviceMaxChars / max(1, targetChunkCount)
+                                )
+                            )
+                            let (context2, usedRetryChunks) = await buildEvidencePackContext(
+                                question: question,
+                                candidates: contextCandidates,
+                                maxContextChars: onDeviceMaxChars,
+                                maxChunks: targetChunkCount,
+                                maxCharsPerChunk: maxCharsPerChunk
+                            )
+                            let retryRetrievedChunks = usedRetryChunks
+                            let retryChunks = retryRetrievedChunks.map { $0.chunk }
+                            generationContext = context2
+                            generationChunks = retryChunks
+                            generationRetrievedChunks = retryRetrievedChunks
+                            recoveryRetrievedChunks = generationRetrievedChunks
+                            usedOverflowRetry = true
+                            var retryConfig = genConfig
+                            retryConfig.maxTokens = reducedMax
+                            retryConfig.executionContext = .onDeviceOnly
+                            retryConfig.allowPrivateCloudCompute = false
+
+                            TelemetryCenter.emit(
+                                .system,
+                                severity: .warning,
+                                title: "Simulator: evidence pack",
+                                metadata: [
+                                    "contextChars": "\(context2.count)",
+                                    "chunksUsed": "\(retryRetrievedChunks.count)",
+                                ]
+                            )
+                            llmResponse = try await generateWithFallback(
+                                prompt: promptForGeneration,
+                                context: generationContext,
+                                config: retryConfig,
+                                sourceChunks: generationChunks
+                            )
+                        } else {
+                            // Other error - just rethrow
+                            throw error
+                        }
+                    #else
+                        if isOverflowError {
+                            let reason = networkAvailable ? "PCC unavailable" : "offline mode"
+                            Log.warning(
+                                "[RAG] Context overflow (\(reason)) - building evidence pack",
+                                category: .llm
+                            )
+                            TelemetryCenter.emit(
+                                .system,
+                                severity: .warning,
+                                title: "Context overflow - evidence pack",
+                                metadata: [
+                                    "reason": reason,
+                                    "chunks": "\(contextCandidates.count)",
+                                ]
+                            )
+
+                            let reducedMax = isTrivial
+                                ? max(384, min(genConfig.maxTokens, 512))
+                                : max(768, min(genConfig.maxTokens, 1024))
+                            let onDeviceBudgetTokens = max(
+                                256,
+                                4096 - 900 - promptOverheadTokens - questionTokens - reducedMax
+                            )
+                            let onDeviceMaxChars = min(
+                                isTrivial ? 3200 : 3800,
+                                max(1200, Int(Double(onDeviceBudgetTokens) * conservativeCharsPerToken))
+                            )
+                            let baseCandidates = retryCandidates.isEmpty ? contextCandidates : retryCandidates
+                            let fallbackChunkCap = isTrivial
+                                ? min(8, baseCandidates.count)
+                                : min(10, baseCandidates.count)
+                            let seedLimit = isTrivial
+                                ? min(2, baseCandidates.count)
+                                : min(3, baseCandidates.count)
+                            let seedChunks = Array(baseCandidates.prefix(seedLimit))
+                            let neighborPool = rerankedChunks.isEmpty ? baseCandidates : rerankedChunks
+                            let fallbackChunks = buildNeighborAwareFallback(
+                                seeds: seedChunks,
+                                pool: neighborPool,
+                                maxTotal: fallbackChunkCap
+                            )
+
+                            let targetChunkCount = min(
+                                fallbackChunks.count,
+                                isTrivial ? 6 : 9
+                            )
+                            let maxCharsPerChunk = max(
+                                220,
+                                min(
+                                    isTrivial ? 600 : 800,
+                                    onDeviceMaxChars / max(1, targetChunkCount)
+                                )
+                            )
+                            let (context2, usedRetryChunks) = await buildEvidencePackContext(
+                                question: question,
+                                candidates: fallbackChunks,
+                                maxContextChars: onDeviceMaxChars,
+                                maxChunks: targetChunkCount,
+                                maxCharsPerChunk: maxCharsPerChunk
+                            )
+                            let retryRetrievedChunks = usedRetryChunks
+                            let retryChunks = retryRetrievedChunks.map { $0.chunk }
+                            generationContext = context2
+                            generationChunks = retryChunks
+                            generationRetrievedChunks = retryRetrievedChunks
+                            recoveryRetrievedChunks = generationRetrievedChunks
+                            usedOverflowRetry = true
+                            var retryConfig = genConfig
+                            retryConfig.maxTokens = reducedMax
+                            retryConfig.executionContext = .onDeviceOnly
+                            retryConfig.allowPrivateCloudCompute = false
+
+                            TelemetryCenter.emit(
+                                .system,
+                                severity: .warning,
+                                title: "Evidence-pack retry",
+                                metadata: [
+                                    "contextChars": "\(context2.count)",
+                                    "chunksUsed": "\(retryRetrievedChunks.count)",
+                                ]
+                            )
+
+                            llmResponse = try await generateWithFallback(
+                                prompt: promptForGeneration,
+                                context: generationContext,
+                                config: retryConfig,
+                                sourceChunks: generationChunks
+                            )
+                        } else {
+                            // Other error - just rethrow
+                            throw error
+                        }
+                    #endif
+                }
+
+                var responseText = llmResponse.text
+
+                let preserveStreamingResponse = LLMStreamingContext.handler != nil
+                if requiresCitations, !responseHasCitations(responseText) {
+                    let missingCitationDetail =
+                        (preserveStreamingResponse || allowUngroundedFallback)
+                            ? "Using best available answer"
+                            : "Retrying with strict citation requirement"
+                    emitThinkingEvent(
+                        .warning,
+                        title: "Missing citations",
+                        detail: missingCitationDetail
+                    )
+                    TelemetryCenter.emit(
+                        .generation,
+                        severity: .warning,
+                        title: "Missing citations",
+                        metadata: [
+                            "model": llmService.modelName,
+                            "container": selectedName,
+                        ]
+                    )
+                    if preserveStreamingResponse || allowUngroundedFallback {
+                        Log.warning(
+                            "Missing citations; preserving streamed response",
+                            category: .llm
                         )
                     } else {
-                        throw error
+                        let retryPrompt = question
+                            + "\n\nYou must cite sources using bracket ids like [S1], [S2]. "
+                            + "If you cannot support the answer with citations, respond exactly: "
+                            + "\"Insufficient evidence in provided sources.\" "
+                            + "Answer directly with no preamble."
+                        var retryConfig = genConfig
+                        retryConfig.temperature = min(retryConfig.temperature, 0.2)
+                        if usedOverflowRetry {
+                            retryConfig.maxTokens = min(retryConfig.maxTokens, 1024)
+                        }
+                        if let retryResponse = try? await generateWithFallback(
+                            prompt: retryPrompt,
+                            context: generationContext,
+                            config: retryConfig,
+                            sourceChunks: generationChunks
+                        ) {
+                            llmResponse = retryResponse
+                            responseText = retryResponse.text
+                        }
                     }
                 }
 
+                if requiresCitations,
+                   !responseHasCitations(responseText),
+                   !allowUngroundedFallback,
+                   !preserveStreamingResponse
+                {
+                    let response = await makeGroundedAbstainResponse(
+                        question: question,
+                        ragQuery: ragQueryValue,
+                        retrievedChunks: generationRetrievedChunks,
+                        retrievalTime: retrievalTime,
+                        retrievalConfig: retrievalConfig,
+                        embeddingProviderId: embeddingProviderId,
+                        reason: "I couldn't produce a cited answer from the provided sources.",
+                        gatingDecision: "missing_citations"
+                    )
+                    return await finalizeResponse(
+                        query: question,
+                        containerId: selectedId,
+                        containerName: selectedName,
+                        response: response
+                    )
+                }
+
                 let generationTime = Date().timeIntervalSince(generationStartTime)
-                let responseText = llmResponse.text
                 let responseWordCount = wordCount(of: responseText)
                 TelemetryCenter.emit(
                     .generation,
@@ -2556,7 +3379,7 @@ class RAGService: ObservableObject {
                     Log.section("Step 7: Quality Assessment", level: .info, category: .pipeline)
                     let totalDocsCount = await snapshotDocumentsCount()
                     let (confidenceScore, qualityWarnings) = await engine.assessResponseQuality(
-                        chunks: diverseChunks,
+                        chunks: generationRetrievedChunks,
                         query: question,
                         totalDocs: totalDocsCount
                     )
@@ -2603,7 +3426,7 @@ class RAGService: ObservableObject {
                         title: "Query complete",
                         metadata: [
                             "duration": String(format: "%.2f", pipelineTotalTime),
-                            "chunks": "\(diverseChunks.count)",
+                            "chunks": "\(generationRetrievedChunks.count)",
                             "container": selectedName,
                             "containerId": selectedId.uuidString,
                         ],
@@ -2613,7 +3436,7 @@ class RAGService: ObservableObject {
                     // Step 9: Create response metadata
                     let gatingSummary: String? =
                         acceptanceOverride
-                            ? "acceptance_override" : ((lenient || isTrivial) ? "lenient" : nil)
+                            ? "acceptance_override": lenient ? "lenient" : nil
                     let metadata = ResponseMetadata(
                         timeToFirstToken: llmResponse.timeToFirstToken,
                         totalGenerationTime: llmResponse.totalTime,
@@ -2621,15 +3444,15 @@ class RAGService: ObservableObject {
                         tokensPerSecond: llmResponse.tokensPerSecond,
                         modelUsed: llmResponse.modelName ?? llmService.modelName,
                         retrievalTime: retrievalTime,
-                        strictModeEnabled: strictMode,
+                        retrievalConfigSummary: retrievalConfig.summary,
                         gatingDecision: gatingSummary,
                         toolCallsMade: llmResponse.toolCallsMade,
                         embeddingProvider: embeddingProviderId
                     )
 
                     let response = RAGResponse(
-                        queryId: ragQuery.id,
-                        retrievedChunks: diverseChunks,
+                        queryId: ragQueryValue.id,
+                        retrievedChunks: generationRetrievedChunks,
                         generatedResponse: responseText,
                         metadata: metadata,
                         confidenceScore: confidenceScore,
@@ -2657,16 +3480,16 @@ class RAGService: ObservableObject {
                         totalGenerationTime: generationTime,
                         tokensGenerated: 0,
                         tokensPerSecond: nil,
-                        modelUsed: llmService.modelName,
+                        modelUsed: llmResponse.modelName ?? llmService.modelName,
                         retrievalTime: retrievalTime,
-                        strictModeEnabled: strictMode,
+                        retrievalConfigSummary: retrievalConfig.summary,
                         toolCallsMade: 0,
                         embeddingProvider: embeddingProviderId
                     )
 
                     let response = RAGResponse(
-                        queryId: ragQuery.id,
-                        retrievedChunks: diverseChunks,
+                        queryId: ragQueryValue.id,
+                        retrievedChunks: generationRetrievedChunks,
                         generatedResponse: "Error processing response",
                         metadata: metadata,
                         confidenceScore: 0.0,
@@ -2681,6 +3504,25 @@ class RAGService: ObservableObject {
                 }
 
             } else {
+                if !allowUngroundedFallback {
+                    let response = await makeGroundedAbstainResponse(
+                        question: question,
+                        ragQuery: ragQueryValue,
+                        retrievedChunks: [],
+                        retrievalTime: 0,
+                        retrievalConfig: retrievalConfig,
+                        embeddingProviderId: embeddingProviderId,
+                        reason: "This library has no documents yet.",
+                        gatingDecision: "no_documents"
+                    )
+                    return await finalizeResponse(
+                        query: question,
+                        containerId: selectedId,
+                        containerName: selectedName,
+                        response: response
+                    )
+                }
+
                 // Direct LLM chat without documents
                 Log.info("ℹ️  No documents loaded - using direct LLM chat mode", category: .pipeline)
                 TelemetryCenter.emit(
@@ -2752,13 +3594,13 @@ class RAGService: ObservableObject {
                     tokensPerSecond: llmResponse.tokensPerSecond,
                     modelUsed: llmResponse.modelName ?? llmService.modelName, // Use actual execution location if available
                     retrievalTime: 0, // No retrieval in direct chat mode
-                    strictModeEnabled: strictMode,
+                    retrievalConfigSummary: retrievalConfig.summary,
                     toolCallsMade: llmResponse.toolCallsMade,
                     embeddingProvider: embeddingProviderId
                 )
 
                 let response = RAGResponse(
-                    queryId: ragQuery.id,
+                    queryId: ragQueryValue.id,
                     retrievedChunks: [], // No chunks in direct chat mode
                     generatedResponse: llmResponse.text,
                     metadata: metadata
@@ -2790,29 +3632,259 @@ class RAGService: ObservableObject {
             }
 
         } catch {
+            let isContextOverflow = isContextOverflowError(error)
+            let forcedCloudOnly = networkAvailable
+                && inferenceConfig.executionContext == .cloudOnly
+                && _llmService is AppleFoundationLLMService
+            let errorMessage = error.localizedDescription
+
+            if reliabilityModeEnabled {
+                await MainActor.run { lastError = nil }
+                Log.warning("[RAGService] Reliability fallback: \(errorMessage)", category: .pipeline)
+                TelemetryCenter.emit(
+                    .system,
+                    severity: .warning,
+                    title: "Reliability fallback",
+                    metadata: ["reason": errorMessage]
+                )
+                let fallbackQuery = ragQuery ?? RAGQuery(query: question, topK: effectiveTopK)
+                let fallbackResponse = await buildReliabilityFallbackResponse(
+                    question: question,
+                    ragQuery: fallbackQuery,
+                    inferenceConfig: inferenceConfig,
+                    retrievalConfig: retrievalConfig,
+                    embeddingProviderId: embeddingProviderId,
+                    retrievedChunks: recoveryRetrievedChunks,
+                    retrievalTime: recoveryRetrievalTime,
+                    reason: errorMessage
+                )
+                return await finalizeResponse(
+                    query: question,
+                    containerId: selectedId,
+                    containerName: selectedName,
+                    response: fallbackResponse
+                )
+            }
+
+            if isContextOverflow, forcedCloudOnly {
+                let message =
+                    "Private Cloud Compute is required for this request but was unavailable. " +
+                    "Check your internet connection and ensure PCC consent is allowed."
+                await MainActor.run {
+                    lastError = message
+                }
+                Log.error(" [RAGService] Query failed: \(message)")
+                TelemetryCenter.emit(
+                    .error,
+                    severity: .error,
+                    title: "Cloud-only execution failed",
+                    metadata: ["reason": message]
+                )
+                throw LLMError.generationFailed(message)
+            }
+
+            if isContextOverflow, !allowUngroundedFallback {
+                await MainActor.run {
+                    lastError = nil
+                }
+                let fallbackQuery = ragQuery ?? RAGQuery(query: question, topK: effectiveTopK)
+                let response = await makeGroundedAbstainResponse(
+                    question: question,
+                    ragQuery: fallbackQuery,
+                    retrievedChunks: [],
+                    retrievalTime: 0,
+                    retrievalConfig: retrievalConfig,
+                    embeddingProviderId: embeddingProviderId,
+                    reason: "The request exceeded the on-device context window. Try narrowing the question or using a smaller library.",
+                    gatingDecision: "context_overflow"
+                )
+                return await finalizeResponse(
+                    query: question,
+                    containerId: selectedId,
+                    containerName: selectedName,
+                    response: response
+                )
+            }
+
             // Set user-friendly error message
             await MainActor.run {
                 // Make error messages more user-friendly
-                if error.localizedDescription.contains("No embedding vectors were returned") {
+                if errorMessage.contains("No embedding vectors were returned") {
                     lastError =
                         "Could not understand your query. Try using common words or longer phrases (e.g., 'What is the document about?')"
                 } else {
-                    lastError = error.localizedDescription
+                    lastError = errorMessage
                 }
             }
 
-            Log.error(" [RAGService] Query failed: \(error.localizedDescription)")
+            Log.error(" [RAGService] Query failed: \(errorMessage)")
             TelemetryCenter.emit(
                 .error,
                 severity: .error,
                 title: "Query failed",
-                metadata: ["reason": error.localizedDescription]
+                metadata: ["reason": errorMessage]
             )
             throw error
         }
     }
 
     // MARK: - Direct Chat Fallback Helper
+
+    /// Build a grounded-only abstain response when evidence is insufficient.
+    private func makeGroundedAbstainResponse(
+        question: String,
+        ragQuery: RAGQuery,
+        retrievedChunks: [RetrievedChunk],
+        retrievalTime: TimeInterval,
+        retrievalConfig: RetrievalConfig,
+        embeddingProviderId: String,
+        reason: String,
+        gatingDecision: String
+    ) async -> RAGResponse {
+        Log.info("ℹ️  Grounded-only abstain: \(gatingDecision)", category: .retrieval)
+
+        let responseText = """
+        I want to stay grounded in your library, but I don't have enough evidence to answer that reliably.
+
+        \(reason)
+
+        Try:
+        • Add or select a library with relevant documents.
+        • Ask about a specific document title or section.
+        • Include keywords that appear in your sources.
+        """
+
+        let metadata = ResponseMetadata(
+            timeToFirstToken: nil,
+            totalGenerationTime: 0,
+            tokensGenerated: 0,
+            tokensPerSecond: nil,
+            modelUsed: llmService.modelName,
+            retrievalTime: retrievalTime,
+            retrievalConfigSummary: retrievalConfig.summary,
+            gatingDecision: gatingDecision,
+            toolCallsMade: 0,
+            embeddingProvider: embeddingProviderId
+        )
+
+        return RAGResponse(
+            queryId: ragQuery.id,
+            retrievedChunks: retrievedChunks,
+            generatedResponse: responseText,
+            metadata: metadata,
+            confidenceScore: 0.0,
+            qualityWarnings: ["Grounded-only: \(reason)"]
+        )
+    }
+
+    /// Reliability-first fallback: return a best-effort answer instead of surfacing errors.
+    private func buildReliabilityFallbackResponse(
+        question: String,
+        ragQuery: RAGQuery,
+        inferenceConfig: InferenceConfig,
+        retrievalConfig: RetrievalConfig,
+        embeddingProviderId: String,
+        retrievedChunks: [RetrievedChunk],
+        retrievalTime: TimeInterval,
+        reason: String
+    ) async -> RAGResponse {
+        Log.warning("[RAG] Reliability fallback engaged: \(reason)", category: .pipeline)
+        let warnings = ["Reliability fallback: \(reason)"]
+
+        let targetChunkCount = min(6, retrievedChunks.count)
+        let maxContextChars = min(3600, max(1200, 700 * max(1, targetChunkCount)))
+        let (fallbackContext, usedRetrieved) = await buildEvidencePackContext(
+            question: question,
+            candidates: retrievedChunks,
+            maxContextChars: maxContextChars,
+            maxChunks: targetChunkCount,
+            maxCharsPerChunk: 800
+        )
+        Log.info(
+            "[RAG] Reliability context: \(fallbackContext.count) chars, \(usedRetrieved.count) chunks",
+            category: .pipeline
+        )
+        let sourceChunks = usedRetrieved.map { $0.chunk }
+
+        var fallbackConfig = inferenceConfig
+        fallbackConfig.executionContext = .onDeviceOnly
+        fallbackConfig.allowPrivateCloudCompute = false
+        fallbackConfig.maxTokens = min(fallbackConfig.maxTokens, 512)
+        fallbackConfig.temperature = min(fallbackConfig.temperature, 0.4)
+
+        let fallbackPrompt =
+            question
+            + "\n\nAnswer using any available excerpts. If evidence is thin, say so and summarize what is available. Cite sources like [S1]."
+
+        if let llmResponse = try? await generateWithFallback(
+            prompt: fallbackPrompt,
+            context: fallbackContext.isEmpty ? nil : fallbackContext,
+            config: fallbackConfig,
+            sourceChunks: sourceChunks
+        ) {
+            let metadata = ResponseMetadata(
+                timeToFirstToken: llmResponse.timeToFirstToken,
+                totalGenerationTime: llmResponse.totalTime,
+                tokensGenerated: llmResponse.tokensGenerated,
+                tokensPerSecond: llmResponse.tokensPerSecond,
+                modelUsed: llmResponse.modelName ?? llmService.modelName,
+                retrievalTime: retrievalTime,
+                retrievalConfigSummary: retrievalConfig.summary,
+                gatingDecision: "reliability_fallback",
+                toolCallsMade: llmResponse.toolCallsMade,
+                embeddingProvider: embeddingProviderId
+            )
+            return RAGResponse(
+                queryId: ragQuery.id,
+                retrievedChunks: usedRetrieved,
+                generatedResponse: llmResponse.text,
+                metadata: metadata,
+                confidenceScore: 0.0,
+                qualityWarnings: warnings
+            )
+        }
+
+        let terms = extractQueryTerms(question)
+        let snippetBullets = usedRetrieved.prefix(3).enumerated().map { idx, retrieved in
+            let snippet = extractSnippet(
+                from: retrieved.chunk.content,
+                queryTerms: terms,
+                maxChars: 240
+            )
+            return "• \(snippet) [S\(idx + 1)]"
+        }
+        let responseText: String
+        if snippetBullets.isEmpty {
+            responseText = "I can't reach the model right now, but your documents are still available. Please try again in a moment."
+        } else {
+            responseText = """
+            Here’s the most relevant evidence I can access right now:
+            \(snippetBullets.joined(separator: "\n"))
+            """
+        }
+
+        let metadata = ResponseMetadata(
+            timeToFirstToken: nil,
+            totalGenerationTime: 0,
+            tokensGenerated: 0,
+            tokensPerSecond: nil,
+            modelUsed: llmService.modelName,
+            retrievalTime: retrievalTime,
+            retrievalConfigSummary: retrievalConfig.summary,
+            gatingDecision: "reliability_fallback",
+            toolCallsMade: 0,
+            embeddingProvider: embeddingProviderId
+        )
+
+        return RAGResponse(
+            queryId: ragQuery.id,
+            retrievedChunks: usedRetrieved,
+            generatedResponse: responseText,
+            metadata: metadata,
+            confidenceScore: 0.0,
+            qualityWarnings: warnings + ["Extractive fallback"]
+        )
+    }
 
     /// Generate a direct LLM response without document context.
     /// Used as a graceful fallback when retrieval returns no results or documents are unavailable.
@@ -2825,8 +3897,8 @@ class RAGService: ObservableObject {
         fallbackNote: String? = nil
     ) async throws -> RAGResponse {
         Log.info("ℹ️  Falling back to direct LLM chat mode", category: .pipeline)
-        let strictMode = await MainActor.run {
-            self.containerService.activeContainer?.strictMode ?? false
+        let retrievalConfig = await MainActor.run {
+            self.containerService.activeContainer?.retrievalConfig ?? .default
         }
         TelemetryCenter.emit(
             .system,
@@ -2871,9 +3943,9 @@ class RAGService: ObservableObject {
             totalGenerationTime: llmResponse.totalTime,
             tokensGenerated: llmResponse.tokensGenerated,
             tokensPerSecond: llmResponse.tokensPerSecond,
-            modelUsed: llmService.modelName,
+            modelUsed: llmResponse.modelName ?? llmService.modelName,
             retrievalTime: retrievalTime,
-            strictModeEnabled: strictMode,
+            retrievalConfigSummary: retrievalConfig.summary,
             toolCallsMade: llmResponse.toolCallsMade,
             embeddingProvider: nil // No embedding used in direct chat fallback
         )
@@ -2906,6 +3978,37 @@ class RAGService: ObservableObject {
         )
 
         return response
+    }
+
+    private func isContextOverflowError(_ error: Error) -> Bool {
+        let message = error.localizedDescription.lowercased()
+
+        // Standard context overflow indicators
+        if message.contains("context"), message.contains("window") { return true }
+        if message.contains("context")
+            && (message.contains("exceed") || message.contains("exceeded"))
+        {
+            return true
+        }
+        if message.contains("token"), message.contains("limit") { return true }
+        if message.contains("4096"), message.contains("token") { return true }
+
+        // PCC-related failures that indicate we should fall back to on-device with smaller context
+        // These occur when the system expected to use PCC (65K tokens) but couldn't,
+        // and the context we sent is too large for on-device (4096 tokens)
+        if message.contains("private cloud compute") && message.contains("unavailable") { return true }
+        if message.contains("pcc") && (message.contains("unavailable") || message.contains("required")) { return true }
+        if message.contains("cloud") && message.contains("unavailable") { return true }
+
+        return false
+    }
+
+    private static let citationRegex = try? NSRegularExpression(pattern: "\\[S\\d+\\]")
+
+    private func responseHasCitations(_ text: String) -> Bool {
+        guard let regex = Self.citationRegex else { return false }
+        let range = NSRange(text.startIndex ..< text.endIndex, in: text)
+        return regex.firstMatch(in: text, options: [], range: range) != nil
     }
 
     // MARK: - Model Management
@@ -2991,27 +4094,105 @@ class RAGService: ObservableObject {
         config: InferenceConfig,
         sourceChunks: [DocumentChunk] = []
     ) async throws -> LLMResponse {
-        let (primaryTicket, primaryBackend) = try preparePreviewTicketIfNeeded(for: _llmService)
+        let upstreamHandler = LLMStreamingContext.handler
 
-        // Try primary first
-        do {
-            try await ensureCloudConsentIfNeeded(
-                service: _llmService,
-                prompt: prompt,
-                context: context,
-                sourceChunks: sourceChunks,
-                allowPrivateCloudCompute: config.allowPrivateCloudCompute
-            )
-            let response = try await _llmService.generate(
-                prompt: prompt,
-                context: context,
-                config: config
-            )
-            consumePreviewIfNeeded(ticket: primaryTicket, backend: primaryBackend)
-            if LLMStreamingContext.handler != nil {
-                LLMStreamingContext.emit(text: "", isFinal: true)
+        func attempt(service: LLMService) async throws -> LLMResponse {
+            let attemptStart = Date()
+
+            actor StreamCapture {
+                private var captured = ""
+                private var firstChunkTime: TimeInterval?
+
+                func record(_ event: LLMStreamEvent, since start: Date) {
+                    guard !event.text.isEmpty else { return }
+                    if firstChunkTime == nil {
+                        firstChunkTime = Date().timeIntervalSince(start)
+                    }
+                    captured += event.text
+                }
+
+                func snapshot() -> (text: String, firstChunkTime: TimeInterval?) {
+                    (captured, firstChunkTime)
+                }
             }
-            return response
+
+            let streamCapture = StreamCapture()
+
+            let capturingHandler: LLMStreamHandler = { event in
+                await streamCapture.record(event, since: attemptStart)
+                if let upstreamHandler {
+                    await upstreamHandler(event)
+                }
+            }
+
+            return try await LLMStreamingContext.$handler.withValue(capturingHandler) {
+                do {
+                    try await ensureCloudConsentIfNeeded(
+                        service: service,
+                        prompt: prompt,
+                        context: context,
+                        sourceChunks: sourceChunks,
+                        allowPrivateCloudCompute: config.allowPrivateCloudCompute
+                    )
+
+                    let response = try await service.generate(
+                        prompt: prompt,
+                        context: context,
+                        config: config
+                    )
+
+                    let (captured, firstChunkTime) = await streamCapture.snapshot()
+
+                    let trimmed = response.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let capturedTrimmed = captured.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if trimmed.isEmpty, !capturedTrimmed.isEmpty {
+                        if LLMStreamingContext.handler != nil {
+                            LLMStreamingContext.emit(text: "", isFinal: true)
+                        }
+                        return LLMResponse(
+                            text: capturedTrimmed,
+                            tokensGenerated: capturedTrimmed.split(whereSeparator: { $0.isWhitespace }).count,
+                            timeToFirstToken: response.timeToFirstToken ?? firstChunkTime,
+                            totalTime: max(response.totalTime, Date().timeIntervalSince(attemptStart)),
+                            modelName: response.modelName ?? service.modelName,
+                            toolCallsMade: response.toolCallsMade
+                        )
+                    }
+
+                    if LLMStreamingContext.handler != nil {
+                        LLMStreamingContext.emit(text: "", isFinal: true)
+                    }
+
+                    return response
+                } catch {
+                    let (captured, firstChunkTime) = await streamCapture.snapshot()
+                    let capturedTrimmed = captured.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if capturedTrimmed.count >= 24 {
+                        // If we already streamed a meaningful partial answer, do not replace it
+                        // with a fallback provider.
+                        Log.warning(
+                            "\(service.modelName) failed after streaming partial output; returning partial response",
+                            category: .llm
+                        )
+                        if LLMStreamingContext.handler != nil {
+                            LLMStreamingContext.emit(text: "", isFinal: true)
+                        }
+                        return LLMResponse(
+                            text: capturedTrimmed,
+                            tokensGenerated: capturedTrimmed.split(whereSeparator: { $0.isWhitespace }).count,
+                            timeToFirstToken: firstChunkTime,
+                            totalTime: Date().timeIntervalSince(attemptStart),
+                            modelName: service.modelName,
+                            toolCallsMade: 0
+                        )
+                    }
+                    throw error
+                }
+            }
+        }
+
+        do {
+            return try await attempt(service: _llmService)
         } catch {
             let errorDesc = error.localizedDescription
 
@@ -3041,28 +4222,11 @@ class RAGService: ObservableObject {
                     category: .llm
                 )
                 do {
-                    let (fallbackTicket, fallbackBackend) =
-                        try preparePreviewTicketIfNeeded(for: fallbackService)
-                    try await ensureCloudConsentIfNeeded(
-                        service: fallbackService,
-                        prompt: prompt,
-                        context: context,
-                        sourceChunks: sourceChunks,
-                        allowPrivateCloudCompute: config.allowPrivateCloudCompute
-                    )
-                    let response = try await fallbackService.generate(
-                        prompt: prompt,
-                        context: context,
-                        config: config
-                    )
-                    consumePreviewIfNeeded(ticket: fallbackTicket, backend: fallbackBackend)
+                    let response = try await attempt(service: fallbackService)
                     Log.info(
                         "✓ Fallback #\(index + 1) succeeded: \(fallbackService.modelName)",
                         category: .llm
                     )
-                    if LLMStreamingContext.handler != nil {
-                        LLMStreamingContext.emit(text: "", isFinal: true)
-                    }
                     return response
                 } catch {
                     Log.warning(
@@ -3076,7 +4240,7 @@ class RAGService: ObservableObject {
             // All fallbacks exhausted - provide helpful error message
             if isTemplateError {
                 throw LLMError.generationFailed("""
-                Model has incompatible chat template. \
+                Model has incompatible chat template.
                 Try: Settings → Primary Model → Select "Apple Intelligence" or "On-Device Analysis"
                 """)
             }
@@ -3086,39 +4250,18 @@ class RAGService: ObservableObject {
         }
     }
 
-    // MARK: - Private Helpers
 
-    /// Local model preview tracking has been removed along with downloadable models.
-    /// These functions are retained as no-ops for call-site compatibility.
-    private func preparePreviewTicketIfNeeded(for service: LLMService) throws
-        -> (LocalModelPreviewTicket?, ModelBackend?)
-    {
-        // Local backends removed - always return nil
-        return (nil, nil)
-    }
-
-    private func consumePreviewIfNeeded(
-        ticket: LocalModelPreviewTicket?,
-        backend: ModelBackend?
-    ) {
-        // Local model preview tracking removed - no-op
-    }
-
-    private func localBackend(for service: LLMService) -> ModelBackend? {
-        // Local model backends have been removed
-        return nil
-    }
 
     /// Returns a configured service for the given settings key, if available.
     /// Simplified: only Apple Intelligence and On-Device Analysis are supported.
     private static func instantiateService(
         for modelKey: String,
-        entitlementStore: EntitlementStore?
+        entitlementStore _: EntitlementStore?
     ) -> LLMService? {
         // Migrate deprecated model keys to supported types
         let effectiveKey = LLMModelType.isDeprecatedRawValue(modelKey) ? "apple_intelligence" : modelKey
 
-        switch effectiveKey { 
+        switch effectiveKey {
         case "apple_intelligence":
             #if canImport(FoundationModels)
                 if #available(iOS 26.0, *) {
@@ -3148,18 +4291,30 @@ class RAGService: ObservableObject {
             #endif
             return nil
         case "on_device_analysis":
-            Log.info("✓ Using On-Device Analysis (extractive QA)", category: .initialization)
-            return OnDeviceAnalysisService()
+            Log.warning("on_device_analysis is deprecated; falling through to Apple Intelligence", category: .initialization)
+            fallthrough
         default:
-            // Unknown or deprecated model type - fall back to On-Device Analysis
-            Log.warning("Unknown or deprecated model type: \(modelKey); using On-Device Analysis", category: .initialization)
-            return OnDeviceAnalysisService()
+            // Unknown or deprecated model type - try Apple Intelligence
+            Log.warning("Unknown or deprecated model type: \(modelKey); trying Apple Intelligence", category: .initialization)
+            #if canImport(FoundationModels)
+                if #available(iOS 26.0, *) {
+                    let foundationService = AppleFoundationLLMService()
+                    if foundationService.isAvailable {
+                        foundationService.startWarmup()
+                        return foundationService
+                    }
+                }
+            #endif
+            return nil
         }
     }
 
     /// Builds an ordered list of fallback services, excluding the user's primary selection.
     private static func buildFallbackChain(excluding modelKey: String) -> [LLMService] {
         var fallbacks: [LLMService] = []
+
+        let capabilities = checkDeviceCapabilities()
+        let appleCapable = capabilities.supportsAppleIntelligence || capabilities.supportsFoundationModels
 
         // Try Apple Intelligence first (if available and not primary)
         #if canImport(FoundationModels)
@@ -3174,10 +4329,10 @@ class RAGService: ObservableObject {
             }
         #endif
 
-        // ALWAYS add On-Device Analysis as ultimate fallback (works offline, no dependencies)
-        if modelKey != "on_device_analysis" {
-            fallbacks.append(OnDeviceAnalysisService())
-            Log.debug("Added On-Device Analysis as ultimate fallback", category: .initialization)
+        // No additional fallbacks - Apple Intelligence is the only supported provider
+        // If Apple Intelligence is unavailable, generation will fail with a clear error
+        if !appleCapable {
+            Log.warning("Device does not support Apple Intelligence - no fallbacks available", category: .initialization)
         }
 
         return fallbacks
@@ -3272,6 +4427,199 @@ class RAGService: ObservableObject {
 
     private nonisolated func wordCount(of text: String) -> Int {
         text.split(whereSeparator: { $0.isWhitespace }).count
+    }
+
+    private nonisolated func isTrivialQuery(_ query: String) -> Bool {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return true }
+
+        let tokenCount = trimmed.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
+        if tokenCount <= 1 {
+            return true
+        }
+
+        let lower = trimmed.lowercased()
+        let trivialSet: Set<String> = [
+            "test",
+            "help",
+            "hello",
+            "hi",
+            "hey",
+            "ok",
+            "okay",
+            "thanks",
+            "thank you",
+            "yes",
+            "yep",
+            "yeah",
+        ]
+        return trivialSet.contains(lower)
+    }
+
+    private func buildNeighborAwareFallback(
+        seeds: [RetrievedChunk],
+        pool: [RetrievedChunk],
+        maxTotal: Int,
+        neighborsPerSeed: Int = 1
+    ) -> [RetrievedChunk] {
+        guard !seeds.isEmpty else { return [] }
+        let limit = max(1, maxTotal)
+
+        var byDocument: [UUID: [RetrievedChunk]] = [:]
+        for chunk in pool {
+            byDocument[chunk.chunk.documentId, default: []].append(chunk)
+        }
+        for key in byDocument.keys {
+            byDocument[key]?.sort { $0.chunk.metadata.chunkIndex < $1.chunk.metadata.chunkIndex }
+        }
+
+        var selected: [RetrievedChunk] = []
+        var seenIds = Set<UUID>()
+
+        func appendIfNeeded(_ chunk: RetrievedChunk) {
+            if selected.count >= limit { return }
+            let chunkId = chunk.chunk.id
+            if seenIds.insert(chunkId).inserted {
+                selected.append(chunk)
+            }
+        }
+
+        for seed in seeds {
+            appendIfNeeded(seed)
+            guard selected.count < limit else { break }
+            guard let docChunks = byDocument[seed.chunk.documentId],
+                  let seedIndex = docChunks.firstIndex(where: { $0.chunk.id == seed.chunk.id }) else {
+                continue
+            }
+
+            if neighborsPerSeed > 0 {
+                for offset in 1...neighborsPerSeed {
+                    let prev = seedIndex - offset
+                    if prev >= 0 {
+                        appendIfNeeded(docChunks[prev])
+                    }
+                    let next = seedIndex + offset
+                    if next < docChunks.count {
+                        appendIfNeeded(docChunks[next])
+                    }
+                    if selected.count >= limit { break }
+                }
+            }
+        }
+
+        return selected
+    }
+
+    private func mergeUniqueChunks(
+        _ primary: [RetrievedChunk],
+        _ secondary: [RetrievedChunk]
+    ) -> [RetrievedChunk] {
+        var seen = Set<UUID>()
+        var merged: [RetrievedChunk] = []
+        merged.reserveCapacity(primary.count + secondary.count)
+
+        for chunk in primary + secondary {
+            if seen.insert(chunk.chunk.id).inserted {
+                merged.append(chunk)
+            }
+        }
+        return merged
+    }
+
+    private func extractQueryTerms(_ question: String) -> [String] {
+        let stopWords: Set<String> = [
+            "the", "a", "an", "and", "or", "but",
+            "is", "are", "was", "were", "be", "being",
+            "of", "to", "for", "in", "on", "at", "by",
+            "this", "that", "these", "those",
+            "what", "whats", "what's", "how", "why", "when", "where",
+            "i", "you", "we", "they", "it", "my", "your", "our", "their"
+        ]
+        return question
+            .lowercased()
+            .split { !$0.isLetter && !$0.isNumber }
+            .map { String($0) }
+            .filter { $0.count > 2 && !stopWords.contains($0) }
+    }
+
+    private func extractSnippet(from text: String, queryTerms: [String], maxChars: Int) -> String {
+        if text.count <= maxChars { return text }
+        if maxChars <= 0 { return "" }
+        if !queryTerms.isEmpty {
+            for term in queryTerms {
+                if let range = text.range(of: term, options: [.caseInsensitive, .diacriticInsensitive]) {
+                    let half = maxChars / 2
+                    let start = text.index(range.lowerBound, offsetBy: -half, limitedBy: text.startIndex) ?? text.startIndex
+                    let end = text.index(range.upperBound, offsetBy: half, limitedBy: text.endIndex) ?? text.endIndex
+                    return String(text[start..<end])
+                }
+            }
+        }
+        return String(text.prefix(maxChars))
+    }
+
+    private func buildExtractiveChunks(
+        _ chunks: [RetrievedChunk],
+        question: String,
+        maxCharsPerChunk: Int
+    ) -> [RetrievedChunk] {
+        guard maxCharsPerChunk > 0 else { return chunks }
+        let terms = extractQueryTerms(question)
+        return chunks.map { retrieved in
+            let content = extractSnippet(
+                from: retrieved.chunk.content,
+                queryTerms: terms,
+                maxChars: maxCharsPerChunk
+            )
+            if content.count == retrieved.chunk.content.count {
+                return retrieved
+            }
+            let trimmedChunk = DocumentChunk(
+                id: retrieved.chunk.id,
+                documentId: retrieved.chunk.documentId,
+                content: content,
+                embedding: retrieved.chunk.embedding,
+                metadata: retrieved.chunk.metadata
+            )
+            return RetrievedChunk(
+                chunk: trimmedChunk,
+                similarityScore: retrieved.similarityScore,
+                rank: retrieved.rank,
+                sourceDocument: retrieved.sourceDocument,
+                pageNumber: retrieved.pageNumber
+            )
+        }
+    }
+
+    private func buildEvidencePackContext(
+        question: String,
+        candidates: [RetrievedChunk],
+        maxContextChars: Int,
+        maxChunks: Int,
+        maxCharsPerChunk: Int? = nil
+    ) async -> (context: String, usedChunks: [RetrievedChunk]) {
+        guard !candidates.isEmpty else { return ("", []) }
+
+        var seen = Set<UUID>()
+        let deduped = candidates.filter { seen.insert($0.chunk.id).inserted }
+        let limited = Array(deduped.prefix(max(1, min(maxChunks, deduped.count))))
+        let perChunk = maxCharsPerChunk
+            ?? max(220, min(900, maxContextChars / max(1, limited.count)))
+
+        let trimmed = buildExtractiveChunks(
+            limited,
+            question: question,
+            maxCharsPerChunk: perChunk
+        )
+
+        let engine = RAGEngine()
+        let (context, used) = await engine.assembleContext(
+            chunks: trimmed,
+            maxChars: maxContextChars,
+            compact: true
+        )
+        let usedChunks = Array(trimmed.prefix(used))
+        return (context, usedChunks)
     }
 
     /// Guarantee that at least a subset of the retrieved chunks span multiple documents when available.
@@ -3832,13 +5180,13 @@ struct DeviceCapabilities {
     var deviceTier: DeviceTier = .low
 
     /// Estimated maximum context tokens Apple Intelligence can allocate on this hardware
-    /// - Returns ≈50K tokens once Foundation Models are active (PCC available)
-    /// - Returns ≈900 tokens for on-device-only execution while models download
+    /// - Returns ≈65K tokens once Foundation Models are active (PCC available)
+    /// - Returns 4,096 tokens for on-device-only execution while models download
     var appleIntelligenceContextTokens: Int {
         if supportsFoundationModels {
-            return 50000 // ≈200K characters before prompt+response overhead
+            return 65000
         } else if supportsAppleIntelligence {
-            return 900 // ≈3.5K characters processed purely on-device
+            return 4096
         } else {
             return 0
         }
@@ -3848,10 +5196,10 @@ struct DeviceCapabilities {
     var appleIntelligenceContextDescription: String? {
         if supportsFoundationModels {
             return
-                "≈3.5K characters on-device, automatically expanding to ≈200K characters (~50K tokens) via Private Cloud Compute when queries demand it."
+                "≈4,096 tokens on-device, automatically expanding to ≈65K tokens via Private Cloud Compute when queries demand it."
         } else if supportsAppleIntelligence {
             return
-                "≈3.5K characters (~900 tokens) handled fully on-device while Foundation Models finish downloading."
+                "≈4,096 tokens handled fully on-device while Foundation Models finish downloading."
         } else {
             return nil
         }

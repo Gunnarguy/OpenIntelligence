@@ -146,6 +146,16 @@
 | Tool @Guide Constraints | ✅ Done | Agent | Added .range() constraints to SearchDocumentsTool topK/minSimilarity parameters |
 | FM Feedback Integration | ✅ Done | Agent | Thumbs up/down in chat UI submits LanguageModelFeedback to Apple |
 | Chat Attachment Race Condition | ✅ Done | Agent | Fixed: attachments now fully processed before query runs (was sending query before documents indexed) |
+| Prevent unwanted On-Device Analysis fallback | ✅ Done | Agent | Keep partial streamed responses; remove low-confidence auto-switch; improve extractive QA ranking |
+| Settings UX Overhaul | ✅ Done | Agent | Replaced fallback card with Context & Processing info card; improved privacy card with Apple architecture explanations; added Neural Engine info; removed model selector (Apple Intelligence only) |
+| Short Query Language Fix | ✅ Done | Agent | Added English context wrapping for 1-5 word queries to prevent language detection errors |
+| Conversational RAG Prompts | ✅ Done | Agent | Changed from extractive QA to conversational responses; improved context assembly logging |
+| Processing Intelligence View | ✅ Done | Agent | New unified chat header component showing real-time execution location (Device/PCC), context window usage, quality mode, and expandable details |
+| Quality Mode Chat Integration | ✅ Done | Agent | Quality mode quick picker added to chat header; settings now shows explanation only; seamless switching between Fast/Balanced/Thorough |
+| Unified Metrics Bar Merge | ✅ Done | Agent | Merged ProcessingIntelligenceView + LiveStreamingMetrics into single UnifiedMetricsBar; eliminated duplicate UI; single expandable component with execution, context, speed, sources, quality mode |
+| Entitlement Store Cleanup | ✅ Done | Agent | Removed dead "Local Model Preview" code and restored truncated methods |
+| Document Upload Progress UI | ✅ Done | Agent | Added per-file progress toast for multi-document uploads |
+| Remove Dead Code | ✅ Done | Agent | Deleted InstalledModel.swift and LocalComputePreference.swift |
 
 ---
 

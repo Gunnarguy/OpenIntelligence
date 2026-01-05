@@ -18,8 +18,13 @@ import VecturaKit
 final class VecturaVectorDatabase: VectorDatabase {
 
     private let db: VecturaDB
+    private let embeddingDim: Int
+
+    /// The embedding dimension this database is configured for
+    var dimension: Int { embeddingDim }
 
     init(dimension: Int = 512) {
+        self.embeddingDim = dimension
         // Initialize VecturaKit with hybrid search enabled if supported
         // Adjust options as the SDK evolves
         self.db = VecturaDB(dimension: dimension, enableHybridSearch: true)
@@ -114,19 +119,19 @@ final class VecturaVectorDatabase: VectorDatabase {
     func count() async throws -> Int {
         return try await db.count()
     }
-    
+
     /// Enumeration of all chunks is not yet supported in VecturaKit integration.
     /// Return an empty list for now; visualization will gracefully fallback/handle empty data.
     func allChunks() async throws -> [DocumentChunk] {
         return []
     }
-    
+
     func updateChunk(_ chunk: DocumentChunk) async throws {
         // VecturaKit upsert semantics: delete + insert
         try await db.delete(where: .equals(key: "id", value: chunk.id.uuidString))
         try await store(chunk: chunk)
     }
-    
+
     func exists(chunkId: UUID) async -> Bool {
         // VecturaKit may not have a direct exists; search for the id
         do {
@@ -136,7 +141,7 @@ final class VecturaVectorDatabase: VectorDatabase {
             return false
         }
     }
-    
+
     func statistics() async -> VectorDatabaseStats {
         let c = (try? await count()) ?? 0
         return VectorDatabaseStats(
@@ -155,7 +160,13 @@ final class VecturaVectorDatabase: VectorDatabase {
 // Keeps the app compiling while allowing runtime fallback to the persistent JSON DB.
 final class VecturaVectorDatabase: VectorDatabase {
 
+    private let embeddingDim: Int
+
+    /// The embedding dimension this database is configured for
+    var dimension: Int { embeddingDim }
+
     init(dimension: Int = 512) {
+        self.embeddingDim = dimension
         Log.warning("[VecturaVectorDatabase] VecturaKit not available in this target. Stub initialized.", category: .vectorDB)
     }
 
@@ -182,23 +193,23 @@ final class VecturaVectorDatabase: VectorDatabase {
     func count() async throws -> Int {
         return 0
     }
-    
+
     func allChunks() async throws -> [DocumentChunk] {
         return []
     }
-    
+
     func updateChunk(_ chunk: DocumentChunk) async throws {
         throw VectorDatabaseError.storeFailed("VecturaKit not available")
     }
-    
+
     func exists(chunkId: UUID) async -> Bool {
         return false
     }
-    
+
     func statistics() async -> VectorDatabaseStats {
         return VectorDatabaseStats(
             chunkCount: 0,
-            dimension: 512,
+            dimension: embeddingDim,
             uniqueDocuments: 0,
             estimatedMemoryBytes: 0,
             backend: "VecturaStub"

@@ -62,6 +62,13 @@ graph TD
 
 ---
 
+## 📚 Reference Docs
+
+- Architecture overview: [`Docs/reference/ARCHITECTURE.md`](Docs/reference/ARCHITECTURE.md)
+- Apple Intelligence deep dive: [`Docs/reference/AFW.md`](Docs/reference/AFW.md)
+
+---
+
 ## 🛠 Getting Started
 
 ### Prerequisites

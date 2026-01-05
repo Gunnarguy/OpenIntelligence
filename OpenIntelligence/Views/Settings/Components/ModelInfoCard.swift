@@ -119,15 +119,15 @@ struct ModelInfoCard: View {
             if capabilities.supportsFoundationModels {
                 return [
                     "Foundation Models (iOS 26+)",
-                    "On-device + Private Cloud Compute",
-                    "~3B parameters, 8K context",
+                    "On-device 3B model + PCC PT-MoE",
+                    "4,096 tokens on-device, ~65K via PCC",
                     "Zero data retention",
                     "Works offline for simple queries",
                 ]
             }
             return [
                 "Apple Intelligence platform",
-                "Automatic on-device/cloud routing",
+                "Reliability-first routing (prefers PCC for library queries)",
                 "Zero data retention (PCC)",
                 "No API key needed",
                 "Private and secure",

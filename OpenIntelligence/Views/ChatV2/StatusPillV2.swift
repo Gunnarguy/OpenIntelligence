@@ -15,13 +15,13 @@ struct StatusPillV2: View {
     let embeddingElapsed: TimeInterval?
     let searchingElapsed: TimeInterval?
     let generatingElapsed: TimeInterval?
-    
+
     @State private var pulsePhase: CGFloat = 0
-    
+
     private var isActive: Bool {
         stage != .idle && stage != .complete
     }
-    
+
     private var statusInfo: (icon: String, label: String, color: Color) {
         switch stage {
         case .idle:
@@ -36,7 +36,7 @@ struct StatusPillV2: View {
             return ("checkmark.circle.fill", "Done", .green)
         }
     }
-    
+
     private var elapsedTime: TimeInterval? {
         switch stage {
         case .idle, .complete: return nil
@@ -45,7 +45,7 @@ struct StatusPillV2: View {
         case .generating: return generatingElapsed
         }
     }
-    
+
     var body: some View {
         if isActive {
             HStack(spacing: 0) {
@@ -58,22 +58,22 @@ struct StatusPillV2: View {
                             .frame(width: 20, height: 20)
                             .scaleEffect(pulsePhase)
                             .opacity(Double(1.0 - pulsePhase * 0.5))
-                        
+
                         Image(systemName: statusInfo.icon)
                             .font(.system(size: 10, weight: .semibold))
                             .foregroundStyle(statusInfo.color)
                     }
-                    
+
                     Text(statusInfo.label)
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(statusInfo.color)
-                    
+
                     if let elapsed = elapsedTime {
                         Text(formatElapsed(elapsed))
                             .font(.system(size: 11, weight: .medium, design: .monospaced))
                             .foregroundStyle(Color.secondary.opacity(0.8))
                     }
-                    
+
                     // Stage dots
                     HStack(spacing: 3) {
                         StageDot(active: stage == .embedding || stage == .searching || stage == .generating, color: .purple)
@@ -92,9 +92,9 @@ struct StatusPillV2: View {
                                 .strokeBorder(statusInfo.color.opacity(0.3))
                         )
                 )
-                
+
                 Spacer()
-                
+
                 // Execution location (compact)
                 if stage == .generating {
                     ExecutionChip(execution: execution, ttft: ttft)
@@ -109,7 +109,7 @@ struct StatusPillV2: View {
             }
         }
     }
-    
+
     private func formatElapsed(_ t: TimeInterval) -> String {
         if t < 1.0 {
             return String(format: "%.0fms", t * 1000)
@@ -122,7 +122,7 @@ struct StatusPillV2: View {
 private struct StageDot: View {
     let active: Bool
     let color: Color
-    
+
     var body: some View {
         Circle()
             .fill(active ? color : Color.secondary.opacity(0.2))
@@ -133,7 +133,7 @@ private struct StageDot: View {
 private struct ExecutionChip: View {
     let execution: ChatExecutionLocation
     let ttft: TimeInterval?
-    
+
     private var info: (icon: String, label: String, color: Color) {
         switch execution {
         case .onDevice:
@@ -142,8 +142,6 @@ private struct ExecutionChip: View {
             return ("cloud", "PCC", .green)
         case .mlxLocal:
             return ("desktopcomputer", "MLX", .indigo)
-        case .openAI:
-            return ("globe", "OpenAI", .orange)
         case .unknown:
             if let ttft = ttft {
                 return ttft < 0.5 ? ("iphone", "Device", .blue) : ("cloud", "PCC", .green)
@@ -151,7 +149,7 @@ private struct ExecutionChip: View {
             return ("sparkles", "AI", .purple)
         }
     }
-    
+
     var body: some View {
         HStack(spacing: 4) {
             Image(systemName: info.icon)

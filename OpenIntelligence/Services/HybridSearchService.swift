@@ -134,11 +134,13 @@ class HybridSearchService {
     private let engine = RAGEngine()
 
     // Fusion weights (can be tuned)
-    private let vectorWeight: Float = 0.7
-    private let keywordWeight: Float = 0.3
+    private let vectorWeight: Float
+    private let keywordWeight: Float
 
-    init(vectorDatabase: VectorDatabase) {
+    init(vectorDatabase: VectorDatabase, vectorWeight: Float = 0.7, keywordWeight: Float = 0.3) { 
         self.vectorDatabase = vectorDatabase
+        self.vectorWeight = vectorWeight
+        self.keywordWeight = keywordWeight
     }
 
     /// Index documents for hybrid search
@@ -158,8 +160,8 @@ class HybridSearchService {
     func search(query: String, embedding: [Float], topK: Int) async throws -> [RetrievedChunk] {
         Log.debug("Hybrid search starting (vector: \(vectorWeight), keyword: \(keywordWeight))", category: .pipeline)
 
-        // 1. Vector search
-        let vectorResults = try await vectorDatabase.search(embedding: embedding, topK: topK * 2)
+        // 1. Vector search - retrieve more candidates for better coverage
+        let vectorResults = try await vectorDatabase.search(embedding: embedding, topK: topK * 3)
 
         // 2. BM25 keyword search (off-main via RAGEngine)
         // Build a snapshot from current candidates to ensure valid DF/length stats

@@ -22,12 +22,7 @@ private struct DocumentPackEntry: Codable, Identifiable {
 
 enum LocalModelAccessState {
     case unlocked
-    case preview(remaining: Int)
     case blocked
-}
-
-struct LocalModelPreviewTicket {
-    fileprivate let requiresConsumption: Bool
 }
 
 /// Tracks the currently active workspace tier and derived quotas.
@@ -40,9 +35,6 @@ final class EntitlementStore: ObservableObject {
     @Published var lastError: String?
     @Published private(set) var availableProducts: [BillingProduct: Product] = [:]
     @Published fileprivate private(set) var documentPacks: [DocumentPackEntry] = []
-    @Published private(set) var localModelPreviewRemaining: Int
-    private var previewRunsConsumed: Int
-    private var previewConversionLoggedRuns: Int
 
     /// Derived count of non-expired add-on packs, retained for legacy UI bindings.
     var addOnPacks: Int { Self.activePackCount(for: documentPacks) }
@@ -68,12 +60,7 @@ final class EntitlementStore: ObservableObject {
         static let tier = "entitlement.activeTier"
         static let addOns = "entitlement.docAddOns" // Legacy storage, retained for migration
         static let packs = "entitlement.docPackLedger"
-        static let localPreviewRemaining = "entitlement.localPreviewRemaining"
-        static let previewRunsConsumed = "entitlement.previewRunsConsumed"
-        static let previewConversionRunMarker = "entitlement.previewConversionRuns"
     }
-
-    private static let previewAllowance = 3
 
     init(billingService: BillingService, defaults: UserDefaults = .standard) {
         self.billingService = billingService
@@ -87,13 +74,7 @@ final class EntitlementStore: ObservableObject {
         let documentCredits = Self.totalCredits(for: prunedPacks)
         documentLimit = QuotaPolicy.documentLimit(for: resolvedTier) + documentCredits
         libraryLimit = QuotaPolicy.libraryLimit(for: resolvedTier)
-        let storedPreview = defaults.object(forKey: Keys.localPreviewRemaining) as? Int
-        localModelPreviewRemaining = Self.initialPreviewAllowance(
-            storedValue: storedPreview,
-            tier: resolvedTier
-        )
-        previewRunsConsumed = defaults.integer(forKey: Keys.previewRunsConsumed)
-        previewConversionLoggedRuns = defaults.integer(forKey: Keys.previewConversionRunMarker)
+
         eventTask = Task { await observeBillingEvents() }
         Task { await billingService.refreshProducts() }
         if prunedPacks.count != loadedPacks.count {
@@ -160,17 +141,6 @@ final class EntitlementStore: ObservableObject {
         packs.filter { !$0.isExpired }
     }
 
-    private static func initialPreviewAllowance(storedValue: Int?, tier: WorkspaceTier) -> Int {
-        if let storedValue {
-            return max(0, storedValue)
-        }
-        return defaultPreviewAllowance(for: tier)
-    }
-
-    private static func defaultPreviewAllowance(for tier: WorkspaceTier) -> Int {
-        tier == .free ? previewAllowance : 0
-    }
-
     private func persistDocumentPacks() {
         do {
             let encoder = JSONEncoder()
@@ -181,10 +151,10 @@ final class EntitlementStore: ObservableObject {
         }
     }
 
-    private func persistPreviewState() {
-        defaults.set(localModelPreviewRemaining, forKey: Keys.localPreviewRemaining)
-        defaults.set(previewRunsConsumed, forKey: Keys.previewRunsConsumed)
-        defaults.set(previewConversionLoggedRuns, forKey: Keys.previewConversionRunMarker)
+    private func persistState() {
+        defaults.set(activeTier.rawValue, forKey: Keys.tier)
+        defaults.set(addOnPacks, forKey: Keys.addOns)
+        persistDocumentPacks()
     }
 
     /// Drops expired ledger entries and persists when mutations occur.
@@ -249,67 +219,6 @@ final class EntitlementStore: ObservableObject {
 
     func canAddLibrary(currentCount: Int) -> Bool {
         currentCount < libraryLimit
-    }
-
-    var localModelPreviewTotal: Int { Self.defaultPreviewAllowance(for: activeTier) }
-
-    var canUseLocalModels: Bool {
-        activeTier.isAtLeast(.pro) || localModelPreviewRemaining > 0
-    }
-
-    func localModelAccessState() -> LocalModelAccessState {
-        if activeTier.isAtLeast(.pro) { return .unlocked }
-        if localModelPreviewRemaining > 0 { return .preview(remaining: localModelPreviewRemaining) }
-        return .blocked
-    }
-
-    func issueLocalModelPreviewTicket() -> LocalModelPreviewTicket? {
-        if activeTier.isAtLeast(.pro) {
-            return LocalModelPreviewTicket(requiresConsumption: false)
-        }
-        guard localModelPreviewRemaining > 0 else { return nil }
-        return LocalModelPreviewTicket(requiresConsumption: true)
-    }
-
-    @discardableResult
-    func consumeLocalModelPreviewIfNeeded(
-        ticket: LocalModelPreviewTicket?,
-        backend: ModelBackend
-    ) -> Int? {
-        guard let ticket, ticket.requiresConsumption else { return nil }
-        guard localModelPreviewRemaining > 0 else { return nil }
-        localModelPreviewRemaining -= 1
-        previewRunsConsumed += 1
-        persistPreviewState()
-        let remaining = localModelPreviewRemaining
-        TelemetryCenter.emitBillingEvent(
-            "preview_model_used",
-            metadata: [
-                "backend": backend.rawValue,
-                "remaining": String(remaining),
-                "tier": activeTier.rawValue,
-            ]
-        )
-        if remaining == 0 {
-            TelemetryCenter.emitBillingEvent(
-                "preview_exhausted",
-                metadata: [
-                    "backend": backend.rawValue,
-                    "tier": activeTier.rawValue,
-                ]
-            )
-        }
-        return remaining
-    }
-
-    func markPreviewGateTriggered(for backend: ModelBackend) {
-        TelemetryCenter.emitBillingEvent(
-            "preview_gate_triggered",
-            metadata: [
-                "backend": backend.rawValue,
-                "tier": activeTier.rawValue,
-            ]
-        )
     }
 
     func product(for product: BillingProduct) -> Product? {
@@ -381,10 +290,8 @@ final class EntitlementStore: ObservableObject {
     #if DEBUG
         /// DEBUG-only helper to force the active tier without a StoreKit transaction.
         /// Used by local purchase simulation and developer tooling.
-        func setDebugTier(_ tier: WorkspaceTier) {
-            let previousTier = activeTier
+        func setDebugTier(_ tier: WorkspaceTier) { 
             activeTier = tier
-            adjustPreviewAllowanceForTierChange(from: previousTier, to: tier)
             persistState()
             recalculateAllowances()
         }
@@ -418,8 +325,7 @@ final class EntitlementStore: ObservableObject {
     }
 
     private func applyPurchase(for product: BillingProduct, transaction: Transaction) {
-        if let tier = product.associatedTier {
-            maybeTrackPreviewConversion(for: tier, product: product)
+        if let tier = product.associatedTier { 
             upgradeTierIfNeeded(to: tier)
         }
         if product == .documentPackAddOn {
@@ -437,10 +343,8 @@ final class EntitlementStore: ObservableObject {
     }
 
     private func handleRevocation(for product: BillingProduct, transaction: Transaction) {
-        if product.associatedTier == activeTier {
-            let previousTier = activeTier
+        if product.associatedTier == activeTier { 
             activeTier = .free
-            adjustPreviewAllowanceForTierChange(from: previousTier, to: .free)
         }
         if product == .documentPackAddOn {
             removeDocumentPack(for: transaction)
@@ -459,9 +363,7 @@ final class EntitlementStore: ObservableObject {
 
     private func upgradeTierIfNeeded(to tier: WorkspaceTier) {
         guard tierPriority(tier) > tierPriority(activeTier) else { return }
-        let previousTier = activeTier
         activeTier = tier
-        adjustPreviewAllowanceForTierChange(from: previousTier, to: tier)
     }
 
     private func tierPriority(_ tier: WorkspaceTier) -> Int {
@@ -473,47 +375,10 @@ final class EntitlementStore: ObservableObject {
         }
     }
 
-    private func persistState() {
-        defaults.set(activeTier.rawValue, forKey: Keys.tier)
-        defaults.set(addOnPacks, forKey: Keys.addOns)
-        persistDocumentPacks()
-        persistPreviewState()
-    }
-
     private func recalculateAllowances() {
         pruneExpiredDocumentPacksIfNeeded()
         let baseLimit = QuotaPolicy.documentLimit(for: activeTier)
         documentLimit = baseLimit + availableDocumentCredits
         libraryLimit = QuotaPolicy.libraryLimit(for: activeTier)
-        if activeTier.isAtLeast(.pro), localModelPreviewRemaining != 0 {
-            localModelPreviewRemaining = 0
-            persistPreviewState()
-        }
-    }
-
-    private func adjustPreviewAllowanceForTierChange(
-        from previousTier: WorkspaceTier,
-        to newTier: WorkspaceTier
-    ) {
-        guard previousTier != newTier else { return }
-        if newTier.isAtLeast(.pro), localModelPreviewRemaining != 0 {
-            localModelPreviewRemaining = 0
-            persistPreviewState()
-        }
-    }
-
-    private func maybeTrackPreviewConversion(for tier: WorkspaceTier, product: BillingProduct) {
-        guard tier.isAtLeast(.pro) else { return }
-        guard previewRunsConsumed > previewConversionLoggedRuns else { return }
-        previewConversionLoggedRuns = previewRunsConsumed
-        persistPreviewState()
-        TelemetryCenter.emitBillingEvent(
-            "preview_to_paid",
-            metadata: [
-                "product": product.rawValue,
-                "tier": tier.rawValue,
-                "preview_runs": String(previewRunsConsumed),
-            ]
-        )
     }
 }

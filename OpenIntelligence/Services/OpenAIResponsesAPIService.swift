@@ -2,10 +2,11 @@
 //  OpenAIResponsesAPIService.swift
 //  OpenIntelligence
 //
-//  GPT-5 Responses API implementation with reasoning effort and CoT passing.
-//  Only use this for GPT-5 models (gpt-5, gpt-5-mini, gpt-5-nano).
-//  For other models, use OpenAILLMService (Chat Completions API).
+//  NOTE: OpenAI Direct has been removed.
+//  This file remains in the project for historical reference, but is not compiled.
 //
+
+#if false
 
 import Foundation
 
@@ -16,54 +17,54 @@ class OpenAIResponsesAPIService: LLMService {
     private let apiKey: String
     private let model: String
     private let endpoint = "https://api.openai.com/v1/responses"
-    
+
     // Reasoning effort: minimal, low, medium, high
     var reasoningEffort: String = "medium"
-    
+
     // Verbosity: low, medium, high
     var verbosity: String = "medium"
-    
+
     // Store previous response ID for CoT passing
     private var lastResponseId: String?
-    
+
     var toolHandler: RAGToolHandler?
     var isAvailable: Bool { !apiKey.isEmpty }
     var modelName: String { model }
-    
+
     init(apiKey: String, model: String = "gpt-5", reasoningEffort: String = "medium", verbosity: String = "medium") {
         self.apiKey = apiKey
         self.model = model
         self.reasoningEffort = reasoningEffort
         self.verbosity = verbosity
-        
+
         if isAvailable {
             Log.debug("GPT-5 Responses API initialized (model=\(model), reasoningEffort=\(reasoningEffort), verbosity=\(verbosity))", category: .llm)
         }
     }
-    
+
     func generate(prompt: String, context: String?, config: InferenceConfig) async throws -> LLMResponse {
         guard !apiKey.isEmpty else {
             throw LLMError.modelUnavailable
         }
-        
+
         Log.debug("[GPT-5 Responses] Starting API call (model=\(model), reasoningEffort=\(reasoningEffort), verbosity=\(verbosity))", category: .llm)
-        
+
         let startTime = Date()
-        
+
         // Construct input with context if provided
         var input: String
         if let context = context, !context.isEmpty {
             input = """
             Here is relevant information from the documents:
-            
+
             \(context)
-            
+
             Based on this information, please answer: \(prompt)
             """
         } else {
             input = prompt
         }
-        
+
         // Build request body for Responses API
         var requestBody: [String: Any] = [
             "model": model,
@@ -77,36 +78,36 @@ class OpenAIResponsesAPIService: LLMService {
         if responsesToggle(.includeVerbosity, defaultValue: true) {
             requestBody["text"] = ["verbosity": verbosity]
         }
-        
+
         // Add previous_response_id for CoT passing if available
         if responsesToggle(.includeCoT, defaultValue: true), let prevId = lastResponseId {
             requestBody["previous_response_id"] = prevId
             Log.debug("[GPT-5 Responses] Passing previous response id", category: .llm)
         }
-        
+
         // Set max output tokens
         if responsesToggle(.includeMaxTokens, defaultValue: true), config.maxTokens > 0 {
             requestBody["max_output_tokens"] = config.maxTokens
         }
-        
+
         // Prepare HTTP request
         guard let url = URL(string: endpoint) else {
             throw LLMError.generationFailed("Invalid endpoint URL")
         }
-        
+
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
-        
+
         // Make API call
         let (data, response) = try await URLSession.shared.data(for: request)
-        
+
         guard let httpResponse = response as? HTTPURLResponse else {
             throw LLMError.generationFailed("Invalid response type")
         }
-        
+
         // Check for errors
         if httpResponse.statusCode != 200 {
             if let errorJson = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -116,37 +117,37 @@ class OpenAIResponsesAPIService: LLMService {
             }
             throw LLMError.generationFailed("OpenAI API error: HTTP \(httpResponse.statusCode)")
         }
-        
+
         // Parse response
         guard let responseJson = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw LLMError.generationFailed("Failed to parse JSON response")
         }
-        
+
         // Extract response ID for next turn
         if let responseId = responseJson["id"] as? String {
             lastResponseId = responseId
             Log.debug("[GPT-5 Responses] Stored response id", category: .llm)
         }
-        
+
         // Extract text from response
         guard let outputText = responseJson["output_text"] as? String else {
             throw LLMError.generationFailed("Missing output_text in response")
         }
-        
+
         // Extract usage stats
         var tokensGenerated = 0
         if let usage = responseJson["usage"] as? [String: Any],
            let outputTokens = usage["output_tokens"] as? Int {
             tokensGenerated = outputTokens
         }
-        
+
         let totalTime = Date().timeIntervalSince(startTime)
-        
+
         // Estimate TTFT (Responses API returns this in headers sometimes, but not always)
         let ttft = totalTime * 0.1  // Rough estimate: 10% of total time
-        
+
         Log.debug("[GPT-5 Responses] Generation complete (total=\(String(format: "%.2f", totalTime))s, outputTokens=\(tokensGenerated))", category: .performance)
-        
+
         return LLMResponse(
             text: outputText,
             tokensGenerated: tokensGenerated,
@@ -173,3 +174,5 @@ private extension OpenAIResponsesAPIService {
         return UserDefaults.standard.bool(forKey: key.rawValue)
     }
 }
+
+#endif

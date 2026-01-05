@@ -87,8 +87,7 @@ final class RAGPipelineTests: XCTestCase {
             name: "Test",
             embeddingProviderId: "mock",
             embeddingDim: 4,
-            vectorDBKind: .inMemory,
-            strictMode: false
+            vectorDBKind: .inMemory
         )
         containerService.setActive(testContainer.id)
 

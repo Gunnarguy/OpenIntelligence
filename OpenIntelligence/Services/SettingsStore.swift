@@ -24,10 +24,6 @@ final class SettingsStore: ObservableObject {
     /// Backing keys for settings stored in `UserDefaults`.
     private enum Keys {
         static let selectedModel = "selectedLLMModel" // LLMModelType.rawValue
-        static let openaiAPIKey = "openaiAPIKey"
-        static let openaiModel = "openaiModel"
-        static let preferPCC = "preferPrivateCloudCompute"
-        static let allowPCC = "allowPrivateCloudCompute"
         static let execContext = "executionContext" // "automatic" | "onDeviceOnly" | "preferCloud" | "cloudOnly"
         static let temperature = "llmTemperature" // Double
         static let maxTokens = "llmMaxTokens" // Int
@@ -37,7 +33,6 @@ final class SettingsStore: ObservableObject {
         static let presencePenalty = "llmPresencePenalty" // Double
         static let repetitionPenalty = "llmRepetitionPenalty" // Double
         static let systemPrompt = "llmSystemPrompt" // String
-        static let topK = "retrievalTopK" // Int
         static let lenient = "lenientRetrievalMode" // Bool
         static let enableFB1 = "enableFirstFallback" // Bool
         static let enableFB2 = "enableSecondFallback" // Bool
@@ -45,35 +40,27 @@ final class SettingsStore: ObservableObject {
         static let secondFB = "secondFallbackModel" // LLMModelType.rawValue
         static let primaryModelUserOverride = "primaryModelUserOverride"
 
-        // Responses API options (kept for future use)
-        static let responsesIncludeReasoning = "responsesIncludeReasoning"
-        static let responsesIncludeVerbosity = "responsesIncludeVerbosity"
-        static let responsesIncludeCoT = "responsesIncludeCoT"
-        static let responsesIncludeMaxTokens = "responsesIncludeMaxTokens"
-
         // Reviewer & consent
         static let reviewerModeEnabled = "reviewerModeEnabled"
         static let applePCCConsent = "cloudConsent.applePCC"
-        static let openAIConsent = "cloudConsent.openAI"
+
+        // Developer tuning
+        static let developerRAGTuning = "developer.ragAdvancedTuning"
+        static let reliabilityModeEnabled = "ragReliabilityModeEnabled"
 
         // Embedding provider
         static let defaultEmbeddingProvider = "defaultEmbeddingProvider"
         static let useHighAccuracyEmbeddings = "useHighAccuracyEmbeddings"
+
+        // Quality mode
+        static let ragQualityMode = "ragQualityMode" // "fast" | "balanced" | "thorough"
     }
 
     // MARK: - Published Settings (bind from UI)
 
     /// Primary inference pathway the user selected.
     @Published var selectedModel: LLMModelType
-    /// Stored OpenAI API key (kept for future/macOS use).
-    @Published var openaiAPIKey: String
-    /// Selected OpenAI model identifier.
-    @Published var openaiModel: String
 
-    /// Whether Private Cloud Compute should be preferred when available.
-    @Published var preferPrivateCloudCompute: Bool
-    /// Whether Private Cloud Compute requests are allowed at all.
-    @Published var allowPrivateCloudCompute: Bool
     /// Active execution strategy describing how queries are routed.
     @Published var executionContext: ExecutionContext
 
@@ -93,8 +80,6 @@ final class SettingsStore: ObservableObject {
     @Published var repetitionPenalty: Double
     /// System prompt to prepend to conversations.
     @Published var systemPrompt: String
-    /// Number of retrieved chunks per query.
-    @Published var topK: Int
 
     /// Loosens similarity thresholds during retrieval when enabled.
     @Published var lenientRetrievalMode: Bool
@@ -108,22 +93,15 @@ final class SettingsStore: ObservableObject {
     /// Secondary fallback when both primary and first fallback are unavailable.
     @Published var secondFallback: LLMModelType
 
-    // Responses API (OpenAI) options - kept for future use
-    /// Whether to send the ``reasoning`` flag to OpenAI Responses API.
-    @Published var responsesIncludeReasoning: Bool
-    /// Whether to request verbose traces from OpenAI Responses API.
-    @Published var responsesIncludeVerbosity: Bool
-    /// Whether to connect prior chain-of-thought traces when enabled upstream.
-    @Published var responsesIncludeCoT: Bool
-    /// Whether to explicitly enforce max token counts with the Responses API.
-    @Published var responsesIncludeMaxTokens: Bool
-
     /// Reviewer utilities toggle (exposes advanced controls in Settings).
     @Published var reviewerModeEnabled: Bool
     /// Saved consent preference for Apple PCC transmissions.
     @Published var applePCCConsent: CloudConsentState
-    /// Saved consent preference for OpenAI Direct transmissions.
-    @Published var openAIConsent: CloudConsentState
+
+    /// Developer-only: allow advanced RAG tuning controls.
+    @Published var developerRAGTuningEnabled: Bool
+    /// Reliability-first behavior: never surface user-facing errors; prefer best-effort fallbacks.
+    @Published var reliabilityModeEnabled: Bool
 
     // MARK: - Embedding Settings
 
@@ -133,6 +111,14 @@ final class SettingsStore: ObservableObject {
     /// When enabled, new containers use NLContextualEmbedding for 15-25% better accuracy.
     /// Requires iOS 17+ and downloads ~50MB model on first use.
     @Published var useHighAccuracyEmbeddings: Bool
+
+    // MARK: - Quality Mode
+
+    /// Controls the accuracy/speed tradeoff for RAG queries.
+    /// - fast: Quick responses with basic retrieval
+    /// - balanced: Good accuracy with smart context selection (default)
+    /// - thorough: Maximum accuracy with multi-pass verification
+    @Published var ragQualityMode: RAGQualityMode
 
     // MARK: - Infra
 
@@ -148,7 +134,7 @@ final class SettingsStore: ObservableObject {
     // MARK: - Model Availability
 
     /// Models that can be shown in the primary picker given current hardware.
-    /// Simplified: only Apple Intelligence and On-Device Analysis.
+    /// Primary LLM choices available to the user.
     var primaryModelOptions: [LLMModelType] {
         var options: [LLMModelType] = []
 
@@ -243,33 +229,17 @@ final class SettingsStore: ObservableObject {
             }
         }
 
-        if let stored = KeychainStorage.string(forKey: Keys.openaiAPIKey), !stored.isEmpty {
-            openaiAPIKey = stored
-        } else {
-            let legacy = defaults.string(forKey: Keys.openaiAPIKey) ?? ""
-            openaiAPIKey = legacy
-            if !legacy.isEmpty {
-                KeychainStorage.setString(legacy, forKey: Keys.openaiAPIKey)
-                defaults.removeObject(forKey: Keys.openaiAPIKey)
-            }
-        }
-        openaiModel = defaults.string(forKey: Keys.openaiModel) ?? "gpt-4o-mini"
-
-        preferPrivateCloudCompute = defaults.bool(forKey: Keys.preferPCC)
-        allowPrivateCloudCompute = defaults.object(forKey: Keys.allowPCC) as? Bool ?? true
-
         let execRaw = defaults.string(forKey: Keys.execContext) ?? "automatic"
         executionContext = ExecutionContext.from(raw: execRaw)
 
         temperature = (defaults.object(forKey: Keys.temperature) as? Double) ?? 0.7
-        maxTokens = (defaults.object(forKey: Keys.maxTokens) as? Int) ?? 512
-        contextLength = (defaults.object(forKey: Keys.contextLength) as? Int) ?? 2048
+        maxTokens = (defaults.object(forKey: Keys.maxTokens) as? Int) ?? 2048
+        contextLength = (defaults.object(forKey: Keys.contextLength) as? Int) ?? 4096
         topP = (defaults.object(forKey: Keys.topP) as? Double) ?? 0.9
         frequencyPenalty = (defaults.object(forKey: Keys.frequencyPenalty) as? Double) ?? 0.0
         presencePenalty = (defaults.object(forKey: Keys.presencePenalty) as? Double) ?? 0.0
         repetitionPenalty = (defaults.object(forKey: Keys.repetitionPenalty) as? Double) ?? 1.0
         systemPrompt = defaults.string(forKey: Keys.systemPrompt) ?? "You are a helpful assistant."
-        topK = (defaults.object(forKey: Keys.topK) as? Int) ?? 3
 
         lenientRetrievalMode = defaults.object(forKey: Keys.lenient) as? Bool ?? false
 
@@ -289,15 +259,6 @@ final class SettingsStore: ObservableObject {
             secondFallback = .onDeviceAnalysis
         }
 
-        responsesIncludeReasoning =
-            defaults.object(forKey: Keys.responsesIncludeReasoning) as? Bool ?? true
-        responsesIncludeVerbosity =
-            defaults.object(forKey: Keys.responsesIncludeVerbosity) as? Bool ?? true
-        responsesIncludeCoT =
-            defaults.object(forKey: Keys.responsesIncludeCoT) as? Bool ?? true
-        responsesIncludeMaxTokens =
-            defaults.object(forKey: Keys.responsesIncludeMaxTokens) as? Bool ?? true
-
         reviewerModeEnabled =
             defaults.object(forKey: Keys.reviewerModeEnabled) as? Bool ?? false
         #if !DEBUG
@@ -308,15 +269,22 @@ final class SettingsStore: ObservableObject {
         let appleConsentRaw = defaults.string(forKey: Keys.applePCCConsent)
         applePCCConsent =
             CloudConsentState(rawValue: appleConsentRaw ?? "") ?? .notDetermined
-        let openAIConsentRaw = defaults.string(forKey: Keys.openAIConsent)
-        openAIConsent =
-            CloudConsentState(rawValue: openAIConsentRaw ?? "") ?? .notDetermined
         hasUserPrimaryOverride =
             defaults.object(forKey: Keys.primaryModelUserOverride) as? Bool ?? false
+        developerRAGTuningEnabled = false
+        defaults.set(false, forKey: Keys.developerRAGTuning)
+        reliabilityModeEnabled =
+            defaults.object(forKey: Keys.reliabilityModeEnabled) as? Bool ?? true
 
-        // Embedding provider settings
-        defaultEmbeddingProvider = defaults.string(forKey: Keys.defaultEmbeddingProvider) ?? "nl_embedding"
-        useHighAccuracyEmbeddings = defaults.object(forKey: Keys.useHighAccuracyEmbeddings) as? Bool ?? false
+        // Embedding provider settings (accuracy-first defaults)
+        defaultEmbeddingProvider = defaults.string(forKey: Keys.defaultEmbeddingProvider) ?? "nl_contextual_embedding"
+        useHighAccuracyEmbeddings = defaults.object(forKey: Keys.useHighAccuracyEmbeddings) as? Bool ?? true
+
+        // Quality mode (balanced, always enforced)
+        ragQualityMode = .balanced
+        lenientRetrievalMode = false
+        defaults.set(false, forKey: Keys.lenient)
+        defaults.set(RAGQualityMode.balanced.rawValue, forKey: Keys.ragQualityMode)
 
         // Auto-upgrade from On-Device Analysis to Apple Intelligence if device is capable
         if selectedModel == .onDeviceAnalysis,
@@ -349,10 +317,6 @@ final class SettingsStore: ObservableObject {
         // Persist each setting change; coalesce downstream apply
         let publishers: [AnyPublisher<Void, Never>] = [
             $selectedModel.map { _ in () }.eraseToAnyPublisher(),
-            $openaiAPIKey.map { _ in () }.eraseToAnyPublisher(),
-            $openaiModel.map { _ in () }.eraseToAnyPublisher(),
-            $preferPrivateCloudCompute.map { _ in () }.eraseToAnyPublisher(),
-            $allowPrivateCloudCompute.map { _ in () }.eraseToAnyPublisher(),
             $executionContext.map { _ in () }.eraseToAnyPublisher(),
             $temperature.map { _ in () }.eraseToAnyPublisher(),
             $maxTokens.map { _ in () }.eraseToAnyPublisher(),
@@ -362,19 +326,14 @@ final class SettingsStore: ObservableObject {
             $presencePenalty.map { _ in () }.eraseToAnyPublisher(),
             $repetitionPenalty.map { _ in () }.eraseToAnyPublisher(),
             $systemPrompt.map { _ in () }.eraseToAnyPublisher(),
-            $topK.map { _ in () }.eraseToAnyPublisher(),
             $lenientRetrievalMode.map { _ in () }.eraseToAnyPublisher(),
             $enableFirstFallback.map { _ in () }.eraseToAnyPublisher(),
             $enableSecondFallback.map { _ in () }.eraseToAnyPublisher(),
             $firstFallback.map { _ in () }.eraseToAnyPublisher(),
             $secondFallback.map { _ in () }.eraseToAnyPublisher(),
-            $responsesIncludeReasoning.map { _ in () }.eraseToAnyPublisher(),
-            $responsesIncludeVerbosity.map { _ in () }.eraseToAnyPublisher(),
-            $responsesIncludeCoT.map { _ in () }.eraseToAnyPublisher(),
-            $responsesIncludeMaxTokens.map { _ in () }.eraseToAnyPublisher(),
             $reviewerModeEnabled.map { _ in () }.eraseToAnyPublisher(),
             $applePCCConsent.map { _ in () }.eraseToAnyPublisher(),
-            $openAIConsent.map { _ in () }.eraseToAnyPublisher(),
+            $reliabilityModeEnabled.map { _ in () }.eraseToAnyPublisher(),
             $defaultEmbeddingProvider.map { _ in () }.eraseToAnyPublisher(),
             $useHighAccuracyEmbeddings.map { _ in () }.eraseToAnyPublisher(),
         ]
@@ -390,6 +349,36 @@ final class SettingsStore: ObservableObject {
             .dropFirst()
             .sink { [weak self] _ in
                 self?.sanitizeModelSelectionForPlatform()
+            }
+            .store(in: &cancellables)
+
+        $developerRAGTuningEnabled
+            .dropFirst()
+            .sink { [weak self] _ in
+                guard let self else { return }
+                if self.developerRAGTuningEnabled {
+                    self.developerRAGTuningEnabled = false
+                }
+                if self.lenientRetrievalMode {
+                    self.lenientRetrievalMode = false
+                }
+                if self.ragQualityMode != .balanced {
+                    self.ragQualityMode = .balanced
+                }
+                self.defaults.set(false, forKey: Keys.developerRAGTuning)
+                self.defaults.set(false, forKey: Keys.lenient)
+                self.defaults.set(RAGQualityMode.balanced.rawValue, forKey: Keys.ragQualityMode)
+            }
+            .store(in: &cancellables)
+
+        $ragQualityMode
+            .dropFirst()
+            .sink { [weak self] mode in
+                guard let self else { return }
+                if mode != .balanced {
+                    self.ragQualityMode = .balanced
+                    self.defaults.set(RAGQualityMode.balanced.rawValue, forKey: Keys.ragQualityMode)
+                }
             }
             .store(in: &cancellables)
 
@@ -432,15 +421,6 @@ final class SettingsStore: ObservableObject {
     /// Writes the current in-memory values to `UserDefaults`.
     private func persistAll() {
         defaults.set(selectedModel.rawValue, forKey: Keys.selectedModel)
-        if openaiAPIKey.isEmpty {
-            KeychainStorage.removeValue(forKey: Keys.openaiAPIKey)
-        } else {
-            _ = KeychainStorage.setString(openaiAPIKey, forKey: Keys.openaiAPIKey)
-        }
-        defaults.set(openaiModel, forKey: Keys.openaiModel)
-
-        defaults.set(preferPrivateCloudCompute, forKey: Keys.preferPCC)
-        defaults.set(allowPrivateCloudCompute, forKey: Keys.allowPCC)
         defaults.set(executionContext.rawString, forKey: Keys.execContext)
 
         defaults.set(temperature, forKey: Keys.temperature)
@@ -451,7 +431,6 @@ final class SettingsStore: ObservableObject {
         defaults.set(presencePenalty, forKey: Keys.presencePenalty)
         defaults.set(repetitionPenalty, forKey: Keys.repetitionPenalty)
         defaults.set(systemPrompt, forKey: Keys.systemPrompt)
-        defaults.set(topK, forKey: Keys.topK)
 
         defaults.set(lenientRetrievalMode, forKey: Keys.lenient)
 
@@ -459,19 +438,18 @@ final class SettingsStore: ObservableObject {
         defaults.set(enableSecondFallback, forKey: Keys.enableFB2)
         defaults.set(firstFallback.rawValue, forKey: Keys.firstFB)
         defaults.set(secondFallback.rawValue, forKey: Keys.secondFB)
-
-        defaults.set(responsesIncludeReasoning, forKey: Keys.responsesIncludeReasoning)
-        defaults.set(responsesIncludeVerbosity, forKey: Keys.responsesIncludeVerbosity)
-        defaults.set(responsesIncludeCoT, forKey: Keys.responsesIncludeCoT)
-        defaults.set(responsesIncludeMaxTokens, forKey: Keys.responsesIncludeMaxTokens)
         defaults.set(reviewerModeEnabled, forKey: Keys.reviewerModeEnabled)
         defaults.set(applePCCConsent.rawValue, forKey: Keys.applePCCConsent)
-        defaults.set(openAIConsent.rawValue, forKey: Keys.openAIConsent)
         defaults.set(hasUserPrimaryOverride, forKey: Keys.primaryModelUserOverride)
+        defaults.set(developerRAGTuningEnabled, forKey: Keys.developerRAGTuning)
 
         // Embedding provider settings
         defaults.set(defaultEmbeddingProvider, forKey: Keys.defaultEmbeddingProvider)
         defaults.set(useHighAccuracyEmbeddings, forKey: Keys.useHighAccuracyEmbeddings)
+
+        // Quality mode
+        defaults.set(ragQualityMode.rawValue, forKey: Keys.ragQualityMode)
+        defaults.set(reliabilityModeEnabled, forKey: Keys.reliabilityModeEnabled)
     }
 
     // MARK: - Side Effects (Debounced)
@@ -483,11 +461,16 @@ final class SettingsStore: ObservableObject {
             metadata: [
                 "model": selectedModel.rawValue,
                 "exec": executionContext.rawString,
-                "openaiModel": openaiModel,
                 "fallbacks":
                     "\(enableFirstFallback ? "1" : "0")\(enableSecondFallback ? "+1" : "")",
             ]
         )
+
+        // Apply model/fallback routing changes to the active RAG pipeline.
+        // This keeps the UI picker in sync with the runtime service.
+        Task { @MainActor [weak ragService] in
+            await ragService?.rebuildLLMServicesFromSettings()
+        }
     }
 }
 
@@ -498,8 +481,6 @@ extension SettingsStore {
         switch provider {
         case .applePCC:
             return applePCCConsent
-        case .openAI:
-            return openAIConsent
         }
     }
 
@@ -511,8 +492,6 @@ extension SettingsStore {
         switch provider {
         case .applePCC:
             applePCCConsent = state
-        case .openAI:
-            openAIConsent = state
         }
         if propagateToRAG {
             ragService.setCloudConsentState(state, for: provider, propagateToSettings: false)
@@ -522,9 +501,9 @@ extension SettingsStore {
 
 // MARK: - Platform Normalisation
 
-extension SettingsStore {
+private extension SettingsStore { 
     /// Ensures persisted selections remain valid for the running platform.
-    fileprivate func sanitizeModelSelectionForPlatform() {
+    func sanitizeModelSelectionForPlatform() { 
         let primaryOptions = primaryModelOptions
         let fallbackUniverse = fallbackBaseOptions
 
@@ -584,7 +563,7 @@ extension SettingsStore {
         case .appleIntelligence:
             switch executionContext {
             case .automatic:
-                return "On-device with Private Cloud Compute fallback for complex queries"
+                return "Reliability-first auto routing (prefers PCC for library queries; falls back on-device)"
             case .onDeviceOnly:
                 return "On-device only (may fail for complex queries)"
             case .preferCloud:

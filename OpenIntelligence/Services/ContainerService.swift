@@ -56,8 +56,9 @@ final class ContainerService: ObservableObject {
         embeddingProviderId: String = "nl_embedding",
         embeddingDim: Int = 512,
         vectorDBKind: VectorDBKind = .persistentJSON,
-        strictMode: Bool = true
+        retrievalConfig: RetrievalConfig? = nil
     ) -> KnowledgeContainer {
+        let effectiveRetrievalConfig = retrievalConfig ?? .default
         let container = KnowledgeContainer(
             name: name,
             icon: icon,
@@ -66,7 +67,7 @@ final class ContainerService: ObservableObject {
             embeddingProviderId: embeddingProviderId,
             embeddingDim: embeddingDim,
             vectorDBKind: vectorDBKind,
-            strictMode: strictMode
+            retrievalConfig: effectiveRetrievalConfig
         )
         containers.append(container)
         Self.saveContainers(containers)
@@ -160,7 +161,7 @@ final class ContainerService: ObservableObject {
             embeddingProviderId: "nl_embedding",
             embeddingDim: 512,
             vectorDBKind: .persistentJSON,
-            strictMode: true
+            retrievalConfig: .default
         )
     }
 }

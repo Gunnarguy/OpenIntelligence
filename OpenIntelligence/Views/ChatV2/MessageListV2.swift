@@ -39,70 +39,93 @@ struct MessageListV2: View {
     }
 
     var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(spacing: 16) {
-                    if messages.isEmpty {
-                        EmptyStateV2()
-                            .id("empty")
-                            .padding(.top, 100)
-                    } else {
-                        ForEach($messages) { $message in
-                            let snapshot = $message.wrappedValue
-                            MessageBubbleV2(
-                                message: $message,
-                                onRegenerate: snapshot.role == .assistant ? { onRegenerate?(snapshot) } : nil,
-                                onThumbsUp: snapshot.role == .assistant ? onThumbsUp : nil,
-                                onThumbsDown: snapshot.role == .assistant ? onThumbsDown : nil
-                            )
-                            .id(snapshot.id)
-                            .transition(.asymmetric(
-                                insertion: .opacity.combined(with: .move(edge: .bottom)),
-                                removal: .opacity
-                            ))
-                        }
+        GeometryReader { outerGeo in
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(spacing: 16) {
+                        if messages.isEmpty {
+                            EmptyStateV2()
+                                .id("empty")
+                                .padding(.top, 100)
+                        } else {
+                            ForEach($messages) { $message in
+                                let snapshot = $message.wrappedValue
+                                MessageBubbleV2(
+                                    message: $message,
+                                    onRegenerate: snapshot.role == .assistant ? { onRegenerate?(snapshot) } : nil,
+                                    onThumbsUp: snapshot.role == .assistant ? onThumbsUp : nil,
+                                    onThumbsDown: snapshot.role == .assistant ? onThumbsDown : nil
+                                )
+                                .id(snapshot.id)
+                                .transition(.asymmetric(
+                                    insertion: .opacity.combined(with: .move(edge: .bottom)),
+                                    removal: .opacity
+                                ))
+                            }
 
-                        // Streaming message with live metrics
-                        if isStreaming && !streamingText.isEmpty {
-                            StreamingBubbleV2(
-                                text: streamingText,
-                                generationStart: generationStart
-                            )
-                            .id("streaming")
-                            .transition(.opacity)
-                        }
+                            // Streaming message with live metrics
+                            if isStreaming, !streamingText.isEmpty {
+                                StreamingBubbleV2(
+                                    text: streamingText
+                                )
+                                .id("streaming")
+                                    .transition(.opacity)
+                            }
 
-                        // Bottom anchor
-                        Color.clear.frame(height: 1).id("bottom")
+                            // Bottom anchor
+                            Color.clear
+                                .frame(height: 1)
+                                .id("bottom")
+                                .background(BottomAnchorGeometry())
+                        }
                     }
+                    .padding(.horizontal, 16)
+                        .padding(.vertical, 16)
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 16)
-            }
-            .onAppear {
-                scrollProxy = proxy
-                scrollToBottom(proxy: proxy, animated: false)
-            }
-            .onChange(of: messages.count) { _, _ in
-                scrollToBottom(proxy: proxy, animated: true)
-            }
-            .onChange(of: streamingText) { _, _ in
-                if isStreaming {
-                    scrollToBottom(proxy: proxy, animated: false)
+.coordinateSpace(name: "MessageListV2Scroll")
+    .scrollDismissesKeyboard(.interactively)
+.onAppear {
+    scrollProxy = proxy
+    scrollToBottom(proxy: proxy, animated: false)
+}
+.onChange(of: messages.count) { _, _ in
+                    guard isPinnedToBottom else { return }
+                    scrollToBottom(proxy: proxy, animated: true)
                 }
+.onChange(of: streamingText) { _, newText in
+    // Scroll smoothly during streaming - every ~80 chars for smooth following
+    if isStreaming, isPinnedToBottom {
+        // Use character count modulo to throttle without losing smoothness
+        let shouldScroll = newText.count % 80 < 20
+        if shouldScroll {
+            scrollToBottom(proxy: proxy, animated: false)
+        }
+    }
+}
+.onPreferenceChange(BottomAnchorYPreferenceKey.self) { bottomMinY in
+    // In the scroll view's coordinate space, the visible region is roughly 0...outerGeo.size.height.
+    // When the bottom anchor drifts below the visible region, the user has scrolled up.
+    let threshold: CGFloat = 80
+    isPinnedToBottom = bottomMinY <= outerGeo.size.height + threshold
+}
             }
         }
     }
 
     private func scrollToBottom(proxy: ScrollViewProxy, animated: Bool) {
         if animated {
-            withAnimation(.easeOut(duration: 0.2)) {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { 
                 proxy.scrollTo("bottom", anchor: .bottom)
             }
         } else {
-            proxy.scrollTo("bottom", anchor: .bottom)
+            // Smooth micro-animation for streaming - keeps text visible without jarring
+            withAnimation(.easeOut(duration: 0.12)) { 
+                proxy.scrollTo("bottom", anchor: .bottom)
+            }
         }
     }
+
+    @State private var isPinnedToBottom: Bool = true
 }
 
 // Empty state
@@ -138,26 +161,8 @@ private struct EmptyStateV2: View {
 
 private struct StreamingBubbleV2: View {
     let text: String
-    let generationStart: Date?
 
     @State private var cursorVisible = true
-    @State private var speedHistory: [Double] = []
-    @State private var lastTokenCount: Int = 0
-    @State private var lastSpeedUpdate: Date = .init()
-
-    private var tokensApprox: Int {
-        text.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
-    }
-
-    private var elapsedTime: TimeInterval {
-        guard let start = generationStart else { return 0 }
-        return Date().timeIntervalSince(start)
-    }
-
-    private var tokensPerSecond: Double {
-        guard elapsedTime > 0.1 else { return 0 }
-        return Double(tokensApprox) / elapsedTime
-    }
 
     var body: some View {
         HStack(alignment: .bottom, spacing: 0) {
@@ -176,15 +181,6 @@ private struct StreamingBubbleV2: View {
                         .frame(width: 2, height: 16)
                         .opacity(cursorVisible ? 1 : 0)
                 }
-
-                // Live streaming metrics bar
-                LiveStreamingMetrics(
-                    tokensApprox: tokensApprox,
-                    tokensPerSecond: tokensPerSecond,
-                    characterCount: text.count,
-                    elapsedTime: elapsedTime,
-                    speedHistory: speedHistory
-                )
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
@@ -199,22 +195,26 @@ private struct StreamingBubbleV2: View {
                 cursorVisible.toggle()
             }
         }
-        .onChange(of: tokensApprox) { _, newCount in
-            // Update speed history every ~10 tokens
-            if newCount - lastTokenCount >= 5 {
-                let now = Date()
-                let interval = now.timeIntervalSince(lastSpeedUpdate)
-                if interval > 0.1 {
-                    let recentSpeed = Double(newCount - lastTokenCount) / interval
-                    speedHistory.append(recentSpeed)
-                    // Keep last 20 samples
-                    if speedHistory.count > 20 {
-                        speedHistory.removeFirst()
-                    }
-                    lastTokenCount = newCount
-                    lastSpeedUpdate = now
-                }
-            }
+    }
+}
+
+// MARK: - Bottom Anchor Visibility
+
+private struct BottomAnchorYPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = .infinity
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
+private struct BottomAnchorGeometry: View {
+    var body: some View {
+        GeometryReader { geo in
+            Color.clear
+                .preference(
+                    key: BottomAnchorYPreferenceKey.self,
+                    value: geo.frame(in: .named("MessageListV2Scroll")).minY
+                )
         }
     }
 }

@@ -2,7 +2,8 @@
 //  SettingsView.swift
 //  OpenIntelligence
 //
-//  Simplified settings view. Only Apple Intelligence and On-Device Analysis are supported.
+//  Comprehensive settings for the RAG pipeline and AI experience.
+//  Optimized for Apple Intelligence with Private Cloud Compute.
 //
 
 import SwiftUI
@@ -14,31 +15,45 @@ struct SettingsView: View {
 
     @State private var deviceCapabilities = DeviceCapabilities()
     @State private var pipelineStages: [ModelPipelineStage] = []
-    @State private var showModelSelector = false
     @State private var showPlanSheet = false
     @State private var planEntryPoint: PlanUpgradeEntryPoint = .settings
+    @State private var showAdvancedGeneration = false
 
     var body: some View {
         ScrollView {
-            LazyVStack(spacing: 20) {
+            LazyVStack(spacing: 16) {
+                // Hero & Core Experience
                 heroCard
-                billingCard
                 modelSelectionCard
-                executionCard
-                cloudConsentCard
-                fallbackCard
+
+                // Privacy & Execution (combined)
+                privacyExecutionCard
+
+                // Subscription
+                billingCard
+
+                // Fine-Tuning
                 generationCard
                 retrievalCard
+
+                // Context & Performance
+                contextWindowCard
+
+                // More
                 developerCard
                 aboutCard
             }
 .padding()
         }
-.background(DSColors.background.ignoresSafeArea())
-    .navigationTitle("Settings")
-.sheet(isPresented: $showModelSelector) {
-    ModelSelectorSheet(ragService: ragService)
-        }
+.background(
+    LinearGradient(
+        colors: [DSColors.background, DSColors.surface.opacity(0.3)],
+        startPoint: .top,
+        endPoint: .bottom
+    )
+    .ignoresSafeArea()
+)
+.navigationTitle("Settings")
         .sheet(isPresented: $showPlanSheet) {
             PlanUpgradeSheet(entryPoint: planEntryPoint)
         }
@@ -55,30 +70,79 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var heroCard: some View {
-        VStack(spacing: 12) {
-            Image(systemName: settings.selectedModel.iconName)
-                .font(.system(size: 48))
-                .foregroundColor(.accentColor)
-            Text(settings.selectedModel.displayName)
-                .font(.title2.bold())
-            Text(statusText)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
+        VStack(spacing: 16) {
+            // Animated icon with gradient background
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.accentColor.opacity(0.3), Color.accentColor.opacity(0.1)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 80, height: 80)
+
+                Image(systemName: "brain.head.profile.fill")
+                    .font(.system(size: 36))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.accentColor, .accentColor.opacity(0.7)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+            }
+
+            VStack(spacing: 4) {
+                Text("OpenIntelligence")
+                    .font(.title2.bold())
+
+                Text(statusText)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
+
+            // Pipeline status pills
+            HStack(spacing: 8) {
+                statusPill(
+                    icon: "checkmark.circle.fill",
+                    text: "On-Device",
+                    active: deviceCapabilities.supportsFoundationModels
+                )
+                statusPill(
+                    icon: "cloud.fill",
+                    text: "PCC",
+                    active: settings.executionContext != .onDeviceOnly
+                )
+            }
         }
 .frame(maxWidth: .infinity)
 .padding(.vertical, 24)
     .background(DSColors.surface)
-    .clipShape(RoundedRectangle(cornerRadius: 16))
+.clipShape(RoundedRectangle(cornerRadius: 20))
+    }
+
+    @ViewBuilder
+    private func statusPill(icon: String, text: String, active: Bool) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.caption2)
+            Text(text)
+                .font(.caption2.weight(.medium))
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(active ? Color.accentColor.opacity(0.15) : Color.secondary.opacity(0.1))
+        .foregroundColor(active ? .accentColor : .secondary)
+        .clipShape(Capsule())
     }
 
     private var statusText: String {
-        switch settings.selectedModel {
-        case .appleIntelligence:
-            return deviceCapabilities.supportsFoundationModels
-                ? "Ready • On-device + PCC"
-                : "Preparing..."
-        case .onDeviceAnalysis:
-            return "Ready • Extractive QA"
+        if deviceCapabilities.supportsFoundationModels {
+            return "Apple Intelligence Ready"
+        } else {
+            return "Preparing AI Models..."
         }
     }
 
@@ -199,126 +263,365 @@ Text(label)
     private var modelSelectionCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Image(systemName: "brain.head.profile")
+                Image(systemName: "apple.logo")
                     .foregroundColor(.accentColor)
-                Text("AI Model")
+                Text("Apple Intelligence")
                     .font(.headline)
                 Spacer()
+
+                // Availability indicator
+                if deviceCapabilities.supportsAppleIntelligence {
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(Color.green)
+                            .frame(width: 8, height: 8)
+                        Text("Available")
+                            .font(.caption2.weight(.medium))
+                            .foregroundColor(.green)
+                    }
+                }
             }
 
-            Button {
-                showModelSelector = true
-            } label: {
-                HStack {
-                    Image(systemName: settings.selectedModel.iconName)
-                        .font(.title2)
-                        .foregroundColor(.accentColor)
+            // Model info (not a button since there's only one option)
+            HStack { 
+                Image(systemName: "brain.head.profile.fill")
+                    .font(.title2)
+.foregroundStyle(
+    LinearGradient(
+        colors: [.accentColor, .purple],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
+)
 .frame(width: 40)
-VStack(alignment: .leading, spacing: 2) { 
-                        Text(settings.selectedModel.displayName)
-.font(.body)
-Text(settings.selectedModel.description)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-.lineLimit(1)
-                    }
-                    Spacer()
-                    Image(systemName: "chevron.right")
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("On-Device Foundation Model")
+                        .font(.subheadline.weight(.medium))
+                    Text("~3B parameters • 2-bit quantized • Neural Engine optimized")
+                        .font(.caption)
                         .foregroundColor(.secondary)
                 }
-.padding(12)
-    .background(Color.accentColor.opacity(0.1))
+                Spacer()
+            }
+            .padding(12)
+.background(Color.accentColor.opacity(0.08))
     .clipShape(RoundedRectangle(cornerRadius: 12))
+
+            // Model capabilities
+            HStack(spacing: 12) {
+                modelCapabilityPill(icon: "text.bubble.fill", label: "Text Generation")
+                modelCapabilityPill(icon: "wrench.and.screwdriver.fill", label: "Tool Calling")
+                modelCapabilityPill(icon: "doc.text.fill", label: "RAG-Ready")
             }
-.buttonStyle(.plain)
         }
 .padding()
     .background(DSColors.surface)
     .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
-    // MARK: - Execution Card
+    @ViewBuilder
+    private func modelCapabilityPill(icon: String, label: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.caption2)
+            Text(label)
+                .font(.caption2)
+        }
+        .foregroundColor(.accentColor)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(Color.accentColor.opacity(0.1))
+        .clipShape(Capsule())
+    }
+
+    // MARK: - Privacy & Execution Card (Combined)
 
     @ViewBuilder
-    private var executionCard: some View { 
-        VStack(alignment: .leading, spacing: 12) { 
+    private var privacyExecutionCard: some View {
+        VStack(alignment: .leading, spacing: 16) {
             HStack { 
-                Image(systemName: "gearshape.2")
-                    .foregroundColor(.accentColor)
-                Text("Execution")
-                    .font(.headline)
+                Image(systemName: "lock.shield.fill")
+                    .font(.title3)
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.green, .blue],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Privacy & Execution")
+                        .font(.headline)
+                    Text("Apple Intelligence routing")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
                 Spacer()
+
+                // Status indicator
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(settings.executionContext == .onDeviceOnly ? Color.orange : Color.green)
+                        .frame(width: 8, height: 8)
+                    Text(settings.executionContext == .onDeviceOnly ? "Local Only" : "Full")
+                        .font(.caption2.weight(.medium))
+                        .foregroundColor(settings.executionContext == .onDeviceOnly ? .orange : .green)
+                }
             }
 
-            Picker("Run on", selection: Binding(
-                get: { settings.executionContext },
-                set: { settings.executionContext = $0 }
-            )) {
-                Text("Auto").tag(ExecutionContext.automatic)
-                Text("On-Device").tag(ExecutionContext.onDeviceOnly)
-                Text("Prefer Cloud").tag(ExecutionContext.preferCloud)
-                Text("Cloud Only").tag(ExecutionContext.cloudOnly)
+            // Automatic Routing Explanation
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    Image(systemName: "gearshape.2.fill")
+                        .font(.caption)
+                        .foregroundColor(.accentColor)
+                    Text("How Apple Routes Queries")
+                        .font(.subheadline.weight(.medium))
+                }
+
+                Text("OpenIntelligence is reliability-first: for library queries it prefers Private Cloud Compute when allowed, then additionally uses Apple's routing (complexity, context length, thermals, battery, privacy).")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                // Routing factors visualization
+                HStack(spacing: 8) {
+                    routingFactorPill(icon: "brain.head.profile", label: "Complexity")
+                    routingFactorPill(icon: "thermometer.medium", label: "Thermals")
+                    routingFactorPill(icon: "battery.100percent", label: "Battery")
+                }
             }
-.pickerStyle(.segmented)
+            .padding(10)
+            .background(Color.accentColor.opacity(0.06))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+
+            Divider()
+
+            // Execution Context Picker
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Execution Strategy")
+                    .font(.subheadline.weight(.medium))
+
+                Picker("Execution Strategy", selection: $settings.executionContext) {
+                    Text("Automatic (Reliability-first)").tag(ExecutionContext.automatic)
+                    Text("On-Device Only").tag(ExecutionContext.onDeviceOnly)
+                    Text("Prefer Cloud").tag(ExecutionContext.preferCloud)
+                    Text("Cloud Only").tag(ExecutionContext.cloudOnly)
+                }
+                .pickerStyle(.segmented)
+
+                // Context Description
+                Text(settings.executionPathDescription)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if settings.executionContext != .onDeviceOnly {
+                    // PCC Benefits
+                    VStack(alignment: .leading, spacing: 6) {
+                        pccBenefitRow(icon: "checkmark.shield.fill", text: "End-to-end encrypted, no data retention", color: .green)
+                        pccBenefitRow(icon: "eye.slash.fill", text: "Apple cannot see your prompts or responses", color: .green)
+                        pccBenefitRow(icon: "doc.viewfinder", text: "Cryptographically verifiable by security researchers", color: .green)
+                        pccBenefitRow(icon: "brain", text: "Long-context PT-MoE routing (~65K tokens)", color: .blue)
+                    }
+                    .padding(.leading, 4)
+                    .padding(.top, 4)
+                } else {
+                    // Limitations when PCC disabled
+                    VStack(alignment: .leading, spacing: 6) {
+                        pccBenefitRow(icon: "iphone", text: "All processing stays on your device", color: .orange)
+                        pccBenefitRow(icon: "exclamationmark.triangle.fill", text: "Complex queries may fail or be truncated", color: .orange)
+                        pccBenefitRow(icon: "ruler", text: "Limited to 4,096 token context window", color: .orange)
+                    }
+                    .padding(.leading, 4)
+                    .padding(.top, 4)
+                }
+            }
+
+            // Smart tip when PCC is unavailable
+            if settings.executionContext == .onDeviceOnly {
+                HStack(spacing: 8) {
+                    Image(systemName: "lightbulb.fill")
+                        .foregroundColor(.yellow)
+                    Text("Tip: PCC unlocks long-context coverage and reduces on-device truncation.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .padding(10)
+                .background(Color.yellow.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
         }
 .padding()
     .background(DSColors.surface)
     .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
-    // MARK: - Cloud Consent Card
+    @ViewBuilder
+    private func routingFactorPill(icon: String, label: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.caption2)
+            Text(label)
+                .font(.caption2)
+        }
+        .foregroundColor(.secondary)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(Color.secondary.opacity(0.1))
+        .clipShape(Capsule())
+    }
 
     @ViewBuilder
-    private var cloudConsentCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
+    private func pccBenefitRow(icon: String, text: String, color: Color) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.caption)
+                .foregroundColor(color)
+                .frame(width: 16)
+            Text(text)
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private func processingModeCompare(icon: String, title: String, pros: String, cons: String, isActive: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.caption)
+                Text(title)
+                    .font(.caption.weight(.medium))
+            }
+            .foregroundColor(isActive ? .accentColor : .secondary)
+
+            Text(pros)
+                .font(.caption2)
+                .foregroundColor(.green)
+            Text(cons)
+                .font(.caption2)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(8)
+        .background(isActive ? Color.accentColor.opacity(0.08) : Color.clear)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    // MARK: - Context Window Card
+
+    @ViewBuilder
+    private var contextWindowCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
             HStack { 
-                Image(systemName: "lock.shield")
+                Image(systemName: "doc.text.magnifyingglass")
                     .foregroundColor(.accentColor)
-                Text("Privacy")
+                Text("Context & Processing")
                     .font(.headline)
                 Spacer()
             }
 
-            Toggle("Allow Private Cloud Compute", isOn: $settings.allowPrivateCloudCompute)
+            // Context Window Limit explanation
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    Image(systemName: "ruler")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                    Text("Context Window")
+                        .font(.subheadline.weight(.medium))
+                }
 
-            if settings.allowPrivateCloudCompute {
-                Text("Apple's PCC provides cryptographic privacy guarantees. Your data is never retained.")
+                Text("On-device context is capped at 4,096 tokens. When PCC is allowed, OpenIntelligence prefers long-context routing (~65K) for library queries to maximize coverage.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                HStack(spacing: 12) {
+                    contextInfoPill(icon: "iphone", label: "On-Device", value: "4K tokens")
+                    contextInfoPill(icon: "cloud", label: "PCC Server", value: "65K tokens")
+                }
+            }
+.padding(10)
+    .background(Color.orange.opacity(0.08))
+    .clipShape(RoundedRectangle(cornerRadius: 10))
+
+Divider()
+
+// Neural Engine info
+VStack(alignment: .leading, spacing: 8) {
+    HStack(spacing: 8) {
+        Image(systemName: "cpu")
+            .font(.caption)
+            .foregroundColor(.purple)
+        Text("Neural Engine Processing")
+            .font(.subheadline.weight(.medium))
+    }
+
+                Text("Apple Intelligence uses the dedicated Neural Engine (16-core on A17+) for efficient inference. The system daemon modelmanagerd automatically routes queries based on complexity, thermal state, and battery level.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                HStack(spacing: 16) {
+                    neuralEngineInfoRow(icon: "thermometer.medium", label: "Thermal-aware")
+                    neuralEngineInfoRow(icon: "battery.75percent", label: "Battery-aware")
+                    neuralEngineInfoRow(icon: "bolt.badge.automatic", label: "Auto-routing")
+                }
+            }
+.padding(10)
+    .background(Color.purple.opacity(0.08))
+    .clipShape(RoundedRectangle(cornerRadius: 10))
+
+Divider()
+
+// Language Support
+VStack(alignment: .leading, spacing: 8) {
+    HStack(spacing: 8) {
+        Image(systemName: "globe")
+            .font(.caption)
+            .foregroundColor(.blue)
+        Text("Language Support")
+            .font(.subheadline.weight(.medium))
+                }
+
+                Text("Apple Intelligence supports English, Spanish, French, German, Italian, Japanese, Korean, Portuguese, and Chinese. Short single-word queries may require more context for accurate processing.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
+.padding(10)
+    .background(Color.blue.opacity(0.08))
+    .clipShape(RoundedRectangle(cornerRadius: 10))
         }
 .padding()
     .background(DSColors.surface)
     .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
-    // MARK: - Fallback Card
+    @ViewBuilder
+    private func contextInfoPill(icon: String, label: String, value: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.caption2)
+            Text(label)
+                .font(.caption2)
+            Text(value)
+                .font(.caption2.weight(.semibold))
+        }
+        .foregroundColor(.secondary)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(Color.secondary.opacity(0.1))
+        .clipShape(Capsule())
+    }
 
     @ViewBuilder
-    private var fallbackCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "arrow.triangle.2.circlepath")
-                    .foregroundColor(.accentColor)
-                Text("Fallbacks")
-                    .font(.headline)
-                Spacer()
-            }
-
-            Toggle("Enable Fallback", isOn: $settings.enableFirstFallback)
-
-            if settings.enableFirstFallback {
-                Picker("Fallback Model", selection: $settings.firstFallback) {
-                    ForEach(settings.fallbackOptions(excluding: [settings.selectedModel]), id: \.self) { m in
-                        Text(m.displayName).tag(m)
-                    }
-                }
-.pickerStyle(.menu)
-            }
+    private func neuralEngineInfoRow(icon: String, label: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.caption2)
+            Text(label)
+                .font(.caption2)
         }
-.padding()
-    .background(DSColors.surface)
-    .clipShape(RoundedRectangle(cornerRadius: 16))
+        .foregroundColor(.secondary)
     }
 
     // MARK: - Generation Card
@@ -327,34 +630,78 @@ Text(settings.selectedModel.description)
     private var generationCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack { 
-                Image(systemName: "slider.horizontal.3")
+                Image(systemName: "text.bubble.fill")
                     .foregroundColor(.accentColor)
                 Text("Generation")
                     .font(.headline)
                 Spacer()
+
+                Button {
+                    withAnimation {
+                        showAdvancedGeneration.toggle()
+                    }
+                } label: {
+                    Text(showAdvancedGeneration ? "Simple" : "Advanced")
+                        .font(.caption.weight(.medium))
+                        .foregroundColor(.accentColor)
+                }
             }
 
-            VStack(alignment: .leading, spacing: 8) { 
-                HStack {
-                    Text("Temperature")
-                    Spacer()
-                    Text(String(format: "%.2f", settings.temperature))
-                        .foregroundColor(.secondary)
-                }
-                Slider(value: $settings.temperature, in: 0 ... 2, step: 0.05)
-            }
+            // Temperature
+            sliderRow(
+                label: "Temperature",
+                value: $settings.temperature,
+                range: 0 ... 2,
+                step: 0.05,
+                format: "%.2f",
+                description: settings.temperature < 0.5 ? "Focused" : settings.temperature > 1.0 ? "Creative" : "Balanced"
+            )
 
-            VStack(alignment: .leading, spacing: 8) { 
-                HStack {
-                    Text("Max Tokens")
-                    Spacer()
-                    Text("\(settings.maxTokens)")
-                        .foregroundColor(.secondary)
-                }
-                Slider(value: Binding(
+            // Max Tokens
+            sliderRow(
+                label: "Max Response Length",
+                value: Binding(
                     get: { Double(settings.maxTokens) },
                     set: { settings.maxTokens = Int($0) }
-                ), in: 100 ... 4000, step: 100)
+                ),
+                range: 512 ... 8192,
+                step: 256,
+                format: "%.0f",
+                description: "\(settings.maxTokens) tokens ≈ \(settings.maxTokens * 3 / 4) words max"
+            )
+
+            if showAdvancedGeneration {
+                Divider()
+
+                // Top P
+                sliderRow(
+                    label: "Top P (Nucleus)",
+                    value: $settings.topP,
+                    range: 0 ... 1,
+                    step: 0.05,
+                    format: "%.2f",
+                    description: "Cumulative probability cutoff"
+                )
+
+                // Frequency Penalty
+                sliderRow(
+                    label: "Frequency Penalty",
+                    value: $settings.frequencyPenalty,
+                    range: 0 ... 2,
+                    step: 0.1,
+                    format: "%.1f",
+                    description: "Reduces repetition of tokens"
+                )
+
+                // Presence Penalty
+                sliderRow(
+                    label: "Presence Penalty",
+                    value: $settings.presencePenalty,
+                    range: 0 ... 2,
+                    step: 0.1,
+                    format: "%.1f",
+                    description: "Encourages new topics"
+                )
             }
         }
 .padding()
@@ -362,36 +709,52 @@ Text(settings.selectedModel.description)
     .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
+    @ViewBuilder
+    private func sliderRow(
+        label: String,
+        value: Binding<Double>,
+        range: ClosedRange<Double>,
+        step: Double,
+        format: String,
+        description: String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(label)
+                    .font(.subheadline)
+                Spacer()
+                Text(String(format: format, value.wrappedValue))
+                    .font(.subheadline.monospacedDigit())
+                    .foregroundColor(.accentColor)
+            }
+            Slider(value: value, in: range, step: step)
+                .tint(.accentColor)
+            Text(description)
+                .font(.caption2)
+                .foregroundColor(.secondary)
+        }
+    }
+
     // MARK: - Retrieval Card
 
     @ViewBuilder
     private var retrievalCard: some View {
-        VStack(alignment: .leading, spacing: 12) { 
+        VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Image(systemName: "magnifyingglass")
                     .foregroundColor(.accentColor)
-                Text("Retrieval")
+                Text("Balanced Retrieval")
                     .font(.headline)
                 Spacer()
             }
 
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("Top K")
-                    Spacer()
-                    Text("\(settings.topK)")
-                        .foregroundColor(.secondary)
-                }
-                Slider(value: Binding(
-                    get: { Double(settings.topK) },
-                    set: { settings.topK = Int($0) }
-                ), in: 1 ... 20, step: 1)
-            }
-
+            Text("Balanced retrieval favors coverage and relevance without hard gating that blocks answers.")
+                .font(.caption)
+                .foregroundColor(.secondary)
         }
-.padding()
-    .background(DSColors.surface)
-    .clipShape(RoundedRectangle(cornerRadius: 16))
+        .padding()
+            .background(DSColors.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
     // MARK: - Developer Card
@@ -399,15 +762,29 @@ Text(settings.selectedModel.description)
     @ViewBuilder
     private var developerCard: some View {
         NavigationLink {
-            DeveloperSettingsView()
+            DeveloperDiagnosticsHubView(ragService: ragService)
         } label: { 
-            HStack {
-                Image(systemName: "wrench.and.screwdriver")
-                    .foregroundColor(.accentColor)
-                Text("Developer & Diagnostics")
-                    .font(.headline)
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(Color.orange.opacity(0.15))
+                        .frame(width: 36, height: 36)
+                    Image(systemName: "wrench.and.screwdriver.fill")
+                        .foregroundColor(.orange)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Developer & Diagnostics")
+.font(.subheadline.weight(.medium))
+Text("RAG audit, diagnostics, advanced tuning")
+    .font(.caption)
+    .foregroundColor(.secondary)
+                }
+
                 Spacer()
+
                 Image(systemName: "chevron.right")
+.font(.caption.weight(.semibold))
                     .foregroundColor(.secondary)
             }
 .padding()
@@ -424,16 +801,27 @@ Text(settings.selectedModel.description)
         NavigationLink {
             AboutView()
         } label: { 
-            HStack { 
-                Image(systemName: "info.circle")
-                    .foregroundColor(.accentColor)
-                Text("About")
-                    .font(.headline)
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(Color.blue.opacity(0.15))
+                        .frame(width: 36, height: 36)
+                    Image(systemName: "info.circle.fill")
+                        .foregroundColor(.blue)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("About")
+.font(.subheadline.weight(.medium))
+Text("Version \(Bundle.main.appVersion)")
+    .font(.caption)
+    .foregroundColor(.secondary)
+                }
+
                 Spacer()
-                Text(Bundle.main.appVersion)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
+
                 Image(systemName: "chevron.right")
+.font(.caption.weight(.semibold))
                     .foregroundColor(.secondary)
             }
 .padding()
@@ -451,7 +839,7 @@ Text(settings.selectedModel.description)
                 name: "Embedding",
                 role: .primary,
                 detail: "NLEmbedding (512-dim)",
-                status: .active, 
+                status: .active,
                 icon: "rectangle.3.group"
             ),
             ModelPipelineStage(

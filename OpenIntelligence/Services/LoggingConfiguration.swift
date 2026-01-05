@@ -37,7 +37,7 @@ nonisolated enum LoggingConfiguration {
     /// Backing store for `currentLevel`. Access via the lock-guarded computed property.
     private static var _currentLevel: Level = {
         #if DEBUG
-            return .warning // Default to warning in debug builds (less noise)
+            return .verbose // Maximum logging in debug builds
         #else
             return .error // Only errors in release builds
         #endif
@@ -60,7 +60,7 @@ nonisolated enum LoggingConfiguration {
     /// Enable/disable specific logging categories
     private static var _enabledCategories: Set<Category> = {
         #if DEBUG
-            return [.llm, .telemetry, .billing] // Essential categories only
+            return Set(Category.allCases) // All categories in debug builds
         #else
             return [] // Minimal logging in release
         #endif
@@ -81,7 +81,7 @@ nonisolated enum LoggingConfiguration {
     }
 
     /// Logging categories for fine-grained control
-    enum Category: Hashable, Sendable {
+    enum Category: Hashable, Sendable, CaseIterable {
         case initialization // App/service startup
         case ingestion // Document processing
         case embedding // Embedding generation

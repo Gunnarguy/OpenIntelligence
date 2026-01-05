@@ -8,6 +8,7 @@
 import SwiftUI
 
 struct DeveloperSettingsView: View {
+    @EnvironmentObject private var settings: SettingsStore
     @AppStorage("loggingLevel") private var loggingLevelRaw: Int = LoggingConfiguration.Level.info.rawValue
     @AppStorage("enablePipelineLogs") private var enablePipelineLogs: Bool = true
     @AppStorage("enablePerformanceLogs") private var enablePerformanceLogs: Bool = true
@@ -27,6 +28,13 @@ struct DeveloperSettingsView: View {
 
     var body: some View {
         Form {
+            Section("RAG Reliability") {
+                Toggle("Reliability-first fallbacks", isOn: $settings.reliabilityModeEnabled)
+                Text("Balanced retrieval is enforced globally. Reliability-first fallbacks keep answers flowing even when PCC or citations fail.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            }
+
             // Logging Level (compact, native controls)
             Section("Console Logging Level") {
                 Picker("Logging Level", selection: $loggingLevelRaw) {
@@ -279,5 +287,6 @@ extension LoggingConfiguration.Level: CustomStringConvertible {
 #Preview {
     NavigationView {
         DeveloperSettingsView()
+            .environmentObject(SettingsStore(ragService: RAGService()))
     }
 }

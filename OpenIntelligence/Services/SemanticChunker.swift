@@ -15,9 +15,9 @@ extension Notification.Name {
 
 /// Enhanced chunking with semantic boundaries and metadata
 class SemanticChunker {
-    
+
     // MARK: - Diagnostics
-    
+
     struct ChunkingDiagnostics {
         let language: NLLanguage?
         let languageHypotheses: [NLLanguage: Double]
@@ -29,16 +29,16 @@ class SemanticChunker {
         let overlapWords: Int
         let warnings: [String]
     }
-    
+
     private let languageRecognizer = NLLanguageRecognizer()
     private(set) var lastDiagnostics: ChunkingDiagnostics?
-    
+
     func diagnostics() -> ChunkingDiagnostics? { lastDiagnostics }
-    
+
     // Notification posted when diagnostics are updated (see global Notification.Name extension)
-    
+
     // MARK: - Token/Language helpers
-    
+
     private func tokenWordCount(_ text: String) -> Int {
         let tokenizer = NLTokenizer(unit: .word)
         tokenizer.string = text
@@ -49,7 +49,7 @@ class SemanticChunker {
         }
         return count
     }
-    
+
     private func estimateSentenceCount(for text: String) -> Int {
         let tokenizer = NLTokenizer(unit: .sentence)
         tokenizer.string = text
@@ -60,13 +60,13 @@ class SemanticChunker {
         }
         return count
     }
-    
+
     private func averageSentenceLength(for text: String) -> Double {
         let sentenceTokenizer = NLTokenizer(unit: .sentence)
         sentenceTokenizer.string = text
         var totalWords = 0
         var sentenceCount = 0
-        
+
         sentenceTokenizer.enumerateTokens(in: text.startIndex..<text.endIndex) { range, _ in
             let sentence = String(text[range])
             totalWords += tokenWordCount(sentence)
@@ -76,33 +76,33 @@ class SemanticChunker {
         guard sentenceCount > 0 else { return 0.0 }
         return Double(totalWords) / Double(sentenceCount)
     }
-    
+
     private func detectLanguage(for text: String) -> NLLanguage? {
         languageRecognizer.reset()
         languageRecognizer.processString(text)
         return languageRecognizer.dominantLanguage
     }
-    
+
     private func languageHypotheses(for text: String) -> [NLLanguage: Double] {
         languageRecognizer.reset()
         languageRecognizer.processString(text)
         return languageRecognizer.languageHypotheses(withMaximum: 3)
     }
-    
+
     struct ChunkingConfig {
-        var targetSize: Int = 400  // Target words per chunk
-        var minSize: Int = 100     // Minimum chunk size
-        var maxSize: Int = 800     // Maximum chunk size
-        var overlap: Int = 75      // Overlap in words (increased from 50)
+        var targetSize: Int = 500 // Target words per chunk (increased for better context)
+        var minSize: Int = 150 // Minimum chunk size
+        var maxSize: Int = 1000 // Maximum chunk size (increased for product guides)
+        var overlap: Int = 100 // Overlap in words (increased for context continuity)
         var useTopicDetection: Bool = true
         var preserveStructure: Bool = true
     }
-    
+
     struct EnhancedChunk {
         let content: String
         let metadata: ChunkMetadata
         let embedding: [Float]?
-        
+
         struct ChunkMetadata {
             let documentId: UUID
             let chunkIndex: Int
@@ -119,7 +119,7 @@ class SemanticChunker {
             let endOffset: Int
         }
     }
-    
+
     /// Chunk text with semantic boundaries and rich metadata
     func chunkText(
         _ text: String,
@@ -130,7 +130,7 @@ class SemanticChunker {
         Log.debug("[SemanticChunker] Starting advanced chunking", category: .ingestion)
         Log.debug("[SemanticChunker] Target: \(config.targetSize)w, Min: \(config.minSize)w, Max: \(config.maxSize)w", category: .ingestion)
         Log.debug("[SemanticChunker] Overlap: \(config.overlap)w", category: .ingestion)
-        
+
         // Safety check: if text is too small, just return one chunk
         let wordCount = tokenWordCount(text)
         if wordCount < config.minSize {
@@ -151,24 +151,24 @@ class SemanticChunker {
             NotificationCenter.default.post(name: .semanticChunkerDiagnosticsUpdated, object: self.lastDiagnostics)
             return [small]
         }
-        
+
         // 1. Detect sections and structure
         let sections = detectSections(text)
         Log.debug("[SemanticChunker] Detected \(sections.count) sections", category: .ingestion)
-        
+
         // 2. Detect topic boundaries if enabled
         let topicBoundaries = config.useTopicDetection ? detectTopicBoundaries(text) : []
         Log.debug("[SemanticChunker] Detected \(topicBoundaries.count) topic boundaries", category: .ingestion)
-        
+
         // 3. Chunk with semantic awareness
         var chunks: [EnhancedChunk] = []
         var currentPosition = text.startIndex
         var chunkIndex = 0
         let maxChunks = 5000 // Safety limit to prevent runaway loops on malformed input
-        
+
         while currentPosition < text.endIndex && chunkIndex < maxChunks {
             Log.verbose("[SemanticChunker] Processing chunk \(chunkIndex + 1)", category: .ingestion)
-            
+
             // Safety check: if we're too close to the end, create final chunk and stop
             let remainingDistance = text.distance(from: currentPosition, to: text.endIndex)
             if remainingDistance < 10 {
@@ -196,7 +196,7 @@ class SemanticChunker {
                 }
                 break
             }
-            
+
             // Find optimal chunk end
             let chunkRange = findOptimalChunkRange(
                 in: text,
@@ -205,16 +205,16 @@ class SemanticChunker {
                 topicBoundaries: topicBoundaries,
                 sections: sections
             )
-            
+
             // Safety check: ensure range is valid and not empty
             guard chunkRange.lowerBound < chunkRange.upperBound else {
                 Log.warning("[SemanticChunker] Empty range detected; stopping chunking", category: .ingestion)
                 break
             }
-            
+
             let chunkText = String(text[chunkRange])
             Log.verbose("[SemanticChunker] Chunk \(chunkIndex + 1): \(tokenWordCount(chunkText)) words", category: .ingestion)
-            
+
             // Extract metadata
             let metadata = extractMetadata(
                 chunkText: chunkText,
@@ -225,13 +225,13 @@ class SemanticChunker {
                 sections: sections,
                 pageNumbers: pageNumbers
             )
-            
+
             chunks.append(EnhancedChunk(
                 content: chunkText,
                 metadata: metadata,
                 embedding: nil  // Will be added later
             ))
-            
+
             // Move to next chunk with overlap
             let nextPosition = advancePosition(
                 from: currentPosition,
@@ -239,7 +239,7 @@ class SemanticChunker {
                 overlap: config.overlap,
                 in: text
             )
-            
+
             // Safety check: ensure we're making progress
             if nextPosition <= currentPosition {
                 Log.warning("[SemanticChunker] No progress made; advancing by 1 character to prevent infinite loop", category: .ingestion)
@@ -247,18 +247,18 @@ class SemanticChunker {
             } else {
                 currentPosition = nextPosition
             }
-            
+
             chunkIndex += 1
         }
-        
+
         Log.debug("[SemanticChunker] Created \(chunks.count) semantically-aware chunks", category: .ingestion)
         printChunkStatistics(chunks)
-        
+
         // Update diagnostics for UI/telemetry
         let avgWordsPerChunk = chunks.isEmpty
             ? 0.0
             : Double(chunks.map { $0.metadata.wordCount }.reduce(0, +)) / Double(chunks.count)
-        
+
         self.lastDiagnostics = ChunkingDiagnostics(
             language: detectLanguage(for: text),
             languageHypotheses: languageHypotheses(for: text),
@@ -271,14 +271,14 @@ class SemanticChunker {
             warnings: []
         )
         NotificationCenter.default.post(name: .semanticChunkerDiagnosticsUpdated, object: self.lastDiagnostics)
-        
+
         return chunks
     }
-    
+
     /// Detect section headers and boundaries
     private func detectSections(_ text: String) -> [(title: String, range: Range<String.Index>)] {
         var sections: [(String, Range<String.Index>)] = []
-        
+
         // Common section patterns
         let patterns = [
             #"^[A-Z][A-Z\s]+:?\s*$"#,  // ALL CAPS HEADERS
@@ -286,13 +286,13 @@ class SemanticChunker {
             #"^[IVX]+\.\s+[A-Z].*$"#,   // I. Roman numerals
             #"^#{1,3}\s+.*$"#           // ## Markdown headers
         ]
-        
+
         let lines = text.components(separatedBy: .newlines)
         var currentIndex = text.startIndex
-        
+
         for line in lines {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
-            
+
             for pattern in patterns {
                 if let _ = trimmed.range(of: pattern, options: .regularExpression) {
                     if let lineRange = text.range(of: line, range: currentIndex..<text.endIndex) {
@@ -301,26 +301,26 @@ class SemanticChunker {
                     }
                 }
             }
-            
+
             // Advance index
             if let lineRange = text.range(of: line + "\n", range: currentIndex..<text.endIndex) {
                 currentIndex = lineRange.upperBound
             }
         }
-        
+
         return sections
     }
-    
+
     /// Detect topic boundaries using linguistic cues
     private func detectTopicBoundaries(_ text: String) -> [String.Index] {
         var boundaries: [String.Index] = []
-        
+
         // Transition words that indicate topic changes
         let transitionPhrases = [
             "However,", "Moreover,", "Furthermore,", "In contrast,", "On the other hand,",
             "Additionally,", "Nevertheless,", "Consequently,", "In conclusion,", "To summarize,"
         ]
-        
+
         for phrase in transitionPhrases {
             var searchRange = text.startIndex..<text.endIndex
             while let range = text.range(of: phrase, range: searchRange) {
@@ -328,10 +328,10 @@ class SemanticChunker {
                 searchRange = range.upperBound..<text.endIndex
             }
         }
-        
+
         return boundaries.sorted()
     }
-    
+
     /// Find optimal chunk range respecting semantic boundaries
     private func findOptimalChunkRange(
         in text: String,
@@ -342,10 +342,10 @@ class SemanticChunker {
     ) -> Range<String.Index> {
         let remainingText = text[start..<text.endIndex]
         let words = remainingText.split(separator: " ", omittingEmptySubsequences: true)
-        
+
         // Ideal end position
         let targetEnd = min(config.targetSize, words.count)
-        
+
         // Safety check: if no words remaining, return minimal range
         guard targetEnd > 0 else {
             // No words left - return a minimal range of 1 character if possible
@@ -357,52 +357,52 @@ class SemanticChunker {
                 return start..<start
             }
         }
-        
+
         // Simplified approach: use pre-split words array for better performance
         var targetIndex = text.endIndex
-        
+
         if targetEnd <= words.count {
             // Take the first targetEnd words and find their total length
             let targetWords = words.prefix(targetEnd)
             let approximateLength = targetWords.reduce(0) { $0 + $1.count + 1 } - 1 // -1 for the last space
-            
+
             // Calculate target position more safely
             let maxOffset = text.distance(from: start, to: text.endIndex)
             let safeOffset = min(approximateLength, maxOffset)
-            
+
             if safeOffset > 0 {
                 targetIndex = text.index(start, offsetBy: safeOffset, limitedBy: text.endIndex) ?? text.endIndex
             } else {
                 targetIndex = start
             }
         }
-        
+
         // Adjust to nearest sentence boundary
         if let sentenceEnd = findNearestSentenceEnd(in: text, near: targetIndex, within: 100) {
             targetIndex = sentenceEnd
         }
-        
+
         return start..<targetIndex
     }
-    
+
     /// Find nearest sentence boundary
     private func findNearestSentenceEnd(in text: String, near index: String.Index, within distance: Int) -> String.Index? {
         let searchStart = text.index(index, offsetBy: -distance, limitedBy: text.startIndex) ?? text.startIndex
         let searchEnd = text.index(index, offsetBy: distance, limitedBy: text.endIndex) ?? text.endIndex
-        
+
         // Validate range before creating it
         guard searchStart < searchEnd else {
             // Invalid range - return nil or the index itself
             return nil
         }
-        
+
         let searchRange = searchStart..<searchEnd
-        
+
         // Look for sentence endings
         let sentenceEnders = CharacterSet(charactersIn: ".!?")
         var nearestDistance = Int.max
         var nearestIndex: String.Index?
-        
+
         for i in text[searchRange].indices {
             if sentenceEnders.contains(text[i].unicodeScalars.first!) {
                 let dist = text.distance(from: index, to: i)
@@ -412,10 +412,10 @@ class SemanticChunker {
                 }
             }
         }
-        
+
         return nearestIndex
     }
-    
+
     /// Extract rich metadata for chunk
     private func extractMetadata(
         chunkText: String,
@@ -430,21 +430,21 @@ class SemanticChunker {
         let keywords = extractKeywords(chunkText, topN: 5)
         let startOffset = fullText.distance(from: fullText.startIndex, to: range.lowerBound)
         let endOffset = fullText.distance(from: fullText.startIndex, to: range.upperBound)
-        
+
         // Find section title
         let sectionTitle = sections.first { $0.range.contains(range.lowerBound) }?.title
-        
+
         // Find page number
         let pageNumber = pageNumbers?.first { $0.value.contains(range.lowerBound) }?.key
-        
+
         // Detect structure
         let hasNumeric = chunkText.rangeOfCharacter(from: .decimalDigits) != nil
         let hasList = chunkText.contains(where: { $0 == "•" || $0 == "-" || $0 == "*" })
-        
+
         // Calculate semantic density (information richness)
         let uniqueWords = Set(chunkText.lowercased().split(separator: " "))
         let density = Float(uniqueWords.count) / Float(max(wordCount, 1))
-        
+
         return EnhancedChunk.ChunkMetadata(
             documentId: documentId,
             chunkIndex: chunkIndex,
@@ -461,15 +461,15 @@ class SemanticChunker {
             endOffset: endOffset
         )
     }
-    
+
     /// Extract top keywords using TF-IDF approximation
     private func extractKeywords(_ text: String, topN: Int) -> [String] {
         // Prefer lemma-based counting to normalize inflections
         let tagger = NLTagger(tagSchemes: [.lemma, .lexicalClass, .language])
         tagger.string = text
-        
+
         var counts: [String: Int] = [:]
-        
+
         tagger.enumerateTags(in: text.startIndex..<text.endIndex,
                              unit: .word,
                              scheme: .lemma,
@@ -479,7 +479,7 @@ class SemanticChunker {
             guard pos == .noun || pos == .verb || pos == .adjective else {
                 return true
             }
-            
+
             let token = String(text[range]).lowercased()
             let lemma = lemmaTag?.rawValue.lowercased() ?? token
             if lemma.count > 2 {
@@ -487,12 +487,12 @@ class SemanticChunker {
             }
             return true
         }
-        
+
         return counts.sorted { $0.value > $1.value }
             .prefix(topN)
             .map { $0.key }
     }
-    
+
     /// Advance position with intelligent overlap
     private func advancePosition(
         from start: String.Index,
@@ -503,7 +503,7 @@ class SemanticChunker {
         // Move back by overlap words from chunk end
         let overlapRange = text[start..<chunkEnd]
         let words = overlapRange.split(separator: " ")
-        
+
         if words.count > overlap {
             let overlapWords = words.suffix(overlap)
             let overlapText = overlapWords.joined(separator: " ")
@@ -511,10 +511,10 @@ class SemanticChunker {
                 return overlapStart.lowerBound
             }
         }
-        
+
         return chunkEnd
     }
-    
+
     /// Print chunk statistics
     private func printChunkStatistics(_ chunks: [EnhancedChunk]) {
         let avgWords = chunks.map { $0.metadata.wordCount }.reduce(0, +) / max(chunks.count, 1)
@@ -527,7 +527,7 @@ class SemanticChunker {
         Log.debug("[SemanticChunker] Chunks with sections: \(withSections)", category: .ingestion)
         Log.debug("[SemanticChunker] Chunks with numeric data: \(withNumeric)", category: .ingestion)
     }
-    
+
     /// Create a single chunk for very small documents
     private func createSingleChunk(
         _ text: String,
@@ -535,12 +535,12 @@ class SemanticChunker {
         pageNumbers: [Int: Range<String.Index>]? = nil
     ) -> EnhancedChunk {
         let wordCount = tokenWordCount(text)
-        
+
         // Extract basic metadata
         let keywords = extractKeywords(text, topN: 5)
         let hasNumeric = text.range(of: #"\d+"#, options: .regularExpression) != nil
         let hasList = text.contains("•") || text.range(of: #"^\d+\."#, options: .regularExpression) != nil
-        
+
         let metadata = EnhancedChunk.ChunkMetadata(
             documentId: documentId,
             chunkIndex: 0,
@@ -556,7 +556,7 @@ class SemanticChunker {
             startOffset: 0,
             endOffset: text.count
         )
-        
+
         return EnhancedChunk(
             content: text,
             metadata: metadata,

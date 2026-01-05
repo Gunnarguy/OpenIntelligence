@@ -2,21 +2,17 @@ import Foundation
 
 enum CloudProvider: String, Codable, CaseIterable, Sendable {
     case applePCC
-    case openAI
 
     var displayName: String {
         switch self {
         case .applePCC:
             return "Apple Private Cloud Compute"
-        case .openAI:
-            return "OpenAI Direct"
         }
     }
 
     var shortName: String {
         switch self {
         case .applePCC: return "Apple PCC"
-        case .openAI: return "OpenAI"
         }
     }
 }

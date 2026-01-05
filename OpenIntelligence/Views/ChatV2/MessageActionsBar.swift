@@ -233,9 +233,9 @@ struct MessageMetadataPanel: View {
                         Divider().padding(.horizontal, 12)
                         MetricRow(label: "Sources", value: "\(chunks.count) chunks", icon: "doc.text")
                     }
-                    if metadata.strictModeEnabled {
+                    if metadata.isHighAccuracyMode { 
                         Divider().padding(.horizontal, 12)
-                        MetricRow(label: "Strict Mode", value: "Enabled", icon: "shield.checkered", valueColor: .orange)
+                        MetricRow(label: "Retrieval", value: metadata.retrievalConfigSummary, icon: "slider.horizontal.3", valueColor: .purple)
                     }
                     if let tools = metadata.toolCallsMade, tools > 0 {
                         Divider().padding(.horizontal, 12)
@@ -302,7 +302,7 @@ private struct MetricRow: View {
                     tokensPerSecond: 40,
                     modelUsed: "Apple Foundation Model",
                     retrievalTime: 0.05,
-                    strictModeEnabled: false,
+                    retrievalConfigSummary: "Balanced",
                     toolCallsMade: 0,
                     embeddingProvider: nil
                 )
@@ -319,7 +319,7 @@ private struct MetricRow: View {
 
         // Non-Apple response (no feedback buttons)
         MessageActionsBar(
-            message: ChatMessage(role: .assistant, content: "OpenAI response"),
+            message: ChatMessage(role: .assistant, content: "Sample response"),
             onCopy: {},
             onRegenerate: {},
             onShowDetails: {},
@@ -356,7 +356,7 @@ private struct MetricRow: View {
             tokensPerSecond: 45.2,
             modelUsed: "Apple Foundation Model (PCC)",
             retrievalTime: 0.089,
-            strictModeEnabled: true,
+            retrievalConfigSummary: "High Accuracy",
             toolCallsMade: 2,
             embeddingProvider: "nl_contextual_embedding"
         ),
