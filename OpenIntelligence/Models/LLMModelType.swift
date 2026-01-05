@@ -143,7 +143,7 @@ extension LLMModelType {
     var contextDescription: String {
         switch self {
         case .appleIntelligence:
-            return "4K tokens (PCC may expand)"
+            return "4,096 tokens on-device (PCC up to ~65K)"
         case .onDeviceAnalysis:
             return "No generation context"
         }
@@ -201,7 +201,7 @@ extension LLMModelType {
             return ModelCapabilityCardInfo(
                 emoji: "🍎",
                 nickname: "Hybrid Ace",
-                tagline: "Private-first Apple FM with automatic PCC boost when prompts get long.",
+                tagline: "On-device 3B model with PCC PT-MoE for long or complex prompts.",
                 chips: [
                     .init(icon: "text.alignleft", label: "Text", detail: "Grounded chat", tone: .accent),
                     .init(icon: "eye.fill", label: "Vision", detail: "Screenshots", tone: .info),
@@ -210,11 +210,11 @@ extension LLMModelType {
                 stats: [
                     .init(icon: "bolt.fill", label: "Latency", value: "< 0.8 s", detail: "Median TTFT on A18", accent: .success),
                     .init(icon: "gauge", label: "Throughput", value: "≈65 tok/s", detail: "Neural Engine streaming", accent: .accent),
-.init(icon: "square.stack.3d.down.right.fill", label: "Context", value: "4K (TN3193)", detail: "PCC may expand", accent: .info),
+                    .init(icon: "square.stack.3d.down.right.fill", label: "Context", value: "4K / 65K", detail: "TN3193 + PCC long-context", accent: .info),
                     .init(icon: "lock.shield.fill", label: "Privacy", value: "Zero-retention", detail: "Encrypted PCC hops", accent: .success),
                     .init(icon: "hammer", label: "Tools", value: "Functions + App Intents", detail: "Auto tool routing", accent: .accent),
                 ],
-                footer: "Runs fully on-device until a Private Cloud Compute hop is explicitly approved."
+                footer: "On-device by default; PCC runs on attested, stateless Apple Silicon."
             )
         case .onDeviceAnalysis:
             return ModelCapabilityCardInfo(

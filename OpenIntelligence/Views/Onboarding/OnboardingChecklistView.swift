@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Full-screen onboarding splash shown on first launch.
-/// Redesigned to avoid cramped overlaps on smaller devices while keeping the checklist actionable.
+/// Clean, benefit-focused design that guides users to value quickly.
 struct OnboardingChecklistView: View {
     @EnvironmentObject private var onboardingStore: OnboardingStateStore
     @EnvironmentObject private var entitlementStore: EntitlementStore
@@ -11,289 +11,278 @@ struct OnboardingChecklistView: View {
 
     @State private var isImportingSamples = false
     @State private var errorMessage: String?
+    @State private var currentPage = 0
+
+    private let totalPages = 3
 
     var body: some View {
         ZStack {
             SplashBackdrop()
 
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 24) {
-                    heroSection
-                    progressCard
+            VStack(spacing: 0) {
+                // Skip button
+                HStack {
+                    Spacer()
+                    Button {
+                        onboardingStore.dismissChecklist()
+                    } label: {
+                        Text("Skip")
+                            .font(.body.weight(.medium))
+                            .foregroundColor(.white.opacity(0.7))
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                    }
+.buttonStyle(.plain)
+                }
+.padding(.top, 16)
+    .padding(.trailing, 8)
 
-                    VStack(spacing: 18) {
-                        ForEach(steps) { step in
-                            stepCard(for: step)
+                Spacer()
+
+                // Page content
+                TabView(selection: $currentPage) {
+                    welcomePage.tag(0)
+                    featuresPage.tag(1)
+                    getStartedPage.tag(2)
+                }
+.tabViewStyle(.page(indexDisplayMode: .never))
+    .animation(.easeInOut(duration: 0.3), value: currentPage)
+
+                Spacer()
+
+                // Page indicator and navigation
+                VStack(spacing: 24) {
+                    // Custom page dots
+                    HStack(spacing: 8) {
+                        ForEach(0 ..< totalPages, id: \.self) { index in
+                            Circle()
+                                .fill(index == currentPage ? Color.white : Color.white.opacity(0.3))
+                                .frame(width: 8, height: 8)
+                                .scaleEffect(index == currentPage ? 1.2 : 1.0)
+                                .animation(.spring(response: 0.3), value: currentPage)
                         }
                     }
 
-                    if let errorMessage {
-                        errorBanner(errorMessage)
-                    }
+                    // Navigation buttons
+                    if currentPage < totalPages - 1 {
+                        Button {
+                            withAnimation { currentPage += 1 }
+                        } label: {
+                            Text("Continue")
+                                .font(.headline)
+                                .foregroundColor(.black)
+                                .frame(maxWidth: .infinity)
+.padding(.vertical, 16)
+    .background(Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        }
+.buttonStyle(.plain)
+    .padding(.horizontal, 32)
+                    } else {
+                        // Final page - primary CTA
+                        Button {
+                            startWithSamples()
+                        } label: {
+                            HStack(spacing: 8) {
+                                if isImportingSamples {
+                                    ProgressView()
+                                        .tint(.black)
+                                        .scaleEffect(0.8)
+                                } else {
+                                    Image(systemName: "arrow.right.circle.fill")
+                                }
+                                Text(isImportingSamples ? "Setting up..." : "Get Started")
+                                    .font(.headline)
+                            }
+.foregroundColor(.black)
+    .frame(maxWidth: .infinity)
+    .padding(.vertical, 16)
+    .background(Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        }
+.buttonStyle(.plain)
+    .disabled(isImportingSamples)
+    .padding(.horizontal, 32)
 
-                    actionButtons
+Button {
+    onboardingStore.dismissChecklist()
+                            onOpenChat()
+                        } label: { 
+                            Text("I'll add my own documents")
+                                .font(.subheadline.weight(.medium))
+                                .foregroundColor(.white.opacity(0.8))
+                        }
+                        .buttonStyle(.plain)
+.padding(.top, 4)
+                    }
                 }
-                .padding(24)
-                .frame(maxWidth: 520)
-                .background(
-                    .ultraThinMaterial.opacity(0.95),
-                    in: RoundedRectangle(cornerRadius: 32, style: .continuous)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 32, style: .continuous)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                )
-                .padding(.horizontal, 24)
-                .padding(.vertical, 40)
-                .frame(maxWidth: .infinity)
+.padding(.bottom, 48)
             }
         }
         .accessibilityElement(children: .contain)
     }
 
-    /// Title + tagline with a quick-close affordance.
-    private var heroSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Label("Private RAG workspace", systemImage: "lock.shield")
-                        .font(.caption.weight(.semibold))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(Color.white.opacity(0.12), in: Capsule())
-                        .foregroundColor(.white)
-                    if case let .preview(remaining) = entitlementStore.localModelAccessState(),
-                        entitlementStore.localModelPreviewTotal > 0
-                    {
-                        Label(
-                            "On-device preview runs: \(remaining)/\(entitlementStore.localModelPreviewTotal)",
-                            systemImage: "bolt.badge.a"
+    // MARK: - Welcome Page
+
+    private var welcomePage: some View {
+        VStack(spacing: 24) {
+            Spacer()
+
+            // App icon or logo
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.accentColor.opacity(0.3), Color.purple.opacity(0.2)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
                         )
-                        .font(.caption2.weight(.semibold))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(Color.white.opacity(0.16), in: Capsule())
-                        .foregroundColor(.white.opacity(0.9))
-                    }
-                    Text("Welcome to OpenIntelligence")
-                        .font(.title2.bold())
-                        .foregroundStyle(Color.white)
-                    Text("Take two minutes to prime the retrieval engine so the very first chat already knows your docs.")
-                        .font(.callout)
-                        .foregroundStyle(Color.white.opacity(0.85))
-                }
-                Spacer(minLength: 0)
-                Button {
-                    onboardingStore.dismissChecklist()
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.headline.weight(.semibold))
-                        .padding(10)
-                        .background(Color.white.opacity(0.12), in: Circle())
-                        .foregroundColor(.white.opacity(0.85))
-                }
-                .buttonStyle(.plain)
+                    )
+.frame(width: 100, height: 100)
+    .blur(radius: 20)
+
+                Image(systemName: "brain.head.profile")
+                    .font(.system(size: 56, weight: .light))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.white, .white.opacity(0.8)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+            }
+.padding(.bottom, 8)
+
+            VStack(spacing: 12) {
+                Text("Welcome to OpenIntelligence")
+                    .font(.title.bold())
+                    .foregroundColor(.white)
+                    .multilineTextAlignment(.center)
+
+                Text("Your private AI assistant that actually understands your documents.")
+                    .font(.body)
+                    .foregroundColor(.white.opacity(0.8))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
             }
 
-            Divider()
-                .background(Color.white.opacity(0.2))
+            Spacer()
+            Spacer()
         }
     }
 
-    /// Progress summary with contextual copy.
-    private var progressCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                Image(systemName: "sparkles")
-                    .foregroundColor(.yellow)
-                Text("Setup progress")
-                    .font(.headline)
-                    .foregroundStyle(Color.white)
-                Spacer()
-                Text("\(completedStepCount)/\(steps.count) complete")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.white.opacity(0.8))
-            }
-            ProgressView(value: progressFraction)
-                .tint(.accentColor)
-                .background(
-                    Capsule().fill(Color.white.opacity(0.12))
+    // MARK: - Features Page
+
+    private var featuresPage: some View {
+        VStack(spacing: 32) {
+            Spacer()
+
+            Text("Built for Privacy")
+                .font(.title2.bold())
+                .foregroundColor(.white)
+
+            VStack(alignment: .leading, spacing: 20) {
+                OnboardingFeatureRow(
+                    icon: "lock.shield.fill",
+                    iconColor: .green,
+                    title: "100% Private",
+                    description: "Everything stays on your device or Apple's secure cloud"
                 )
-            Text("Finish the checklist to import curated knowledge, pick your go-to model, and land your first answer with confidence.")
-                .font(.footnote)
-                .foregroundStyle(Color.white.opacity(0.8))
+
+                OnboardingFeatureRow(
+                    icon: "doc.text.magnifyingglass",
+                    iconColor: .blue,
+                    title: "Smart Search",
+                    description: "Ask questions and get answers from your own documents"
+                )
+
+                OnboardingFeatureRow(
+                    icon: "bolt.fill",
+                    iconColor: .orange,
+                    title: "Instant Answers",
+                    description: "No waiting—responses start in under a second"
+                )
+
+                OnboardingFeatureRow(
+                    icon: "iphone",
+                    iconColor: .purple,
+                    title: "Works Offline",
+                    description: "Full functionality without an internet connection"
+                )
+            }
+.padding(.horizontal, 32)
+
+            Spacer()
+            Spacer()
         }
-        .padding(20)
-        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(Color.white.opacity(0.08), lineWidth: 1)
-        )
     }
 
-    /// Renders the individual checklist cards.
-    private func stepCard(for step: ChecklistStep) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline) {
-                Label(step.title, systemImage: step.systemImage)
-                    .font(.headline)
-                    .foregroundStyle(Color.white)
-                Spacer()
-                statusChip(for: step)
+    // MARK: - Get Started Page
+
+    private var getStartedPage: some View {
+        VStack(spacing: 24) {
+            Spacer()
+
+            ZStack {
+                Circle()
+                    .fill(Color.accentColor.opacity(0.15))
+                    .frame(width: 80, height: 80)
+
+                Image(systemName: "sparkles")
+                    .font(.system(size: 36))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.yellow, .orange],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
             }
 
-            Text(step.caption)
-                .font(.subheadline)
-                .foregroundStyle(Color.white.opacity(0.8))
+            VStack(spacing: 12) {
+                Text("Ready to Try It?")
+                    .font(.title2.bold())
+                    .foregroundColor(.white)
 
-            if step.kind == .importSamples && isImportingSamples {
-                HStack(spacing: 10) {
-                    ProgressView()
-                        .tint(.white)
-                    Text("Importing sample workspace…")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color.white.opacity(0.9))
+                Text("We'll add some sample documents so you can see how it works. You can remove them anytime.")
+                    .font(.body)
+                    .foregroundColor(.white.opacity(0.8))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+            }
+
+            // Quick preview of what's included
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Sample documents include:")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundColor(.white.opacity(0.7))
+
+                HStack(spacing: 8) {
+                    SampleDocChip(title: "Pricing Brief", icon: "doc.text")
+                    SampleDocChip(title: "Architecture", icon: "building.2")
                 }
-            } else if let actionTitle = step.actionTitle, !step.isComplete {
-                Button(action: step.action) {
-                    Label(actionTitle, systemImage: step.buttonIcon)
-                        .labelStyle(.titleAndIcon)
+
+                HStack(spacing: 8) {
+                    SampleDocChip(title: "User Guide", icon: "book")
+                    SampleDocChip(title: "FAQ", icon: "questionmark.circle")
                 }
-                .buttonStyle(StepActionButtonStyle())
-                .disabled(isImportingSamples && step.kind != .importSamples)
             }
-        }
-        .padding(20)
-        .background(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(Color.white.opacity(step.isComplete ? 0.16 : 0.08))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(Color.white.opacity(0.12), lineWidth: 1)
-        )
-    }
+.padding(.horizontal, 32)
+    .padding(.top, 8)
 
-    /// Primary + secondary CTAs.
-    private var actionButtons: some View {
-        VStack(spacing: 12) {
-            Button(primaryButtonTitle) {
-                onboardingStore.dismissChecklist()
+            if let errorMessage {
+                Text(errorMessage)
+                    .font(.footnote)
+                    .foregroundColor(.orange)
+                    .padding(.horizontal, 32)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.accentColor)
-            .controlSize(.large)
-            .disabled(isImportingSamples)
 
-            Button("I'll finish these later", role: .cancel) {
-                onboardingStore.dismissChecklist()
-            }
-            .buttonStyle(.bordered)
-            .tint(Color.white.opacity(0.85))
-            .disabled(isImportingSamples)
+            Spacer()
+            Spacer()
         }
     }
 
-    /// Surfaces the latest error inline with the checklist.
-    private func errorBanner(_ message: String) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(Color.orange)
-            Text(message)
-                .font(.footnote)
-                .foregroundStyle(Color.white)
-        }
-        .padding(14)
-        .background(Color.orange.opacity(0.18), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-    }
+    // MARK: - Actions
 
-    /// Builds the view model for each checklist step so layout remains declarative.
-    private var steps: [ChecklistStep] {
-        [
-            ChecklistStep(
-                kind: .importSamples,
-                title: "Prime your workspace",
-                caption: "Import the curated sample set or add your own docs so retrieval has real context.",
-                systemImage: "tray.and.arrow.down.fill",
-                isComplete: onboardingStore.hasImportedSamples,
-                actionTitle: onboardingStore.hasImportedSamples ? nil : "Import sample set",
-                buttonIcon: "arrow.down.circle.fill",
-                action: importSamples
-            ),
-            ChecklistStep(
-                kind: .pickModel,
-                title: "Pick your default model",
-                caption: pickModelCaption,
-                systemImage: "slider.horizontal.3",
-                isComplete: onboardingStore.hasAcknowledgedModelSelection,
-                actionTitle: onboardingStore.hasAcknowledgedModelSelection ? nil : "Open Settings",
-                buttonIcon: "gearshape.fill",
-                action: openSettingsAndTrack
-            ),
-            ChecklistStep(
-                kind: .firstQuestion,
-                title: "Ask your first question",
-                caption: "Jump into chat and ask about the imported docs to unlock smart suggestions.",
-                systemImage: "bubble.left.and.bubble.right.fill",
-                isComplete: onboardingStore.hasAskedFirstQuery,
-                actionTitle: onboardingStore.hasAskedFirstQuery ? nil : "Go to Chat",
-                buttonIcon: "paperplane.fill",
-                action: openChatAndTrack
-            )
-        ]
-    }
-
-    private var completedStepCount: Int {
-        steps.filter { $0.isComplete }.count
-    }
-
-    private var progressFraction: Double {
-        guard !steps.isEmpty else { return 0 }
-        return Double(completedStepCount) / Double(steps.count)
-    }
-
-    private var pickModelCaption: String {
-        switch entitlementStore.localModelAccessState() {
-        case .unlocked:
-            return "Visit Settings → Models so routing knows whether to stay on-device or use Apple PCC."
-        case .preview(let remaining):
-            let total = entitlementStore.localModelPreviewTotal
-            return "Visit Settings → Models to spend your \(remaining)/\(total) on-device preview runs before upgrading."
-        case .blocked:
-            return "Preview complete — upgrade in Settings to keep GGUF/Core ML responses fully local."
-        }
-    }
-
-    private var primaryButtonTitle: String {
-        onboardingStore.hasCompletedOnboarding ? "Launch workspace" : "Dive in anyway"
-    }
-
-    private func statusChip(for step: ChecklistStep) -> some View {
-        Text(step.isComplete ? "Done" : "Pending")
-            .font(.caption.weight(.semibold))
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(
-                Capsule()
-                    .fill(step.isComplete ? Color.green.opacity(0.2) : Color.white.opacity(0.1))
-            )
-            .foregroundColor(step.isComplete ? Color.green : Color.white.opacity(0.85))
-    }
-
-    /// Opens the settings tab and records completion for the model-selection step.
-    private func openSettingsAndTrack() {
-        onOpenSettings()
-        onboardingStore.markModelSelectionAcknowledged()
-    }
-
-    /// Switches to chat and marks the "first query" step as complete.
-    private func openChatAndTrack() {
-        onOpenChat()
-        onboardingStore.markAskedFirstQuery()
-    }
-
-    /// Writes curated sample docs to disk, ingests them, and updates onboarding progress.
-    private func importSamples() {
+    private func startWithSamples() { 
         guard !isImportingSamples else { return }
         isImportingSamples = true
         errorMessage = nil
@@ -303,44 +292,66 @@ struct OnboardingChecklistView: View {
             do {
                 try await SampleDocumentManager.shared.importSamples(into: ragService)
                 onboardingStore.markSamplesImported()
+                onboardingStore.dismissChecklist()
+                onOpenChat()
             } catch {
-                errorMessage = "Could not import samples. Please try again."
+                errorMessage = "Couldn't set up samples. Tap to try again."
             }
         }
     }
 }
 
-// MARK: - Models & Styles
+// MARK: - Supporting Views
 
-private struct ChecklistStep: Identifiable {
-    enum Kind { case importSamples, pickModel, firstQuestion }
-    let id = UUID()
-    let kind: Kind
+private struct OnboardingFeatureRow: View {
+    let icon: String
+    let iconColor: Color
     let title: String
-    let caption: String
-    let systemImage: String
-    let isComplete: Bool
-    let actionTitle: String?
-    let buttonIcon: String
-    let action: () -> Void
+    let description: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 16) {
+            ZStack {
+                Circle()
+                    .fill(iconColor.opacity(0.15))
+                    .frame(width: 44, height: 44)
+
+                Image(systemName: icon)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(iconColor)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.headline)
+                    .foregroundColor(.white)
+
+                Text(description)
+                    .font(.subheadline)
+                    .foregroundColor(.white.opacity(0.7))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+        }
+    }
 }
 
-private struct StepActionButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.callout.weight(.semibold))
-            .padding(.horizontal, 18)
-            .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(Color.white.opacity(configuration.isPressed ? 0.24 : 0.16))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke(Color.white.opacity(0.2), lineWidth: 1)
-            )
-            .foregroundColor(.white)
-            .animation(.easeInOut(duration: 0.15), value: configuration.isPressed)
+private struct SampleDocChip: View {
+    let title: String
+    let icon: String
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.caption)
+            Text(title)
+                .font(.caption.weight(.medium))
+        }
+        .foregroundColor(.white.opacity(0.8))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color.white.opacity(0.1), in: Capsule())
     }
 }
 

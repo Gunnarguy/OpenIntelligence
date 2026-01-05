@@ -119,8 +119,8 @@ struct CloudConsentPromptView: View {
 #Preview {
     CloudConsentPromptView(
         record: CloudTransmissionRecord(
-            provider: .openAI,
-            modelName: "gpt-4o-mini",
+            provider: .applePCC,
+            modelName: "Apple Foundation Models",
             promptPreview: "Summarize the quarterly report results for the leadership team...",
             promptCharacterCount: 180,
             contextChunkCount: 3,

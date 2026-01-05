@@ -139,6 +139,13 @@ final class StoreKitBillingService: BillingService {
         }
         defer { purchasesInFlight.remove(product) }
 
+        // Product metadata can be missing on cold start (or when StoreKit returns a partial catalog).
+        // Refresh once to maximize the chance we reach `storeProduct.purchase()` (which triggers
+        // the native App Store confirmation sheet for subscriptions, non-consumables, and consumables).
+        if products[product] == nil {
+            await refreshProducts()
+        }
+
         guard let storeProduct = products[product] else {
             emitBilling(
                 "Product unavailable",

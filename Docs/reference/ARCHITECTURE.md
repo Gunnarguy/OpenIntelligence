@@ -204,6 +204,8 @@ User Query Input
    - Skeleton for .mlpackage models
    - Needs tokenizer and autoregressive loop
 
+**Deep Dive**: See [`Docs/reference/AFW.md`](Docs/reference/AFW.md) for the full Apple Intelligence architecture report (on-device 3B model, PCC PT-MoE server, routing, and privacy guarantees).
+
 **File**: `RAGMLCore/Services/LLMService.swift` (933 lines)
 
 ### RAGService

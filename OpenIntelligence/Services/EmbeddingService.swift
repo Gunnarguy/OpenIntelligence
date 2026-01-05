@@ -17,6 +17,9 @@ class EmbeddingService {
     private let providerIdentifier: String
     private var dimensionAdjustmentCount = 0
 
+    /// The actual provider ID being used (may differ from requested if fallback occurred)
+    var actualProviderId: String { providerIdentifier }
+
     // MARK: - Initialization
 
     init(
@@ -28,7 +31,7 @@ class EmbeddingService {
         self.targetDimension = targetDimension ?? provider.dimension
         providerIdentifier = providerId
         if !provider.isAvailable {
-            Log.warning("Embedding provider not available on this device", category: .embedding)
+            Log.warning("[EmbeddingService] Provider '\(providerId)' not available on this device", category: .embedding)
         }
     }
 
@@ -39,25 +42,51 @@ class EmbeddingService {
         targetDimension: Int? = nil,
         allowFallback: Bool = true
     ) -> EmbeddingService {
+        // Map provider IDs to their native (supported) dimensions
+        // This prevents mismatched dimension configurations
+        let nativeDimensions: [String: [Int]] = [
+            "nl_embedding": [512],
+            "nl_contextual_embedding": [512],
+            "coreml_sentence_embedding": [384, 768],
+            "apple_fm_embed": [1024],
+        ]
+
+        // Validate target dimension against provider's supported dimensions
+        func validatedDimension(for providerId: String, requested: Int?) -> Int? {
+            guard let requested = requested,
+                  let supported = nativeDimensions[providerId]
+            else {
+                return nil // Use provider's default
+            }
+            if supported.contains(requested) {
+                return requested
+            }
+            Log.warning(
+                "[EmbeddingService] Dimension \(requested) not supported by \(providerId), using provider default",
+                category: .embedding
+            )
+            return nil // Provider will use its native dimension
+        }
+
         let resolved: EmbeddingService
         switch id {
         case "nl_embedding":
             resolved = EmbeddingService(
                 provider: NLEmbeddingProvider(),
                 providerId: "nl_embedding",
-                targetDimension: targetDimension
+                targetDimension: validatedDimension(for: "nl_embedding", requested: targetDimension)
             )
         case "coreml_sentence_embedding":
             resolved = EmbeddingService(
                 provider: CoreMLSentenceEmbeddingProvider(),
                 providerId: "coreml_sentence_embedding",
-                targetDimension: targetDimension
+                targetDimension: validatedDimension(for: "coreml_sentence_embedding", requested: targetDimension)
             )
         case "apple_fm_embed":
             resolved = EmbeddingService(
                 provider: AppleFMEmbeddingProvider(),
                 providerId: "apple_fm_embed",
-                targetDimension: targetDimension
+                targetDimension: validatedDimension(for: "apple_fm_embed", requested: targetDimension)
             )
         case "nl_contextual_embedding":
             // HIGH-ACCURACY contextual embeddings (iOS 17+)
@@ -67,14 +96,14 @@ class EmbeddingService {
                 resolved = EmbeddingService(
                     provider: NLContextualEmbeddingProvider(language: .english, pooling: .mean),
                     providerId: "nl_contextual_embedding",
-                    targetDimension: targetDimension
+                    targetDimension: validatedDimension(for: "nl_contextual_embedding", requested: targetDimension)
                 )
             } else {
                 Log.warning("NLContextualEmbedding requires iOS 17+, falling back", category: .embedding)
                 resolved = EmbeddingService(
                     provider: NLEmbeddingProvider(),
                     providerId: "nl_embedding",
-                    targetDimension: targetDimension
+                    targetDimension: validatedDimension(for: "nl_embedding", requested: targetDimension)
                 )
             }
         default:
@@ -85,22 +114,23 @@ class EmbeddingService {
             resolved = EmbeddingService(
                 provider: NLEmbeddingProvider(),
                 providerId: "nl_embedding",
-                targetDimension: targetDimension
+                targetDimension: validatedDimension(for: "nl_embedding", requested: targetDimension)
             )
         }
 
         guard allowFallback, id != "nl_embedding", !resolved.isAvailable else {
+            Log.info("[EmbeddingService] Using provider '\(resolved.actualProviderId)' (available: \(resolved.isAvailable))", category: .embedding)
             return resolved
         }
 
         Log.warning(
-            "Embedding provider '\(id)' unavailable on this device – falling back to NLEmbedding",
+            "[EmbeddingService] Provider '\(id)' unavailable – falling back to NLEmbedding. Check if model assets need to be downloaded.",
             category: .embedding
         )
         return EmbeddingService(
             provider: NLEmbeddingProvider(),
-            providerId: "nl_embedding",
-            targetDimension: targetDimension
+            providerId: "nl_embedding", // Note: This changes the actual provider ID
+                targetDimension: nil // Use provider's native dimension
         )
     }
 

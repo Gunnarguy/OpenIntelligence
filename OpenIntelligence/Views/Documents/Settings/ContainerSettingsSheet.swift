@@ -12,242 +12,141 @@ import SwiftUI
 struct ContainerSettingsSheet: View {
     @ObservedObject var containerService: ContainerService
     @ObservedObject var ragService: RAGService
+    @EnvironmentObject private var settings: SettingsStore
     @Environment(\.dismiss) var dismiss
-    @State private var name: String = ""
-    @State private var icon: String = "folder.fill"
-    @State private var colorHex: String = "#4F46E5"
-    @State private var providerId: String = "nl_embedding"
-    @State private var dim: Int = 512
-    @State private var dbKind: VectorDBKind = .persistentJSON
-    @State private var strictMode: Bool = true
-    @State private var autoAdaptDimension: Bool = false
-    @State private var pendingReembedContext: ReembedContext?
-    @State private var showingReembedConfirmation = false
-    @State private var isReembedding = false
-    @State private var reembedProgress: ReembedProgress?
-    @State private var reembedError: String?
+    @State var name: String = ""
+    @State var icon: String = "folder.fill"
+    @State var colorHex: String = "#4F46E5"
+    @State var providerId: String = "nl_embedding"
+    @State var dim: Int = 512
+    @State var dbKind: VectorDBKind = .persistentJSON
+    @State var autoAdaptDimension: Bool = false
+    @State var pendingReembedContext: ReembedContext?
+    @State var showingReembedConfirmation = false
+    @State var isReembedding = false
+    @State var reembedProgress: ReembedProgress?
+    @State var reembedError: String?
+    @State var hasInitialized = false
+    @State var providerAvailability: [String: Bool] = [:]
+    @State var showingDBChangeConfirmation = false
+    @State var pendingDBChange: VectorDBKind?
 
-    private var activeContainer: KnowledgeContainer? {
+    // Retrieval configuration
+    @State var retrievalConfig: RetrievalConfig = .default
+
+    // Chunking configuration
+    @State var chunkingStrategy: String = "balanced"
+    @State var targetWordWindow: Int = 400
+    @State var overlapWords: Int = 75
+    @State var chunkingSource: ChunkingDirective.Source = .baseline
+
+    // Provider fallback tracking
+    @State var actualProviderInUse: String?
+    @State var providerFallbackReason: String?
+
+    var activeContainer: KnowledgeContainer? { 
         containerService.containers.first(where: { $0.id == containerService.activeContainerId })
     }
 
-    private var activeIntelligenceReport: LibraryIntelligenceCenter.IntelligenceReport? {
+    var activeIntelligenceReport: LibraryIntelligenceCenter.IntelligenceReport? { 
         ragService.intelligenceReport(for: activeContainer?.id)
     }
 
-    private var lastSelfTuneSummary: String? {
+    var lastSelfTuneSummary: String? { 
         guard let stamp = activeContainer?.lastSelfTuneAt else { return nil }
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .full
         return formatter.localizedString(for: stamp, relativeTo: Date())
     }
 
+    /// Check if current provider selection is actually available
+    private var isCurrentProviderAvailable: Bool {
+        providerAvailability[providerId] ?? true
+    }
+
+    /// Get warning message if provider is unavailable
+    private var providerUnavailableWarning: String? {
+        guard !isCurrentProviderAvailable else { return nil }
+        switch providerId {
+        case "apple_fm_embed":
+            return "Apple Foundation Model embeddings are not yet available. Select a different provider."
+        case "nl_contextual_embedding":
+            return "Contextual embeddings require a one-time model download. Check network connection."
+        case "coreml_sentence_embedding":
+            return "No Core ML model found. Import a .mlpackage to use this provider."
+        default:
+            return "This provider is not available on your device."
+        }
+    }
+
+    /// User-friendly name for the current provider
+    private var currentProviderName: String {
+        switch providerId {
+        case "nl_embedding":
+            return "Apple Natural Language"
+        case "nl_contextual_embedding":
+            return "Contextual Embeddings"
+        case "coreml_sentence_embedding":
+            return "Core ML Sentence"
+        case "apple_fm_embed":
+            return "Apple Foundation Model"
+        default:
+            return "This provider"
+        }
+    }
+
+    /// Get supported dimensions for a provider ID
+    private func supportedDimensions(for provider: String) -> [Int] {
+        guard let option = embeddingProviderOptions.first(where: { $0.id == provider && $0.isSelectable }) else {
+            return [512] // Safe fallback
+        }
+        return option.supportedDimensions.sorted()
+    }
+
+    /// Validate and correct dimension if needed for current provider
+    private func validateDimensionForProvider(_ newDim: Int) {
+        let validDims = supportedDimensions(for: providerId)
+        guard !validDims.contains(newDim) else { return }
+
+        // Current dimension is invalid, auto-correct
+        if let firstValid = validDims.first {
+            Log.warning("[ContainerSettings] Dimension \(newDim) invalid for \(providerId), correcting to \(firstValid)", category: .embedding)
+            // Use DispatchQueue to avoid state modification during view update
+            DispatchQueue.main.async {
+                self.dim = firstValid
+            }
+        }
+    }
+
+    /// Documents in the active container
+    var activeContainerDocuments: [Document] {
+        guard let containerId = activeContainer?.id else { return [] }
+        return documents(for: containerId)
+    }
+
+    private func documents(for containerId: UUID) -> [Document] {
+        let defaultContainerId = containerService.containers.first?.id
+        return ragService.documents.filter { document in
+            if let docContainer = document.containerId {
+                return docContainer == containerId
+            } else {
+                return containerId == defaultContainerId
+            }
+        }
+    }
+
     var body: some View {
         NavigationView {
             Form {
-                Section(header: Text("Library identity & guardrails")) {
-                    Text("Give this workspace a clear name, friendly icon, and color so you always know which knowledge base you're editing.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-
-                    TextField("Name", text: $name)
-                    TextField("Icon (SF Symbol)", text: $icon)
-                    Text("Examples: book.closed, doc.text, sparkles, folder.badge.gear. Open the SF Symbols app to browse icons that match your library's vibe.")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .padding(.bottom, 2)
-                    TextField("Color Hex", text: $colorHex)
-                    Text("Use #RRGGBB values (e.g., #3366FF). This tints cards and pickers so it's obvious which library is active.")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-
-                    Toggle("Strict Mode (medical-grade)", isOn: $strictMode)
-
-                    SettingHelpCallout(
-                        icon: "shield.checkered",
-                        title: "What Strict Mode enforces",
-                        description: "Keeps the assistant cautious when evidence is weak—perfect for compliance, medical, or legal sets.",
-                        bullets: [
-                            "Requires similarities ≥52% before a chunk can answer",
-                            "Needs at least 3 confident chunks before drafting a reply",
-                            "Falls back to 'I don't have enough data' instead of hallucinating",
-                        ]
-                    )
+                identitySection
+                accuracyDefaultsSection
+                intelligenceSection
+                chunkingSection
+                if settings.developerRAGTuningEnabled {
+                    retrievalTuningSection
                 }
-
-                if let report = activeIntelligenceReport {
-                    Section(header: Text("Auto Intelligence snapshot")) {
-                        AutoIntelligencePanel(
-                            report: report,
-                            isAutoEnabled: autoAdaptDimension,
-                            onToggleAuto: {
-                                autoAdaptDimension.toggle()
-                            }
-                        )
-                    }
-                } else if autoAdaptDimension {
-                    Section(header: Text("Auto Intelligence snapshot")) {
-                        SettingHelpCallout(
-                            icon: "sparkles",
-                            title: "Awaiting first ingest",
-                            description: "Drop a few documents into this library and the dynamic engine will profile everything, set chunking windows, and be ready to re-index the rest whenever the strategy shifts.",
-                            bullets: [
-                                "We’ll automatically re-chunk + re-embed when new docs change the optimal strategy",
-                                "You’ll get recommendations before anything hits the cloud (and only with your consent)",
-                                "Pause auto mode anytime to freeze the current profile",
-                            ],
-                            accent: .accentColor
-                        )
-                    }
-                }
-
-                Section(header: Text("Embedding model — how text becomes numbers")) {
-                    Text("Pick the translator that turns sentences into vectors. Each option stays on-device unless noted.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-
-                    ForEach(embeddingProviderOptions) { option in
-                        SelectableOptionCard(
-                            icon: option.icon,
-                            title: option.title,
-                            subtitle: option.tagline,
-                            detail: option.detail,
-                            isActive: providerId == option.id,
-                            badgeText: option.badgeText,
-                            isDisabled: !option.isSelectable,
-                            metrics: option.metrics
-                        ) {
-                            guard option.isSelectable else { return }
-                            providerId = option.id
-                            normalizeProviderAndDimension()
-                        }
-                    }
-
-                    if !providerAlerts.isEmpty {
-                        VStack(spacing: 8) {
-                            ForEach(providerAlerts) { alert in
-                                SettingHelpCallout(
-                                    icon: alert.icon,
-                                    title: alert.title,
-                                    description: alert.description,
-                                    bullets: alert.bullets,
-                                    accent: alert.accent
-                                )
-                            }
-                        }
-                        .padding(.top, 6)
-                    }
-                }
-
-                Section(header: Text("Embedding resolution")) {
-                    Text("Higher dimensions capture more nuance but increase storage and indexing time.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-
-                    Picker("Dimension", selection: $dim) {
-                        ForEach(availableDimensionValues, id: \.self) { value in
-                            Text("\(value)").tag(value)
-                        }
-                    }
-                    .pickerStyle(.menu)
-
-                    Toggle(isOn: $autoAdaptDimension) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Dynamic self-tuning library")
-                            if autoAdaptDimension, let directive = activeContainer?.chunkingDirective {
-                                Text("Chunking locked on \(directive.strategy.capitalized) • \(directive.targetWordWindow)w / \(directive.overlapWords) overlap from the last run.")
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                    }
-
-                    if autoAdaptDimension {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("OpenIntelligence watches the entire corpus. When a fresh upload shifts the optimal chunking windows or embedding space, we’ll automatically re-chunk and re-embed the whole library for you.")
-                            if let summary = lastSelfTuneSummary {
-                                Text("Last tune \(summary). Next one kicks in as soon as the intelligence profile drifts again.")
-                            } else {
-                                Text("First tune will kick off as soon as enough signal lands to profile your stack.")
-                            }
-                        }
-                        .font(.caption2)
-                        .foregroundColor(.accentColor)
-                        .padding(.top, 4)
-                    } else {
-                        Text("Leave this off to keep manual control—recommendations still show up, but nothing will re-index or re-chunk without you pressing the button.")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                            .padding(.top, 4)
-                    }
-
-                    if let selectedOption = dimensionOptions.first(where: { $0.value == dim }) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack(spacing: 8) {
-                                Image(systemName: selectedOption.icon)
-                                    .foregroundColor(.accentColor)
-                                Text(selectedOption.title)
-                                    .font(.subheadline.weight(.semibold))
-                            }
-                            Text(selectedOption.detail)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-
-                            if !selectedOption.metrics.isEmpty {
-                                HStack(spacing: 12) {
-                                    ForEach(selectedOption.metrics) { metric in
-                                        HStack(spacing: 4) {
-                                            Image(systemName: metric.icon)
-                                                .font(.caption2)
-                                            Text(metric.text)
-                                                .font(.caption2)
-                                        }
-                                        .foregroundColor(.secondary)
-                                    }
-                                }
-                            }
-                        }
-                        .padding(12)
-                        .background(Color.accentColor.opacity(0.08))
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                    }
-
-                    if activeContainer?.embeddingDim != dim {
-                        SettingHelpCallout(
-                            icon: "arrow.triangle.2.circlepath",
-                            title: "Re-embed required",
-                            description: "Changing dimensions reshapes every vector. Reprocess your documents so searches stay accurate.",
-                            bullets: [
-                                "Export/backup if you need a snapshot",
-                                "Re-run ingestion to rebuild embeddings",
-                                "Old indexes are discarded once new vectors exist",
-                            ],
-                            accent: .orange
-                        )
-                    }
-
-                    if isReembedding, let progress = reembedProgress {
-                        ReembedStatusBanner(progress: progress)
-                    }
-                }
-
-                Section(header: Text("Vector database — where embeddings live")) {
-                    Text("Choose how search indexes are stored. Durable engines persist on disk; volatile ones reset when you relaunch.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-
-                    ForEach(vectorDBOptions) { option in
-                        SelectableOptionCard(
-                            icon: option.icon,
-                            title: option.title,
-                            subtitle: option.caption,
-                            detail: option.detail,
-                            isActive: dbKind == option.kind
-                        ) {
-                            dbKind = option.kind
-                        }
-                    }
-                }
+                embeddingProviderSection
+                vectorDatabaseSection
             }
             .navigationTitle("Library Settings")
             .iOSNavigationBarInline()
@@ -259,32 +158,86 @@ struct ContainerSettingsSheet: View {
                     Button("Save") {
                         handleSave()
                     }
-                    .disabled(isReembedding)
+.disabled(isReembedding || !isCurrentProviderAvailable)
                 }
             }
             .onAppear {
+                guard !hasInitialized else { return }
+                hasInitialized = true
+
                 if let c = activeContainer {
+                    Log.info("[ContainerSettings] onAppear: Loading container '\(c.name)' with provider=\(c.embeddingProviderId), dim=\(c.embeddingDim)", category: .embedding)
                     name = c.name
                     icon = c.icon
                     colorHex = c.colorHex
                     providerId = c.embeddingProviderId
-                    dim = c.embeddingDim
+                    // Validate dimension for provider before setting
+                    let validDims = supportedDimensions(for: c.embeddingProviderId)
+                    if validDims.contains(c.embeddingDim) { 
+                        dim = c.embeddingDim
+                    } else {
+                        dim = validDims.first ?? 512
+                        Log.warning("[ContainerSettings] Container dimension \(c.embeddingDim) invalid for provider \(c.embeddingProviderId), using \(dim)", category: .embedding)
+                    }
                     dbKind = c.vectorDBKind
-                    strictMode = c.strictMode
+                    retrievalConfig = c.retrievalConfig
                     autoAdaptDimension = c.autoAdaptDimension
+
+                    // Load chunking settings
+                    if let directive = c.chunkingDirective {
+                        chunkingStrategy = directive.strategy
+                        targetWordWindow = directive.targetWordWindow
+                        overlapWords = directive.overlapWords
+                        chunkingSource = directive.source
+                    } else {
+                        chunkingStrategy = "balanced"
+                        targetWordWindow = 400
+                        overlapWords = 75
+                        chunkingSource = .baseline
+                    }
+                } else {
+                    Log.warning("[ContainerSettings] onAppear: No active container found", category: .embedding)
                 }
-                normalizeProviderAndDimension()
+
                 if let containerId = activeContainer?.id {
                     ragService.refreshIntelligence(for: containerId)
                 } else {
                     ragService.refreshIntelligence(for: nil)
                 }
+
+                // Check provider availability asynchronously
+                refreshProviderAvailability()
             }
-            .onChange(of: providerId) { _, _ in
+.onChange(of: providerId) { oldProvider, newProvider in
+    guard oldProvider != newProvider else { return }
+    Log.info("[ContainerSettings] Provider changed: \(oldProvider) → \(newProvider)", category: .embedding)
                 normalizeProviderAndDimension()
             }
             .onChange(of: containerService.activeContainerId) { _, newValue in
                 ragService.refreshIntelligence(for: newValue)
+                // Re-check availability when container changes
+                refreshProviderAvailability()
+            }
+            .confirmationDialog(
+                "Switch to In-Memory storage?",
+                isPresented: $showingDBChangeConfirmation,
+                presenting: pendingDBChange
+            ) { _ in
+                Button("Use In-Memory (data lost on restart)", role: .destructive) {
+                    pendingDBChange = nil
+                    showingDBChangeConfirmation = false
+                }
+                Button("Keep Persistent Storage", role: .cancel) {
+                    if let container = activeContainer {
+                        dbKind = container.vectorDBKind
+                    } else {
+                        dbKind = .persistentJSON
+                    }
+                    pendingDBChange = nil
+                    showingDBChangeConfirmation = false
+                }
+            } message: { _ in
+                Text("In-Memory storage doesn't persist between app launches. Your \(activeContainerDocuments.count) document(s) will need to be re-indexed every time you restart the app.")
             }
             .confirmationDialog(
                 "Rebuild embeddings now?",
@@ -315,101 +268,58 @@ struct ContainerSettingsSheet: View {
         }
     }
 
-    private var embeddingProviderOptions: [EmbeddingProviderOption] {
+    var embeddingProviderOptions: [EmbeddingProviderOption] { 
         [
+            // MARK: - NLEmbedding (Word Vectors)
+
+            // Built into iOS since iOS 13. Uses NLEmbedding.wordEmbedding(for:).
+            // Returns 512-dim vectors by averaging word embeddings.
+            // Fastest option, always available, but less accurate than contextual.
             EmbeddingProviderOption(
                 id: "nl_embedding",
-                icon: "bolt.badge.a",
-                title: "Apple Natural Language",
-                tagline: "Fast, private default",
-                detail: "Runs 100% on-device with low battery impact. Great for mixed-format libraries and everyday Q&A.",
+                icon: "textformat.abc",
+                title: "Natural Language",
+                tagline: "Fast word vectors",
+                detail: "Averages word embeddings for each chunk. Fast and always available, but words are context-independent ('bank' always maps to the same vector).",
                 isSelectable: true,
                 badgeText: nil,
                 supportedDimensions: [512],
                 metrics: [
-                    OptionMetric(icon: "speedometer", text: "~2.1 ms/chunk", tint: .accentColor),
-                    OptionMetric(icon: "battery.100", text: "Low battery impact"),
-                    OptionMetric(icon: "lock.shield", text: "Private by default"),
+                    OptionMetric(icon: "hare.fill", text: "~2 ms/chunk", tint: .green),
+                    OptionMetric(icon: "checkmark.shield.fill", text: "Always available"),
+                    OptionMetric(icon: "iphone", text: "100% on-device"),
                 ],
                 alert: nil
             ),
+
+            // MARK: - NLContextualEmbedding (BERT-like)
+
+            // iOS 17+. Uses NLContextualEmbedding for context-aware embeddings.
+            // Requires one-time ~50MB asset download per language.
+            // Supports 27+ languages via Latin, Cyrillic, CJK models.
             EmbeddingProviderOption(
                 id: "nl_contextual_embedding",
-                icon: "sparkles",
+                icon: "brain.head.profile",
                 title: "Contextual Embeddings",
-                tagline: "High-accuracy semantic search",
-                detail: "BERT-like contextual understanding. 'Bank' near 'river' differs from 'bank' near 'money'. 15-25% accuracy boost for complex queries.",
+                tagline: "High accuracy (context aware)",
+                detail: "BERT-like model understands words in context. 'Bank' near 'river' differs from 'bank' near 'money'. Best for nuanced search.",
                 isSelectable: true,
                 badgeText: "⚡ Recommended",
                 supportedDimensions: [512],
                 metrics: [
-                    OptionMetric(icon: "brain.head.profile", text: "Context-aware", tint: .purple),
-                    OptionMetric(icon: "chart.line.uptrend.xyaxis", text: "+15-25% accuracy", tint: .green),
-                    OptionMetric(icon: "lock.shield", text: "100% on-device"),
+                    OptionMetric(icon: "sparkles", text: "+15-25% accuracy", tint: .purple),
+                    OptionMetric(icon: "globe", text: "27+ languages"),
+                    OptionMetric(icon: "iphone", text: "100% on-device"),
                 ],
                 alert: ProviderAvailabilityAlert(
                     id: "nl_contextual",
-                    icon: "arrow.down.circle",
-                    title: "One-time model download",
-                    description: "First use downloads ~50MB language model. After that, everything runs on-device.",
+                    icon: "arrow.down.circle.fill",
+                    title: "Requires iOS 17+ and model download",
+                    description: "First use downloads a ~50MB language model. After that, everything runs on-device.",
                     bullets: [
-                        "Supports 27+ languages automatically",
-                        "Best for research, medical, legal documents",
-                        "No cloud calls—ever",
-                    ],
-                    accent: .purple
-                )
-            ),
-            EmbeddingProviderOption(
-                id: "coreml_sentence_embedding",
-                icon: "text.book.closed.fill",
-                title: "Core ML Sentence",
-                tagline: "Question-focused",
-                detail: "Load your own Core ML sentence encoders for multilingual or domain-specific embeddings.",
-                isSelectable: true,
-                badgeText: nil,
-                supportedDimensions: [384, 768],
-                metrics: [
-                    OptionMetric(icon: "globe", text: "Multilingual ready"),
-                    OptionMetric(icon: "externaldrive", text: "Bring-your-own model"),
-                    OptionMetric(icon: "icloud.and.arrow.down", text: "Side-load requirement"),
-                ],
-                alert: ProviderAvailabilityAlert(
-                    id: "coreml",
-                    icon: "tray.and.arrow.down.fill",
-                    title: "Install Core ML bundle",
-                    description: "Import a compatible `.mlpackage` via Files to enable Core ML sentence embeddings.",
-                    bullets: [
-                        "Supports e5-small, MiniLM, and multilingual encoders",
-                        "Place the package under On-Device Models",
-                        "Restart the app after sideloading to refresh",
-                    ],
-                    accent: .orange
-                )
-            ),
-            EmbeddingProviderOption(
-                id: "apple_fm_embed",
-                icon: "sparkles.rectangle.stack",
-                title: "Apple Foundation Model",
-                tagline: "Cloud-consent powerhouse",
-                detail: "Uses Apple's embedding endpoint with 1024-dim research-grade vectors.",
-                isSelectable: true,
-                badgeText: nil,
-                supportedDimensions: [1024],
-                metrics: [
-                    OptionMetric(icon: "wifi", text: "Calls Apple PCC"),
-                    OptionMetric(icon: "shield.lefthalf.fill", text: "Consent logged"),
-                    OptionMetric(icon: "dial.max.fill", text: "1024 dimensions"),
-                ],
-                alert: ProviderAvailabilityAlert(
-                    id: "apple_fm",
-                    icon: "lock.shield",
-                    title: "Apple FM needs consent",
-                    description: "This endpoint calls Private Cloud Compute with full privacy protection.",
-                    bullets: [
-                        "Requires iOS 26+ and Apple ID opt-in",
-                        "All transmissions logged in Telemetry",
-                        "1024-dimension vectors for maximum fidelity",
+                        "Latin, Cyrillic, CJK, Arabic, Thai, Indic scripts",
+                        "Model downloads automatically when needed",
+                        "No cloud calls after download",
                     ],
                     accent: .purple
                 )
@@ -417,59 +327,25 @@ struct ContainerSettingsSheet: View {
         ]
     }
 
-    private var dimensionOptions: [DimensionOption] {
+    var dimensionOptions: [DimensionOption] { 
         [
-            DimensionOption(
-                value: 384,
-                icon: "speedometer",
-                title: "384 • Compact",
-                caption: "Tiny index",
-                detail: "Best for <50 documents or lightweight notes. Re-embeds quickly and minimizes storage.",
-                metrics: [
-                    OptionMetric(icon: "externaldrive", text: "~0.55 MB / 100 docs"),
-                    OptionMetric(icon: "person.3.sequence", text: "Rapid retraining", tint: .green),
-                ]
-            ),
+            // 512D - Native dimension for NLEmbedding and NLContextualEmbedding
             DimensionOption(
                 value: 512,
-                icon: "dial.medium.fill",
-                title: "512 • Balanced",
-                caption: "Recommended",
-                detail: "Default sweet spot for mobile. Captures nuance without ballooning storage.",
+                icon: "square.grid.3x3.fill",
+                title: "512D • Standard",
+                caption: "Native Apple dimension",
+                detail: "Native output of Apple's NLEmbedding and NLContextualEmbedding. This is the only dimension available with built-in Apple providers.",
                 metrics: [
-                    OptionMetric(icon: "speedometer", text: "~2.1 ms/chunk", tint: .accentColor),
-                    OptionMetric(icon: "externaldrive", text: "~0.78 MB / 100 docs"),
-                    OptionMetric(icon: "cube.box", text: "1K chunks comfy"),
-                ]
-            ),
-            DimensionOption(
-                value: 768,
-                icon: "dial.high.fill",
-                title: "768 • High resolution",
-                caption: "Richer context",
-                detail: "Great for technical manuals or multilingual sets. Larger index (~1.5× 512).",
-                metrics: [
-                    OptionMetric(icon: "speedometer", text: "~3.4 ms/chunk"),
-                    OptionMetric(icon: "externaldrive", text: "~1.1 MB / 100 docs"),
-                    OptionMetric(icon: "globe", text: "Better multilingual fidelity"),
-                ]
-            ),
-            DimensionOption(
-                value: 1024,
-                icon: "dial.max.fill",
-                title: "1024 • Ultra",
-                caption: "Research grade",
-                detail: "Maximum fidelity for giant libraries. Expect longer ingestion and biggest storage footprint.",
-                metrics: [
-                    OptionMetric(icon: "speedometer", text: "~4.8 ms/chunk"),
-                    OptionMetric(icon: "externaldrive", text: "~1.5 MB / 100 docs"),
-                    OptionMetric(icon: "building.columns", text: ">10K chunk atlas"),
+                    OptionMetric(icon: "checkmark.seal.fill", text: "Native Apple format", tint: .green),
+                    OptionMetric(icon: "cube.fill", text: "~0.78 MB / 100 docs"),
+                    OptionMetric(icon: "bolt.fill", text: "No conversion overhead"),
                 ]
             ),
         ]
     }
 
-    private var availableDimensionOptions: [DimensionOption] {
+    var availableDimensionOptions: [DimensionOption] { 
         guard let option = embeddingProviderOptions.first(where: { $0.id == providerId && $0.isSelectable }) else {
             return []
         }
@@ -483,32 +359,32 @@ struct ContainerSettingsSheet: View {
         return option.supportedDimensions.sorted()
     }
 
-    private var providerAlerts: [ProviderAvailabilityAlert] {
+    var providerAlerts: [ProviderAvailabilityAlert] { 
         embeddingProviderOptions.compactMap { $0.alert }
     }
 
-    private var vectorDBOptions: [VectorDBOptionDescriptor] {
+    var vectorDBOptions: [VectorDBOptionDescriptor] { 
         [
             VectorDBOptionDescriptor(
                 kind: .persistentJSON,
-                icon: "externaldrive.badge.checkmark",
-                title: "Persistent JSON",
-                caption: "Simple & durable",
-                detail: "Plain files stored with your documents. Perfect for under 1K docs and effortless backups."
+                icon: "doc.badge.gearshape.fill",
+                title: "JSON Storage",
+                caption: "Accuracy • Persistent",
+                detail: "Exact search over persisted vectors. Survives app restarts and favors maximum recall."
             ),
             VectorDBOptionDescriptor(
                 kind: .vecturaHNSW,
-                icon: "chart.xyaxis.line",
-                title: "Vectura HNSW",
-                caption: "Fastest searches",
-                detail: "Graph index built for >1K documents. Millisecond lookups even with millions of chunks."
+                icon: "point.3.connected.trianglepath.dotted",
+                title: "HNSW Index",
+                caption: "Approximate • Fast search",
+                detail: "Hierarchical graph index for sub-millisecond search on 10K+ chunks. Trades a bit of recall for speed."
             ),
             VectorDBOptionDescriptor(
                 kind: .inMemory,
-                icon: "bolt.slash",
-                title: "In-Memory",
-                caption: "Scratchpad",
-                detail: "Lives in RAM only. Clears on relaunch—use for demos or temporary experiments."
+                icon: "memorychip.fill",
+                title: "In-Memory Only",
+                caption: "Temporary • Testing",
+                detail: "Embeddings stored in RAM only. Lost when app closes. Use for experiments only."
             ),
         ]
     }
@@ -537,18 +413,25 @@ struct ContainerSettingsSheet: View {
         }
     }
 
-    private var activeContainerDocuments: [Document] {
-        guard let containerId = activeContainer?.id else { return [] }
-        return documents(for: containerId)
-    }
+    /// Refresh provider availability by checking each embedding service
+    private func refreshProviderAvailability() {
+        Task {
+            var availability: [String: Bool] = [:]
 
-    private func documents(for containerId: UUID) -> [Document] {
-        let defaultContainerId = containerService.containers.first?.id
-        return ragService.documents.filter { document in
-            if let docContainer = document.containerId {
-                return docContainer == containerId
-            } else {
-                return containerId == defaultContainerId
+            // Check each provider's runtime availability
+            for option in embeddingProviderOptions {
+                let service = EmbeddingService.forProvider(id: option.id, targetDimension: option.supportedDimensions.first, allowFallback: false)
+                availability[option.id] = service.isAvailable
+            }
+
+            await MainActor.run {
+                self.providerAvailability = availability
+                Log.info("[ContainerSettings] Provider availability: \(availability)", category: .embedding)
+
+                // If current provider is unavailable, suggest fallback
+                if let currentAvailable = availability[self.providerId], !currentAvailable {
+                    Log.warning("[ContainerSettings] Current provider \(self.providerId) is unavailable", category: .embedding)
+                }
             }
         }
     }
@@ -559,6 +442,7 @@ struct ContainerSettingsSheet: View {
         let previousDim = container.embeddingDim
         let previousDB = container.vectorDBKind
         let previousAutoAdapt = container.autoAdaptDimension
+        let previousChunking = container.chunkingDirective
 
         container.name = name
         container.icon = icon
@@ -566,8 +450,39 @@ struct ContainerSettingsSheet: View {
         container.embeddingProviderId = providerId
         container.embeddingDim = dim
         container.vectorDBKind = dbKind
-        container.strictMode = strictMode
+        container.retrievalConfig = retrievalConfig
         container.autoAdaptDimension = autoAdaptDimension
+
+        // Update chunking directive if manually changed
+        if !autoAdaptDimension || chunkingSource == .manual {
+            container.chunkingDirective = ChunkingDirective(
+                source: .manual,
+                strategy: chunkingStrategy,
+                targetWordWindow: targetWordWindow,
+                overlapWords: overlapWords,
+                rationale: ["Manually configured by user"]
+            )
+        }
+
+        let providerChanged = previousProvider != providerId
+        let dimensionChanged = previousDim != dim
+        let dbKindChanged = previousDB != dbKind
+        let chunkingChanged = previousChunking?.targetWordWindow != targetWordWindow ||
+            previousChunking?.overlapWords != overlapWords ||
+            previousChunking?.strategy != chunkingStrategy
+
+        // Mark as user-configured to prevent auto-adapt from immediately overriding
+        if providerChanged || dimensionChanged || chunkingChanged {
+            container.lastSelfTuneAt = Date()
+            Log.info("[ContainerSettings] User manually configured embedding: \(providerId) @ \(dim)D", category: .embedding)
+        }
+
+        // CRITICAL: Invalidate cached vector store BEFORE updating container
+        // This ensures the router will create a fresh database with correct dimensions
+        if dimensionChanged || providerChanged || dbKindChanged {
+            Log.info("[ContainerSettings] Config changed - invalidating vector store cache for container \(container.id)", category: .vectorDB)
+            ragService.invalidateVectorStore(for: container.id, clearStorage: dimensionChanged || providerChanged)
+        }
 
         containerService.updateContainer(container)
 
@@ -575,21 +490,27 @@ struct ContainerSettingsSheet: View {
             ragService.refreshIntelligence(for: container.id, force: true)
         }
 
-        if previousDim != dim {
-            print("ℹ️ Container \(container.name) embedding dimension changed from \(previousDim) to \(dim). Re-embedding required for best results.")
+        if dimensionChanged {
+            Log.info("[ContainerSettings] Embedding dimension changed from \(previousDim) to \(dim). Re-embedding required.", category: .embedding)
         }
-        if previousDB != dbKind {
-            print("ℹ️ Container \(container.name) vector DB changed to \(dbKind). New index will be used on next retrieval.")
+        if dbKindChanged {
+            Log.info("[ContainerSettings] Vector DB changed to \(dbKind.rawValue).", category: .vectorDB)
         }
 
-        let providerChanged = previousProvider != providerId
-        let dimensionChanged = previousDim != dim
         let needsReembed = (providerChanged || dimensionChanged) && !activeContainerDocuments.isEmpty
+        let needsRechunk = chunkingChanged && !activeContainerDocuments.isEmpty && !needsReembed
 
         if needsReembed {
             pendingReembedContext = ReembedContext(
                 containerId: container.id,
                 reason: reembedReason(providerChanged: providerChanged, dimensionChanged: dimensionChanged),
+                documentCount: activeContainerDocuments.count
+            )
+            showingReembedConfirmation = true
+        } else if needsRechunk {
+            pendingReembedContext = ReembedContext(
+                containerId: container.id,
+                reason: "chunking settings",
                 documentCount: activeContainerDocuments.count
             )
             showingReembedConfirmation = true
@@ -639,7 +560,7 @@ struct ContainerSettingsSheet: View {
 
 // MARK: - Settings Helpers
 
-private struct EmbeddingProviderOption: Identifiable {
+struct EmbeddingProviderOption: Identifiable { 
     let id: String
     let icon: String
     let title: String
@@ -652,7 +573,7 @@ private struct EmbeddingProviderOption: Identifiable {
     let alert: ProviderAvailabilityAlert?
 }
 
-private struct DimensionOption: Identifiable {
+struct DimensionOption: Identifiable { 
     let value: Int
     let icon: String
     let title: String
@@ -663,7 +584,7 @@ private struct DimensionOption: Identifiable {
     var id: Int { value }
 }
 
-private struct VectorDBOptionDescriptor: Identifiable {
+struct VectorDBOptionDescriptor: Identifiable { 
     let kind: VectorDBKind
     let icon: String
     let title: String
@@ -673,7 +594,7 @@ private struct VectorDBOptionDescriptor: Identifiable {
     var id: VectorDBKind { kind }
 }
 
-private struct ProviderAvailabilityAlert: Identifiable {
+struct ProviderAvailabilityAlert: Identifiable { 
     let id: String
     let icon: String
     let title: String
@@ -688,14 +609,14 @@ private struct LibraryThemePreset: Identifiable {
     let icon: String
     let colorHex: String
     let description: String
-    let strictModeDefault: Bool?
+    let retrievalPreset: RetrievalConfig?
 
     var subtitle: String {
-        strictModeDefault == true ? "Strict guardrails" : "Flexible responses"
+        retrievalPreset?.summary ?? "Balanced"
     }
 }
 
-private struct ReembedContext: Identifiable {
+struct ReembedContext: Identifiable { 
     let containerId: UUID
     let reason: String
     let documentCount: Int
@@ -703,7 +624,7 @@ private struct ReembedContext: Identifiable {
     var id: UUID { containerId }
 }
 
-private struct SelectableOptionCard: View {
+struct SelectableOptionCard: View { 
     let icon: String
     let title: String
     let subtitle: String
@@ -833,14 +754,14 @@ private struct SelectableOptionCard: View {
     }
 }
 
-private struct OptionMetric: Identifiable {
+struct OptionMetric: Identifiable { 
     let id = UUID()
     let icon: String
     let text: String
     var tint: Color = .secondary
 }
 
-private struct SettingHelpCallout: View {
+struct SettingHelpCallout: View { 
     let icon: String
     let title: String
     let description: String
@@ -882,7 +803,7 @@ private struct SettingHelpCallout: View {
     }
 }
 
-private struct AutoIntelligencePanel: View {
+struct AutoIntelligencePanel: View { 
     let report: LibraryIntelligenceCenter.IntelligenceReport
     let isAutoEnabled: Bool
     var onToggleAuto: (() -> Void)?
@@ -926,7 +847,7 @@ private struct AutoIntelligencePanel: View {
             )
 
             InsightLine(
-                icon: "dot.vector",
+                icon: "point.3.connected.trianglepath.dotted",
                 title: "Embeddings",
                 value: "\(friendlyProviderName(report.embedding.providerId)) • \(report.embedding.dimension)D",
                 detail: report.embedding.rationale
@@ -1191,7 +1112,7 @@ private extension LibraryIntelligenceCenter.RetrievalPlan.RerankerStrategy {
     }
 }
 
-private struct ReembedStatusBanner: View {
+struct ReembedStatusBanner: View { 
     let progress: ReembedProgress
 
     var body: some View {

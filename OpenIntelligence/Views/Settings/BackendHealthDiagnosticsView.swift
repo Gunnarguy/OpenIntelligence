@@ -98,7 +98,7 @@ Spacer()
                 }
             }
 
-            SectionFooter("Apple Intelligence provides on-device AI with Private Cloud Compute fallback for complex queries.")
+            SectionFooter("Apple Intelligence runs on-device with attested, stateless Private Cloud Compute for complex queries.")
         }
     }
 

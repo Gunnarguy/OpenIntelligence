@@ -496,7 +496,7 @@ struct EmbeddingStatusCard: View {
 
             HStack(spacing: 16) {
                 StatusPill(text: snapshot.autoAdaptEnabled ? "Auto-adapt ON" : "Auto-adapt OFF", systemImage: "arrow.2.squarepath")
-                StatusPill(text: snapshot.strictMode ? "Strict" : "Lenient", systemImage: snapshot.strictMode ? "lock.shield" : "switch.2")
+                StatusPill(text: snapshot.retrievalConfig.summary, systemImage: "slider.horizontal.3")
             }
 
             Text("Docs: \(snapshot.documentCount) • Chunks: \(snapshot.chunkCount)")

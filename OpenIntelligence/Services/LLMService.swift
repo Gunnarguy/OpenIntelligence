@@ -203,9 +203,18 @@ struct LLMResponse {
     @available(iOS 26.0, *)
     class AppleFoundationLLMService: LLMService {
         private var session: LanguageModelSession?
+        private var currentSystemPrompt: String?
 
         /// Tool handler for agentic RAG function calling
         var toolHandler: RAGToolHandler?
+
+        func resetSession(clearTools: Bool = false) {
+            if clearTools {
+                toolHandler = nil
+            }
+            session = nil
+            currentSystemPrompt = nil
+        }
 
         // Lazy model access - only initialize when actually needed and ensure main thread
         private var _model: SystemLanguageModel?
@@ -300,9 +309,10 @@ struct LLMResponse {
         /// Context window size for on-device model (4096 tokens per TN3193)
         static let contextWindowSize: Int = 4096
 
-        /// Approximate token count for a string (3-4 chars per token for Latin)
+        /// Approximate token count for a string (use conservative 2.5 chars/token to avoid overflow)
         static func estimateTokens(for text: String) -> Int {
-            return text.count / 4 // Conservative estimate
+            let charsPerToken = 2.5
+            return max(1, Int(ceil(Double(text.count) / charsPerToken)))
         }
 
         // MARK: - Transcript Access (iOS 26+)
@@ -425,7 +435,7 @@ struct LLMResponse {
         }
 
         // Lazy session creation - only when actually generating
-        private func ensureSession() throws {
+        private func ensureSession(systemPrompt: String? = nil) throws { 
             guard session == nil else { return }
 
             guard Thread.isMainThread else {
@@ -460,33 +470,25 @@ struct LLMResponse {
 
                 // Create language model session with hybrid RAG+LLM instructions
                 // This enables BOTH document-based RAG and general conversational AI
+                let defaultInstructions = """
+                    You are OpenIntelligence, a privacy-first assistant.
+
+                    Use tools only when needed:
+                    - search_documents to fetch relevant passages
+                    - list_documents to show what's available
+                    - get_document_summary for details
+
+                    When using document info, cite document names and page numbers when available.
+                    If the provided context doesn't contain the answer, say so.
+                    """
+
+                let instructionsText = systemPrompt ?? defaultInstructions
+                currentSystemPrompt = systemPrompt
+
                 session = LanguageModelSession(
                     model: model,
                     tools: tools,
-                    instructions: Instructions(
-                        """
-                        You are a helpful AI assistant with access to the user's document library.
-
-                        When the user asks about specific information:
-                        - Use search_documents to find relevant content from their documents
-                        - Analyze the retrieved content and synthesize a helpful answer
-                        - Cite specific documents and page numbers when available
-
-                        When the user wants to know about their documents:
-                        - Use list_documents to show what's available
-                        - Use get_document_summary for details about specific documents
-
-                        For general conversation:
-                        - Engage naturally and helpfully without accessing tools
-                        - Answer questions to the best of your ability
-
-                        Always decide intelligently whether to use tools or answer directly.
-                        When calling search_documents, choose parameters based on the task:
-                        • Brief summaries: topK 2–4
-                        • Deep dives/comparisons: topK 8–12
-                        • Raise minSimilarity above 0.35 when results seem noisy (default 0.35).
-                        Be conversational and cite sources when using document information.
-                        """)
+                    instructions: Instructions(instructionsText)
                 )
 
                 Log.info("Apple Foundation Model session initialized (Agentic RAG)", category: .llm)
@@ -511,8 +513,14 @@ struct LLMResponse {
         func generate(prompt: String, context: String?, config: InferenceConfig) async throws
             -> LLMResponse
         {
+            // Check if system prompt changed
+            if let newPrompt = config.systemPrompt, newPrompt != currentSystemPrompt {
+                Log.info("System prompt changed, recreating session", category: .llm)
+                session = nil
+            }
+
             // Ensure session is created (will throw if unavailable or not on main thread)
-            try ensureSession()
+            try ensureSession(systemPrompt: config.systemPrompt)
 
             guard let session = session else {
                 throw LLMError.modelUnavailable
@@ -534,36 +542,56 @@ struct LLMResponse {
             let fullPrompt: String
             if let context = context, !context.isEmpty {
                 Log.debug("RAG mode: context=\(context.count) chars, prompt=\(prompt.prefix(50))...", category: .llm)
+
+                // Estimate if we're approaching context window limit (4096 tokens ≈ 10K chars, conservative)
+                let totalInputLength = context.count + prompt.count + 200 // Buffer for instructions
+                let charsPerToken = 2.5
+                let estimatedInputTokens = max(
+                    1,
+                    Int(ceil(Double(totalInputLength) / charsPerToken))
+                )
+
+                if estimatedInputTokens > 3500 {
+                    Log.warning("[FM] Input approaching context limit: ~\(estimatedInputTokens) tokens", category: .llm)
+                }
+
+                // Conversational RAG prompt - not extractive QA
                 fullPrompt = """
-                Below is text content that has been provided for you to analyze. Please read this content carefully and answer the question that follows.
+                    You are a precise research assistant with access to the user's documents.
+                    Write clean Markdown with short sections and bullet points where helpful.
+                    Be direct, avoid filler, and do not mention "excerpts" or "context."
+                    Normalize units and strip footnote markers (e.g., "3 mL1" → "3 mL").
+                    If evidence is thin, state what is supported and what is unknown.
+                    Cite sources like [S1] when possible.
 
-                CONTENT TO ANALYZE:
-                \(context)
+                    RELEVANT DOCUMENT EXCERPTS:
+                    \(context)
 
-                ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-                Based on the content above, please answer this question with comprehensive detail:
-
-                \(prompt)
-
-                Instructions:
-                • Synthesize information from the provided content
-                • Provide specific examples and details from the text
-                • Make connections between different parts of the content when relevant
-                • If the content contains partial information, explain what you found
-                • Structure your response clearly
-                • If the content doesn't address the question, state that clearly
-
-                Your detailed answer:
-                """
+                    USER QUESTION: \(prompt)
+                    """
             } else {
                 Log.debug("General chat mode: prompt=\(prompt.prefix(50))...", category: .llm)
-                fullPrompt = prompt
+
+                // Handle short queries that may confuse language detection
+                // Per Apple's documentation, the language detector needs sufficient text
+                let wordCount = prompt.split(separator: " ").count
+
+                if wordCount <= 2 {
+                    // Very short queries (1-2 words) - add explicit English context
+                    fullPrompt =
+                        "Please explain the following topic in clean Markdown with short sections and bullets where helpful: \(prompt)"
+                } else if wordCount <= 5, !prompt.contains(" the "), !prompt.contains(" is ") {
+                    // Short queries without clear English markers
+                    fullPrompt =
+                        "Answer the following in clean Markdown with short sections and bullets where helpful: \(prompt)"
+                } else { 
+                    fullPrompt = prompt
+                }
             }
 
             // Estimate token count for routing decisions
             let promptLength = fullPrompt.count
-            let estimatedTokens = promptLength / 4 // Rough estimate: 1 token ≈ 4 chars
+            let estimatedTokens = max(1, Int(ceil(Double(promptLength) / 2.5)))
             Log.debug("Generation: ~\(estimatedTokens) tokens, exec=\(config.executionContext)", category: .llm)
 
             // Generate response using streaming API with execution context
@@ -595,71 +623,90 @@ struct LLMResponse {
             let responseStream = session.streamResponse(to: fullPrompt, options: options)
 
             var snapshotCount = 0
-            var forcedLocalFallback = false
             var contextWindowExceeded = false
             var guardrailViolation = false
             var unsupportedLanguage = false
 
-            do { 
-            for try await snapshot in responseStream {
-                snapshotCount += 1
+            do {
+                for try await snapshot in responseStream {
+                    snapshotCount += 1
 
-                if firstTokenTime == nil {
-                    firstTokenTime = Date().timeIntervalSince(startTime)
+                    if firstTokenTime == nil {
+                        firstTokenTime = Date().timeIntervalSince(startTime)
 
-                    // Detect actual execution location from first token latency
-                    // On-device: ~0.1-0.5s, PCC: ~2-4s (includes network roundtrip)
-                    if let ttft = firstTokenTime {
-                        if ttft < 1.0 {
-                            actualExecutionLocation = "📱 On-Device"
-                            Log.info("[FM] On-Device execution (TTFT: \(String(format: "%.2f", ttft))s)", category: .llm)
-                        } else {
-                            actualExecutionLocation = "☁️ Private Cloud Compute"
-                            Log.info("[FM] Private Cloud Compute (TTFT: \(String(format: "%.2f", ttft))s)", category: .llm)
-                        }
+                        // Detect actual execution location from first token latency
+                        // On-device: ~0.1-0.5s, PCC: ~2-4s (includes network roundtrip)
+                        if let ttft = firstTokenTime {
+                            if ttft < 1.0 {
+                                actualExecutionLocation = "📱 On-Device"
+                                Log.info("[FM] On-Device execution (TTFT: \(String(format: "%.2f", ttft))s)", category: .llm)
+                            } else {
+                                actualExecutionLocation = "☁️ Private Cloud Compute"
+                                Log.info("[FM] Private Cloud Compute (TTFT: \(String(format: "%.2f", ttft))s)", category: .llm)
+                            }
 
-                        // Enforce execution preferences: if PCC is blocked, fall back to on-device analysis
-                        if (config.executionContext == .onDeviceOnly
-                            || !config.allowPrivateCloudCompute)
-                            && actualExecutionLocation.contains("Private Cloud Compute")
-                        {
-                            Log.warning("PCC blocked by settings - falling back to On-Device Analysis", category: .llm)
-                            TelemetryCenter.emit(
-                                .system,
-                                severity: .warning,
-                                title: "PCC blocked by settings",
-                                metadata: [
-                                    "ttft": String(format: "%.2f", ttft),
-                                    "execDetected": actualExecutionLocation,
-                                ]
-                            )
-                            forcedLocalFallback = true
-                            LLMStreamingContext.emit(text: "", isFinal: true)
-                            break
+                            // NOTE: We CANNOT force PCC. Apple's modelmanagerd daemon
+                            // makes routing decisions based on context size, complexity,
+                            // thermals, battery, and user's PCC consent settings.
+                            // If the system chose on-device, trust it. If context overflows
+                            // (>4096 tokens), Apple's framework will throw the error.
+                            if config.executionContext == .cloudOnly,
+                               actualExecutionLocation.contains("On-Device")
+                            {
+                                // Just log - don't abort. Let the system work.
+                                Log.info(
+                                    "[FM] System selected on-device despite cloud preference - context may fit in 4096 tokens",
+                                    category: .llm
+                                )
+                            }
+
+                            // Log when system routes to PCC despite our preference for on-device
+                            // NOTE: We cannot actually force on-device execution - Apple's system
+                            // automatically routes to PCC when context is too large. The only way
+                            // to avoid PCC is to trim context to fit within 4096 tokens.
+                            // If the user has PCC disabled in iOS Settings, this will fail at
+                            // the system level, not here.
+                            if config.executionContext == .onDeviceOnly || !config.allowPrivateCloudCompute,
+                                actualExecutionLocation.contains("Private Cloud Compute")
+                            { 
+                                Log.warning("[FM] PCC routed despite on-device preference - context may be too large for 4096 limit", category: .llm)
+                                TelemetryCenter.emit(
+                                    .system, 
+                                    severity: .info,
+                                    title: "System routed to PCC",
+                                    metadata: [
+                                            "ttft": String(format: "%.2f", ttft),
+                                            "execDetected": actualExecutionLocation, 
+                                        "note": "Context exceeds on-device capacity - PCC required",
+                                    ]
+                                )
+                                // DON'T abort - let the system work. If PCC is truly unavailable
+                                // (user disabled in Settings), Apple's framework will handle it.
+                                // We've already trimmed context as much as possible.
+                            }
                         }
                     }
+
+                    // Update response text from snapshot
+                    let previousLength = responseText.count
+                    responseText = snapshot.content
+                    let newChars = responseText.count - previousLength
+
+                    // More accurate token counting based on word boundaries
+                    let currentWords = responseText.split(separator: " ").count
+                    let previousWords = tokenCount
+                    let newWords = currentWords - previousWords
+
+                    if newWords > 0 {
+                        tokenCount = currentWords
+                    }
+
+                    // Emit new content to streaming context
+                    if newChars > 0 {
+                        let chunk = String(responseText.suffix(newChars))
+                        LLMStreamingContext.emit(text: chunk, isFinal: false)
+                    }
                 }
-
-                // Update response text from snapshot
-                let previousLength = responseText.count
-                responseText = snapshot.content
-                let newChars = responseText.count - previousLength
-
-                // More accurate token counting based on word boundaries
-                let currentWords = responseText.split(separator: " ").count
-                let previousWords = tokenCount
-                let newWords = currentWords - previousWords
-
-                if newWords > 0 {
-                    tokenCount = currentWords
-                }
-
-                // Emit new content to streaming context
-                if newChars > 0 {
-                    let chunk = String(responseText.suffix(newChars))
-                    LLMStreamingContext.emit(text: chunk, isFinal: false)
-                }
-            }
             } catch let error as LanguageModelSession.GenerationError {
                 // ✅ Handle iOS 26 FoundationModels-specific errors (exhaustive)
                 switch error {
@@ -720,38 +767,42 @@ struct LLMResponse {
                 }
             }
 
-            // If PCC was blocked and we aborted the FM stream, fall back to On-Device Analysis now
-            if forcedLocalFallback {
-                let local = OnDeviceAnalysisService()
-                let fallback = try await local.generate(
-                    prompt: prompt, context: context, config: config
-                )
-                let totalTime = Date().timeIntervalSince(startTime)
-                TelemetryCenter.emit(
-                    .generation,
-                    title: "On-Device Analysis (fallback) complete",
-                    metadata: [
-                        "tokens": "\(fallback.tokensGenerated)",
-                        "totalTime": String(format: "%.2f", totalTime),
-                    ],
-                    duration: totalTime
-                )
-                return LLMResponse(
-                    text: fallback.text,
-                    tokensGenerated: fallback.tokensGenerated,
-                    timeToFirstToken: fallback.timeToFirstToken,
-                    totalTime: totalTime,
-                    modelName: local.modelName,
-                    toolCallsMade: 0
-                )
-            }
-
             // Handle generation errors with user-friendly messages
             if contextWindowExceeded {
-                throw LLMError.generationFailed(
-                    "Your query and documents exceed the 4096 token context limit. " +
-                        "Try asking a more specific question or reducing the number of retrieved chunks."
+                // Context exceeded 4096 tokens - system should have routed to PCC
+                // If we got here, PCC is unavailable (user disabled, network issue, etc.)
+                Log.warning("[FM] Context overflow - exceeded 4096 token on-device limit", category: .llm)
+                TelemetryCenter.emit(
+.system,
+                    severity: .warning,
+                    title: "Context overflow",
+                    metadata: ["execContext": "\(config.executionContext)", "estimatedTokens": "\(estimatedTokens)"]
                 )
+
+                // Return partial response if we got any
+                if !responseText.isEmpty {
+                    Log.info("Returning partial response (\(responseText.count) chars) before overflow", category: .llm)
+                    LLMStreamingContext.emit(text: "\n\n[Response truncated due to context limit]", isFinal: true)
+                    return LLMResponse(
+                        text: responseText + "\n\n*[Response was truncated. Try asking a more specific question.]*",
+                        tokensGenerated: responseText.split(separator: " ").count,
+                        timeToFirstToken: firstTokenTime,
+                        totalTime: Date().timeIntervalSince(startTime),
+                        modelName: modelName,
+                        toolCallsMade: ToolCallCounter.shared.takeAndReset()
+                    )
+                }
+
+                // No partial response - guide user to enable PCC for large context
+                let contextAdvice =
+                    "Your query exceeded the 4,096-token on-device limit.\n\n" +
+                    "To analyze larger documents, enable Private Cloud Compute (PCC) which supports up to 65K tokens:\n\n" +
+                    "1. Open iOS Settings\n" +
+                    "2. Go to Apple Intelligence & Siri\n" +
+                    "3. Enable 'Private Cloud Compute'\n\n" +
+                    "Alternatively, try asking a more specific question about fewer documents."
+
+                throw LLMError.generationFailed(contextAdvice)
             }
 
             if guardrailViolation {
@@ -762,10 +813,13 @@ struct LLMResponse {
             }
 
             if unsupportedLanguage {
+                // For short queries, this might be a false positive from language detection
+                // Suggest rephrasing rather than claiming the language is unsupported
                 let supportedList = supportedLanguages.prefix(5).map { $0.languageCode?.identifier ?? "?" }.joined(separator: ", ")
                 throw LLMError.generationFailed(
-                    "Your language is not yet supported by Apple Intelligence. " +
-                        "Supported: \(supportedList)..."
+                    "Apple Intelligence couldn't process this query. " +
+                        "Try rephrasing with more context (e.g., 'Tell me about X' or 'What is X?'). " +
+                        "Supported languages: \(supportedList)."
                 )
             }
 
@@ -773,8 +827,8 @@ struct LLMResponse {
 
             let totalTime = Date().timeIntervalSince(startTime)
 
-            // Final token count is accurate word count
-            let finalTokenCount = responseText.split(separator: " ").count
+            // Final token count is accurate word count (updated after continuation if needed)
+            var finalTokenCount = responseText.split(separator: " ").count
 
             Log.info("[FM] Generation complete: \(finalTokenCount) words in \(String(format: "%.2f", totalTime))s (\(actualExecutionLocation))", category: .llm)
 
@@ -797,7 +851,28 @@ struct LLMResponse {
                 ],
                 duration: totalTime
             )
+
+            // Response continuation: detect if response was cut off and continue if needed
+            let needsContinuation = responseNeedsContinuation(responseText)
+            if needsContinuation, !contextWindowExceeded {
+                Log.info("[FM] Response appears incomplete - attempting continuation", category: .llm)
+                let continuedText = try await continueGeneration(
+                    session: session,
+                    currentResponse: responseText,
+                    options: options,
+                    config: config
+                )
+                if !continuedText.isEmpty {
+                    responseText += continuedText
+                    Log.info("[FM] Continuation added \(continuedText.count) chars", category: .llm)
+                }
+            }
+
             LLMStreamingContext.emit(text: "", isFinal: true)
+
+            // Update token count after potential continuation
+            finalTokenCount = responseText.split(separator: " ").count
+
             return LLMResponse(
                 text: responseText,
                 tokensGenerated: finalTokenCount,
@@ -806,6 +881,85 @@ struct LLMResponse {
                 modelName: executionBasedModelName,
                 toolCallsMade: ToolCallCounter.shared.takeAndReset()
             )
+        }
+
+        /// Detects if a response was cut off mid-sentence or mid-thought
+        private func responseNeedsContinuation(_ text: String) -> Bool {
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return false }
+
+            // Check for obvious truncation indicators
+            let lastChar = trimmed.last!
+
+            // Response ends mid-sentence (no terminal punctuation)
+            let terminalPunctuation: Set<Character> = [".", "!", "?", ":", ";", "\"", "'", ")", "]", "}"]
+            if !terminalPunctuation.contains(lastChar) {
+                // But not if it's a code block or list item
+                if !trimmed.hasSuffix("```") && !trimmed.hasSuffix("-") {
+                    return true
+                }
+            }
+
+            // Response ends with incomplete markers
+            let incompleteMarkers = ["...", "—", "–", ",", "and", "or", "but", "the", "a", "an", "to", "of"]
+            let lastWord = String(trimmed.split(separator: " ").last ?? "").lowercased()
+            if incompleteMarkers.contains(lastWord) {
+                return true
+            }
+
+            return false
+        }
+
+        /// Continues generation from where it left off using the session's context
+        private func continueGeneration(
+            session: LanguageModelSession,
+            currentResponse _: String,
+            options: GenerationOptions,
+            config _: InferenceConfig
+        ) async throws -> String {
+            // Use a simple continuation prompt
+            let continuationPrompt = "Please continue your response from where you left off."
+
+            var continuedText = ""
+            let maxContinuations = 3 // Prevent infinite loops
+            var continuationCount = 0
+
+            while continuationCount < maxContinuations {
+                continuationCount += 1
+
+                do {
+                    let stream = session.streamResponse(to: continuationPrompt, options: options)
+                    var chunkText = ""
+
+                    for try await snapshot in stream {
+                        let newContent = snapshot.content
+                        if newContent.count > chunkText.count {
+                            let delta = String(newContent.dropFirst(chunkText.count))
+                            LLMStreamingContext.emit(text: delta, isFinal: false)
+                        }
+                        chunkText = newContent
+                    }
+
+                    if chunkText.isEmpty {
+                        break // No more content
+                    }
+
+                    continuedText += chunkText
+
+                    // Check if this continuation is complete
+                    if !responseNeedsContinuation(continuedText) {
+                        break
+                    }
+
+                    Log.debug("[FM] Continuation \(continuationCount) added \(chunkText.count) chars, still incomplete", category: .llm)
+
+                } catch {
+                    Log.warning("[FM] Continuation failed: \(error)", category: .llm)
+                    break
+                }
+            }
+
+            return continuedText
         }
     }
 
@@ -820,9 +974,41 @@ struct LLMResponse {
 
 #endif
 
+// MARK: - Apple Intelligence Unavailable Stub
+
+/// Stub service that always throws - used when Apple Intelligence is unavailable
+/// This forces the user to enable Apple Intelligence rather than falling back to inferior extractive QA
+class AppleFoundationLLMServiceUnavailable: LLMService {
+        var toolHandler: RAGToolHandler?
+
+    var isAvailable: Bool { false }
+    var modelName: String { "Apple Intelligence (Unavailable)" }
+
+    init() {
+        Log.warning("AppleFoundationLLMServiceUnavailable stub initialized - Apple Intelligence is required", category: .llm)
+    }
+
+    func generate(prompt _: String, context _: String?, config _: InferenceConfig) async throws -> LLMResponse {
+        #if targetEnvironment(simulator)
+            throw LLMError.generationFailed(
+                "Apple Intelligence requires a physical device with A17 Pro chip or later. " +
+                    "The iOS Simulator cannot run Apple Intelligence models. " +
+                    "Please deploy to a compatible iPhone or iPad."
+            )
+        #else
+            throw LLMError.generationFailed(
+                "Apple Intelligence is required but not available on this device. " +
+                    "To enable: Go to Settings → Apple Intelligence & Siri → Turn on Apple Intelligence. " +
+                    "Requires iPhone 15 Pro or later with iOS 18.1+."
+            )
+        #endif
+    }
+}
+
 // MARK: - On-Device Document Analysis (NaturalLanguage Framework)
 
-// FALLBACK for devices without Foundation Models support
+// DEPRECATED: This extractive QA system is no longer used as a fallback.
+// Keeping for reference only - Apple Intelligence is now the only supported provider.
 // This is NOT an LLM - it's an extractive QA system using Apple's NaturalLanguage framework
 // It analyzes your query, finds relevant sentences from retrieved context, and presents them
 // This runs 100% on-device with zero network calls and zero AI model downloads
@@ -874,9 +1060,14 @@ class OnDeviceAnalysisService: LLMService {
     private func analyzeAndExtract(prompt: String, context: String?) -> String {
         guard let context = context, !context.isEmpty else {
             return """
-            I don't have any documents loaded yet. Please add documents to your library so I can analyze and extract information.
+            I don't have any documents loaded yet to search through.
 
-            [On-Device Analysis Ready - No AI model required]
+                To get started:
+                1.Tap the Documents tab
+            2.Import PDFs, text files, or other documents
+            3.Come back here and ask questions about your content
+
+                💡 For the best conversational AI experience, enable Apple Intelligence in Settings > Apple Intelligence & Siri.
             """
         }
 
@@ -892,6 +1083,7 @@ class OnDeviceAnalysisService: LLMService {
 
         // 3. Find and rank relevant sentences
         let relevantInfo = findRelevantSentences(
+            query: query,
             queryType: queryAnalysis.type,
             queryKeywords: queryAnalysis.keywords,
             queryEntities: queryAnalysis.entities,
@@ -1056,16 +1248,33 @@ class OnDeviceAnalysisService: LLMService {
     }
 
     private func findRelevantSentences(
+        query: String,
         queryType: QueryType,
         queryKeywords: Set<String>,
         queryEntities: [String],
         contextSentences: [SentenceInfo],
         contextEntities _: [String]
-    ) -> [SentenceInfo] {
-        var scoredSentences: [(sentence: SentenceInfo, score: Double)] = []
+    ) -> [ScoredSentence] {
+        // Use sentence embeddings when available to improve relevance beyond keyword overlap.
+        languageRecognizer.reset()
+        languageRecognizer.processString(query)
+        let language = languageRecognizer.dominantLanguage ?? .english
+        let embedding = NLEmbedding.sentenceEmbedding(for: language) ?? NLEmbedding.sentenceEmbedding(for: .english)
+
+        let queryVector = embedding?.vector(for: query)
+
+        var scoredSentences: [ScoredSentence] = []
 
         for sentence in contextSentences {
             var score = sentence.importance
+
+            var similarity: Double?
+            if let embedding, let queryVector, let sentenceVector = embedding.vector(for: sentence.text) {
+                let sim = cosineSimilarity(queryVector, sentenceVector)
+                // Clamp to [0, 1] and weight it heavily — this is the primary relevance signal.
+                similarity = max(0.0, min(1.0, sim))
+                score += (similarity ?? 0.0) * 2.0
+            }
 
             // Keyword matching
             let matchingKeywords = sentence.keywords.intersection(queryKeywords)
@@ -1102,57 +1311,92 @@ class OnDeviceAnalysisService: LLMService {
                 break
             }
 
-            scoredSentences.append((sentence, score))
+            scoredSentences.append(
+                ScoredSentence(
+                    sentence: sentence,
+                    score: score,
+                    similarity: similarity,
+                    matchingKeywords: matchingKeywords.count
+                )
+            )
         }
 
         // Sort by score and return top results
         scoredSentences.sort { $0.score > $1.score }
-        return scoredSentences.prefix(5).map { $0.sentence }
+        return Array(scoredSentences.prefix(5))
     }
 
     private func buildExtractiveResponse(
         query _: String,
         queryType: QueryType,
-        relevantSentences: [SentenceInfo]
+        relevantSentences: [ScoredSentence]
     ) -> String {
         guard !relevantSentences.isEmpty else {
             return """
-            I found your documents but couldn't identify specific information matching your query. Try rephrasing your question or asking about general topics covered in your documents.
+            I searched your documents but couldn't find information directly addressing your query.This could mean:
 
-            [On-Device Analysis - No matches found]
+                • The topic isn't covered in your current documents
+                • Try rephrasing your question with different keywords
+                • Consider adding more relevant documents to your library
+
+                💡 Tip: For the best experience, enable Apple Intelligence in Settings > Apple Intelligence & Siri.
             """
         }
 
-        // Generate introduction based on query type
-        let intro: String
-        switch queryType {
-        case .definition:
-            intro = "Based on your documents, here's what I found:"
-        case .instruction:
-            intro = "According to your documents:"
-        case .explanation:
-            intro = "Your documents explain:"
-        case .temporal:
-            intro = "Regarding timing, your documents state:"
-        case .location:
-            intro = "Regarding location, here's what your documents say:"
-        case .description:
-            intro = "From your documents:"
-        case .general:
-            intro = "Here's what I found in your documents:"
+        let bestScore = relevantSentences.first?.score ?? 0.0
+        let lowConfidence = bestScore < 0.9
+
+        // Extract and clean the relevant passages
+        let passages = relevantSentences.prefix(3).map { scored -> String in
+            var text = scored.sentence.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            // Ensure proper sentence ending
+            if !text.hasSuffix("."), !text.hasSuffix("!"), !text.hasSuffix("?") {
+                text += "."
+            }
+            return text
         }
 
-        // Combine top sentences into coherent response
-        let mainContent =
-            relevantSentences
-                .map { $0.text }
-                .joined(separator: "\n\n")
+        // Synthesize a conversational response from the extracted passages
+        let combinedContent = passages.joined(separator: " ")
 
-        // Add footer explaining this is extractive, not generative
-        let footer =
-            "\n\n[On-Device Analysis: Extracted \(relevantSentences.count) relevant passages from your documents]"
+        // Build response based on query type and confidence
+        var response: String
 
-        return intro + "\n\n" + mainContent + footer
+        if lowConfidence {
+            response = "Based on what I found in your documents:\n\n\(combinedContent)"
+        } else {
+            switch queryType {
+            case .definition: 
+                response = combinedContent
+                case .instruction:
+                response = "Here's what your documents say:\n\n\(combinedContent)"
+                case .explanation:
+                response = combinedContent
+                case .temporal, .location:
+                    response = combinedContent
+                case .description:
+                response = combinedContent
+                case .general:
+                response = combinedContent
+            }
+        }
+
+        return response
+    }
+
+    private func cosineSimilarity(_ a: [Double], _ b: [Double]) -> Double {
+        guard a.count == b.count, !a.isEmpty else { return 0.0 }
+        var dot = 0.0
+        var normA = 0.0
+        var normB = 0.0
+        for i in 0 ..< a.count {
+            dot += a[i] * b[i]
+            normA += a[i] * a[i]
+            normB += b[i] * b[i]
+        }
+        let denom = (sqrt(normA) * sqrt(normB))
+        guard denom > 0 else { return 0.0 }
+        return dot / denom
     }
 
     // MARK: - Helper Types
@@ -1182,6 +1426,13 @@ class OnDeviceAnalysisService: LLMService {
         let text: String
         let keywords: Set<String>
         let importance: Double
+    }
+
+    private struct ScoredSentence {
+        let sentence: SentenceInfo
+        let score: Double
+        let similarity: Double?
+        let matchingKeywords: Int
     }
 }
 

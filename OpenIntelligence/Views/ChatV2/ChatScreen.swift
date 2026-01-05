@@ -9,10 +9,26 @@ import Combine
 import Foundation
 import SwiftUI
 
+/// Data container for unified metrics bar (shown during streaming AND after completion)
+private struct ConsolidatedMetrics {
+    let tokens: Int
+    let tokensPerSecond: Double
+    let characterCount: Int
+    let elapsed: TimeInterval
+    let execution: ChatExecutionLocation
+    let modelName: String
+    let ttft: TimeInterval?
+    let toolCallCount: Int
+    let sourceCount: Int
+    let averageScore: Float?
+    let isStreaming: Bool
+}
+
 // ChatV2 entry point (feature-flagged from ContentView)
 @MainActor
 struct ChatScreen: View {
     @EnvironmentObject private var onboardingStore: OnboardingStateStore
+    @EnvironmentObject private var settings: SettingsStore
     @ObservedObject var ragService: RAGService
     @AppStorage("retrievalTopK") private var retrievalTopK: Int = 3
     @State private var showScrollToBottom: Bool = false
@@ -40,6 +56,7 @@ struct ChatScreen: View {
     @State private var currentMetadata: ResponseMetadata? = nil
     @State private var showRetrievedDetails: Bool = false
     @State private var thinkingEvents: [ThinkingEvent] = []
+    @State private var requestedExecutionContext: ExecutionContext = .automatic
 
     // Processing State
     @State private var isProcessing: Bool = false
@@ -57,6 +74,14 @@ struct ChatScreen: View {
     // Cloud consent prompt state
     @State private var activeCloudConsent: CloudTransmissionRecord? = nil
 
+    // Speed history for sparkline graph
+    @State private var speedHistory: [Double] = []
+    @State private var lastSpeedSampleTokens: Int = 0
+    @State private var lastSpeedSampleTime: Date = .init()
+    @State private var lastSemanticQuery: String? = nil
+
+    @ObservedObject private var networkMonitor = NetworkMonitor.shared
+
     // Settings (synchronized with SettingsView via @AppStorage)
     @AppStorage("llmTemperature") private var temperature: Double = 0.7
     @AppStorage("llmMaxTokens") private var maxTokens: Int = 512
@@ -66,8 +91,14 @@ struct ChatScreen: View {
     @AppStorage("llmRepetitionPenalty") private var repetitionPenalty: Double = 1.0
     @AppStorage("llmSystemPrompt") private var systemPrompt: String = "You are a helpful assistant."
     @AppStorage("llmContextLength") private var contextLength: Int = 2048
-    @AppStorage("allowPrivateCloudCompute") private var allowPrivateCloudCompute: Bool = true
-    @AppStorage("executionContextRaw") private var executionContextRaw: String = "automatic"
+    private var maxContextTokensForUI: Int {
+        let wantsCloud =
+            requestedExecutionContext == .preferCloud || requestedExecutionContext == .cloudOnly
+        if networkMonitor.isConnected && wantsCloud {
+            return 65_536
+        }
+        return execution == .privateCloudCompute ? 65_536 : 4_096
+    }
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -81,6 +112,67 @@ struct ChatScreen: View {
                     ragService: ragService,
                     messageContainerOverride: $messageContainerOverride
                 )
+
+                // UNIFIED METRICS BAR - The ONE bar to rule them all
+                // Shows execution location, context usage, generation speed, sources, quality mode
+                // Visible during processing and persists after completion
+                if let metricsData = consolidatedMetricsData {
+                    UnifiedMetricsBar(
+                        stage: stage,
+                        execution: metricsData.execution,
+                        isProcessing: isProcessing,
+                        qualityMode: settings.ragQualityMode,
+                        contextTokens: estimatedContextTokens,
+                        maxContextTokens: maxContextTokensForUI,
+                        tokensGenerated: metricsData.tokens,
+                        tokensPerSecond: metricsData.tokensPerSecond,
+                        characterCount: metricsData.characterCount,
+                        elapsedTime: metricsData.elapsed,
+                        speedHistory: metricsData.isStreaming ? speedHistory : [],
+                        ttft: metricsData.ttft,
+                        sourceCount: metricsData.sourceCount,
+                        averageSourceScore: metricsData.averageScore,
+                        totalDocuments: activeDocCount,
+                        totalChunks: activeChunkCount,
+                        coveredDocuments: coveredDocCount,
+                        toolCallCount: metricsData.toolCallCount,
+                        modelName: metricsData.modelName,
+                        requestedExecutionContext: requestedExecutionContext,
+                        onTapDetails: !metricsData.isStreaming ? { showRetrievedDetails = true } : nil
+                    )
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 6)
+                    .transition(.opacity)
+                    .animation(.easeInOut(duration: 0.15), value: metricsData.tokens)
+                } else if isProcessing || currentRetrievedChunks.count > 0 {
+                    // Show minimal bar when processing starts (before generating)
+                    UnifiedMetricsBar(
+                        stage: stage,
+                        execution: execution,
+                        isProcessing: isProcessing,
+                        qualityMode: settings.ragQualityMode,
+                        contextTokens: estimatedContextTokens,
+                        maxContextTokens: maxContextTokensForUI,
+                        tokensGenerated: 0,
+                        tokensPerSecond: 0,
+                        characterCount: 0,
+                        elapsedTime: 0,
+                        speedHistory: [],
+                        ttft: ttft,
+                        sourceCount: currentRetrievedChunks.count,
+                        averageSourceScore: averageSourceScore,
+                        totalDocuments: activeDocCount,
+                        totalChunks: activeChunkCount,
+                        coveredDocuments: coveredDocCount,
+                        toolCallCount: 0,
+                        modelName: inferredModelName,
+                        requestedExecutionContext: requestedExecutionContext,
+                        onTapDetails: nil
+                    )
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 6)
+                    .transition(.opacity)
+                }
 
                 // Main content area
                 if shouldShowFirstQueryHero {
@@ -119,30 +211,9 @@ struct ChatScreen: View {
                     )
                 }
 
-                // Sources tray - only show AFTER we have sources (post-generation)
-                // During generation, sources aren't available yet from RAG pipeline
-                if !currentRetrievedChunks.isEmpty && !isProcessing {
-                    RetrievalSourcesTray(
-                        stage: .complete,
-                        chunks: currentRetrievedChunks
-                    ) {
-                        showRetrievedDetails = true
-                    }
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
-
-                // Compact status pill during processing (single source of truth)
-                if isProcessing {
-                    StatusPillV2(
-                        stage: stage,
-                        execution: execution,
-                        ttft: ttft,
-                        embeddingElapsed: embeddingElapsedDisplay,
-                        searchingElapsed: searchingElapsedDisplay,
-                        generatingElapsed: generatingElapsedDisplay
-                    )
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
+                // NOTE: Sources are shown inline in MessageBubbleV2 for completed messages.
+                // The RetrievalSourcesTray is removed to avoid duplication.
+                // Status is now handled by UnifiedMetricsBar above
 
                 // Collapsible thinking stream (already compact)
                 if !thinkingEvents.isEmpty {
@@ -286,6 +357,136 @@ struct ChatScreen: View {
 }
     }
 
+    private var streamingTokensApprox: Int {
+        streamingText.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
+    }
+
+    private var streamingElapsedTime: TimeInterval {
+        guard let start = generationStart else { return 0 }
+        return max(0, nowTick.timeIntervalSince(start))
+    }
+
+    private var streamingTokensPerSecond: Double {
+        let elapsed = streamingElapsedTime
+        guard elapsed > 0.1 else { return 0 }
+        return Double(streamingTokensApprox) / elapsed
+    }
+
+    /// Infer model name from settings when metadata isn't available yet
+    private var inferredModelName: String {
+        // Use settings EnvironmentObject
+        switch settings.selectedModel {
+        case .appleIntelligence:
+            return "Apple Intelligence"
+        case .onDeviceAnalysis:
+            return "On-Device Analysis"
+        }
+    }
+
+    /// Average score of retrieved sources for quality indicator
+    private var averageSourceScore: Float? {
+        guard !currentRetrievedChunks.isEmpty else { return nil }
+        let total = currentRetrievedChunks.reduce(into: 0.0) { acc, chunk in acc += Double(chunk.similarityScore) }
+        return Float(total / Double(currentRetrievedChunks.count))
+    }
+
+    /// Consolidated metrics data for the unified header bar
+    /// Returns data during streaming OR after completion (when we have metadata)
+    private var consolidatedMetricsData: ConsolidatedMetrics? {
+        // Case 1: Currently streaming
+        if isProcessing, stage == .generating, !streamingText.isEmpty, generationStart != nil {
+            return ConsolidatedMetrics(
+                tokens: streamingTokensApprox,
+                tokensPerSecond: streamingTokensPerSecond,
+                characterCount: streamingText.count,
+                elapsed: streamingElapsedTime,
+                execution: execution,
+                modelName: currentMetadata?.modelUsed ?? inferredModelName,
+                ttft: ttft,
+                toolCallCount: currentMetadata?.toolCallsMade ?? 0,
+                sourceCount: currentRetrievedChunks.count,
+                averageScore: averageSourceScore,
+                isStreaming: true
+            )
+        }
+
+        // Case 2: Completed response with metadata available
+        if let meta = currentMetadata, !isProcessing {
+            return ConsolidatedMetrics(
+                tokens: meta.tokensGenerated,
+                tokensPerSecond: Double(meta.tokensPerSecond ?? 0),
+                characterCount: messages.last(where: { $0.role == .assistant })?.content.count ?? 0,
+                elapsed: generatingElapsedFinal ?? 0,
+                execution: execution,
+                modelName: meta.modelUsed,
+                ttft: meta.timeToFirstToken,
+                toolCallCount: meta.toolCallsMade ?? 0,
+                sourceCount: currentRetrievedChunks.count,
+                averageScore: averageSourceScore,
+                isStreaming: false
+            )
+        }
+
+        return nil
+    }
+
+    /// Estimated context tokens based on retrieved chunks and current query
+    /// Used by UnifiedMetricsBar to show context window usage
+    private var estimatedContextTokens: Int {
+        let charsPerToken = 2.5
+        func estimateTokens(_ chars: Int) -> Int {
+            max(1, Int(ceil(Double(chars) / charsPerToken)))
+        }
+        // Estimate from retrieved chunks (conservative for on-device)
+        let chunksTokens = currentRetrievedChunks.reduce(0) { acc, chunk in
+            acc + estimateTokens(chunk.chunk.content.count)
+        }
+
+        // Current prompt length (chat history is not injected into Apple FM prompt)
+        let lastUserTokens = estimateTokens(
+            messages.last(where: { $0.role == .user })?.content.count ?? 0
+        )
+
+        // System prompt (if set)
+        let systemTokens = estimateTokens(systemPrompt.count)
+
+        // Buffer for instruction framing
+        let templateOverheadTokens = 200
+
+        return min(
+            maxContextTokensForUI,
+            chunksTokens + lastUserTokens + systemTokens + templateOverheadTokens
+        )
+    }
+
+    /// Update speed history for sparkline - called when streamingText changes
+    private func updateSpeedHistory() {
+        let currentTokens = streamingTokensApprox
+        let now = Date()
+        let interval = now.timeIntervalSince(lastSpeedSampleTime)
+
+        // Sample every ~5 tokens or 0.3s, whichever comes first
+        if currentTokens - lastSpeedSampleTokens >= 5 || interval >= 0.3 {
+            if interval > 0.05 {
+                let recentSpeed = Double(currentTokens - lastSpeedSampleTokens) / interval
+                speedHistory.append(recentSpeed)
+                // Keep last 30 samples
+                if speedHistory.count > 30 {
+                    speedHistory.removeFirst()
+                }
+            }
+            lastSpeedSampleTokens = currentTokens
+            lastSpeedSampleTime = now
+        }
+    }
+
+    /// Reset speed tracking when starting a new generation
+    private func resetSpeedTracking() {
+        speedHistory = []
+        lastSpeedSampleTokens = 0
+        lastSpeedSampleTime = Date()
+    }
+
     private func seedScreenshotDemoIfNeeded() {
         #if DEBUG
             guard !didSeedScreenshotDemo else { return }
@@ -398,7 +599,7 @@ struct ChatScreen: View {
                     tokensPerSecond: 62,
                     modelUsed: "On-device / PCC (auto)",
                     retrievalTime: 0.12,
-                    strictModeEnabled: false,
+                    retrievalConfigSummary: "Balanced",
                     gatingDecision: "allowed",
                     toolCallsMade: 2,
                     embeddingProvider: "nl_embedding"
@@ -441,6 +642,11 @@ struct ChatScreen: View {
         messages.last(where: { $0.role == .assistant })?.retrievedChunks?.count ?? 0
     }
 
+    private var coveredDocCount: Int {
+        let names = currentRetrievedChunks.map { $0.sourceDocument }.filter { !$0.isEmpty }
+        return Set(names).count
+    }
+
     private var tokensApprox: Int {
         // Approximate tokens by whitespace-separated words
         let words = streamingText.split(whereSeparator: { $0.isWhitespace || $0.isNewline })
@@ -477,17 +683,6 @@ struct ChatScreen: View {
             return Date().timeIntervalSince(start)
         }
         return generatingElapsedFinal
-    }
-
-    // MARK: - Execution Context mapping
-    private var executionContext: ExecutionContext {
-        switch executionContextRaw {
-        case "automatic": return .automatic
-        case "onDeviceOnly": return .onDeviceOnly
-        case "preferCloud": return .preferCloud
-        case "cloudOnly": return .cloudOnly
-        default: return .automatic
-        }
     }
 
     // MARK: - Send Message
@@ -527,6 +722,7 @@ struct ChatScreen: View {
         toastManager.clearAll()
         showRetrievedDetails = false
         thinkingEvents.removeAll()
+        requestedExecutionContext = .automatic
     }
 
     private func clearChat() {
@@ -550,6 +746,7 @@ struct ChatScreen: View {
         toastManager.clearAll()
         showRetrievedDetails = false
         thinkingEvents.removeAll()
+        requestedExecutionContext = .automatic
     }
 
     /// Stops generation immediately and preserves partial response
@@ -637,7 +834,19 @@ struct ChatScreen: View {
             var failCount = 0
 
             // Step 1: Process all attachments first
-            for url in urls {
+            for (index, url) in urls.enumerated() {
+                // Update toast to show progress
+                await MainActor.run {
+                    toastManager.show(
+                        ToastItem(
+                            title: "Processing \(index + 1)/\(count): \(url.lastPathComponent)",
+                            icon: "doc.badge.gearshape",
+                            tint: DSColors.accent
+                        ),
+                        duration: 2.0
+                    )
+                }
+
                 do {
                     try await ragService.addDocument(at: url)
                     successCount += 1
@@ -713,7 +922,19 @@ struct ChatScreen: View {
             var successCount = 0
             var failCount = 0
 
-            for url in urls {
+            for (index, url) in urls.enumerated() {
+                // Update toast to show progress
+                await MainActor.run {
+                    toastManager.show(
+                        ToastItem(
+                            title: "Processing \(index + 1)/\(count): \(url.lastPathComponent)",
+                            icon: "doc.badge.gearshape",
+                            tint: DSColors.accent
+                        ),
+                        duration: 2.0
+                    )
+                }
+
                 do {
                     try await ragService.addDocument(at: url)
                     successCount += 1
@@ -799,8 +1020,11 @@ struct ChatScreen: View {
         let capturedRepetitionPenalty = repetitionPenalty
         let capturedSystemPrompt = systemPrompt
         let capturedContextLength = contextLength
-        let capturedExecutionContext = executionContext
-        let capturedAllowPCC = allowPrivateCloudCompute
+        let baseExecutionContext = settings.executionContext
+        let capturedExecutionContext: ExecutionContext =
+            baseExecutionContext == .automatic ? .preferCloud : baseExecutionContext
+        let capturedAllowPCC = baseExecutionContext != .onDeviceOnly
+        requestedExecutionContext = capturedExecutionContext
         let capturedService = ragService
         let capturedUsedContainerId = usedContainerId
         resetStreamingState()
@@ -817,9 +1041,17 @@ struct ChatScreen: View {
             }
 
             do {
+                // Resolve low-signal follow-ups ("yes", "ok", etc.) to the last meaningful query.
+                let isLowSignal = isLowSignalQuery(query)
+                var capturedQuery = isLowSignal ? (lastSemanticQuery ?? query) : query
+                if !isLowSignal {
+                    await MainActor.run {
+                        self.lastSemanticQuery = query
+                    }
+                }
+
                 // Clarify the user's query using Writing Tools if available (improves retrieval quality)
-                var capturedQuery = query
-                if let clarified = try? await WritingToolsService().clarifyQuery(query) {
+                if !isLowSignal, let clarified = try? await WritingToolsService().clarifyQuery(query) {
                     capturedQuery = clarified
                 }
 
@@ -866,6 +1098,7 @@ struct ChatScreen: View {
                     self.stage = .generating
                     self.generationStart = Date()
                     self.generatingStartTS = self.generationStart
+                    self.resetSpeedTracking()
                     if let searchStart = self.searchingStart, let genStart = self.generationStart {
                         self.searchingElapsedFinal = genStart.timeIntervalSince(searchStart)
                     }
@@ -963,6 +1196,28 @@ struct ChatScreen: View {
         sendMessage(prompt)
     }
 
+    private func isLowSignalQuery(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalized = trimmed.lowercased()
+        let words = normalized.split(whereSeparator: { $0.isWhitespace || $0.isNewline })
+        if words.count <= 1 {
+            return ["yes", "y", "yeah", "yep", "ok", "okay", "sure", "continue", "go", "more"]
+                .contains(normalized)
+        }
+        if words.count <= 2 {
+            return [
+                "go on",
+                "keep going",
+                "continue on",
+                "sounds good",
+                "that works",
+                "do it",
+                "please do",
+            ].contains(normalized)
+        }
+        return false
+    }
+
     // MARK: - Toasts
 
     private func pushToast(_ title: String, icon: String, tint: Color) {
@@ -1021,6 +1276,9 @@ struct ChatScreen: View {
             withAnimation(.linear(duration: 0.04)) {
                 streamingText.append(nextChunk)
             }
+
+            // Update speed history for the sparkline
+            updateSpeedHistory()
 
             do {
                 try await Task.sleep(nanoseconds: cadence)
@@ -1204,8 +1462,14 @@ struct CompactChatHeader: View {
             // Top row: Library picker strip (scrollable)
             libraryPickerStrip
 
-            // Bottom row: Model status + Stats
+            // Bottom row: Quality mode picker + Model status + Stats
             HStack(spacing: 10) {
+                if settings.developerRAGTuningEnabled {
+                    QualityModeQuickPicker(selectedMode: $settings.ragQualityMode)
+                } else {
+                    AccuracyModeBadge()
+                }
+
                 // Model indicator (compact)
                 ModelStatusIndicator(deviceCapabilities: deviceCapabilities)
 
@@ -1243,6 +1507,78 @@ struct CompactChatHeader: View {
                 }
             }
         }
+    }
+}
+
+/// Quick picker for quality mode - shows in chat header
+struct QualityModeQuickPicker: View {
+    @Binding var selectedMode: RAGQualityMode
+
+    var body: some View {
+        Menu {
+            ForEach(RAGQualityMode.allCases) { mode in
+                Button {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        selectedMode = mode
+                    }
+                    DSHaptics.selection()
+                } label: {
+                    Label {
+                        VStack(alignment: .leading) {
+                            Text(mode.displayName)
+                            Text(mode.description)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    } icon: {
+                        Image(systemName: mode.icon)
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: selectedMode.icon)
+                    .font(.system(size: 10, weight: .semibold))
+                Text("Quality: \(selectedMode.displayName)")
+                    .font(.system(size: 11, weight: .semibold))
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 8, weight: .bold))
+            }
+            .foregroundStyle(modeColor)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(
+                Capsule()
+                    .fill(modeColor.opacity(0.12))
+            )
+        }
+    }
+
+    private var modeColor: Color {
+        switch selectedMode {
+        case .fast: return .orange
+        case .balanced: return .blue
+        case .thorough: return .green
+        }
+    }
+}
+
+/// Reliability-first indicator (shown when advanced tuning is disabled).
+struct AccuracyModeBadge: View {
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "checkmark.seal.fill")
+                .font(.system(size: 10, weight: .semibold))
+            Text("Reliability First")
+                .font(.system(size: 11, weight: .semibold))
+        }
+        .foregroundStyle(Color.green)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(
+            Capsule()
+                .fill(Color.green.opacity(0.12))
+        )
     }
 }
 

@@ -13,35 +13,31 @@ enum ChatExecutionLocation {
     case onDevice
     case privateCloudCompute
     case mlxLocal
-    case openAI
-    
+
     var icon: String {
         switch self {
         case .unknown: return "questionmark.circle"
         case .onDevice: return "iphone"
         case .privateCloudCompute: return "cloud.fill"
         case .mlxLocal: return "desktopcomputer"
-        case .openAI: return "key.fill"
         }
     }
-    
+
     var color: Color {
         switch self {
         case .unknown: return .gray
         case .onDevice: return .green
         case .privateCloudCompute: return .blue
         case .mlxLocal: return .indigo
-        case .openAI: return .orange
         }
     }
-    
+
     var displayName: String {
         switch self {
         case .unknown: return "Detecting..."
         case .onDevice: return "On-Device"
-        case .privateCloudCompute: return "Private Cloud"
+        case .privateCloudCompute: return "Private Cloud Compute"
         case .mlxLocal: return "MLX Local"
-        case .openAI: return "OpenAI"
         }
     }
 }
@@ -52,7 +48,7 @@ enum ChatProcessingStage: CaseIterable {
     case searching
     case generating
     case complete
-    
+
     var description: String {
         switch self {
         case .idle: return ""
@@ -62,7 +58,7 @@ enum ChatProcessingStage: CaseIterable {
         case .complete: return "Complete"
         }
     }
-    
+
     var icon: String {
         switch self {
         case .idle: return ""

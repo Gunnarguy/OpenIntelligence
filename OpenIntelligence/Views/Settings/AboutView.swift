@@ -75,7 +75,7 @@ struct AboutView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             FeatureRow(icon: "doc.text.fill", title: "Document Processing", description: "Import PDFs, text files, and more")
                             FeatureRow(icon: "cpu", title: "On-Device Processing", description: "OCR, chunking, and embeddings run locally")
-                            FeatureRow(icon: "brain", title: "Multiple AI Pathways", description: "Foundation Models, OpenAI, or extractive QA")
+                            FeatureRow(icon: "brain", title: "Multiple AI Pathways", description: "Apple Foundation Models or extractive QA")
                             FeatureRow(icon: "lock.shield.fill", title: "Privacy First", description: "Your data stays on your device by default")
                         }
                     }

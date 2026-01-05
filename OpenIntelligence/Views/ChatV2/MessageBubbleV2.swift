@@ -91,46 +91,16 @@ struct MessageBubbleV2: View {
                 .transition(.scale.combined(with: .opacity))
             }
 
-            // Metadata row (compact badges)
-            if showMetadata && !showActions {
-                HStack(spacing: 6) {
-                    if !isUser {
-                        // Model/execution badge for assistant
-                        if let meta = message.metadata {
-                            CompactExecutionBadge(
-                                modelName: meta.modelUsed,
-                                ttft: meta.timeToFirstToken
-                            )
-
-                            // Tokens per second badge
-                            if let tps = meta.tokensPerSecond, tps > 0 {
-                                TokenSpeedBadge(tokensPerSecond: tps)
-                            }
-
-                            if let tools = meta.toolCallsMade, tools > 0 {
-                                CompactToolBadge(count: tools)
-                            }
-                        }
-                    }
-
-                    // Relative timestamp
-                    Text(relativeTime(message.timestamp))
-                        .font(.system(size: 10))
-                        .foregroundStyle(Color.secondary.opacity(0.6))
-                }
-                .padding(.horizontal, isUser ? 0 : 4)
+            // Timestamp only - detailed metrics shown in header area
+            if showMetadata, !showActions {
+                Text(relativeTime(message.timestamp))
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color.secondary.opacity(0.6))
+.padding(.horizontal, isUser ? 0 : 4)
             }
 
-            // Source chips with quality indicator
-            if !isUser, let chunks = message.retrievedChunks, !chunks.isEmpty {
-                HStack(spacing: 6) {
-                    CompactSourceChips(chunks: chunks) {
-                        showDetails = true
-                    }
-
-                    CompactQualityIndicator(chunks: chunks)
-                }
-            }
+            // Detailed metrics accessible via tap on message
+            // (Model, speed, sources, quality all shown in header area)
 
             // Expandable metrics panel (assistant only)
             if !isUser && showFullMetrics, let meta = message.metadata {
@@ -263,34 +233,7 @@ struct MessageBubbleV2: View {
     }
 }
 
-// MARK: - Token Speed Badge
-
-private struct TokenSpeedBadge: View {
-    let tokensPerSecond: Float
-
-    private var speedInfo: (label: String, color: Color) {
-        if tokensPerSecond > 40 { return ("Fast", .green) }
-        if tokensPerSecond > 20 { return ("Good", .blue) }
-        if tokensPerSecond > 10 { return ("OK", .orange) }
-        return ("Slow", .red)
-    }
-
-    var body: some View {
-        HStack(spacing: 3) {
-            Image(systemName: "bolt.fill")
-                .font(.system(size: 8, weight: .semibold))
-            Text(String(format: "%.0f", tokensPerSecond))
-                .font(.system(size: 10, weight: .semibold, design: .monospaced))
-            Text("t/s")
-                .font(.system(size: 8, weight: .medium))
-        }
-        .foregroundStyle(speedInfo.color)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 3)
-        .background(speedInfo.color.opacity(0.12))
-        .clipShape(Capsule())
-    }
-}
+// MARK: - Bubble Shape
 
 // Custom bubble shape with tail
 private struct BubbleShape: Shape {
@@ -317,159 +260,6 @@ private struct BubbleShape: Shape {
         }
 
         return path
-    }
-}
-
-// Compact execution badge
-private struct CompactExecutionBadge: View {
-    let modelName: String
-    let ttft: TimeInterval?
-
-    private var info: (icon: String, label: String, color: Color) {
-        // Priority 1: Check for explicit local model types by name (most reliable)
-        if modelName.contains("GGUF") {
-            // Local GGUF model via llama.cpp - show actual model name as label
-            let shortName = extractGGUFModelName(modelName)
-            return ("cpu.fill", shortName, .indigo)
-        } else if modelName.contains("MLX") {
-            // Local MLX model
-            let shortName = extractMLXModelName(modelName)
-            return ("cpu.fill", shortName, .cyan)
-        } else if modelName.contains("CoreML") || modelName.contains("coreML") {
-            return ("cpu.fill", "CoreML", .teal)
-        } else if modelName.contains("Ollama") {
-            return ("server.rack", "Ollama", .mint)
-        } else if modelName.contains("llama.cpp") {
-            return ("cpu.fill", "llama.cpp", .indigo)
-        }
-
-        // Priority 2: Apple Foundation Models (check before generic cloud checks)
-        if modelName.contains("On-Device") || modelName.contains("Apple Foundation Model (On-Device)") { 
-            return ("iphone", "Device", .blue)
-        } else if modelName.contains("Private Cloud Compute") || modelName.contains("Apple Foundation Model (PCC)") {
-            return ("apple.logo", "PCC", .green)
-        }
-
-        // Priority 3: Extractive QA (fallback, no LLM)
-        if modelName.contains("Extractive QA") || modelName.contains("On-Device Analysis") {
-            return ("doc.text.magnifyingglass", "Analysis", .gray)
-        }
-
-        // Priority 4: External cloud providers
-        if modelName.contains("OpenAI") || modelName.contains("GPT") || modelName.contains("o1") || modelName.contains("o3") {
-            return ("globe", "OpenAI", .orange)
-        } else if modelName.contains("Claude") || modelName.contains("Anthropic") {
-            return ("globe", "Claude", .orange)
-        }
-
-        // Fallback: unknown model
-        return ("sparkles", "AI", .purple)
-    }
-
-    /// Extract a short display name from GGUF model string like "GGUF • Llama-3.2-1B-Q4_K_M.gguf"
-    private func extractGGUFModelName(_ fullName: String) -> String {
-        // Remove "GGUF • " prefix if present
-        var name = fullName.replacingOccurrences(of: "GGUF • ", with: "")
-        // Remove .gguf extension
-        name = name.replacingOccurrences(of: ".gguf", with: "")
-        // If still too long, truncate intelligently
-        if name.count > 16 {
-            // Try to keep the model family and size (e.g., "Llama-3.2-1B")
-            let parts = name.split(separator: "-")
-            if parts.count >= 3 {
-                name = parts.prefix(3).joined(separator: "-")
-            } else {
-                name = String(name.prefix(14)) + "…"
-            }
-        }
-        return name
-    }
-
-    /// Extract a short display name from MLX model string like "MLX Cartridge (mistral-7b-v0.1)"
-    private func extractMLXModelName(_ fullName: String) -> String {
-        // Extract content in parentheses if present
-        if let start = fullName.firstIndex(of: "("),
-           let end = fullName.firstIndex(of: ")")
-        {
-            let name = String(fullName[fullName.index(after: start) ..< end])
-            if name.count > 14 {
-                return String(name.prefix(12)) + "…"
-            }
-            return name
-        }
-        return "MLX"
-    }
-
-    var body: some View {
-        HStack(spacing: 3) {
-            Image(systemName: info.icon)
-                .font(.system(size: 9, weight: .semibold))
-            Text(info.label)
-                .font(.system(size: 10, weight: .medium))
-            if let ttft = ttft {
-                Text("•")
-                    .font(.system(size: 6))
-                    .opacity(0.5)
-                Text(formatTTFT(ttft))
-                    .font(.system(size: 9, weight: .medium, design: .monospaced))
-            }
-        }
-        .foregroundStyle(info.color)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 3)
-        .background(info.color.opacity(0.12))
-        .clipShape(Capsule())
-    }
-
-    private func formatTTFT(_ t: TimeInterval) -> String {
-        if t < 1.0 {
-            return String(format: "%.0fms", t * 1000)
-        }
-        return String(format: "%.1fs", t)
-    }
-}
-
-// Compact tool call badge
-private struct CompactToolBadge: View {
-    let count: Int
-
-    var body: some View {
-        HStack(spacing: 3) {
-            Image(systemName: "wrench.and.screwdriver")
-                .font(.system(size: 9, weight: .semibold))
-            Text("\(count)")
-                .font(.system(size: 10, weight: .medium))
-        }
-        .foregroundStyle(.purple)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 3)
-        .background(Color.purple.opacity(0.12))
-        .clipShape(Capsule())
-    }
-}
-
-// Compact source chips
-private struct CompactSourceChips: View {
-    let chunks: [RetrievedChunk]
-    let onTap: () -> Void
-
-    var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: 4) {
-                Image(systemName: "doc.text.magnifyingglass")
-                    .font(.system(size: 10, weight: .medium))
-                Text("\(chunks.count) source\(chunks.count == 1 ? "" : "s")")
-                    .font(.system(size: 11, weight: .medium))
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 9, weight: .semibold))
-            }
-            .foregroundStyle(DSColors.accent)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .background(DSColors.accent.opacity(0.1))
-            .clipShape(Capsule())
-        }
-        .buttonStyle(.plain)
     }
 }
 

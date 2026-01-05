@@ -242,6 +242,9 @@ struct ModelConfigurationSheet: View {
                 Text("Maximum conversation context (model dependent)")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
+                Text("Apple Foundation Models cap on-device at 4,096 tokens; PCC expands to long context when allowed.")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
             }
             .padding(.vertical, 4)
 

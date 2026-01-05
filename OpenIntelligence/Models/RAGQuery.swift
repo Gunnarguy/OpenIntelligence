@@ -75,7 +75,7 @@ struct ResponseMetadata: Sendable {
     let tokensPerSecond: Float?
     let modelUsed: String
     let retrievalTime: TimeInterval
-    let strictModeEnabled: Bool
+    let retrievalConfigSummary: String // e.g., "Balanced", "High Accuracy", "Custom"
     let gatingDecision: String?
     let toolCallsMade: Int?
     let embeddingProvider: String? // e.g., "nl_embedding", "nl_contextual_embedding"
@@ -86,7 +86,7 @@ struct ResponseMetadata: Sendable {
          tokensPerSecond: Float? = nil,
          modelUsed: String,
          retrievalTime: TimeInterval,
-         strictModeEnabled: Bool = false,
+         retrievalConfigSummary: String = "Balanced",
          gatingDecision: String? = nil,
          toolCallsMade: Int? = nil,
          embeddingProvider: String? = nil)
@@ -97,9 +97,16 @@ struct ResponseMetadata: Sendable {
         self.tokensPerSecond = tokensPerSecond
         self.modelUsed = modelUsed
         self.retrievalTime = retrievalTime
-        self.strictModeEnabled = strictModeEnabled
+        self.retrievalConfigSummary = retrievalConfigSummary
         self.gatingDecision = gatingDecision
         self.toolCallsMade = toolCallsMade
         self.embeddingProvider = embeddingProvider
+    }
+
+    // MARK: - Computed Properties
+
+    /// True if using High Accuracy retrieval config (formerly "strict mode")
+    var isHighAccuracyMode: Bool {
+        retrievalConfigSummary == "High Accuracy"
     }
 }

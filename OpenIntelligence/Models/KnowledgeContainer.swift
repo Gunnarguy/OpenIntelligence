@@ -3,7 +3,7 @@
 //
 //  Defines a per-topic/library container for documents and vectors.
 //  Each container can choose its own embedding provider/dimension and vector DB backend.
-//  Containers enable strict scoping for high-accuracy use cases (e.g., medical topics).
+//  Containers provide per-library tuning for chunking, retrieval, and embedding strategies.
 //
 
 import Foundation
@@ -23,19 +23,88 @@ struct KnowledgeContainer: Identifiable, Codable, Equatable, Sendable {
     var description: String?
 
     // Retrieval/Embedding configuration
-    var embeddingProviderId: String // e.g. "nl_embedding", "coreml_e5_small", "apple_fm_embed" (future)
-    var embeddingDim: Int // e.g. 512, 384, 768
+    var embeddingProviderId: String // e.g. "nl_embedding", "nl_contextual_embedding"
+    var embeddingDim: Int // Native Apple dimension is 512
     var vectorDBKind: VectorDBKind
-    var strictMode: Bool // Higher safety thresholds for medical/high-stakes
     var autoAdaptDimension: Bool // Auto-orchestrate chunking/embedding when enabled
     var chunkingDirective: ChunkingDirective?
     var lastSelfTuneAt: Date?
+
+    // Retrieval tuning - controls how search results are ranked and filtered
+    var retrievalConfig: RetrievalConfig
+
+    // DEPRECATED: strictMode removed - use retrievalConfig.minSimilarity instead
+    // Migration: strictMode=true → minSimilarity=0.52, strictMode=false → minSimilarity=0.35
 
     // Stats for quick UI rendering
     var totalDocuments: Int
     var totalChunks: Int
     var dbSizeBytes: Int64
     var lastIndexedAt: Date?
+
+    // MARK: - Coding Keys for Migration
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, icon, colorHex, createdAt, description
+        case embeddingProviderId, embeddingDim, vectorDBKind
+        case autoAdaptDimension, chunkingDirective, lastSelfTuneAt
+        case retrievalConfig
+        case totalDocuments, totalChunks, dbSizeBytes, lastIndexedAt
+        // Legacy key for migration
+        case strictMode
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        icon = try container.decode(String.self, forKey: .icon)
+        colorHex = try container.decode(String.self, forKey: .colorHex)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        description = try container.decodeIfPresent(String.self, forKey: .description)
+        embeddingProviderId = try container.decode(String.self, forKey: .embeddingProviderId)
+        embeddingDim = try container.decode(Int.self, forKey: .embeddingDim)
+        vectorDBKind = try container.decode(VectorDBKind.self, forKey: .vectorDBKind)
+        autoAdaptDimension = try container.decodeIfPresent(Bool.self, forKey: .autoAdaptDimension) ?? false
+        chunkingDirective = try container.decodeIfPresent(ChunkingDirective.self, forKey: .chunkingDirective)
+        lastSelfTuneAt = try container.decodeIfPresent(Date.self, forKey: .lastSelfTuneAt)
+        totalDocuments = try container.decodeIfPresent(Int.self, forKey: .totalDocuments) ?? 0
+        totalChunks = try container.decodeIfPresent(Int.self, forKey: .totalChunks) ?? 0
+        dbSizeBytes = try container.decodeIfPresent(Int64.self, forKey: .dbSizeBytes) ?? 0
+        lastIndexedAt = try container.decodeIfPresent(Date.self, forKey: .lastIndexedAt)
+
+        // Migration: convert legacy strictMode to retrievalConfig
+        if let config = try container.decodeIfPresent(RetrievalConfig.self, forKey: .retrievalConfig) {
+            retrievalConfig = config
+        } else if let strictMode = try container.decodeIfPresent(Bool.self, forKey: .strictMode) {
+            // Migrate from strictMode
+            retrievalConfig = RetrievalConfig.migrated(fromStrictMode: strictMode)
+        } else {
+            retrievalConfig = .default
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encode(icon, forKey: .icon)
+        try container.encode(colorHex, forKey: .colorHex)
+        try container.encode(createdAt, forKey: .createdAt)
+        try container.encodeIfPresent(description, forKey: .description)
+        try container.encode(embeddingProviderId, forKey: .embeddingProviderId)
+        try container.encode(embeddingDim, forKey: .embeddingDim)
+        try container.encode(vectorDBKind, forKey: .vectorDBKind)
+        try container.encode(autoAdaptDimension, forKey: .autoAdaptDimension)
+        try container.encodeIfPresent(chunkingDirective, forKey: .chunkingDirective)
+        try container.encodeIfPresent(lastSelfTuneAt, forKey: .lastSelfTuneAt)
+        try container.encode(retrievalConfig, forKey: .retrievalConfig)
+        try container.encode(totalDocuments, forKey: .totalDocuments)
+        try container.encode(totalChunks, forKey: .totalChunks)
+        try container.encode(dbSizeBytes, forKey: .dbSizeBytes)
+        try container.encodeIfPresent(lastIndexedAt, forKey: .lastIndexedAt)
+    }
 
     init(
         id: UUID = UUID(),
@@ -47,10 +116,10 @@ struct KnowledgeContainer: Identifiable, Codable, Equatable, Sendable {
         embeddingProviderId: String = "nl_embedding",
         embeddingDim: Int = 512,
         vectorDBKind: VectorDBKind = .persistentJSON,
-        strictMode: Bool = true,
         autoAdaptDimension: Bool = false,
         chunkingDirective: ChunkingDirective? = nil,
         lastSelfTuneAt: Date? = nil,
+        retrievalConfig: RetrievalConfig = .default,
         totalDocuments: Int = 0,
         totalChunks: Int = 0,
         dbSizeBytes: Int64 = 0,
@@ -65,10 +134,10 @@ struct KnowledgeContainer: Identifiable, Codable, Equatable, Sendable {
         self.embeddingProviderId = embeddingProviderId
         self.embeddingDim = embeddingDim
         self.vectorDBKind = vectorDBKind
-        self.strictMode = strictMode
         self.autoAdaptDimension = autoAdaptDimension
         self.chunkingDirective = chunkingDirective
         self.lastSelfTuneAt = lastSelfTuneAt
+        self.retrievalConfig = retrievalConfig
         self.totalDocuments = totalDocuments
         self.totalChunks = totalChunks
         self.dbSizeBytes = dbSizeBytes
@@ -92,11 +161,102 @@ struct KnowledgeContainer: Identifiable, Codable, Equatable, Sendable {
             colorHex: colorHex,
             description: description ?? "High-accuracy container with contextual embeddings",
             embeddingProviderId: "nl_contextual_embedding",
-            embeddingDim: 512, // NLContextualEmbedding typically outputs 512-dim
+            embeddingDim: 512, // NLContextualEmbedding outputs 512-dim
             vectorDBKind: .persistentJSON,
-            strictMode: true,
-            autoAdaptDimension: true
+            autoAdaptDimension: true,
+            retrievalConfig: .highAccuracy
         )
+    }
+}
+
+// MARK: - Retrieval Configuration
+
+/// Controls how search results are ranked, filtered, and fused.
+/// This replaces the old strictMode boolean with granular tuning controls.
+struct RetrievalConfig: Codable, Equatable, Sendable {
+    /// Minimum cosine similarity required for a chunk to be considered relevant (0.0-1.0)
+    /// Higher values = stricter filtering, fewer but more relevant results
+    var minSimilarity: Float
+
+    /// Weight given to vector (semantic) similarity in hybrid search (0.0-1.0)
+    /// Higher = rely more on embeddings, lower = rely more on keywords
+    var vectorWeight: Float
+
+    /// Weight given to BM25 (keyword) matching in hybrid search (0.0-1.0)
+    /// Should typically sum with vectorWeight to ~1.0
+    var lexicalWeight: Float
+
+    /// MMR (Maximal Marginal Relevance) lambda parameter (0.0-1.0)
+    /// Higher = favor relevance, lower = favor diversity in results
+    var mmrLambda: Float
+
+    /// Minimum number of confident chunks required before generating a response
+    /// If fewer chunks pass minSimilarity, the system may decline to answer
+    var minConfidentChunks: Int
+
+    /// Whether to apply stricter citation requirements
+    /// When true, responses must cite sources more explicitly
+    var requireExplicitCitations: Bool
+
+    // MARK: - Presets
+
+    /// Default balanced configuration for general use
+    static let `default` = RetrievalConfig(
+        minSimilarity: 0.35,
+        vectorWeight: 0.7,
+        lexicalWeight: 0.3,
+        mmrLambda: 0.7,
+        minConfidentChunks: 1,
+        requireExplicitCitations: false
+    )
+
+    /// High-accuracy preset for research, medical, legal content
+    static let highAccuracy = RetrievalConfig(
+        minSimilarity: 0.50,
+        vectorWeight: 0.75,
+        lexicalWeight: 0.25,
+        mmrLambda: 0.8,
+        minConfidentChunks: 2,
+        requireExplicitCitations: true
+    )
+
+    /// Permissive preset for creative/exploratory queries
+    static let exploratory = RetrievalConfig(
+        minSimilarity: 0.25,
+        vectorWeight: 0.6,
+        lexicalWeight: 0.4,
+        mmrLambda: 0.5,
+        minConfidentChunks: 1,
+        requireExplicitCitations: false
+    )
+
+    /// Migration helper: convert legacy strictMode to RetrievalConfig
+    static func migrated(fromStrictMode strictMode: Bool) -> RetrievalConfig {
+        if strictMode {
+            return RetrievalConfig(
+                minSimilarity: 0.52,
+                vectorWeight: 0.7,
+                lexicalWeight: 0.3,
+                mmrLambda: 0.75,
+                minConfidentChunks: 3,
+                requireExplicitCitations: true
+            )
+        } else {
+            return .default
+        }
+    }
+
+    /// Human-readable description of the current configuration
+    var summary: String {
+        if self == .default {
+            return "Balanced"
+        } else if minSimilarity >= 0.5 {
+            return "High Accuracy"
+        } else if minSimilarity <= 0.28 {
+            return "Exploratory"
+        } else {
+            return "Custom"
+        }
     }
 }
 

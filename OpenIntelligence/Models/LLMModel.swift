@@ -22,7 +22,7 @@ struct LLMModel: Identifiable, Codable {
 
     init(id: UUID = UUID(),
          name: String,
-         modelType: ModelType, 
+         modelType: ModelType,
          filePath: URL? = nil,
          parameterCount: String,
          quantization: String? = nil,
@@ -47,7 +47,6 @@ enum ModelType: String, Codable {
     case appleFoundation = "Apple Foundation"
     case appleHybrid = "Apple Intelligence (Hybrid)"
     case appleChatGPT = "Apple Intelligence ChatGPT"
-    case openAI = "OpenAI (Cloud)"
     case onDeviceAnalysis = "On-Device Analysis"
     case coreMLPackage = "Core ML Package"
     case gguf = "GGUF"
@@ -62,35 +61,30 @@ enum InferencePathway {
 
 /// Configuration for model inference performance
 ///
-/// **Parameter Support by Provider:**
-/// | Parameter | Apple FM (iOS 26) | OpenAI |
-/// |-----------|-------------------|--------|
-/// | maxTokens | ✅ `maximumResponseTokens` | ✅ `max_tokens` |
-/// | temperature | ✅ 0.0-2.0 | ✅ 0.0-2.0 |
-/// | topP | ✅ `SamplingMode.random(probabilityThreshold:)` | ✅ `top_p` |
-/// | topK | ✅ `SamplingMode.random(top:)` | ❌ Not supported |
-/// | frequencyPenalty | ❌ Not supported | ✅ `frequency_penalty` |
-/// | presencePenalty | ❌ Not supported | ✅ `presence_penalty` |
-/// | stopSequences | ❌ Not supported | ✅ `stop` |
+/// **Parameter Support Notes (Apple FM):**
+/// - `maxTokens` maps to `maximumResponseTokens`
+/// - `temperature` maps to sampling temperature
+/// - `topP` maps to `SamplingMode.random(probabilityThreshold:)`
+/// - `topK` maps to `SamplingMode.random(top:)`
 struct InferenceConfig {
-    // MARK: - Universal Parameters (supported by both FM and OpenAI)
+    // MARK: - Universal Parameters
     var maxTokens: Int = 512
     var temperature: Float = 0.7
     var topP: Float = 0.9
     var topK: Int = 40
 
-    // MARK: - Legacy/OpenAI-Only Parameters
+    // MARK: - Legacy Parameters
 
-    // These are NOT used by Apple FoundationModels but kept for OpenAI compatibility
+    // These are NOT used by Apple FoundationModels but kept for backward compatibility.
     var useKVCache: Bool = true // Not applicable to FM
     var systemPrompt: String? // FM uses Instructions(...) instead
     var contextLength: Int? // FM context is fixed at 4096 tokens (TN3193)
 
-    // ⚠️ OpenAI-Only: These parameters have NO effect on Apple Foundation Models
-    var frequencyPenalty: Float = 0.0 // OpenAI: 0.0-2.0, FM: Not supported
-    var presencePenalty: Float = 0.0 // OpenAI: 0.0-2.0, FM: Not supported
-    var repetitionPenalty: Float = 1.0 // OpenAI-compatible: Not in official API
-    var stopSequences: [String] = [] // OpenAI: `stop`, FM: Not supported
+    // These have NO effect on Apple Foundation Models
+    var frequencyPenalty: Float = 0.0
+    var presencePenalty: Float = 0.0
+    var repetitionPenalty: Float = 1.0
+    var stopSequences: [String] = []
 
     // Apple Intelligence Execution Context (iOS 26+)
     var executionContext: ExecutionContext = .automatic
@@ -133,22 +127,43 @@ struct InferenceConfig {
 }
 
 /// Defines where Apple Foundation Models should execute
-enum ExecutionContext {
-    case automatic      // Let system decide (on-device → PCC fallback)
-    case onDeviceOnly   // Force on-device only (will fail if too complex)
-    case preferCloud    // Prefer Private Cloud Compute for better quality
-    case cloudOnly      // Force PCC (requires network)
+///
+/// **Context Window Sizes:**
+/// - On-device: 4,096 tokens (~10K chars) - fast but limited
+/// - Private Cloud Compute (PCC): ~65,536 tokens (~160K chars) - larger context, requires internet + consent
+///
+/// The system automatically routes to PCC when:
+/// - Context exceeds on-device capacity
+/// - Complex reasoning is required
+/// - User has granted PCC consent
+enum ExecutionContext: CaseIterable, Sendable {
+    /// Let system decide (on-device → PCC fallback). Default and recommended.
+    /// Uses on-device when possible (fast), automatically escalates to PCC for complex queries.
+    case automatic
+
+    /// Force on-device only. Limited to 4,096 tokens.
+    /// Use when offline or privacy is paramount. Will fail if context too large.
+    case onDeviceOnly
+
+    /// Prefer Private Cloud Compute for 65K context window.
+    /// Falls back to on-device if PCC unavailable (network issues, consent denied).
+    /// **RECOMMENDED for RAG queries with large document context.**
+    case preferCloud
+
+    /// Force PCC only. Requires network. Will fail if PCC unavailable.
+    /// Use sparingly - preferCloud is usually better as it allows fallback.
+    case cloudOnly
 
     var description: String {
         switch self {
         case .automatic:
             return "Automatic (Hybrid)"
         case .onDeviceOnly:
-            return "On-Device Only"
+            return "On-Device Only (4K tokens)"
         case .preferCloud:
-            return "Prefer Cloud"
+            return "Prefer Cloud (65K tokens)"
         case .cloudOnly:
-            return "Cloud Only"
+            return "Cloud Only (65K tokens)"
         }
     }
 
@@ -162,6 +177,18 @@ enum ExecutionContext {
             return "☁️"
         case .cloudOnly:
             return "🌐"
+        }
+    }
+
+    /// Maximum context window tokens for this execution mode
+    var maxContextTokens: Int {
+        switch self {
+        case .cloudOnly, .preferCloud:
+            return 65536 // PCC supports ~65K tokens
+        case .onDeviceOnly:
+            return 4096 // On-device hard limit (TN3193)
+        case .automatic:
+            return 65536 // Optimistic - system may fall back to 4K
         }
     }
 }

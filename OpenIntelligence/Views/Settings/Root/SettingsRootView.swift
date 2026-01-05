@@ -16,7 +16,6 @@ struct SettingsRootView: View {
         case executionPrivacy = "Execution & Privacy"
         case modelSelection = "Model Selection"
         case fallbacks = "Fallbacks"
-        case openAI = "OpenAI"
         case generation = "Generation"
         case retrieval = "Retrieval"
         case systemStatus = "System Status"
@@ -30,7 +29,6 @@ struct SettingsRootView: View {
             case .executionPrivacy: return "lock.shield"
             case .modelSelection: return "brain.head.profile"
             case .fallbacks: return "arrow.triangle.2.circlepath"
-            case .openAI: return "key"
             case .generation: return "slider.horizontal.3"
             case .retrieval: return "magnifyingglass"
             case .systemStatus: return "waveform.path.ecg"
@@ -57,8 +55,7 @@ struct SettingsRootView: View {
                 [
                     .executionPrivacy,
                     .modelSelection,
-                    .fallbacks,
-                    .openAI,
+.fallbacks,
                     .generation,
 .retrieval,
                     .systemStatus,
@@ -108,11 +105,6 @@ struct SettingsRootView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            .onChange(of: settings.reviewerModeEnabled) { _, enabled in
-                if !enabled, selection == .openAI {
-                    selection = .executionPrivacy
-                }
-            }
         }
     #endif
 
@@ -132,8 +124,7 @@ struct SettingsRootView: View {
             var categories: [Category] = [
                 .executionPrivacy,
                 .modelSelection,
-                .fallbacks,
-                .openAI,
+.fallbacks,
                 .generation,
 .retrieval,
                 .systemStatus,
@@ -141,18 +132,6 @@ struct SettingsRootView: View {
                 .about,
             ]
         #endif
-
-        if settings.reviewerModeEnabled {
-            if !categories.contains(.openAI) {
-                if let idx = categories.firstIndex(of: .modelSelection) {
-                    categories.insert(.openAI, at: idx + 1)
-                } else {
-                    categories.append(.openAI)
-                }
-            }
-        } else {
-            categories.removeAll { $0 == .openAI }
-        }
 
         return categories
     }
@@ -163,7 +142,6 @@ struct SettingsRootView: View {
         case .executionPrivacy: ExecutionPrivacyView()
         case .modelSelection: ModelSelectionView()
         case .fallbacks: FallbacksView()
-        case .openAI: OpenAISettingsView()
         case .generation: GenerationParametersView()
         case .retrieval: RetrievalSettingsView()
         case .systemStatus: SystemStatusView()
@@ -184,7 +162,7 @@ struct ExecutionPrivacyView: View {
                     get: { settings.executionContext },
                     set: { settings.executionContext = $0 }
                 )) {
-                    Text("Automatic").tag(ExecutionContext.automatic)
+                    Text("Automatic (Reliability-first)").tag(ExecutionContext.automatic)
                     Text("On-Device Only").tag(ExecutionContext.onDeviceOnly)
                     Text("Prefer Cloud").tag(ExecutionContext.preferCloud)
                     Text("Cloud Only").tag(ExecutionContext.cloudOnly)
@@ -192,13 +170,25 @@ struct ExecutionPrivacyView: View {
                 #if os(iOS)
                 .pickerStyle(.segmented)
                 #endif
-                Text("Choose where to run models. Private Cloud Compute may be used based on your selection.")
+                Text("Choose where to run models. Automatic prefers PCC for library queries when allowed.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
             Section("Privacy Controls") {
-                Toggle("Allow Private Cloud Compute", isOn: $settings.allowPrivateCloudCompute)
-                Toggle("Prefer Private Cloud", isOn: $settings.preferPrivateCloudCompute)
+                // Execution Context is now the single source of truth for PCC preferences
+                if settings.executionContext == .automatic || settings.executionContext == .preferCloud {
+                    Label("Private Cloud Compute preferred when available", systemImage: "cloud.fill")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else if settings.executionContext == .cloudOnly {
+                    Label("Forced Cloud Execution", systemImage: "cloud.fill")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Label("Strictly On-Device", systemImage: "iphone.gen3")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
         .navigationTitle("Execution & Privacy")
@@ -309,41 +299,6 @@ struct FallbacksView: View {
     }
 }
 
-struct OpenAISettingsView: View {
-    @EnvironmentObject private var settings: SettingsStore
-    @State private var showInfo = false
-    var body: some View {
-        Form {
-            Section("API") {
-                SecureField("API Key (sk-...)", text: $settings.openaiAPIKey)
-                    .textContentType(.password)
-                Picker("Model", selection: $settings.openaiModel) {
-                    Text("GPT-5 (Latest)").tag("gpt-5")
-                    Text("o1 (Reasoning)").tag("o1")
-                    Text("o1-mini (Fast Reasoning)").tag("o1-mini")
-                    Text("GPT-4o").tag("gpt-4o")
-                    Text("GPT-4o Mini").tag("gpt-4o-mini")
-                    Text("GPT-4 Turbo").tag("gpt-4-turbo-preview")
-                }
-            }
-            Section {
-                Button {
-                    showInfo = true
-                } label: {
-                    Label("Privacy Notice", systemImage: "exclamationmark.shield.fill")
-                }
-                .tint(.orange)
-                .alert("OpenAI Direct", isPresented: $showInfo) {
-                    Button("OK", role: .cancel) {}
-                } message: {
-                    Text("Direct OpenAI API bypasses Apple's privacy protections. Use only if you accept OpenAI's policies.")
-                }
-            }
-        }
-        .navigationTitle("OpenAI")
-    }
-}
-
 struct GenerationParametersView: View {
     @EnvironmentObject private var settings: SettingsStore
     var body: some View {
@@ -371,7 +326,7 @@ struct GenerationParametersView: View {
                         .font(.system(.body, design: .monospaced))
                 }
                 Slider(value: Binding(get: { Double(settings.contextLength) }, set: { settings.contextLength = Int($0) }), in: 512 ... 32768, step: 512)
-                Text("Size of the context window (input + output).").font(.footnote).foregroundStyle(.secondary)
+                Text("Target context budget (input + output). Apple FM caps on-device at 4,096 tokens; PCC expands to long context when allowed.").font(.footnote).foregroundStyle(.secondary)
             }
 
             Section("Sampling") {
@@ -428,16 +383,10 @@ struct RetrievalSettingsView: View {
     @EnvironmentObject private var settings: SettingsStore
     var body: some View {
         List {
-            Section("Retrieved Chunks") {
-                HStack {
-                    Slider(value: Binding(get: { Double(settings.topK) }, set: { settings.topK = Int($0) }), in: 1 ... 50, step: 1)
-                    Text("\(settings.topK)")
-                        .font(.system(.body, design: .monospaced))
-                        .frame(width: 40, alignment: .trailing)
-                }
-            }
-            Section {
-                Toggle("Lenient Retrieval Mode", isOn: $settings.lenientRetrievalMode)
+            Section("Retrieval Strategy") {
+                Text("Retrieval runs in balanced mode for coverage and reliability without blocking answers.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
 
             Section {
@@ -461,6 +410,7 @@ struct RetrievalSettingsView: View {
                         .font(.caption)
                 }
             }
+
         }
         .navigationTitle("Retrieval")
     }
