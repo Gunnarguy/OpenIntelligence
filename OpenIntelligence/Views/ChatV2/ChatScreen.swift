@@ -239,6 +239,11 @@ struct ChatScreen: View {
             // Toast overlay (appears above everything) - minimal use
             ToastStackView(items: toastManager.toasts, maxVisible: 1)
                 .padding(.top, 60) // Below nav bar
+
+            IngestionQueueOverlay(items: ragService.ingestionItems)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 88)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
         }
 .navigationTitle("Chat")
         #if os(iOS)
@@ -251,6 +256,8 @@ struct ChatScreen: View {
         }
         // Recalculate counts when active container changes
         .task(id: ragService.containerService.activeContainerId) {
+            let activeId = ragService.containerService.activeContainerId
+            messages = ragService.chatHistory(for: activeId)
             await recalcActiveCounts()
         }
         // React to document ingestion/removal immediately
@@ -353,6 +360,8 @@ struct ChatScreen: View {
 #endif
         }
 .onAppear {
+    let activeId = ragService.containerService.activeContainerId
+    messages = ragService.chatHistory(for: activeId)
     seedScreenshotDemoIfNeeded()
 }
     }
@@ -699,6 +708,10 @@ struct ChatScreen: View {
         ]
     }
 
+    private func persistChatHistory(for containerId: UUID?) {
+        ragService.persistChatHistory(messages, for: containerId)
+    }
+
     private func newChat() {
         // Cancel any in-flight processing
         if isProcessing {
@@ -723,6 +736,7 @@ struct ChatScreen: View {
         showRetrievedDetails = false
         thinkingEvents.removeAll()
         requestedExecutionContext = .automatic
+        ragService.clearChatHistory(for: ragService.containerService.activeContainerId)
     }
 
     private func clearChat() {
@@ -747,6 +761,7 @@ struct ChatScreen: View {
         showRetrievedDetails = false
         thinkingEvents.removeAll()
         requestedExecutionContext = .automatic
+        ragService.clearChatHistory(for: ragService.containerService.activeContainerId)
     }
 
     /// Stops generation immediately and preserves partial response
@@ -764,6 +779,7 @@ struct ChatScreen: View {
             )
             partial.containerId = ragService.containerService.activeContainerId
             messages.append(partial)
+            persistChatHistory(for: partial.containerId)
         }
 
         // Reset all processing state
@@ -830,32 +846,9 @@ struct ChatScreen: View {
         )
 
         Task {
-            var successCount = 0
-            var failCount = 0
-
-            // Step 1: Process all attachments first
-            for (index, url) in urls.enumerated() {
-                // Update toast to show progress
-                await MainActor.run {
-                    toastManager.show(
-                        ToastItem(
-                            title: "Processing \(index + 1)/\(count): \(url.lastPathComponent)",
-                            icon: "doc.badge.gearshape",
-                            tint: DSColors.accent
-                        ),
-                        duration: 2.0
-                    )
-                }
-
-                do {
-                    try await ragService.addDocument(at: url)
-                    successCount += 1
-                    Log.info("[ChatScreen] Ingested attachment: \(url.lastPathComponent)", category: .ingestion)
-                } catch {
-                    failCount += 1
-                    Log.error("[ChatScreen] Failed to ingest \(url.lastPathComponent): \(error)", category: .ingestion)
-                }
-            }
+            let result = await ragService.ingestDocuments(urls)
+            let successCount = result.successCount
+            _ = result.failureCount
 
             // Refresh counts
             await recalcActiveCounts()
@@ -1001,6 +994,7 @@ struct ChatScreen: View {
             messageContainerOverride ?? ragService.containerService.activeContainerId
         userMessage.containerId = usedContainerId
         messages.append(userMessage)
+        persistChatHistory(for: usedContainerId)
         // Reset override after one use
         self.messageContainerOverride = nil
 
@@ -1148,6 +1142,7 @@ struct ChatScreen: View {
                     // flushStreamingBufferToVisibleText already handled cleanup when isFinal arrived
                     // No need to reset again here - would race with final flush
                     self.messages.append(assistant)
+                    self.persistChatHistory(for: capturedUsedContainerId)
                     self.stage = .complete
 
                     // Show completion toast with token count
@@ -1173,19 +1168,37 @@ struct ChatScreen: View {
             } catch {
                 Log.error("Query failed: \(error.localizedDescription)", category: .llm)
                 await MainActor.run {
+                    let friendlyMessage = userFacingErrorMessage(error)
+
+                    self.toastManager.clearAll()
+                    let toastTitle = friendlyMessage.count > 42 ? "Couldn't complete" : friendlyMessage
+                    self.pushToast(toastTitle, icon: "exclamationmark.triangle.fill", tint: .red)
+
+                    self.flushStreamingBufferToVisibleText()
+                    let partial = self.streamingText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+                    if !partial.isEmpty {
+                        let note = "\n\n*(Generation stopped. \(friendlyMessage))*"
+                        var partialMessage = ChatMessage(
+                            role: .assistant, 
+                            content: partial + note
+                        )
+                        partialMessage.containerId = capturedUsedContainerId
+                        self.messages.append(partialMessage)
+                    } else {
+                        var errorMsg = ChatMessage(
+                            role: .assistant,
+                            content: "\(friendlyMessage)\n\nPlease try again."
+                        )
+                        errorMsg.containerId = capturedUsedContainerId
+                        self.messages.append(errorMsg)
+                    }
+
+                    self.persistChatHistory(for: capturedUsedContainerId)
+
                     self.stage = .idle
                     self.resetStreamingState()
-
-                    // Clear any pending toasts and show error
-                    self.toastManager.clearAll()
-                    self.pushToast("Error occurred", icon: "exclamationmark.triangle.fill", tint: .red)
-
-                    // Add error message to chat
-                    let errorMsg = ChatMessage(
-                        role: .assistant,
-                        content: "Sorry, I encountered an error: \(error.localizedDescription)\n\nPlease try again."
-                    )
-                    self.messages.append(errorMsg)
+                    self.generationStart = nil
                 }
             }
         }
@@ -1264,13 +1277,26 @@ struct ChatScreen: View {
     @MainActor
     private func pumpStreamingBuffer(chunkSize: Int = 50, cadence: UInt64 = 80_000_000) async {
         defer { streamingPumpTask = nil }
-        var pumpedCount = 0
         while !Task.isCancelled {
             guard !streamingBuffer.isEmpty else { return }
-            let takeCount = min(chunkSize, streamingBuffer.count)
+            let backlog = streamingBuffer.count
+            let adaptiveChunkSize: Int
+            let adaptiveCadence: UInt64
+
+            if backlog > 1200 {
+                adaptiveChunkSize = max(120, chunkSize)
+                adaptiveCadence = 40_000_000
+            } else if backlog > 400 {
+                adaptiveChunkSize = max(80, chunkSize)
+                adaptiveCadence = 60_000_000
+            } else {
+                adaptiveChunkSize = chunkSize
+                adaptiveCadence = cadence
+            }
+
+            let takeCount = min(adaptiveChunkSize, streamingBuffer.count)
             let nextChunk = String(streamingBuffer.prefix(takeCount))
             streamingBuffer.removeFirst(takeCount)
-            pumpedCount += 1
 
             // Force immediate UI update with explicit animation
             withAnimation(.linear(duration: 0.04)) {
@@ -1281,7 +1307,7 @@ struct ChatScreen: View {
             updateSpeedHistory()
 
             do {
-                try await Task.sleep(nanoseconds: cadence)
+                try await Task.sleep(nanoseconds: adaptiveCadence)
             } catch {
                 return
             }
@@ -1354,6 +1380,47 @@ struct ChatScreen: View {
         }
 
         return cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func userFacingErrorMessage(_ error: Error) -> String {
+        if error is CancellationError {
+            return "Generation canceled."
+        }
+
+        if let ragError = error as? RAGServiceError {
+            switch ragError {
+            case .emptyQuery:
+                return "Type a question to get started."
+            case .noDocumentsAvailable:
+                return "No documents yet. Add files to enable grounded answers."
+            case .noRelevantContext:
+                return "I couldn't find relevant info in your library. Try rephrasing."
+            case .retrievalFailed:
+                return "Retrieval failed. Please try again."
+            case .modelNotAvailable:
+                return "The selected model isn't available right now."
+            case .cloudConsentDenied:
+                return "Cloud processing was declined. Switch to on-device or try again."
+            }
+        }
+
+        if let urlError = error as? URLError {
+            switch urlError.code {
+            case .notConnectedToInternet:
+                return "You're offline. Reconnect and try again."
+            case .timedOut:
+                return "The request timed out. Please try again."
+            default:
+                return "Network error. Please try again."
+            }
+        }
+
+        let message = error.localizedDescription.lowercased()
+        if message.contains("exceededcontextwindowsize") {
+            return "That request is too large. Try a shorter question."
+        }
+
+        return "Something went wrong. Please try again."
     }
 }
 

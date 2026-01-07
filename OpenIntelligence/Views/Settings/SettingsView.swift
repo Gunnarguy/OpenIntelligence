@@ -632,76 +632,32 @@ VStack(alignment: .leading, spacing: 8) {
             HStack { 
                 Image(systemName: "text.bubble.fill")
                     .foregroundColor(.accentColor)
-                Text("Generation")
+                Text("Generation Style")
                     .font(.headline)
                 Spacer()
-
-                Button {
-                    withAnimation {
-                        showAdvancedGeneration.toggle()
-                    }
-                } label: {
-                    Text(showAdvancedGeneration ? "Simple" : "Advanced")
-                        .font(.caption.weight(.medium))
-                        .foregroundColor(.accentColor)
-                }
             }
 
-            // Temperature
+            // Temperature / Creativity
+            // Map 0.0-1.0 temperature to 0-100% "Creativity" for better UX
             sliderRow(
-                label: "Temperature",
+                label: "Creativity",
                 value: $settings.temperature,
-                range: 0 ... 2,
-                step: 0.05,
-                format: "%.2f",
-                description: settings.temperature < 0.5 ? "Focused" : settings.temperature > 1.0 ? "Creative" : "Balanced"
+                range: 0 ... 1.0,
+                step: 0.1,
+                valueString: "\(Int(settings.temperature * 100))%",
+                description: settings.temperature < 0.3 ? "Precise & Deterministic" : settings.temperature > 0.7 ? "Creative & Diverse" : "Balanced"
             )
 
-            // Max Tokens
-            sliderRow(
-                label: "Max Response Length",
-                value: Binding(
-                    get: { Double(settings.maxTokens) },
-                    set: { settings.maxTokens = Int($0) }
-                ),
-                range: 512 ... 8192,
-                step: 256,
-                format: "%.0f",
-                description: "\(settings.maxTokens) tokens ≈ \(settings.maxTokens * 3 / 4) words max"
-            )
+            Divider()
 
-            if showAdvancedGeneration {
-                Divider()
-
-                // Top P
-                sliderRow(
-                    label: "Top P (Nucleus)",
-                    value: $settings.topP,
-                    range: 0 ... 1,
-                    step: 0.05,
-                    format: "%.2f",
-                    description: "Cumulative probability cutoff"
-                )
-
-                // Frequency Penalty
-                sliderRow(
-                    label: "Frequency Penalty",
-                    value: $settings.frequencyPenalty,
-                    range: 0 ... 2,
-                    step: 0.1,
-                    format: "%.1f",
-                    description: "Reduces repetition of tokens"
-                )
-
-                // Presence Penalty
-                sliderRow(
-                    label: "Presence Penalty",
-                    value: $settings.presencePenalty,
-                    range: 0 ... 2,
-                    step: 0.1,
-                    format: "%.1f",
-                    description: "Encourages new topics"
-                )
+            // Auto-Context explanation
+            HStack(spacing: 8) {
+                Image(systemName: "wand.and.stars")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Text("Response length and context window are managed automatically by the Neural Engine based on query complexity and available compute.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
         }
 .padding()
@@ -715,7 +671,7 @@ VStack(alignment: .leading, spacing: 8) {
         value: Binding<Double>,
         range: ClosedRange<Double>,
         step: Double,
-        format: String,
+        valueString: String,
         description: String
     ) -> some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -723,7 +679,7 @@ VStack(alignment: .leading, spacing: 8) {
                 Text(label)
                     .font(.subheadline)
                 Spacer()
-                Text(String(format: format, value.wrappedValue))
+                Text(valueString)
                     .font(.subheadline.monospacedDigit())
                     .foregroundColor(.accentColor)
             }

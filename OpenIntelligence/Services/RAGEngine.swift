@@ -146,8 +146,19 @@ actor RAGEngine {
         #endif
         guard !chunks.isEmpty else { return [] }
 
+        let queryTerms = tokenize(query).filter { $0.count > 2 }
+        let queryTermSet = Set(queryTerms)
+        let queryLower = query.lowercased()
+        let hasDigits = queryLower.rangeOfCharacter(from: .decimalDigits) != nil
+        let wantsSteps = queryLower.contains("step")
+            || queryLower.contains("procedure")
+            || queryLower.contains("instructions")
+            || queryLower.contains("checklist")
+            || queryLower.contains("how to")
+            || queryLower.contains("guide")
+
         // Build scored tuples
-        var scored: [(chunk: RetrievedChunk, score: Float, keyword: Float, proximity: Float)] = []
+        var scored: [(chunk: RetrievedChunk, score: Float, keyword: Float, proximity: Float, metadata: Float)] = []
         scored.reserveCapacity(chunks.count)
 
         for (i, r) in chunks.enumerated() {
@@ -157,16 +168,24 @@ actor RAGEngine {
             var score = r.similarityScore
 
             let keywordBoost = calculateKeywordMatch(query: query, content: r.chunk.content)
-            score += keywordBoost * 0.2
+            score += keywordBoost * 0.6 // Boosted from 0.2 to prioritize exact keyword matches
 
             let proximityBoost = calculateTermProximity(query: query, content: r.chunk.content)
-            score += proximityBoost * 0.15
+            score += proximityBoost * 0.4 // Boosted from 0.15 to favor phrases like "press button"
 
             let chunkIndex = r.chunk.metadata.chunkIndex
             let positionScore = 1.0 / Float(chunkIndex + 10)
             score += positionScore * 0.05
 
-            scored.append((r, score, keywordBoost, proximityBoost))
+            let metadataBoost = computeMetadataBoost(
+                chunk: r,
+                queryTerms: queryTermSet,
+                hasDigits: hasDigits,
+                wantsSteps: wantsSteps
+            )
+            score += metadataBoost
+
+            scored.append((r, score, keywordBoost, proximityBoost, metadataBoost))
         }
 
         // Sort by rerank score desc
@@ -180,6 +199,9 @@ actor RAGEngine {
             Log.debug("[RAGEngine] - Semantic: \(String(format: "%.3f", top.chunk.similarityScore))", category: .retrieval)
             Log.debug("[RAGEngine] - Keywords: \(String(format: "%.3f", top.keyword))", category: .retrieval)
             Log.debug("[RAGEngine] - Proximity: \(String(format: "%.3f", top.proximity))", category: .retrieval)
+            if top.metadata > 0 {
+                Log.debug("[RAGEngine] - Metadata: \(String(format: "%.3f", top.metadata))", category: .retrieval)
+            }
         }
 
         return Array(scored.prefix(topK)).map { $0.chunk }
@@ -545,5 +567,39 @@ actor RAGEngine {
             }
         }
         return minDistance == Int.max ? 0 : 1.0 / Float(minDistance + 1)
+    }
+
+    private func computeMetadataBoost(
+        chunk: RetrievedChunk,
+        queryTerms: Set<String>,
+        hasDigits: Bool,
+        wantsSteps: Bool
+    ) -> Float {
+        var boost: Float = 0
+        let metadata = chunk.chunk.metadata
+
+        if hasDigits, metadata.hasNumericData {
+            boost += 0.04
+        }
+
+        if wantsSteps, metadata.hasListStructure {
+            boost += 0.04
+        }
+
+        if let sectionTitle = metadata.sectionTitle?.lowercased() {
+            if queryTerms.contains(where: { sectionTitle.contains($0) }) {
+                boost += 0.04
+            }
+        }
+
+        if !metadata.keywords.isEmpty, !queryTerms.isEmpty {
+            let keywordSet = Set(metadata.keywords.map { $0.lowercased() })
+            let overlap = keywordSet.intersection(queryTerms).count
+            if overlap > 0 {
+                boost += min(0.08, Float(overlap) * 0.02)
+            }
+        }
+
+        return boost
     }
 }

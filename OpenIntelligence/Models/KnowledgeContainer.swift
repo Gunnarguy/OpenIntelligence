@@ -203,9 +203,9 @@ struct RetrievalConfig: Codable, Equatable, Sendable {
     /// Default balanced configuration for general use
     static let `default` = RetrievalConfig(
         minSimilarity: 0.35,
-        vectorWeight: 0.7,
-        lexicalWeight: 0.3,
-        mmrLambda: 0.7,
+        vectorWeight: 0.5,
+        lexicalWeight: 0.5,
+        mmrLambda: 0.6,
         minConfidentChunks: 1,
         requireExplicitCitations: false
     )
@@ -313,5 +313,9 @@ enum AppSupportPaths {
     static func vectorsFileURL(containerId: UUID) -> URL {
         // Persistent JSON vector DB file per container
         baseDir().appendingPathComponent("vector_database_\(containerId.uuidString).json")
+    }
+
+    static func chatHistoryURL(containerId: UUID) -> URL {
+        baseDir().appendingPathComponent("chat_history_\(containerId.uuidString).json")
     }
 }

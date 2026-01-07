@@ -435,7 +435,7 @@ struct LLMResponse {
         }
 
         // Lazy session creation - only when actually generating
-        private func ensureSession(systemPrompt: String? = nil) throws { 
+        private func ensureSession(systemPrompt: String? = nil) throws {
             guard session == nil else { return }
 
             guard Thread.isMainThread else {
@@ -471,16 +471,16 @@ struct LLMResponse {
                 // Create language model session with hybrid RAG+LLM instructions
                 // This enables BOTH document-based RAG and general conversational AI
                 let defaultInstructions = """
-                    You are OpenIntelligence, a privacy-first assistant.
+                You are OpenIntelligence, a privacy-first assistant.
 
-                    Use tools only when needed:
-                    - search_documents to fetch relevant passages
-                    - list_documents to show what's available
-                    - get_document_summary for details
+                Use tools only when needed:
+                - search_documents to fetch relevant passages
+                - list_documents to show what's available
+                - get_document_summary for details
 
-                    When using document info, cite document names and page numbers when available.
-                    If the provided context doesn't contain the answer, say so.
-                    """
+                When using document info, cite document names and page numbers when available.
+                If the provided context doesn't contain the answer, say so.
+                """
 
                 let instructionsText = systemPrompt ?? defaultInstructions
                 currentSystemPrompt = systemPrompt
@@ -513,7 +513,11 @@ struct LLMResponse {
         func generate(prompt: String, context: String?, config: InferenceConfig) async throws
             -> LLMResponse
         {
-            // Check if system prompt changed
+            // Force statelessness: RAGService manages history manually and constructs a full prompt
+            // including previous conversation. Reusing the session would duplicate history.
+            session = nil
+
+            // Check if system prompt changed (redundant now but keeps logic clean)
             if let newPrompt = config.systemPrompt, newPrompt != currentSystemPrompt {
                 Log.info("System prompt changed, recreating session", category: .llm)
                 session = nil
@@ -555,20 +559,32 @@ struct LLMResponse {
                     Log.warning("[FM] Input approaching context limit: ~\(estimatedInputTokens) tokens", category: .llm)
                 }
 
-                // Conversational RAG prompt - not extractive QA
-                fullPrompt = """
-                    You are a precise research assistant with access to the user's documents.
-                    Write clean Markdown with short sections and bullet points where helpful.
-                    Be direct, avoid filler, and do not mention "excerpts" or "context."
-                    Normalize units and strip footnote markers (e.g., "3 mL1" → "3 mL").
-                    If evidence is thin, state what is supported and what is unknown.
-                    Cite sources like [S1] when possible.
-
-                    RELEVANT DOCUMENT EXCERPTS:
+                if config.systemPrompt != nil {
+                    // System instructions are already set in the session via config.systemPrompt.
+                    // Provide only the context and question in the user prompt to avoid duplication.
+                    fullPrompt = """
+                    CONTEXT FROM DOCUMENTS:
                     \(context)
 
-                    USER QUESTION: \(prompt)
+                    USER QUESTION:
+                    \(prompt)
                     """
+                } else {
+                    // No system prompt provided. Embed instructions directly in user prompt.
+                    // Conversational RAG prompt - Intelligent Agentic Mode
+                    fullPrompt = """
+                    You are an intelligent assistant with access to the user's knowledge base.
+                    Synthesize the provided excerpts to answer the user's question comprehensively.
+                    If the excerpts cover multiple functions or contexts (e.g., different modes, actions, or settings), explain all of them to provide a complete picture.
+                    Connect related concepts and provide a smart, coherent summary.
+                    Cite sources like [S1] to ground your answer.
+
+                    CONTEXT FROM DOCUMENTS:
+                    \(context)
+
+                    \(prompt)
+                    """
+                }
             } else {
                 Log.debug("General chat mode: prompt=\(prompt.prefix(50))...", category: .llm)
 
@@ -584,7 +600,7 @@ struct LLMResponse {
                     // Short queries without clear English markers
                     fullPrompt =
                         "Answer the following in clean Markdown with short sections and bullets where helpful: \(prompt)"
-                } else { 
+                } else {
                     fullPrompt = prompt
                 }
             }
@@ -623,7 +639,6 @@ struct LLMResponse {
             let responseStream = session.streamResponse(to: fullPrompt, options: options)
 
             var snapshotCount = 0
-            var contextWindowExceeded = false
             var guardrailViolation = false
             var unsupportedLanguage = false
 
@@ -667,16 +682,16 @@ struct LLMResponse {
                             // If the user has PCC disabled in iOS Settings, this will fail at
                             // the system level, not here.
                             if config.executionContext == .onDeviceOnly || !config.allowPrivateCloudCompute,
-                                actualExecutionLocation.contains("Private Cloud Compute")
-                            { 
+                               actualExecutionLocation.contains("Private Cloud Compute")
+                            {
                                 Log.warning("[FM] PCC routed despite on-device preference - context may be too large for 4096 limit", category: .llm)
                                 TelemetryCenter.emit(
-                                    .system, 
+                                    .system,
                                     severity: .info,
                                     title: "System routed to PCC",
                                     metadata: [
-                                            "ttft": String(format: "%.2f", ttft),
-                                            "execDetected": actualExecutionLocation, 
+                                        "ttft": String(format: "%.2f", ttft),
+                                        "execDetected": actualExecutionLocation,
                                         "note": "Context exceeds on-device capacity - PCC required",
                                     ]
                                 )
@@ -712,13 +727,14 @@ struct LLMResponse {
                 switch error {
                 case let .exceededContextWindowSize(context):
                     Log.warning("[FM] Context window exceeded (4096 tokens): \(context)", category: .llm)
-                    contextWindowExceeded = true
                     TelemetryCenter.emit(
                         .system,
                         severity: .warning,
                         title: "Context window exceeded",
                         metadata: ["estimatedTokens": "\(estimatedTokens)"]
                     )
+                    // Rethrow to allow RAGService to handle retry with reduced context
+                    throw error
                 case let .guardrailViolation(context):
                     Log.warning("[FM] Guardrail violation - content filtered: \(context)", category: .llm)
                     guardrailViolation = true
@@ -768,43 +784,6 @@ struct LLMResponse {
             }
 
             // Handle generation errors with user-friendly messages
-            if contextWindowExceeded {
-                // Context exceeded 4096 tokens - system should have routed to PCC
-                // If we got here, PCC is unavailable (user disabled, network issue, etc.)
-                Log.warning("[FM] Context overflow - exceeded 4096 token on-device limit", category: .llm)
-                TelemetryCenter.emit(
-.system,
-                    severity: .warning,
-                    title: "Context overflow",
-                    metadata: ["execContext": "\(config.executionContext)", "estimatedTokens": "\(estimatedTokens)"]
-                )
-
-                // Return partial response if we got any
-                if !responseText.isEmpty {
-                    Log.info("Returning partial response (\(responseText.count) chars) before overflow", category: .llm)
-                    LLMStreamingContext.emit(text: "\n\n[Response truncated due to context limit]", isFinal: true)
-                    return LLMResponse(
-                        text: responseText + "\n\n*[Response was truncated. Try asking a more specific question.]*",
-                        tokensGenerated: responseText.split(separator: " ").count,
-                        timeToFirstToken: firstTokenTime,
-                        totalTime: Date().timeIntervalSince(startTime),
-                        modelName: modelName,
-                        toolCallsMade: ToolCallCounter.shared.takeAndReset()
-                    )
-                }
-
-                // No partial response - guide user to enable PCC for large context
-                let contextAdvice =
-                    "Your query exceeded the 4,096-token on-device limit.\n\n" +
-                    "To analyze larger documents, enable Private Cloud Compute (PCC) which supports up to 65K tokens:\n\n" +
-                    "1. Open iOS Settings\n" +
-                    "2. Go to Apple Intelligence & Siri\n" +
-                    "3. Enable 'Private Cloud Compute'\n\n" +
-                    "Alternatively, try asking a more specific question about fewer documents."
-
-                throw LLMError.generationFailed(contextAdvice)
-            }
-
             if guardrailViolation {
                 throw LLMError.generationFailed(
                     "Apple's safety guardrails prevented this response. " +
@@ -854,7 +833,7 @@ struct LLMResponse {
 
             // Response continuation: detect if response was cut off and continue if needed
             let needsContinuation = responseNeedsContinuation(responseText)
-            if needsContinuation, !contextWindowExceeded {
+            if needsContinuation {
                 Log.info("[FM] Response appears incomplete - attempting continuation", category: .llm)
                 let continuedText = try await continueGeneration(
                     session: session,
@@ -979,7 +958,7 @@ struct LLMResponse {
 /// Stub service that always throws - used when Apple Intelligence is unavailable
 /// This forces the user to enable Apple Intelligence rather than falling back to inferior extractive QA
 class AppleFoundationLLMServiceUnavailable: LLMService {
-        var toolHandler: RAGToolHandler?
+    var toolHandler: RAGToolHandler?
 
     var isAvailable: Bool { false }
     var modelName: String { "Apple Intelligence (Unavailable)" }
@@ -1366,17 +1345,17 @@ class OnDeviceAnalysisService: LLMService {
             response = "Based on what I found in your documents:\n\n\(combinedContent)"
         } else {
             switch queryType {
-            case .definition: 
+            case .definition:
                 response = combinedContent
-                case .instruction:
+            case .instruction:
                 response = "Here's what your documents say:\n\n\(combinedContent)"
-                case .explanation:
+            case .explanation:
                 response = combinedContent
-                case .temporal, .location:
-                    response = combinedContent
-                case .description:
+            case .temporal, .location:
                 response = combinedContent
-                case .general:
+            case .description:
+                response = combinedContent
+            case .general:
                 response = combinedContent
             }
         }
@@ -1719,3 +1698,5 @@ enum LLMError: LocalizedError {
         }
     }
 }
+
+

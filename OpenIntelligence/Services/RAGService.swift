@@ -134,6 +134,10 @@ class RAGService: ObservableObject {
     @MainActor private weak var settingsStore: SettingsStore?
     @MainActor private var pendingConsentContinuation: CheckedContinuation<CloudConsentDecision, Never>?
     @MainActor private var transientConsentGrants: Set<CloudProvider> = []
+    @MainActor private var pccSuppressedUntil: Date?
+    @MainActor private var suppressProcessingSummary: Bool = false
+    @MainActor private var ingestionTask: Task<Void, Never>?
+    @MainActor private var ingestionContexts: [UUID: IngestionContext] = [:]
 
     /// Helper to get document name by ID
     @MainActor
@@ -250,6 +254,62 @@ class RAGService: ObservableObject {
         }
     }
 
+    // MARK: - Chat History
+
+    /// Returns chat history scoped to a specific container, loading from disk if needed.
+    @MainActor
+    func chatHistory(for containerId: UUID?) -> [ChatMessage] {
+        let resolvedId = containerId ?? containerService.activeContainerId
+        if let cached = chatHistories[resolvedId] {
+            return cached
+        }
+        let loaded = loadChatHistoryFromDisk(for: resolvedId)
+        chatHistories[resolvedId] = loaded
+        return loaded
+    }
+
+    /// Persists chat history for a container and updates the in-memory cache.
+    @MainActor
+    func persistChatHistory(_ messages: [ChatMessage], for containerId: UUID?) {
+        let resolvedId = containerId ?? containerService.activeContainerId
+        chatHistories[resolvedId] = messages
+        saveChatHistory(messages, for: resolvedId)
+    }
+
+    /// Clears chat history for a container both in memory and on disk.
+    @MainActor
+    func clearChatHistory(for containerId: UUID?) {
+        let resolvedId = containerId ?? containerService.activeContainerId
+        chatHistories[resolvedId] = []
+        saveChatHistory([], for: resolvedId)
+    }
+
+    @MainActor
+    private func loadChatHistoryFromDisk(for containerId: UUID) -> [ChatMessage] {
+        let url = AppSupportPaths.chatHistoryURL(containerId: containerId)
+        guard FileManager.default.fileExists(atPath: url.path) else { return [] }
+        do {
+            let data = try Data(contentsOf: url)
+            return try JSONDecoder().decode([ChatMessage].self, from: data)
+        } catch {
+            Log.error("[RAGService] Failed to load chat history for container \(containerId): \(error.localizedDescription)", category: .initialization)
+            return []
+        }
+    }
+
+    @MainActor
+    private func saveChatHistory(_ messages: [ChatMessage], for containerId: UUID) {
+        let url = AppSupportPaths.chatHistoryURL(containerId: containerId)
+        do {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            let data = try encoder.encode(messages)
+            try data.write(to: url, options: .atomic)
+        } catch {
+            Log.error("[RAGService] Failed to save chat history for container \(containerId): \(error.localizedDescription)", category: .initialization)
+        }
+    }
+
     // MARK: - Published State (MainActor-isolated for SwiftUI)
 
     /// The container context for the currently executing query (if any).
@@ -261,11 +321,13 @@ class RAGService: ObservableObject {
     @MainActor @Published var processingStatus: String = ""
     @MainActor @Published var lastError: String? = nil // User-facing error message
     @MainActor @Published var lastProcessingSummary: ProcessingSummary? = nil // Detailed completion stats
+    @MainActor @Published private(set) var ingestionItems: [IngestionItem] = []
     @MainActor @Published private(set) var retrievalHistory: [RetrievalLogEntry] = []
     @MainActor @Published var pendingCloudConsent: CloudTransmissionRecord?
     @MainActor @Published private(set) var lastCloudTransmission: CloudTransmissionRecord?
     @MainActor @Published private(set) var cloudConsent: [CloudProvider: CloudConsentState] = [:]
     @MainActor @Published private(set) var containerIntelligence: [UUID: LibraryIntelligenceCenter.IntelligenceReport] = [:]
+    @MainActor @Published private(set) var chatHistories: [UUID: [ChatMessage]] = [:]
     @MainActor @Published var thinkingEvents: [ThinkingEvent] = []
     @MainActor @Published private(set) var lastAuditSnapshot: RAGAuditSnapshot?
     @MainActor @Published private(set) var lastVectorAudit: VectorStoreAudit?
@@ -273,6 +335,11 @@ class RAGService: ObservableObject {
     /// Published model name for UI binding - updates when LLM service changes
     @MainActor @Published private(set) var activeModelName: String = "Loading..."
     @MainActor private var selfTuningInFlight: Set<UUID> = []
+
+    // If an embedding provider/dimension changes while processing is active (e.g. ingestion),
+    // defer rebuild work until processing completes to restore retrieval.
+    @MainActor private var pendingReembedContainerIds: Set<UUID> = []
+    @MainActor private var pendingReembedTask: Task<Void, Never>?
 
     private(set) var totalChunksStored: Int = 0
     private let retrievalHistoryLimit = 50
@@ -746,6 +813,27 @@ class RAGService: ObservableObject {
         transientConsentGrants.insert(provider)
     }
 
+    @MainActor
+    private func isPCCSuppressed(now: Date = Date()) -> Bool {
+        guard let until = pccSuppressedUntil else { return false }
+        if until > now { return true }
+        pccSuppressedUntil = nil
+        return false
+    }
+
+    @MainActor
+    private func suppressPCC(for duration: TimeInterval, reason: String) {
+        let until = Date().addingTimeInterval(duration)
+        if let existing = pccSuppressedUntil, existing > until {
+            return
+        }
+        pccSuppressedUntil = until
+        Log.warning(
+            "[RAG] PCC suppression enabled for \(Int(duration))s (\(reason))",
+            category: .pipeline
+        )
+    }
+
     // MARK: - Document Persistence
 
     private var documentsStorageURL: URL {
@@ -903,22 +991,64 @@ class RAGService: ObservableObject {
             return EmbeddingContext(
                 containerId: container.id,
                 containerName: container.name,
-                providerId: container.embeddingProviderId,
-                dimension: container.embeddingDim,
+                providerId: embeddingService.actualProviderId,
+                dimension: embeddingService.outputDimension,
                 service: embeddingService
             )
         }
 
         let service = EmbeddingService.forProvider(
             id: container.embeddingProviderId,
-            targetDimension: container.embeddingDim
+            targetDimension: container.embeddingDim,
+            allowFallback: true
         )
+
+        let actualProviderId = service.actualProviderId
+        let actualDimension = service.outputDimension
+
+        if container.embeddingProviderId != actualProviderId || container.embeddingDim != actualDimension {
+            Log.warning(
+                "[RAGService] Embedding config mismatch for container \(container.id). " +
+                    "Configured=\(container.embeddingProviderId) \(container.embeddingDim)D, " +
+                    "Actual=\(actualProviderId) \(actualDimension)D. Reconciling and rebuilding index.",
+                category: .embedding
+            )
+
+            await MainActor.run {
+                var updated = container
+                updated.embeddingProviderId = actualProviderId
+                updated.embeddingDim = actualDimension
+                self.containerService.updateContainer(updated)
+
+                // Clear any persisted vectors created under a different dimension.
+                self.invalidateVectorStore(for: container.id, clearStorage: true)
+
+                // If the library already has docs, reindex so retrieval works again.
+                let hasDocs = !self.documentsForContainer(container.id).isEmpty
+                guard hasDocs else { return }
+
+                if self.isProcessing {
+                    // Defer rebuild until processing completes.
+                    self.enqueuePendingReembed(containerId: container.id)
+                    return
+                }
+
+                Task(priority: .utility) { [weak self] in
+                    guard let self else { return }
+                    do {
+                        try await self.reembedDocuments(in: container.id)
+                    } catch {
+                        Log.error("[RAGService] Failed to rebuild index after embedding mismatch: \(error)", category: .embedding)
+                    }
+                }
+            }
+        }
 
         return EmbeddingContext(
             containerId: container.id,
             containerName: container.name,
-            providerId: container.embeddingProviderId,
-            dimension: container.embeddingDim,
+            providerId: actualProviderId,
+            dimension: actualDimension,
             service: service
         )
     }
@@ -984,9 +1114,200 @@ class RAGService: ObservableObject {
 
     // MARK: - Document Management
 
+    @MainActor
+    @discardableResult
+    func enqueueDocuments(_ urls: [URL], context: IngestionContext = .userInitiated) -> [UUID] {
+        guard !urls.isEmpty else { return [] }
+        let newItems = urls.map { url in
+            let item = IngestionItem(url: url, stage: .queued, detail: "Queued")
+            ingestionContexts[item.id] = context
+            return item
+        }
+        ingestionItems.append(contentsOf: newItems)
+        if ingestionItems.count > 1 {
+            suppressProcessingSummary = true
+        }
+        startIngestionTaskIfNeeded()
+        return newItems.map { $0.id }
+    }
+
+    func ingestDocuments(
+        _ urls: [URL],
+        context: IngestionContext = .userInitiated
+    ) async -> IngestionBatchResult {
+        let ids = await MainActor.run { enqueueDocuments(urls, context: context) }
+        return await waitForIngestionCompletion(ids: ids)
+    }
+
+    @MainActor
+    private func startIngestionTaskIfNeeded() {
+        guard ingestionTask == nil else { return }
+        ingestionTask = Task { [weak self] in
+            guard let self else { return }
+            await self.runIngestionLoop()
+        }
+    }
+
+    private func runIngestionLoop() async {
+        await MainActor.run { self.isProcessing = true }
+        while let next = await MainActor.run(body: { self.nextQueuedIngestionItem() }) {
+            let context = await MainActor.run { self.ingestionContexts[next.id] ?? .userInitiated }
+            do {
+                try await addDocument(
+                    at: next.url,
+                    context: context,
+                    trackingId: next.id,
+                    manageProcessingState: false
+                )
+            } catch {
+                await MainActor.run {
+                    self.markIngestionFailed(id: next.id, error: error)
+                }
+            }
+        }
+        await MainActor.run {
+            self.isProcessing = false
+            self.processingStatus = ""
+            self.ingestionTask = nil
+            self.suppressProcessingSummary = false
+            self.pruneCompletedIngestionItems()
+            self.kickPendingReembedIfNeeded()
+        }
+    }
+
+    @MainActor
+    private func enqueuePendingReembed(containerId: UUID) {
+        pendingReembedContainerIds.insert(containerId)
+        kickPendingReembedIfNeeded()
+    }
+
+    /// If we have queued re-embed work and the app is idle, run it.
+    /// This prevents leaving a library with an empty index after a provider/dimension fallback.
+    @MainActor
+    private func kickPendingReembedIfNeeded() {
+        guard !isProcessing else { return }
+        guard pendingReembedTask == nil else { return }
+        guard !pendingReembedContainerIds.isEmpty else { return }
+
+        let containerIds = Array(pendingReembedContainerIds)
+        pendingReembedContainerIds.removeAll()
+
+        pendingReembedTask = Task(priority: .utility) { [weak self] in
+            guard let self else { return }
+            for id in containerIds {
+                do {
+                    try await self.reembedDocuments(in: id)
+                } catch {
+                    Log.error("[RAGService] Deferred re-embed failed for container \(id): \(error)", category: .embedding)
+                }
+            }
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                self.pendingReembedTask = nil
+                // If anything queued up while we were running, kick again.
+                self.kickPendingReembedIfNeeded()
+            }
+        }
+    }
+
+    @MainActor
+    private func nextQueuedIngestionItem() -> IngestionItem? {
+        ingestionItems.first { $0.stage == .queued }
+    }
+
+    @MainActor
+    private func updateIngestionItem(
+        id: UUID?,
+        filename: String,
+        stage: IngestionStage,
+        detail: String,
+        progress: Double? = nil,
+        errorMessage: String? = nil
+    ) {
+        processingStatus = "\(filename) • \(detail)"
+        guard let id, let index = ingestionItems.firstIndex(where: { $0.id == id }) else { return }
+        var item = ingestionItems[index]
+        item.stage = stage
+        item.detail = detail
+        item.progress = progress
+        if item.startedAt == nil, stage != .queued {
+            item.startedAt = Date()
+        }
+        if stage.isTerminal {
+            item.finishedAt = Date()
+        }
+        if let errorMessage {
+            item.errorMessage = errorMessage
+        }
+        ingestionItems[index] = item
+    }
+
+    @MainActor
+    private func markIngestionFailed(id: UUID, error: Error) {
+        if let item = ingestionItems.first(where: { $0.id == id }) {
+            updateIngestionItem(
+                id: id,
+                filename: item.filename,
+                stage: .failed,
+                detail: "Failed",
+                errorMessage: error.localizedDescription
+            )
+        }
+    }
+
+    private func waitForIngestionCompletion(ids: [UUID]) async -> IngestionBatchResult {
+        guard !ids.isEmpty else {
+            return IngestionBatchResult(
+                successCount: 0,
+                failureCount: 0,
+                totalCount: 0,
+                completedIds: []
+            )
+        }
+        while true {
+            let snapshot = await MainActor.run {
+                ingestionItems.filter { ids.contains($0.id) }
+            }
+            let allDone = snapshot.allSatisfy { $0.stage.isTerminal }
+            if allDone {
+                let successCount = snapshot.filter { $0.stage == .complete }.count
+                let failureCount = snapshot.filter { $0.stage == .failed }.count
+                return IngestionBatchResult(
+                    successCount: successCount,
+                    failureCount: failureCount,
+                    totalCount: snapshot.count,
+                    completedIds: snapshot.map { $0.id }
+                )
+            }
+            try? await Task.sleep(nanoseconds: 200_000_000)
+        }
+    }
+
+    @MainActor
+    private func pruneCompletedIngestionItems(delay: TimeInterval = 4.0) {
+        guard ingestionItems.contains(where: { $0.stage.isTerminal }) else { return }
+        Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                let hasActive = self.ingestionItems.contains { !$0.stage.isTerminal }
+                if hasActive { return }
+                self.ingestionItems.removeAll { $0.stage.isTerminal }
+                self.ingestionContexts = self.ingestionContexts.filter { key, _ in
+                    self.ingestionItems.contains(where: { $0.id == key })
+                }
+            }
+        }
+    }
+
     /// Add a document to the knowledge base
     /// This performs the full ingestion pipeline: parse → chunk → embed → store
-    func addDocument(at url: URL, context: IngestionContext = .userInitiated) async throws {
+    func addDocument(
+        at url: URL,
+        context: IngestionContext = .userInitiated,
+        trackingId: UUID? = nil,
+        manageProcessingState: Bool = true
+    ) async throws {
         let filename = url.lastPathComponent
         let gating = await MainActor.run { () -> (limit: Int, canAdd: Bool, tier: WorkspaceTier, count: Int) in
             let count = self.documents.count
@@ -1036,7 +1357,7 @@ class RAGService: ObservableObject {
             self.containerService.containers.first { $0.id == activeContainerId }
         }
         var providerId = container?.embeddingProviderId ?? "nl_embedding"
-        let initialDimension = container?.embeddingDim ?? 512
+        var initialDimension = container?.embeddingDim ?? 512
         let chunkOverride = chunkingOverride(for: container)
 
         // Create container-specific embedding service
@@ -1047,9 +1368,38 @@ class RAGService: ObservableObject {
 
         // Check if we got a fallback provider and update providerId accordingly
         let actualProvider = containerEmbeddingService.actualProviderId
-        if actualProvider != providerId {
-            Log.warning("[RAGService] Requested provider '\(providerId)' fell back to '\(actualProvider)'", category: .ingestion)
-            providerId = actualProvider // Use actual provider for logging/tracking
+        let actualDimension = containerEmbeddingService.outputDimension
+
+        if actualProvider != providerId || actualDimension != initialDimension {
+            Log.warning(
+                "[RAGService] Requested embedding context '\(providerId)' \(initialDimension)D resolved to '\(actualProvider)' \(actualDimension)D. Updating container + clearing index.",
+                category: .ingestion
+            )
+
+            // Persist corrected config so subsequent queries/ingestion use the real dimension.
+            if var current = container {
+                current.embeddingProviderId = actualProvider
+                current.embeddingDim = actualDimension
+                await MainActor.run {
+                    self.containerService.updateContainer(current)
+                    self.invalidateVectorStore(for: activeContainerId, clearStorage: true)
+                }
+                container = current
+            } else {
+                await MainActor.run {
+                    self.invalidateVectorStore(for: activeContainerId, clearStorage: true)
+                }
+            }
+
+            providerId = actualProvider
+            initialDimension = actualDimension
+
+            // Recreate the embedding service with the reconciled dimension to keep downstream logging consistent.
+            containerEmbeddingService = EmbeddingService.forProvider(
+                id: providerId,
+                targetDimension: initialDimension,
+                allowFallback: true
+            )
         }
 
         let pipelineStartTime = Date()
@@ -1065,17 +1415,22 @@ class RAGService: ObservableObject {
         var pendingSelfTuneReasons: [String] = []
 
         await MainActor.run {
-            isProcessing = true
-            processingStatus = "\(filename) • Loading"
+            if manageProcessingState { isProcessing = true }
+            updateIngestionItem(id: trackingId, filename: filename, stage: .loading, detail: "Loading")
         }
 
-        // Give UI time to show the overlay (testing delay)
-        try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 full second
+        // Give UI time to show the overlay (short, user-visible)
+        try? await Task.sleep(nanoseconds: 200_000_000) // 0.2s
 
         // Set up progress handler for real-time updates
         documentProcessor.progressHandler = { [weak self] progress in
             Task { @MainActor in
-                self?.processingStatus = "\(filename) • Extracting (\(progress))"
+                self?.updateIngestionItem(
+                    id: trackingId,
+                    filename: filename,
+                    stage: .extracting,
+                    detail: "Extracting (\(progress))"
+                )
             }
         }
 
@@ -1102,8 +1457,12 @@ class RAGService: ObservableObject {
             )
 
             await MainActor.run {
-                processingStatus =
-                    "\(filename) • Chunking (\(processedChunks.count) chunks, \(totalWords) words)"
+                updateIngestionItem(
+                    id: trackingId,
+                    filename: filename,
+                    stage: .chunking,
+                    detail: "Chunking (\(processedChunks.count) chunks, \(totalWords) words)"
+                )
             }
 
             // Small delay to show the chunking message
@@ -1115,7 +1474,12 @@ class RAGService: ObservableObject {
                autoContainer.autoAdaptDimension
             {
                 await MainActor.run {
-                    processingStatus = "\(filename) • Analyzing content"
+                    updateIngestionItem(
+                        id: trackingId,
+                        filename: filename,
+                        stage: .analyzing,
+                        detail: "Analyzing content"
+                    )
                 }
 
                 // Get ALL existing chunks in this container for comprehensive analysis
@@ -1198,7 +1562,12 @@ class RAGService: ObservableObject {
                             targetDimension: updatedContainer.embeddingDim
                         )
                         await MainActor.run {
-                            processingStatus = "\(filename) • Config adapted to \(updatedContainer.embeddingDim)D"
+                            updateIngestionItem(
+                                id: trackingId,
+                                filename: filename,
+                                stage: .analyzing,
+                                detail: "Config adapted to \(updatedContainer.embeddingDim)D"
+                            )
                         }
                         try? await Task.sleep(nanoseconds: 500_000_000)
                     }
@@ -1231,7 +1600,13 @@ class RAGService: ObservableObject {
 
             for (index, chunk) in processedChunks.enumerated() {
                 await MainActor.run {
-                    processingStatus = "\(filename) • Embedding (\(index + 1)/\(processedChunks.count))"
+                    updateIngestionItem(
+                        id: trackingId,
+                        filename: filename,
+                        stage: .embedding,
+                        detail: "Embedding (\(index + 1)/\(processedChunks.count))",
+                        progress: Double(index + 1) / Double(max(1, processedChunks.count))
+                    )
                 }
 
                 let embedding = try await containerEmbeddingService.generateEmbedding(for: chunk.text)
@@ -1252,7 +1627,12 @@ class RAGService: ObservableObject {
             )
 
             await MainActor.run {
-                processingStatus = "\(filename) • Storing"
+                updateIngestionItem(
+                    id: trackingId,
+                    filename: filename,
+                    stage: .storing,
+                    detail: "Storing"
+                )
             }
 
             // Step 3: Create DocumentChunk objects with embeddings
@@ -1402,8 +1782,12 @@ class RAGService: ObservableObject {
             await MainActor.run {
                 documents.append(updatedDocument)
                 totalChunksStored += documentChunks.count
-                processingStatus = ""
-                lastProcessingSummary = summary
+                if !suppressProcessingSummary {
+                    lastProcessingSummary = summary
+                }
+                if manageProcessingState, trackingId == nil {
+                    processingStatus = ""
+                }
             }
 
             TelemetryCenter.emit(
@@ -1424,7 +1808,19 @@ class RAGService: ObservableObject {
             try? await Task.sleep(nanoseconds: 100_000_000) // 0.1s
 
             await MainActor.run {
-                isProcessing = false
+                updateIngestionItem(
+                    id: trackingId,
+                    filename: filename,
+                    stage: .complete,
+                    detail: "Complete",
+                    progress: 1.0
+                )
+                if manageProcessingState { isProcessing = false }
+                if manageProcessingState, trackingId == nil {
+                    processingStatus = ""
+                }
+
+                self.kickPendingReembedIfNeeded()
             }
 
             refreshIntelligence(for: activeContainerId, force: true)
@@ -1436,11 +1832,19 @@ class RAGService: ObservableObject {
         } catch {
             // Reset processing state on error
             await MainActor.run {
-                isProcessing = false
-                processingStatus = ""
-
-                // Set user-friendly error message
+                if manageProcessingState { isProcessing = false }
+                if manageProcessingState, trackingId == nil {
+                    processingStatus = ""
+                }
                 lastError = error.localizedDescription
+                updateIngestionItem(
+                    id: trackingId,
+                    filename: filename,
+                    stage: .failed,
+                    detail: "Failed",
+                    errorMessage: error.localizedDescription
+                )
+                self.kickPendingReembedIfNeeded()
             }
 
             // Re-throw with context
@@ -1838,31 +2242,50 @@ class RAGService: ObservableObject {
         if reliabilityModeEnabled {
             Log.info("[RAG] Reliability-first fallbacks enabled", category: .pipeline)
         }
-        let wantsCloudContext =
-            (_llmService is AppleFoundationLLMService)
-            && networkAvailable
-            && inferenceConfig.executionContext != .onDeviceOnly
+        let isAppleFMService = _llmService is AppleFoundationLLMService
+        let pccSuppressed = await MainActor.run { self.isPCCSuppressed() }
+        let initialCloudConsentState: CloudConsentState = await MainActor.run {
+            cloudConsent[.applePCC] ?? .notDetermined
+        }
+
+        let initialCloudConsentAllowed = initialCloudConsentState == .allowed
+        let cloudEligible =
+            isAppleFMService
+                && networkAvailable
+                && inferenceConfig.allowPrivateCloudCompute
+                && inferenceConfig.executionContext != .onDeviceOnly
+                && !pccSuppressed
+        let initialWantsCloudContext = cloudEligible && initialCloudConsentAllowed
 
         // EXECUTION CONTEXT SELECTION:
-        // When online, force PCC to avoid 4096-token on-device limits.
-        // When offline, fall back to on-device.
+        // Prefer PCC when available, otherwise fall back to on-device.
         #if targetEnvironment(simulator)
-            if _llmService is AppleFoundationLLMService {
+            if isAppleFMService {
                 inferenceConfig.executionContext = .onDeviceOnly
                 inferenceConfig.allowPrivateCloudCompute = false
                 Log.info("[RAG] Simulator → onDeviceOnly (PCC unavailable)", category: .pipeline)
             }
         #else
-            if _llmService is AppleFoundationLLMService {
-                if networkAvailable {
-                    // Force PCC for long-context reliability when online
-                    inferenceConfig.executionContext = .cloudOnly
-                    inferenceConfig.allowPrivateCloudCompute = true
-                    Log.info("[RAG] Network available → cloudOnly (force PCC 65K model)", category: .pipeline)
-                } else {
+            if isAppleFMService {
+                if !networkAvailable {
                     inferenceConfig.executionContext = .onDeviceOnly
                     inferenceConfig.allowPrivateCloudCompute = false
                     Log.info("[RAG] Offline → onDeviceOnly (4096 tokens)", category: .pipeline)
+                } else if pccSuppressed {
+                    inferenceConfig.executionContext = .onDeviceOnly
+                    inferenceConfig.allowPrivateCloudCompute = false
+                    Log.info("[RAG] PCC suppressed → onDeviceOnly (context cooldown)", category: .pipeline)
+                } else if !inferenceConfig.allowPrivateCloudCompute {
+                    inferenceConfig.executionContext = .onDeviceOnly
+                    Log.info("[RAG] PCC disabled → onDeviceOnly", category: .pipeline)
+                } else {
+                    if inferenceConfig.executionContext == .automatic {
+                        inferenceConfig.executionContext = .preferCloud
+                        Log.info("[RAG] Network available → preferCloud (PCC capable)", category: .pipeline)
+                    } else if inferenceConfig.executionContext == .cloudOnly, !initialCloudConsentAllowed {
+                        inferenceConfig.executionContext = .preferCloud
+                        Log.info("[RAG] PCC consent pending → preferCloud (allow fallback)", category: .pipeline)
+                    }
                 }
             }
         #endif
@@ -1928,10 +2351,14 @@ class RAGService: ObservableObject {
 
         let queryWords = question.split(separator: " ").count
         let isTrivial = isTrivialQuery(question)
-        let applyTrivialTopKCap = isTrivial && !wantsCloudContext
-        let effectiveTopK = max(1, applyTrivialTopKCap ? min(baseTopK, 8) : baseTopK)
+        let applyTrivialTopKCap = isTrivial && !initialWantsCloudContext
+        let effectiveTopK = initialWantsCloudContext
+            ? max(baseTopK, 25) // "Full blown" mode: 25 chunks to balance recall vs overflow risk
+            : max(1, applyTrivialTopKCap ? min(baseTopK, 8) : baseTopK)
         if isTrivial {
-            let detail = applyTrivialTopKCap ? "fast topK cap (\(effectiveTopK))" : "PCC available - keeping full topK"
+            let detail = applyTrivialTopKCap
+                ? "fast topK cap (\(effectiveTopK))"
+                : "cloud context available - keeping full topK"
             Log.info("[RAG] Trivial query detected - \(detail)", category: .retrieval)
         }
         // Fetch current stored chunk count from vector database (fallback to cached total)
@@ -2136,7 +2563,7 @@ class RAGService: ObservableObject {
                         duration: retrievalTime
                     )
                     emitThinkingEvent(
-.warning,
+                        .warning,
                         title: "Insufficient evidence",
                         detail: "No relevant chunks found"
                     )
@@ -2149,7 +2576,7 @@ class RAGService: ObservableObject {
                             pipelineStartTime: pipelineStartTime,
                             retrievalTime: retrievalTime,
                             fallbackNote:
-                                "No relevant document context found; replied without RAG context."
+                            "No relevant document context found; replied without RAG context."
                         )
                         return await finalizeResponse(
                             query: question,
@@ -2372,7 +2799,7 @@ class RAGService: ObservableObject {
                         category: .retrieval
                     )
                     emitThinkingEvent(
-.warning,
+                        .warning,
                         title: "Re-ranking exhausted",
                         detail: "No viable candidates"
                     )
@@ -2651,7 +3078,7 @@ class RAGService: ObservableObject {
                         category: .retrieval
                     )
                     emitThinkingEvent(
-.warning,
+                        .warning,
                         title: "MMR exhausted",
                         detail: "No diverse candidates"
                     )
@@ -2663,7 +3090,7 @@ class RAGService: ObservableObject {
                             pipelineStartTime: pipelineStartTime,
                             retrievalTime: retrievalTime,
                             fallbackNote:
-                                "No diverse candidates after MMR; replied without RAG context."
+                            "No diverse candidates after MMR; replied without RAG context."
                         )
                         return await finalizeResponse(
                             query: question,
@@ -2694,7 +3121,7 @@ class RAGService: ObservableObject {
                 let minConfidentChunks = retrievalConfig.minConfidentChunks
                 if retrievalConfig == .highAccuracy, !(lenient || acceptanceOverride) {
                     let supporting = diverseChunks.filter { $0.similarityScore >= retrievalConfig.minSimilarity }
-                    if supporting.count<minConfidentChunks {
+                    if supporting.count < minConfidentChunks {
                         // Build cautious response with citations of top candidates
                         let topSources = diverseChunks.prefix(3).enumerated().map { idx, r in
                             let src = r.sourceDocument.isEmpty ? "Unknown" : r.sourceDocument
@@ -2752,7 +3179,7 @@ class RAGService: ObservableObject {
                 let focusedDocScope = uniqueDocCount <= 2 || topDocShare >= 0.6
 
                 if isAppleFMOnDevice,
-                   !wantsCloudContext,
+                   !initialWantsCloudContext,
                    strongTopSim,
                    shortQuery,
                    focusedDocScope,
@@ -2788,45 +3215,77 @@ class RAGService: ObservableObject {
 
                 // Smart context assembly: Use as many chunks as fit within the model's context window.
                 // Apple Intelligence on-device context is 4,096 tokens (TN3193). PCC behavior may vary.
-                var cloudConsentAllowed: Bool = await MainActor.run {
-                    cloudConsent[.applePCC] == .allowed
+                var cloudConsentState: CloudConsentState = await MainActor.run {
+                    cloudConsent[.applePCC] ?? .notDetermined
                 }
+                var cloudConsentAllowed = cloudConsentState == .allowed
 
                 var hasTransientGrant: Bool = await MainActor.run {
                     transientConsentGrants.contains(.applePCC)
                 }
 
                 if isAppleFMOnDevice,
+                   cloudConsentState == .denied,
+                   inferenceConfig.executionContext != .onDeviceOnly
+                {
+                    inferenceConfig.executionContext = .onDeviceOnly
+                    inferenceConfig.allowPrivateCloudCompute = false
+                    Log.info("[RAG] PCC consent denied → onDeviceOnly", category: .pipeline)
+                }
+
+                if isAppleFMOnDevice,
                    networkAvailable,
                    inferenceConfig.allowPrivateCloudCompute,
                    inferenceConfig.executionContext != .onDeviceOnly,
+                   !pccSuppressed,
+                   cloudConsentState != .denied,
                    !cloudConsentAllowed,
                    !hasTransientGrant
                 {
-                    try await ensureCloudConsentIfNeeded(
-                        service: llmService,
-                        prompt: question,
-                        context: nil,
-                        sourceChunks: contextCandidates.map { $0.chunk },
-                        allowPrivateCloudCompute: inferenceConfig.allowPrivateCloudCompute
-                    )
-                    cloudConsentAllowed = await MainActor.run {
-                        cloudConsent[.applePCC] == .allowed
-                    }
-                    hasTransientGrant = await MainActor.run {
-                        transientConsentGrants.contains(.applePCC)
+                    do {
+                        try await ensureCloudConsentIfNeeded(
+                            service: llmService,
+                            prompt: question,
+                            context: nil,
+                            sourceChunks: contextCandidates.map { $0.chunk },
+                            allowPrivateCloudCompute: inferenceConfig.allowPrivateCloudCompute
+                        )
+                        cloudConsentState = await MainActor.run {
+                            cloudConsent[.applePCC] ?? .notDetermined
+                        }
+                        cloudConsentAllowed = cloudConsentState == .allowed
+                        hasTransientGrant = await MainActor.run {
+                            transientConsentGrants.contains(.applePCC)
+                        }
+                    } catch {
+                        if case let RAGServiceError.cloudConsentDenied(provider) = error {
+                            cloudConsentState = .denied
+                            cloudConsentAllowed = false
+                            hasTransientGrant = false
+                            inferenceConfig.executionContext = .onDeviceOnly
+                            inferenceConfig.allowPrivateCloudCompute = false
+                            Log.info(
+                                "[RAG] Cloud consent denied (\(provider.shortName)) → onDeviceOnly",
+                                category: .pipeline
+                            )
+                        } else {
+                            throw error
+                        }
                     }
                 }
 
                 // Use PCC (65K) on real device with network, otherwise on-device (4096)
                 // Simulator ALWAYS uses on-device since PCC isn't available
                 #if targetEnvironment(simulator)
-                    let canUsePCC = false
+                    let pccEligible = false
                 #else
-                    let canUsePCC = isAppleFMOnDevice && networkAvailable
+                    let pccEligible = isAppleFMOnDevice
+                        && networkAvailable
+                        && inferenceConfig.allowPrivateCloudCompute
+                        && inferenceConfig.executionContext != .onDeviceOnly
+                        && !pccSuppressed
                 #endif
-                let wantsCloudContext = canUsePCC
-                let allowLargeContext = wantsCloudContext && (cloudConsentAllowed || hasTransientGrant)
+                let allowLargeContext = pccEligible && (cloudConsentAllowed || hasTransientGrant)
                 let applyTrivialCaps = isTrivial && !allowLargeContext
                 let conservativeCharsPerToken: Double = isAppleFMOnDevice ? 2.5 : 3.5
 
@@ -2834,10 +3293,29 @@ class RAGService: ObservableObject {
                     max(1, Int(ceil(Double(chars) / conservativeCharsPerToken)))
                 }
 
-                // Use 65K for PCC (real device + network), 4096 for on-device/simulator
+                // PCC supports 65k tokens. On-device is 4k.
+                // We default to 65k for Apple Intelligence unless explicitly constrained.
                 let baseWindowTokens: Int = {
                     if llmService is AppleFoundationLLMService {
-                        return canUsePCC ? 65536 : 4096
+                        if allowLargeContext {
+                            return 65536
+                        } else {
+                            // LOG WHY we are capping to 4096 to avoid "Simulator" confusion
+                            if !networkAvailable {
+                                Log.info("[RAG] Capping context to 4k (Network Unavailable)", category: .pipeline)
+                            } else if inferenceConfig.executionContext == .onDeviceOnly {
+                                Log.info("[RAG] Capping context to 4k (On-Device Preferred)", category: .pipeline)
+                            } else if pccSuppressed {
+                                Log.info("[RAG] Capping context to 4k (PCC Suppressed by previous error)", category: .pipeline)
+                            } else if !inferenceConfig.allowPrivateCloudCompute {
+                                Log.info("[RAG] Capping context to 4k (PCC Disabled in Settings)", category: .pipeline)
+                            } else if !cloudConsentAllowed, !hasTransientGrant {
+                                Log.info("[RAG] Capping context to 4k (No Cloud Consent)", category: .pipeline)
+                            } else {
+                                Log.warning("[RAG] Capping context to 4k (Unknown reason: pccEligible=\(pccEligible))", category: .pipeline)
+                            }
+                            return 4096
+                        }
                     }
                     return inferenceConfig.contextLength ?? 4096
                 }()
@@ -2848,13 +3326,13 @@ class RAGService: ObservableObject {
                 }
 
                 // Use appropriate safety margin based on context size
-                let safetyTokens = isAppleFMOnDevice ? (canUsePCC ? 2000 : 900) : 600
+                let safetyTokens = isAppleFMOnDevice ? (allowLargeContext ? 2000 : 900) : 600
                 let systemPromptTokens = estimateTokensConservative(chars: (inferenceConfig.systemPrompt ?? "").count)
                 let promptOverheadTokens = 200 + systemPromptTokens // Template overhead
                 let questionTokens = estimateTokensConservative(chars: question.count)
 
                 // Reserve room for output - more for PCC, less for on-device
-                let reservedOutputTokens = canUsePCC
+                let reservedOutputTokens = allowLargeContext
                     ? max(1024, min(inferenceConfig.maxTokens, 2048))
                     : max(256, min(inferenceConfig.maxTokens, 512))
                 let availableForContextTokens = max(
@@ -2862,11 +3340,13 @@ class RAGService: ObservableObject {
                     baseWindowTokens - safetyTokens - promptOverheadTokens - questionTokens - reservedOutputTokens
                 )
                 let cappedContextTokens = applyTrivialCaps
-                    ? min(availableForContextTokens, canUsePCC ? 3000 : 2600)
+                    ? min(availableForContextTokens, allowLargeContext ? 3000 : 2600)
                     : availableForContextTokens
-                // PCC: 150K chars, On-device/Simulator: 4000 chars (fits in 4096 tokens)
+                // Conservative limits: modelmanagerd routing is opaque, so stay under 4096 tokens to avoid crashes
+                // PCC routing is unreliable for simple queries regardless of context size
+                // UPDATED: Increased on-device cap from 4000 to 9500 to utilize full 4096 token window (approx 2.4 chars/token)
                 let maxContextCharsCap = isAppleFMOnDevice
-                    ? (canUsePCC ? (applyTrivialCaps ? 9000 : 150_000) : (applyTrivialCaps ? 3200 : 4000))
+                    ? (allowLargeContext ? 120_000 : (applyTrivialCaps ? 3200 : 9500))
                     : (applyTrivialCaps ? 7000 : 12000)
                 let maxContextChars = min(
                     max(600, Int(Double(cappedContextTokens) * conservativeCharsPerToken)),
@@ -2874,7 +3354,7 @@ class RAGService: ObservableObject {
                 )
 
                 // Use compact mode when on-device (simulator or offline) to maximize content in limited space
-                let useCompactMode = isAppleFMOnDevice && !canUsePCC
+                let useCompactMode = isAppleFMOnDevice && !allowLargeContext
 
                 #if targetEnvironment(simulator)
                     Log.info("[RAG] Simulator mode: using on-device context budget (4096 tokens, \(maxContextChars) chars)", category: .pipeline)
@@ -2968,7 +3448,7 @@ class RAGService: ObservableObject {
                     executionContext: inferenceConfig.executionContext,
                     allowPrivateCloudCompute: inferenceConfig.allowPrivateCloudCompute,
                     networkConnected: networkAvailable,
-                    wantsCloudContext: wantsCloudContext,
+                    wantsCloudContext: allowLargeContext,
                     reliabilityModeEnabled: reliabilityModeEnabled,
                     allowUngroundedFallback: allowUngroundedFallback,
                     modelName: llmService.modelName
@@ -2985,7 +3465,7 @@ class RAGService: ObservableObject {
                         category: .retrieval
                     )
                     emitThinkingEvent(
-.warning,
+                        .warning,
                         title: "Context empty",
                         detail: "Insufficient evidence"
                     )
@@ -3028,6 +3508,16 @@ class RAGService: ObservableObject {
                 let generationStartTime = Date()
 
                 var genConfig = inferenceConfig
+                
+                // Set explicit system prompt for RAG to ensure agentic behavior
+                // This overrides the default generic instructions in LLMService
+                genConfig.systemPrompt = """
+                You are an intelligent assistant with access to the user's knowledge base.
+                Synthesize the provided excerpts to answer the user's question comprehensively.
+                If the excerpts cover multiple functions or contexts (e.g., different modes, actions, or settings), explain all of them to provide a complete picture.
+                Connect related concepts and provide a smart, coherent summary.
+                Cite sources like [S1] to ground your answer.
+                """
 
                 // Adjust temperature based on quality mode for accuracy control
                 switch qualityMode {
@@ -3066,14 +3556,40 @@ class RAGService: ObservableObject {
                     genConfig.maxTokens = capped
                 }
 
+                // Inject conversational history (last 2 turns) to support follow-up questions
+                // e.g. "What is it?" uses history to resolve "it"
+                let history = self.chatHistory(for: selectedId)
+
+                // Only drop the last message if it matches the current question (avoid duplicating)
+                // or if we know for sure ChatScreen persisted it. Safest is to check content match.
+                let lastMsg = history.last
+                let dropsCurrent = lastMsg?.content.trimmingCharacters(in: .whitespacesAndNewlines)
+                    == question.trimmingCharacters(in: .whitespacesAndNewlines)
+
+                let previousMessages = history
+                    .filter { $0.role != .system }
+                    .dropLast(dropsCurrent ? 1 : 0)
+                    .suffix(4) // Keep last 4 turns (2 User, 2 Assistant)
+
+                var historyContext = ""
+                if !previousMessages.isEmpty {
+                    historyContext = "PREVIOUS CONVERSATION:\n" + previousMessages.map {
+                        let role = $0.role == .user ? "User" : "Assistant"
+                        // Truncate long history items to preserve token budget for RAG context
+                        let content = $0.content.replacingOccurrences(of: "\n", with: " ")
+                        let truncated = content.count > 300 ? String(content.prefix(300)) + "..." : content
+                        return "\(role): \(truncated)"
+                    }.joined(separator: "\n") + "\n\nCURRENT QUESTION: "
+                }
+
                 let requiresCitations = retrievalConfig.requireExplicitCitations
                     || qualityMode.requiresCitations
                 let promptForGeneration: String
                 if requiresCitations {
-                    promptForGeneration = question
+                    promptForGeneration = historyContext + question
                         + "\n\nAnswer directly with no preamble. Cite sources using the bracket ids like [S1], [S2]. If the context is insufficient, say so."
                 } else {
-                    promptForGeneration = question
+                    promptForGeneration = historyContext + question
                 }
 
                 // Attempt generation with retry on context-overflow
@@ -3104,7 +3620,7 @@ class RAGService: ObservableObject {
                             // SIMULATOR: PCC not available, must retry with smaller context
                             Log.warning("[RAG] Simulator context overflow - building evidence pack", category: .llm)
                             let reducedMax = max(256, min(genConfig.maxTokens, 384))
-                            let onDeviceMaxChars = 3500 // Conservative for 4096 tokens with overhead
+                            let onDeviceMaxChars = 8500 // Increased from 3500 to utilize full 4096 token window
 
                             let targetChunkCount = min(
                                 contextCandidates.count,
@@ -3157,7 +3673,11 @@ class RAGService: ObservableObject {
                         }
                     #else
                         if isOverflowError {
-                            let reason = networkAvailable ? "PCC unavailable" : "offline mode"
+                            let reason = networkAvailable ? "PCC request overflowed" : "offline mode"
+                            // FIX: Do NOT suppress PCC globally.
+                            // Just because this specific request overflowed locally (e.g. system routed wrong)
+                            // doesn't mean PCC is down. We will retry with smaller context, but keep PCC enabled.
+
                             Log.warning(
                                 "[RAG] Context overflow (\(reason)) - building evidence pack",
                                 category: .llm
@@ -3179,8 +3699,9 @@ class RAGService: ObservableObject {
                                 256,
                                 4096 - 900 - promptOverheadTokens - questionTokens - reducedMax
                             )
+                            // UPDATED: Increased fallback cap from 3800 to 8500 chars to maximize context usage
                             let onDeviceMaxChars = min(
-                                isTrivial ? 3200 : 3800,
+                                isTrivial ? 3200 : 8500,
                                 max(1200, Int(Double(onDeviceBudgetTokens) * conservativeCharsPerToken))
                             )
                             let baseCandidates = retryCandidates.isEmpty ? contextCandidates : retryCandidates
@@ -3436,7 +3957,7 @@ class RAGService: ObservableObject {
                     // Step 9: Create response metadata
                     let gatingSummary: String? =
                         acceptanceOverride
-                            ? "acceptance_override": lenient ? "lenient" : nil
+                            ? "acceptance_override" : lenient ? "lenient" : nil
                     let metadata = ResponseMetadata(
                         timeToFirstToken: llmResponse.timeToFirstToken,
                         totalGenerationTime: llmResponse.totalTime,
@@ -3814,7 +4335,7 @@ class RAGService: ObservableObject {
 
         let fallbackPrompt =
             question
-            + "\n\nAnswer using any available excerpts. If evidence is thin, say so and summarize what is available. Cite sources like [S1]."
+                + "\n\nAnswer using any available excerpts. If evidence is thin, say so and summarize what is available. Cite sources like [S1]."
 
         if let llmResponse = try? await generateWithFallback(
             prompt: fallbackPrompt,
@@ -4250,8 +4771,6 @@ class RAGService: ObservableObject {
         }
     }
 
-
-
     /// Returns a configured service for the given settings key, if available.
     /// Simplified: only Apple Intelligence and On-Device Analysis are supported.
     private static func instantiateService(
@@ -4488,12 +5007,13 @@ class RAGService: ObservableObject {
             appendIfNeeded(seed)
             guard selected.count < limit else { break }
             guard let docChunks = byDocument[seed.chunk.documentId],
-                  let seedIndex = docChunks.firstIndex(where: { $0.chunk.id == seed.chunk.id }) else {
+                  let seedIndex = docChunks.firstIndex(where: { $0.chunk.id == seed.chunk.id })
+            else {
                 continue
             }
 
             if neighborsPerSeed > 0 {
-                for offset in 1...neighborsPerSeed {
+                for offset in 1 ... neighborsPerSeed {
                     let prev = seedIndex - offset
                     if prev >= 0 {
                         appendIfNeeded(docChunks[prev])
@@ -4533,7 +5053,7 @@ class RAGService: ObservableObject {
             "of", "to", "for", "in", "on", "at", "by",
             "this", "that", "these", "those",
             "what", "whats", "what's", "how", "why", "when", "where",
-            "i", "you", "we", "they", "it", "my", "your", "our", "their"
+            "i", "you", "we", "they", "it", "my", "your", "our", "their",
         ]
         return question
             .lowercased()
@@ -4551,7 +5071,7 @@ class RAGService: ObservableObject {
                     let half = maxChars / 2
                     let start = text.index(range.lowerBound, offsetBy: -half, limitedBy: text.startIndex) ?? text.startIndex
                     let end = text.index(range.upperBound, offsetBy: half, limitedBy: text.endIndex) ?? text.endIndex
-                    return String(text[start..<end])
+                    return String(text[start ..< end])
                 }
             }
         }
@@ -5460,3 +5980,4 @@ extension RAGService: RAGToolHandler {
         return formatter.string(from: date)
     }
 }
+

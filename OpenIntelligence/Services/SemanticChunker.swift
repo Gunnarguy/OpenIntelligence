@@ -90,10 +90,10 @@ class SemanticChunker {
     }
 
     struct ChunkingConfig {
-        var targetSize: Int = 500 // Target words per chunk (increased for better context)
-        var minSize: Int = 150 // Minimum chunk size
-        var maxSize: Int = 1000 // Maximum chunk size (increased for product guides)
-        var overlap: Int = 100 // Overlap in words (increased for context continuity)
+        var targetSize: Int = 250 // Balanced size for coherent thoughts
+        var minSize: Int = 100 // Prevent tiny, useless fragments
+        var maxSize: Int = 400 // Allow expansion for long paragraphs
+        var overlap: Int = 50 // Minimal overlap needed if semantic boundaries are respected
         var useTopicDetection: Bool = true
         var preserveStructure: Bool = true
     }
@@ -340,6 +340,45 @@ class SemanticChunker {
         topicBoundaries: [String.Index],
         sections: [(title: String, range: Range<String.Index>)]
     ) -> Range<String.Index> {
+        // 1. Calculate permissible range based on word count
+        // convert min/max/target words to approximate character offsets
+        let minChars = config.minSize * 3 // very loose lower bound
+        let maxChars = config.maxSize * 10 // loose upper bound
+
+        let minIndex = text.index(start, offsetBy: minChars, limitedBy: text.endIndex) ?? text.endIndex
+        let maxIndex = text.index(start, offsetBy: maxChars, limitedBy: text.endIndex) ?? text.endIndex
+
+        // 2. Check for strong semantic boundaries (Sections) within range
+        // We prefer to break *before* a new section starts
+        for section in sections {
+            let sectionStart = section.range.lowerBound
+            if sectionStart > minIndex && sectionStart <= maxIndex {
+                // Found a section start within permissible range.
+                // Verify word count is reasonable (closer to target is better, but structure wins)
+                let chunkText = text[start..<sectionStart]
+                let count = tokenWordCount(String(chunkText))
+
+                if count >= config.minSize && count <= config.maxSize {
+                    Log.verbose("[SemanticChunker] Snapping to section: \(section.title)", category: .ingestion)
+                    return start..<sectionStart
+                }
+            }
+        }
+
+        // 3. Check for topic boundaries within range
+        for boundary in topicBoundaries {
+            if boundary > minIndex && boundary <= maxIndex {
+                let chunkText = text[start..<boundary]
+                let count = tokenWordCount(String(chunkText))
+
+                if count >= config.minSize && count <= config.maxSize {
+                    Log.verbose("[SemanticChunker] Snapping to topic boundary", category: .ingestion)
+                    return start..<boundary
+                }
+            }
+        }
+
+        // 4. Fallback to word count + sentence boundary logic
         let remainingText = text[start..<text.endIndex]
         let words = remainingText.split(separator: " ", omittingEmptySubsequences: true)
 

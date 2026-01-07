@@ -119,6 +119,8 @@ struct UnifiedMetricsBar: View {
                 // Execution location (with model name if available)
                 executionBadge
 
+                qualityBadge
+
                 // Stage indicator (when actively processing)
                 if isProcessing && stage != .idle && stage != .complete {
                     stageBadge
@@ -471,6 +473,13 @@ struct UnifiedMetricsBar: View {
 
             Text(execution.displayName)
                 .font(.system(size: 14, weight: .medium))
+
+            if let modelName, !modelName.isEmpty {
+                Text(modelName)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
 
             Text(executionExplanation)
                 .font(.system(size: 11))
