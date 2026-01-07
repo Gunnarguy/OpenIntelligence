@@ -51,7 +51,7 @@ struct RAGResponse: Sendable {
 }
 
 /// A document chunk retrieved for context with its similarity score
-struct RetrievedChunk: Sendable {
+struct RetrievedChunk: Codable, Sendable { 
     let chunk: DocumentChunk
     let similarityScore: Float
     let rank: Int
@@ -68,7 +68,7 @@ struct RetrievedChunk: Sendable {
 }
 
 /// Performance and execution metadata for a RAG response
-struct ResponseMetadata: Sendable {
+struct ResponseMetadata: Codable, Sendable { 
     let timeToFirstToken: TimeInterval?
     let totalGenerationTime: TimeInterval
     let tokensGenerated: Int

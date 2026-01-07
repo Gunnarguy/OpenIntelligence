@@ -10,7 +10,7 @@ import UniformTypeIdentifiers
 
 #if canImport(UIKit)
 struct DocumentPicker: UIViewControllerRepresentable {
-    let onDocumentPicked: (URL) -> Void
+    let onDocumentsPicked: ([URL]) -> Void
     
     func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
         let picker = UIDocumentPickerViewController(forOpeningContentTypes: [
@@ -42,6 +42,7 @@ struct DocumentPicker: UIViewControllerRepresentable {
             // Process ALL selected files
             print("📚 Processing \(urls.count) selected file(s)...")
             
+            var copiedURLs: [URL] = []
             for url in urls {
                 // Start accessing a security-scoped resource
                 guard url.startAccessingSecurityScopedResource() else {
@@ -61,11 +62,14 @@ struct DocumentPicker: UIViewControllerRepresentable {
                         try fileManager.removeItem(at: destinationURL)
                     }
                     try fileManager.copyItem(at: url, to: destinationURL)
-                    parent.onDocumentPicked(destinationURL)
+                    copiedURLs.append(destinationURL)
                     print("✓ Queued: \(url.lastPathComponent)")
                 } catch {
                     print("❌ Error copying document \(url.lastPathComponent): \(error)")
                 }
+            }
+            if !copiedURLs.isEmpty {
+                parent.onDocumentsPicked(copiedURLs)
             }
         }
     }
@@ -75,7 +79,7 @@ struct DocumentPicker: UIViewControllerRepresentable {
 
 #if !canImport(UIKit)
 struct DocumentPicker: View {
-    let onDocumentPicked: (URL) -> Void
+    let onDocumentsPicked: ([URL]) -> Void
     var body: some View {
         VStack(spacing: 8) {
             Image(systemName: "doc.badge.gearshape")

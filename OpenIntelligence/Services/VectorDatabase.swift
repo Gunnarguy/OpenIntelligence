@@ -153,7 +153,7 @@ class InMemoryVectorDatabase: VectorDatabase {
         // Validate query embedding
         guard embedding.count == embeddingDim else {
             Log.error("[InMemoryVectorDatabase] Invalid query embedding dimension: \(embedding.count) (expected \(embeddingDim))")
-            throw VectorDatabaseError.invalidEmbedding
+            return []
         }
 
         // PERFORMANCE: Check cache first
@@ -531,7 +531,7 @@ class PersistentVectorDatabase: VectorDatabase {
 
             // Pre-compute norms for loaded chunks
             for chunk in validChunks {
-                
+
                 self.embeddingNorms[chunk.id] = self.computeNorm(chunk.embedding)
             }
 
@@ -646,7 +646,7 @@ class PersistentVectorDatabase: VectorDatabase {
         // Validate query embedding
         guard embedding.count == embeddingDim else {
             Log.error("[PersistentVectorDatabase] Invalid query embedding dimension: \(embedding.count)")
-            throw VectorDatabaseError.invalidQueryEmbedding
+            return []
         }
 
         let allChunks = await withCheckedContinuation { continuation in

@@ -163,31 +163,166 @@ class HybridSearchService {
         // 1. Vector search - retrieve more candidates for better coverage
         let vectorResults = try await vectorDatabase.search(embedding: embedding, topK: topK * 3)
 
+        var candidatePool = vectorResults
+
+        if shouldRunLexicalRecall(query: query, vectorCount: vectorResults.count, topK: topK) {
+            let maxRecall = min(200, max(topK * 10, 40))
+            let lexicalCandidates = try await lexicalRecallCandidates(
+                query: query,
+                embedding: embedding,
+                maxCandidates: maxRecall
+            )
+            if !lexicalCandidates.isEmpty {
+                let existing = Set(candidatePool.map { $0.chunk.id })
+                let unique = lexicalCandidates.filter { !existing.contains($0.chunk.id) }
+                if !unique.isEmpty {
+                    candidatePool.append(contentsOf: unique)
+                    Log.debug(
+                        "Lexical recall added \(unique.count) candidates",
+                        category: .pipeline
+                    )
+                }
+            }
+        }
+
+        let vectorRanked = reindex(
+            candidatePool.sorted { $0.similarityScore > $1.similarityScore }
+        )
+
         // 2. BM25 keyword search (off-main via RAGEngine)
         // Build a snapshot from current candidates to ensure valid DF/length stats
-        let snapshot = bm25Scorer.snapshot(from: vectorResults)
+        let snapshot = bm25Scorer.snapshot(from: vectorRanked)
         let keywordResults = await engine.bm25Scores(
             query: query,
-            candidates: vectorResults,
+            candidates: vectorRanked,
             snapshot: snapshot
         )
 
         // 3. Reciprocal Rank Fusion (RRF) off-main
         let fusedResults = await engine.reciprocalRankFusion(
-            vectorResults: vectorResults,
+            vectorResults: vectorRanked,
             keywordResults: keywordResults,
             k: 60,  // RRF constant (standard value)
             vectorWeight: vectorWeight,
             keywordWeight: keywordWeight
         )
 
-        // 4. Take top K from fused results
+        // 4. Take top K from fused results and re-rank index
         let topResults = Array(fusedResults.prefix(topK))
 
-        Log.debug("Hybrid fusion: \(topResults.count) results from \(vectorResults.count) vector + \(keywordResults.count) BM25", category: .pipeline)
+        Log.debug(
+            "Hybrid fusion: \(topResults.count) results from \(vectorResults.count) vector + \(keywordResults.count) BM25",
+            category: .pipeline
+        )
 
-        return topResults
+        return reindex(topResults)
     }
 
+    private func shouldRunLexicalRecall(query: String, vectorCount: Int, topK: Int) -> Bool {
+        let normalized = query.lowercased()
+        let hasDigits = normalized.rangeOfCharacter(from: .decimalDigits) != nil
+        let hasExactCue =
+            normalized.contains("section")
+            || normalized.contains("article")
+            || normalized.contains("clause")
+            || normalized.contains("exhibit")
+            || normalized.contains("statute")
+        return vectorCount < topK || hasDigits || hasExactCue
+    }
+
+    private func lexicalRecallCandidates(
+        query: String,
+        embedding: [Float],
+        maxCandidates: Int
+    ) async throws -> [RetrievedChunk] {
+        let queryTerms = tokenize(query).filter { $0.count > 2 }
+        guard !queryTerms.isEmpty, maxCandidates > 0 else { return [] }
+
+        let queryLower = query.lowercased()
+        let digitTerms = queryLower.split(whereSeparator: { !$0.isNumber }).map(String.init)
+        let requiresDigits = !digitTerms.isEmpty
+        let queryNorm = computeNorm(embedding)
+
+        let allChunks = try await vectorDatabase.allChunks()
+        guard !allChunks.isEmpty else { return [] }
+
+        var results: [RetrievedChunk] = []
+        results.reserveCapacity(min(maxCandidates, allChunks.count))
+
+        for chunk in allChunks {
+            if results.count >= maxCandidates { break }
+            guard chunk.embedding.count == embedding.count else { continue }
+
+            let contentLower = chunk.content.lowercased()
+            if requiresDigits {
+                let hasDigitMatch = digitTerms.contains(where: { contentLower.contains($0) })
+                if !hasDigitMatch { continue }
+            }
+
+            var matched = false
+            for term in queryTerms {
+                if contentLower.contains(term) {
+                    matched = true
+                    break
+                }
+            }
+            guard matched else { continue }
+
+            let similarity = cosineSimilarity(embedding, chunk.embedding, queryNorm: queryNorm)
+            results.append(
+                RetrievedChunk(
+                    chunk: chunk,
+                    similarityScore: similarity,
+                    rank: 0
+                )
+            )
+        }
+
+        let ranked = results.sorted { $0.similarityScore > $1.similarityScore }
+        return reindex(ranked)
+    }
+
+    private func tokenize(_ text: String) -> [String] {
+        let tokenizer = NLTokenizer(unit: .word)
+        let normalized = text.lowercased()
+        tokenizer.string = normalized
+
+        return tokenizer.tokens(for: normalized.startIndex ..< normalized.endIndex).compactMap {
+            let token = String(normalized[$0]).trimmingCharacters(in: .punctuationCharacters)
+            return token.isEmpty ? nil : token
+        }
+    }
+
+    private func computeNorm(_ vector: [Float]) -> Float {
+        var sum: Float = 0
+        for v in vector { sum += v * v }
+        return sqrt(sum)
+    }
+
+    private func cosineSimilarity(_ a: [Float], _ b: [Float], queryNorm: Float) -> Float {
+        guard a.count == b.count, queryNorm > 0 else { return 0 }
+        var dot: Float = 0
+        var magB: Float = 0
+        for i in 0 ..< a.count {
+            let av = a[i]
+            let bv = b[i]
+            dot += av * bv
+            magB += bv * bv
+        }
+        let denom = queryNorm * sqrt(magB)
+        return denom > 0 ? dot / denom : 0
+    }
+
+    private func reindex(_ chunks: [RetrievedChunk]) -> [RetrievedChunk] {
+        chunks.enumerated().map { idx, r in
+            RetrievedChunk(
+                chunk: r.chunk,
+                similarityScore: r.similarityScore,
+                rank: idx + 1,
+                sourceDocument: r.sourceDocument,
+                pageNumber: r.pageNumber
+            )
+        }
+    }
 
 }

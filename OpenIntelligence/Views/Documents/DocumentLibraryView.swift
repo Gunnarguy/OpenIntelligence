@@ -166,7 +166,6 @@ struct DocumentLibraryView: View {
                     Button(action: presentDocumentPickerOrUpgrade) {
                         Label("Add Document", systemImage: "plus")
                     }
-                    .disabled(ragService.isProcessing)
                 }
 
                 ToolbarItem(placement: .automatic) {
@@ -209,8 +208,8 @@ struct DocumentLibraryView: View {
                 }
             }
             .sheet(isPresented: $showingFilePicker) {
-                DocumentPicker { url in
-                    enqueueDocumentIngestion(at: url)
+                DocumentPicker { urls in
+                    enqueueDocumentIngestion(urls)
                 }
             }
             .alert("Sample Import Failed", isPresented: Binding(
@@ -232,10 +231,20 @@ struct DocumentLibraryView: View {
                     Text(error)
                 }
             }
-            .overlay {
-                if ragService.isProcessing {
-                    ProcessingOverlay(status: ragService.processingStatus)
+            .alert("Billing Error", isPresented: Binding(
+                get: { entitlementStore.lastError != nil },
+                set: { if !$0 { entitlementStore.lastError = nil } }
+            )) {
+                Button("OK", role: .cancel) { entitlementStore.lastError = nil }
+            } message: {
+                if let error = entitlementStore.lastError {
+                    Text(error)
                 }
+            }
+            .overlay(alignment: .bottomTrailing) {
+                IngestionQueueOverlay(items: ragService.ingestionItems)
+                    .padding(.trailing, 16)
+                    .padding(.bottom, 16)
             }
             .sheet(isPresented: $showingContainerSettings) {
                 ContainerSettingsSheet(containerService: containerService, ragService: ragService)
@@ -282,16 +291,11 @@ struct DocumentLibraryView: View {
     }
 
     /// Ingests a picked document and unlocks the onboarding step once any content exists.
-    private func enqueueDocumentIngestion(at url: URL) {
-        Task {
-            do {
-                try await ragService.addDocument(at: url)
-                await MainActor.run {
-                    onboardingStore.markSamplesImported()
-                }
-            } catch {
-                // Errors are surfaced through ragService.lastError; no extra handling required here.
-            }
+    private func enqueueDocumentIngestion(_ urls: [URL]) {
+        guard !urls.isEmpty else { return }
+        ragService.enqueueDocuments(urls)
+        Task { @MainActor in
+            onboardingStore.markSamplesImported()
         }
     }
 

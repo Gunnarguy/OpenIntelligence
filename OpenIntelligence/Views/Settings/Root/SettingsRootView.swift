@@ -331,13 +331,13 @@ struct GenerationParametersView: View {
 
             Section("Sampling") {
                 HStack {
-                    Text("Temperature")
+                    Text("Creativity")
                     Spacer()
-                    Text(String(format: "%.2f", settings.temperature))
+                    Text("\(Int(settings.temperature * 100))%")
                         .font(.system(.body, design: .monospaced))
                 }
-                Slider(value: $settings.temperature, in: 0 ... 2.0, step: 0.05)
-                Text("Controls randomness (0.0 = deterministic, 1.0 = creative).").font(.footnote).foregroundStyle(.secondary)
+                Slider(value: $settings.temperature, in: 0 ... 1.0, step: 0.05)
+                Text("Controls randomness (0% = deterministic, 100% = creative).").font(.footnote).foregroundStyle(.secondary)
 
                 HStack {
                     Text("Top P")

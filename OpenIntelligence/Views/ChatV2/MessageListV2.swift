@@ -63,13 +63,19 @@ struct MessageListV2: View {
                                 ))
                             }
 
-                            // Streaming message with live metrics
-                            if isStreaming, !streamingText.isEmpty {
-                                StreamingBubbleV2(
-                                    text: streamingText
-                                )
-                                .id("streaming")
-                                    .transition(.opacity)
+                            // Streaming message with live metrics (or placeholder while waiting on first token)
+                            if isStreaming {
+                                if streamingText.isEmpty {
+                                    TypingBubbleV2()
+                                        .id("streaming")
+                                        .transition(.opacity)
+                                } else {
+                                    StreamingBubbleV2(
+                                        text: streamingText
+                                    )
+                                    .id("streaming")
+                                        .transition(.opacity)
+                                }
                             }
 
                             // Bottom anchor
@@ -80,34 +86,34 @@ struct MessageListV2: View {
                         }
                     }
                     .padding(.horizontal, 16)
-                        .padding(.vertical, 16)
+                    .padding(.vertical, 16)
                 }
-.coordinateSpace(name: "MessageListV2Scroll")
-    .scrollDismissesKeyboard(.interactively)
-.onAppear {
-    scrollProxy = proxy
-    scrollToBottom(proxy: proxy, animated: false)
-}
-.onChange(of: messages.count) { _, _ in
+                .coordinateSpace(name: "MessageListV2Scroll")
+                .scrollDismissesKeyboard(.interactively)
+                .onAppear {
+                    scrollProxy = proxy
+                    scrollToBottom(proxy: proxy, animated: false)
+                }
+                .onChange(of: messages.count) { _, _ in
                     guard isPinnedToBottom else { return }
                     scrollToBottom(proxy: proxy, animated: true)
                 }
-.onChange(of: streamingText) { _, newText in
-    // Scroll smoothly during streaming - every ~80 chars for smooth following
-    if isStreaming, isPinnedToBottom {
-        // Use character count modulo to throttle without losing smoothness
-        let shouldScroll = newText.count % 80 < 20
-        if shouldScroll {
-            scrollToBottom(proxy: proxy, animated: false)
-        }
-    }
-}
-.onPreferenceChange(BottomAnchorYPreferenceKey.self) { bottomMinY in
-    // In the scroll view's coordinate space, the visible region is roughly 0...outerGeo.size.height.
-    // When the bottom anchor drifts below the visible region, the user has scrolled up.
-    let threshold: CGFloat = 80
-    isPinnedToBottom = bottomMinY <= outerGeo.size.height + threshold
-}
+                .onChange(of: streamingText) { _, newText in
+                    // Scroll smoothly during streaming - every ~80 chars for smooth following
+                    if isStreaming, isPinnedToBottom {
+                        // Use character count modulo to throttle without losing smoothness
+                        let shouldScroll = newText.count % 80 < 20
+                        if shouldScroll {
+                            scrollToBottom(proxy: proxy, animated: false)
+                        }
+                    }
+                }
+                .onPreferenceChange(BottomAnchorYPreferenceKey.self) { bottomMinY in
+                    // In the scroll view's coordinate space, the visible region is roughly 0...outerGeo.size.height.
+                    // When the bottom anchor drifts below the visible region, the user has scrolled up.
+                    let threshold: CGFloat = 80
+                    isPinnedToBottom = bottomMinY <= outerGeo.size.height + threshold
+                }
             }
         }
     }
@@ -193,6 +199,38 @@ private struct StreamingBubbleV2: View {
         .onAppear {
             withAnimation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true)) {
                 cursorVisible.toggle()
+            }
+        }
+    }
+}
+
+// MARK: - Typing Placeholder
+
+private struct TypingBubbleV2: View {
+    @State private var pulse = false
+
+    var body: some View {
+        HStack(alignment: .bottom, spacing: 0) {
+            HStack(spacing: 10) {
+                ProgressView()
+                    .progressViewStyle(.circular)
+                    .scaleEffect(0.85)
+                Text("Generating...")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(DSColors.primaryText)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(Color(uiColor: .secondarySystemBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .shadow(color: .black.opacity(0.04), radius: 2, x: 0, y: 1)
+            .opacity(pulse ? 0.9 : 1.0)
+
+            Spacer(minLength: 60)
+        }
+        .onAppear {
+            withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
+                pulse.toggle()
             }
         }
     }
