@@ -199,9 +199,22 @@ platform :ios do
 
     require 'net/http'
     require 'uri'
+    require 'jwt'
+    require 'openssl'
 
     # Build JWT token for API requests
-    token = api_key[:jwt]
+    private_key = OpenSSL::PKey::EC.new(File.read(key_path))
+    token = JWT.encode(
+      {
+        iss: issuer_id,
+        iat: Time.now.to_i,
+        exp: Time.now.to_i + 20 * 60, # 20 minutes
+        aud: "appstoreconnect-v1"
+      },
+      private_key,
+      "ES256",
+      { kid: key_id }
+    )
 
     # Helper to make ASC API requests
     def asc_get(path, token)
@@ -215,8 +228,8 @@ platform :ios do
       JSON.parse(response.body)
     end
 
-    # Get in-app purchases (both consumable and non-consumable)
-    iap_data = asc_get("/v2/inAppPurchases?filter[app]=#{app.id}&limit=100", token)
+    # Get in-app purchases (consumables and non-consumables) via app relationship
+    iap_data = asc_get("/v1/apps/#{app.id}/inAppPurchasesV2?limit=100", token)
     iaps = iap_data["data"] || []
     iap_ids = iaps.map { |iap| iap.dig("attributes", "productId") }.compact
 

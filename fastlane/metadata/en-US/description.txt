@@ -1,50 +1,52 @@
-Ask questions. Get answers grounded in your documents.
+OpenIntelligence turns your documents into a personal knowledge base you can actually talk to.
 
-OpenIntelligence is a document-aware AI assistant that runs entirely on your device. Import your files, ask questions, and receive answers that cite the exact passages they came from.
+Drop in PDFs, notes, code, or research papers. Ask questions in plain language. Get answers that cite exactly where the information came from — with page numbers and passages you can verify.
 
-HOW IT WORKS
+This isn't a chatbot that makes things up. It's a retrieval-augmented generation (RAG) system that grounds every answer in your actual documents.
 
-1. Import documents — PDFs, text files, Markdown, code, even images (OCR extracts text automatically).
+▸ WHAT MAKES IT DIFFERENT
 
-2. Ask anything — "What does section 3.2 say about pricing?" or "Find all mentions of authentication."
+Most AI apps send your data to the cloud. OpenIntelligence processes everything on your iPhone using Apple Intelligence — the same technology that powers system-wide AI features in iOS 26.
 
-3. Get grounded answers — The AI searches your documents using hybrid retrieval (semantic meaning + keyword matching), then generates responses with inline citations.
+Your documents stay on your device. When Apple's on-device model needs more power, it seamlessly extends to Private Cloud Compute — Apple Silicon servers with cryptographic guarantees of zero data retention. No OpenAI. No third-party servers. No fine print.
 
-RETRIEVAL PIPELINE
+▸ THE PIPELINE
 
-Your documents are processed through a production-grade RAG (Retrieval-Augmented Generation) pipeline:
+Behind a simple chat interface is a production-grade retrieval system:
 
-• Semantic chunking breaks documents into coherent passages
-• CoreML embeddings capture meaning in 384-dimensional vectors
-• Hybrid search combines BM25 keyword scoring with vector similarity
-• Reciprocal Rank Fusion merges results for better accuracy
+• Semantic chunking preserves document structure and meaning
+• CoreML embeddings convert text into 384-dimensional vectors
+• Hybrid search combines keyword matching (BM25) with semantic similarity
+• Reciprocal Rank Fusion merges ranking signals for better results
 • Cross-encoder reranking prioritizes the most relevant passages
-• Maximal Marginal Relevance ensures diverse, non-redundant context
+• Maximal Marginal Relevance removes redundancy from context
 
-KNOWLEDGE CONTAINERS
+This is the same architecture used by enterprise knowledge systems — running entirely on your phone.
 
-Organize documents into separate libraries. Each container has its own vector database — your work projects stay separate from personal notes.
+▸ ORGANIZE BY PROJECT
 
-APPLE INTELLIGENCE
+Create separate knowledge containers for different projects. Your work research stays isolated from personal notes. Each container maintains its own vector index for fast, focused retrieval.
 
-Answers are generated using Apple's Foundation Models. Processing starts on-device and can extend to Private Cloud Compute when needed — always with end-to-end encryption and zero data retention.
-
-SUPPORTED FILES
+▸ SUPPORTED FORMATS
 
 • Documents: PDF, TXT, Markdown, RTF
-• Images: PNG, JPEG, HEIC (OCR extracts text)
+• Images: PNG, JPEG, HEIC (Vision OCR extracts text automatically)
 • Code: Swift, Python, JavaScript, TypeScript, Go, Rust, and 20+ languages
 • Data: JSON, YAML, CSV
 
-PRIVACY
+▸ PRIVACY BY DESIGN
 
-• All processing happens on-device by default
-• Documents never leave your device unless you enable Private Cloud Compute
-• No analytics, no tracking, no third-party AI services
-• Full transmission log shows exactly what was sent and when
+• All document processing happens on-device
+• No cloud sync unless you explicitly enable Private Cloud Compute
+• Full transmission log shows what was sent and when
+• No analytics, no tracking, no data collection
 
-REQUIREMENTS
+▸ REQUIREMENTS
 
 • iOS 26.0 or later
-• Apple Intelligence enabled (Settings → Apple Intelligence & Siri)
-• iPhone 15 Pro or newer recommended
+• Apple Intelligence enabled
+• iPhone 15 Pro or newer recommended for best performance
+
+▸ PRO FEATURES
+
+Free users can store 5 documents in 1 container. Pro unlocks 1000 documents across 5 containers — enough for serious research, legal discovery, or building a personal knowledge base that grows with you.
