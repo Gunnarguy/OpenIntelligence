@@ -1,74 +1,88 @@
-# fastlane
+fastlane documentation
+----
 
-Automates App Store submission for OpenIntelligence.
+# Installation
 
-## Available Lanes
+Make sure you have the latest version of the Xcode command line tools installed:
 
-| Lane | Description |
-|------|-------------|
-| `fastlane beta` | Build and upload to TestFlight |
-| `fastlane release` | Build and upload to App Store Connect |
-| `fastlane build` | Build IPA only (no upload) |
-| `fastlane bump` | Increment build number |
-| `fastlane validate` | Validate metadata without uploading |
-
-## Quick Start
-
-### First-Time Setup
-
-1. **Authenticate with App Store Connect:**
-   ```bash
-   fastlane spaceauth -u gunnarhostetler@icloud.com
-   ```
-   This caches your session for CI/CD.
-
-2. **Or use API Key (recommended for CI):**
-   Create an API key in App Store Connect → Users & Access → Integrations → App Store Connect API.
-   Save as `fastlane/api_key.json`:
-   ```json
-   {
-     "key_id": "YOUR_KEY_ID",
-     "issuer_id": "YOUR_ISSUER_ID",
-     "key": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
-   }
-   ```
-
-### Submit to TestFlight
-
-```bash
-fastlane beta
+```sh
+xcode-select --install
 ```
 
-### Submit for App Store Review
+For _fastlane_ installation instructions, see [Installing _fastlane_](https://docs.fastlane.tools/#installing-fastlane)
 
-```bash
-fastlane release
+# Available Actions
+
+## iOS
+
+### ios build
+
+```sh
+[bundle exec] fastlane ios build
 ```
 
-## Metadata
+Build the app for App Store submission
 
-All App Store metadata lives in `fastlane/metadata/en-US/`:
+### ios release
 
-- `name.txt` - App name (30 chars max)
-- `subtitle.txt` - Subtitle (30 chars max)
-- `description.txt` - Full description
-- `keywords.txt` - Search keywords (100 chars, comma-separated)
-- `promotional_text.txt` - Promo text (170 chars, can update without review)
-- `release_notes.txt` - What's New
-- `privacy_url.txt` - Privacy policy URL
-- `support_url.txt` - Support URL
+```sh
+[bundle exec] fastlane ios release
+```
 
-## Screenshots
+Submit to App Store Connect for review
 
-Place screenshots in `fastlane/screenshots/en-US/`:
-- iPhone 6.9": `iPhone 16 Pro Max-*.png`
-- iPhone 6.3": `iPhone 16 Pro-*.png`
-- iPad Pro 13": `iPad Pro 13-*.png`
+### ios beta
 
-## Troubleshooting
+```sh
+[bundle exec] fastlane ios beta
+```
 
-**"Multiple teams found"** - Ensure `itc_team_id` is set in Appfile.
+Upload to TestFlight for beta testing
 
-**"No valid iOS distribution certificate"** - Open Xcode → Settings → Accounts → Manage Certificates.
+### ios bump
 
-**App Store Connect 2FA** - Use `fastlane spaceauth` or API keys.
+```sh
+[bundle exec] fastlane ios bump
+```
+
+Increment build number
+
+### ios validate
+
+```sh
+[bundle exec] fastlane ios validate
+```
+
+Validate app metadata and screenshots
+
+### ios verify_iap
+
+```sh
+[bundle exec] fastlane ios verify_iap
+```
+
+Verify StoreKit products match subscription config
+
+### ios iap_checklist
+
+```sh
+[bundle exec] fastlane ios iap_checklist
+```
+
+Print App Store Connect setup checklist for subscriptions
+
+### ios verify_iap_live
+
+```sh
+[bundle exec] fastlane ios verify_iap_live
+```
+
+Verify products exist in App Store Connect (requires API key)
+
+----
+
+This README.md is auto-generated and will be re-generated every time [_fastlane_](https://fastlane.tools) is run.
+
+More information about _fastlane_ can be found on [fastlane.tools](https://fastlane.tools).
+
+The documentation of _fastlane_ can be found on [docs.fastlane.tools](https://docs.fastlane.tools).

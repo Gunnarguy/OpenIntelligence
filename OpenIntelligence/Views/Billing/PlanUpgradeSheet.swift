@@ -21,47 +21,17 @@ struct PlanUpgradeSheet: View {
     /// configuration early (and avoid "only 3 products show up" surprises).
     private let planOptions: [PlanTierOption] = [
         PlanTierOption(
-            tier: .starter,
-            planName: "Starter (Monthly)",
-            product: .starterMonthly,
-            tagline: "Essential workspace for pilots",
-            badgeText: "Try it",
-            tint: .blue,
-            isFeatured: false,
-            features: [
-                "40 documents & 3 libraries",
-                "Faster ingestion priority",
-                "Telemetry dashboard access",
-                "Priority support",
-            ]
-        ),
-        PlanTierOption(
-            tier: .starter,
-            planName: "Starter (Annual)",
-            product: .starterAnnual,
-            tagline: "Yearly billing, same Starter limits",
-            badgeText: "Save",
-            tint: .blue,
-            isFeatured: false,
-            features: [
-                "40 documents & 3 libraries",
-                "Faster ingestion priority",
-                "Telemetry dashboard access",
-                "Priority support",
-            ]
-        ),
-        PlanTierOption(
             tier: .pro,
             planName: "Pro (Monthly)",
             product: .proMonthly,
-            tagline: "Full research scale, billed monthly",
+            tagline: "Unlock your full research potential",
             badgeText: "Flexible",
             tint: .purple,
             isFeatured: false,
             features: [
-                "Unlimited documents & 10 libraries",
-                "Full local model access",
-                "Priority ingestion & support",
+                "Unlimited documents",
+                "5 libraries",
+                "Priority ingestion",
                 "Advanced retrieval controls",
             ]
         ),
@@ -69,14 +39,14 @@ struct PlanUpgradeSheet: View {
             tier: .pro,
             planName: "Pro (Annual)",
             product: .proAnnual,
-            tagline: "Full research scale, billed annually",
+            tagline: "Save 30% with annual billing",
             badgeText: "Best Value",
             tint: .purple,
             isFeatured: true,
             features: [
-                "Unlimited documents & 10 libraries",
-                "Full local model access",
-                "Priority ingestion & support",
+                "Unlimited documents",
+                "5 libraries",
+                "Priority ingestion",
                 "Advanced retrieval controls",
             ]
         ),
@@ -89,10 +59,10 @@ struct PlanUpgradeSheet: View {
             tint: .orange,
             isFeatured: false,
             features: [
-                "Unlimited documents & 10 libraries",
-                "Full local model access",
+                "Unlimited documents",
+                "10 libraries",
                 "No renewal — one-time purchase",
-                "Priority support",
+                "Priority support forever",
             ]
         ),
     ]
@@ -100,7 +70,7 @@ struct PlanUpgradeSheet: View {
     private let storySlides: [PlanStorySlide] = [
         PlanStorySlide(
             title: "Ship faster",
-            subtitle: "Starter and Pro bump ingestion priority. New PDFs process in seconds—not minutes—so you stay in flow.",
+            subtitle: "Pro bumps ingestion priority. New PDFs process in seconds—not minutes—so you stay in flow.",
             icon: "bolt.fill",
             tint: .orange
         ),
@@ -465,12 +435,10 @@ private extension PlanUpgradeSheet {
             return storeProduct.displayPrice
         }
         switch product {
-        case .starterMonthly: return "$2.99"
-        case .starterAnnual: return "$24.99"
-        case .proMonthly: return "$8.99"
-        case .proAnnual: return "$89.99"
-        case .lifetimeCohort: return "$99.99"
-        case .documentPackAddOn: return "$4.99"
+        case .proMonthly: return "$5.99"
+        case .proAnnual: return "$49.99"
+        case .lifetimeCohort: return "$59.99"
+        case .documentPackAddOn: return "$2.99"
         }
     }
 
@@ -496,9 +464,9 @@ private extension PlanUpgradeSheet {
 
         // Fallback for cases when StoreKit metadata is not loaded yet.
         switch product {
-        case .starterMonthly, .proMonthly:
+        case .proMonthly:
             return " / mo"
-        case .starterAnnual, .proAnnual:
+        case .proAnnual:
             return " / yr"
         default:
             return nil

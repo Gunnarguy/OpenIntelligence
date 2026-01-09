@@ -2,9 +2,7 @@ import Foundation
 
 /// Canonical list of StoreKit product identifiers used by the app.
 /// Keeping it centralized avoids stringly-typed purchases throughout the UI.
-enum BillingProduct: String, CaseIterable {
-    case starterMonthly = "starter_monthly"
-    case starterAnnual = "starter_annual"
+enum BillingProduct: String, CaseIterable { 
     case proMonthly = "pro_monthly"
     case proAnnual = "pro_annual"
     case lifetimeCohort = "lifetime_cohort"
@@ -19,7 +17,7 @@ enum BillingProduct: String, CaseIterable {
     /// Convenience metadata used by paywall copy and entitlement mapping.
     var kind: Kind {
         switch self {
-        case .starterMonthly, .starterAnnual, .proMonthly, .proAnnual:
+        case .proMonthly, .proAnnual:
             return .subscription
         case .lifetimeCohort:
             return .nonConsumable
@@ -30,9 +28,7 @@ enum BillingProduct: String, CaseIterable {
 
     /// Workspace tier unlocked by the purchase, if any.
     var associatedTier: WorkspaceTier? {
-        switch self {
-        case .starterMonthly, .starterAnnual:
-            return .starter
+        switch self { 
         case .proMonthly, .proAnnual:
             return .pro
         case .lifetimeCohort:
@@ -44,11 +40,7 @@ enum BillingProduct: String, CaseIterable {
 
     /// One-line marketing message for receipts / diagnostics.
     var marketingBlurb: String {
-        switch self {
-        case .starterMonthly:
-            return "Starter plan (monthly)"
-        case .starterAnnual:
-            return "Starter plan (annual)"
+        switch self { 
         case .proMonthly:
             return "Pro plan (monthly)"
         case .proAnnual:

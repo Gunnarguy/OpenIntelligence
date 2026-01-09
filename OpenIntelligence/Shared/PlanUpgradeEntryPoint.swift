@@ -8,7 +8,7 @@ enum PlanUpgradeEntryPoint: String, CaseIterable {
     case libraryCreation
     case quotaBanner
     case settings
-    case localModelGated  // Free/Starter users attempting GGUF/Core ML
+    case localModelGated // Free users attempting GGUF/Core ML
 
     /// Human-friendly description surfaced inside the paywall hero.
     var headline: String {
@@ -34,15 +34,15 @@ enum PlanUpgradeEntryPoint: String, CaseIterable {
     var subheadline: String {
         switch self {
         case .documents:
-            return "Upgrade to keep importing PDFs, research decks, and transcripts." 
+            return "Upgrade to keep importing PDFs, research decks, and transcripts."
         case .documentLimit:
-            return "Remove a document or unlock Starter/Pro to keep growing your workspace." 
+            return "Remove a document or unlock Pro to keep growing your workspace."
         case .sampleImport:
-            return "Starter unlocks enough space for the curated onboarding corpus." 
+            return "Pro unlocks enough space for the curated onboarding corpus."
         case .libraryCreation:
-            return "Starter and Pro workspaces support multiple topic-specific libraries." 
+            return "Pro workspaces support multiple topic-specific libraries."
         case .quotaBanner:
-            return "Avoid interruptions by upgrading before the limit hits 100%." 
+            return "Avoid interruptions by upgrading before the limit hits 100%."
         case .settings:
             return "Review tiers, add-ons, and billing controls in one place."
         case .localModelGated:

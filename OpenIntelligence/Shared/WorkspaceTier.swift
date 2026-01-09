@@ -4,7 +4,6 @@ import Foundation
 /// Extensible so future enterprise tiers can reuse the same plumbing.
 enum WorkspaceTier: String, Codable, CaseIterable {
     case free
-    case starter
     case pro
     case lifetime
 
@@ -12,7 +11,6 @@ enum WorkspaceTier: String, Codable, CaseIterable {
     var displayName: String {
         switch self {
         case .free: return "Free"
-        case .starter: return "Starter"
         case .pro: return "Pro"
         case .lifetime: return "Lifetime"
         }
@@ -22,9 +20,8 @@ enum WorkspaceTier: String, Codable, CaseIterable {
     var rank: Int {
         switch self {
         case .free: return 0
-        case .starter: return 1
-        case .pro: return 2
-        case .lifetime: return 3
+        case .pro: return 1
+        case .lifetime: return 2
         }
     }
 

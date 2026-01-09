@@ -55,8 +55,6 @@ final class StoreKitEntitlementTests: XCTestCase {
         let store = EntitlementStore(billingService: billing, defaults: defaults)
 
         XCTAssertEqual(store.documentLimit, QuotaPolicy.documentLimit(for: .free))
-        store.setDebugTier(.starter)
-        XCTAssertEqual(store.documentLimit, QuotaPolicy.documentLimit(for: .starter))
         store.setDebugTier(.pro)
         XCTAssertEqual(store.documentLimit, QuotaPolicy.documentLimit(for: .pro))
         store.setDebugTier(.lifetime)

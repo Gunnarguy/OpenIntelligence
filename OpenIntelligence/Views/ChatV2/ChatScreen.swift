@@ -544,7 +544,7 @@ struct ChatScreen: View {
                     content:
                     "• Privacy-first: Your docs stay on-device by default, with optional Private Cloud Compute.\n" +
                         "• Fast, grounded answers: Hybrid search + re-ranking helps keep responses tied to your library.\n" +
-                        "• Upgrade when ready: Starter expands libraries/docs; Pro unlocks full private inference and automation."
+                        "• Upgrade when ready: Pro unlocks unlimited docs, more libraries, and priority ingestion."
                 ),
             ]
 
@@ -582,7 +582,7 @@ struct ChatScreen: View {
                         rank: 1,
                         title: "Value Ladder",
                         page: 1,
-                        snippet: "Starter expands document limits and adds weekly rerank refresh; Pro unlocks unlimited docs and automation hooks.",
+                        snippet: "Pro unlocks unlimited docs, 5 libraries, and priority ingestion. Lifetime gives you all Pro features forever.",
                         score: 0.86
                     ),
                     makeChunk(
@@ -703,7 +703,7 @@ struct ChatScreen: View {
         [
             "Summarize the pricing brief in three customer-ready bullets.",
             "What architecture choices keep the retrieval engine private?",
-            "Give me launch talking points for the Starter plan.",
+            "Give me launch talking points for the Pro plan.",
             "List risks reviewers should know before monetization."
         ]
     }
@@ -1180,7 +1180,7 @@ struct ChatScreen: View {
                     if !partial.isEmpty {
                         let note = "\n\n*(Generation stopped. \(friendlyMessage))*"
                         var partialMessage = ChatMessage(
-                            role: .assistant, 
+                            role: .assistant,
                             content: partial + note
                         )
                         partialMessage.containerId = capturedUsedContainerId
