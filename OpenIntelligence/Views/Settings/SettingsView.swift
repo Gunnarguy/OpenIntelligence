@@ -214,8 +214,6 @@ struct SettingsView: View {
         switch entitlementStore.activeTier {
         case .free:
             return "Free tier • Limited features"
-        case .starter:
-            return "Starter plan • Active"
         case .pro:
             return "Pro plan • Active"
         case .lifetime:
@@ -237,7 +235,6 @@ struct SettingsView: View {
     private var tierBadgeColor: Color {
         switch entitlementStore.activeTier {
         case .free: return .gray
-        case .starter: return .blue
         case .pro: return .purple
         case .lifetime: return .orange
         }

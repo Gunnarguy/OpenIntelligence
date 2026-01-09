@@ -456,37 +456,28 @@ struct AboutSettingsView: View {
             .init(
                 name: "Free",
                 price: "$0",
-                allowances: "10 documents · 1 library",
+                allowances: "5 documents · 1 library",
                 highlights: [
                     "Hybrid retrieval with on-device + PCC models",
-                    "Telemetry consent prompt on first run",
-                ]
-            ),
-            .init(
-                name: "Starter",
-                price: "$2.99/mo",
-                allowances: "40 documents · 3 libraries",
-                highlights: [
-                    "Faster ingestion queue",
-                    "Weekly rerank refresh",
+                    "Full privacy dashboard",
                 ]
             ),
             .init(
                 name: "Pro",
-                price: "$8.99/mo or $89/yr",
-                allowances: "Unlimited docs & libraries",
+                price: "$5.99/mo or $49.99/yr",
+                allowances: "Unlimited docs · 5 libraries",
                 highlights: [
                     "Full hybrid retrieval with MMR tuning",
-                    "Automation hooks & sharing",
-                    "Priority compute lane",
+                    "Priority ingestion",
+                    "Advanced retrieval controls",
                 ]
             ),
             .init(
                 name: "Lifetime",
-                price: "$59–$79 one-time",
-                allowances: "Unlimited on-device usage",
+                price: "$59.99 one-time",
+                allowances: "Unlimited docs · 10 libraries",
                 highlights: [
-                    "Local inference cartridges included",
+                    "All Pro features forever",
                     "No recurring charges",
                 ]
             ),

@@ -22,14 +22,14 @@ final class SampleDocumentManager {
 # Sample Pricing Brief
 
 ## Value Ladder
-- **Free**: 10 docs, 1 library, telemetry opt-in.
-- **Starter ($2.99/mo)**: 40 docs, 3 libraries, weekly rerank refresh.
-- **Pro ($8.99/mo or $89/yr)**: Unlimited docs, automation hooks, priority compute.
+- **Free**: 5 docs, 1 library, full privacy dashboard.
+    - **Pro($5.99 / mo or $49.99 / yr)**: Unlimited docs, 5 libraries, priority ingestion.
+    - **Lifetime($59.99)**: Unlimited docs, 10 libraries, all Pro features forever.
 
 ## Messaging Pillars
 1. *Privacy-first*: Data stays on-device or Apple PCC.
 2. *Retrieval speed*: Hybrid search + MMR for grounded answers.
-3. *Collaboration*: Share libraries and automate exports.
+3 .* Simple pricing*: One upgrade path, no confusing tiers.
 
 ## Launch Tasks
 - Sync App Store screenshots with this pricing grid.
@@ -37,7 +37,7 @@ final class SampleDocumentManager {
 - Instrument upgrade funnels (quota hits, paywall views).
 
 ## Talking Points
-> “OpenIntelligence keeps your knowledge base local and lets you scale when you’re ready. The Starter plan is perfect for vibe-checking, while Pro unlocks the full RAG stack.”
+> "OpenIntelligence keeps your knowledge base local. The Free tier lets you try it, Pro unlocks the full RAG stack."
 """#
         ),
         SampleDocumentDescriptor(
@@ -57,7 +57,7 @@ This document provides technical specifications for the RAGMLCore implementation
 class DocumentProcessor {
     private let targetChunkSize: Int = 400
     private let chunkOverlap: Int = 50
-    
+
     func processDocument(at url: URL) async throws -> (Document, [String]) {
         // Implementation details
     }

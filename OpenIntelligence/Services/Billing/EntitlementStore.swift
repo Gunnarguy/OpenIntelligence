@@ -369,9 +369,8 @@ final class EntitlementStore: ObservableObject {
     private func tierPriority(_ tier: WorkspaceTier) -> Int {
         switch tier {
         case .free: return 0
-        case .starter: return 1
-        case .pro: return 2
-        case .lifetime: return 3
+        case .pro: return 1
+        case .lifetime: return 2
         }
     }
 

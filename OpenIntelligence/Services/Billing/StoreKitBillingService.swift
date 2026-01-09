@@ -218,7 +218,7 @@ final class StoreKitBillingService: BillingService {
                 )
             } catch {
                 Log.error("Restore failed verification: \(error.localizedDescription)", category: .billing)
-                let billingProduct = (error as? BillingError)?.product ?? .starterMonthly
+                let billingProduct = (error as? BillingError)?.product ?? .proMonthly
                 emitBilling(
                     "Restore verification failed",
                     severity: .error,
@@ -285,7 +285,7 @@ final class StoreKitBillingService: BillingService {
                 await transaction.finish()
             } catch {
                 Log.error("Transaction update verification failed: \(error.localizedDescription)", category: .billing)
-                let billingProduct = (error as? BillingError)?.product ?? .starterMonthly
+                let billingProduct = (error as? BillingError)?.product ?? .proMonthly
                 emitBilling(
                     "Transaction verification failed",
                     severity: .error,
@@ -308,7 +308,7 @@ final class StoreKitBillingService: BillingService {
         case let .unverified(unsignedTransaction, verificationError):
             let product = expectedProduct
                 ?? BillingProduct(rawValue: unsignedTransaction.productID)
-                ?? .starterMonthly
+                ?? .proMonthly
             emitBilling(
                 "Verification failed",
                 severity: .error,
