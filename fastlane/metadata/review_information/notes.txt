@@ -1,10 +1,10 @@
-OpenIntelligence is a privacy-focused AI assistant application.
+Demo account: Not required.
 
-TESTING NOTES:
-1. The app works fully offline with on-device processing
-2. For cloud LLM features (OpenAI, Anthropic, etc.), the user must provide their own API keys in Settings
-3. Apple Intelligence features require a device with Apple Intelligence support (iPhone 16 or later, or iPad/Mac with M-series chip)
+Reviewer walkthrough:
+1. Launch OpenIntelligence — the app works fully offline with on-device processing.
+2. Go to Settings > AI Providers to optionally add API keys (OpenAI, Anthropic, etc.).
+3. Create a Knowledge Container and import a document from Files.
+4. Ask a question about the imported document to test RAG retrieval.
+5. Toggle between on-device and cloud models in Settings to verify provider switching.
 
-The app requests no special permissions beyond standard file access for document import.
-
-For any questions, please contact: gunnarhostetler@icloud.com
+Note: Apple Intelligence features require a device with Apple Intelligence support (iPhone 16 or later). The app falls back gracefully on unsupported devices.
