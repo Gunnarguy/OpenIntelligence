@@ -15,6 +15,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
 
       - name: Cache SwiftPM
         uses: actions/cache@v4
