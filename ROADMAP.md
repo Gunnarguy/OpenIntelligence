@@ -100,7 +100,32 @@
 
 ---
 
-## 3. Future Trajectory
+## 3. Project: Silicon-Native Intelligence (Q1 2026)
+*Refactoring OpenIntelligence to align with Apple's "Native Intelligence" Benchmark.*
+
+### Phase 1: Core ML Embedding Engine (Critical)
+- [x] **Model Conversion Script**: Python utility to convert `sentence-transformers/all-MiniLM-L6-v2` to Core ML
+- [ ] **Tokenizer Parity**: Validate Swift `WordPieceTokenizer` against Python `transformers` output
+- [x] **CoreML Provisioning**: Fixed to load `.mlmodelc` (compiled model) instead of `.mlpackage` source
+- [ ] **NLEmbedding Deprecation**: Remove reliance on `NLEmbedding` / `AppleFMEmbeddingProvider`
+
+### Phase 2: Vector Math Layer (High)
+- [ ] **BNNS Vector Store**: Implement `BNNSVectorDatabase` using `Accelerate` / `vDSP`
+- [ ] **Flat File Storage**: Replace `VecturaKit` abstractions with contiguous float arrays (`UnsafeBufferPointer`)
+- [ ] **Optimized Dot Product**: Use `cblas_sgemm` or `vDSP_desamp` for neural engine acceleration
+
+### Phase 3: Cross-Encoder Re-Ranking (High)
+- [ ] **Re-Ranker Model**: Convert `cross-encoder/ms-marco-TinyBERT-L-2-v2` to Core ML
+- [ ] **Re-Ranking Service**: Implement batch inference in `RAGEngine` (Query + Chunk pairs)
+- [ ] **Heuristic Removal**: Delete `computeMetadataBoost` and rule-based scoring
+
+### Phase 4: True Semantic Chunking (Medium)
+- [ ] **Semantic Splitter**: Update `SemanticChunker` to use dot-product similarity between sentences
+- [ ] **Thresholding**: Auto-detect topic boundaries based on embedding distance
+
+---
+
+## 4. Future Trajectory
 
 ### Phase 2.0 — Intelligence Layer
 - [ ] **Query Planning Agent**: Multi-step reasoning over large document sets

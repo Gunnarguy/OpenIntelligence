@@ -9,11 +9,12 @@
 import Foundation
 import NaturalLanguage
 
+@available(*, deprecated, message: "Use CoreMLSentenceEmbeddingProvider for better accuracy (Silicon-Native Architecture)")
 final class NLEmbeddingProvider: EmbeddingProvider {
     // MARK: - Properties
     private let embedding: NLEmbedding?
     let dimension: Int = 512
-    
+
     // MARK: - Init
     init(language: NLLanguage = .english) {
         let resolved = NLEmbedding.wordEmbedding(for: language)
@@ -25,27 +26,27 @@ final class NLEmbeddingProvider: EmbeddingProvider {
             )
         }
     }
-    
+
     // MARK: - EmbeddingProvider
     var isAvailable: Bool { true }
-    
+
     func embed(text: String) async throws -> [Float] {
         // Edge case: Empty or whitespace-only text
         let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedText.isEmpty else {
             throw EmbeddingError.emptyInput
         }
-        
+
         // Tokenize simple by whitespace; keep parity with previous implementation
         let words = trimmedText.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }
         guard !words.isEmpty else {
             throw EmbeddingError.emptyInput
         }
-        
+
         var wordVectors: [[Double]] = []
         var wordsProcessed = 0
         var wordsSkipped = 0
-        
+
         if let embedding = embedding {
             for word in words {
                 if let vector = embedding.vector(for: word) {
@@ -80,16 +81,16 @@ final class NLEmbeddingProvider: EmbeddingProvider {
             // Average all word embeddings to get a single chunk-level embedding
             chunkEmbedding = averageEmbeddings(wordVectors)
         }
-        
+
         try validateEmbedding(chunkEmbedding)
         return chunkEmbedding
     }
-    
+
     func embedBatch(texts: [String]) async throws -> [[Float]] {
         guard !texts.isEmpty else { return [] }
         var out: [[Float]] = []
         out.reserveCapacity(texts.count)
-        
+
         for (idx, t) in texts.enumerated() {
             let e = try await embed(text: t)
             out.append(e)
@@ -99,7 +100,7 @@ final class NLEmbeddingProvider: EmbeddingProvider {
         }
         return out
     }
-    
+
     // MARK: - Helpers (ported from previous EmbeddingService for parity)
     private func averageEmbeddings(_ vectors: [[Double]]) -> [Float] {
         guard !vectors.isEmpty else {
@@ -119,11 +120,11 @@ final class NLEmbeddingProvider: EmbeddingProvider {
         }
         return averaged.map { Float($0) }
     }
-    
+
     private func createFallbackEmbedding(for text: String) -> [Float] {
         var vec = Array(repeating: Float(0.0), count: dimension)
         let normalized = text.lowercased()
-        
+
         // Character frequency features (first 256 dims)
         for (index, char) in normalized.unicodeScalars.prefix(256).enumerated() {
             if index < dimension {
@@ -147,7 +148,7 @@ final class NLEmbeddingProvider: EmbeddingProvider {
         }
         return vec
     }
-    
+
     private func validateEmbedding(_ embedding: [Float]) throws {
         guard embedding.count == dimension else {
             throw EmbeddingError.invalidDimension(expected: dimension, actual: embedding.count)

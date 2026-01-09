@@ -1,0 +1,45 @@
+
+
+
+
+
+
+
+                            Excessive Whitespace Test Document
+
+
+
+
+
+
+This document          contains          excessive         whitespace         to test       parsing      robustness.
+
+
+Multiple             blank              lines             should             be             handled             correctly.
+
+
+
+	Tabs	and	other	whitespace	characters	need	proper	handling.
+
+
+Trailing spaces at the end of lines          
+Should not break the parser                    
+Or cause any issues                        
+
+
+Mixed    whitespace  	 types 	   	including   	spaces, 	 tabs,  	and  	various  	combinations.
+
+
+
+
+
+Document content should still be extractable and usable despite formatting issues.
+
+
+                                    End of whitespace test.
+
+
+
+
+
+

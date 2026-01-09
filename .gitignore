@@ -1,49 +1,107 @@
-# Xcode
-*.xcodeproj/xcuserdata/
-*.xcodeproj/xcshareddata/
-*.playground
-build/
-DerivedData/
-*.swiftpm/
-.build/
-
-# Documentation JSON dumps (too large for git)
-Docs/*/raw/*.json
-Docs/*/essentials/*.json
-
-# Environment variables
-.env
-.env.local
-.envrc
-
-# macOS
+# macOS system files
 .DS_Store
 .AppleDouble
 .LSOverride
+Icon
 
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-.Python
-env/
-venv/
-.venv/
-*.egg-info/
+# Xcode user/state files
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+*.xcworkspace/xcuserdata/
+*.xcworkspace/contents.xcworkspacedata
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcshareddata/WorkspaceSettings.xcsettings
 
-# IDE
-.vscode/
-.idea/
+# Derived data and build products
+DerivedData/
+build/
+Build/
+*.build/
+*.o
+*.dSYM
+*.ipa
+
+# Swift Package Manager
+.swiftpm/
+.build/
+
+
+# CocoaPods
+Pods/
+
+# Carthage
+Carthage/Build/
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/
+fastlane/test_output/
+
+# Accio dependency manager
+Dependencies/
+.accio/
+
+# Tuist
+Tuist/Dependencies/
+.graph/
+
+# SwiftGen / Sourcery generated files (common locations)
+Generated/
+Templates/
+
+# Playground and documentation artifacts
+*.playgroundbook
+*.playground/**
+Documentation.docc/**/build/
+
+# Core ML compiled models and resources
+*.mlmodelc/
+*.mlmodelc
+*.mlpackage/**/Build/
+*.mlpackage/.build/
+
+# Tokenizer and model cache files
+*.vocab
+*.merges
+*.json-tokenizer-cache
+
+# Logs and temporary files
+*.log
+*.tmp
 *.swp
 *.swo
-*~
+*.orig
+
+# User-specific environment/config
+.vscode/
 buildServer.json
 
-# Test artifacts
-Docs/TestDocuments/
-.coverage
+*.env
+.env.local
+.env.*.local
 
-# Business/Pricing strategy (keep private)
-Docs/reference/PRICING_STRATEGY.md
-Docs/reference/APP_STORE_LAUNCH_GUIDE.md
+# Xcode previews and canvas caches
+*.preview-thumbnails
+.previews/
 
+# Simulator device data (if accidentally added)
+Library/Developer/CoreSimulator/Devices/
+
+# SwiftData / SQLite caches (if generated at runtime)
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# Bundle artifacts that should not be source-controlled
+*.xcarchive
+
+# Python Virtual Environments
+.venv/
+.venv311/
+venv/
+env/
+__pycache__/
+*.pyc

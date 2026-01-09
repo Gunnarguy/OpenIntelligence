@@ -1,0 +1,23 @@
+Introduction to Retrieval-Augmented Generation
+
+Retrieval-Augmented Generation (RAG) is a powerful technique that combines the strengths of large language models with external knowledge retrieval. This approach allows AI systems to access and leverage specific information from document collections, making them more accurate and contextually relevant.
+
+The RAG pipeline consists of several key components:
+
+1. Document Ingestion: Converting raw documents (PDFs, text files, etc.) into processable format
+2. Chunking: Breaking documents into semantically meaningful segments
+3. Embedding: Converting text chunks into numerical vector representations
+4. Vector Storage: Storing embeddings in a searchable database
+5. Retrieval: Finding the most relevant chunks for a given query
+6. Generation: Using an LLM to synthesize information from retrieved chunks
+
+This architecture enables on-device processing for privacy-sensitive applications, particularly on iOS where Apple's Foundation Models can run entirely locally without sending data to external servers.
+
+Benefits of RAG include:
+- Up-to-date information without retraining models
+- Reduced hallucination through grounded responses
+- Efficient use of context windows
+- Privacy-preserving architecture options
+- Source attribution for generated answers
+
+Implementation considerations include chunk size optimization, embedding quality, retrieval accuracy, and LLM prompt engineering to effectively use retrieved context.

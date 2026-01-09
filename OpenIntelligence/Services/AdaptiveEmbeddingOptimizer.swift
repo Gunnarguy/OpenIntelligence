@@ -725,7 +725,7 @@ actor LibraryIntelligenceCenter {
             (768, score768, "coreml_sentence_embedding"),
             (1024, score1024, "apple_fm_embed"),
         ]
-        let winner = scores.max(by: { $0.1 < $1.1 }) ?? (512, 0.3, "nl_embedding")
+        let winner = scores.max(by: { $0.1 < $1.1 }) ?? (384, 0.3, "coreml_sentence_embedding")
         let dimension = winner.0
         let confidence = min(1.0, winner.1 / 2.0)
         let provider = winner.2

@@ -9,12 +9,71 @@
 
 import Foundation
 import NaturalLanguage
+import Accelerate
+import CoreML
+import Tokenizers
+
 #if DEBUG
     import os.signpost
 #endif
 
 /// Background executor for pure RAG computations (no UI/IO access)
 actor RAGEngine {
+    // MARK: - Properties
+
+    #if canImport(CoreML)
+        private var rerankerModel: MLModel?
+    #endif
+
+    private var rerankerTokenizer: BertTokenizer?
+
+    init() {
+        Task { [weak self] in
+            await self?.setupReRanker()
+        }
+    }
+
+    private func setupReRanker() async {
+        #if canImport(CoreML)
+            // Load ReRanker Model (compiled from .mlpackage to .mlmodelc by Xcode)
+            let modelName = "ReRankerModel"
+            if let url = Bundle.main.url(forResource: modelName, withExtension: "mlmodelc") {
+                do {
+                    let config = MLModelConfiguration()
+                    config.computeUnits = .all
+                    self.rerankerModel = try MLModel(contentsOf: url, configuration: config)
+                    Log.info("[RAGEngine] Loaded ReRankerModel.mlmodelc", category: .retrieval)
+                } catch {
+                    Log.error("[RAGEngine] Failed to load ReRanker: \(error)", category: .retrieval)
+                }
+            } else if let sourceURL = Bundle.main.url(forResource: modelName, withExtension: "mlpackage") {
+                // Fallback: Check for uncompiled package
+                do {
+                    let config = MLModelConfiguration()
+                    config.computeUnits = .all
+                    self.rerankerModel = try MLModel(contentsOf: sourceURL, configuration: config)
+                    Log.info("[RAGEngine] Loaded ReRankerModel.mlpackage (fallback)", category: .retrieval)
+                } catch {
+                    Log.error("[RAGEngine] Failed to load ReRanker from source: \(error)", category: .retrieval)
+                }
+            } else {
+                Log.warning("[RAGEngine] ReRankerModel not found (looked for .mlmodelc and .mlpackage)", category: .retrieval)
+            }
+        #endif
+
+        // Load Tokenizer
+        if let url = Bundle.main.url(forResource: "reranker_vocab", withExtension: "json") {
+            do {
+                let vocabData = try Data(contentsOf: url)
+                let vocabDict = try JSONDecoder().decode([String: Int].self, from: vocabData)
+                self.rerankerTokenizer = BertTokenizer(vocab: vocabDict, merges: nil, tokenizeChineseChars: true, doLowerCase: true)
+                Log.info("[RAGEngine] Loaded ReRanker Tokenizer", category: .retrieval)
+            } catch {
+                Log.error("[RAGEngine] Failed to load ReRanker Tokenizer: \(error)", category: .retrieval)
+            }
+        }
+    }
+
     // MARK: - MMR (Maximal Marginal Relevance)
 
     /// Apply MMR to select diverse, non-redundant chunks
@@ -96,7 +155,7 @@ actor RAGEngine {
         var magnitudeB: Float = 0
 
         for i in 0 ..< a.count {
-            
+
             dotProduct += a[i] * b[i]
             magnitudeA += a[i] * a[i]
             magnitudeB += b[i] * b[i]
@@ -133,6 +192,7 @@ actor RAGEngine {
     // MARK: - Re-ranking and Context Utilities
 
     /// Re-rank results using multiple signals (semantic, keyword, proximity, position)
+    /// UPDATED: Uses Cross-Encoder model if available, otherwise falls back to heuristics
     func rerank(
         chunks: [RetrievedChunk],
         query: String,
@@ -145,6 +205,21 @@ actor RAGEngine {
             defer { os_signpost(.end, log: log, name: "rerank", signpostID: spid) }
         #endif
         guard !chunks.isEmpty else { return [] }
+
+        // Limit to top 50 candidates before cross-encoder scoring (perf safeguard)
+        let candidateChunks = Array(chunks.prefix(50))
+
+        #if canImport(CoreML)
+            if let model = rerankerModel, let tokenizer = rerankerTokenizer {
+                return await rerankWithCrossEncoder(
+                    chunks: candidateChunks,
+                    query: query,
+                    topK: topK,
+                    model: model,
+                    tokenizer: tokenizer
+                )
+            }
+        #endif
 
         let queryTerms = tokenize(query).filter { $0.count > 2 }
         let queryTermSet = Set(queryTerms)
@@ -159,10 +234,10 @@ actor RAGEngine {
 
         // Build scored tuples
         var scored: [(chunk: RetrievedChunk, score: Float, keyword: Float, proximity: Float, metadata: Float)] = []
-        scored.reserveCapacity(chunks.count)
+        scored.reserveCapacity(candidateChunks.count)
 
-        for (i, r) in chunks.enumerated() {
-            if Task.isCancelled { return Array(chunks.prefix(topK)) }
+        for (i, r) in candidateChunks.enumerated() {
+            if Task.isCancelled { return Array(candidateChunks.prefix(topK)) }
             if i % 16 == 0 { await Task.yield() }
 
             var score = r.similarityScore
@@ -517,7 +592,7 @@ actor RAGEngine {
         var magA: Float = 0
         var magB: Float = 0
         for i in 0 ..< a.count {
-            
+
             let av = a[i]; let bv = b[i]
             dot += av * bv
             magA += av * av
@@ -560,7 +635,7 @@ actor RAGEngine {
         if positions.allSatisfy({ !$0.isEmpty }) {
             for i in 0 ..< (positions[0].count) {
                 for j in 0 ..< (positions[1].count) {
-                    
+
                     let distance = abs(positions[0][i] - positions[1][j])
                     minDistance = min(minDistance, distance)
                 }
@@ -602,4 +677,118 @@ actor RAGEngine {
 
         return boost
     }
+
+    // MARK: - Core ML Cross Encoder Re-Ranking
+
+    #if canImport(CoreML)
+        private func rerankWithCrossEncoder(
+            chunks: [RetrievedChunk],
+            query: String,
+            topK: Int,
+            model: MLModel,
+            tokenizer: BertTokenizer
+        ) async -> [RetrievedChunk] {
+            var scored: [(chunk: RetrievedChunk, score: Float)] = []
+            let cappedTopK = min(topK, chunks.count)
+            let maxLen = 512
+
+            // Prepare query tokens once
+            let queryTokens = tokenizer.tokenize(text: query)
+            let queryIds = tokenizer.convertTokensToIds(queryTokens).compactMap { $0 }
+
+            // Special Token IDs
+            let clsId = tokenizer.convertTokenToId("[CLS]") ?? 101
+            let sepId = tokenizer.convertTokenToId("[SEP]") ?? 102
+            let padId = tokenizer.convertTokenToId("[PAD]") ?? 0
+
+            for (idx, r) in chunks.enumerated() {
+                if Task.isCancelled { break }
+                if idx % 8 == 0 { await Task.yield() }
+                let docTokens = tokenizer.tokenize(text: r.chunk.content)
+                let docIds = tokenizer.convertTokensToIds(docTokens).compactMap { $0 }
+
+                // Build sequence: [CLS] Q [SEP] D [SEP]
+                // Calculate available space for D
+                let fixedCount = 3 + queryIds.count // [CLS] + Q + [SEP] + [SEP]
+                let availableForDoc = maxLen - fixedCount
+                let truncatedDocIds = Array(docIds.prefix(max(0, availableForDoc)))
+
+                var inputIds: [Int] = []
+                inputIds.append(clsId)
+                inputIds.append(contentsOf: queryIds)
+                inputIds.append(sepId)
+                inputIds.append(contentsOf: truncatedDocIds)
+                inputIds.append(sepId)
+
+                // Token Types: 0 for Q, 1 for D
+                var tokenTypes: [Int] = []
+                tokenTypes.append(contentsOf: Array(repeating: 0, count: 2 + queryIds.count)) // [CLS] Q [SEP]
+                tokenTypes.append(contentsOf: Array(repeating: 1, count: 1 + truncatedDocIds.count)) // D [SEP]
+
+                var attentionMask = Array(repeating: 1, count: inputIds.count)
+
+                // Padding
+                let padLen = maxLen - inputIds.count
+                if padLen > 0 {
+                    inputIds.append(contentsOf: Array(repeating: padId, count: padLen))
+                    attentionMask.append(contentsOf: Array(repeating: 0, count: padLen))
+                    tokenTypes.append(contentsOf: Array(repeating: 0, count: padLen))
+                }
+
+                do {
+                    let inputIdsArray = try MLMultiArray(shape: [1, NSNumber(value: maxLen)], dataType: .int32)
+                    let maskArray = try MLMultiArray(shape: [1, NSNumber(value: maxLen)], dataType: .int32)
+                    let tokenTypeArray = try MLMultiArray(shape: [1, NSNumber(value: maxLen)], dataType: .int32)
+
+                    // Copy to MultiArray
+                    for i in 0 ..< maxLen {
+                        inputIdsArray[[0, NSNumber(value: i)] as [NSNumber]] = NSNumber(value: inputIds[i])
+                        maskArray[[0, NSNumber(value: i)] as [NSNumber]] = NSNumber(value: attentionMask[i])
+                        tokenTypeArray[[0, NSNumber(value: i)] as [NSNumber]] = NSNumber(value: tokenTypes[i])
+                    }
+
+                    let inputs = try MLDictionaryFeatureProvider(dictionary: [
+                        "input_ids": MLFeatureValue(multiArray: inputIdsArray),
+                        "attention_mask": MLFeatureValue(multiArray: maskArray),
+                        "token_type_ids": MLFeatureValue(multiArray: tokenTypeArray),
+                    ])
+
+                    let output = try await model.prediction(from: inputs)
+
+                    // Extract Score - handle different MLMultiArray data types
+                    var score: Float = 0
+                    if let logits = output.featureValue(for: "logits")?.multiArrayValue {
+                        // Extract values handling different data types
+                        let count = logits.count
+                        if count >= 1 {
+                            // Use subscript access which handles type conversion
+                            let val0 = logits[0].floatValue
+                            if count == 1 {
+                                score = val0
+                            } else {
+                                // Softmax: e^1 / (e^0 + e^1)
+                                let val1 = logits[1].floatValue
+                                let e0 = exp(val0)
+                                let e1 = exp(val1)
+                                score = e1 / (e0 + e1)
+                            }
+                        }
+                    }
+
+                    scored.append((r, score))
+
+                } catch {
+                    Log.error("[RAGEngine] Re-ranking inference failed: \(error)", category: .retrieval)
+                }
+            }
+
+            scored.sort { $0.score > $1.score }
+
+            if let top = scored.first {
+                Log.debug("[RAGEngine] AI Re-ranking complete. Top System Score: \(String(format: "%.4f", top.score))", category: .retrieval)
+            }
+
+            return scored.prefix(cappedTopK).map { $0.chunk }
+        }
+    #endif
 }

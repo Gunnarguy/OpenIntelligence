@@ -8,6 +8,12 @@
 import Foundation
 import NaturalLanguage
 
+/// Helper to silence deprecation warning for legacy NLEmbeddingProvider
+@available(*, deprecated, message: "Use CoreMLSentenceEmbeddingProvider instead")
+private func makeLegacyNLEmbeddingProvider() -> NLEmbeddingProvider {
+    NLEmbeddingProvider()
+}
+
 /// Service for generating semantic embeddings from text using Apple's on-device models
 class EmbeddingService {
     // MARK: - Properties
@@ -23,8 +29,8 @@ class EmbeddingService {
     // MARK: - Initialization
 
     init(
-        provider: EmbeddingProvider = NLEmbeddingProvider(),
-        providerId: String = "nl_embedding",
+        provider: EmbeddingProvider = CoreMLSentenceEmbeddingProvider(),
+        providerId: String = "coreml_sentence_embedding",
         targetDimension: Int? = nil
     ) {
         self.provider = provider
@@ -69,13 +75,7 @@ class EmbeddingService {
         }
 
         let resolved: EmbeddingService
-        switch id {
-        case "nl_embedding":
-            resolved = EmbeddingService(
-                provider: NLEmbeddingProvider(),
-                providerId: "nl_embedding",
-                targetDimension: validatedDimension(for: "nl_embedding", requested: targetDimension)
-            )
+        switch id { 
         case "coreml_sentence_embedding":
             resolved = EmbeddingService(
                 provider: CoreMLSentenceEmbeddingProvider(),
@@ -88,50 +88,72 @@ class EmbeddingService {
                 providerId: "apple_fm_embed",
                 targetDimension: validatedDimension(for: "apple_fm_embed", requested: targetDimension)
             )
-        case "nl_contextual_embedding":
-            // HIGH-ACCURACY contextual embeddings (iOS 17+)
-            // Uses BERT-like architecture for context-aware semantic understanding
-            // 15-25% accuracy improvement over word-averaged NLEmbedding
-            if #available(iOS 17.0, *) {
-                resolved = EmbeddingService(
-                    provider: NLContextualEmbeddingProvider(language: .english, pooling: .mean),
-                    providerId: "nl_contextual_embedding",
-                    targetDimension: validatedDimension(for: "nl_contextual_embedding", requested: targetDimension)
-                )
-            } else {
-                Log.warning("NLContextualEmbedding requires iOS 17+, falling back", category: .embedding)
-                resolved = EmbeddingService(
-                    provider: NLEmbeddingProvider(),
-                    providerId: "nl_embedding",
-                    targetDimension: validatedDimension(for: "nl_embedding", requested: targetDimension)
-                )
-            }
-        default:
-            Log.warning(
-                "Unknown embedding provider '\(id)', defaulting to NLEmbedding",
-                category: .embedding
-            )
+        case "nl_embedding":
+            // NLEmbeddingProvider is deprecated but kept for legacy compatibility
             resolved = EmbeddingService(
-                provider: NLEmbeddingProvider(),
+                provider: Self.makeLegacyNLEmbeddingProvider(),
                 providerId: "nl_embedding",
                 targetDimension: validatedDimension(for: "nl_embedding", requested: targetDimension)
             )
+        default:
+            Log.warning(
+                "Unknown embedding provider '\(id)', defaulting to CoreMLSentenceEmbedding",
+                category: .embedding
+            )
+            resolved = EmbeddingService(
+                provider: CoreMLSentenceEmbeddingProvider(),
+                providerId: "coreml_sentence_embedding",
+                targetDimension: validatedDimension(for: "coreml_sentence_embedding", requested: targetDimension)
+            )
         }
 
-        guard allowFallback, id != "nl_embedding", !resolved.isAvailable else {
-            Log.info("[EmbeddingService] Using provider '\(resolved.actualProviderId)' (available: \(resolved.isAvailable))", category: .embedding)
+        // Check availability and handle fallback
+        if resolved.isAvailable {
+            Log.info("[EmbeddingService] Using provider '\(resolved.actualProviderId)' (available: true)", category: .embedding)
             return resolved
         }
 
-        Log.warning(
-            "[EmbeddingService] Provider '\(id)' unavailable – falling back to NLEmbedding. Check if model assets need to be downloaded.",
-            category: .embedding
-        )
+        guard allowFallback else {
+            Log.warning("[EmbeddingService] Provider '\(id)' unavailable and fallback disabled.", category: .embedding)
+            return resolved
+        }
+
+        Log.warning("[EmbeddingService] Provider '\(id)' unavailable. Attempting fallback.", category: .embedding)
+
+        // 1. Try CoreML Sentence Embedding (Preferred)
+        // Only try if we haven't already tried it (i.e., if id wasn't "coreml_sentence_embedding")
+        if id != "coreml_sentence_embedding" {
+            let coreMLService = EmbeddingService(
+                provider: CoreMLSentenceEmbeddingProvider(),
+                providerId: "coreml_sentence_embedding",
+                targetDimension: nil
+            )
+            if coreMLService.isAvailable {
+                Log.info("[EmbeddingService] Falling back to CoreMLSentenceEmbedding", category: .embedding)
+                return coreMLService
+            }
+        }
+
+        // 2. Try NLEmbedding (Last Resort - Always Available)
+        // NLEmbeddingProvider is deprecated but kept as ultimate fallback
+        Log.warning("[EmbeddingService] CoreML unavailable. Falling back to NLEmbeddingProvider.", category: .embedding)
         return EmbeddingService(
-            provider: NLEmbeddingProvider(),
-            providerId: "nl_embedding", // Note: This changes the actual provider ID
-                targetDimension: nil // Use provider's native dimension
+            provider: Self.makeLegacyNLEmbeddingProvider(),
+            providerId: "nl_embedding",
+            targetDimension: 512
         )
+    }
+
+    // MARK: - Legacy Provider Helper
+
+    /// Helper to instantiate the deprecated NLEmbeddingProvider.
+    /// This is intentional: we keep NLEmbedding as an ultimate fallback for devices where CoreML fails.
+    /// Returns `any EmbeddingProvider` to avoid exposing deprecated type in signature.
+    @inline(__always)
+    private static func makeLegacyNLEmbeddingProvider() -> any EmbeddingProvider {
+        // NLEmbeddingProvider is deprecated but intentionally used for legacy fallback.
+        // Compiler warning is expected here and can be ignored.
+        NLEmbeddingProvider()
     }
 
     // MARK: - Public API

@@ -1686,6 +1686,7 @@ enum LLMError: LocalizedError {
     case modelUnavailable
     case generationFailed(String)
     case notImplemented
+    case contextWindowExceeded
 
     var errorDescription: String? {
         switch self {
@@ -1695,6 +1696,8 @@ enum LLMError: LocalizedError {
             return "Text generation failed: \(message)"
         case .notImplemented:
             return "Feature not yet implemented"
+        case .contextWindowExceeded:
+            return "The context window size was exceeded."
         }
     }
 }

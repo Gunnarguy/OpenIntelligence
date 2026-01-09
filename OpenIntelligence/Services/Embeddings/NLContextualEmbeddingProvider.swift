@@ -19,6 +19,7 @@ import NaturalLanguage
 
 /// Contextual embedding provider using Apple's NLContextualEmbedding (iOS 17+)
 /// Provides BERT-like embeddings that understand words in context
+@available(*, deprecated, message: "Use CoreMLSentenceEmbeddingProvider for better accuracy (Silicon-Native Architecture)")
 @available(iOS 17.0, macOS 14.0, *)
 final class NLContextualEmbeddingProvider: EmbeddingProvider, @unchecked Sendable {
     // MARK: - Properties

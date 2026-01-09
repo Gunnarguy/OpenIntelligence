@@ -357,8 +357,8 @@ struct DocumentLibraryView: View {
         let trimmedName = newLibraryName.trimmingCharacters(in: .whitespacesAndNewlines)
         let libraryName = trimmedName.isEmpty ? "Library \(containerService.containers.count + 1)" : trimmedName
 
-        // Use high-accuracy contextual embeddings if enabled in settings
-        let embeddingProvider = settings.useHighAccuracyEmbeddings ? "nl_contextual_embedding" : "nl_embedding"
+        // Use high-accuracy contextual embeddings if enabled in settings, otherwise CoreML (default)
+        let embeddingProvider = settings.useHighAccuracyEmbeddings ? "nl_contextual_embedding" : "coreml_sentence_embedding"
 
         let newContainer = containerService.createContainer(
             name: libraryName,

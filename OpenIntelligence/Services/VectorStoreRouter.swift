@@ -41,22 +41,22 @@ final class VectorStoreRouter {
 
         switch container.vectorDBKind {
         case .persistentJSON:
-            // Default: per-container JSON file (persistent)
+            // Default: per-container JSON file (persistent), accelerated via BNNS
             let url = AppSupportPaths.vectorsFileURL(containerId: container.id)
-            created = PersistentVectorDatabase(storageURL: url, dimension: container.embeddingDim)
+            created = BNNSVectorDatabase(dimension: container.embeddingDim, storageURL: url)
 
         case .inMemory:
-            // Volatile in-memory database (per app session)
-            created = InMemoryVectorDatabase(dimension: container.embeddingDim)
+            // Volatile in-memory database (per app session), accelerated via BNNS
+            created = BNNSVectorDatabase(dimension: container.embeddingDim)
 
         case .vecturaHNSW:
             #if canImport(VecturaKit)
             // One Vectura index per container (dimension-aware)
             created = VecturaVectorDatabase(dimension: container.embeddingDim)
             #else
-            // Fallback to persistent JSON when VecturaKit is unavailable
+            // Fallback to persistent BNNS when VecturaKit is unavailable
             let url = AppSupportPaths.vectorsFileURL(containerId: container.id)
-            created = PersistentVectorDatabase(storageURL: url, dimension: container.embeddingDim)
+            created = BNNSVectorDatabase(dimension: container.embeddingDim, storageURL: url)
             #endif
         }
 
@@ -66,7 +66,11 @@ final class VectorStoreRouter {
 
     /// Describe the kind of a VectorDatabase for comparison
     private func describeKind(_ db: VectorDatabase) -> String {
-        if db is InMemoryVectorDatabase {
+        if db is BNNSVectorDatabase {
+            // BNNS supports both persistent and in-memory, but we default to labeling it persistent
+            // as that matches the primary usage.
+            return VectorDBKind.persistentJSON.rawValue
+        } else if db is InMemoryVectorDatabase {
             return VectorDBKind.inMemory.rawValue
         } else if db is PersistentVectorDatabase {
             return VectorDBKind.persistentJSON.rawValue
