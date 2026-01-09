@@ -39,7 +39,7 @@ graph TD
     SC -->|400w Chunks| ES[EmbeddingService]
     ES -->|512-dim Vector| VSR[VectorStoreRouter]
     VSR -->|Persist| DB[(VectorDatabase)]
-    
+
     Query[User Query] -->|Expand| QE[QueryEnhancement]
     QE -->|Embed| ES
     ES -->|Vector Search| HS[HybridSearchService]

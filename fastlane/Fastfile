@@ -1,0 +1,63 @@
+# Fastfile for OpenIntelligence
+# More documentation: https://docs.fastlane.tools
+
+default_platform(:ios)
+
+platform :ios do
+
+  desc "Build the app for App Store submission"
+  lane :build do
+    build_app(
+      scheme: "OpenIntelligence",
+      export_method: "app-store",
+      export_options: {
+        provisioningProfiles: {
+          "Gunndamental.OpenIntelligence" => "OpenIntelligence AppStore"
+        }
+      },
+      output_directory: "./build",
+      output_name: "OpenIntelligence.ipa"
+    )
+  end
+
+  desc "Submit to App Store Connect for review"
+  lane :release do
+    # Build the app
+    build
+
+    # Upload to App Store Connect
+    upload_to_app_store(
+      skip_metadata: false,
+      skip_screenshots: true,  # Set to false when you have screenshots
+      submit_for_review: false,  # Set to true to auto-submit
+      automatic_release: false,
+      force: true  # Skip HTML preview
+    )
+  end
+
+  desc "Upload to TestFlight for beta testing"
+  lane :beta do
+    build_app(
+      scheme: "OpenIntelligence",
+      export_method: "app-store"
+    )
+    upload_to_testflight(
+      skip_waiting_for_build_processing: true
+    )
+  end
+
+  desc "Increment build number"
+  lane :bump do
+    increment_build_number(xcodeproj: "OpenIntelligence.xcodeproj")
+  end
+
+  desc "Validate app metadata and screenshots"
+  lane :validate do
+    deliver(
+      validate_only: true,
+      skip_screenshots: true,
+      skip_binary_upload: true
+    )
+  end
+
+end

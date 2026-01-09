@@ -1,0 +1,37 @@
+OpenIntelligence is a privacy-first AI assistant that keeps your data on your device.
+
+KEY FEATURES
+
+• On-Device Processing
+Run AI models locally using Apple Intelligence and MLX. Your conversations and documents never leave your device unless you explicitly choose cloud providers.
+
+• Retrieval-Augmented Generation (RAG)
+Import your documents and let OpenIntelligence find relevant information to answer your questions with context from your own knowledge base.
+
+• Multiple AI Providers
+Choose from on-device Apple Foundation Models, local llama.cpp models, or connect to cloud providers like OpenAI, Anthropic, and Google Gemini.
+
+• Knowledge Containers
+Organize your documents into separate containers for different projects or topics. Each container has its own private vector database.
+
+• Hybrid Search
+Combines semantic vector search with keyword matching (BM25) for more accurate retrieval of relevant information.
+
+• Privacy Dashboard
+Full transparency into any cloud data transmissions. See exactly what was sent and when.
+
+PRIVACY COMMITMENT
+
+OpenIntelligence is designed with privacy as a core principle:
+- All processing happens on-device by default
+- Documents are stored locally in encrypted containers
+- No analytics or tracking
+- Cloud features require explicit consent
+- Complete data portability
+
+REQUIREMENTS
+
+- iOS 26.0 or later
+- Apple Intelligence support recommended for best on-device experience
+
+OpenIntelligence puts you in control of your AI experience while keeping your data private and secure.

@@ -1,0 +1,1 @@
+AI,privacy,assistant,LLM,RAG,documents,on-device,local,chat,knowledge
