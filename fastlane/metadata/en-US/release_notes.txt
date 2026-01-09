@@ -1,0 +1,8 @@
+Initial release of OpenIntelligence!
+
+• On-device AI processing with Apple Intelligence and MLX
+• Document import with intelligent chunking and retrieval
+• Knowledge containers for organizing your data
+• Hybrid search combining semantic and keyword matching
+• Privacy dashboard for cloud transmission transparency
+• Support for multiple LLM providers

@@ -1,0 +1,14 @@
+# App Store Connect API Key (preferred for CI/CD)
+# app_store_connect_api_key_path("./fastlane/api_key.json")
+
+# Your app's bundle identifier
+app_identifier("Gunndamental.OpenIntelligence")
+
+# Your Apple Developer Portal email
+apple_id("gunnarhostetler@icloud.com")
+
+# Your Apple Developer Portal Team ID
+team_id("Z3E334EXZD")
+
+# App Store Connect Team ID (usually same as team_id for individual accounts)
+itc_team_id("Z3E334EXZD")

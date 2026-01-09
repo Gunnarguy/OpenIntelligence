@@ -1,0 +1,10 @@
+OpenIntelligence is a privacy-focused AI assistant application.
+
+TESTING NOTES:
+1. The app works fully offline with on-device processing
+2. For cloud LLM features (OpenAI, Anthropic, etc.), the user must provide their own API keys in Settings
+3. Apple Intelligence features require a device with Apple Intelligence support (iPhone 16 or later, or iPad/Mac with M-series chip)
+
+The app requests no special permissions beyond standard file access for document import.
+
+For any questions, please contact: gunnarhostetler@icloud.com
