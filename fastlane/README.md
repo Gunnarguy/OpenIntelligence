@@ -50,7 +50,7 @@ fastlane release
 All App Store metadata lives in `fastlane/metadata/en-US/`:
 
 - `name.txt` - App name (30 chars max)
-- `subtitle.txt` - Subtitle (30 chars max)  
+- `subtitle.txt` - Subtitle (30 chars max)
 - `description.txt` - Full description
 - `keywords.txt` - Search keywords (100 chars, comma-separated)
 - `promotional_text.txt` - Promo text (170 chars, can update without review)
@@ -62,7 +62,7 @@ All App Store metadata lives in `fastlane/metadata/en-US/`:
 
 Place screenshots in `fastlane/screenshots/en-US/`:
 - iPhone 6.9": `iPhone 16 Pro Max-*.png`
-- iPhone 6.3": `iPhone 16 Pro-*.png`  
+- iPhone 6.3": `iPhone 16 Pro-*.png`
 - iPad Pro 13": `iPad Pro 13-*.png`
 
 ## Troubleshooting
