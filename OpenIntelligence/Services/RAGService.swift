@@ -1356,8 +1356,9 @@ class RAGService: ObservableObject {
         var container = await MainActor.run {
             self.containerService.containers.first { $0.id == activeContainerId }
         }
-        var providerId = container?.embeddingProviderId ?? "nl_embedding"
-        var initialDimension = container?.embeddingDim ?? 512
+        // FIXED: Default to CoreML sentence embedding (better accuracy) instead of deprecated NLEmbedding
+        var providerId = container?.embeddingProviderId ?? "coreml_sentence_embedding"
+        var initialDimension = container?.embeddingDim ?? 384
         let chunkOverride = chunkingOverride(for: container)
 
         // Create container-specific embedding service
@@ -1756,7 +1757,7 @@ class RAGService: ObservableObject {
             updatedDocument = docWithContainer
 
             // Create processing summary with embedding provider info
-            let activeProviderId = containerService.activeContainer?.embeddingProviderId ?? "nl_embedding"
+            let activeProviderId = containerService.activeContainer?.embeddingProviderId ?? "coreml_sentence_embedding"
             let summary = ProcessingSummary(
                 filename: filename,
                 fileSize: fileSizeStr,
@@ -3344,9 +3345,10 @@ class RAGService: ObservableObject {
                     : availableForContextTokens
                 // Conservative limits: modelmanagerd routing is opaque, so stay under 4096 tokens to avoid crashes
                 // PCC routing is unreliable for simple queries regardless of context size
-                // UPDATED: Increased on-device cap from 4000 to 9500 to utilize full 4096 token window (approx 2.4 chars/token)
+                // FIXED: PCC can fail and route to on-device (4096 limit). Be conservative initially.
+                // If PCC works, we can always expand. If it fails, fallback is smoother.
                 let maxContextCharsCap = isAppleFMOnDevice
-                    ? (allowLargeContext ? 120_000 : (applyTrivialCaps ? 3200 : 9500))
+                    ? (allowLargeContext ? 65000 : (applyTrivialCaps ? 3200 : 9500))
                     : (applyTrivialCaps ? 7000 : 12000)
                 let maxContextChars = min(
                     max(600, Int(Double(cappedContextTokens) * conservativeCharsPerToken)),
@@ -3508,7 +3510,7 @@ class RAGService: ObservableObject {
                 let generationStartTime = Date()
 
                 var genConfig = inferenceConfig
-                
+
                 // Set explicit system prompt for RAG to ensure agentic behavior
                 // This overrides the default generic instructions in LLMService
                 genConfig.systemPrompt = """
@@ -3558,7 +3560,7 @@ class RAGService: ObservableObject {
 
                 // Inject conversational history (last 2 turns) to support follow-up questions
                 // e.g. "What is it?" uses history to resolve "it"
-                let history = self.chatHistory(for: selectedId)
+                let history = chatHistory(for: selectedId)
 
                 // Only drop the last message if it matches the current question (avoid duplicating)
                 // or if we know for sure ChatScreen persisted it. Safest is to check content match.
@@ -3692,22 +3694,27 @@ class RAGService: ObservableObject {
                                 ]
                             )
 
+                            // Apple FM has hard 4096 token limit on-device
+                            // Budget: 4096 - 900 (safety) - ~700 (prompt overhead) - ~20 (question) - 768 (output) = ~1700 tokens
+                            // At 2.4 chars/token, that's ~4000 chars max for context
                             let reducedMax = isTrivial
-                                ? max(384, min(genConfig.maxTokens, 512))
-                                : max(768, min(genConfig.maxTokens, 1024))
+                                ? max(256, min(genConfig.maxTokens, 384))
+                                : max(512, min(genConfig.maxTokens, 768))
                             let onDeviceBudgetTokens = max(
-                                256,
-                                4096 - 900 - promptOverheadTokens - questionTokens - reducedMax
+                                200,
+                                4096 - 1000 - promptOverheadTokens - questionTokens - reducedMax
                             )
-                            // UPDATED: Increased fallback cap from 3800 to 8500 chars to maximize context usage
+                            // FIXED: Reduced from 8500 to 3500 chars to actually fit in 4096 token window
+                            // Apple's modelmanagerd routes to PCC when context exceeds on-device capacity
                             let onDeviceMaxChars = min(
-                                isTrivial ? 3200 : 8500,
-                                max(1200, Int(Double(onDeviceBudgetTokens) * conservativeCharsPerToken))
+                                isTrivial ? 2400 : 3500,
+                                max(800, Int(Double(onDeviceBudgetTokens) * conservativeCharsPerToken))
                             )
                             let baseCandidates = retryCandidates.isEmpty ? contextCandidates : retryCandidates
+                            // Use fewer, higher-quality chunks rather than many fragmented ones
                             let fallbackChunkCap = isTrivial
-                                ? min(8, baseCandidates.count)
-                                : min(10, baseCandidates.count)
+                                ? min(5, baseCandidates.count)
+                                : min(6, baseCandidates.count)
                             let seedLimit = isTrivial
                                 ? min(2, baseCandidates.count)
                                 : min(3, baseCandidates.count)
@@ -3719,14 +3726,16 @@ class RAGService: ObservableObject {
                                 maxTotal: fallbackChunkCap
                             )
 
+                            // Use fewer chunks with more content each for better coherence
                             let targetChunkCount = min(
                                 fallbackChunks.count,
-                                isTrivial ? 6 : 9
+                                isTrivial ? 4 : 5
                             )
+                            // Give each chunk more room for context - better quality over quantity
                             let maxCharsPerChunk = max(
-                                220,
+                                350,
                                 min(
-                                    isTrivial ? 600 : 800,
+                                    isTrivial ? 650 : 750,
                                     onDeviceMaxChars / max(1, targetChunkCount)
                                 )
                             )
@@ -3748,6 +3757,8 @@ class RAGService: ObservableObject {
                             retryConfig.maxTokens = reducedMax
                             retryConfig.executionContext = .onDeviceOnly
                             retryConfig.allowPrivateCloudCompute = false
+                            // Use minimal system prompt for on-device fallback to maximize context budget
+                            retryConfig.systemPrompt = "Answer questions using ONLY the provided context. Be concise but complete. Cite sources as [S1], [S2] etc."
 
                             TelemetryCenter.emit(
                                 .system,
@@ -4154,97 +4165,57 @@ class RAGService: ObservableObject {
 
         } catch {
             let isContextOverflow = isContextOverflowError(error)
-            let forcedCloudOnly = networkAvailable
-                && inferenceConfig.executionContext == .cloudOnly
-                && _llmService is AppleFoundationLLMService
             let errorMessage = error.localizedDescription
 
-            if reliabilityModeEnabled {
+            // NEW: Catch false-positive language detection errors
+            let isLanguageError = errorMessage.contains("Apple Intelligence couldn't process this query")
+                || errorMessage.contains("Unsupported language")
+                || errorMessage.contains("context window") // Catch overflow here too
+
+            // Trigger Reliability Mode if enabled OR if we hit a language/context error
+            if reliabilityModeEnabled || isLanguageError {
                 await MainActor.run { lastError = nil }
-                Log.warning("[RAGService] Reliability fallback: \(errorMessage)", category: .pipeline)
-                TelemetryCenter.emit(
-                    .system,
-                    severity: .warning,
-                    title: "Reliability fallback",
-                    metadata: ["reason": errorMessage]
-                )
-                let fallbackQuery = ragQuery ?? RAGQuery(query: question, topK: effectiveTopK)
-                let fallbackResponse = await buildReliabilityFallbackResponse(
-                    question: question,
-                    ragQuery: fallbackQuery,
-                    inferenceConfig: inferenceConfig,
-                    retrievalConfig: retrievalConfig,
-                    embeddingProviderId: embeddingProviderId,
-                    retrievedChunks: recoveryRetrievedChunks,
-                    retrievalTime: recoveryRetrievalTime,
-                    reason: errorMessage
-                )
-                return await finalizeResponse(
-                    query: question,
-                    containerId: selectedId,
-                    containerName: selectedName,
-                    response: fallbackResponse
-                )
-            }
 
-            if isContextOverflow, forcedCloudOnly {
-                let message =
-                    "Private Cloud Compute is required for this request but was unavailable. " +
-                    "Check your internet connection and ensure PCC consent is allowed."
-                await MainActor.run {
-                    lastError = message
-                }
-                Log.error(" [RAGService] Query failed: \(message)")
-                TelemetryCenter.emit(
-                    .error,
-                    severity: .error,
-                    title: "Cloud-only execution failed",
-                    metadata: ["reason": message]
-                )
-                throw LLMError.generationFailed(message)
-            }
+                let reason = isLanguageError ? "Language detection/Context limit triggered fallback" : errorMessage
+                Log.warning("[RAGService] 🛡️ Reliability fallback engaged: \(reason)", category: .pipeline)
 
-            if isContextOverflow, !allowUngroundedFallback {
-                await MainActor.run {
-                    lastError = nil
-                }
-                let fallbackQuery = ragQuery ?? RAGQuery(query: question, topK: effectiveTopK)
-                let response = await makeGroundedAbstainResponse(
-                    question: question,
-                    ragQuery: fallbackQuery,
-                    retrievedChunks: [],
-                    retrievalTime: 0,
-                    retrievalConfig: retrievalConfig,
-                    embeddingProviderId: embeddingProviderId,
-                    reason: "The request exceeded the on-device context window. Try narrowing the question or using a smaller library.",
-                    gatingDecision: "context_overflow"
-                )
-                return await finalizeResponse(
-                    query: question,
-                    containerId: selectedId,
-                    containerName: selectedName,
-                    response: response
-                )
-            }
+                // If we have retrieved chunks, use them to generate a safe answer
+                if !recoveryRetrievedChunks.isEmpty {
+                    let fallbackResponse = await buildReliabilityFallbackResponse(
+                        question: question,
+                        ragQuery: ragQuery ?? RAGQuery(query: question, topK: effectiveTopK),
+                        inferenceConfig: inferenceConfig,
+                        retrievalConfig: retrievalConfig,
+                        embeddingProviderId: embeddingProviderId,
+                        retrievedChunks: recoveryRetrievedChunks,
+                        retrievalTime: recoveryRetrievalTime,
+                        reason: "AI System Limit: Switching to Safe Mode"
+                    )
 
-            // Set user-friendly error message
-            await MainActor.run {
-                // Make error messages more user-friendly
-                if errorMessage.contains("No embedding vectors were returned") {
-                    lastError =
-                        "Could not understand your query. Try using common words or longer phrases (e.g., 'What is the document about?')"
-                } else {
-                    lastError = errorMessage
+                    return await finalizeResponse(
+                        query: question,
+                        containerId: selectedId,
+                        containerName: selectedName,
+                        response: fallbackResponse
+                    )
                 }
             }
 
-            Log.error(" [RAGService] Query failed: \(errorMessage)")
+            Log.error(" [RAGService] Query execution failed: \(error.localizedDescription)", category: .pipeline)
             TelemetryCenter.emit(
-                .error,
+                .system,
                 severity: .error,
                 title: "Query failed",
-                metadata: ["reason": errorMessage]
+                metadata: [
+                    "error": error.localizedDescription,
+                    "model": activeModelName,
+                ]
             )
+
+            // Re-throw specific errors for UI handling
+            if isContextOverflow {
+                throw LLMError.contextWindowExceeded
+            }
             throw error
         }
     }
@@ -4253,7 +4224,7 @@ class RAGService: ObservableObject {
 
     /// Build a grounded-only abstain response when evidence is insufficient.
     private func makeGroundedAbstainResponse(
-        question: String,
+        question _: String,
         ragQuery: RAGQuery,
         retrievedChunks: [RetrievedChunk],
         retrievalTime: TimeInterval,
@@ -5980,4 +5951,3 @@ extension RAGService: RAGToolHandler {
         return formatter.string(from: date)
     }
 }
-

@@ -17,8 +17,8 @@ struct ContainerSettingsSheet: View {
     @State var name: String = ""
     @State var icon: String = "folder.fill"
     @State var colorHex: String = "#4F46E5"
-    @State var providerId: String = "nl_embedding"
-    @State var dim: Int = 512
+    @State var providerId: String = "coreml_sentence_embedding"
+    @State var dim: Int = 384
     @State var dbKind: VectorDBKind = .persistentJSON
     @State var autoAdaptDimension: Bool = false
     @State var pendingReembedContext: ReembedContext?

@@ -6,6 +6,12 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		B016E7B52F0F5F5F00AABA0C /* Hub in Frameworks */ = {isa = PBXBuildFile; productRef = B016E7B42F0F5F5F00AABA0C /* Hub */; };
+		B016E7B72F0F5F5F00AABA0C /* Tokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = B016E7B62F0F5F5F00AABA0C /* Tokenizers */; };
+		B016E7B92F0F5F5F00AABA0C /* Transformers in Frameworks */ = {isa = PBXBuildFile; productRef = B016E7B82F0F5F5F00AABA0C /* Transformers */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		B0D565DE2E98AC50001274A2 /* OpenIntelligence.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OpenIntelligence.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -23,16 +29,27 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B016E7B92F0F5F5F00AABA0C /* Transformers in Frameworks */,
+				B016E7B72F0F5F5F00AABA0C /* Tokenizers in Frameworks */,
+				B016E7B52F0F5F5F00AABA0C /* Hub in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		B0B991682F0F4BC700BBE97E /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		B0D565D52E98AC50001274A2 = {
 			isa = PBXGroup;
 			children = (
 				B0D565E02E98AC50001274A2 /* OpenIntelligence */,
+				B0B991682F0F4BC700BBE97E /* Frameworks */,
 				B0D565DF2E98AC50001274A2 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -65,6 +82,9 @@
 			);
 			name = OpenIntelligence;
 			packageProductDependencies = (
+				B016E7B42F0F5F5F00AABA0C /* Hub */,
+				B016E7B62F0F5F5F00AABA0C /* Tokenizers */,
+				B016E7B82F0F5F5F00AABA0C /* Transformers */,
 			);
 			productName = OpenIntelligence;
 			productReference = B0D565DE2E98AC50001274A2 /* OpenIntelligence.app */;
@@ -95,6 +115,7 @@
 			mainGroup = B0D565D52E98AC50001274A2;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				B016E7B32F0F5F5F00AABA0C /* XCLocalSwiftPackageReference "OpenIntelligence/swift-transformers" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = B0D565DF2E98AC50001274A2 /* Products */;
@@ -263,6 +284,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = OpenIntelligence;
 				INFOPLIST_KEY_CFBundleName = OpenIntelligence;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Take photos of documents or whiteboards for OCR and semantic search.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Select images from your library to extract text and add to your knowledge base.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
@@ -313,6 +335,7 @@
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Take photos of documents or whiteboards for OCR and semantic search.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Select images from your library to extract text and add to your knowledge base.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
@@ -371,6 +394,28 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		B016E7B32F0F5F5F00AABA0C /* XCLocalSwiftPackageReference "OpenIntelligence/swift-transformers" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = "OpenIntelligence/swift-transformers";
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		B016E7B42F0F5F5F00AABA0C /* Hub */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Hub;
+		};
+		B016E7B62F0F5F5F00AABA0C /* Tokenizers */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Tokenizers;
+		};
+		B016E7B82F0F5F5F00AABA0C /* Transformers */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Transformers;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = B0D565D62E98AC50001274A2 /* Project object */;
 }

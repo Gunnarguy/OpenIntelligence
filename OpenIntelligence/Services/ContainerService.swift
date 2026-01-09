@@ -53,8 +53,8 @@ final class ContainerService: ObservableObject {
         icon: String = "folder.fill",
         colorHex: String = "#4F46E5",
         description: String? = nil,
-        embeddingProviderId: String = "nl_embedding",
-        embeddingDim: Int = 512,
+        embeddingProviderId: String = "coreml_sentence_embedding",
+        embeddingDim: Int = 384,
         vectorDBKind: VectorDBKind = .persistentJSON,
         retrievalConfig: RetrievalConfig? = nil
     ) -> KnowledgeContainer {
@@ -158,8 +158,8 @@ final class ContainerService: ObservableObject {
             icon: "folder.fill",
             colorHex: "#4F46E5",
             description: "Default library",
-            embeddingProviderId: "nl_embedding",
-            embeddingDim: 512,
+            embeddingProviderId: "coreml_sentence_embedding",
+            embeddingDim: 384,
             vectorDBKind: .persistentJSON,
             retrievalConfig: .default
         )

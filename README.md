@@ -86,13 +86,19 @@ graph TD
    cd OpenIntelligence
    ```
 
-2. **Open in Xcode**:
+2. **Fetch git submodules** (required for the local `swift-transformers` package):
+
+   ```bash
+   git submodule update --init --recursive
+   ```
+
+3. **Open in Xcode**:
 
    ```bash
    open OpenIntelligence.xcodeproj
    ```
 
-3. **Build & Run**:
+4. **Build & Run**:
    - Select the **OpenIntelligence** scheme.
    - Destination: **iPhone 17 Pro Max** (Simulator) or physical device.
    - Press `Cmd+R`.

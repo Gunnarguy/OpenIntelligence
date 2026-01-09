@@ -401,7 +401,8 @@ final class SettingsStore: ObservableObject {
                 if enabled {
                     self.defaultEmbeddingProvider = "nl_contextual_embedding"
                 } else {
-                    self.defaultEmbeddingProvider = "nl_embedding"
+                    // Use CoreML as default (better accuracy than deprecated NLEmbedding)
+                    self.defaultEmbeddingProvider = "coreml_sentence_embedding"
                 }
                 Log.info("Embedding provider switched to: \(self.defaultEmbeddingProvider)", category: .embedding)
             }

@@ -251,7 +251,7 @@ struct GetEmbeddingProviderIntent: AppIntent {
         // Read from container settings
         let containerService = await MainActor.run { ContainerService() }
         let activeContainer = await MainActor.run { containerService.activeContainer }
-        let providerId = activeContainer?.embeddingProviderId ?? "nl_embedding"
+        let providerId = activeContainer?.embeddingProviderId ?? "coreml_sentence_embedding"
 
         let (name, description, isHighAccuracy) = describeProvider(providerId)
 
