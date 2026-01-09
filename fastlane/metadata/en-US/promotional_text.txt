@@ -1,1 +1,1 @@
-Your private AI assistant. On-device processing, document RAG, and complete data control.
+Import your documents. Ask questions. Get answers with citations — all on-device.
