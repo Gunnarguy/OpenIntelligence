@@ -146,7 +146,8 @@ struct ContainerSettingsSheet: View {
                     retrievalTuningSection
                 }
                 embeddingProviderSection
-                vectorDatabaseSection
+                // Vector database section hidden — always uses persistent JSON storage
+                // vectorDatabaseSection
             }
             .navigationTitle("Library Settings")
             .iOSNavigationBarInline()
@@ -270,76 +271,43 @@ struct ContainerSettingsSheet: View {
 
     var embeddingProviderOptions: [EmbeddingProviderOption] { 
         [
-            // MARK: - NLEmbedding (Word Vectors)
+            // MARK: - CoreML Sentence Embedding (Primary)
 
-            // Built into iOS since iOS 13. Uses NLEmbedding.wordEmbedding(for:).
-            // Returns 512-dim vectors by averaging word embeddings.
-            // Fastest option, always available, but less accurate than contextual.
+            // Custom Core ML model optimized for Apple Silicon.
+            // Uses all-MiniLM-L6-v2 converted to .mlmodelc format.
+            // 384-dim sentence embeddings with excellent semantic accuracy.
             EmbeddingProviderOption(
-                id: "nl_embedding",
-                icon: "textformat.abc",
-                title: "Natural Language",
-                tagline: "Fast word vectors",
-                detail: "Averages word embeddings for each chunk. Fast and always available, but words are context-independent ('bank' always maps to the same vector).",
+                id: "coreml_sentence_embedding",
+                icon: "cpu.fill",
+                title: "Neural Engine",
+                tagline: "Optimized for Apple Silicon",
+                detail: "Sentence-level embeddings powered by Core ML. Captures full semantic meaning with hardware acceleration on Neural Engine.",
                 isSelectable: true,
-                badgeText: nil,
-                supportedDimensions: [512],
+                badgeText: "✓ Default",
+                supportedDimensions: [384],
                 metrics: [
-                    OptionMetric(icon: "hare.fill", text: "~2 ms/chunk", tint: .green),
-                    OptionMetric(icon: "checkmark.shield.fill", text: "Always available"),
+                    OptionMetric(icon: "bolt.fill", text: "Hardware accelerated", tint: .orange),
+                    OptionMetric(icon: "target", text: "High semantic accuracy"),
                     OptionMetric(icon: "iphone", text: "100% on-device"),
                 ],
                 alert: nil
-            ),
-
-            // MARK: - NLContextualEmbedding (BERT-like)
-
-            // iOS 17+. Uses NLContextualEmbedding for context-aware embeddings.
-            // Requires one-time ~50MB asset download per language.
-            // Supports 27+ languages via Latin, Cyrillic, CJK models.
-            EmbeddingProviderOption(
-                id: "nl_contextual_embedding",
-                icon: "brain.head.profile",
-                title: "Contextual Embeddings",
-                tagline: "High accuracy (context aware)",
-                detail: "BERT-like model understands words in context. 'Bank' near 'river' differs from 'bank' near 'money'. Best for nuanced search.",
-                isSelectable: true,
-                badgeText: "⚡ Recommended",
-                supportedDimensions: [512],
-                metrics: [
-                    OptionMetric(icon: "sparkles", text: "+15-25% accuracy", tint: .purple),
-                    OptionMetric(icon: "globe", text: "27+ languages"),
-                    OptionMetric(icon: "iphone", text: "100% on-device"),
-                ],
-                alert: ProviderAvailabilityAlert(
-                    id: "nl_contextual",
-                    icon: "arrow.down.circle.fill",
-                    title: "Requires iOS 17+ and model download",
-                    description: "First use downloads a ~50MB language model. After that, everything runs on-device.",
-                    bullets: [
-                        "Latin, Cyrillic, CJK, Arabic, Thai, Indic scripts",
-                        "Model downloads automatically when needed",
-                        "No cloud calls after download",
-                    ],
-                    accent: .purple
-                )
             ),
         ]
     }
 
     var dimensionOptions: [DimensionOption] { 
         [
-            // 512D - Native dimension for NLEmbedding and NLContextualEmbedding
+            // 384D - Native dimension for CoreML Sentence Embedding
             DimensionOption(
-                value: 512,
-                icon: "square.grid.3x3.fill",
-                title: "512D • Standard",
-                caption: "Native Apple dimension",
-                detail: "Native output of Apple's NLEmbedding and NLContextualEmbedding. This is the only dimension available with built-in Apple providers.",
+                value: 384,
+                icon: "cpu.fill",
+                title: "384D • Neural Engine",
+                caption: "Optimized for Apple Silicon",
+                detail: "Native output of the Core ML sentence embedding model. Hardware-accelerated on Neural Engine for fast, accurate semantic search.",
                 metrics: [
-                    OptionMetric(icon: "checkmark.seal.fill", text: "Native Apple format", tint: .green),
-                    OptionMetric(icon: "cube.fill", text: "~0.78 MB / 100 docs"),
-                    OptionMetric(icon: "bolt.fill", text: "No conversion overhead"),
+                    OptionMetric(icon: "bolt.fill", text: "Hardware accelerated", tint: .orange),
+                    OptionMetric(icon: "cube.fill", text: "~0.58 MB / 100 docs"),
+                    OptionMetric(icon: "checkmark.seal.fill", text: "Native format"),
                 ]
             ),
         ]

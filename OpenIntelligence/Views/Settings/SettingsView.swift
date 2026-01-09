@@ -113,7 +113,7 @@ struct SettingsView: View {
                 statusPill(
                     icon: "cloud.fill",
                     text: "PCC",
-                    active: settings.executionContext != .onDeviceOnly
+                    active: true
                 )
             }
         }
@@ -359,11 +359,11 @@ Text(label)
                 // Status indicator
                 HStack(spacing: 4) {
                     Circle()
-                        .fill(settings.executionContext == .onDeviceOnly ? Color.orange : Color.green)
+.fill(Color.green)
                         .frame(width: 8, height: 8)
-                    Text(settings.executionContext == .onDeviceOnly ? "Local Only" : "Full")
+                    Text("Automatic")
                         .font(.caption2.weight(.medium))
-                        .foregroundColor(settings.executionContext == .onDeviceOnly ? .orange : .green)
+.foregroundColor(.green)
                 }
             }
 
@@ -394,59 +394,24 @@ Text(label)
 
             Divider()
 
-            // Execution Context Picker
+            // Private Cloud Compute Benefits (automatic routing, no picker needed)
             VStack(alignment: .leading, spacing: 10) {
-                Text("Execution Strategy")
+                Text("Private Cloud Compute")
                     .font(.subheadline.weight(.medium))
 
-                Picker("Execution Strategy", selection: $settings.executionContext) {
-                    Text("Automatic (Reliability-first)").tag(ExecutionContext.automatic)
-                    Text("On-Device Only").tag(ExecutionContext.onDeviceOnly)
-                    Text("Prefer Cloud").tag(ExecutionContext.preferCloud)
-                    Text("Cloud Only").tag(ExecutionContext.cloudOnly)
-                }
-                .pickerStyle(.segmented)
-
-                // Context Description
-                Text(settings.executionPathDescription)
+                Text("OpenIntelligence automatically uses on-device processing when possible, and seamlessly escalates to Private Cloud Compute for complex queries or large documents.")
                     .font(.caption)
-                    .foregroundColor(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+.foregroundColor(.secondary)
 
-                if settings.executionContext != .onDeviceOnly {
-                    // PCC Benefits
-                    VStack(alignment: .leading, spacing: 6) {
-                        pccBenefitRow(icon: "checkmark.shield.fill", text: "End-to-end encrypted, no data retention", color: .green)
-                        pccBenefitRow(icon: "eye.slash.fill", text: "Apple cannot see your prompts or responses", color: .green)
-                        pccBenefitRow(icon: "doc.viewfinder", text: "Cryptographically verifiable by security researchers", color: .green)
-                        pccBenefitRow(icon: "brain", text: "Long-context PT-MoE routing (~65K tokens)", color: .blue)
-                    }
-                    .padding(.leading, 4)
-                    .padding(.top, 4)
-                } else {
-                    // Limitations when PCC disabled
-                    VStack(alignment: .leading, spacing: 6) {
-                        pccBenefitRow(icon: "iphone", text: "All processing stays on your device", color: .orange)
-                        pccBenefitRow(icon: "exclamationmark.triangle.fill", text: "Complex queries may fail or be truncated", color: .orange)
-                        pccBenefitRow(icon: "ruler", text: "Limited to 4,096 token context window", color: .orange)
-                    }
-                    .padding(.leading, 4)
-                    .padding(.top, 4)
+                // PCC Benefits
+                VStack(alignment: .leading, spacing: 6) {
+                    pccBenefitRow(icon: "checkmark.shield.fill", text: "End-to-end encrypted, no data retention", color: .green)
+                    pccBenefitRow(icon: "eye.slash.fill", text: "Apple cannot see your prompts or responses", color: .green)
+                    pccBenefitRow(icon: "doc.viewfinder", text: "Cryptographically verifiable by security researchers", color: .green)
+                    pccBenefitRow(icon: "brain", text: "Long-context support (~65K tokens)", color: .blue)
                 }
-            }
-
-            // Smart tip when PCC is unavailable
-            if settings.executionContext == .onDeviceOnly {
-                HStack(spacing: 8) {
-                    Image(systemName: "lightbulb.fill")
-                        .foregroundColor(.yellow)
-                    Text("Tip: PCC unlocks long-context coverage and reduces on-device truncation.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                .padding(10)
-                .background(Color.yellow.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .padding(.leading, 4)
+                    .padding(.top, 4)
             }
         }
 .padding()
@@ -621,41 +586,28 @@ VStack(alignment: .leading, spacing: 8) {
         .foregroundColor(.secondary)
     }
 
-    // MARK: - Generation Card
+    // MARK: - Response Style Card
 
     @ViewBuilder
     private var generationCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack { 
-                Image(systemName: "text.bubble.fill")
+                Image(systemName: "slider.horizontal.3")
                     .foregroundColor(.accentColor)
-                Text("Generation Style")
+                Text("Response Style")
                     .font(.headline)
                 Spacer()
             }
 
-            // Temperature / Creativity
-            // Map 0.0-1.0 temperature to 0-100% "Creativity" for better UX
+            // Temperature mapped to user-friendly style labels
             sliderRow(
-                label: "Creativity",
+                label: "Style",
                 value: $settings.temperature,
                 range: 0 ... 1.0,
                 step: 0.1,
-                valueString: "\(Int(settings.temperature * 100))%",
-                description: settings.temperature < 0.3 ? "Precise & Deterministic" : settings.temperature > 0.7 ? "Creative & Diverse" : "Balanced"
+                valueString: settings.temperature < 0.3 ? "Precise" : settings.temperature > 0.7 ? "Creative" : "Balanced",
+                description: settings.temperature < 0.3 ? "Factual, consistent answers" : settings.temperature > 0.7 ? "More varied, expressive responses" : "Good balance of accuracy and variety"
             )
-
-            Divider()
-
-            // Auto-Context explanation
-            HStack(spacing: 8) {
-                Image(systemName: "wand.and.stars")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                Text("Response length and context window are managed automatically by the Neural Engine based on query complexity and available compute.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
         }
 .padding()
     .background(DSColors.surface)
@@ -791,7 +743,7 @@ Text("Version \(Bundle.main.appVersion)")
             ModelPipelineStage(
                 name: "Embedding",
                 role: .primary,
-                detail: "NLEmbedding (512-dim)",
+                detail: "CoreML Neural Engine (384-dim)",
                 status: .active,
                 icon: "rectangle.3.group"
             ),

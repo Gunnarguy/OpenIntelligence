@@ -1409,32 +1409,32 @@ struct EmbeddingInfoSheet: View {
     /// Human-readable name for the active embedding method
     private var embeddingMethodName: String {
         switch settings.defaultEmbeddingProvider {
+        case "coreml_sentence_embedding":
+            return "Neural Engine Embeddings"
         case "nl_contextual_embedding":
             return "NLContextualEmbedding"
         case "nl_embedding":
-            return "NLEmbedding"
-        case "coreml_sentence_embedding":
-            return "CoreML Sentence Embedding"
+            return "NLEmbedding (Legacy)"
         case "apple_fm_embed":
             return "Apple Foundation Model"
         default:
-            return "NLEmbedding"
+            return "Neural Engine Embeddings"
         }
     }
 
     /// Description of the current embedding method
     private var embeddingMethodDescription: String {
         switch settings.defaultEmbeddingProvider {
+        case "coreml_sentence_embedding":
+            return "We use Core ML sentence embeddings optimized for Apple Silicon. Hardware-accelerated 384D vectors capture full semantic meaning for accurate search."
         case "nl_contextual_embedding":
             return "We use NLContextualEmbedding (BERT-based) to turn every chunk into a high-accuracy semantic fingerprint that captures deep context and meaning."
         case "nl_embedding":
             return "We use NLEmbedding to turn every chunk into a 512-number fingerprint that captures topic, tone, and context."
-        case "coreml_sentence_embedding":
-            return "We use CoreML Sentence Embedding for cross-lingual semantic fingerprints."
         case "apple_fm_embed":
             return "We use Apple Foundation Model embeddings for state-of-the-art semantic understanding."
         default:
-            return "We use NLEmbedding to turn every chunk into a 512-number fingerprint that captures topic, tone, and context."
+            return "We use Core ML sentence embeddings optimized for Apple Silicon. Hardware-accelerated 384D vectors capture full semantic meaning for accurate search."
         }
     }
 
@@ -1454,8 +1454,8 @@ struct EmbeddingInfoSheet: View {
 
                     VisualizationInfoSection(title: "Current Method: \(embeddingMethodName)") {
                         HStack(spacing: 8) {
-                            Image(systemName: settings.useHighAccuracyEmbeddings ? "sparkles" : "cube.box")
-                                .foregroundColor(settings.useHighAccuracyEmbeddings ? .purple : .blue)
+                            Image(systemName: "cpu.fill")
+                                .foregroundColor(.orange)
                             Text(embeddingMethodDescription)
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
