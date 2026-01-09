@@ -1,37 +1,50 @@
-OpenIntelligence is a privacy-first AI assistant that keeps your data on your device.
+Ask questions. Get answers grounded in your documents.
 
-KEY FEATURES
+OpenIntelligence is a document-aware AI assistant that runs entirely on your device. Import your files, ask questions, and receive answers that cite the exact passages they came from.
 
-• On-Device Processing
-Run AI models locally using Apple Intelligence and MLX. Your conversations and documents never leave your device unless you explicitly choose cloud providers.
+HOW IT WORKS
 
-• Retrieval-Augmented Generation (RAG)
-Import your documents and let OpenIntelligence find relevant information to answer your questions with context from your own knowledge base.
+1. Import documents — PDFs, text files, Markdown, code, even images (OCR extracts text automatically).
 
-• Multiple AI Providers
-Choose from on-device Apple Foundation Models, local llama.cpp models, or connect to cloud providers like OpenAI, Anthropic, and Google Gemini.
+2. Ask anything — "What does section 3.2 say about pricing?" or "Find all mentions of authentication."
 
-• Knowledge Containers
-Organize your documents into separate containers for different projects or topics. Each container has its own private vector database.
+3. Get grounded answers — The AI searches your documents using hybrid retrieval (semantic meaning + keyword matching), then generates responses with inline citations.
 
-• Hybrid Search
-Combines semantic vector search with keyword matching (BM25) for more accurate retrieval of relevant information.
+RETRIEVAL PIPELINE
 
-• Privacy Dashboard
-Full transparency into any cloud data transmissions. See exactly what was sent and when.
+Your documents are processed through a production-grade RAG (Retrieval-Augmented Generation) pipeline:
 
-PRIVACY COMMITMENT
+• Semantic chunking breaks documents into coherent passages
+• CoreML embeddings capture meaning in 384-dimensional vectors
+• Hybrid search combines BM25 keyword scoring with vector similarity
+• Reciprocal Rank Fusion merges results for better accuracy
+• Cross-encoder reranking prioritizes the most relevant passages
+• Maximal Marginal Relevance ensures diverse, non-redundant context
 
-OpenIntelligence is designed with privacy as a core principle:
-- All processing happens on-device by default
-- Documents are stored locally in encrypted containers
-- No analytics or tracking
-- Cloud features require explicit consent
-- Complete data portability
+KNOWLEDGE CONTAINERS
+
+Organize documents into separate libraries. Each container has its own vector database — your work projects stay separate from personal notes.
+
+APPLE INTELLIGENCE
+
+Answers are generated using Apple's Foundation Models. Processing starts on-device and can extend to Private Cloud Compute when needed — always with end-to-end encryption and zero data retention.
+
+SUPPORTED FILES
+
+• Documents: PDF, TXT, Markdown, RTF
+• Images: PNG, JPEG, HEIC (OCR extracts text)
+• Code: Swift, Python, JavaScript, TypeScript, Go, Rust, and 20+ languages
+• Data: JSON, YAML, CSV
+
+PRIVACY
+
+• All processing happens on-device by default
+• Documents never leave your device unless you enable Private Cloud Compute
+• No analytics, no tracking, no third-party AI services
+• Full transmission log shows exactly what was sent and when
 
 REQUIREMENTS
 
-- iOS 26.0 or later
-- Apple Intelligence support recommended for best on-device experience
-
-OpenIntelligence puts you in control of your AI experience while keeping your data private and secure.
+• iOS 26.0 or later
+• Apple Intelligence enabled (Settings → Apple Intelligence & Siri)
+• iPhone 15 Pro or newer recommended

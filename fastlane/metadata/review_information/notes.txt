@@ -2,9 +2,9 @@ Demo account: Not required.
 
 Reviewer walkthrough:
 1. Launch OpenIntelligence — the app works fully offline with on-device processing.
-2. Go to Settings > AI Providers to optionally add API keys (OpenAI, Anthropic, etc.).
-3. Create a Knowledge Container and import a document from Files.
-4. Ask a question about the imported document to test RAG retrieval.
-5. Toggle between on-device and cloud models in Settings to verify provider switching.
+2. Tap the Documents tab and import a PDF or text file from Files.
+3. Return to Chat and ask a question about the imported document.
+4. Observe the retrieval sources tray showing which passages were used.
+5. Tap a citation to see the source document and similarity score.
 
-Note: Apple Intelligence features require a device with Apple Intelligence support (iPhone 16 or later). The app falls back gracefully on unsupported devices.
+Note: Apple Intelligence must be enabled in Settings → Apple Intelligence & Siri. The app requires iPhone 15 Pro or newer for on-device generation. Private Cloud Compute extends capability when on-device limits are reached.

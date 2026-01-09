@@ -1,8 +1,8 @@
-Initial release of OpenIntelligence!
+Initial release.
 
-• On-device AI processing with Apple Intelligence and MLX
-• Document import with intelligent chunking and retrieval
-• Knowledge containers for organizing your data
-• Hybrid search combining semantic and keyword matching
-• Privacy dashboard for cloud transmission transparency
-• Support for multiple LLM providers
+• Import PDFs, text files, Markdown, code, and images
+• Hybrid search: semantic + keyword matching with citations
+• Knowledge containers for organizing separate libraries
+• Apple Intelligence generation with Private Cloud Compute fallback
+• 3D embedding visualization for exploring your document space
+• Full privacy dashboard showing all cloud transmissions
