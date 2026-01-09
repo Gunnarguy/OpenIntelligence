@@ -9,7 +9,7 @@ on:
 jobs:
   build:
     name: Build and Check
-    runs-on: macos-15
+    runs-on: macos-14
     timeout-minutes: 45
 
     steps:
@@ -25,13 +25,13 @@ jobs:
           key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
           restore-keys: ${{ runner.os }}-spm-
 
-      - name: Setup Xcode 26.0.1
+      - name: Setup Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: "26.0.1"
+          xcode-version: "latest-stable"
 
       - name: List Destinations
-        run: xcodebuild -scheme OpenIntelligence -showdestinations
+        run: xcodebuild -scheme OpenIntelligence -showdestinations | head -50
 
       - name: Resolve dependencies
         run: |
@@ -57,7 +57,7 @@ jobs:
           if xcodebuild test \
             -project OpenIntelligence.xcodeproj \
             -scheme OpenIntelligence \
-            -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' \
+            -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
             -skipPackagePluginValidation \
             -quiet \
             CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO 2>&1; then
@@ -67,7 +67,7 @@ jobs:
             xcodebuild build \
               -project OpenIntelligence.xcodeproj \
               -scheme OpenIntelligence \
-              -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' \
+              -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
               -skipPackagePluginValidation \
               -quiet \
               CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
