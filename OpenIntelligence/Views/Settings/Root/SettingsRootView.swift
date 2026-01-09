@@ -157,38 +157,42 @@ struct ExecutionPrivacyView: View {
     @EnvironmentObject private var settings: SettingsStore
     var body: some View {
         List {
-            Section("Execution Context") {
-                Picker("Run on", selection: Binding(
-                    get: { settings.executionContext },
-                    set: { settings.executionContext = $0 }
-                )) {
-                    Text("Automatic (Reliability-first)").tag(ExecutionContext.automatic)
-                    Text("On-Device Only").tag(ExecutionContext.onDeviceOnly)
-                    Text("Prefer Cloud").tag(ExecutionContext.preferCloud)
-                    Text("Cloud Only").tag(ExecutionContext.cloudOnly)
+            Section("Automatic Routing") {
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("Smart Execution", systemImage: "gearshape.2.fill")
+                        .font(.headline)
+                    Text("OpenIntelligence automatically uses on-device processing when possible, and seamlessly escalates to Private Cloud Compute for complex queries or large documents.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
-                #if os(iOS)
-                .pickerStyle(.segmented)
-                #endif
-                Text("Choose where to run models. Automatic prefers PCC for library queries when allowed.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
             }
-            Section("Privacy Controls") {
-                // Execution Context is now the single source of truth for PCC preferences
-                if settings.executionContext == .automatic || settings.executionContext == .preferCloud {
-                    Label("Private Cloud Compute preferred when available", systemImage: "cloud.fill")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else if settings.executionContext == .cloudOnly {
-                    Label("Forced Cloud Execution", systemImage: "cloud.fill")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Label("Strictly On-Device", systemImage: "iphone.gen3")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+            Section("Private Cloud Compute") {
+                Label("End-to-end encrypted", systemImage: "checkmark.shield.fill")
+                    .font(.subheadline)
+                    .foregroundStyle(.green)
+                Label("No data retention by Apple", systemImage: "eye.slash.fill")
+                    .font(.subheadline)
+                    .foregroundStyle(.green)
+                Label("Cryptographically verifiable", systemImage: "doc.viewfinder")
+                    .font(.subheadline)
+                    .foregroundStyle(.green)
+                Label("Long-context support (~65K tokens)", systemImage: "brain")
+                    .font(.subheadline)
+                    .foregroundStyle(.blue)
+            }
+
+            Section {
+                Label("On-Device: 4K tokens", systemImage: "iphone")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Label("PCC Server: 65K tokens", systemImage: "cloud")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } header: {
+                Text("Context Windows")
+            } footer: {
+                Text("The system automatically routes to PCC when your query exceeds on-device capacity.")
+                    .font(.caption)
             }
         }
         .navigationTitle("Execution & Privacy")
@@ -390,33 +394,29 @@ struct RetrievalSettingsView: View {
             }
 
             Section {
-                Toggle(isOn: $settings.useHighAccuracyEmbeddings) {
+                HStack {
+                    Image(systemName: "cpu.fill")
+                        .foregroundColor(.orange)
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("High-Accuracy Embeddings")
-                        Text("Uses NLContextualEmbedding for 15-25% better semantic search. New libraries will use contextual embeddings.")
+                        Text("Neural Engine Embeddings")
+                            .font(.body)
+                        Text("384-dimensional sentence embeddings optimized for Apple Silicon. Hardware accelerated for fast, accurate semantic search.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
             } header: {
-                Text("Embedding Quality")
+                Text("Embedding Model")
             } footer: {
-                if settings.useHighAccuracyEmbeddings {
-                    Label("Active provider: nl_contextual_embedding", systemImage: "sparkles")
-                        .font(.caption)
-                        .foregroundStyle(.green)
-                } else {
-                    Text("Active provider: nl_embedding (standard)")
-                        .font(.caption)
-                }
+                Label("Active: coreml_sentence_embedding", systemImage: "checkmark.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.green)
             }
 
         }
         .navigationTitle("Retrieval")
     }
 }
-
-// ModelGalleryView and LocalProvidersView removed - local downloadable models no longer supported
 
 struct SystemStatusView: View {
     var body: some View {

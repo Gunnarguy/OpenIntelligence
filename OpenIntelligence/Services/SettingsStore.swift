@@ -106,10 +106,11 @@ final class SettingsStore: ObservableObject {
     // MARK: - Embedding Settings
 
     /// Default embedding provider for new containers.
-    /// Options: "nl_embedding" (fast), "nl_contextual_embedding" (high-accuracy, iOS 17+)
+    /// Primary: "coreml_sentence_embedding" (384D, Neural Engine accelerated)
+    /// Legacy: "nl_embedding", "nl_contextual_embedding" (for existing containers)
     @Published var defaultEmbeddingProvider: String
-    /// When enabled, new containers use NLContextualEmbedding for 15-25% better accuracy.
-    /// Requires iOS 17+ and downloads ~50MB model on first use.
+    /// Legacy setting - no longer affects provider selection (CoreML is always used).
+    /// Kept for backward compatibility with existing user defaults.
     @Published var useHighAccuracyEmbeddings: Bool
 
     // MARK: - Quality Mode
@@ -276,8 +277,8 @@ final class SettingsStore: ObservableObject {
         reliabilityModeEnabled =
             defaults.object(forKey: Keys.reliabilityModeEnabled) as? Bool ?? true
 
-        // Embedding provider settings (accuracy-first defaults)
-        defaultEmbeddingProvider = defaults.string(forKey: Keys.defaultEmbeddingProvider) ?? "nl_contextual_embedding"
+        // Embedding provider settings (CoreML is the primary provider)
+        defaultEmbeddingProvider = defaults.string(forKey: Keys.defaultEmbeddingProvider) ?? "coreml_sentence_embedding"
         useHighAccuracyEmbeddings = defaults.object(forKey: Keys.useHighAccuracyEmbeddings) as? Bool ?? true
 
         // Quality mode (balanced, always enforced)
@@ -394,17 +395,14 @@ final class SettingsStore: ObservableObject {
         #endif
 
         // Sync high-accuracy toggle with embedding provider selection
+        // CoreML Sentence Embedding is the only provider, so this is a no-op now
+        // Kept for backward compatibility with existing settings
         $useHighAccuracyEmbeddings
             .dropFirst()
-            .sink { [weak self] enabled in
+.sink { [weak self] _ in
                 guard let self else { return }
-                if enabled {
-                    self.defaultEmbeddingProvider = "nl_contextual_embedding"
-                } else {
-                    // Use CoreML as default (better accuracy than deprecated NLEmbedding)
-                    self.defaultEmbeddingProvider = "coreml_sentence_embedding"
-                }
-                Log.info("Embedding provider switched to: \(self.defaultEmbeddingProvider)", category: .embedding)
+                // Always use CoreML - it's the only supported provider
+                self.defaultEmbeddingProvider = "coreml_sentence_embedding"
             }
             .store(in: &cancellables)
 
