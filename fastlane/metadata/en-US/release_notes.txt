@@ -1,18 +1,27 @@
 Version 1.0 (Build 3) - RAG Pipeline Optimizations
 
-🚀 Performance & Quality Improvements:
-• Optimized context budget: 50% more document content per query
-• Improved chunking strategy: larger, more coherent text segments
-• Reduced memory usage: cached vocabulary prevents repeated loading
-• Better responses: enhanced system prompts for comprehensive answers
+🚀 Performance & Quality:
+• 50% larger context budget (7500 chars vs 5000)
+• Optimized chunking: 280-350 words with 17% overlap (was 220w/50%)
+• Memory caching prevents vocabulary reload on each query
+• Enhanced system prompts for comprehensive, detailed answers
 
-🧠 Advanced RAG Features:
-• Query intent classification (keyword vs conceptual queries)
-• Content-adaptive chunking based on document type
-• Lost-in-middle mitigation for better context attention
-• Neural reranking with on-device CoreML model
+🧠 Advanced Retrieval:
+• Query intent classification (keyword vs conceptual)
+• Content-adaptive chunking per document type
+• Lost-in-middle mitigation (best context at start AND end)
+• Corpus-aware query expansion with vocabulary filtering
+• Neural reranking with on-device CoreML cross-encoder
+• Per-query weight tuning (vector vs keyword balance)
+
+📄 Document Processing:
+• Improved code chunking (250w/40w overlap)
+• Technical documents: 280w/50w for precision
+• Narrative content: 400w/70w for coherence
+• Auto-tuned RetrievalConfig based on content type
 
 🔧 Fixes:
-• Fixed memory accumulation on repeated queries
-• Corrected PCC context window documentation
-• Improved offline capability descriptions
+• Fixed memory leak on repeated queries
+• Corrected PCC token limit (4096, not 65K)
+• Accurate offline capability descriptions
+• UI defaults now match optimized chunking values

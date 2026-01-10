@@ -15,7 +15,7 @@ Your documents stay on your device. When Apple's on-device model needs more powe
 Behind a simple chat interface is a production-grade retrieval system:
 
 • Semantic chunking preserves document structure and meaning
-• CoreML embeddings convert text into 384-dimensional vectors
+• NLEmbedding converts text into 512-dimensional vectors
 • Hybrid search combines keyword matching (BM25) with semantic similarity
 • Reciprocal Rank Fusion merges ranking signals for better results
 • Cross-encoder reranking prioritizes the most relevant passages
