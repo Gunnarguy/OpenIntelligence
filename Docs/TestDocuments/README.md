@@ -32,8 +32,8 @@ This directory contains test files for validating the core RAG pipeline function
 
 ## Success Criteria
 
-✅ All document types import without errors  
-✅ Edge cases handled gracefully (not crash)  
-✅ Chunks contain readable text  
-✅ Queries return relevant results  
+✅ All document types import without errors
+✅ Edge cases handled gracefully (not crash)
+✅ Chunks contain readable text
+✅ Queries return relevant results
 ✅ Processing time <5s for most documents

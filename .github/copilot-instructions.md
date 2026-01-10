@@ -63,7 +63,7 @@ scripts/                         # CI/CD helpers (secret_scan, preflight_check)
 
 ## Project Overview
 
-**Platform**: iOS 26.0+ (Swift 6.0, `-default-isolation=MainActor`)  
+**Platform**: iOS 26.0+ (Swift 6.0, `-default-isolation=MainActor`)
 **Mission**: Privacy-first RAG (Retrieval-Augmented Generation) with on-device processing and optional Private Cloud Compute (PCC).
 
 ## Architecture (Protocol + Actor Pattern)
