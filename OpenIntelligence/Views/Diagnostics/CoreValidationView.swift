@@ -161,7 +161,7 @@ struct CoreValidationView: View {
                 // This would test actual document processing
                 // For now, just validate the service exists
                 let processor = DocumentProcessor()
-                return processor.targetChunkSize == 400
+                return processor.targetChunkSize == 350
             }
 
             // Test 2: Embedding Service

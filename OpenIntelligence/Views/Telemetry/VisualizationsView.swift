@@ -1857,7 +1857,7 @@ struct PipelineTimelineView: View {
     private var stages: [Stage] {
         [
             Stage(id: "ingest", name: "Ingestion", detail: "Parse PDFs and text into raw payloads", icon: "doc.text.fill", category: .ingestion),
-            Stage(id: "chunk", name: "Chunking", detail: "Split content into 400-token windows", icon: "square.split.2x2", category: .ingestion),
+            Stage(id: "chunk", name: "Chunking", detail: "Split content into 280-350 word windows (~17% overlap)", icon: "square.split.2x2", category: .ingestion),
             Stage(id: "embed", name: "Embedding", detail: "Map chunks into the 512-dim vector space", icon: "function", category: .embedding),
             Stage(id: "store", name: "Storage", detail: "Persist vectors + BM25 payloads per container", icon: "externaldrive.fill", category: .storage),
             Stage(id: "query", name: "Query", detail: "Embed the question and expand with heuristics", icon: "magnifyingglass", category: .retrieval),

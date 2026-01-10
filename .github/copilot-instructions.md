@@ -91,7 +91,7 @@ let db = vectorRouter.db(for: container)  // Never instantiate VectorDatabase di
 
 ## Data Flow
 
-1. **Ingestion**: `DocumentProcessor` → `SemanticChunker` (400w/75w overlap) → `EmbeddingService` → `VectorStoreRouter`
+1. **Ingestion**: `DocumentProcessor` → `SemanticChunker` (280-400w/17% overlap) → `EmbeddingService` → `VectorStoreRouter`
 2. **Retrieval**: `HybridSearchService` (Vector + BM25) → `RAGEngine.reciprocalRankFusion` → MMR
 3. **Generation**: `LLMService` (with 12+ agentic `@Tool` functions for autonomous search)
 

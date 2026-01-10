@@ -36,8 +36,8 @@ struct ContainerSettingsSheet: View {
 
     // Chunking configuration
     @State var chunkingStrategy: String = "balanced"
-    @State var targetWordWindow: Int = 400
-    @State var overlapWords: Int = 75
+    @State var targetWordWindow: Int = 350
+    @State var overlapWords: Int = 60
     @State var chunkingSource: ChunkingDirective.Source = .baseline
 
     // Provider fallback tracking
@@ -192,8 +192,8 @@ struct ContainerSettingsSheet: View {
                         chunkingSource = directive.source
                     } else {
                         chunkingStrategy = "balanced"
-                        targetWordWindow = 400
-                        overlapWords = 75
+                        targetWordWindow = 350
+                        overlapWords = 60
                         chunkingSource = .baseline
                     }
                 } else {

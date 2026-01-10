@@ -55,8 +55,8 @@ This document provides technical specifications for the RAGMLCore implementation
 #### DocumentProcessor
 ```swift
 class DocumentProcessor {
-    private let targetChunkSize: Int = 400
-    private let chunkOverlap: Int = 50
+    private let targetChunkSize: Int = 350  // Optimized for retrieval quality
+    private let chunkOverlap: Int = 60      // ~17% overlap
 
     func processDocument(at url: URL) async throws -> (Document, [String]) {
         // Implementation details
@@ -95,8 +95,8 @@ Where A and B are embedding vectors.
 
 | Parameter | Default | Range | Description |
 |-----------|---------|-------|-------------|
-| chunk_size | 400 | 200-800 | Words per chunk |
-| chunk_overlap | 50 | 0-100 | Word overlap |
+| chunk_size | 350 | 250-550 | Words per chunk (content-adaptive) |
+| chunk_overlap | 60 | 40-70 | Word overlap (~17%) |
 | top_k | 3 | 1-10 | Results returned |
 | temperature | 0.7 | 0.0-1.0 | LLM randomness |
 

@@ -9,10 +9,10 @@ This document provides technical specifications for the production-ready OpenInt
 #### SemanticChunker
 ```swift
 actor SemanticChunker {
-    private let targetChunkSize: Int = 400    // Target words per chunk
-    private let minChunkSize: Int = 100       // Minimum clamp
-    private let maxChunkSize: Int = 800       // Maximum clamp
-    private let overlapWords: Int = 75        // Overlap between chunks
+    private let targetChunkSize: Int = 350    // Optimized target words per chunk
+    private let minChunkSize: Int = 120       // Minimum clamp
+    private let maxChunkSize: Int = 550       // Maximum clamp
+    private let overlapWords: Int = 60        // ~17% overlap between chunks
     
     func chunk(text: String, metadata: DocumentMetadata) async -> [ProcessedChunk] {
         // Topic boundary detection
@@ -25,7 +25,7 @@ actor SemanticChunker {
 
 **Key Features:**
 - Semantic paragraph-based chunking with topic boundary detection
-- Target 400 words, clamps 100-800, 75-word overlap
+- Target 280-400 words (content-adaptive), ~17% overlap
 - Language detection and metadata enrichment
 - Diagnostics: boundary quality, semantic density, paragraph count
 - Support for PDF, TXT, MD, RTF, code, CSV, Office formats
@@ -79,8 +79,8 @@ MMR = λ × sim(chunk, query) - (1-λ) × max(sim(chunk, selected))
 
 | Parameter | Default | Range | Description |
 |-----------|---------|-------|-------------|
-| chunk_size_target | 400 | 100-800 | Words per chunk (clamped) |
-| chunk_overlap | 75 | 0-150 | Word overlap |
+| chunk_size_target | 350 | 120-550 | Words per chunk (content-adaptive) |
+| chunk_overlap | 60 | 40-70 | Word overlap (~17%) |
 | top_k | 5 | 1-20 | Hybrid results before MMR |
 | mmr_lambda | 0.7 | 0.0-1.0 | Diversity vs relevance |
 | temperature | 0.7 | 0.0-2.0 | LLM randomness |
