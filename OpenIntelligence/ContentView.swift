@@ -8,12 +8,14 @@
 import SwiftUI
 
 struct ContentView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var containerService: ContainerService
     @StateObject private var ragService: RAGService
     @StateObject private var settingsStore: SettingsStore
     @StateObject private var onboardingStore: OnboardingStateStore
     @StateObject private var entitlementStore: EntitlementStore
     @State private var selectedTab: Tab = .chat
+    @State private var previousScenePhase: ScenePhase = .inactive
     private let screenshotMode: ScreenshotMode
 
     init() {
@@ -97,6 +99,9 @@ struct ContentView: View {
                 await importSamplesIfNeeded()
             }
         }
+.onChange(of: scenePhase) { oldPhase, newPhase in
+    handleScenePhaseChange(from: oldPhase, to: newPhase)
+}
         .onReceive(settingsStore.$hasUserPrimaryOverride) { hasOverride in
             guard hasOverride else { return }
             onboardingStore.markModelSelectionAcknowledged()
@@ -167,6 +172,42 @@ struct ContentView: View {
             try await SampleDocumentManager.shared.importSamples(into: ragService)
         } catch {
             // Screenshot mode should never block the UI if samples fail.
+        }
+    }
+
+    // MARK: - Scene Phase Handling for Transcript Persistence
+
+    /// Handle app lifecycle transitions for transcript persistence.
+    ///
+    /// - Saves transcript when app backgrounds (preserves conversation state)
+    /// - Restores transcript when app returns to foreground (resumes conversation)
+    private func handleScenePhaseChange(from oldPhase: ScenePhase, to newPhase: ScenePhase) {
+        switch newPhase {
+        case .background:
+            // Save the current session transcript before backgrounding
+            // This ensures conversation state is preserved if the app is terminated
+            Task { @MainActor in
+                ragService.saveSessionTranscript()
+                Log.debug("[App] Scene entered background - saved transcript", category: .initialization)
+            }
+
+        case .active:
+            // Restore transcript when returning to foreground
+            // Only restore if coming from background (not on initial launch)
+            if oldPhase == .background {
+                Task { @MainActor in
+                    if ragService.restoreSessionTranscript() {
+                        Log.debug("[App] Scene became active - restored transcript", category: .initialization)
+                    }
+                }
+            }
+
+        case .inactive:
+            // Transitional state - no action needed
+            break
+
+        @unknown default:
+            break
         }
     }
 }

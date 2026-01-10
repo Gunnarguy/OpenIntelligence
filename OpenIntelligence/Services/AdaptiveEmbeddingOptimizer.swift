@@ -181,38 +181,39 @@ actor LibraryIntelligenceCenter {
         multilingualScore: Double
     ) -> ChunkingPlan {
         let window: Int
-        var overlap = 80
+        var overlap = 60 // Base ~17% overlap - reduced from 80 for less redundancy
         var reasons: [String] = []
         var strategy: ChunkingPlan.Strategy = .balanced
 
+        // Optimized: Larger chunks with less overlap = more unique context per retrieval
         if hasCode {
             strategy = .densePrecision
-            window = 220
-            overlap = 110
-            reasons.append("Code detected → tighter windows to preserve syntax context")
+            window = 280 // Increased from 220 for more complete code blocks
+            overlap = 50 // Reduced from 110 (~18% vs 50%)
+            reasons.append("Code detected → balanced windows for syntax + context")
         } else if hasMath {
             strategy = .densePrecision
-            window = 260
-            overlap = 100
-            reasons.append("Mathematical notation benefits from denser chunks")
+            window = 320 // Increased from 260 for complete equations
+            overlap = 55
+            reasons.append("Mathematical notation → larger chunks for complete derivations")
         } else if structuredRatio > 0.35 {
             strategy = .densePrecision
-            window = 240
-            overlap = 90
-            reasons.append("High list/table ratio → keep structures intact")
+            window = 300 // Increased from 240
+            overlap = 55
+            reasons.append("Structured content → larger chunks to keep tables/lists intact")
         } else if multilingualScore > 0.6 {
             strategy = .elastic
-            window = 320
-            overlap = 70
-            reasons.append("Multilingual corpus prefers slightly larger context windows")
+            window = 380 // Increased from 320
+            overlap = 65
+            reasons.append("Multilingual corpus → larger context windows for coherence")
         } else {
-            window = Int(max(220, min(340, avgWords.rounded())))
-            reasons.append("Balanced prose → mirror observed average chunk length")
+            window = Int(max(300, min(420, avgWords.rounded()))) // Raised floor from 220→300
+            reasons.append("Balanced prose → optimized for context efficiency")
         }
 
         if documents.contains(where: { isVisionAsset($0.contentType) }) {
-            reasons.append("OCR assets present → overlap increased to smooth extraction noise")
-            overlap = max(overlap, 120)
+            reasons.append("OCR assets present → slight overlap increase for extraction noise")
+            overlap = max(overlap, 70) // Reduced from 120
         }
 
         return ChunkingPlan(

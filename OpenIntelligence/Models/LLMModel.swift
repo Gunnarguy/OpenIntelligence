@@ -161,9 +161,9 @@ enum ExecutionContext: CaseIterable, Sendable {
         case .onDeviceOnly:
             return "On-Device Only (4K tokens)"
         case .preferCloud:
-            return "Prefer Cloud (65K tokens)"
+            return "Prefer Cloud (Complex queries)"
         case .cloudOnly:
-            return "Cloud Only (65K tokens)"
+            return "Cloud Only (Complex queries)"
         }
     }
 
@@ -184,11 +184,11 @@ enum ExecutionContext: CaseIterable, Sendable {
     var maxContextTokens: Int {
         switch self {
         case .cloudOnly, .preferCloud:
-            return 65536 // PCC supports ~65K tokens
+            return 4096 // Per-session limit applies to PCC too (TN3193)
         case .onDeviceOnly:
             return 4096 // On-device hard limit (TN3193)
         case .automatic:
-            return 65536 // Optimistic - system may fall back to 4K
+            return 4096 // Session context limit is 4K regardless of routing
         }
     }
 }

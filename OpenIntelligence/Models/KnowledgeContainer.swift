@@ -202,9 +202,9 @@ struct RetrievalConfig: Codable, Equatable, Sendable {
 
     /// Default balanced configuration for general use
     static let `default` = RetrievalConfig(
-        minSimilarity: 0.35,
-        vectorWeight: 0.5,
-        lexicalWeight: 0.5,
+        minSimilarity: 0.28, // Lowered from 0.35 to avoid over-filtering technical terms
+        vectorWeight: 0.4, // Slightly favor BM25 for keyword-heavy queries
+        lexicalWeight: 0.6,
         mmrLambda: 0.6,
         minConfidentChunks: 1,
         requireExplicitCitations: false
@@ -230,6 +230,17 @@ struct RetrievalConfig: Codable, Equatable, Sendable {
         requireExplicitCitations: false
     )
 
+    /// Optimized for technical manuals, specifications, and reference documents.
+    /// Heavy keyword weighting to find exact terms (e.g., "oil", "engine", "5W-30").
+    static let technicalManual = RetrievalConfig(
+        minSimilarity: 0.22, // Very low threshold for domain-specific vocabulary
+        vectorWeight: 0.3, // Strongly favor keyword (BM25) matching
+        lexicalWeight: 0.7,
+        mmrLambda: 0.5, // Favor diversity for multi-part answers
+        minConfidentChunks: 1,
+        requireExplicitCitations: false
+    )
+
     /// Migration helper: convert legacy strictMode to RetrievalConfig
     static func migrated(fromStrictMode strictMode: Bool) -> RetrievalConfig {
         if strictMode {
@@ -246,14 +257,97 @@ struct RetrievalConfig: Codable, Equatable, Sendable {
         }
     }
 
+    // MARK: - Content-Aware Config Recommendation
+
+    /// Recommends optimal RetrievalConfig based on document types in the container.
+    /// Call this after ingestion to auto-tune retrieval settings.
+    static func recommended(forDocumentTypes types: [DocumentType]) -> RetrievalConfig {
+        guard !types.isEmpty else { return .default }
+
+        // Count document categories
+        var technicalCount = 0
+        var codeCount = 0
+        var narrativeCount = 0
+
+        for type in types {
+            switch type {
+            case .pdf:
+                // PDFs are often technical manuals, specs, or reports
+                technicalCount += 1
+
+            case .swift, .python, .javascript, .typescript, .java,
+                 .cpp, .c, .objc, .go, .rust, .ruby, .php, .html,
+                 .css, .json, .xml, .yaml, .sql, .shell, .code:
+                // Code files benefit from exact keyword matching
+                codeCount += 1
+
+            case .markdown, .text, .rtf:
+                // Could be narrative or technical, count as balanced
+                narrativeCount += 1
+
+            case .word, .excel, .powerpoint, .pages, .numbers, .keynote:
+                // Office docs are often reports/presentations
+                narrativeCount += 1
+
+            case .image, .png, .jpeg, .heic, .tiff, .gif:
+                // OCR'd images - treat as potentially technical
+                technicalCount += 1
+
+            case .csv:
+                // CSV data files benefit from exact keyword matching
+                technicalCount += 1
+
+            case .unknown:
+                narrativeCount += 1
+            }
+        }
+
+        let total = types.count
+
+        // Determine dominant category
+        if codeCount > total / 2 {
+            // Majority code: use technical manual preset (heavy keyword matching)
+            Log.debug(
+                "[RetrievalConfig] Auto-recommended: technicalManual (code-heavy corpus: \(codeCount)/\(total))",
+                category: .retrieval
+            )
+            return .technicalManual
+        } else if technicalCount > total / 2 {
+            // Majority technical: use technical manual preset
+            Log.debug(
+                "[RetrievalConfig] Auto-recommended: technicalManual (technical corpus: \(technicalCount)/\(total))",
+                category: .retrieval
+            )
+            return .technicalManual
+        } else if narrativeCount > total * 2 / 3 {
+            // Mostly narrative: use default balanced
+            Log.debug(
+                "[RetrievalConfig] Auto-recommended: default (narrative corpus: \(narrativeCount)/\(total))",
+                category: .retrieval
+            )
+            return .default
+        }
+
+        // Mixed content: use default
+        Log.debug(
+            "[RetrievalConfig] Auto-recommended: default (mixed corpus)",
+            category: .retrieval
+        )
+        return .default
+    }
+
     /// Human-readable description of the current configuration
     var summary: String {
         if self == .default {
             return "Balanced"
+        } else if self == .technicalManual {
+            return "Technical Manual"
         } else if minSimilarity >= 0.5 {
             return "High Accuracy"
-        } else if minSimilarity <= 0.28 {
+        } else if minSimilarity <= 0.25 && vectorWeight >= 0.6 {
             return "Exploratory"
+        } else if lexicalWeight >= 0.65 {
+            return "Keyword-Heavy"
         } else {
             return "Custom"
         }

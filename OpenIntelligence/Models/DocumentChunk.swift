@@ -133,6 +133,10 @@ struct Document: Identifiable, Codable {
     let processingMetadata: ProcessingMetadata?
     let containerId: UUID?
 
+    /// Auto-generated content tags from Apple's content tagging model (iOS 26+)
+    /// Contains topics, actions, emotions, and objects extracted from document content
+    let contentTags: [String]?
+
     init(
         id: UUID = UUID(),
         filename: String,
@@ -141,7 +145,8 @@ struct Document: Identifiable, Codable {
         addedAt: Date = Date(),
         totalChunks: Int = 0,
         processingMetadata: ProcessingMetadata? = nil,
-        containerId: UUID? = nil
+        containerId: UUID? = nil,
+        contentTags: [String]? = nil
     ) {
         self.id = id
         self.filename = filename
@@ -151,6 +156,7 @@ struct Document: Identifiable, Codable {
         self.totalChunks = totalChunks
         self.processingMetadata = processingMetadata
         self.containerId = containerId
+        self.contentTags = contentTags
     }
 }
 

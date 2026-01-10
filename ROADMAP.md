@@ -1,7 +1,7 @@
 # OpenIntelligence Roadmap
 
-**Last Updated**: December 2025
-**Version**: 1.0.0
+**Last Updated**: January 2026
+**Version**: 1.1.0
 **Status**: Production (App Store Ready)
 
 ---
@@ -10,21 +10,31 @@
 
 ### Core RAG Pipeline
 - [x] **DocumentProcessor**: Multi-format parsing (PDF, TXT, MD, RTF, CSV, Office docs)
-- [x] **SemanticChunker**: Paragraph-aware chunking (400w/75w overlap)
+- [x] **SemanticChunker**: Paragraph-aware chunking with content-adaptive sizing
+- [x] **Content-Adaptive Chunking**: Different chunk sizes for PDFs (150w), code (200w), narrative (350w)
 - [x] **EmbeddingService**: 512-dim vectors via NLEmbedding
 - [x] **NLContextualEmbeddingProvider**: BERT-like contextual embeddings (iOS 17+) for 15-25% accuracy boost
 - [x] **VectorDatabase**: Protocol with 3 implementations (InMemory, Persistent, Vectura HNSW)
 - [x] **VectorStoreRouter**: Per-container database routing
-- [x] **HybridSearchService**: BM25 + Vector Search fusion
-- [x] **RAGEngine (Actor)**: Background MMR diversification, RRF fusion, BM25 scoring
+- [x] **HybridSearchService**: BM25 + Vector Search fusion with RRF
+- [x] **RAGEngine (Actor)**: Background MMR diversification, RRF fusion, BM25 scoring, Cross-Encoder re-ranking
+
+### Advanced Retrieval (Jan 2026)
+- [x] **Query Intent Classification**: Classifies queries as keyword/conceptual/balanced
+- [x] **Per-Query Weight Tuning**: Dynamic vector/keyword weights based on query intent
+- [x] **Content-Type Auto-Tuning**: Auto-select RetrievalConfig based on document types
+- [x] **Corpus-Aware Query Expansion**: Expands queries using actual document vocabulary with garbage filtering
+- [x] **Lost-in-Middle Mitigation**: Reorders context chunks so best are at start AND end (Liu et al. 2023)
+- [x] **Cross-Encoder Re-ranking**: BERT-based reranker with heuristic fallback
 
 ### LLM Integrations
 - [x] **AppleFoundationLLMService**: iOS 26 Foundation Models with PCC fallback
 - [x] **Agentic Tool Calling**: @Generable + Tool protocol for SearchDocumentsTool, ListDocumentsTool, GetDocumentSummaryTool
 - [x] **@Generable Structured Responses**: RAGAnswer, RAGSearchResults, RAGDocumentSummary types
 - [x] **OnDeviceAnalysisService**: Extractive QA fallback (always available)
-- [x] **OpenAIResponsesAPIService**: GPT-5 Responses API integration
-- [x] **Local Model Removal**: Removed GGUF/CoreML/MLX downloadable models (Dec 2025)
+- [x] **Cloud LLM Removal (Dec 2025)**: Removed OpenAI/GPT-5 direct API integration
+  *Note*: OpenAIResponsesAPIService.swift remains as `#if false` dead code for reference only.
+- [x] **Local Model Removal (Dec 2025)**: Removed GGUF/CoreML/MLX downloadable models
   *Note*: App now uses Apple Intelligence + On-Device Analysis only. Simplifies maintenance and reduces binary size.
 - [x] **Apple FM API Audit (Dec 2025)**: Full FoundationModels framework compliance
   - `prewarm(promptPrefix:)` for latency optimization
@@ -33,7 +43,7 @@
   - `Transcript` access for debugging/replay
   - `LanguageModelFeedback` integration (thumbs up/down in chat UI)
   - Context window corrected to 4,096 tokens per TN3193
-  - Tool `@Guide` with `.range()` constraints
+  - Tool `@Guide` with `.range()` and `.maximumCount()` constraints
 
 ### Agentic Tooling
 - [x] **12+ @Tool Functions**: Autonomous search, summarization, analysis
@@ -67,6 +77,15 @@
 - [x] **KnowledgeContainer**: Multi-container document isolation
 - [x] **ContainerService**: CRUD for knowledge containers
 
+### Apple FM APIs Now Integrated
+*These FoundationModels framework features have been fully integrated:*
+- [x] **Content Tagging Model**: `SystemLanguageModel(useCase: .contentTagging)` for auto-labeling documents
+  *Implemented*: ContentTaggingService auto-generates topic/action/emotion/object tags during document ingestion; displayed in DocumentCard and DocumentDetailsView with pill UI
+- [x] **Transcript Rehydration**: `LanguageModelSession(transcript:)` for session persistence
+  *Implemented*: TranscriptPersistenceService saves/restores transcripts on app background/foreground and container switch; enables conversation continuity across app launches
+- [x] **isResponding Property**: Real-time generation state tracking
+  *Implemented*: `session.isResponding` exposed via RAGService.isLLMResponding; UnifiedMetricsBar shows pulsing indicator during active generation
+
 ---
 
 ## 2. Technical Debt (The Cracks)
@@ -98,6 +117,10 @@
 - [x] **Vendor LocalLLMClient**: Removed from project (Dec 2025)
   *Status*: Package removed entirely - no longer needed
 
+- [ ] **Dead Code Cleanup**: Remove `#if false` wrapped files
+  *Files*: `OpenAIResponsesAPIService.swift`, `LocalOpenAIServerLLMService.swift`
+  *Impact*: Reduces cognitive load and project clutter
+
 ---
 
 ## 3. Project: Silicon-Native Intelligence (Q1 2026)
@@ -128,9 +151,88 @@
 ## 4. Future Trajectory
 
 ### Phase 2.0 — Intelligence Layer
+- [x] **Query Clarification**: Lightweight pronoun resolution and follow-up handling
+  *Location*: [QueryRewriterService.swift](OpenIntelligence/Services/QueryRewriterService.swift)
+  *Status*: Implemented - Only intervenes for genuine ambiguity (pronouns, follow-ups)
+- [x] **Corpus-Aware Query Expansion**: Expands queries using actual document vocabulary
+  *Location*: [QueryEnhancementService.swift](OpenIntelligence/Services/QueryEnhancementService.swift)
+  *Status*: Implemented - Builds co-occurrence maps from chunk keywords, filters garbage terms
+- [x] **Query Intent Classification**: Detects keyword-heavy vs conceptual queries
+  *Location*: [QueryEnhancementService.swift](OpenIntelligence/Services/QueryEnhancementService.swift)
+  *Status*: Implemented - `classifyIntent()` with `QueryIntent` enum for dynamic weight tuning
+- [x] **Iterative Retrieval**: Multi-pass retrieve → assess → refine → retrieve more
+  *Location*: [IterativeRetrievalService.swift](OpenIntelligence/Services/IterativeRetrievalService.swift)
+  *Status*: Implemented - Full RAGService integration with configurable passes via settings
+- [x] **Intelligence Layer Settings UI**: Toggles for Query Understanding and Multi-Pass Retrieval
+  *Location*: [SettingsView.swift](OpenIntelligence/Views/Settings/SettingsView.swift)
+  *Status*: Implemented - New Intelligence Layer card with user-facing toggles
+- [x] **Context Window Fix (TN3193 Compliance)**: Fixed 65K → 4096 token budget
+  *Location*: [RAGService.swift](OpenIntelligence/Services/RAGService.swift)
+  *Status*: Implemented - baseWindowTokens=4096, maxContextCharsCap=5000 for Apple FM
+- [x] **RAGEngine Singleton**: Prevents ReRanker model loading 4x per query
+  *Location*: [RAGEngine.swift](OpenIntelligence/Services/RAGEngine.swift)
+  *Status*: Implemented - `RAGEngine.shared` singleton with `isSetupComplete` guard
+- [x] **Lost-in-Middle Mitigation**: Context reordering for LLM attention patterns
+  *Location*: [RAGEngine.swift](OpenIntelligence/Services/RAGEngine.swift)
+  *Status*: Implemented - `applyLostInMiddleReordering()` places best chunks at start AND end
+- [x] **Content-Adaptive Chunking**: Document-type-specific chunk sizes
+  *Location*: [SemanticChunker.swift](OpenIntelligence/Services/SemanticChunker.swift)
+  *Status*: Implemented - `ChunkingConfig.recommended(for:)` with PDF/code/narrative presets
+- [ ] **Multi-Session Chaining**: Agentic RAG chains multiple 4096-token sessions for complex queries
+  *Design*: Model uses tools (SearchDocumentsTool, etc.) to navigate across multiple sessions
 - [ ] **Query Planning Agent**: Multi-step reasoning over large document sets
 - [ ] **Cross-Container Search**: Unified retrieval across multiple containers
 - [ ] **Conversation Memory**: Persistent chat context with summarization
+
+### Phase 2.5 — God Mode RAG (Advanced)
+*State-of-the-art RAG techniques from 2024-2026 research. These would push the system from 7.5/10 to 10/10.*
+
+#### Retrieval Enhancements
+- [ ] **HyDE (Hypothetical Document Embeddings)**: Generate hypothetical answer, embed that for retrieval
+  *Paper*: Gao et al. 2022 - "Precise Zero-Shot Dense Retrieval without Relevance Labels"
+  *Benefit*: 15-20% recall improvement for complex queries
+  *Complexity*: Medium (requires LLM call before search)
+
+- [ ] **Parent Document Retrieval**: Store full documents, retrieve child chunks but return surrounding context
+  *Benefit*: Maintains coherence for multi-paragraph answers
+  *Complexity*: Medium (schema change for parent-child relationships)
+
+- [ ] **Late Chunking**: Embed entire document first, then segment embeddings post-hoc
+  *Paper*: "Late Chunking" (2024) - embeddings computed before chunking preserve more context
+  *Benefit*: Better embedding quality for chunk boundaries
+  *Complexity*: High (architecture change to embedding pipeline)
+
+- [ ] **Contextual Compression**: LLM-filter irrelevant sentences from retrieved chunks before generation
+  *Benefit*: Maximizes signal-to-noise in context window
+  *Complexity*: Medium (adds latency, but improves quality)
+
+#### Advanced Reasoning
+- [ ] **Self-RAG**: Model decides when to retrieve, what to retrieve, and self-critiques answers
+  *Paper*: Asai et al. 2023 - "Self-RAG: Learning to Retrieve, Generate, and Critique"
+  *Benefit*: Adaptive retrieval (only retrieves when needed)
+  *Complexity*: High (requires fine-tuned model or complex prompting)
+
+- [ ] **Speculative RAG**: Generate multiple candidate answers, verify each against documents
+  *Benefit*: Catches hallucinations through multi-path verification
+  *Complexity*: High (3-5x compute cost)
+
+- [ ] **RAPTOR**: Hierarchical summarization tree for multi-level retrieval
+  *Paper*: Sarthi et al. 2024 - "RAPTOR: Recursive Abstractive Processing for Tree-Organized Retrieval"
+  *Benefit*: Enables both detail and summary retrieval in one query
+  *Complexity*: High (requires pre-computed summary tree)
+
+#### Learning & Adaptation
+- [ ] **Active Learning Feedback Loop**: System improves from user corrections and thumbs up/down
+  *Benefit*: Retrieval quality improves over time
+  *Complexity*: Medium (need feedback storage and retraining pipeline)
+
+- [ ] **Per-Query Learned Fusion Weights**: Train small model to predict optimal vector/BM25 blend
+  *Benefit*: Replaces heuristic intent classification with learned weights
+  *Complexity*: High (requires training data collection)
+
+- [ ] **Query Routing**: Route queries to specialized indices based on detected domain
+  *Benefit*: Medical queries → medical-optimized index, legal → legal index
+  *Complexity*: Medium (requires domain classification and multiple indices)
 
 ### Phase 2.1 — Model Ecosystem
 - [x] **Model Marketplace**: Removed - app focuses on Apple Intelligence + PCC
@@ -181,6 +283,9 @@
 | Entitlement Store Cleanup | ✅ Done | Agent | Removed dead "Local Model Preview" code and restored truncated methods |
 | Document Upload Progress UI | ✅ Done | Agent | Added per-file progress toast for multi-document uploads |
 | Remove Dead Code | ✅ Done | Agent | Deleted InstalledModel.swift and LocalComputePreference.swift |
+| Intelligence Layer (v2.0) | ✅ Done | Agent | QueryRewriterService, IterativeRetrievalService, CorpusVocabulary expansion, settings UI toggles, full RAGService integration |
+| Context Window TN3193 Fix | ✅ Done | Agent | Fixed baseWindowTokens 65536→4096, maxContextCharsCap 65000→5000 for Apple FM 4096-token limit |
+| RAGEngine Singleton Pattern | ✅ Done | Agent | Added RAGEngine.shared to prevent ReRanker loading 4x per query; updated all callsites |
 
 ---
 

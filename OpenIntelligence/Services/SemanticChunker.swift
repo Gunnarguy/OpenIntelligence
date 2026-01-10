@@ -90,12 +90,78 @@ class SemanticChunker {
     }
 
     struct ChunkingConfig {
-        var targetSize: Int = 250 // Balanced size for coherent thoughts
-        var minSize: Int = 100 // Prevent tiny, useless fragments
-        var maxSize: Int = 400 // Allow expansion for long paragraphs
-        var overlap: Int = 50 // Minimal overlap needed if semantic boundaries are respected
+        var targetSize: Int = 350 // Larger chunks for better coherence and context efficiency
+        var minSize: Int = 120 // Prevent tiny, useless fragments
+        var maxSize: Int = 550 // Allow expansion for complete thoughts
+        var overlap: Int = 60 // ~17% overlap - enough for continuity without redundancy
         var useTopicDetection: Bool = true
         var preserveStructure: Bool = true
+
+        // MARK: - Content-Adaptive Presets
+
+        /// For technical manuals, specs, reference docs - balanced for lookup AND context
+        /// Increased from 150→280w to pack more info per chunk while staying retrievable
+        static let technicalReference = ChunkingConfig(
+            targetSize: 280,
+            minSize: 100,
+            maxSize: 450,
+            overlap: 50, // ~18% overlap
+            useTopicDetection: true,
+            preserveStructure: true
+        )
+
+        /// For narrative content (books, articles, reports - longer chunks for coherence)
+        static let narrative = ChunkingConfig(
+            targetSize: 400,
+            minSize: 150,
+            maxSize: 600,
+            overlap: 70, // ~17% overlap
+            useTopicDetection: true,
+            preserveStructure: true
+        )
+
+        /// For code files (preserve function/class boundaries)
+        static let code = ChunkingConfig(
+            targetSize: 250,
+            minSize: 60,
+            maxSize: 500,
+            overlap: 40, // ~16% overlap - less redundancy for code
+            useTopicDetection: false, // Code doesn't have natural topics like prose
+            preserveStructure: true
+        )
+
+        /// Recommends optimal chunking config based on document type
+        static func recommended(for documentType: DocumentType) -> ChunkingConfig {
+            switch documentType {
+            case .pdf:
+                // PDFs benefit from larger chunks for complete sections
+                return .technicalReference
+
+            case .swift, .python, .javascript, .typescript, .java,
+                 .cpp, .c, .objc, .go, .rust, .ruby, .php, .html,
+                 .css, .json, .xml, .yaml, .sql, .shell, .code:
+                return .code
+
+            case .markdown, .text, .rtf:
+                // Could be either - use balanced default
+                return ChunkingConfig()
+
+            case .word, .excel, .powerpoint, .pages, .numbers, .keynote:
+                // Office docs are usually longer-form
+                return .narrative
+
+            case .image, .png, .jpeg, .heic, .tiff, .gif:
+                // OCR'd images - use technical preset (often scanned manuals)
+                return .technicalReference
+
+            case .csv:
+                // Data files - small chunks
+                return .technicalReference
+
+            case .unknown:
+                return ChunkingConfig()
+            }
+        }
     }
 
     struct EnhancedChunk {
@@ -502,6 +568,7 @@ class SemanticChunker {
     }
 
     /// Extract top keywords using TF-IDF approximation
+    /// Also extracts capitalized multi-word phrases (e.g., "Record Button", "Note Recording")
     private func extractKeywords(_ text: String, topN: Int) -> [String] {
         // Prefer lemma-based counting to normalize inflections
         let tagger = NLTagger(tagSchemes: [.lemma, .lexicalClass, .language])
@@ -527,8 +594,25 @@ class SemanticChunker {
             return true
         }
 
+        // Also extract capitalized multi-word phrases (domain-specific terms)
+        // e.g., "Record Button", "Note Recording Mode", "Recording Mode Switch"
+        let phrasePattern = #"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b"#
+        if let regex = try? NSRegularExpression(pattern: phrasePattern, options: []) {
+            let nsRange = NSRange(text.startIndex..., in: text)
+            let matches = regex.matches(in: text, options: [], range: nsRange)
+            for match in matches {
+                if let range = Range(match.range, in: text) {
+                    let phrase = String(text[range]).lowercased()
+                    if phrase.count > 5, phrase.count < 40 {
+                        counts[phrase, default: 0] += 2 // Boost multi-word phrases
+                    }
+                }
+            }
+        }
+
+        // Return more keywords for richer corpus vocabulary (up to 2x requested)
         return counts.sorted { $0.value > $1.value }
-            .prefix(topN)
+.prefix(topN * 2)
             .map { $0.key }
     }
 

@@ -91,13 +91,15 @@ struct ChatScreen: View {
     @AppStorage("llmRepetitionPenalty") private var repetitionPenalty: Double = 1.0
     @AppStorage("llmSystemPrompt") private var systemPrompt: String = "You are a helpful assistant."
     @AppStorage("llmContextLength") private var contextLength: Int = 2048
+
+    /// Context window limit shown in UI - reflects session constraints
+    /// Apple's LanguageModelSession accumulates context within a query (input + response + continuations)
+    /// This limit is 4,096 tokens regardless of PCC routing. PCC's 65K limit is for initial input only.
     private var maxContextTokensForUI: Int {
-        let wantsCloud =
-            requestedExecutionContext == .preferCloud || requestedExecutionContext == .cloudOnly
-        if networkMonitor.isConnected && wantsCloud {
-            return 65_536
-        }
-        return execution == .privateCloudCompute ? 65_536 : 4_096
+        // Session-level context window is 4,096 tokens for accumulated state
+        // Even when routed to PCC, the session object tracks this limit
+        // Show 4K as the practical limit to avoid misleading users
+        return 4096
     }
 
     var body: some View {
@@ -122,6 +124,7 @@ struct ChatScreen: View {
                         execution: metricsData.execution,
                         isProcessing: isProcessing,
                         qualityMode: settings.ragQualityMode,
+                        isLLMActivelyGenerating: ragService.isLLMResponding,
                         contextTokens: estimatedContextTokens,
                         maxContextTokens: maxContextTokensForUI,
                         tokensGenerated: metricsData.tokens,
@@ -151,6 +154,7 @@ struct ChatScreen: View {
                         execution: execution,
                         isProcessing: isProcessing,
                         qualityMode: settings.ragQualityMode,
+                        isLLMActivelyGenerating: ragService.isLLMResponding,
                         contextTokens: estimatedContextTokens,
                         maxContextTokens: maxContextTokensForUI,
                         tokensGenerated: 0,
@@ -439,19 +443,32 @@ struct ChatScreen: View {
         return nil
     }
 
-    /// Estimated context tokens based on retrieved chunks and current query
+    /// Estimated context tokens based on retrieved chunks, conversation history, and current query
     /// Used by UnifiedMetricsBar to show context window usage
     private var estimatedContextTokens: Int {
         let charsPerToken = 2.5
         func estimateTokens(_ chars: Int) -> Int {
             max(1, Int(ceil(Double(chars) / charsPerToken)))
         }
+
         // Estimate from retrieved chunks (conservative for on-device)
         let chunksTokens = currentRetrievedChunks.reduce(0) { acc, chunk in
             acc + estimateTokens(chunk.chunk.content.count)
         }
 
-        // Current prompt length (chat history is not injected into Apple FM prompt)
+        // Conversation history (last 4 turns, 300 chars each max - mirrors RAGService injection)
+        // RAGService injects: "PREVIOUS CONVERSATION:\nUser: ...\nAssistant: ...\n\nCURRENT QUESTION: "
+        let historyMessages = messages
+            .filter { $0.role != .system }
+            .suffix(4) // Last 4 turns (2 user + 2 assistant typically)
+        let historyTokens = historyMessages.reduce(0) { acc, msg in
+            let truncatedLength = min(msg.content.count, 300)
+            return acc + estimateTokens(truncatedLength + 15) // +15 for "User: " or "Assistant: " prefix
+        }
+
+        let historyFramingTokens = historyMessages.isEmpty ? 0 : 30 // "PREVIOUS CONVERSATION:\n" + "\nCURRENT QUESTION: "
+
+        // Current prompt length
         let lastUserTokens = estimateTokens(
             messages.last(where: { $0.role == .user })?.content.count ?? 0
         )
@@ -464,7 +481,7 @@ struct ChatScreen: View {
 
         return min(
             maxContextTokensForUI,
-            chunksTokens + lastUserTokens + systemTokens + templateOverheadTokens
+            chunksTokens + historyTokens + historyFramingTokens + lastUserTokens + systemTokens + templateOverheadTokens
         )
     }
 

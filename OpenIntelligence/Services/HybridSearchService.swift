@@ -131,7 +131,7 @@ extension BM25Scorer {
 class HybridSearchService {
     private let vectorDatabase: VectorDatabase
     private let bm25Scorer = BM25Scorer()
-    private let engine = RAGEngine()
+    private var engine: RAGEngine { RAGEngine.shared }
 
     // Fusion weights (can be tuned)
     private let vectorWeight: Float
@@ -157,7 +157,12 @@ class HybridSearchService {
     }
 
     /// Perform hybrid search with reciprocal rank fusion
-    func search(query: String, embedding: [Float], topK: Int) async throws -> [RetrievedChunk] {
+    /// - Parameters:
+    ///   - query: The search query string
+    ///   - embedding: Query embedding vector
+    ///   - topK: Number of top results to return
+    ///   - cachedChunks: Optional pre-fetched chunks to avoid re-loading allChunks() for lexical recall
+    func search(query: String, embedding: [Float], topK: Int, cachedChunks: [DocumentChunk]? = nil) async throws -> [RetrievedChunk] { 
         Log.debug("Hybrid search starting (vector: \(vectorWeight), keyword: \(keywordWeight))", category: .pipeline)
 
         // 1. Vector search - retrieve more candidates for better coverage
@@ -170,7 +175,8 @@ class HybridSearchService {
             let lexicalCandidates = try await lexicalRecallCandidates(
                 query: query,
                 embedding: embedding,
-                maxCandidates: maxRecall
+                maxCandidates: maxRecall,
+                cachedChunks: cachedChunks
             )
             if !lexicalCandidates.isEmpty {
                 let existing = Set(candidatePool.map { $0.chunk.id })
@@ -233,7 +239,8 @@ class HybridSearchService {
     private func lexicalRecallCandidates(
         query: String,
         embedding: [Float],
-        maxCandidates: Int
+        maxCandidates: Int,
+        cachedChunks: [DocumentChunk]? = nil
     ) async throws -> [RetrievedChunk] {
         let queryTerms = tokenize(query).filter { $0.count > 2 }
         guard !queryTerms.isEmpty, maxCandidates > 0 else { return [] }
@@ -243,7 +250,14 @@ class HybridSearchService {
         let requiresDigits = !digitTerms.isEmpty
         let queryNorm = computeNorm(embedding)
 
-        let allChunks = try await vectorDatabase.allChunks()
+        // Use cached chunks if provided, otherwise fetch (avoids repeated allChunks calls)
+        let allChunks: [DocumentChunk]
+        if let cached = cachedChunks {
+            allChunks = cached
+            Log.debug("Lexical recall using cached chunks (\(cached.count))", category: .pipeline)
+        } else {
+            allChunks = try await vectorDatabase.allChunks()
+        }
         guard !allChunks.isEmpty else { return [] }
 
         var results: [RetrievedChunk] = []

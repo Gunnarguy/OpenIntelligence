@@ -9,14 +9,54 @@
 //
 
 import Foundation
+import UIKit
 
 /// Routes vector database access per container with type and dimension awareness.
 /// MainActor-isolated since VectorDatabase implementations are also MainActor.
 @MainActor
 final class VectorStoreRouter {
     private var stores: [UUID: VectorDatabase] = [:]
+    private var memoryWarningObserver: NSObjectProtocol?
 
-    init() {}
+    /// Track which container is currently active to preserve it during memory pressure
+    var activeContainerId: UUID?
+
+    init() {
+        setupMemoryWarningObserver()
+    }
+
+    deinit {
+        if let observer = memoryWarningObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
+    }
+
+    /// Listens for memory warnings and evicts non-active container caches
+    private func setupMemoryWarningObserver() {
+        memoryWarningObserver = NotificationCenter.default.addObserver(
+            forName: UIApplication.didReceiveMemoryWarningNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let strongSelf = self else { return }
+            // Dispatch directly on MainActor since we're already on .main queue
+            MainActor.assumeIsolated {
+                strongSelf.handleMemoryPressure()
+            }
+        }
+    }
+
+    /// Evict non-active container stores to free memory
+    /// Persistent stores will be reloaded on next access
+    private func handleMemoryPressure() {
+        let evictableIds = stores.keys.filter { $0 != activeContainerId }
+        if evictableIds.isEmpty { return }
+
+        Log.warning("[VectorStoreRouter] Memory pressure - evicting \(evictableIds.count) inactive container stores", category: .vectorDB)
+        for id in evictableIds {
+            stores.removeValue(forKey: id)
+        }
+    }
 
     /// Get or create a VectorDatabase for the specified container.
     /// Routes based on container's vectorDBKind and dimension.

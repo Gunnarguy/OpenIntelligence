@@ -408,7 +408,7 @@ Text(label)
                     pccBenefitRow(icon: "checkmark.shield.fill", text: "End-to-end encrypted, no data retention", color: .green)
                     pccBenefitRow(icon: "eye.slash.fill", text: "Apple cannot see your prompts or responses", color: .green)
                     pccBenefitRow(icon: "doc.viewfinder", text: "Cryptographically verifiable by security researchers", color: .green)
-                    pccBenefitRow(icon: "brain", text: "Long-context support (~65K tokens)", color: .blue)
+                    pccBenefitRow(icon: "brain", text: "Handles complex reasoning tasks", color: .blue)
                 }
                 .padding(.leading, 4)
                     .padding(.top, 4)
@@ -494,13 +494,13 @@ Text(label)
                         .font(.subheadline.weight(.medium))
                 }
 
-                Text("On-device context is capped at 4,096 tokens. When PCC is allowed, OpenIntelligence prefers long-context routing (~65K) for library queries to maximize coverage.")
+                Text("Apple Foundation Models use a 4,096-token context window. Private Cloud Compute handles complex queries that benefit from server-side processing power.")
                     .font(.caption)
                     .foregroundColor(.secondary)
 
                 HStack(spacing: 12) {
                     contextInfoPill(icon: "iphone", label: "On-Device", value: "4K tokens")
-                    contextInfoPill(icon: "cloud", label: "PCC Server", value: "65K tokens")
+                    contextInfoPill(icon: "cloud", label: "PCC", value: "Complex queries")
                 }
             }
 .padding(10)
@@ -644,22 +644,99 @@ VStack(alignment: .leading, spacing: 8) {
 
     @ViewBuilder
     private var retrievalCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 16) { 
             HStack {
-                Image(systemName: "magnifyingglass")
+                Image(systemName: "sparkles.rectangle.stack")
                     .foregroundColor(.accentColor)
-                Text("Balanced Retrieval")
+                Text("Intelligence Layer")
                     .font(.headline)
                 Spacer()
             }
 
-            Text("Balanced retrieval favors coverage and relevance without hard gating that blocks answers.")
+            Text("Advanced RAG features that improve query understanding and answer accuracy.")
                 .font(.caption)
                 .foregroundColor(.secondary)
+
+            Divider()
+
+            // Query Rewriting Toggle
+            VStack(alignment: .leading, spacing: 8) {
+                Toggle(isOn: $settings.enableQueryRewriting) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Query Understanding")
+                            .font(.subheadline.weight(.medium))
+                        Text("Rewrites vague queries into specific domain language")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .tint(.accentColor)
+
+                if settings.enableQueryRewriting {
+                    HStack(spacing: 4) {
+                        Image(systemName: "lightbulb.fill")
+                            .font(.caption2)
+                            .foregroundColor(.yellow)
+                        Text("\"press this button\" → \"Record Button functions on PLAUD NOTE\"")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .italic()
+                    }
+                    .padding(.leading, 4)
+                }
+            }
+
+            Divider()
+
+            // Iterative Retrieval Toggle
+            VStack(alignment: .leading, spacing: 8) {
+                Toggle(isOn: $settings.enableIterativeRetrieval) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Multi-Pass Retrieval")
+                            .font(.subheadline.weight(.medium))
+                        Text("Retrieve, assess, refine, and retrieve more until confident")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .tint(.accentColor)
+
+                if settings.enableIterativeRetrieval {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .font(.caption2)
+                            .foregroundColor(.blue)
+                        Text("Up to \(settings.ragQualityMode.maxRetrievalIterations) iterations • May increase response time")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.leading, 4)
+                }
+            }
+
+            Divider()
+
+            // Corpus-Aware Expansion (always on, informational)
+            HStack(spacing: 8) {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(.green)
+                    .font(.caption)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Corpus-Aware Expansion")
+                        .font(.caption.weight(.medium))
+                    Text("Expands queries using your document vocabulary")
+                        .font(.caption2)
+.foregroundColor(.secondary)
+                }
+                Spacer()
+                Text("Always On")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
         }
         .padding()
-            .background(DSColors.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
+.background(DSColors.surface)
+    .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
     // MARK: - Developer Card

@@ -21,6 +21,12 @@ struct UnifiedMetricsBar: View {
     let isProcessing: Bool
     let qualityMode: RAGQualityMode
 
+    /// Whether the LLM is actively generating tokens right now.
+    /// This comes from Apple's `session.isResponding` and provides more accurate
+    /// real-time feedback than the app's manual `isProcessing` state.
+    /// When `true`, shows a pulsing indicator to signal active generation.
+    var isLLMActivelyGenerating: Bool = false
+
     // Context metrics
     let contextTokens: Int
     let maxContextTokens: Int
@@ -126,9 +132,8 @@ struct UnifiedMetricsBar: View {
                     stageBadge
                 }
 
-                if pccActive {
-                    pccActiveBadge
-                }
+                // Note: executionBadge already shows "PCC" when pccActive
+                // Don't add duplicate pccActiveBadge
 
                 if cloudFallbackActive {
                     cloudFallbackBadge
@@ -259,6 +264,20 @@ struct UnifiedMetricsBar: View {
 
     private var stageBadge: some View {
         HStack(spacing: 3) {
+            // Pulsing dot when LLM is actively generating (from session.isResponding)
+            if isLLMActivelyGenerating, stage == .generating {
+                Circle()
+                    .fill(Color.green)
+                    .frame(width: 6, height: 6)
+                    .scaleEffect(pulsePhase == 1 ? 1.3 : 0.8)
+                    .opacity(pulsePhase == 1 ? 1.0 : 0.6)
+                    .animation(
+                        .easeInOut(duration: 0.6).repeatForever(autoreverses: true),
+                        value: pulsePhase
+                    )
+                    .onAppear { pulsePhase = 1 }
+            }
+
             Image(systemName: stage.icon)
                 .font(.system(size: 9, weight: .medium))
             Text(stage.description)
@@ -349,19 +368,7 @@ struct UnifiedMetricsBar: View {
         .clipShape(Capsule())
     }
 
-    private var pccActiveBadge: some View {
-        HStack(spacing: 3) {
-            Image(systemName: "cloud.fill")
-                .font(.system(size: 8, weight: .semibold))
-            Text("PCC")
-                .font(.system(size: 9, weight: .semibold, design: .monospaced))
-        }
-        .foregroundStyle(.blue)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 4)
-        .background(Color.blue.opacity(0.12))
-        .clipShape(Capsule())
-    }
+    // pccActiveBadge removed - executionBadge already shows "PCC" when active
 
     private var cloudFallbackBadge: some View {
         HStack(spacing: 3) {
@@ -519,9 +526,9 @@ struct UnifiedMetricsBar: View {
     private var cloudStatusBanner: some View {
         let (icon, text, tint): (String, String, Color) = {
             if pccActive {
-                return ("cloud.fill", "PCC active • long-context MoE routing enabled", .blue)
+                return ("cloud.fill", "Private Cloud Compute active", .blue)
             }
-            return ("cloud.slash", "PCC unavailable • running on-device", .orange)
+            return ("iphone", "Processing on-device", .green)
         }()
 
         return HStack(spacing: 8) {
@@ -603,13 +610,13 @@ struct UnifiedMetricsBar: View {
     private var routingTitle: String {
         switch execution {
         case .unknown:
-            return wantsCloud ? "Requesting PCC..." : "Selecting best route..."
+            return wantsCloud ? "Requesting PCC..." : "Selecting route..."
         case .onDevice:
-            return "On-device 3B (expert specialists)"
+            return "On-Device (3B model)"
         case .privateCloudCompute:
-            return "PCC PT-MoE (long-context)"
+            return "Private Cloud Compute"
         case .mlxLocal:
-            return "Local MLX route"
+            return "Local MLX"
         }
     }
 
@@ -617,14 +624,14 @@ struct UnifiedMetricsBar: View {
         switch execution {
         case .unknown:
             return wantsCloud
-                ? "Waiting for PCC routing confirmation."
-                : "Waiting for the first token to infer routing."
+                ? "Connecting to Private Cloud Compute...":
+                    "Determining optimal processing location."
         case .onDevice:
-            return "Local experts handle the prompt with zero network calls."
+            return "Running locally on Neural Engine. No network required."
         case .privateCloudCompute:
-            return "Attested PCC uses PT-MoE for complex or long-context prompts."
+            return "Encrypted processing on Apple's attested servers."
         case .mlxLocal:
-            return "Local MLX model handles the generation path."
+            return "Local MLX model processing."
         }
     }
 
@@ -665,29 +672,30 @@ struct UnifiedMetricsBar: View {
     }
 
     private var contextExplanation: String {
-        let limitNote: String
-        if execution == .privateCloudCompute || wantsCloud {
-            limitNote = "PCC can expand context up to ~65K tokens."
-        } else {
-            limitNote = "On-device limit is 4,096 tokens."
-        }
+        // Session context limit is 4,096 tokens regardless of PCC routing
+        // PCC extends input capacity but session accumulation is still limited
         if contextUsageRatio > 0.85 {
-            return "Near context limit. \(limitNote)"
+            return "Near session limit (4,096 tokens)."
         } else if contextUsageRatio > 0.65 {
-            return "Good context usage. \(limitNote)"
+            return "Good context usage. Session limit 4K."
         } else {
-            return "Plenty of context space available. \(limitNote)"
+            return "Plenty of headroom. Session limit 4K."
         }
     }
 
     private var architectureNote: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "cpu")
-                .font(.system(size: 12))
-                .foregroundStyle(.purple)
-
-            Text("On-device 3B model runs locally; complex prompts route to PCC PT-MoE automatically.")
-                .font(.system(size: 11))
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Image(systemName: "cpu")
+.font(.system(size: 11))
+    .foregroundStyle(.purple)
+                Text("Apple Intelligence")
+                    .font(.system(size: 11, weight: .medium))
+            }
+            Text(execution == .privateCloudCompute
+                ? "Routed to Private Cloud Compute servers."
+                : "On-device 3B model. Complex queries may route to PCC.")
+                .font(.system(size: 10))
                 .foregroundStyle(.secondary)
         }
         .padding(10)

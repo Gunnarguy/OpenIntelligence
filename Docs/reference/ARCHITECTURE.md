@@ -1,7 +1,7 @@
 # OpenIntelligence Technical Architecture
 
-**Version**: 2.0
-**Date**: October 2025
+**Version**: 2.1
+**Date**: January 2026
 **Status**: Production-Ready
 
 ## Executive Summary
@@ -15,7 +15,8 @@ OpenIntelligence is a native iOS 26 application implementing a complete Retrieva
 1. **Privacy-First**: On-device processing by default, optional Private Cloud Compute with zero retention
 2. **Protocol-Oriented**: Modular design enables swapping implementations without changing business logic
 3. **Async/Await**: Modern Swift concurrency throughout
-4. **Simple**: 10 core files implement complete functionality
+4. **Adaptive Retrieval**: Query-intent-aware weight tuning and content-type-optimized configurations
+5. **Simple**: 10 core files implement complete functionality
 
 ## System Architecture
 
@@ -61,8 +62,8 @@ User Document Input
          │
          ▼
 ┌─────────────────┐
-│ Chunk Documents │  ← Semantic splitting
-│  (400w/50w)     │    with overlap
+│ Chunk Documents │  ← Content-adaptive chunking
+│  (150-400w)     │    ChunkingConfig.recommended()
 └────────┬────────┘
          │
          ▼
@@ -78,19 +79,60 @@ User Document Input
 └────────┬────────┘
          │
          ▼
+┌─────────────────┐
+│ Auto-Tune       │  ← RetrievalConfig.recommended()
+│ Container       │    Based on document types
+└─────────────────┘
+         │
+         ▼
     [Ready for Queries]
 
 User Query Input
       │
       ▼
 ┌─────────────────┐
-│ Embed Query     │  ← Same embedding model
+│ Classify Query  │  ← QueryIntent detection
+│ Intent          │    (keyword/conceptual/balanced)
 └────────┬────────┘
          │
          ▼
 ┌─────────────────┐
-│ Vector Search   │  ← k-NN with cosine
-│  (Top-K: 3-10)  │    similarity
+│ Adjust Search   │  ← Dynamic vector/keyword weights
+│ Weights         │    per-query ±15%
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ Embed Query     │  ← Same embedding model
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────────────────┐
+│ Hybrid Search               │
+│ ┌─────────┐ ┌─────────────┐ │
+│ │ Vector  │ │   BM25      │ │  ← Dual retrieval paths
+│ │ k-NN    │ │ Keyword     │ │
+│ └────┬────┘ └──────┬──────┘ │
+│      └──────┬──────┘        │
+│             ▼               │
+│      RRF Fusion             │  ← Reciprocal Rank Fusion
+└─────────────┬───────────────┘
+              │
+              ▼
+┌─────────────────┐
+│ Cross-Encoder   │  ← ReRankerModel.mlpackage
+│ Rerank          │    Neural relevance scoring
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ MMR Diversity   │  ← λ=0.6 diversity/relevance
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ Lost-in-Middle  │  ← Reorder for LLM attention
+│ Mitigation      │    Best chunks at start AND end
 └────────┬────────┘
          │
          ▼
@@ -101,7 +143,7 @@ User Query Input
          │
          ▼
 ┌─────────────────┐
-│ LLM Generation  │  ← Apple FM / OpenAI /
+│ LLM Generation  │  ← Apple FM (PCC) /
 │                 │    On-device fallback
 └────────┬────────┘
          │
@@ -123,12 +165,19 @@ User Query Input
 - Multi-format support: PDF, text, Markdown, RTF, code, CSV, Office docs
 - PDFKit for native PDF parsing
 - Vision framework OCR fallback for scanned pages
-- Paragraph-aware semantic chunking
-- Configurable chunk size (default 400 words) with 50-word overlap
+- **Content-adaptive chunking** via `ChunkingConfig.recommended(for:)`
 - Returns `ProcessingSummary` with timing and statistics
 
+**Chunking Presets** (Jan 2026):
 
-**File**: `RAGMLCore/Services/DocumentProcessor.swift`
+| Preset | Target Size | Overlap | Use Case |
+|--------|-------------|---------|----------|
+| `technicalReference` | 150 words | 40 words | PDFs, manuals, spec sheets |
+| `narrative` | 350 words | 75 words | Prose, articles, books |
+| `code` | 200 words | 50 words | Source code, scripts |
+| Default | 400 words | 50 words | General documents |
+
+**File**: `OpenIntelligence/Services/DocumentProcessor.swift`
 
 
 ### EmbeddingService
@@ -145,7 +194,7 @@ User Query Input
 - Always available on-device (no network required)
 
 
-**File**: `RAGMLCore/Services/EmbeddingService.swift`
+**File**: `OpenIntelligence/Services/EmbeddingService.swift`
 
 
 ### VectorDatabase
@@ -165,7 +214,97 @@ User Query Input
 - Protocol allows swapping implementations (e.g., VecturaKit for persistence)
 
 
-**File**: `RAGMLCore/Services/VectorDatabase.swift`
+**File**: `OpenIntelligence/Services/VectorDatabase.swift`
+
+
+### HybridSearchService
+
+**Purpose**: Dual-path retrieval combining semantic vectors with lexical search
+
+**Key Features**:
+
+- **Vector Search**: Cosine similarity on NLEmbedding vectors (semantic understanding)
+- **BM25 Keyword Search**: TF-IDF variant for exact term matching
+- **Reciprocal Rank Fusion (RRF)**: Combines ranked lists with `k=60` constant
+- Configurable fusion weights via `RetrievalConfig`
+
+**Default Weights** (Jan 2026):
+
+| Weight | Value | Rationale |
+|--------|-------|-----------|
+| Vector | 0.4 | Semantic similarity |
+| Keyword (BM25) | 0.6 | Better for specific terms, codes, model numbers |
+
+**File**: `OpenIntelligence/Services/HybridSearchService.swift`
+
+
+### QueryEnhancementService
+
+**Purpose**: Query analysis, expansion, and intent classification
+
+**Key Features**:
+
+- **Query Intent Classification**: Detects `keyword`, `conceptual`, or `balanced` intent
+- **Corpus Expansion**: Adds synonyms and related terms from document vocabulary
+- **Garbage Term Filtering**: Rejects hyphenated fragments, stopwords, numeric-only terms
+- **Per-Query Weight Adjustment**: ±15% shift based on detected intent
+
+**Intent Classification Logic**:
+
+```swift
+enum QueryIntent {
+    case keyword      // "5W-30 oil spec" → favor BM25 (+15%)
+    case conceptual   // "how does the engine work" → favor vectors (+15%)
+    case balanced     // Default mix
+}
+```
+
+**File**: `OpenIntelligence/Services/QueryEnhancementService.swift`
+
+
+### RAGEngine
+
+**Purpose**: Background actor for compute-intensive retrieval operations
+
+**Key Features**:
+
+- **Singleton Pattern**: `RAGEngine.shared` prevents redundant model loading
+- **Cross-Encoder Reranking**: `ReRankerModel.mlpackage` for neural relevance scoring
+- **MMR Diversification**: λ=0.6 balances relevance vs. diversity
+- **Lost-in-Middle Mitigation**: Reorders chunks for LLM attention patterns
+
+**Lost-in-Middle Algorithm** (Liu et al. 2023):
+
+LLMs attend better to the beginning and end of context. After reordering:
+- Position 0: Best chunk
+- Position N-1: Second-best chunk
+- Middle positions: Interleaved remaining chunks
+
+```swift
+// Result: [best, 3rd, 5th, ..., 6th, 4th, 2nd-best]
+func applyLostInMiddleReordering(_ chunks: [DocumentChunk]) -> [DocumentChunk]
+```
+
+**File**: `OpenIntelligence/Services/RAGEngine.swift`
+
+
+### RetrievalConfig (in KnowledgeContainer)
+
+**Purpose**: Per-container retrieval tuning parameters
+
+**Presets** (Jan 2026):
+
+| Preset | minSimilarity | vectorWeight | keywordWeight | Use Case |
+|--------|---------------|--------------|---------------|----------|
+| `default` | 0.28 | 0.4 | 0.6 | General documents |
+| `balanced` | 0.35 | 0.5 | 0.5 | Mixed content |
+| `technicalManual` | 0.22 | 0.3 | 0.7 | PDFs, spec sheets, manuals |
+| `narrative` | 0.32 | 0.6 | 0.4 | Prose, articles |
+| `code` | 0.30 | 0.35 | 0.65 | Source code |
+
+**Auto-Tuning**: `RetrievalConfig.recommended(forDocumentTypes:)` analyzes ingested content and selects optimal preset.
+
+**File**: `OpenIntelligence/Models/KnowledgeContainer.swift`
 
 
 ### LLMService
@@ -176,27 +315,25 @@ User Query Input
 
 1. **AppleFoundationLLMService** (iOS 26+)
    - Uses `LanguageModelSession` from FoundationModels framework
-   - Context window: **4,096 tokens** on-device (per [TN3193](https://developer.apple.com/documentation/technotes/tn3193-using-the-context-window-efficiently))
-   - Automatic Private Cloud Compute (PCC) fallback for complex queries
+   - Context window: **4,096 tokens per session** (per [TN3193](https://developer.apple.com/documentation/technotes/tn3193-using-the-context-window-efficiently))
+   - Private Cloud Compute (PCC): Offloads compute for complex queries but **same 4,096 token API limit**
    - Streaming via `streamResponse()` with TTFT tracking
    - `prewarm(promptPrefix:)` for latency optimization
    - Full `GenerationError` handling (context overflow, guardrails, rate limits)
    - Zero data retention; encrypted PCC hops
-   - Agentic tools: `SearchDocumentsTool`, `ListDocumentsTool`, `GetDocumentSummaryTool`
+   - **Agentic RAG Tools**: `SearchDocumentsTool`, `ListDocumentsTool`, `GetDocumentSummaryTool` (see below)
 
-2. **OpenAILLMService**
-   - Direct API integration (production-ready)
-   - GPT-4/GPT-3.5 support
-   - Streaming completion
-   - User-provided API key
-
-3. **OnDeviceAnalysisService**
+2. **OnDeviceAnalysisService**
    - Extractive QA fallback
    - Always available
    - No external dependencies
    - Quotes relevant sentences from context
 
-4. **AppleChatGPTExtensionService**
+3. **[REMOVED] OpenAILLMService**
+   - Cloud LLM integrations removed Dec 2025
+   - Dead code in `OpenAIResponsesAPIService.swift` (`#if false`)
+
+4. **[STUB] AppleChatGPTExtensionService**
    - Stub for Writing Tools API
    - Not yet implemented
 
@@ -204,21 +341,104 @@ User Query Input
    - Skeleton for .mlpackage models
    - Needs tokenizer and autoregressive loop
 
+#### Agentic RAG Strategy
+
+Apple's 4,096-token limit per session requires intelligent multi-pass retrieval. The agentic tools enable the model to navigate large document collections within constrained context windows.
+
+**Available Tools** (defined in `LLMService.swift`):
+
+| Tool | Purpose | Arguments |
+|------|---------|-----------|
+| `SearchDocumentsTool` | Semantic search across containers | `query: String`, `limit: Int?` |
+| `ListDocumentsTool` | Enumerate documents in container | `containerName: String?` |
+| `GetDocumentSummaryTool` | Retrieve document metadata | `documentID: UUID` |
+
+**Multi-Session Chaining Pattern** (per [TN3193](https://developer.apple.com/documentation/technotes/tn3193-using-the-context-window-efficiently)):
+
+For complex queries exceeding 4K tokens:
+
+1. **Session 1**: Model receives query + tool definitions → calls `SearchDocumentsTool`
+2. **Session 2**: Relevant chunks injected → partial answer generated
+3. **Session 3** (if needed): Refine with follow-up search or synthesis
+
+```swift
+// Simplified flow in AppleFoundationLLMService
+let tools = [SearchDocumentsTool(), ListDocumentsTool(), GetDocumentSummaryTool()]
+let session = LanguageModelSession(instructions: systemPrompt, tools: tools)
+
+// Model autonomously decides when to call tools
+for try await event in session.streamResponse(to: userQuery) {
+    switch event {
+    case .toolCall(let call):
+        let result = await handleToolCall(call)  // RAGToolHandler
+        session.respond(to: call, with: result)
+    case .text(let chunk):
+        yield chunk
+    }
+}
+```
+
+**Context Budget Strategy**:
+
+| Component | Token Allocation |
+|-----------|------------------|
+| System prompt | ~200 tokens |
+| Tool definitions | ~300 tokens |
+| Retrieved context | ~2,500 tokens (~5,000 chars) |
+| Response buffer | ~1,000 tokens |
+| **Total** | **4,096 tokens** |
+
+**Trade-offs**:
+- **Pre-stuffed context**: Single pass, lower latency, but context may not be optimal
+- **Pure agentic**: Model searches dynamically, multiple passes, better accuracy for complex queries
+
 **Deep Dive**: See [`Docs/reference/AFW.md`](Docs/reference/AFW.md) for the full Apple Intelligence architecture report (on-device 3B model, PCC PT-MoE server, routing, and privacy guarantees).
 
-**File**: `RAGMLCore/Services/LLMService.swift` (933 lines)
+**File**: `OpenIntelligence/Services/LLMService.swift` (933 lines)
 
 ### RAGService
 
-**Purpose**: Orchestrates entire RAG pipeline
+**Purpose**: Orchestrates entire RAG pipeline (`@MainActor`)
 
 **Key Responsibilities**:
 
 - Document ingestion: `addDocument(_:)` → parse → chunk → embed → store
-- Query execution: `query(_:topK:)` → embed → search → format → generate
+- Query execution: `query(_:topK:)` → embed → hybrid search → rerank → generate
+- **Auto-tuning**: `autoTuneRetrievalConfigIfNeeded()` after document ingestion
+- **Per-query weight adjustment**: Applies `QueryIntent` classification to adjust fusion weights
 - State management via `@Published` properties
 - Device capability detection
 - Performance metrics tracking
+
+**Query Pipeline** (Jan 2026):
+
+```swift
+// Simplified query flow
+func query(_ text: String, topK: Int) async {
+    // 1. Classify intent
+    let intent = queryEnhancer.classifyIntent(text)
+    let adjustedVectorWeight = config.vectorWeight + intent.weightAdjustment
+
+    // 2. Hybrid search with adjusted weights
+    let candidates = await hybridSearch.search(
+        query: text,
+        vectorWeight: adjustedVectorWeight,
+        keywordWeight: 1.0 - adjustedVectorWeight
+    )
+
+    // 3. Cross-encoder rerank + MMR
+    let reranked = await RAGEngine.shared.rerankWithMMR(candidates)
+
+    // 4. Lost-in-middle reordering
+    let context = await RAGEngine.shared.assembleContext(
+        reranked,
+        useLostInMiddleMitigation: true
+    )
+
+    // 5. LLM generation
+    let response = await llmService.generate(query: text, context: context)
+}
+```
 
 **Observable Properties**:
 
@@ -229,7 +449,7 @@ User Query Input
 - `lastError`: User-facing error messages
 - `lastProcessingSummary`: Detailed ingestion stats
 
-**File**: `RAGMLCore/Services/RAGService.swift`
+**File**: `OpenIntelligence/Services/RAGService.swift`
 
 ## SwiftUI Views
 
@@ -251,11 +471,11 @@ User Query Input
 
 ### SettingsView
 
-- LLM service selection
-- OpenAI API key management
+- LLM service selection (Apple Intelligence / On-Device Analysis)
 - Temperature and max tokens configuration
 - Top-K retrieval depth setting
 - Embedding provider selection
+- Quality Mode picker (Fast/Balanced/Thorough)
 
 ### ModelManagerView
 
@@ -290,7 +510,7 @@ User Query Input
 | Document parsing | <1s/page | ✅ Achieved |
 | Embedding generation | <100ms/chunk | ✅ Achieved |
 | Vector search (1K chunks) | <50ms | ✅ Achieved |
-| LLM generation (OpenAI) | 20+ tok/s | ✅ Achieved |
+| LLM generation (Apple FM) | 15-25 tok/s | ✅ Achieved |
 | End-to-end query | <5s | ✅ Achieved |
 
 ## Privacy Architecture
@@ -298,16 +518,154 @@ User Query Input
 1. **On-Device Processing**: All document parsing, embedding, and search happens locally
 2. **Apple Intelligence**: Stays on-device; Private Cloud Compute only for complex queries
 3. **Private Cloud Compute**: Apple Silicon servers, cryptographically enforced zero retention
-4. **OpenAI Pathway**: Explicit user consent, sends prompt + context only
+4. **No Cloud APIs**: OpenAI/GPT integrations removed Dec 2025 (privacy-first design)
 5. **No Telemetry**: Zero data collection or analytics
+
+## Retrieval Quality Assessment
+
+**Current Rating**: 7.5/10 (Jan 2026)
+
+### What We Have (Best Practices Implemented)
+
+| Feature | Status | Implementation |
+|---------|--------|----------------|
+| Hybrid Search (Vector + BM25) | ✅ | `HybridSearchService` with RRF fusion |
+| Cross-Encoder Reranking | ✅ | `ReRankerModel.mlpackage` in `RAGEngine` |
+| MMR Diversification | ✅ | λ=0.6 in `RAGEngine.rerankWithMMR()` |
+| Query Expansion | ✅ | `QueryEnhancementService.expandQuery()` |
+| Query Intent Classification | ✅ | `QueryIntent` enum with dynamic weights |
+| Content-Adaptive Chunking | ✅ | `ChunkingConfig.recommended(for:)` |
+| Lost-in-Middle Mitigation | ✅ | `applyLostInMiddleReordering()` |
+| Auto-Tuning | ✅ | `RetrievalConfig.recommended(forDocumentTypes:)` |
+
+### What Would Push to 10/10
+
+| Feature | Status | Complexity |
+|---------|--------|------------|
+| HyDE (Hypothetical Doc Embeddings) | 🔜 Roadmap | Medium |
+| RAPTOR (Hierarchical Summaries) | 🔜 Roadmap | High |
+| Self-RAG | 🔜 Roadmap | High |
+| Speculative RAG | 🔜 Roadmap | High |
+| Parent Document Retrieval | 🔜 Roadmap | Medium |
+| Learned Fusion Weights | 🔜 Roadmap | High |
+
+See [ROADMAP.md](../../ROADMAP.md) Phase 2.5 for full "God Mode RAG" feature list.
+
+## Advanced RAG Intelligence (v2.0)
+
+The retrieval pipeline has been enhanced with three major intelligence upgrades:
+
+### 1. Query Clarification (Lightweight)
+
+**Philosophy**: Trust the embeddings. Only intervene for genuine ambiguity.
+
+**When it activates**:
+- Pronouns without referents ("What does it do?" → needs context)
+- Follow-up questions ("What else?" → needs prior topic)
+- Very short queries with conversation context
+
+**When it stays out of the way**:
+- Clear, specific queries → pass through unchanged
+- No conversation context → no pronoun resolution needed
+
+**File**: `Services/QueryRewriterService.swift`
+
+**Features**:
+- Ambiguity detection (pronouns, follow-ups, short queries)
+- LLM-powered clarification with conversation context
+- Simple fallback pronoun substitution
+- Minimal intervention — doesn't over-engineer or domain-lock
+
+### 2. Corpus-Aware Query Expansion
+
+**Purpose**: Expand queries using the vocabulary from the user's actual documents
+
+**Problem Solved**: Generic synonym expansion ("button" → "switch") doesn't help if the documents use specific terminology.
+
+**Solution**: Build a vocabulary from chunk keywords and co-occurrence relationships:
+
+```text
+Query term: "button"
+Corpus co-occurrences: "record", "hold", "toggle", "mode", "switch"
+Expanded query: "button record hold toggle mode switch"
+```
+
+**File**: `Services/QueryEnhancementService.swift` with `CorpusVocabulary`
+
+**Features**:
+- Builds co-occurrence maps from chunk metadata keywords
+- Extracts multi-word phrases (e.g., "Record Button", "Note Recording Mode")
+- Preserves original query while adding domain-specific terms
+
+### 3. Iterative Retrieval
+
+**Purpose**: Retrieve, assess, refine, and retrieve more until confident
+
+**Problem Solved**: Single-pass retrieval may miss relevant chunks, especially for complex queries.
+
+**Solution**: Multi-pass retrieval loop:
+
+```text
+Iteration 1: Retrieve chunks → Assess confidence (0.4) → Need more
+Iteration 2: Refine query + retrieve → Assess confidence (0.6) → Need more
+Iteration 3: Refine query + retrieve → Assess confidence (0.75) → Sufficient
+→ Merge all unique chunks, re-rank, return
+```
+
+**File**: `Services/IterativeRetrievalService.swift`
+
+**Features**:
+- Configurable via `RAGQualityMode` (enabled in Thorough mode)
+- Confidence assessment based on: chunk count, similarity scores, source diversity
+- LLM-powered query refinement between iterations
+- Automatic deduplication across iterations
+
+### Quality Mode Control
+
+These features are controlled by the `RAGQualityMode` setting:
+
+| Feature | Fast | Balanced | Thorough |
+|---------|------|----------|----------|
+| Query Rewriting | ❌ | ✅ | ✅ |
+| Corpus Expansion | ✅ | ✅ | ✅ |
+| Iterative Retrieval | ❌ | ❌ | ✅ |
+| Max Iterations | 1 | 2 | 4 |
+
+### Settings Integration
+
+Users can also manually toggle features via Settings > Intelligence Layer:
+
+- **Query Understanding** (`enableQueryRewriting`): ON by default
+- **Multi-Pass Retrieval** (`enableIterativeRetrieval`): OFF by default (battery consideration)
+
+The pipeline in `RAGService.performRAGQuery()` checks these settings:
+
+```swift
+// Step 1: Query Understanding (if enabled)
+if settingsStore?.enableQueryRewriting ?? false {
+    effectiveQuery = await queryRewriter.rewrite(originalQuery)
+}
+
+// Step 1.5: Corpus-Aware Expansion (always enabled)
+let expandedQueries = queryEnhancer.expandQuery(effectiveQuery)
+
+// Step 3: Retrieval (single-pass or iterative)
+if settingsStore?.enableIterativeRetrieval ?? false {
+    // Multi-pass with confidence assessment
+    let result = try await iterativeService.retrieve(...)
+} else {
+    // Single-pass hybrid search
+    let chunks = try await hybridSearch.search(...)
+}
+```
 
 ## Error Handling
 
 - User-facing error messages in `RAGService.lastError`
 - Detailed logging for debugging
-- Graceful fallbacks (e.g., OpenAI → extractive QA)
+- Graceful fallbacks (e.g., Apple FM → extractive QA)
 - File access errors handled with `SecurityScopedResource`
-- Network errors with retry logic in OpenAI service
+- Foundation Models `GenerationError` handling (9 cases)
 
 ## Directory Structure Standards
 

@@ -40,7 +40,7 @@ struct AboutView: View {
                                 .font(.title.bold())
                             Text("Privacy-First RAG Application")
                                 .foregroundColor(.secondary)
-                            Text("Version 0.1.0")
+                            Text("Version 1.0.0")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
