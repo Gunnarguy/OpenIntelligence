@@ -1,8 +1,18 @@
-Initial release.
+Version 1.0 (Build 3) - RAG Pipeline Optimizations
 
-• Import PDFs, text files, Markdown, code, and images
-• Hybrid search: semantic + keyword matching with citations
-• Knowledge containers for organizing separate libraries
-• Apple Intelligence generation with Private Cloud Compute fallback
-• 3D embedding visualization for exploring your document space
-• Full privacy dashboard showing all cloud transmissions
+🚀 Performance & Quality Improvements:
+• Optimized context budget: 50% more document content per query
+• Improved chunking strategy: larger, more coherent text segments
+• Reduced memory usage: cached vocabulary prevents repeated loading
+• Better responses: enhanced system prompts for comprehensive answers
+
+🧠 Advanced RAG Features:
+• Query intent classification (keyword vs conceptual queries)
+• Content-adaptive chunking based on document type
+• Lost-in-middle mitigation for better context attention
+• Neural reranking with on-device CoreML model
+
+🔧 Fixes:
+• Fixed memory accumulation on repeated queries
+• Corrected PCC context window documentation
+• Improved offline capability descriptions

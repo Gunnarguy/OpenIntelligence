@@ -205,6 +205,10 @@ struct LLMResponse {
         private var session: LanguageModelSession?
         private var currentSystemPrompt: String?
 
+        /// Pending transcript to restore on next session creation.
+        /// Set via `restoreFromTranscript(_:)` and consumed by `ensureSession()`.
+        private var pendingTranscript: Transcript?
+
         /// Tool handler for agentic RAG function calling
         var toolHandler: RAGToolHandler?
 
@@ -214,6 +218,30 @@ struct LLMResponse {
             }
             session = nil
             currentSystemPrompt = nil
+            pendingTranscript = nil
+        }
+
+        /// Restore session state from a previously saved transcript.
+        ///
+        /// The transcript will be applied on the next `ensureSession()` call,
+        /// giving the model full context of the previous conversation.
+        ///
+        /// - Parameter transcript: The transcript to restore from
+        /// - Returns: `true` if transcript was queued for restoration
+        @MainActor
+        @discardableResult
+        func restoreFromTranscript(_ transcript: Transcript) -> Bool {
+            guard Thread.isMainThread else {
+                Log.error("[AppleFM] Must call restoreFromTranscript from main thread", category: .llm)
+                return false
+            }
+
+            // Clear current session so next ensureSession() creates a new one with transcript
+            session = nil
+            pendingTranscript = transcript
+
+            Log.info("[AppleFM] Queued transcript with \(transcript.count) entries for session restoration", category: .llm)
+            return true
         }
 
         // Lazy model access - only initialize when actually needed and ensure main thread
@@ -322,6 +350,23 @@ struct LLMResponse {
         var transcript: Transcript? {
             guard Thread.isMainThread else { return nil }
             return session?.transcript
+        }
+
+        // MARK: - Real-time Generation State (iOS 26+)
+
+        /// Whether the session is currently generating a response.
+        ///
+        /// This property reflects the actual state of the FoundationModels session,
+        /// providing real-time feedback for UI indicators. The session is Observable,
+        /// so this value updates automatically during generation.
+        ///
+        /// Use this for:
+        /// - Showing live "typing" indicators
+        /// - Disabling input during generation
+        /// - Accurate progress animations
+        var isResponding: Bool {
+            guard Thread.isMainThread, let session = session else { return false }
+            return session.isResponding
         }
 
         /// Get a text representation of the current conversation history
@@ -485,13 +530,34 @@ struct LLMResponse {
                 let instructionsText = systemPrompt ?? defaultInstructions
                 currentSystemPrompt = systemPrompt
 
-                session = LanguageModelSession(
-                    model: model,
-                    tools: tools,
-                    instructions: Instructions(instructionsText)
-                )
+                // Check if we have a pending transcript to restore
+                if let savedTranscript = pendingTranscript {
+                    // Create session with transcript for conversation continuity
+                    // The transcript contains previous prompts, responses, and tool calls
+                    // Note: Instructions come from the transcript, not passed separately
+                    session = LanguageModelSession(
+                        model: model,
+                        tools: tools,
+                        transcript: savedTranscript
+                    )
 
-                Log.info("Apple Foundation Model session initialized (Agentic RAG)", category: .llm)
+                    // Prewarm to reduce latency on next query
+                    session?.prewarm()
+
+                    pendingTranscript = nil // Consumed
+                    Log.info(
+                        "Apple Foundation Model session restored from transcript (\(savedTranscript.count) entries)",
+                        category: .llm
+                    )
+                } else {
+                    // Fresh session with no prior context
+                    session = LanguageModelSession(
+                        model: model,
+                        tools: tools,
+                        instructions: Instructions(instructionsText)
+                    )
+                    Log.info("Apple Foundation Model session initialized (Agentic RAG)", category: .llm)
+                }
 
             case let .unavailable(reason):
                 let reasonStr: String
@@ -510,6 +576,7 @@ struct LLMResponse {
             }
         }
 
+        @MainActor
         func generate(prompt: String, context: String?, config: InferenceConfig) async throws
             -> LLMResponse
         {
@@ -523,7 +590,7 @@ struct LLMResponse {
                 session = nil
             }
 
-            // Ensure session is created (will throw if unavailable or not on main thread)
+            // Ensure session is created (now guaranteed to be on main thread via @MainActor)
             try ensureSession(systemPrompt: config.systemPrompt)
 
             guard let session = session else {
@@ -1701,5 +1768,3 @@ enum LLMError: LocalizedError {
         }
     }
 }
-
-

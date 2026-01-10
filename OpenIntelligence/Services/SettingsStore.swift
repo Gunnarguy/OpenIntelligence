@@ -54,6 +54,10 @@ final class SettingsStore: ObservableObject {
 
         // Quality mode
         static let ragQualityMode = "ragQualityMode" // "fast" | "balanced" | "thorough"
+
+        // Advanced RAG Intelligence
+        static let enableQueryRewriting = "enableQueryRewriting"
+        static let enableIterativeRetrieval = "enableIterativeRetrieval"
     }
 
     // MARK: - Published Settings (bind from UI)
@@ -112,6 +116,16 @@ final class SettingsStore: ObservableObject {
     /// Legacy setting - no longer affects provider selection (CoreML is always used).
     /// Kept for backward compatibility with existing user defaults.
     @Published var useHighAccuracyEmbeddings: Bool
+
+    // MARK: - Advanced RAG Intelligence
+
+    /// Enable LLM-powered query rewriting before retrieval.
+    /// Rewrites vague queries ("press this button") into specific domain queries.
+    @Published var enableQueryRewriting: Bool
+
+    /// Enable iterative retrieval (retrieve → assess → refine → retrieve more).
+    /// When enabled, the system will perform multiple retrieval passes until confident.
+    @Published var enableIterativeRetrieval: Bool
 
     // MARK: - Quality Mode
 
@@ -281,6 +295,12 @@ final class SettingsStore: ObservableObject {
         defaultEmbeddingProvider = defaults.string(forKey: Keys.defaultEmbeddingProvider) ?? "coreml_sentence_embedding"
         useHighAccuracyEmbeddings = defaults.object(forKey: Keys.useHighAccuracyEmbeddings) as? Bool ?? true
 
+        // Advanced RAG Intelligence settings
+        // Query rewriting defaults to true (enabled) for better understanding
+        enableQueryRewriting = defaults.object(forKey: Keys.enableQueryRewriting) as? Bool ?? true
+        // Iterative retrieval defaults to false (controlled by quality mode)
+        enableIterativeRetrieval = defaults.object(forKey: Keys.enableIterativeRetrieval) as? Bool ?? false
+
         // Quality mode (balanced, always enforced)
         ragQualityMode = .balanced
         lenientRetrievalMode = false
@@ -337,6 +357,8 @@ final class SettingsStore: ObservableObject {
             $reliabilityModeEnabled.map { _ in () }.eraseToAnyPublisher(),
             $defaultEmbeddingProvider.map { _ in () }.eraseToAnyPublisher(),
             $useHighAccuracyEmbeddings.map { _ in () }.eraseToAnyPublisher(),
+            $enableQueryRewriting.map { _ in () }.eraseToAnyPublisher(),
+            $enableIterativeRetrieval.map { _ in () }.eraseToAnyPublisher(),
         ]
         Publishers.MergeMany(publishers)
             .sink { [weak self] in
@@ -449,6 +471,10 @@ final class SettingsStore: ObservableObject {
         // Quality mode
         defaults.set(ragQualityMode.rawValue, forKey: Keys.ragQualityMode)
         defaults.set(reliabilityModeEnabled, forKey: Keys.reliabilityModeEnabled)
+
+        // Advanced RAG Intelligence
+        defaults.set(enableQueryRewriting, forKey: Keys.enableQueryRewriting)
+        defaults.set(enableIterativeRetrieval, forKey: Keys.enableIterativeRetrieval)
     }
 
     // MARK: - Side Effects (Debounced)
@@ -467,8 +493,15 @@ final class SettingsStore: ObservableObject {
 
         // Apply model/fallback routing changes to the active RAG pipeline.
         // This keeps the UI picker in sync with the runtime service.
+        // GUARD: Don't swap LLM services mid-query - can cause freezes or undefined behavior
         Task { @MainActor [weak ragService] in
-            await ragService?.rebuildLLMServicesFromSettings()
+            guard let ragService = ragService else { return }
+            guard !ragService.isProcessing else {
+                Log.debug("[SettingsStore] Skipping LLM rebuild - query in progress", category: .initialization)
+                return
+            }
+
+            await ragService.rebuildLLMServicesFromSettings()
         }
     }
 }

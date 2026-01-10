@@ -176,7 +176,7 @@ struct ExecutionPrivacyView: View {
                 Label("Cryptographically verifiable", systemImage: "doc.viewfinder")
                     .font(.subheadline)
                     .foregroundStyle(.green)
-                Label("Long-context support (~65K tokens)", systemImage: "brain")
+                Label("Handles complex reasoning tasks", systemImage: "brain")
                     .font(.subheadline)
                     .foregroundStyle(.blue)
             }
@@ -185,13 +185,13 @@ struct ExecutionPrivacyView: View {
                 Label("On-Device: 4K tokens", systemImage: "iphone")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Label("PCC Server: 65K tokens", systemImage: "cloud")
+                Label("PCC: Complex queries", systemImage: "cloud")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } header: {
                 Text("Context Windows")
             } footer: {
-                Text("The system automatically routes to PCC when your query exceeds on-device capacity.")
+                Text("Private Cloud Compute handles queries that benefit from server-side processing.")
                     .font(.caption)
             }
         }
@@ -330,7 +330,7 @@ struct GenerationParametersView: View {
                         .font(.system(.body, design: .monospaced))
                 }
                 Slider(value: Binding(get: { Double(settings.contextLength) }, set: { settings.contextLength = Int($0) }), in: 512 ... 32768, step: 512)
-                Text("Target context budget (input + output). Apple FM caps on-device at 4,096 tokens; PCC expands to long context when allowed.").font(.footnote).foregroundStyle(.secondary)
+                Text("Target context budget (input + output). Apple Foundation Models use a 4,096 token context window.").font(.footnote).foregroundStyle(.secondary)
             }
 
             Section("Sampling") {

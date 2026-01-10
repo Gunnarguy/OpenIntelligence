@@ -119,8 +119,8 @@ struct ModelInfoCard: View {
             if capabilities.supportsFoundationModels {
                 return [
                     "Foundation Models (iOS 26+)",
-                    "On-device 3B model + PCC PT-MoE",
-                    "4,096 tokens on-device, ~65K via PCC",
+                    "On-device 3B model + PCC server",
+                    "4,096 token context window",
                     "Zero data retention",
                     "Works offline for simple queries",
                 ]

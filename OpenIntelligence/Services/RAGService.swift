@@ -156,7 +156,8 @@ class RAGService: ObservableObject {
     @MainActor
     func clearIntelligence(for containerId: UUID) {
         containerIntelligence.removeValue(forKey: containerId)
-        Log.info("[RAGService] Cleared intelligence cache for container \(containerId)", category: .retrieval)
+        corpusVocabularyCache.removeValue(forKey: containerId)
+        Log.info("[RAGService] Cleared intelligence and vocabulary cache for container \(containerId)", category: .retrieval)
     }
 
     /// Recompute the intelligence snapshot for a container on demand.
@@ -164,6 +165,11 @@ class RAGService: ObservableObject {
     func refreshIntelligence(for containerId: UUID? = nil, force: Bool = false) -> Task<Void, Never> {
         Task(priority: .utility) { [weak self] in
             guard let self else { return }
+            // Invalidate vocabulary cache when refreshing intelligence (documents may have changed)
+            await MainActor.run {
+                let targetId = containerId ?? self.containerService.activeContainerId
+                self.corpusVocabularyCache.removeValue(forKey: targetId)
+            }
             await self.generateIntelligenceSnapshot(for: containerId, force: force)
         }
     }
@@ -268,12 +274,21 @@ class RAGService: ObservableObject {
         return loaded
     }
 
+    /// Maximum messages to retain per container to prevent unbounded memory/disk growth.
+    /// With an average of ~500 chars per message, 200 messages ≈ 100KB per container.
+    private static let maxMessagesPerContainer = 200
+
     /// Persists chat history for a container and updates the in-memory cache.
+    /// Automatically trims to `maxMessagesPerContainer` to prevent runaway growth.
     @MainActor
     func persistChatHistory(_ messages: [ChatMessage], for containerId: UUID?) {
         let resolvedId = containerId ?? containerService.activeContainerId
-        chatHistories[resolvedId] = messages
-        saveChatHistory(messages, for: resolvedId)
+        // Trim to max capacity, keeping most recent messages
+        let trimmedMessages = messages.count > Self.maxMessagesPerContainer
+            ? Array(messages.suffix(Self.maxMessagesPerContainer))
+            : messages
+        chatHistories[resolvedId] = trimmedMessages
+        saveChatHistory(trimmedMessages, for: resolvedId)
     }
 
     /// Clears chat history for a container both in memory and on disk.
@@ -282,6 +297,70 @@ class RAGService: ObservableObject {
         let resolvedId = containerId ?? containerService.activeContainerId
         chatHistories[resolvedId] = []
         saveChatHistory([], for: resolvedId)
+
+        // Also clear the persisted transcript when clearing chat history
+        if #available(iOS 26.0, *) {
+            TranscriptPersistenceService.shared.deleteTranscript(for: resolvedId)
+            Log.debug("[RAGService] Cleared chat history and transcript for container \(resolvedId)", category: .initialization)
+        }
+    }
+
+    // MARK: - Transcript Persistence (iOS 26+)
+
+    /// Save the current LLM session transcript to disk for later restoration.
+    ///
+    /// Call this when:
+    /// - App enters background
+    /// - User switches containers
+    /// - After completing a conversation turn
+    ///
+    /// - Parameter containerId: The container to save transcript for (defaults to active container)
+    @MainActor
+    func saveSessionTranscript(for containerId: UUID? = nil) {
+        guard #available(iOS 26.0, *) else { return }
+
+        let resolvedId = containerId ?? containerService.activeContainerId
+
+        // Get the current LLM service - must be AppleFoundationLLMService
+        guard let appleFMService = llmService as? AppleFoundationLLMService,
+              let transcript = appleFMService.transcript
+        else {
+            Log.debug("[RAGService] No transcript to save (service unavailable or no session)", category: .llm)
+            return
+        }
+
+        TranscriptPersistenceService.shared.saveTranscriptTrimmed(transcript, for: resolvedId)
+    }
+
+    /// Restore a previously saved transcript to enable conversation continuity.
+    ///
+    /// Call this when:
+    /// - App enters foreground
+    /// - User switches to a container
+    /// - At app launch for the active container
+    ///
+    /// - Parameter containerId: The container to restore transcript for (defaults to active container)
+    /// - Returns: `true` if a transcript was restored successfully
+    @MainActor
+    @discardableResult
+    func restoreSessionTranscript(for containerId: UUID? = nil) -> Bool {
+        guard #available(iOS 26.0, *) else { return false }
+
+        let resolvedId = containerId ?? containerService.activeContainerId
+
+        // Get the current LLM service - must be AppleFoundationLLMService
+        guard let appleFMService = llmService as? AppleFoundationLLMService else {
+            Log.debug("[RAGService] Cannot restore transcript (AppleFMService unavailable)", category: .llm)
+            return false
+        }
+
+        // Load saved transcript
+        guard let savedTranscript = TranscriptPersistenceService.shared.loadTranscript(for: resolvedId) else {
+            return false
+        }
+
+        // Queue the transcript for restoration on next session creation
+        return appleFMService.restoreFromTranscript(savedTranscript)
     }
 
     @MainActor
@@ -332,9 +411,32 @@ class RAGService: ObservableObject {
     @MainActor @Published private(set) var lastAuditSnapshot: RAGAuditSnapshot?
     @MainActor @Published private(set) var lastVectorAudit: VectorStoreAudit?
 
+    /// Cached corpus vocabulary per container to avoid expensive rebuilds on each query
+    @MainActor private var corpusVocabularyCache: [UUID: CorpusVocabulary] = [:]
+
     /// Published model name for UI binding - updates when LLM service changes
     @MainActor @Published private(set) var activeModelName: String = "Loading..."
     @MainActor private var selfTuningInFlight: Set<UUID> = []
+
+    // MARK: - Real-time Generation State (iOS 26+)
+
+    /// Whether the LLM session is currently generating a response.
+    ///
+    /// This reflects the actual FoundationModels `session.isResponding` state,
+    /// providing real-time feedback for UI indicators during streaming.
+    ///
+    /// Use this for:
+    /// - Showing accurate "typing" indicators in chat
+    /// - Disabling input controls during active generation
+    /// - Real-time progress animations
+    ///
+    /// Falls back to `false` on pre-iOS 26 devices or when using non-Apple LLM services.
+    @MainActor
+    var isLLMResponding: Bool {
+        guard #available(iOS 26.0, *) else { return false }
+        guard let appleFMService = llmService as? AppleFoundationLLMService else { return false }
+        return appleFMService.isResponding
+    }
 
     // If an embedding provider/dimension changes while processing is active (e.g. ingestion),
     // defer rebuild work until processing completes to restore retrieval.
@@ -354,8 +456,8 @@ class RAGService: ObservableObject {
     private var _fallbackServices: [LLMService] = []
 
     private enum ChunkingDefaults {
-        static let targetWindow = 400
-        static let overlap = 75
+        static let targetWindow = 350 // Larger chunks = more context per chunk
+        static let overlap = 60 // ~17% overlap - sufficient without redundancy
     }
 
     private struct EmbeddingAutoAction {
@@ -515,6 +617,54 @@ class RAGService: ObservableObject {
             self.cloudConsent = self.loadPersistedConsentStates()
         }
         loadDocumentsFromDisk()
+
+        // Observe container switches to save/restore transcripts
+        observeContainerChanges()
+    }
+
+    // MARK: - Container Change Observer
+
+    /// Previous container ID to detect when the active container changes.
+    @MainActor private var previousContainerId: UUID?
+
+    /// Observe changes to the active container and handle transcript persistence.
+    ///
+    /// When the user switches containers:
+    /// 1. Save the current transcript for the old container
+    /// 2. Restore any saved transcript for the new container
+    private func observeContainerChanges() {
+        // Initialize previous container ID
+        Task { @MainActor in
+            self.previousContainerId = self.containerService.activeContainerId
+        }
+
+        // Subscribe to container ID changes
+        containerService.$activeContainerId
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] newContainerId in
+                guard let self = self else { return }
+
+                Task { @MainActor in
+                    let oldContainerId = self.previousContainerId
+
+                    // Skip if container hasn't actually changed
+                    guard oldContainerId != newContainerId else { return }
+
+                    Log.debug("[RAGService] Container changed: \(oldContainerId?.uuidString.prefix(8) ?? "nil") → \(newContainerId.uuidString.prefix(8))", category: .initialization)
+
+                    // Save transcript for the old container (if any)
+                    if let oldId = oldContainerId {
+                        self.saveSessionTranscript(for: oldId)
+                    }
+
+                    // Restore transcript for the new container
+                    self.restoreSessionTranscript(for: newContainerId)
+
+                    // Update tracking
+                    self.previousContainerId = newContainerId
+                }
+            }
+            .store(in: &cancellables)
     }
 
     // MARK: - Cloud Consent
@@ -902,6 +1052,8 @@ class RAGService: ObservableObject {
     private func dbForActiveContainer() async -> VectorDatabase {
         return await MainActor.run {
             let container = self.containerService.activeContainer
+            // Sync active container to router for memory pressure handling
+            self.vectorRouter.activeContainerId = container?.id
             // ContainerService guarantees at least one container
             return self.vectorRouter.db(for: container!)
         }
@@ -910,6 +1062,8 @@ class RAGService: ObservableObject {
     /// Return a database for a specific container id (falls back to active on miss)
     private func dbFor(_ containerId: UUID) async -> VectorDatabase {
         return await MainActor.run {
+            // Sync active container to router for memory pressure handling
+            self.vectorRouter.activeContainerId = self.containerService.activeContainerId
             if let container = self.containerService.containers.first(where: { $0.id == containerId }) {
                 return self.vectorRouter.db(for: container)
             } else if let active = self.containerService.activeContainer {
@@ -1081,7 +1235,7 @@ class RAGService: ObservableObject {
         var candidates = try await database.search(embedding: queryEmbedding, topK: searchCount)
 
         if let threshold = minSimilarity {
-            let engine = RAGEngine()
+            let engine = RAGEngine.shared
             candidates = await engine.filterBySimilarity(chunks: candidates, min: threshold)
         }
 
@@ -1687,6 +1841,44 @@ class RAGService: ObservableObject {
                 ]
             )
 
+            // Step 5: Generate content tags using Apple's content tagging model (iOS 26+)
+            await MainActor.run {
+                updateIngestionItem(
+                    id: trackingId,
+                    filename: filename,
+                    stage: .storing,
+                    detail: "Generating tags..."
+                )
+            }
+
+            var generatedContentTags: [String]?
+            if #available(iOS 26.0, *) {
+                let taggingService = ContentTaggingService.shared
+                if taggingService.isAvailable {
+                    do {
+                        let chunkTexts = processedChunks.map { $0.text }
+                        let tags = try await taggingService.generateTagsForDocument(
+                            chunks: chunkTexts,
+                            documentName: filename
+                        )
+                        if !tags.displayTags.isEmpty {
+                            generatedContentTags = tags.displayTags
+                            TelemetryCenter.emit(
+                                .generation,
+                                title: "Content tags generated",
+                                metadata: [
+                                    "file": filename,
+                                    "tags": tags.displayTags.joined(separator: ", "),
+                                    "count": "\(tags.displayTags.count)",
+                                ]
+                            )
+                        }
+                    } catch {
+                        Log.warning("[RAGService] Content tagging failed for \(filename): \(error)", category: .llm)
+                    }
+                }
+            }
+
             // Calculate total pipeline time
             let totalTime = Date().timeIntervalSince(pipelineStartTime)
 
@@ -1739,11 +1931,12 @@ class RAGService: ObservableObject {
                     contentType: document.contentType,
                     addedAt: document.addedAt,
                     totalChunks: document.totalChunks,
-                    processingMetadata: completeMetadata
+                    processingMetadata: completeMetadata,
+                    contentTags: generatedContentTags
                 )
             }
 
-            // Ensure document is associated with the active container
+            // Ensure document is associated with the active container and has content tags
             let docWithContainer = Document(
                 id: updatedDocument.id,
                 filename: updatedDocument.filename,
@@ -1752,7 +1945,8 @@ class RAGService: ObservableObject {
                 addedAt: updatedDocument.addedAt,
                 totalChunks: updatedDocument.totalChunks,
                 processingMetadata: updatedDocument.processingMetadata,
-                containerId: activeContainerId
+                containerId: activeContainerId,
+                contentTags: generatedContentTags ?? updatedDocument.contentTags
             )
             updatedDocument = docWithContainer
 
@@ -1822,6 +2016,9 @@ class RAGService: ObservableObject {
                 }
 
                 self.kickPendingReembedIfNeeded()
+
+                // Auto-tune retrieval config based on document types in container
+                self.autoTuneRetrievalConfigIfNeeded()
             }
 
             refreshIntelligence(for: activeContainerId, force: true)
@@ -1993,6 +2190,61 @@ class RAGService: ObservableObject {
     }
 
     // MARK: - Self-Tuning
+
+    /// Auto-tunes retrieval configuration based on document types in the active container.
+    /// Called after successful document ingestion to optimize search weights.
+    @MainActor
+    private func autoTuneRetrievalConfigIfNeeded() {
+        guard let container = containerService.activeContainer else { return }
+
+        // Collect document types from all documents in this container
+        let containerDocs = documents.filter { $0.containerId == container.id }
+        let documentTypes = containerDocs.map { $0.contentType }
+
+        guard !documentTypes.isEmpty else { return }
+
+        // Get recommended config based on document types
+        let recommended = RetrievalConfig.recommended(forDocumentTypes: documentTypes)
+
+        // Only update if the recommended config differs from current
+        // and the user hasn't manually customized (check if it matches a known preset)
+        let current = container.retrievalConfig
+
+        // Skip if user has a high-accuracy or custom config (likely intentional)
+        if current.minSimilarity >= 0.5 || current.requireExplicitCitations {
+            Log.debug(
+                "[RAGService] Skipping auto-tune: user has high-accuracy or custom config",
+                category: .retrieval
+            )
+            return
+        }
+
+        // Apply if recommended differs significantly
+        if recommended.vectorWeight != current.vectorWeight ||
+            recommended.lexicalWeight != current.lexicalWeight ||
+            abs(recommended.minSimilarity - current.minSimilarity) > 0.05
+        {
+            var updatedContainer = container
+            updatedContainer.retrievalConfig = recommended
+
+            containerService.updateContainer(updatedContainer)
+            Log.info(
+                "[RAGService] Auto-tuned retrieval config to '\(recommended.summary)' based on \(documentTypes.count) documents",
+                category: .retrieval
+            )
+
+            TelemetryCenter.emit(
+                .system,
+                title: "Retrieval config auto-tuned",
+                metadata: [
+                    "config": recommended.summary,
+                    "documents": "\(documentTypes.count)",
+                    "vectorWeight": String(format: "%.2f", recommended.vectorWeight),
+                    "keywordWeight": String(format: "%.2f", recommended.lexicalWeight),
+                ]
+            )
+        }
+    }
 
     private func chunkingOverride(for container: KnowledgeContainer?) -> DocumentProcessor.ChunkingOverride? {
         guard let directive = container?.chunkingDirective else { return nil }
@@ -2444,13 +2696,122 @@ class RAGService: ObservableObject {
             let hasDocuments = totalStored > 0
 
             if hasDocuments {
-                // ENHANCED RAG pipeline with query expansion + hybrid search + re-ranking
+                // ENHANCED RAG pipeline with LLM query understanding + iterative retrieval
 
-                // Step 1: Query Expansion
-                Log.section("Step 1: Query Expansion", level: .info, category: .pipeline)
+                // Step 0: Build or retrieve cached Corpus Vocabulary (for context-aware understanding)
+                Log.section("Step 0: Corpus Analysis", level: .info, category: .pipeline)
+                let corpusStartTime = Date()
+
+                // Use cached vocabulary if available to avoid expensive rebuilds
+                let corpusVocabulary: CorpusVocabulary = await MainActor.run {
+                    if let cached = self.corpusVocabularyCache[selectedId] {
+                        Log.debug("[RAGService] Using cached corpus vocabulary for container \(selectedId)", category: .pipeline)
+                        return cached
+                    }
+                    return CorpusVocabulary.empty
+                }
+
+                // Only build if not cached; also cache allChunks for lexical recall
+                let finalCorpusVocabulary: CorpusVocabulary
+                var cachedAllChunks: [DocumentChunk]?
+                if corpusVocabulary.keywords.isEmpty {
+                    let allChunks = try await vdb.allChunks()
+                    cachedAllChunks = allChunks // Store for HybridSearchService lexical recall
+                    let built = CorpusVocabulary.build(from: allChunks)
+                    // Cache for future queries
+                    await MainActor.run {
+                        self.corpusVocabularyCache[selectedId] = built
+                    }
+                    finalCorpusVocabulary = built
+                    let corpusTime = Date().timeIntervalSince(corpusStartTime)
+                    Log.debug("Built corpus vocabulary in \(String(format: "%.0f", corpusTime * 1000))ms", category: .pipeline)
+                } else {
+                    finalCorpusVocabulary = corpusVocabulary
+                    Log.debug("Using cached corpus vocabulary (0ms)", category: .pipeline)
+                }
+
+                // Check advanced RAG settings
+                let useQueryRewriting = settingsStore?.enableQueryRewriting ?? qualityMode.usesQueryRewriting
+                // Note: Iterative retrieval is a future enhancement, capturing setting for later use
+                _ = settingsStore?.enableIterativeRetrieval ?? qualityMode.usesIterativeRetrieval
+
+                // Step 1: LLM-Powered Query Understanding (if enabled)
+                var effectiveQuery = question
+                var queryWasRewritten = false
+                var rewriteTime: TimeInterval = 0
+
+                if useQueryRewriting {
+                    Log.section("Step 1: Query Understanding", level: .info, category: .pipeline)
+                    let rewriteStartTime = Date()
+                    let documentNames = await snapshotDocuments().map { $0.filename }
+                    let queryRewriter = QueryRewriterService(
+                        corpusVocabulary: finalCorpusVocabulary,
+                        documentSummaries: nil
+                    )
+
+                    // Build conversation context for pronoun resolution
+                    let conversationHistory = chatHistory(for: selectedId)
+                    let recentTurns: [ConversationTurn] = conversationHistory
+                        .filter { $0.role != .system }
+                        .suffix(4) // Last 4 messages
+                        .map { msg in
+                            ConversationTurn(
+                                role: msg.role == .user ? "user" : "assistant",
+                                content: String(msg.content.prefix(300)),
+                                entities: [] // Will be extracted by the service
+                            )
+                        }
+
+                    do {
+                        let rewriteResult = try await queryRewriter.rewrite(
+                            query: question,
+                            documentNames: documentNames,
+                            conversationContext: recentTurns
+                        )
+                        effectiveQuery = rewriteResult.rewritten
+                        queryWasRewritten = rewriteResult.wasRewritten
+
+                        if rewriteResult.wasRewritten {
+                            var detail = "Intent: \(rewriteResult.intent.rawValue)"
+                            if !rewriteResult.resolvedEntities.isEmpty {
+                                detail += " • Resolved: \(rewriteResult.resolvedEntities.prefix(2).joined(separator: ", "))"
+                            } else {
+                                detail += " • \(rewriteResult.entities.prefix(3).joined(separator: ", "))"
+                            }
+                            Log.info(
+                                "✓ Query rewritten: \"\(question.prefix(40))...\" → \"\(rewriteResult.rewritten.prefix(60))...\"",
+                                category: .retrieval
+                            )
+                            emitThinkingEvent(
+                                .planning,
+                                title: "Query understood",
+                                detail: detail
+                            )
+                        }
+                    } catch {
+                        Log.warning("[RAGService] Query rewriting failed, using original: \(error)", category: .retrieval)
+                    }
+
+                    rewriteTime = Date().timeIntervalSince(rewriteStartTime)
+                    TelemetryCenter.emit(
+                        .retrieval,
+                        title: "Query understanding",
+                        metadata: [
+                            "rewritten": queryWasRewritten ? "true" : "false",
+                            "originalLength": "\(question.count)",
+                            "rewrittenLength": "\(effectiveQuery.count)",
+                        ],
+                        duration: rewriteTime
+                    )
+                } else {
+                    Log.debug("[RAGService] Query rewriting disabled, using original query", category: .pipeline)
+                }
+
+                // Step 1.5: Corpus-Aware Query Expansion
+                Log.section("Step 1.5: Query Expansion", level: .info, category: .pipeline)
                 let expansionStartTime = Date()
-                let queryEnhancer = QueryEnhancementService()
-                let expandedQueries = queryEnhancer.expandQuery(question)
+                let queryEnhancer = QueryEnhancementService(corpusVocabulary: finalCorpusVocabulary)
+                let expandedQueries = queryEnhancer.expandQuery(effectiveQuery)
                 let expansionTime = Date().timeIntervalSince(expansionStartTime)
                 Log.info(
                     "✓ Expanded to \(expandedQueries.count) query variations in \(String(format: "%.0f", expansionTime * 1000))ms",
@@ -2528,25 +2889,119 @@ class RAGService: ObservableObject {
                 }
 
                 // Step 3: Hybrid Search (vector + BM25 keyword search with RRF fusion)
-                Log.section(
-                    "Step 3: Hybrid Search (Vector + BM25)", level: .info, category: .pipeline
-                )
+                // With optional iterative retrieval for multi-pass refinement
+                let useIterative = settingsStore?.enableIterativeRetrieval ?? false
+                let iterativeConfig = qualityMode.iterativeRetrievalConfig
+
                 let retrievalStartTime = Date()
-                let hybridSearch = HybridSearchService(
-                    vectorDatabase: vdb,
-                    vectorWeight: retrievalConfig.vectorWeight,
-                    keywordWeight: retrievalConfig.lexicalWeight
-                )
-                // Use expanded queries for keyword search (original for vector)
-                let retrievedChunks = try await hybridSearch.search(
-                    query: expandedQueries.joined(separator: " "), // Combine expansions
-                    embedding: queryEmbedding,
-                    topK: effectiveTopK * 3 // Retrieve 3x for better coverage on large docs
-                )
+                let retrievedChunks: [RetrievedChunk]
+                var iterativeMetadata: (iterations: Int, confidence: Float, queries: Int)?
+
+                // Classify query intent for adaptive weight tuning (used in both paths)
+                let queryIntent = queryEnhancer.classifyIntent(effectiveQuery)
+                let adjustment = queryIntent.weightAdjustment
+                let adjustedVectorWeight = max(0.1, min(0.9, retrievalConfig.vectorWeight + adjustment.vectorDelta))
+                let adjustedKeywordWeight = max(0.1, min(0.9, retrievalConfig.lexicalWeight + adjustment.keywordDelta))
+
+                if useIterative {
+                    // Multi-pass iterative retrieval with self-correction
+                    Log.section(
+                        "Step 3: Iterative Retrieval (\(iterativeConfig.maxIterations) max passes)",
+                        level: .info,
+                        category: .pipeline
+                    )
+                    emitThinkingEvent(
+                        .retrieval,
+                        title: "Multi-pass retrieval",
+                        detail: "Up to \(iterativeConfig.maxIterations) iterations for confidence ≥\(Int(iterativeConfig.confidenceThreshold * 100))%"
+                    )
+
+                    let iterativeService = IterativeRetrievalService(
+                        hybridSearchFactory: { db in
+                            HybridSearchService(
+                                vectorDatabase: db,
+                                vectorWeight: adjustedVectorWeight,
+                                keywordWeight: adjustedKeywordWeight
+                            )
+                        },
+                        embeddingService: queryEmbeddingService
+                    )
+
+                    // Pass cached chunks to avoid redundant allChunks() calls in iterative retrieval
+                    let iterativeResult = try await iterativeService.retrieve(
+                        query: expandedQueries.joined(separator: " "),
+                        vectorDatabase: vdb,
+                        config: iterativeConfig,
+                        topK: effectiveTopK,
+                        cachedChunks: cachedAllChunks
+                    )
+
+                    retrievedChunks = iterativeResult.allChunks
+                    iterativeMetadata = (
+                        iterations: iterativeResult.iterations,
+                        confidence: iterativeResult.confidence,
+                        queries: iterativeResult.queriesUsed.count
+                    )
+
+                    Log.info(
+                        "✓ Iterative retrieval complete: \(iterativeResult.iterations) passes, " +
+                            "\(retrievedChunks.count) chunks, confidence \(String(format: "%.0f", iterativeResult.confidence * 100))%",
+                        category: .retrieval
+                    )
+                    TelemetryCenter.emit(
+                        .retrieval,
+                        title: "Iterative retrieval complete",
+                        metadata: [
+                            "iterations": "\(iterativeResult.iterations)",
+                            "chunks": "\(retrievedChunks.count)",
+                            "confidence": String(format: "%.2f", iterativeResult.confidence),
+                            "queries": "\(iterativeResult.queriesUsed.count)",
+                            "hitMax": "\(iterativeResult.hitMaxIterations)",
+                        ],
+                        duration: iterativeResult.totalTime
+                    )
+                    emitThinkingEvent(
+                        .retrieval,
+                        title: "Retrieval complete",
+                        detail: "\(iterativeResult.iterations) passes → \(retrievedChunks.count) chunks (\(Int(iterativeResult.confidence * 100))% confidence)"
+                    )
+                } else {
+                    // Single-pass hybrid search (original behavior)
+                    Log.section(
+                        "Step 3: Hybrid Search (Vector + BM25)", level: .info, category: .pipeline
+                    )
+
+                    Log.debug(
+                        "[RAGService] Query intent: \(queryIntent.rawValue) → weights adjusted to vector=\(String(format: "%.2f", adjustedVectorWeight)), keyword=\(String(format: "%.2f", adjustedKeywordWeight))",
+                        category: .retrieval
+                    )
+
+                    let hybridSearch = HybridSearchService(
+                        vectorDatabase: vdb, 
+                        vectorWeight: adjustedVectorWeight,
+                        keywordWeight: adjustedKeywordWeight
+                    )
+                    // Use expanded queries for keyword search (original for vector)
+                    // Pass cached chunks to avoid redundant allChunks() call in lexical recall
+                    retrievedChunks = try await hybridSearch.search(
+                        query: expandedQueries.joined(separator: " "), // Combine expansions
+                        embedding: queryEmbedding, 
+                        topK: effectiveTopK * 3, // Retrieve 3x for better coverage on large docs
+                            cachedChunks: cachedAllChunks
+                    )
+                }
 
                 // Measure retrieval time before any MainActor work
                 var retrievalTime = Date().timeIntervalSince(retrievalStartTime)
                 recoveryRetrievalTime = retrievalTime
+
+                // Log iterative metadata if applicable
+                if let meta = iterativeMetadata {
+                    Log.debug(
+                        "[RAGService] Iterative retrieval used \(meta.iterations) iterations, \(meta.queries) query variants",
+                        category: .retrieval
+                    )
+                }
 
                 // Edge case: No relevant chunks found
                 if retrievedChunks.isEmpty {
@@ -2680,7 +3135,7 @@ class RAGService: ObservableObject {
 
                 // Step 4: Re-rank results with multiple signals
                 Log.section("Step 4: Multi-Signal Re-ranking", level: .info, category: .pipeline)
-                let engine = RAGEngine()
+                let engine = RAGEngine.shared
                 let rerankStartTime = Date()
                 var rerankedChunks = await engine.rerank(
                     chunks: chunksWithSources,
@@ -3294,29 +3749,14 @@ class RAGService: ObservableObject {
                     max(1, Int(ceil(Double(chars) / conservativeCharsPerToken)))
                 }
 
-                // PCC supports 65k tokens. On-device is 4k.
-                // We default to 65k for Apple Intelligence unless explicitly constrained.
+                // CRITICAL: Apple FM (both on-device AND PCC) has a hard 4096 token limit.
+                // Despite documentation suggesting PCC supports 65k, real-world testing shows
+                // PCC fails with "Context length of 4096 was exceeded" when input exceeds 4096 tokens.
+                // ALWAYS use 4096 as the base window to avoid overflow-then-retry loops.
                 let baseWindowTokens: Int = {
                     if llmService is AppleFoundationLLMService {
-                        if allowLargeContext {
-                            return 65536
-                        } else {
-                            // LOG WHY we are capping to 4096 to avoid "Simulator" confusion
-                            if !networkAvailable {
-                                Log.info("[RAG] Capping context to 4k (Network Unavailable)", category: .pipeline)
-                            } else if inferenceConfig.executionContext == .onDeviceOnly {
-                                Log.info("[RAG] Capping context to 4k (On-Device Preferred)", category: .pipeline)
-                            } else if pccSuppressed {
-                                Log.info("[RAG] Capping context to 4k (PCC Suppressed by previous error)", category: .pipeline)
-                            } else if !inferenceConfig.allowPrivateCloudCompute {
-                                Log.info("[RAG] Capping context to 4k (PCC Disabled in Settings)", category: .pipeline)
-                            } else if !cloudConsentAllowed, !hasTransientGrant {
-                                Log.info("[RAG] Capping context to 4k (No Cloud Consent)", category: .pipeline)
-                            } else {
-                                Log.warning("[RAG] Capping context to 4k (Unknown reason: pccEligible=\(pccEligible))", category: .pipeline)
-                            }
-                            return 4096
-                        }
+                        // Always use 4096 - PCC does NOT reliably support larger contexts
+                        return 4096
                     }
                     return inferenceConfig.contextLength ?? 4096
                 }()
@@ -3326,37 +3766,34 @@ class RAGService: ObservableObject {
                     max(1, Int(ceil(Double(chars) / conservativeCharsPerToken)))
                 }
 
-                // Use appropriate safety margin based on context size
-                let safetyTokens = isAppleFMOnDevice ? (allowLargeContext ? 2000 : 900) : 600
+                // Safety margins for 4096 token window
+                // Reduced from 900→500: 900 was too aggressive and wasted ~1000 chars of usable context
+                let safetyTokens = isAppleFMOnDevice ? 500 : 400
                 let systemPromptTokens = estimateTokensConservative(chars: (inferenceConfig.systemPrompt ?? "").count)
-                let promptOverheadTokens = 200 + systemPromptTokens // Template overhead
+                let promptOverheadTokens = 150 + systemPromptTokens // Template overhead (reduced from 200)
                 let questionTokens = estimateTokensConservative(chars: question.count)
 
-                // Reserve room for output - more for PCC, less for on-device
-                let reservedOutputTokens = allowLargeContext
-                    ? max(1024, min(inferenceConfig.maxTokens, 2048))
-                    : max(256, min(inferenceConfig.maxTokens, 512))
+                // Reserve room for output (conservative for 4096 window)
+                let reservedOutputTokens = max(200, min(inferenceConfig.maxTokens, 400))
                 let availableForContextTokens = max(
                     0,
                     baseWindowTokens - safetyTokens - promptOverheadTokens - questionTokens - reservedOutputTokens
                 )
                 let cappedContextTokens = applyTrivialCaps
-                    ? min(availableForContextTokens, allowLargeContext ? 3000 : 2600)
+                    ? min(availableForContextTokens, 2600)
                     : availableForContextTokens
-                // Conservative limits: modelmanagerd routing is opaque, so stay under 4096 tokens to avoid crashes
-                // PCC routing is unreliable for simple queries regardless of context size
-                // FIXED: PCC can fail and route to on-device (4096 limit). Be conservative initially.
-                // If PCC works, we can always expand. If it fails, fallback is smoother.
+                // Increased char limits for better RAG context coverage
+                // At ~2.5 chars/token, 2800 tokens = ~7000 chars
                 let maxContextCharsCap = isAppleFMOnDevice
-                    ? (allowLargeContext ? 65000 : (applyTrivialCaps ? 3200 : 9500))
-                    : (applyTrivialCaps ? 7000 : 12000)
+                    ? (applyTrivialCaps ? 4000 : 7500):
+                        applyTrivialCaps ? 8000 : 14000
                 let maxContextChars = min(
-                    max(600, Int(Double(cappedContextTokens) * conservativeCharsPerToken)),
+                    max(800, Int(Double(cappedContextTokens) * conservativeCharsPerToken)),
                     maxContextCharsCap
                 )
 
-                // Use compact mode when on-device (simulator or offline) to maximize content in limited space
-                let useCompactMode = isAppleFMOnDevice && !allowLargeContext
+                // Use compact mode for Apple FM to maximize content in limited space
+                let useCompactMode = isAppleFMOnDevice
 
                 #if targetEnvironment(simulator)
                     Log.info("[RAG] Simulator mode: using on-device context budget (4096 tokens, \(maxContextChars) chars)", category: .pipeline)
@@ -3511,14 +3948,20 @@ class RAGService: ObservableObject {
 
                 var genConfig = inferenceConfig
 
-                // Set explicit system prompt for RAG to ensure agentic behavior
-                // This overrides the default generic instructions in LLMService
+                // Set explicit system prompt for RAG to ensure comprehensive answers
+                // PCC tends to give short responses without explicit length guidance
                 genConfig.systemPrompt = """
-                You are an intelligent assistant with access to the user's knowledge base.
-                Synthesize the provided excerpts to answer the user's question comprehensively.
-                If the excerpts cover multiple functions or contexts (e.g., different modes, actions, or settings), explain all of them to provide a complete picture.
-                Connect related concepts and provide a smart, coherent summary.
-                Cite sources like [S1] to ground your answer.
+                You are an intelligent assistant answering questions from the user's knowledge base.
+
+                    INSTRUCTIONS:
+                    1.Read ALL provided excerpts carefully before answering
+                2.Synthesize information from multiple sources when relevant
+                3.Provide DETAILED, COMPREHENSIVE answers(aim for 150 - 300 words minimum)
+                4.If the excerpts cover multiple aspects, explain each one
+                5.Cite sources using[S1], [S2], etc.to ground your answer
+                6.If information is incomplete, say what you found and what's missing
+
+                Be thorough and helpful.Short answers are only acceptable for simple factual questions.
                 """
 
                 // Adjust temperature based on quality mode for accuracy control
@@ -5103,7 +5546,7 @@ class RAGService: ObservableObject {
             maxCharsPerChunk: perChunk
         )
 
-        let engine = RAGEngine()
+        let engine = RAGEngine.shared
         let (context, used) = await engine.assembleContext(
             chunks: trimmed,
             maxChars: maxContextChars,
@@ -5671,11 +6114,10 @@ struct DeviceCapabilities {
     var deviceTier: DeviceTier = .low
 
     /// Estimated maximum context tokens Apple Intelligence can allocate on this hardware
-    /// - Returns ≈65K tokens once Foundation Models are active (PCC available)
-    /// - Returns 4,096 tokens for on-device-only execution while models download
+    /// - Returns 4,096 tokens per session (same limit applies on-device and via PCC per TN3193)
     var appleIntelligenceContextTokens: Int {
         if supportsFoundationModels {
-            return 65000
+            return 4096
         } else if supportsAppleIntelligence {
             return 4096
         } else {
@@ -5687,10 +6129,10 @@ struct DeviceCapabilities {
     var appleIntelligenceContextDescription: String? {
         if supportsFoundationModels {
             return
-                "≈4,096 tokens on-device, automatically expanding to ≈65K tokens via Private Cloud Compute when queries demand it."
+                "4,096 token context window. Private Cloud Compute handles complex queries that benefit from server-side processing."
         } else if supportsAppleIntelligence {
             return
-                "≈4,096 tokens handled fully on-device while Foundation Models finish downloading."
+                "4,096 tokens handled fully on-device while Foundation Models finish downloading."
         } else {
             return nil
         }
@@ -5835,7 +6277,7 @@ extension RAGService: RAGToolHandler {
 
         // Step 3: Optional similarity filtering
         if let minSim = minSimilarity {
-            let engine = RAGEngine()
+            let engine = RAGEngine.shared
             retrievedChunks = await engine.filterBySimilarity(chunks: retrievedChunks, min: minSim)
         }
 

@@ -172,7 +172,7 @@ class InMemoryVectorDatabase: VectorDatabase {
         }
 
         // Offload vector math to background actor
-        let engine = RAGEngine()
+        let engine = RAGEngine.shared
         let results = await engine.computeVectorSearch(
             embedding: embedding,
             chunks: allChunksSnapshot,
@@ -668,7 +668,7 @@ class PersistentVectorDatabase: VectorDatabase {
         }
 
         // Offload vector math to background actor with cached norms
-        let engine = RAGEngine()
+        let engine = RAGEngine.shared
         let topChunks = await engine.computeVectorSearch(
             embedding: embedding,
             chunks: allChunks,

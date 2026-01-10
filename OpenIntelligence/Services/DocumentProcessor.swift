@@ -28,23 +28,23 @@ class DocumentProcessor {
         let targetWordWindow: Int
         let overlapWords: Int
     }
-    
+
     // MARK: - Configuration
-    
+
     /// Optimal chunk size balances context vs. precision (typically 200-500 words)
     let targetChunkSize: Int
     let chunkOverlap: Int
-    
+
     /// Progress callback for real-time UI updates
     var progressHandler: ((String) -> Void)?
-    
+
     init(targetChunkSize: Int = 400, chunkOverlap: Int = 75) {
         self.targetChunkSize = targetChunkSize
         self.chunkOverlap = chunkOverlap
     }
-    
+
     // MARK: - Public API
-    
+
     /// Process a document and extract text chunks
     func processDocument(at url: URL, chunkOverride: ChunkingOverride? = nil) async throws -> (Document, [ProcessedChunk]) {
         let filename = url.lastPathComponent
@@ -52,24 +52,24 @@ class DocumentProcessor {
         let fileSizeMB = Double(fileSize) / 1_048_576.0
 
         Log.info("[DocumentProcessor] Processing \(filename) (\(String(format: "%.2f", fileSizeMB)) MB)", category: .ingestion)
-        
+
     let startTime = Date()
     let documentId = UUID()
     var pagesProcessed: Int? = nil
     var ocrPagesCount: Int? = nil
-        
+
         // Determine document type
         let documentType = detectDocumentType(url: url)
         Log.debug("[DocumentProcessor] Document type: \(documentType)", category: .ingestion)
-        
+
         // Extract text based on document type
         progressHandler?("reading file")
         try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s to show loading (increased for visibility)
         let (extractedText, pageInfo) = try await extractTextWithPageInfo(from: url, type: documentType)
-        
+
         pagesProcessed = pageInfo.totalPages
         ocrPagesCount = pageInfo.ocrPagesUsed > 0 ? pageInfo.ocrPagesUsed : nil
-        
+
         let extractionTime = Date().timeIntervalSince(startTime)
         let charCount = extractedText.count
         let wordCount = extractedText.split(separator: " ").count
@@ -78,22 +78,31 @@ class DocumentProcessor {
             "[DocumentProcessor] Extracted \(charCount) chars (\(wordCount) words) in \(String(format: "%.2f", extractionTime))s",
             category: .ingestion
         )
-        
+
         // Chunk the text using semantic chunker
         progressHandler?("chunking text")
         try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s to show chunking (increased for visibility)
         let chunkingStartTime = Date()
-        
+
         // Create semantic chunker configuration
-        let activeWindow = chunkOverride?.targetWordWindow ?? self.targetChunkSize
-        let activeOverlap = chunkOverride?.overlapWords ?? self.chunkOverlap
+        // Use content-adaptive defaults if no override provided
+        let baseConfig = SemanticChunker.ChunkingConfig.recommended(for: documentType)
+        let activeWindow = chunkOverride?.targetWordWindow ?? baseConfig.targetSize
+        let activeOverlap = chunkOverride?.overlapWords ?? baseConfig.overlap
         let chunkerConfig = SemanticChunker.ChunkingConfig(
             targetSize: activeWindow,
-            minSize: max(100, activeWindow / 4),
-            maxSize: activeWindow * 2,
-            overlap: activeOverlap
+            minSize: max(baseConfig.minSize, activeWindow / 4),
+            maxSize: max(baseConfig.maxSize, activeWindow * 2),
+            overlap: activeOverlap,
+            useTopicDetection: baseConfig.useTopicDetection,
+            preserveStructure: baseConfig.preserveStructure
         )
-        
+
+        Log.debug(
+            "[DocumentProcessor] Using \(documentType.rawValue) chunking: target=\(activeWindow)w, overlap=\(activeOverlap)w",
+            category: .ingestion
+        )
+
         let semanticChunker = SemanticChunker()
         // Use semantic chunking with page→text range mapping for accurate citations
         let pageMapping = pageInfo.pageTextRanges.isEmpty ? nil : pageInfo.pageTextRanges
@@ -103,7 +112,7 @@ class DocumentProcessor {
             config: chunkerConfig,
             pageNumbers: pageMapping
         )
-        
+
         // Extract text strings and metadata for downstream use
         let processedChunks: [ProcessedChunk] = enhancedChunks.enumerated().map { index, chunk in
             let metadata = ChunkMetadata(
@@ -121,32 +130,32 @@ class DocumentProcessor {
             )
             return ProcessedChunk(text: chunk.content, metadata: metadata)
         }
-        
+
         let chunkingTime = Date().timeIntervalSince(chunkingStartTime)
-		
+
     		Log.debug(
                 "[DocumentProcessor] Created \(processedChunks.count) semantic chunks in \(String(format: "%.3f", chunkingTime))s",
     			category: .ingestion
     		)
-        
+
         // Log semantic features detected
         let chunksWithSections = processedChunks.filter { $0.metadata.sectionTitle != nil }.count
         let chunksWithKeywords = processedChunks.filter { !$0.metadata.keywords.isEmpty }.count
         let chunksWithNumericData = processedChunks.filter { $0.metadata.hasNumericData }.count
         let chunksWithLists = processedChunks.filter { $0.metadata.hasListStructure }.count
-        
+
     		Log.debug("   📑 Semantic features:", category: .ingestion)
     		Log.debug("      - Sections detected: \(chunksWithSections)/\(processedChunks.count)", category: .ingestion)
     		Log.debug("      - Keywords extracted: \(chunksWithKeywords)/\(processedChunks.count)", category: .ingestion)
     		Log.debug("      - Numeric data: \(chunksWithNumericData)/\(processedChunks.count)", category: .ingestion)
     		Log.debug("      - List structures: \(chunksWithLists)/\(processedChunks.count)", category: .ingestion)
-        
+
         // Calculate average semantic density
         let avgSemanticDensity = processedChunks
             .map { Double($0.metadata.semanticDensity ?? 0) }
             .reduce(0.0, +) / Double(max(1, processedChunks.count))
             Log.debug("      - Avg semantic density: \(String(format: "%.3f", avgSemanticDensity))", category: .ingestion)
-        
+
         // Print chunk statistics
         if !processedChunks.isEmpty {
             let chunkLengths = processedChunks.map { $0.metadata.characterCount }
@@ -154,16 +163,16 @@ class DocumentProcessor {
             let minChunkSize = chunkLengths.min() ?? 0
             let maxChunkSize = chunkLengths.max() ?? 0
                 Log.debug("   📊 Chunk stats: avg=\(avgChunkSize), min=\(minChunkSize), max=\(maxChunkSize) chars", category: .ingestion)
-            
+
             let chunkStats = ChunkStatistics(
                 averageChars: avgChunkSize,
                 minChars: minChunkSize,
                 maxChars: maxChunkSize
             )
-            
+
             let totalTime = Date().timeIntervalSince(startTime)
                 Log.debug("   ✅ Total processing: \(String(format: "%.2f", totalTime))s", category: .ingestion)
-            
+
             // Create processing metadata
             let metadata = ProcessingMetadata(
                 fileSizeMB: fileSizeMB,
@@ -177,7 +186,7 @@ class DocumentProcessor {
                 ocrPagesCount: ocrPagesCount,
                 chunkStats: chunkStats
             )
-            
+
             // Create document metadata
             let document = Document(
                 id: documentId,
@@ -187,13 +196,13 @@ class DocumentProcessor {
                 totalChunks: processedChunks.count,
                 processingMetadata: metadata
             )
-            
+
             return (document, processedChunks)
         }
-        
+
         let totalTime = Date().timeIntervalSince(startTime)
             Log.debug("   ✅ Total processing: \(String(format: "%.2f", totalTime))s", category: .ingestion)
-        
+
         // Create document metadata (no chunks case)
         let document = Document(
             id: documentId,
@@ -202,22 +211,22 @@ class DocumentProcessor {
             contentType: documentType,
             totalChunks: processedChunks.count
         )
-        
+
         return (document, processedChunks)
     }
-    
+
     // MARK: - Text Extraction
-    
+
     /// Maps page numbers to their corresponding text range in the concatenated document string
     typealias PageTextMapping = [Int: Range<String.Index>]
-    
+
     /// Holds page information from document extraction
     private struct PageInfo {
         let totalPages: Int
         let ocrPagesUsed: Int
         let pageNumbers: [Int]           // Array of page numbers corresponding to text chunks
         let pageTextRanges: PageTextMapping  // Maps page numbers to text ranges (for citations)
-        
+
         init(totalPages: Int, ocrPagesUsed: Int, pageNumbers: [Int], pageTextRanges: PageTextMapping = [:]) {
             self.totalPages = totalPages
             self.ocrPagesUsed = ocrPagesUsed
@@ -225,18 +234,18 @@ class DocumentProcessor {
             self.pageTextRanges = pageTextRanges
         }
     }
-    
+
     /// Extract text with page information for semantic chunking
     private func extractTextWithPageInfo(from url: URL, type: DocumentType) async throws -> (text: String, pageInfo: PageInfo) {
         let text: String
         var pageInfo = PageInfo(totalPages: 0, ocrPagesUsed: 0, pageNumbers: [], pageTextRanges: [:])
-        
+
         switch type {
         case .pdf:
             let (extractedText, pdfPageInfo) = try await extractTextFromPDFWithPages(url: url)
             text = extractedText
             pageInfo = pdfPageInfo
-            
+
         case .text, .markdown:
             do {
                 // Try UTF-8 first (most common)
@@ -257,36 +266,36 @@ class DocumentProcessor {
                     throw error
                 }
             }
-            
+
         case .rtf:
             text = try extractTextFromRTF(url: url)
             pageInfo = PageInfo(totalPages: 1, ocrPagesUsed: 0, pageNumbers: [1])
-            
+
         // Images - Use OCR
         case .png, .jpeg, .heic, .tiff, .gif, .image:
             Log.debug("[DocumentProcessor] Image detected; applying OCR", category: .ingestion)
             text = try await extractTextFromImage(url: url)
             pageInfo = PageInfo(totalPages: 1, ocrPagesUsed: 1, pageNumbers: [1])
-            
+
         // Code files - Preserve as-is with syntax
         case .swift, .python, .javascript, .typescript, .java, .cpp, .c, .objc,
              .go, .rust, .ruby, .php, .html, .css, .json, .xml, .yaml, .sql, .shell, .code:
             Log.debug("[DocumentProcessor] Code file detected; preserving syntax", category: .ingestion)
             text = try extractTextFromCode(url: url)
             pageInfo = PageInfo(totalPages: 1, ocrPagesUsed: 0, pageNumbers: [1])
-            
+
         // CSV - Convert to structured text
         case .csv:
             Log.debug("[DocumentProcessor] CSV detected; converting to structured text", category: .ingestion)
             text = try extractTextFromCSV(url: url)
             pageInfo = PageInfo(totalPages: 1, ocrPagesUsed: 0, pageNumbers: [1])
-            
+
         // Office documents - Attempt extraction
         case .word, .excel, .powerpoint, .pages, .numbers, .keynote:
             Log.debug("[DocumentProcessor] Office document detected; attempting extraction", category: .ingestion)
             text = try await extractTextFromOfficeDocument(url: url, type: type)
             pageInfo = PageInfo(totalPages: 1, ocrPagesUsed: 0, pageNumbers: [1])
-            
+
         case .unknown:
             // Last resort: try treating as plain text
             Log.warning("[DocumentProcessor] Unknown format; attempting plain text extraction", category: .ingestion)
@@ -299,82 +308,82 @@ class DocumentProcessor {
                 throw DocumentProcessingError.unsupportedFormat
             }
         }
-        
+
         // Edge case: Empty or whitespace-only document
         let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedText.isEmpty else {
             Log.error("[DocumentProcessor] Document is empty or contains only whitespace", category: .ingestion)
             throw DocumentProcessingError.emptyDocument
         }
-        
+
         // Edge case: Very short document
         if trimmedText.count < 50 {
             Log.warning("[DocumentProcessor] Very short document (\(trimmedText.count) chars)", category: .ingestion)
         }
-        
+
         // Edge case: Suspiciously long document (possible issue)
         if text.count > 10_000_000 { // 10MB of text
             Log.warning("[DocumentProcessor] Very large document (\(text.count) chars)", category: .ingestion)
         }
-        
+
         return (text, pageInfo)
     }
-    
+
     /// Extract text from PDF with page tracking for semantic chunking
     private func extractTextFromPDFWithPages(url: URL) async throws -> (text: String, pageInfo: PageInfo) {
         guard let pdfDocument = PDFDocument(url: url) else {
             Log.error("[DocumentProcessor] PDF load failed: \(url.lastPathComponent)", category: .ingestion)
             throw DocumentProcessingError.pdfLoadFailed
         }
-        
+
         let pageCount = pdfDocument.pageCount
         Log.debug("[DocumentProcessor] PDF pages: \(pageCount)", category: .ingestion)
-        
+
         // Edge case: Empty PDF
         guard pageCount > 0 else {
             Log.warning("[DocumentProcessor] PDF has zero pages", category: .ingestion)
             throw DocumentProcessingError.emptyDocument
         }
-        
+
         var fullText = ""
         var pagesWithoutText = 0
         var ocrUsedCount = 0
         var totalOCRChars = 0
         var pageTextRanges: PageTextMapping = [:]  // Track page→text ranges for citations
-        
+
         // Extract text from all pages, with OCR fallback for image-only pages
         for pageIndex in 0..<pageCount {
             guard let page = pdfDocument.page(at: pageIndex) else { continue }
-            
+
             let pageStartTime = Date()
             let pageNumber = pageIndex + 1  // 1-indexed for user-facing citations
-            
+
             // Record start position for this page (before appending text)
             let pageStartIndex = fullText.endIndex
-            
+
             // Try standard text extraction first
             if let pageText = page.string, !pageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 progressHandler?("page \(pageNumber)/\(pageCount)")
                 // Delay to ensure UI updates (increased for visibility)
                 try? await Task.sleep(nanoseconds: 300_000_000) // 0.3s
-                
+
                 fullText += pageText + "\n\n"
-                
+
                 // Record page→text range mapping for accurate citations
                 let pageEndIndex = fullText.endIndex
                 pageTextRanges[pageNumber] = pageStartIndex..<pageEndIndex
-                
+
                 let pageTime = Date().timeIntervalSince(pageStartTime)
                 Log.debug("   ✓ Page \(pageNumber): \(pageText.count) chars (\(String(format: "%.2f", pageTime))s)", category: .ingestion)
             } else {
                 // No extractable text - try OCR on the page image
                 pagesWithoutText += 1
-                
+
                 // Update progress for OCR
                 progressHandler?("page \(pageNumber)/\(pageCount), OCR")
                 // Small delay to ensure UI updates
                 try? await Task.sleep(nanoseconds: 50_000_000) // 0.05s
-                
+
                 // Render page as image and apply OCR
                 if let pageImage = renderPDFPageAsImage(page: page),
                    let ocrText = try? await performOCR(on: pageImage),
@@ -382,17 +391,17 @@ class DocumentProcessor {
                     fullText += ocrText + "\n\n"
                     ocrUsedCount += 1
                     totalOCRChars += ocrText.count
-                    
+
                     // Record page→text range for OCR content too
                     let pageEndIndex = fullText.endIndex
                     pageTextRanges[pageNumber] = pageStartIndex..<pageEndIndex
-                    
+
                     let pageTime = Date().timeIntervalSince(pageStartTime)
                     Log.debug("   ✓ Page \(pageNumber): OCR extracted \(ocrText.count) chars (\(String(format: "%.2f", pageTime))s)", category: .ingestion)
                 }
             }
         }
-        
+
         // Report OCR usage
         if ocrUsedCount > 0 {
             Log.debug(
@@ -400,20 +409,20 @@ class DocumentProcessor {
                 category: .ingestion
             )
         }
-        
+
         // Log page mapping stats for debugging
         Log.debug("[DocumentProcessor] Built page→text mapping for \(pageTextRanges.count) pages", category: .ingestion)
-        
+
         let pageInfo = PageInfo(
             totalPages: pageCount,
             ocrPagesUsed: ocrUsedCount,
             pageNumbers: Array(1...pageCount),
             pageTextRanges: pageTextRanges  // Pass mapping for accurate chunk citations
         )
-        
+
         return (fullText, pageInfo)
     }
-    
+
     /// Extract text from PDF using PDFKit (native iOS framework) - Legacy method
     /// Now with OCR fallback for image-only pages
     private func extractTextFromPDF(url: URL) async throws -> String {
@@ -421,46 +430,46 @@ class DocumentProcessor {
             Log.error("[DocumentProcessor] PDF load failed: \(url.lastPathComponent)", category: .ingestion)
             throw DocumentProcessingError.pdfLoadFailed
         }
-        
+
         let pageCount = pdfDocument.pageCount
         Log.debug("[DocumentProcessor] PDF pages: \(pageCount)", category: .ingestion)
-        
+
         // Edge case: Empty PDF
         guard pageCount > 0 else {
             Log.warning("[DocumentProcessor] PDF has zero pages", category: .ingestion)
             throw DocumentProcessingError.emptyDocument
         }
-        
+
         var fullText = ""
         var pagesWithoutText = 0
         var ocrUsedCount = 0
         var totalOCRChars = 0
-        
+
         // Extract text from all pages, with OCR fallback for image-only pages
         for pageIndex in 0..<pageCount {
             guard let page = pdfDocument.page(at: pageIndex) else { continue }
-            
+
             let pageStartTime = Date()
-            
+
             // Try standard text extraction first
             if let pageText = page.string, !pageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 progressHandler?("page \(pageIndex + 1)/\(pageCount)")
                 // Delay to ensure UI updates (increased for visibility)
                 try? await Task.sleep(nanoseconds: 300_000_000) // 0.3s
-                
+
                 fullText += pageText + "\n\n"
-                
+
                 let pageTime = Date().timeIntervalSince(pageStartTime)
                 Log.debug("   ✓ Page \(pageIndex + 1): \(pageText.count) chars (\(String(format: "%.2f", pageTime))s)", category: .ingestion)
             } else {
                 // No extractable text - try OCR on the page image
                 pagesWithoutText += 1
-                
+
                 // Update progress for OCR
                 progressHandler?("page \(pageIndex + 1)/\(pageCount), OCR")
                 // Small delay to ensure UI updates
                 try? await Task.sleep(nanoseconds: 50_000_000) // 0.05s
-                
+
                 // Render page as image and apply OCR
                 if let pageImage = renderPDFPageAsImage(page: page),
                    let ocrText = try? await performOCR(on: pageImage),
@@ -468,22 +477,22 @@ class DocumentProcessor {
                     fullText += ocrText + "\n\n"
                     ocrUsedCount += 1
                     totalOCRChars += ocrText.count
-                    
+
                     let pageTime = Date().timeIntervalSince(pageStartTime)
                     Log.debug("   ✓ Page \(pageIndex + 1): OCR extracted \(ocrText.count) chars (\(String(format: "%.2f", pageTime))s)", category: .ingestion)
                 }
             }
         }
-        
+
         // Report OCR usage
         if ocrUsedCount > 0 {
             Log.debug("[DocumentProcessor] OCR applied to \(ocrUsedCount)/\(pageCount) pages (\(totalOCRChars) chars total)", category: .ingestion)
         }
-        
+
         if pagesWithoutText > 0 && ocrUsedCount == 0 {
             Log.warning("[DocumentProcessor] \(pagesWithoutText) pages had no extractable text (may be images)", category: .ingestion)
         }
-        
+
         // Only throw error if NO text was extracted at all
         let trimmedText = fullText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedText.isEmpty else {
@@ -494,10 +503,10 @@ class DocumentProcessor {
             }
             throw DocumentProcessingError.imageOnlyPDF
         }
-        
+
         return fullText
     }
-    
+
     /// Render a PDF page as an image for OCR processing
     private func renderPDFPageAsImage(page: PDFPage) -> CIImage? {
         let pageBounds = page.bounds(for: .mediaBox)
@@ -514,7 +523,7 @@ class DocumentProcessor {
         #elseif canImport(AppKit)
         let size = CGSize(width: pageBounds.size.width, height: pageBounds.size.height)
         guard size.width > 0 && size.height > 0 else { return nil }
-        
+
         let image = NSImage(size: size)
         image.lockFocus()
         NSColor.white.set()
@@ -527,7 +536,7 @@ class DocumentProcessor {
             ctx.restoreGState()
         }
         image.unlockFocus()
-        
+
         guard let tiff = image.tiffRepresentation,
               let rep = NSBitmapImageRep(data: tiff),
               let cgImage = rep.cgImage else {
@@ -538,14 +547,14 @@ class DocumentProcessor {
         return nil
         #endif
     }
-    
+
     /// Extract text from RTF using native AttributedString
     private func extractTextFromRTF(url: URL) throws -> String {
         let data = try Data(contentsOf: url)
         let options: [NSAttributedString.DocumentReadingOptionKey: Any] = [
             .documentType: NSAttributedString.DocumentType.rtf
         ]
-        
+
         var documentAttributes: NSDictionary?
         guard let attributedString = try? NSAttributedString(
             data: data,
@@ -556,61 +565,61 @@ class DocumentProcessor {
         }
         return attributedString.string
     }
-    
+
     /// Extract text from images using Vision framework OCR
     private func extractTextFromImage(url: URL) async throws -> String {
         progressHandler?("OCR scanning")
         try? await Task.sleep(nanoseconds: 100_000_000) // 0.1s to show OCR status
-        
+
         let startTime = Date()
-        
+
         guard let image = CIImage(contentsOf: url) else {
             Log.error("[DocumentProcessor] Failed to load image: \(url.lastPathComponent)", category: .ingestion)
             throw DocumentProcessingError.imageLoadFailed
         }
-        
+
         let imageSize = image.extent.size
         Log.debug("[DocumentProcessor] Image dimensions: \(Int(imageSize.width))×\(Int(imageSize.height))px", category: .ingestion)
-        
+
         let text = try await performOCR(on: image)
         let ocrTime = Date().timeIntervalSince(startTime)
-        
+
         Log.debug("[DocumentProcessor] OCR extracted \(text.count) chars in \(String(format: "%.2f", ocrTime))s", category: .ingestion)
-        
+
         return text
     }
-    
+
     /// Perform OCR on an image using Vision framework
     private func performOCR(on image: CIImage) async throws -> String {
         let requestHandler = VNImageRequestHandler(ciImage: image, options: [:])
-        
+
         return try await withCheckedThrowingContinuation { continuation in
             let request = VNRecognizeTextRequest { request, error in
                 if let error = error {
                     continuation.resume(throwing: error)
                     return
                 }
-                
+
                 guard let observations = request.results as? [VNRecognizedTextObservation] else {
                     continuation.resume(returning: "")
                     return
                 }
-                
+
                 // Extract text from all observations
                 let recognizedText = observations.compactMap { observation in
                     observation.topCandidates(1).first?.string
                 }.joined(separator: "\n")
-                
+
                 continuation.resume(returning: recognizedText)
             }
-            
+
             // Configure for maximum accuracy
             request.recognitionLevel = .accurate
             request.usesLanguageCorrection = true
-            
+
             // Support multiple languages
             request.recognitionLanguages = ["en-US", "es-ES", "fr-FR", "de-DE", "it-IT", "pt-BR", "zh-Hans", "ja-JP", "ko-KR", "ar-SA"]
-            
+
             do {
                 try requestHandler.perform([request])
             } catch {
@@ -618,44 +627,44 @@ class DocumentProcessor {
             }
         }
     }
-    
+
     /// Extract text from code files - preserve syntax and structure
     private func extractTextFromCode(url: URL) throws -> String {
         // Try UTF-8 first (standard for code)
         if let code = try? String(contentsOf: url, encoding: .utf8) {
             return code
         }
-        
+
         // Fallback to other encodings
         if let data = try? Data(contentsOf: url),
            let code = String(data: data, encoding: .isoLatin1) ?? String(data: data, encoding: .ascii) {
             return code
         }
-        
+
         throw DocumentProcessingError.unsupportedEncoding
     }
-    
+
     /// Extract text from CSV - convert to structured readable format
     private func extractTextFromCSV(url: URL) throws -> String {
         let csvContent = try String(contentsOf: url, encoding: .utf8)
         let lines = csvContent.components(separatedBy: .newlines)
-        
+
         guard !lines.isEmpty else {
             throw DocumentProcessingError.emptyDocument
         }
-        
+
         // Parse CSV and convert to readable format
         var structuredText = ""
-        
+
         // Detect delimiter (comma or tab)
         let delimiter = lines.first?.contains("\t") == true ? "\t" : ","
-        
+
         // Process header
         if let header = lines.first {
             let headers = header.components(separatedBy: delimiter)
             structuredText += "Table with columns: " + headers.joined(separator: ", ") + "\n\n"
         }
-        
+
         // Process rows (limit to reasonable size for context)
         let rowsToProcess = min(lines.count - 1, 1000)
         for i in 1..<rowsToProcess {
@@ -665,40 +674,40 @@ class DocumentProcessor {
                 structuredText += "Row \(i): " + values.joined(separator: " | ") + "\n"
             }
         }
-        
+
         if lines.count > 1001 {
             structuredText += "\n(Note: CSV contains \(lines.count) total rows, showing first 1000 for efficiency)\n"
         }
-        
+
         return structuredText
     }
-    
+
     /// Extract text from Office documents (Word, Excel, PowerPoint, iWork)
     private func extractTextFromOfficeDocument(url: URL, type: DocumentType) async throws -> String {
         // For iWork documents (.pages, .numbers, .keynote), they're actually ZIP packages
         if type == .pages || type == .numbers || type == .keynote {
             return try extractTextFromIWorkDocument(url: url)
         }
-        
+
         // For Microsoft Office formats, attempt extraction
         // .docx, .xlsx, .pptx are also ZIP packages with XML
         if type == .word || type == .excel || type == .powerpoint {
             return try extractTextFromOfficeXML(url: url, type: type)
         }
-        
+
         // Legacy .doc, .xls, .ppt - limited support
         Log.warning("[DocumentProcessor] Legacy Office format detected", category: .ingestion)
         Log.info("[DocumentProcessor] Suggestion: Convert to .docx, .xlsx, or .pptx for better support", category: .ingestion)
         throw DocumentProcessingError.legacyOfficeFormat
     }
-    
+
     /// Extract text from iWork documents (Pages, Numbers, Keynote)
     private func extractTextFromIWorkDocument(url: URL) throws -> String {
         // iWork documents are packages - look for index.xml or similar
         // This is a simplified implementation
         Log.warning("[DocumentProcessor] iWork document support is limited", category: .ingestion)
         Log.info("[DocumentProcessor] Suggestion: Export as PDF or text for full compatibility", category: .ingestion)
-        
+
         // Try to read as a package
         var isDirectory: ObjCBool = false
         if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue {
@@ -716,68 +725,68 @@ class DocumentProcessor {
                 }
             }
         }
-        
+
         throw DocumentProcessingError.iWorkExtractionFailed
     }
-    
+
     /// Extract text from modern Office XML formats
     private func extractTextFromOfficeXML(url: URL, type: DocumentType) throws -> String {
         // Modern Office formats (.docx, .xlsx, .pptx) are ZIP files
         // They contain XML files with the actual content
-        
+
         Log.warning("[DocumentProcessor] Modern Office format detected", category: .ingestion)
         Log.info("[DocumentProcessor] Suggestion: For best results, export as PDF before importing", category: .ingestion)
-        
+
         // This would require ZIP extraction and XML parsing
         // For now, suggest conversion
         throw DocumentProcessingError.officeFormatNeedsConversion
     }
-    
+
     // MARK: - Chunking Strategy
-    
+
     /// Intelligent text chunking strategy using semantic boundaries
     /// Splits on paragraphs first, then sentences, maintaining context overlap
     private func chunkText(_ text: String) -> [String] {
         var chunks: [String] = []
-        
+
         // First, split by paragraphs (semantic boundaries)
         let paragraphs = text.components(separatedBy: .newlines)
             .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-        
+
         var currentChunk = ""
         var wordCount = 0
-        
+
         for paragraph in paragraphs {
             let paragraphWords = paragraph.split(separator: " ")
             let paragraphWordCount = paragraphWords.count
-            
+
             // If adding this paragraph exceeds target size, finalize current chunk
             if wordCount + paragraphWordCount > targetChunkSize && wordCount > 0 {
                 chunks.append(currentChunk.trimmingCharacters(in: .whitespacesAndNewlines))
-                
+
                 // Implement overlap by keeping last N words
                 let overlapWords = currentChunk.split(separator: " ").suffix(chunkOverlap)
                 currentChunk = overlapWords.joined(separator: " ") + " "
                 wordCount = overlapWords.count
             }
-            
+
             currentChunk += paragraph + "\n\n"
             wordCount += paragraphWordCount
         }
-        
+
         // Add final chunk
         if !currentChunk.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             chunks.append(currentChunk.trimmingCharacters(in: .whitespacesAndNewlines))
         }
-        
+
         return chunks
     }
-    
+
     // MARK: - Utilities
-    
+
     private func detectDocumentType(url: URL) -> DocumentType {
         let pathExtension = url.pathExtension.lowercased()
-        
+
         switch pathExtension {
         // Documents
         case "pdf":
@@ -788,7 +797,7 @@ class DocumentProcessor {
             return .markdown
         case "rtf":
             return .rtf
-            
+
         // Images (OCR support)
         case "png":
             return .png
@@ -802,7 +811,7 @@ class DocumentProcessor {
             return .gif
         case "bmp", "webp":
             return .image
-            
+
         // Code files
         case "swift":
             return .swift
@@ -844,7 +853,7 @@ class DocumentProcessor {
             return .shell
         case "kt", "kts", "scala", "clj", "ex", "exs", "elm", "hs", "lua", "pl", "r", "dart", "vim":
             return .code
-            
+
         // Office documents
         case "doc", "docx":
             return .word
@@ -858,23 +867,23 @@ class DocumentProcessor {
             return .numbers
         case "key":
             return .keynote
-            
+
         // Data formats
         case "csv":
             return .csv
-            
+
         default:
             // Try to detect by content type as fallback
             if let resourceValues = try? url.resourceValues(forKeys: [.contentTypeKey]),
                let contentType = resourceValues.contentType {
-                
+
                 if contentType.conforms(to: .image) {
                     return .image
                 } else if contentType.conforms(to: .plainText) || contentType.conforms(to: .sourceCode) {
                     return .code
                 }
             }
-            
+
             return .unknown
         }
     }
@@ -896,7 +905,7 @@ enum DocumentProcessingError: LocalizedError {
     case legacyOfficeFormat
     case officeFormatNeedsConversion
     case iWorkExtractionFailed
-    
+
     var errorDescription: String? {
         switch self {
         case .unsupportedFormat:

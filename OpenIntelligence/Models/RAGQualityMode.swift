@@ -77,4 +77,42 @@ enum RAGQualityMode: String, CaseIterable, Identifiable, Sendable {
         case .thorough: return true
         }
     }
+
+    // MARK: - Advanced RAG Features (v2.0)
+
+    /// Whether to use LLM-powered query rewriting
+    var usesQueryRewriting: Bool {
+        switch self {
+        case .fast: return false // Skip for speed
+        case .balanced: return true // Use for better understanding
+        case .thorough: return true // Always use
+        }
+    }
+
+    /// Whether to use iterative retrieval (retrieve → assess → refine → retrieve more)
+    var usesIterativeRetrieval: Bool {
+        switch self {
+        case .fast: return false // Single-pass only
+        case .balanced: return false // Single-pass by default (toggle available)
+        case .thorough: return true // Multi-pass for accuracy
+        }
+    }
+
+    /// Configuration for iterative retrieval
+    var iterativeRetrievalConfig: IterativeRetrievalConfig {
+        switch self {
+        case .fast: return .fast
+        case .balanced: return .default
+        case .thorough: return .thorough
+        }
+    }
+
+    /// Maximum iterations for iterative retrieval
+    var maxRetrievalIterations: Int {
+        switch self {
+        case .fast: return 1
+        case .balanced: return 2
+        case .thorough: return 4
+        }
+    }
 }

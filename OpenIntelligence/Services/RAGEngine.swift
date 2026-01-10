@@ -19,6 +19,11 @@ import Tokenizers
 
 /// Background executor for pure RAG computations (no UI/IO access)
 actor RAGEngine {
+    // MARK: - Shared Instance
+
+    /// Shared singleton to avoid repeated model loading
+    static let shared = RAGEngine()
+
     // MARK: - Properties
 
     #if canImport(CoreML)
@@ -26,6 +31,7 @@ actor RAGEngine {
     #endif
 
     private var rerankerTokenizer: BertTokenizer?
+    private var isSetupComplete = false
 
     init() {
         Task { [weak self] in
@@ -34,6 +40,10 @@ actor RAGEngine {
     }
 
     private func setupReRanker() async {
+        // Only run setup once
+        guard !isSetupComplete else { return }
+        isSetupComplete = true
+
         #if canImport(CoreML)
             // Load ReRanker Model (compiled from .mlpackage to .mlmodelc by Xcode)
             let modelName = "ReRankerModel"
@@ -306,10 +316,12 @@ actor RAGEngine {
     ///   - chunks: Retrieved chunks sorted by relevance
     ///   - maxChars: Maximum character budget for the context
     ///   - compact: When true, uses minimal headers to maximize content density (for on-device 4K limit)
+    ///   - useLostInMiddleMitigation: Reorders chunks to place best at start AND end (LLMs attend poorly to middle)
     func assembleContext(
         chunks: [RetrievedChunk],
         maxChars: Int,
-        compact: Bool = false
+        compact: Bool = false,
+        useLostInMiddleMitigation: Bool = true
     ) async -> (context: String, used: Int) {
         #if DEBUG
             let log = OSLog(subsystem: "OpenIntelligence", category: "RAGEngine")
@@ -319,11 +331,23 @@ actor RAGEngine {
         #endif
         guard !chunks.isEmpty else { return ("", 0) }
 
+        // "Lost in the Middle" mitigation (Liu et al., 2023):
+        // LLMs attend strongly to the beginning and end of context, but poorly to the middle.
+        // Reorder chunks so the most relevant are at positions 1, N, 2, N-1, 3, N-2, etc.
+        // This ensures the best chunks are in high-attention positions.
+        let orderedChunks: [RetrievedChunk]
+        if useLostInMiddleMitigation, chunks.count >= 4 {
+            orderedChunks = applyLostInMiddleReordering(chunks)
+        } else {
+            orderedChunks = chunks
+        }
+
         var builder = String()
         builder.reserveCapacity(min(maxChars, 4096))
         var used = 0
 
-        for (i, r) in chunks.enumerated() {
+        for (i, r) in orderedChunks.enumerated() {
+            
             if Task.isCancelled { break }
             if i % 16 == 0 { await Task.yield() }
 
@@ -333,13 +357,13 @@ actor RAGEngine {
                 // Saves ~30-50 chars per chunk for more content in constrained budgets
                 let source = r.sourceDocument.isEmpty ? "" : URL(fileURLWithPath: r.sourceDocument).lastPathComponent
                 let sourceRef = source.isEmpty ? "" : "(\(source)) "
-                block = "[S\(i + 1)] \(sourceRef)\(r.chunk.content)" + (i != chunks.count - 1 ? "\n---\n" : "")
+                block = "[S\(i + 1)] \(sourceRef)\(r.chunk.content)" + (i != orderedChunks.count - 1 ? "\n---\n" : "")
             } else {
                 // Full mode: rich metadata for better citation context
                 let source = r.sourceDocument.isEmpty ? "Unknown" : r.sourceDocument
                 let page = r.pageNumber.map { " p.\($0)" } ?? ""
                 let header = "[S\(i + 1)] \(source)\(page) • sim \(String(format: "%.3f", r.similarityScore))\n"
-                block = header + r.chunk.content + (i != chunks.count - 1 ? "\n\n---\n\n" : "")
+                block = header + r.chunk.content + (i != orderedChunks.count - 1 ? "\n\n---\n\n" : "")
             }
 
             if builder.count + block.count <= maxChars || used == 0 {
@@ -351,6 +375,49 @@ actor RAGEngine {
         }
 
         return (builder, used)
+    }
+
+    /// Reorders chunks to mitigate "Lost in the Middle" attention patterns.
+    /// Places most relevant chunks at start and end of context where LLMs attend best.
+    /// Order: 1st, 3rd, 5th, ..., 6th, 4th, 2nd (interleaved from both ends)
+    private func applyLostInMiddleReordering(_ chunks: [RetrievedChunk]) -> [RetrievedChunk] {
+        guard chunks.count >= 4 else { return chunks }
+
+        var result: [RetrievedChunk] = []
+        result.reserveCapacity(chunks.count)
+
+        // Split into two halves
+        let midpoint = chunks.count / 2
+        let firstHalf = Array(chunks.prefix(midpoint))
+        let secondHalf = Array(chunks.suffix(from: midpoint))
+
+        // Interleave: odd positions from first half, even positions from second half (reversed)
+        var frontIdx = 0
+        var backIdx = secondHalf.count - 1
+
+        for i in 0 ..< chunks.count {
+            if i % 2 == 0 {
+                // Even position: take from front (highest relevance)
+                if frontIdx < firstHalf.count {
+                    result.append(firstHalf[frontIdx])
+                    frontIdx += 1
+                } else if backIdx >= 0 {
+                    result.append(secondHalf[backIdx])
+                    backIdx -= 1
+                }
+            } else {
+                // Odd position: take from back (placed near end for recency attention)
+                if backIdx >= 0 {
+                    result.append(secondHalf[backIdx])
+                    backIdx -= 1
+                } else if frontIdx < firstHalf.count {
+                    result.append(firstHalf[frontIdx])
+                    frontIdx += 1
+                }
+            }
+        }
+
+        return result
     }
 
     /// Compute confidence score and quality warnings (off-main)

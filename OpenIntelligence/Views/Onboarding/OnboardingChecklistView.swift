@@ -205,7 +205,7 @@ Button {
                     icon: "iphone",
                     iconColor: .purple,
                     title: "Works Offline",
-                    description: "Full functionality without an internet connection"
+                    description: "Search and basic answers work without internet"
                 )
             }
 .padding(.horizontal, 32)
