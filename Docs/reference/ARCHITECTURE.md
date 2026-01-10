@@ -168,14 +168,14 @@ User Query Input
 - **Content-adaptive chunking** via `ChunkingConfig.recommended(for:)`
 - Returns `ProcessingSummary` with timing and statistics
 
-**Chunking Presets** (Jan 2026):
+**Chunking Presets** (Jan 2026 - Optimized):
 
 | Preset | Target Size | Overlap | Use Case |
 |--------|-------------|---------|----------|
-| `technicalReference` | 150 words | 40 words | PDFs, manuals, spec sheets |
-| `narrative` | 350 words | 75 words | Prose, articles, books |
-| `code` | 200 words | 50 words | Source code, scripts |
-| Default | 400 words | 50 words | General documents |
+| `technicalReference` | 280 words | 50 words (~18%) | PDFs, manuals, spec sheets |
+| `narrative` | 400 words | 70 words (~17%) | Prose, articles, books |
+| `code` | 250 words | 40 words (~16%) | Source code, scripts |
+| Default | 350 words | 60 words (~17%) | General documents |
 
 **File**: `OpenIntelligence/Services/DocumentProcessor.swift`
 
@@ -744,8 +744,8 @@ Vendor/                          # Third-party dependencies (LocalLLMClient)
 | Llama-3.2-1B | 131,072 | 8,192 |
 
 **RAG Context Strategy**:
-- Target ~3,000 tokens (3–4 chunks @ 400 words)
-- SemanticChunker overlap (75 words) maintains coherence
+- Target ~3,000 tokens (5–8 chunks @ 280-350 words)
+- SemanticChunker overlap (~17% / 60 words) maintains coherence
 - HybridSearchService MMR prevents redundant context
 
 ### Memory Footprint (Q4_K_M 3B)

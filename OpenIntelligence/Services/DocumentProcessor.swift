@@ -38,7 +38,7 @@ class DocumentProcessor {
     /// Progress callback for real-time UI updates
     var progressHandler: ((String) -> Void)?
 
-    init(targetChunkSize: Int = 400, chunkOverlap: Int = 75) {
+    init(targetChunkSize: Int = 350, chunkOverlap: Int = 60) {
         self.targetChunkSize = targetChunkSize
         self.chunkOverlap = chunkOverlap
     }

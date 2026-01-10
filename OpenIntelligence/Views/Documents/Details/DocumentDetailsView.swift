@@ -286,7 +286,7 @@ struct DocumentDetailsView: View {
                     Image(systemName: "info.circle.fill")
                         .foregroundColor(.blue)
                         .font(.caption)
-                    Text("400-word target with 50-word overlap for context preservation")
+                    Text("280-350 word target with ~17% overlap for optimal retrieval")
                         .font(.caption2)
                         .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

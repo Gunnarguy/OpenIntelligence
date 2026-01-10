@@ -120,11 +120,11 @@ If you encounter build issues or UI glitches, run the clean script:
 Navigate to the **Documents** tab. Drag and drop PDFs, Markdown, or Text files. The app will:
 
 - **Parse** text using PDFKit or Vision OCR.
-- **Chunk** content into 400-word segments.
+- **Chunk** content into optimized 280-400 word segments with 17% overlap.
 - **Embed** chunks using on-device models:
-  - **Standard NL** (default): Fast word-averaged embeddings via `NLEmbedding`.
-  - **Contextual NL** (iOS 17+): BERT-like contextual embeddings for 15-25% better accuracy.
-- **Index** for both vector and keyword search.
+  - **CoreML Sentence** (default): Fast 384-dim sentence embeddings.
+  - **NL Embedding**: Fallback word-averaged embeddings via `NLEmbedding`.
+- **Index** for both vector and BM25 keyword search.
 
 > 💡 **Tip**: Enable high-accuracy mode in Library Settings → Embedding Model for technical or complex documents.
 
