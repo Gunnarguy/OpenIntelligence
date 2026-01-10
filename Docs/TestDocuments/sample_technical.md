@@ -13,7 +13,7 @@ actor SemanticChunker {
     private let minChunkSize: Int = 120       // Minimum clamp
     private let maxChunkSize: Int = 550       // Maximum clamp
     private let overlapWords: Int = 60        // ~17% overlap between chunks
-    
+
     func chunk(text: String, metadata: DocumentMetadata) async -> [ProcessedChunk] {
         // Topic boundary detection
         // Language detection via NLLanguageRecognizer
@@ -255,7 +255,7 @@ struct KnowledgeContainer {
 actor VectorStoreRouter {
     private var databases: [UUID: VectorDatabase] = [:]
     private let cache: NSCache<NSUUID, CachedVectorDB>
-    
+
     func db(for container: KnowledgeContainer) -> VectorDatabase {
         // LRU cache with 5-minute expiry
         // Lazy instantiation per container
@@ -309,7 +309,7 @@ actor VectorStoreRouter {
 
 ---
 
-**Last Updated**: November 19, 2025  
-**Version**: 1.0.0  
-**Status**: Production-Ready  
+**Last Updated**: November 19, 2025
+**Version**: 1.0.0
+**Status**: Production-Ready
 **Platform**: iOS 26.0+
