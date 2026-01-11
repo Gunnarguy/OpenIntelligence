@@ -152,8 +152,13 @@ class EmbeddingService {
     @inline(__always)
     private static func makeLegacyNLEmbeddingProvider() -> any EmbeddingProvider {
         // NLEmbeddingProvider is deprecated but intentionally used for legacy fallback.
-        // Compiler warning is expected here and can be ignored.
-        NLEmbeddingProvider()
+        // swiftlint:disable:next deprecated
+        #if swift(>=6.0)
+            nonisolated(unsafe) let provider = NLEmbeddingProvider()
+        #else
+            let provider = NLEmbeddingProvider()
+        #endif
+        return provider
     }
 
     // MARK: - Public API

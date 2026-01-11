@@ -3,40 +3,61 @@
 //  OpenIntelligence
 //
 //  Controls the accuracy/speed tradeoff for RAG queries.
+//  Simplified to 2 user-visible modes: Standard and Deep Think
 //
 
 import Foundation
 
 /// Quality mode that controls the accuracy/speed tradeoff
-enum RAGQualityMode: String, CaseIterable, Identifiable, Sendable {
+/// User sees only 2 options; internal cases preserved for backward compatibility
+enum RAGQualityMode: String, Identifiable, Sendable {
+    // User-visible modes
+    case standard // All features ON, single-pass (replaces balanced)
+    case deepThink // Multi-session agentic reasoning (replaces agentic)
+
+    // Legacy/internal modes (hidden from UI picker, preserved for migrations)
     case fast // Quick answers, less verification
-    case balanced // Default: good accuracy, reasonable speed
-    case thorough // Maximum accuracy, multiple retrieval passes
+    case balanced // Alias for standard
+    case thorough // Maximum accuracy - treated as standard
+    case agentic // Alias for deepThink
 
     var id: String { rawValue }
 
-    var displayName: String {
+    /// Canonical form - maps legacy values to new modes
+    var canonical: RAGQualityMode {
         switch self {
-        case .fast: return "Fast"
-        case .balanced: return "Balanced"
-        case .thorough: return "Accuracy"
+        case .standard, .balanced, .fast, .thorough: return .standard
+        case .deepThink, .agentic: return .deepThink
+        }
+    }
+
+    /// Cases visible in UI picker
+    static var userVisibleCases: [RAGQualityMode] {
+        [.standard, .deepThink]
+    }
+
+    var displayName: String {
+        switch canonical {
+        case .standard: return "Standard"
+        case .deepThink: return "Deep Think"
+        default: return "Standard"
         }
     }
 
     var description: String {
-        switch self {
-        case .fast: return "Quick responses with basic retrieval"
-        case .balanced: return "Good accuracy with smart context selection"
-        case .thorough: return "Maximum accuracy with strict gating and citations"
+        switch canonical {
+        case .standard: return "Comprehensive search with HyDE, compression & citations"
+        case .deepThink: return "Multi-step reasoning for complex questions"
+        default: return "Comprehensive search"
         }
     }
 
     /// Icon for UI display
     var icon: String {
-        switch self {
-        case .fast: return "hare"
-        case .balanced: return "scale.3d"
-        case .thorough: return "checkmark.seal"
+        switch canonical {
+        case .standard: return "sparkles"
+        case .deepThink: return "brain.head.profile"
+        default: return "sparkles"
         }
     }
 
@@ -44,75 +65,77 @@ enum RAGQualityMode: String, CaseIterable, Identifiable, Sendable {
 
     /// Initial number of chunks to retrieve
     var initialTopK: Int {
-        switch self {
-        case .fast: return 10
-        case .balanced: return 15
-        case .thorough: return 25
+        switch canonical {
+        case .standard: return 20 // Generous retrieval
+        case .deepThink: return 20 // Per-step retrieval
+        default: return 20
         }
     }
 
     /// Minimum similarity threshold for retrieval
     var minSimilarity: Float {
-        switch self {
-        case .fast: return 0.28
-        case .balanced: return 0.35
-        case .thorough: return 0.50
+        switch canonical {
+        case .standard: return 0.32 // Balanced threshold
+        case .deepThink: return 0.30 // Slightly broader to catch more context
+        default: return 0.32
         }
     }
 
     /// Temperature for generation (lower = more deterministic)
     var temperature: Float {
-        switch self {
-        case .fast: return 0.7
-        case .balanced: return 0.5
-        case .thorough: return 0.3
+        switch canonical {
+        case .standard: return 0.4 // Slightly deterministic for accuracy
+        case .deepThink: return 0.4 // Slightly creative for diverse sub-queries
+        default: return 0.4
         }
     }
 
     /// Whether to require citations in responses
     var requiresCitations: Bool {
-        switch self {
-        case .fast: return false
-        case .balanced: return true
-        case .thorough: return true
-        }
+        true // Always require for transparency
     }
 
-    // MARK: - Advanced RAG Features (v2.0)
+    // MARK: - Advanced RAG Features (All ON for Standard)
 
     /// Whether to use LLM-powered query rewriting
     var usesQueryRewriting: Bool {
-        switch self {
-        case .fast: return false // Skip for speed
-        case .balanced: return true // Use for better understanding
-        case .thorough: return true // Always use
-        }
+        true // Always use for better understanding
     }
 
     /// Whether to use iterative retrieval (retrieve → assess → refine → retrieve more)
     var usesIterativeRetrieval: Bool {
-        switch self {
-        case .fast: return false // Single-pass only
-        case .balanced: return false // Single-pass by default (toggle available)
-        case .thorough: return true // Multi-pass for accuracy
+        switch canonical {
+        case .standard: return false // Single comprehensive pass
+        case .deepThink: return true // Built into the orchestration loop
+        default: return false
         }
     }
 
     /// Configuration for iterative retrieval
     var iterativeRetrievalConfig: IterativeRetrievalConfig {
-        switch self {
-        case .fast: return .fast
-        case .balanced: return .default
-        case .thorough: return .thorough
+        switch canonical {
+        case .standard: return .thorough // High quality
+        case .deepThink: return .thorough // Max quality per step
+        default: return .thorough
         }
     }
 
     /// Maximum iterations for iterative retrieval
     var maxRetrievalIterations: Int {
-        switch self {
-        case .fast: return 1
-        case .balanced: return 2
-        case .thorough: return 4
+        switch canonical {
+        case .standard: return 2
+        case .deepThink: return 5 // Orchestrator controls overall flow
+        default: return 2
         }
+    }
+
+    /// Whether to use the AgenticOrchestrator for multi-session reasoning
+    var usesAgenticOrchestrator: Bool {
+        canonical == .deepThink
+    }
+
+    /// Agentic orchestrator configuration
+    var agenticConfig: AgenticConfig {
+        .thorough // Always use high quality config
     }
 }

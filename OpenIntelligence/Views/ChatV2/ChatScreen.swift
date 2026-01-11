@@ -37,6 +37,7 @@ struct ChatScreen: View {
     @State private var streamingText: String = ""
     @State private var streamingBuffer: String = ""
     @State private var streamingPumpTask: Task<Void, Never>? = nil
+    @State private var currentQueryTask: Task<Void, Never>? = nil // Track current query for cancellation
     @State private var hasReceivedStreamToken: Bool = false
     @State private var generationStart: Date? = nil
     // Per-stage timing
@@ -730,7 +731,11 @@ struct ChatScreen: View {
     }
 
     private func newChat() {
-        // Cancel any in-flight processing
+        // Cancel any in-flight query task
+        currentQueryTask?.cancel()
+        currentQueryTask = nil
+
+        // Reset processing state
         if isProcessing {
             resetStreamingState()
             isProcessing = false
@@ -757,7 +762,11 @@ struct ChatScreen: View {
     }
 
     private func clearChat() {
-        // Cancel any in-flight processing
+        // Cancel any in-flight query task
+        currentQueryTask?.cancel()
+        currentQueryTask = nil
+
+        // Reset processing state
         if isProcessing {
             resetStreamingState()
             isProcessing = false
@@ -784,6 +793,10 @@ struct ChatScreen: View {
     /// Stops generation immediately and preserves partial response
     private func stopGeneration() {
         guard isProcessing else { return }
+
+        // Cancel the running query task
+        currentQueryTask?.cancel()
+        currentQueryTask = nil
 
         // Flush any buffered text immediately
         flushStreamingBufferToVisibleText()
@@ -1000,8 +1013,23 @@ struct ChatScreen: View {
         let query = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return }
 
-        // Prevent concurrent queries
-        guard !isProcessing else { return }
+        // Cancel any existing query - "cancel and replace" strategy
+        // This prevents memory leaks from orphaned tasks on back-to-back queries
+        if let existingTask = currentQueryTask {
+            existingTask.cancel()
+            currentQueryTask = nil
+            // Brief yield to let cancellation propagate
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
+            }
+        }
+
+        // Reset streaming state from any previous query
+        if isProcessing {
+            resetStreamingState()
+            isProcessing = false
+            stage = .idle
+        }
 
         onboardingStore.markAskedFirstQuery()
 
@@ -1036,14 +1064,17 @@ struct ChatScreen: View {
             baseExecutionContext == .automatic ? .preferCloud : baseExecutionContext
         let capturedAllowPCC = baseExecutionContext != .onDeviceOnly
         requestedExecutionContext = capturedExecutionContext
-        let capturedService = ragService
         let capturedUsedContainerId = usedContainerId
         resetStreamingState()
 
-        Task(priority: .userInitiated) {
+        // Track this task for potential cancellation
+        currentQueryTask = Task(priority: .userInitiated) { [weak ragService] in
+            guard let capturedService = ragService else { return }
+
             // Guarantee cleanup even on cancellation or error
             defer {
                 Task { @MainActor in
+                    self.currentQueryTask = nil
                     self.isProcessing = false
                     if self.stage == .generating || self.stage == .searching || self.stage == .embedding {
                         self.stage = .idle
@@ -1052,6 +1083,9 @@ struct ChatScreen: View {
             }
 
             do {
+                // Check for cancellation before starting work
+                try Task.checkCancellation()
+
                 // Resolve low-signal follow-ups ("yes", "ok", etc.) to the last meaningful query.
                 let isLowSignal = isLowSignalQuery(query)
                 var capturedQuery = isLowSignal ? (lastSemanticQuery ?? query) : query
@@ -1061,10 +1095,16 @@ struct ChatScreen: View {
                     }
                 }
 
+                // Check for cancellation after query resolution
+                try Task.checkCancellation()
+
                 // Clarify the user's query using Writing Tools if available (improves retrieval quality)
                 if !isLowSignal, let clarified = try? await WritingToolsService().clarifyQuery(query) {
                     capturedQuery = clarified
                 }
+
+                // Check for cancellation before embedding
+                try Task.checkCancellation()
 
                 // Stage 1: Embedding
                 await MainActor.run {
@@ -1078,6 +1118,9 @@ struct ChatScreen: View {
                     // StatusPillV2 shows stage - no toast needed
                 }
                 try? await Task.sleep(nanoseconds: 250_000_000)
+
+                // Check for cancellation before searching
+                try Task.checkCancellation()
 
                 // Stage 2: Searching
                 await MainActor.run {
@@ -1103,6 +1146,9 @@ struct ChatScreen: View {
                     executionContext: capturedExecutionContext,
                     allowPrivateCloudCompute: capturedAllowPCC
                 )
+
+                // Check for cancellation before generation
+                try Task.checkCancellation()
 
                 // Stage 3: Generating
                 await MainActor.run {
@@ -1548,11 +1594,8 @@ struct CompactChatHeader: View {
 
             // Bottom row: Quality mode picker + Model status + Stats
             HStack(spacing: 10) {
-                if settings.developerRAGTuningEnabled {
-                    QualityModeQuickPicker(selectedMode: $settings.ragQualityMode)
-                } else {
-                    AccuracyModeBadge()
-                }
+                // Always show quality mode picker - Deep Think is useful for all users
+                QualityModeQuickPicker(selectedMode: $settings.ragQualityMode)
 
                 // Model indicator (compact)
                 ModelStatusIndicator(deviceCapabilities: deviceCapabilities)
@@ -1600,7 +1643,7 @@ struct QualityModeQuickPicker: View {
 
     var body: some View {
         Menu {
-            ForEach(RAGQualityMode.allCases) { mode in
+            ForEach(RAGQualityMode.userVisibleCases, id: \.id) { mode in
                 Button {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                         selectedMode = mode
@@ -1623,7 +1666,7 @@ struct QualityModeQuickPicker: View {
             HStack(spacing: 4) {
                 Image(systemName: selectedMode.icon)
                     .font(.system(size: 10, weight: .semibold))
-                Text("Quality: \(selectedMode.displayName)")
+                Text(selectedMode.displayName)
                     .font(.system(size: 11, weight: .semibold))
                 Image(systemName: "chevron.down")
                     .font(.system(size: 8, weight: .bold))
@@ -1639,10 +1682,10 @@ struct QualityModeQuickPicker: View {
     }
 
     private var modeColor: Color {
-        switch selectedMode {
-        case .fast: return .orange
-        case .balanced: return .blue
-        case .thorough: return .green
+        switch selectedMode.canonical {
+        case .standard: return .blue
+        case .deepThink: return .purple
+        default: return .blue
         }
     }
 }

@@ -3,8 +3,8 @@
 //  OpenIntelligence
 //
 //  Single source of truth for all processing metrics and intelligence in chat.
-//  Combines execution location, context usage, generation stats, and source quality
-//  into one cohesive, expandable component.
+//  Combines execution location, context usage, generation stats, source quality,
+//  and real-time system state into one cohesive, expandable component.
 //
 
 import SwiftUI
@@ -13,7 +13,7 @@ import SwiftUI
 
 /// The ONE metrics bar to rule them all.
 /// Shows everything: execution location, context window, generation speed,
-/// sources, quality mode—with expandable detail panel for transparency.
+/// sources, quality mode, system state—with expandable detail panel for transparency.
 struct UnifiedMetricsBar: View {
     // Processing state
     let stage: ChatProcessingStage
@@ -57,6 +57,9 @@ struct UnifiedMetricsBar: View {
     // State
     @State private var showExpandedDetails = false
     @State private var pulsePhase: CGFloat = 0
+
+    // System state (live monitoring)
+    @ObservedObject private var systemMonitor = SystemStateMonitor.shared
 
     // Computed
     private var contextUsageRatio: Double {
@@ -120,7 +123,7 @@ struct UnifiedMetricsBar: View {
 
     private var mainCompactStrip: some View {
         VStack(spacing: 6) {
-            // Top row: Execution + Stage + Context + Speed + Sources
+            // Top row: Execution + Stage + System State + Context + Speed + Sources
             HStack(spacing: 6) {
                 // Execution location (with model name if available)
                 executionBadge
@@ -138,6 +141,9 @@ struct UnifiedMetricsBar: View {
                 if cloudFallbackActive {
                     cloudFallbackBadge
                 }
+
+                // System state indicator (thermal/battery/memory warning)
+                systemStateBadge
 
                 Spacer(minLength: 4)
 
@@ -402,10 +408,58 @@ struct UnifiedMetricsBar: View {
     }
 
     private var qualityModeColor: Color {
-        switch qualityMode {
-        case .fast: return .orange
-        case .balanced: return .blue
-        case .thorough: return .green
+        switch qualityMode.canonical {
+        case .standard: return .blue
+        case .deepThink: return .purple
+        default: return .blue
+        }
+    }
+
+    // MARK: - System State Badge
+
+    /// Compact system state indicator showing thermal/battery/memory status
+    @ViewBuilder
+    private var systemStateBadge: some View {
+        let state = systemMonitor.currentState
+        let thermalColor = systemStateThermalColor(state.thermalState)
+
+        // Only show if there's something notable (not all nominal)
+        if state.hasWarning || state.hasCritical || showExpandedDetails {
+            HStack(spacing: 3) {
+                // Thermal icon
+                Image(systemName: SystemStateMonitor.thermalIcon(for: state.thermalState))
+                    .font(.system(size: 8, weight: .semibold))
+
+                // Show battery if low or charging
+                if state.isCharging || state.batteryLevel < 0.25 {
+                    Text("•")
+                        .font(.system(size: 4))
+                        .opacity(0.5)
+                    Image(systemName: SystemStateMonitor.batteryIcon(level: state.batteryLevel, isCharging: state.isCharging))
+                        .font(.system(size: 8, weight: .semibold))
+                }
+
+                // Show optimization level if not full
+                if state.optimizationLevel != .full {
+                    Text(state.optimizationLevel.displayName.prefix(3))
+                        .font(.system(size: 7, weight: .bold))
+                }
+            }
+            .foregroundStyle(thermalColor)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 3)
+            .background(thermalColor.opacity(0.12))
+            .clipShape(Capsule())
+        }
+    }
+
+    private func systemStateThermalColor(_ thermal: ProcessInfo.ThermalState) -> Color {
+        switch thermal {
+        case .nominal: return .green
+        case .fair: return .blue
+        case .serious: return .orange
+        case .critical: return .red
+        @unknown default: return .gray
         }
     }
 
@@ -445,6 +499,7 @@ struct UnifiedMetricsBar: View {
 
     private var expandedDetailsPanel: some View {
         VStack(alignment: .leading, spacing: 12) {
+            // Row 1: Execution + Context
             HStack(spacing: 12) {
                 executionDetailCard
                 contextDetailCard
@@ -454,6 +509,10 @@ struct UnifiedMetricsBar: View {
                 cloudStatusBanner
             }
 
+            // Row 2: System State (full details)
+            systemStateDetailCard
+
+            // Row 3: Coverage + Routing
             HStack(spacing: 12) {
                 coverageDetailCard
                 routingDetailCard
@@ -465,6 +524,254 @@ struct UnifiedMetricsBar: View {
         .background(Color(uiColor: .secondarySystemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .padding(.top, 4)
+    }
+
+    // MARK: - System State Detail Card
+
+    private var systemStateDetailCard: some View {
+        let state = systemMonitor.currentState
+        let deviceService = DeviceCapabilityService.shared
+
+        return VStack(alignment: .leading, spacing: 12) {
+            // Header
+            HStack(spacing: 6) {
+                Image(systemName: "gauge.with.dots.needle.bottom.50percent")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.purple)
+                Text("System State")
+                    .font(.system(size: 13, weight: .semibold))
+                Spacer()
+                // Live indicator
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(Color.green)
+                        .frame(width: 6, height: 6)
+                    Text("Live")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.green)
+                }
+            }
+
+            // 2-column grid for better readability
+            LazyVGrid(columns: [
+                GridItem(.flexible(), spacing: 10),
+                GridItem(.flexible(), spacing: 10),
+            ], spacing: 10) {
+                // Thermal - Apple's exact terminology
+                systemMetricCell(
+                    icon: SystemStateMonitor.thermalIcon(for: state.thermalState),
+                    label: "Thermal State",
+                    value: state.thermalStateName,
+                    detail: thermalDetail(state.thermalState),
+                    color: systemStateThermalColor(state.thermalState)
+                )
+
+                // Battery
+                systemMetricCell(
+                    icon: SystemStateMonitor.batteryIcon(level: state.batteryLevel, isCharging: state.isCharging),
+                    label: "Battery Level",
+                    value: state.batteryPercent >= 0 ? "\(state.batteryPercent)%" : "N/A",
+                    detail: batteryDetail(state),
+                    color: batteryColor(level: state.batteryLevel, isCharging: state.isCharging)
+                )
+
+                // Memory
+                systemMetricCell(
+                    icon: state.memoryPressure.icon,
+                    label: "Available RAM",
+                    value: formatMemory(state.availableMemoryMB),
+                    detail: state.memoryPressure.rawValue,
+                    color: memoryColor(pressure: state.memoryPressure)
+                )
+
+                // Pipeline Mode
+                systemMetricCell(
+                    icon: "slider.horizontal.3",
+                    label: "Pipeline Mode",
+                    value: state.optimizationLevel.displayName,
+                    detail: pipelineDetail(state.optimizationLevel),
+                    color: pipelineColor(level: state.optimizationLevel)
+                )
+
+                // Chip
+                systemMetricCell(
+                    icon: "cpu",
+                    label: "Processor",
+                    value: deviceService.chipName,
+                    detail: "\(state.activeProcessorCount)/\(state.processorCount) cores",
+                    color: .purple
+                )
+
+                // NPU
+                systemMetricCell(
+                    icon: "brain.head.profile",
+                    label: "Neural Engine",
+                    value: "\(deviceService.tier.estimatedNPUTops) TOPS",
+                    detail: deviceService.tier.displayName,
+                    color: .blue
+                )
+            }
+
+            // Status indicators row
+            HStack(spacing: 12) {
+                if state.isLowPowerModeEnabled {
+                    statusPill(icon: "leaf.fill", text: "Low Power Mode", color: .orange)
+                }
+
+                if deviceService.hasThermalHeadroom && !state.isConstrained {
+                    statusPill(icon: "thermometer.snowflake", text: "Thermal Headroom", color: .green)
+                }
+
+                if state.isCharging {
+                    statusPill(icon: "bolt.fill", text: "Charging", color: .green)
+                }
+
+                Spacer()
+            }
+
+            // Constrained state warning
+            if state.isConstrained {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 12))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Pipeline Adjusted")
+                            .font(.system(size: 11, weight: .semibold))
+                        Text(constraintReason(state))
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .foregroundStyle(.orange)
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.orange.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+        }
+        .padding(12)
+        .background(Color(uiColor: .tertiarySystemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    @ViewBuilder
+    private func systemMetricCell(icon: String, label: String, value: String, detail: String, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            // Label row
+            HStack(spacing: 5) {
+                Image(systemName: icon)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(color)
+                Text(label)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+
+            // Value - prominent
+            Text(value)
+                .font(.system(size: 14, weight: .bold, design: .rounded))
+                .foregroundStyle(.primary)
+
+            // Detail - subtle
+            Text(detail)
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(color.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    @ViewBuilder
+    private func statusPill(icon: String, text: String, color: Color) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: 9, weight: .semibold))
+            Text(text)
+                .font(.system(size: 9, weight: .medium))
+        }
+        .foregroundStyle(color)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(color.opacity(0.12))
+        .clipShape(Capsule())
+    }
+
+    private func thermalDetail(_ thermal: ProcessInfo.ThermalState) -> String {
+        switch thermal {
+        case .nominal: return "Optimal performance"
+        case .fair: return "Slightly elevated"
+        case .serious: return "Throttling active"
+        case .critical: return "Maximum throttling"
+        @unknown default: return "Unknown"
+        }
+    }
+
+    private func batteryDetail(_ state: SystemStateSnapshot) -> String {
+        if state.isFullyCharged { return "Fully charged" }
+        if state.isCharging { return "Charging" }
+        if state.batteryLevel < 0.10 { return "Low battery" }
+        if state.batteryLevel < 0.20 { return "Battery saver" }
+        return "On battery"
+    }
+
+    private func formatMemory(_ mb: Int) -> String {
+        if mb >= 1024 {
+            return String(format: "%.1f GB", Double(mb) / 1024.0)
+        }
+        return "\(mb) MB"
+    }
+
+    private func pipelineDetail(_ level: PipelineOptimizationLevel) -> String {
+        switch level {
+        case .full: return "All features enabled"
+        case .balanced: return "Smart optimization"
+        case .efficient: return "Power saving"
+        case .minimal: return "Essential only"
+        }
+    }
+
+    private func batteryColor(level: Float, isCharging: Bool) -> Color {
+        if isCharging { return .green }
+        if level < 0 { return .gray }
+        if level < 0.10 { return .red }
+        if level < 0.25 { return .orange }
+        return .green
+    }
+
+    private func memoryColor(pressure: MemoryPressureLevel) -> Color {
+        switch pressure {
+        case .nominal: return .green
+        case .warning: return .orange
+        case .critical: return .red
+        }
+    }
+
+    private func pipelineColor(level: PipelineOptimizationLevel) -> Color {
+        switch level {
+        case .full: return .green
+        case .balanced: return .blue
+        case .efficient: return .orange
+        case .minimal: return .red
+        }
+    }
+
+    private func constraintReason(_ state: SystemStateSnapshot) -> String {
+        var reasons: [String] = []
+        if state.thermalState == .serious || state.thermalState == .critical {
+            reasons.append("thermal")
+        }
+        if state.memoryPressure != .nominal {
+            reasons.append("memory")
+        }
+        if state.batteryLevel >= 0 && state.batteryLevel < 0.20 && !state.isCharging {
+            reasons.append("battery")
+        }
+        if state.isLowPowerModeEnabled {
+            reasons.append("low power mode")
+        }
+        return reasons.isEmpty ? "device constraints" : reasons.joined(separator: ", ")
     }
 
     private var executionDetailCard: some View {
@@ -783,12 +1090,12 @@ private struct MiniSparkline: View {
     struct UnifiedMetricsBar_Previews: PreviewProvider {
         static var previews: some View {
             VStack(spacing: 20) {
-                // Active generation on device
+                // Active generation on device - Standard mode
                 UnifiedMetricsBar(
                     stage: .generating,
                     execution: .onDevice,
                     isProcessing: true,
-                    qualityMode: .balanced,
+                    qualityMode: .standard,
                     contextTokens: 2100,
                     maxContextTokens: 4096,
                     tokensGenerated: 47,
@@ -807,12 +1114,12 @@ private struct MiniSparkline: View {
                     requestedExecutionContext: .preferCloud
                 )
 
-                // Completed on PCC
+                // Completed on PCC - Deep Think mode
                 UnifiedMetricsBar(
                     stage: .complete,
                     execution: .privateCloudCompute,
                     isProcessing: false,
-                    qualityMode: .thorough,
+                    qualityMode: .deepThink,
                     contextTokens: 3800,
                     maxContextTokens: 4096,
                     tokensGenerated: 156,
@@ -831,12 +1138,12 @@ private struct MiniSparkline: View {
                     requestedExecutionContext: .preferCloud
                 )
 
-                // Searching stage (no generation yet)
+                // Searching stage - Standard mode
                 UnifiedMetricsBar(
                     stage: .searching,
                     execution: .unknown,
                     isProcessing: true,
-                    qualityMode: .fast,
+                    qualityMode: .standard,
                     contextTokens: 800,
                     maxContextTokens: 4096,
                     tokensGenerated: 0,

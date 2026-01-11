@@ -11,9 +11,15 @@ import Foundation
 struct DocumentChunk: Identifiable, Codable, Sendable {
     let id: UUID
     let documentId: UUID
-    let content: String
+    var content: String
     let embedding: [Float]
     let metadata: ChunkMetadata
+
+    /// Alias for `content` - provides semantic clarity when working with text processing
+    var text: String {
+        get { content }
+        set { content = newValue }
+    }
 
     init(id: UUID = UUID(), documentId: UUID, content: String, embedding: [Float], metadata: ChunkMetadata) {
         self.id = id
@@ -39,6 +45,16 @@ struct ChunkMetadata: Codable, Sendable {
     let characterCount: Int
     let createdAt: Date
 
+    // MARK: - Parent Document Retrieval (Jan 2026)
+
+    /// Unique identifier grouping chunks that belong to the same logical section.
+    /// Chunks with the same siblingGroupId can be expanded together for parent context.
+    /// Defaults to combining documentId + pageNumber + sectionTitle for backward compatibility.
+    let siblingGroupId: String?
+
+    /// Total number of chunks in this sibling group (for context expansion decisions)
+    let siblingCount: Int?
+
     init(
         chunkIndex: Int,
         startPosition: Int = 0,
@@ -51,7 +67,9 @@ struct ChunkMetadata: Codable, Sendable {
         hasListStructure: Bool = false,
         wordCount: Int = 0,
         characterCount: Int = 0,
-        createdAt: Date = Date()
+        createdAt: Date = Date(),
+        siblingGroupId: String? = nil,
+        siblingCount: Int? = nil
     ) {
         self.chunkIndex = chunkIndex
         self.startPosition = startPosition
@@ -65,6 +83,8 @@ struct ChunkMetadata: Codable, Sendable {
         self.wordCount = wordCount
         self.characterCount = characterCount
         self.createdAt = createdAt
+        self.siblingGroupId = siblingGroupId
+        self.siblingCount = siblingCount
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -80,6 +100,8 @@ struct ChunkMetadata: Codable, Sendable {
         case wordCount
         case characterCount
         case createdAt
+        case siblingGroupId
+        case siblingCount
     }
 
     init(from decoder: Decoder) throws {
@@ -101,6 +123,9 @@ struct ChunkMetadata: Codable, Sendable {
         // Old persisted chunks will not contain explicit offsets. Fall back to a sensible range based on count.
         endPosition = decodedEnd ?? (fallbackStart + decodedCharacterCount)
         createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
+        // Parent Document Retrieval fields (optional for backward compatibility)
+        siblingGroupId = try container.decodeIfPresent(String.self, forKey: .siblingGroupId)
+        siblingCount = try container.decodeIfPresent(Int.self, forKey: .siblingCount)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -119,6 +144,9 @@ struct ChunkMetadata: Codable, Sendable {
         if wordCount != 0 { try container.encode(wordCount, forKey: .wordCount) }
         if characterCount != 0 { try container.encode(characterCount, forKey: .characterCount) }
         try container.encode(createdAt, forKey: .createdAt)
+        // Parent Document Retrieval fields
+        try container.encodeIfPresent(siblingGroupId, forKey: .siblingGroupId)
+        try container.encodeIfPresent(siblingCount, forKey: .siblingCount)
     }
 }
 
