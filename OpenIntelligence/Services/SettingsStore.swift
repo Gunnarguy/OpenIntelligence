@@ -52,12 +52,15 @@ final class SettingsStore: ObservableObject {
         static let defaultEmbeddingProvider = "defaultEmbeddingProvider"
         static let useHighAccuracyEmbeddings = "useHighAccuracyEmbeddings"
 
-        // Quality mode
-        static let ragQualityMode = "ragQualityMode" // "fast" | "balanced" | "thorough"
+        // Quality mode - "standard" | "deepThink" (legacy: "fast" | "balanced" | "thorough" | "agentic")
+        static let ragQualityMode = "ragQualityMode"
 
-        // Advanced RAG Intelligence
+        // Advanced RAG Intelligence (all enabled by default, controlled by mode)
         static let enableQueryRewriting = "enableQueryRewriting"
         static let enableIterativeRetrieval = "enableIterativeRetrieval"
+        static let enableHyDE = "enableHyDE"
+        static let enableContextualCompression = "enableContextualCompression"
+        static let enableParentDocumentRetrieval = "enableParentDocumentRetrieval"
     }
 
     // MARK: - Published Settings (bind from UI)
@@ -126,6 +129,20 @@ final class SettingsStore: ObservableObject {
     /// Enable iterative retrieval (retrieve → assess → refine → retrieve more).
     /// When enabled, the system will perform multiple retrieval passes until confident.
     @Published var enableIterativeRetrieval: Bool
+
+    /// Enable HyDE (Hypothetical Document Embeddings) for better retrieval.
+    /// Generates a hypothetical answer first, then embeds that for search.
+    /// Most effective for factual queries where question vocab differs from answer vocab.
+    @Published var enableHyDE: Bool
+
+    /// Enable contextual compression to extract only query-relevant content from chunks.
+    /// Reduces token usage and improves answer quality by filtering irrelevant sentences.
+    @Published var enableContextualCompression: Bool
+
+    /// Enable parent document retrieval to expand matched chunks with sibling context.
+    /// When a chunk matches, include surrounding chunks from the same section/page.
+    /// Improves coherence for multi-paragraph answers.
+    @Published var enableParentDocumentRetrieval: Bool
 
     // MARK: - Quality Mode
 
@@ -300,12 +317,18 @@ final class SettingsStore: ObservableObject {
         enableQueryRewriting = defaults.object(forKey: Keys.enableQueryRewriting) as? Bool ?? true
         // Iterative retrieval defaults to false (controlled by quality mode)
         enableIterativeRetrieval = defaults.object(forKey: Keys.enableIterativeRetrieval) as? Bool ?? false
+        // HyDE defaults to true - significant retrieval improvement for factual queries
+        enableHyDE = defaults.object(forKey: Keys.enableHyDE) as? Bool ?? true
+        // Contextual compression defaults to true - saves tokens and improves quality
+        enableContextualCompression = defaults.object(forKey: Keys.enableContextualCompression) as? Bool ?? true
+        // Parent document retrieval defaults to true - improves multi-paragraph coherence
+        enableParentDocumentRetrieval = defaults.object(forKey: Keys.enableParentDocumentRetrieval) as? Bool ?? true
 
-        // Quality mode (balanced, always enforced)
-        ragQualityMode = .balanced
+        // Quality mode - default to Standard (was balanced)
+        ragQualityMode = .standard
         lenientRetrievalMode = false
         defaults.set(false, forKey: Keys.lenient)
-        defaults.set(RAGQualityMode.balanced.rawValue, forKey: Keys.ragQualityMode)
+        defaults.set(RAGQualityMode.standard.rawValue, forKey: Keys.ragQualityMode)
 
         // Auto-upgrade from On-Device Analysis to Apple Intelligence if device is capable
         if selectedModel == .onDeviceAnalysis,
@@ -359,6 +382,9 @@ final class SettingsStore: ObservableObject {
             $useHighAccuracyEmbeddings.map { _ in () }.eraseToAnyPublisher(),
             $enableQueryRewriting.map { _ in () }.eraseToAnyPublisher(),
             $enableIterativeRetrieval.map { _ in () }.eraseToAnyPublisher(),
+            $enableHyDE.map { _ in () }.eraseToAnyPublisher(),
+            $enableContextualCompression.map { _ in () }.eraseToAnyPublisher(),
+            $enableParentDocumentRetrieval.map { _ in () }.eraseToAnyPublisher(),
         ]
         Publishers.MergeMany(publishers)
             .sink { [weak self] in
@@ -379,18 +405,15 @@ final class SettingsStore: ObservableObject {
             .dropFirst()
             .sink { [weak self] _ in
                 guard let self else { return }
+                // Developer tuning is deprecated - always disabled
                 if self.developerRAGTuningEnabled {
                     self.developerRAGTuningEnabled = false
                 }
                 if self.lenientRetrievalMode {
                     self.lenientRetrievalMode = false
                 }
-                if self.ragQualityMode != .balanced {
-                    self.ragQualityMode = .balanced
-                }
                 self.defaults.set(false, forKey: Keys.developerRAGTuning)
                 self.defaults.set(false, forKey: Keys.lenient)
-                self.defaults.set(RAGQualityMode.balanced.rawValue, forKey: Keys.ragQualityMode)
             }
             .store(in: &cancellables)
 
@@ -398,10 +421,12 @@ final class SettingsStore: ObservableObject {
             .dropFirst()
             .sink { [weak self] mode in
                 guard let self else { return }
-                if mode != .balanced {
-                    self.ragQualityMode = .balanced
-                    self.defaults.set(RAGQualityMode.balanced.rawValue, forKey: Keys.ragQualityMode)
+                // Normalize to canonical form and persist
+                let canonical = mode.canonical
+                if mode != canonical {
+                    self.ragQualityMode = canonical
                 }
+                self.defaults.set(canonical.rawValue, forKey: Keys.ragQualityMode)
             }
             .store(in: &cancellables)
 
@@ -475,6 +500,9 @@ final class SettingsStore: ObservableObject {
         // Advanced RAG Intelligence
         defaults.set(enableQueryRewriting, forKey: Keys.enableQueryRewriting)
         defaults.set(enableIterativeRetrieval, forKey: Keys.enableIterativeRetrieval)
+        defaults.set(enableHyDE, forKey: Keys.enableHyDE)
+        defaults.set(enableContextualCompression, forKey: Keys.enableContextualCompression)
+        defaults.set(enableParentDocumentRetrieval, forKey: Keys.enableParentDocumentRetrieval)
     }
 
     // MARK: - Side Effects (Debounced)

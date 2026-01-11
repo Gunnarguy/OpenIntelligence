@@ -13,6 +13,9 @@ struct SettingsView: View {
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var entitlementStore: EntitlementStore
 
+    // Live system monitoring
+    @ObservedObject private var systemMonitor = SystemStateMonitor.shared
+
     @State private var deviceCapabilities = DeviceCapabilities()
     @State private var pipelineStages: [ModelPipelineStage] = []
     @State private var showPlanSheet = false
@@ -32,8 +35,7 @@ struct SettingsView: View {
                 // Subscription
                 billingCard
 
-                // Fine-Tuning
-                generationCard
+                // Intelligence Mode (Standard vs Deep Think)
                 retrievalCard
 
                 // Context & Performance
@@ -475,77 +477,96 @@ Text(label)
 
     @ViewBuilder
     private var contextWindowCard: some View {
+        let deviceService = DeviceCapabilityService.shared
+
         VStack(alignment: .leading, spacing: 14) {
             HStack { 
                 Image(systemName: "doc.text.magnifyingglass")
                     .foregroundColor(.accentColor)
-                Text("Context & Processing")
+                Text("Your Device")
                     .font(.headline)
                 Spacer()
+
+                // Device tier badge
+                Text(deviceService.tier.displayName)
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(tierColor(for: deviceService.tier).opacity(0.15))
+                    .foregroundColor(tierColor(for: deviceService.tier))
+                    .clipShape(Capsule())
             }
 
-            // Context Window Limit explanation
+            // Chip & Memory info (dynamic)
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
-                    Image(systemName: "ruler")
+                    Image(systemName: "cpu")
                         .font(.caption)
-                        .foregroundColor(.orange)
-                    Text("Context Window")
+.foregroundColor(.purple)
+Text(deviceService.chipName)
                         .font(.subheadline.weight(.medium))
+                    Spacer()
+                    Text("\(String(format: "%.0f", deviceService.memoryGB)) GB RAM")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
 
-                Text("Apple Foundation Models use a 4,096-token context window. Private Cloud Compute handles complex queries that benefit from server-side processing power.")
+                Text("Neural Engine: \(deviceService.tier.estimatedNPUTops) TOPS • \(deviceService.formFactor == .iPadPro ? "Active cooling" : "Passive cooling")")
                     .font(.caption)
                     .foregroundColor(.secondary)
 
                 HStack(spacing: 12) {
-                    contextInfoPill(icon: "iphone", label: "On-Device", value: "4K tokens")
+                    deviceCapabilityPill(icon: "brain.head.profile", label: "Deep Think", value: "Up to \(deviceService.maxConcurrentAgenticSteps) steps")
+                    deviceCapabilityPill(icon: "flame", label: "Thermal", value: deviceService.hasThermalHeadroom ? "High" : "Standard")
+                }
+            }
+.padding(10)
+.background(Color.purple.opacity(0.08))
+    .clipShape(RoundedRectangle(cornerRadius: 10))
+
+            Divider()
+
+            // Context Window
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) { 
+                    Image(systemName: "ruler")
+                        .font(.caption)
+.foregroundColor(.orange)
+Text("Context Window")
+    .font(.subheadline.weight(.medium))
+                }
+
+                Text("Apple Foundation Models use a 4,096-token context window on-device. Private Cloud Compute handles complex queries automatically.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                HStack(spacing: 12) {
+                    contextInfoPill(icon: deviceService.isIPad ? "ipad" : "iphone", label: "On-Device", value: "4K tokens")
                     contextInfoPill(icon: "cloud", label: "PCC", value: "Complex queries")
                 }
             }
 .padding(10)
-    .background(Color.orange.opacity(0.08))
+.background(Color.orange.opacity(0.08))
     .clipShape(RoundedRectangle(cornerRadius: 10))
 
-Divider()
+            Divider()
 
-// Neural Engine info
-VStack(alignment: .leading, spacing: 8) {
-    HStack(spacing: 8) {
-        Image(systemName: "cpu")
-            .font(.caption)
-            .foregroundColor(.purple)
-        Text("Neural Engine Processing")
-            .font(.subheadline.weight(.medium))
-    }
+            // Live System Monitor
+            liveSystemMonitorSection
 
-                Text("Apple Intelligence uses the dedicated Neural Engine (16-core on A17+) for efficient inference. The system daemon modelmanagerd automatically routes queries based on complexity, thermal state, and battery level.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+            Divider()
 
-                HStack(spacing: 16) {
-                    neuralEngineInfoRow(icon: "thermometer.medium", label: "Thermal-aware")
-                    neuralEngineInfoRow(icon: "battery.75percent", label: "Battery-aware")
-                    neuralEngineInfoRow(icon: "bolt.badge.automatic", label: "Auto-routing")
-                }
-            }
-.padding(10)
-    .background(Color.purple.opacity(0.08))
-    .clipShape(RoundedRectangle(cornerRadius: 10))
-
-Divider()
-
-// Language Support
-VStack(alignment: .leading, spacing: 8) {
-    HStack(spacing: 8) {
-        Image(systemName: "globe")
-            .font(.caption)
-            .foregroundColor(.blue)
-        Text("Language Support")
-            .font(.subheadline.weight(.medium))
+            // Language Support
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    Image(systemName: "globe")
+                        .font(.caption)
+                        .foregroundColor(.blue)
+                    Text("Language Support")
+                        .font(.subheadline.weight(.medium))
                 }
 
-                Text("Apple Intelligence supports English, Spanish, French, German, Italian, Japanese, Korean, Portuguese, and Chinese. Short single-word queries may require more context for accurate processing.")
+                Text("Apple Intelligence supports English, Spanish, French, German, Italian, Japanese, Korean, Portuguese, and Chinese.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -558,8 +579,18 @@ VStack(alignment: .leading, spacing: 8) {
     .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
+    private func tierColor(for tier: DeviceCapabilityTier) -> Color {
+        switch tier {
+        case .unsupported: return .gray
+        case .baseline: return .blue
+        case .enhanced: return .green
+        case .advanced: return .purple
+        case .ultraAdvanced: return .orange
+        }
+    }
+
     @ViewBuilder
-    private func contextInfoPill(icon: String, label: String, value: String) -> some View {
+    private func deviceCapabilityPill(icon: String, label: String, value: String) -> some View {
         HStack(spacing: 4) {
             Image(systemName: icon)
                 .font(.caption2)
@@ -576,6 +607,23 @@ VStack(alignment: .leading, spacing: 8) {
     }
 
     @ViewBuilder
+    private func contextInfoPill(icon: String, label: String, value: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.caption2)
+            Text(label)
+                .font(.caption2)
+            Text(value)
+                .font(.caption2.weight(.semibold))
+        }
+        .foregroundColor(.secondary)
+.padding(.horizontal, 8)
+    .padding(.vertical, 4)
+    .background(Color.secondary.opacity(0.1))
+    .clipShape(Capsule())
+    }
+
+    @ViewBuilder
     private func neuralEngineInfoRow(icon: String, label: String) -> some View {
         HStack(spacing: 4) {
             Image(systemName: icon)
@@ -583,61 +631,281 @@ VStack(alignment: .leading, spacing: 8) {
             Text(label)
                 .font(.caption2)
         }
-        .foregroundColor(.secondary)
+.foregroundColor(.secondary)
     }
 
-    // MARK: - Response Style Card
+    // MARK: - Live System Monitor Section
 
     @ViewBuilder
-    private var generationCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack { 
-                Image(systemName: "slider.horizontal.3")
-                    .foregroundColor(.accentColor)
-                Text("Response Style")
-                    .font(.headline)
+    private var liveSystemMonitorSection: some View {
+        let state = systemMonitor.currentState
+
+        VStack(alignment: .leading, spacing: 10) {
+            // Header with live indicator
+            HStack(spacing: 8) {
+                Image(systemName: "gauge.with.dots.needle.bottom.50percent")
+                    .font(.caption)
+                    .foregroundColor(.green)
+                Text("Live System Monitor")
+                    .font(.subheadline.weight(.medium))
                 Spacer()
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(Color.green)
+                        .frame(width: 6, height: 6)
+                    Text("Live")
+                        .font(.caption2.weight(.medium))
+                        .foregroundColor(.green)
+                }
             }
 
-            // Temperature mapped to user-friendly style labels
-            sliderRow(
-                label: "Style",
-                value: $settings.temperature,
-                range: 0 ... 1.0,
-                step: 0.1,
-                valueString: settings.temperature < 0.3 ? "Precise" : settings.temperature > 0.7 ? "Creative" : "Balanced",
-                description: settings.temperature < 0.3 ? "Factual, consistent answers" : settings.temperature > 0.7 ? "More varied, expressive responses" : "Good balance of accuracy and variety"
-            )
-        }
-.padding()
-    .background(DSColors.surface)
-    .clipShape(RoundedRectangle(cornerRadius: 16))
-    }
+            // Live metrics grid
+            LazyVGrid(columns: [
+                GridItem(.flexible(), spacing: 10),
+                GridItem(.flexible(), spacing: 10),
+            ], spacing: 10) {
+                // Thermal - Apple's official ProcessInfo.ThermalState terminology
+                liveMetricCard(
+                    icon: SystemStateMonitor.thermalIcon(for: state.thermalState),
+                    label: "Thermal State",
+                    value: state.thermalStateName,
+                    detail: thermalDetailText(state.thermalState),
+                    color: thermalStateColor(state.thermalState)
+                )
 
-    @ViewBuilder
-    private func sliderRow(
-        label: String,
-        value: Binding<Double>,
-        range: ClosedRange<Double>,
-        step: Double,
-        valueString: String,
-        description: String
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text(label)
-                    .font(.subheadline)
-                Spacer()
-                Text(valueString)
-                    .font(.subheadline.monospacedDigit())
-                    .foregroundColor(.accentColor)
+                // Battery
+                liveMetricCard(
+                    icon: SystemStateMonitor.batteryIcon(level: state.batteryLevel, isCharging: state.isCharging),
+                    label: "Battery Level",
+                    value: state.batteryPercent >= 0 ? "\(state.batteryPercent)%" : "N/A",
+                    detail: batteryDetailText(state),
+                    color: batteryStateColor(level: state.batteryLevel, isCharging: state.isCharging)
+                )
+
+                // Memory
+                liveMetricCard(
+                    icon: state.memoryPressure.icon,
+                    label: "Available RAM",
+                    value: formatMemorySize(state.availableMemoryMB),
+                    detail: state.memoryPressure.rawValue,
+                    color: memoryPressureColor(state.memoryPressure)
+                )
+
+                // Pipeline Optimization
+                liveMetricCard(
+                    icon: "slider.horizontal.3",
+                    label: "Pipeline Mode",
+                    value: state.optimizationLevel.displayName,
+                    detail: pipelineDetailText(state.optimizationLevel),
+                    color: pipelineOptColor(state.optimizationLevel)
+                )
             }
-            Slider(value: value, in: range, step: step)
-                .tint(.accentColor)
-            Text(description)
-                .font(.caption2)
+
+            // Status pills row
+            HStack(spacing: 8) {
+                // Cores
+                HStack(spacing: 4) {
+                    Image(systemName: "cpu")
+                        .font(.caption2)
+                    Text("\(state.activeProcessorCount)/\(state.processorCount) cores")
+                        .font(.caption2.weight(.medium))
+                }
                 .foregroundColor(.secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.secondary.opacity(0.1))
+                .clipShape(Capsule())
+
+                if state.isLowPowerModeEnabled {
+                    HStack(spacing: 4) {
+                        Image(systemName: "leaf.fill")
+                            .font(.caption2)
+                        Text("Low Power")
+                            .font(.caption2.weight(.medium))
+                    }
+                    .foregroundColor(.orange)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.orange.opacity(0.12))
+                    .clipShape(Capsule())
+                }
+
+                if state.isCharging {
+                    HStack(spacing: 4) {
+                        Image(systemName: "bolt.fill")
+                            .font(.caption2)
+                        Text("Charging")
+                            .font(.caption2.weight(.medium))
+                    }
+                    .foregroundColor(.green)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.green.opacity(0.12))
+                    .clipShape(Capsule())
+                }
+
+                Spacer()
+            }
+
+            // Status message
+            if state.isConstrained {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Pipeline Adjusted")
+                            .font(.caption.weight(.semibold))
+                        Text(constraintExplanation(state))
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .foregroundColor(.orange)
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.orange.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            } else {
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.caption)
+                        .foregroundColor(.green)
+                    Text("All systems nominal — full performance")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            // Tip about UnifiedMetricsBar
+            HStack(spacing: 6) {
+                Image(systemName: "lightbulb.fill")
+                    .font(.caption2)
+                Text("Expand the metrics bar in chat for live stats during queries")
+                    .font(.caption2)
+            }
+            .foregroundColor(.secondary)
+            .padding(.top, 2)
         }
+        .padding(12)
+            .background(Color.green.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    @ViewBuilder
+    private func liveMetricCard(icon: String, label: String, value: String, detail: String = "", color: Color) -> some View { 
+        VStack(alignment: .leading, spacing: 6) {
+            // Label row
+            HStack(spacing: 5) {
+                Image(systemName: icon)
+                    .font(.caption)
+                    .foregroundColor(color)
+                Text(label)
+.font(.caption2.weight(.medium))
+    .foregroundColor(.secondary)
+            }
+
+            // Value - prominent
+            Text(value)
+                .font(.subheadline.weight(.bold))
+                .foregroundColor(.primary)
+
+            // Detail if provided
+            if !detail.isEmpty {
+                Text(detail)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(10)
+            .background(color.opacity(0.1))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func thermalDetailText(_ thermal: ProcessInfo.ThermalState) -> String {
+        switch thermal {
+        case .nominal: return "Optimal performance"
+        case .fair: return "Slightly elevated"
+        case .serious: return "Throttling active"
+        case .critical: return "Maximum throttling"
+        @unknown default: return "Unknown state"
+        }
+    }
+
+    private func batteryDetailText(_ state: SystemStateSnapshot) -> String {
+        if state.isFullyCharged { return "Fully charged" }
+        if state.isCharging { return "Charging" }
+        if state.batteryLevel < 0.10 { return "Low battery" }
+        if state.batteryLevel < 0.20 { return "Battery saver" }
+        return "On battery"
+    }
+
+    private func formatMemorySize(_ mb: Int) -> String {
+        if mb >= 1024 {
+            return String(format: "%.1f GB", Double(mb) / 1024.0)
+        }
+        return "\(mb) MB"
+    }
+
+    private func pipelineDetailText(_ level: PipelineOptimizationLevel) -> String {
+        switch level {
+        case .full: return "All features enabled"
+        case .balanced: return "Smart optimization"
+        case .efficient: return "Power saving mode"
+        case .minimal: return "Essential only"
+        }
+    }
+
+    private func thermalStateColor(_ thermal: ProcessInfo.ThermalState) -> Color {
+        switch thermal {
+        case .nominal: return .green
+        case .fair: return .blue
+        case .serious: return .orange
+        case .critical: return .red
+        @unknown default: return .gray
+        }
+    }
+
+    private func batteryStateColor(level: Float, isCharging: Bool) -> Color {
+        if isCharging { return .green }
+        if level < 0 { return .gray }
+        if level < 0.10 { return .red }
+        if level < 0.25 { return .orange }
+        return .green
+    }
+
+    private func memoryPressureColor(_ pressure: MemoryPressureLevel) -> Color {
+        switch pressure {
+        case .nominal: return .green
+        case .warning: return .orange
+        case .critical: return .red
+        }
+    }
+
+    private func pipelineOptColor(_ level: PipelineOptimizationLevel) -> Color {
+        switch level {
+        case .full: return .green
+        case .balanced: return .blue
+        case .efficient: return .orange
+        case .minimal: return .red
+        }
+    }
+
+    private func constraintExplanation(_ state: SystemStateSnapshot) -> String {
+        var reasons: [String] = []
+        if state.thermalState == .serious || state.thermalState == .critical {
+            reasons.append("thermal management")
+        }
+        if state.memoryPressure != .nominal {
+            reasons.append("memory pressure")
+        }
+        if state.batteryLevel >= 0 && state.batteryLevel < 0.20 && !state.isCharging {
+            reasons.append("battery preservation")
+        }
+        if state.isLowPowerModeEnabled {
+            reasons.append("low power mode")
+        }
+        return reasons.isEmpty ? "device constraints" : reasons.joined(separator: ", ")
     }
 
     // MARK: - Retrieval Card
@@ -648,95 +916,119 @@ VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Image(systemName: "sparkles.rectangle.stack")
                     .foregroundColor(.accentColor)
-                Text("Intelligence Layer")
+                Text("Intelligence Mode")
                     .font(.headline)
                 Spacer()
             }
 
-            Text("Advanced RAG features that improve query understanding and answer accuracy.")
+            Text("Choose how OpenIntelligence processes your questions.")
                 .font(.caption)
                 .foregroundColor(.secondary)
 
-            Divider()
-
-            // Query Rewriting Toggle
-            VStack(alignment: .leading, spacing: 8) {
-                Toggle(isOn: $settings.enableQueryRewriting) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Query Understanding")
-                            .font(.subheadline.weight(.medium))
-                        Text("Rewrites vague queries into specific domain language")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                .tint(.accentColor)
-
-                if settings.enableQueryRewriting {
-                    HStack(spacing: 4) {
-                        Image(systemName: "lightbulb.fill")
-                            .font(.caption2)
-                            .foregroundColor(.yellow)
-                        Text("\"press this button\" → \"Record Button functions on PLAUD NOTE\"")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                            .italic()
-                    }
-                    .padding(.leading, 4)
+            // Mode Picker - Standard vs Deep Think
+            VStack(spacing: 12) {
+                ForEach(RAGQualityMode.userVisibleCases, id: \.id) { mode in
+                    intelligenceModeRow(mode: mode, isSelected: settings.ragQualityMode.canonical == mode)
+                        .onTapGesture {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                settings.ragQualityMode = mode
+                            }
+                            DSHaptics.selection()
+                        }
                 }
             }
 
             Divider()
 
-            // Iterative Retrieval Toggle
+            // Always-on features info
             VStack(alignment: .leading, spacing: 8) {
-                Toggle(isOn: $settings.enableIterativeRetrieval) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Multi-Pass Retrieval")
-                            .font(.subheadline.weight(.medium))
-                        Text("Retrieve, assess, refine, and retrieve more until confident")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                .tint(.accentColor)
-
-                if settings.enableIterativeRetrieval {
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.triangle.2.circlepath")
-                            .font(.caption2)
-                            .foregroundColor(.blue)
-                        Text("Up to \(settings.ragQualityMode.maxRetrievalIterations) iterations • May increase response time")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(.leading, 4)
-                }
-            }
-
-            Divider()
-
-            // Corpus-Aware Expansion (always on, informational)
-            HStack(spacing: 8) {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundColor(.green)
-                    .font(.caption)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Corpus-Aware Expansion")
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                        .font(.caption)
+                    Text("Always Enabled")
                         .font(.caption.weight(.medium))
-                    Text("Expands queries using your document vocabulary")
-                        .font(.caption2)
-.foregroundColor(.secondary)
                 }
-                Spacer()
-                Text("Always On")
+
+                VStack(alignment: .leading, spacing: 6) {
+                    alwaysOnFeatureRow(icon: "sparkles", label: "HyDE Query Enhancement", description: "Hypothetical document for better search")
+                    alwaysOnFeatureRow(icon: "text.redaction", label: "Contextual Compression", description: "Focuses on relevant information")
+                    alwaysOnFeatureRow(icon: "doc.on.doc", label: "Parent Document Retrieval", description: "Includes surrounding context")
+                    alwaysOnFeatureRow(icon: "lightbulb", label: "Query Understanding", description: "Rewrites vague queries intelligently")
+                }
+            }
+.padding(10)
+    .background(Color.green.opacity(0.08))
+    .clipShape(RoundedRectangle(cornerRadius: 10))
+        }
+.padding()
+    .background(DSColors.surface)
+    .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    @ViewBuilder
+    private func intelligenceModeRow(mode: RAGQualityMode, isSelected: Bool) -> some View {
+        HStack(spacing: 12) {
+            // Icon
+            ZStack {
+                Circle()
+                    .fill(isSelected ? modeColor(for: mode).opacity(0.15) : Color.secondary.opacity(0.1))
+                    .frame(width: 40, height: 40)
+                Image(systemName: mode.icon)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(isSelected ? modeColor(for: mode) : .secondary)
+            }
+
+            // Text
+            VStack(alignment: .leading, spacing: 2) { 
+                Text(mode.displayName)
+                    .font(.subheadline.weight(.medium))
+.foregroundColor(isSelected ? .primary : .secondary)
+Text(mode.description)
+    .font(.caption)
+    .foregroundColor(.secondary)
+            }
+
+            Spacer()
+
+            // Selection indicator
+            if isSelected {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(modeColor(for: mode))
+            } else {
+                Circle()
+                    .stroke(Color.secondary.opacity(0.3), lineWidth: 2)
+                    .frame(width: 22, height: 22)
+            }
+        }
+.padding(12)
+    .background(isSelected ? modeColor(for: mode).opacity(0.08) : Color.secondary.opacity(0.05))
+    .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func modeColor(for mode: RAGQualityMode) -> Color {
+        switch mode.canonical {
+        case .standard: return .blue
+        case .deepThink: return .purple
+        default: return .blue
+        }
+    }
+
+    @ViewBuilder
+    private func alwaysOnFeatureRow(icon: String, label: String, description: String) -> some View {
+        HStack(spacing: 8) { 
+            Image(systemName: icon)
+                .font(.caption2)
+                .foregroundColor(.green)
+.frame(width: 16)
+VStack(alignment: .leading, spacing: 1) {
+    Text(label)
+        .font(.caption.weight(.medium))
+                Text(description)
                     .font(.caption2)
                     .foregroundColor(.secondary)
             }
         }
-        .padding()
-.background(DSColors.surface)
-    .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
     // MARK: - Developer Card

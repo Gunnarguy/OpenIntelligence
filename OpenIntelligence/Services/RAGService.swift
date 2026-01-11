@@ -2466,6 +2466,87 @@ class RAGService: ObservableObject {
         }
     }
 
+    // MARK: - Agentic Query Execution
+
+    /// Execute a multi-session agentic query for complex reasoning
+    /// This bypasses the single-session 4K limit by orchestrating multiple focused LLM calls
+    private func executeAgenticQuery(
+        question: String,
+        containerId: UUID,
+        config: InferenceConfig?
+    ) async throws -> RAGResponse {
+        Log.box(
+            "AGENTIC REASONING MODE",
+            level: .info,
+            category: .pipeline,
+            content: [
+                "📝 Query: \(question)",
+                "🧠 Multi-session orchestration active",
+                "⚡ Bypassing 4K single-session limit",
+            ]
+        )
+
+        // Detect device capabilities and optimize config
+        let deviceService = DeviceCapabilityService.shared
+        let optimizedConfig = deviceService.optimizedAgenticConfig()
+
+        emitThinkingEvent(
+            .planning,
+            title: "Deep Think Mode",
+            detail: "Starting multi-step reasoning (\(deviceService.tier.displayName) mode, up to \(optimizedConfig.maxSteps) steps)"
+        )
+
+        let orchestrator = AgenticOrchestrator(ragService: self, config: optimizedConfig)
+        let startTime = Date()
+
+        do {
+            let result = try await orchestrator.execute(
+                query: question,
+                initialContext: "",
+                onStep: { [weak self] step in
+                    // Stream thinking steps to UI
+                    await MainActor.run {
+                        self?.emitThinkingEvent(
+                            step.type.thinkingKind,
+                            title: step.type.displayName,
+                            detail: "Tokens: \(step.tokensUsed), Duration: \(String(format: "%.1f", step.duration))s"
+                        )
+                    }
+                }
+            )
+
+            let totalTime = Date().timeIntervalSince(startTime)
+
+            Log.info("[Agentic] Complete: \(result.steps.count) steps, \(result.totalTokens) tokens, \(String(format: "%.1f", totalTime))s", category: .pipeline)
+
+            emitThinkingEvent(
+                .generation,
+                title: "Synthesis complete",
+                detail: "\(result.steps.count) reasoning steps, confidence: \(String(format: "%.0f%%", result.confidence * 100))"
+            )
+
+            // Build RAGResponse from agentic result - include collected chunks for UI
+            return RAGResponse(
+                queryId: UUID(),
+                retrievedChunks: result.retrievedChunks,
+                generatedResponse: result.finalAnswer,
+                metadata: ResponseMetadata(
+                    totalGenerationTime: totalTime,
+                    tokensGenerated: result.totalTokens,
+                    tokensPerSecond: Float(result.totalTokens) / Float(totalTime),
+                    modelUsed: "Apple Foundation Model (Agentic)",
+                    retrievalTime: 0,
+                    retrievalConfigSummary: "Agentic",
+                    toolCallsMade: result.steps.filter { $0.type == .searching }.count
+                ),
+                confidenceScore: result.confidence
+            )
+        } catch {
+            Log.error("[Agentic] Failed: \(error.localizedDescription)", category: .pipeline)
+            throw error
+        }
+    }
+
     // MARK: - RAG Query Pipeline
 
     /// Execute a RAG query: expand query → embed → hybrid search → re-rank → generate response
@@ -2545,7 +2626,33 @@ class RAGService: ObservableObject {
 
         // Get quality mode from settings (affects retrieval parameters)
         let qualityMode: RAGQualityMode = await MainActor.run {
-            settingsStore?.ragQualityMode ?? .balanced
+            settingsStore?.ragQualityMode ?? .standard
+        }
+
+        // Get adaptive pipeline config based on current device state (thermal, battery, memory)
+        // This dynamically adjusts feature usage to prevent thermal throttling and save battery
+        let queryComplexity = QueryComplexity.estimate(from: question)
+        let adaptiveConfig = AdaptivePipelineOptimizer.shared.configForQuery(complexity: queryComplexity)
+        let adaptiveOptLevel = AdaptivePipelineOptimizer.shared.currentOptimizationLevel
+        if adaptiveOptLevel != .full {
+            Log.info("[Adaptive] Pipeline adjusted to \(adaptiveOptLevel.rawValue) mode", category: .pipeline)
+        }
+
+        // Resolve embedding context first (needed for both agentic and standard paths)
+        let embeddingContext = await resolveEmbeddingContext(preferredContainerId: containerId)
+        let embeddingProviderId = embeddingContext.providerId
+        let queryEmbeddingService = embeddingContext.service
+        let selectedId = embeddingContext.containerId
+        let selectedName = embeddingContext.containerName
+        let selectedDim = embeddingContext.dimension
+
+        // AGENTIC MODE: Use multi-session orchestrator for complex reasoning
+        if qualityMode.usesAgenticOrchestrator {
+            return try await executeAgenticQuery(
+                question: question,
+                containerId: selectedId,
+                config: config
+            )
         }
 
         let developerTuningEnabled: Bool = await MainActor.run {
@@ -2566,12 +2673,6 @@ class RAGService: ObservableObject {
         let retrievalConfig =
             rawRetrievalConfig == .highAccuracy ? .default : rawRetrievalConfig
 
-        let embeddingContext = await resolveEmbeddingContext(preferredContainerId: containerId)
-        let embeddingProviderId = embeddingContext.providerId
-        let queryEmbeddingService = embeddingContext.service
-        let selectedId = embeddingContext.containerId
-        let selectedName = embeddingContext.containerName
-        let selectedDim = embeddingContext.dimension
         let selectedContainer = await MainActor.run {
             self.containerService.containers.first { $0.id == selectedId }
         }
@@ -2605,9 +2706,18 @@ class RAGService: ObservableObject {
         let queryWords = question.split(separator: " ").count
         let isTrivial = isTrivialQuery(question)
         let applyTrivialTopKCap = isTrivial && !initialWantsCloudContext
-        let effectiveTopK = initialWantsCloudContext
+
+        // Apply adaptive pipeline limit (thermal/battery/memory aware)
+        // Caps retrieval when device is under pressure to prevent throttling
+        let adaptiveMaxTopK = adaptiveConfig.maxRetrievalCandidates
+        let uncappedEffectiveTopK = initialWantsCloudContext
             ? max(baseTopK, 25) // "Full blown" mode: 25 chunks to balance recall vs overflow risk
             : max(1, applyTrivialTopKCap ? min(baseTopK, 8) : baseTopK)
+        let effectiveTopK = min(uncappedEffectiveTopK, adaptiveMaxTopK)
+
+        if effectiveTopK < uncappedEffectiveTopK {
+            Log.info("[Adaptive] TopK capped: \(uncappedEffectiveTopK) → \(effectiveTopK) (device pressure)", category: .pipeline)
+        }
         if isTrivial {
             let detail = applyTrivialTopKCap
                 ? "fast topK cap (\(effectiveTopK))"
@@ -2836,10 +2946,36 @@ class RAGService: ObservableObject {
                     )
                 }
 
-                // Step 2: Embed the user's query (primary query only)
+                // Step 2: Embed the user's query (with optional HyDE enhancement)
                 Log.section("Step 2: Query Embedding", level: .info, category: .pipeline)
                 let embeddingStartTime = Date()
-                let queryEmbedding = try await queryEmbeddingService.generateEmbedding(for: question)
+
+                // HyDE: Hypothetical Document Embeddings
+                // Generate a hypothetical answer first, then embed that for better retrieval
+                // Respect both user settings AND adaptive pipeline (thermal/battery aware)
+                let useHyDESetting = settingsStore?.enableHyDE ?? true
+                let useHyDE = useHyDESetting && adaptiveConfig.enableHyDE
+                var textToEmbed = question
+                var hydeUsed = false
+
+                if useHyDE, HyDEService.isAvailable, HyDEService.shouldUseHyDE(for: question) {
+                    let hydeService = HyDEService()
+                    do {
+                        let hydeResult = try await hydeService.generateHyDEQuery(for: question)
+                        textToEmbed = hydeResult.combinedForEmbedding
+                        hydeUsed = true
+                        Log.info("[HyDE] Using hypothetical document for embedding", category: .retrieval)
+                        emitThinkingEvent(
+                            .planning,
+                            title: "HyDE expansion",
+                            detail: "Generated hypothetical answer for retrieval"
+                        )
+                    } catch {
+                        Log.warning("[HyDE] Failed, using original query: \(error.localizedDescription)", category: .retrieval)
+                    }
+                }
+
+                let queryEmbedding = try await queryEmbeddingService.generateEmbedding(for: textToEmbed)
                 let embeddingTime = Date().timeIntervalSince(embeddingStartTime)
 
                 let embeddingMagnitude = sqrt(queryEmbedding.map { $0 * $0 }.reduce(0, +))
@@ -2861,16 +2997,18 @@ class RAGService: ObservableObject {
                     metadata: [
                         "dimensions": "\(queryEmbedding.count)",
                         "provider": embeddingProviderId,
+                        "hyde": hydeUsed ? "true" : "false",
                     ],
                     duration: embeddingTime
                 )
 
                 // Show provider in thinking timeline (contextual = high accuracy badge)
                 let providerLabel = embeddingProviderId == "nl_contextual_embedding" ? "⚡ Contextual" : embeddingProviderId
+                let hydeLabel = hydeUsed ? " • HyDE" : ""
                 emitThinkingEvent(
                     .embedding,
                     title: "Embedding ready",
-                    detail: "\(providerLabel) • \(queryEmbedding.count)D in \(String(format: "%.0f", embeddingTime * 1000)) ms"
+                    detail: "\(providerLabel)\(hydeLabel) • \(queryEmbedding.count)D in \(String(format: "%.0f", embeddingTime * 1000)) ms"
                 )
 
                 // Warn if embedding dimension doesn't match the selected library's index dimension
@@ -2977,7 +3115,7 @@ class RAGService: ObservableObject {
                     )
 
                     let hybridSearch = HybridSearchService(
-                        vectorDatabase: vdb, 
+                        vectorDatabase: vdb,
                         vectorWeight: adjustedVectorWeight,
                         keywordWeight: adjustedKeywordWeight
                     )
@@ -2985,7 +3123,7 @@ class RAGService: ObservableObject {
                     // Pass cached chunks to avoid redundant allChunks() call in lexical recall
                     retrievedChunks = try await hybridSearch.search(
                         query: expandedQueries.joined(separator: " "), // Combine expansions
-                        embedding: queryEmbedding, 
+                        embedding: queryEmbedding,
                         topK: effectiveTopK * 3, // Retrieve 3x for better coverage on large docs
                             cachedChunks: cachedAllChunks
                     )
@@ -3316,14 +3454,8 @@ class RAGService: ObservableObject {
                 if retrievalConfig == .highAccuracy {
                     baseMin = retrievalConfig.minSimilarity
                 } else {
-                    switch qualityMode {
-                    case .fast:
-                        baseMin = min(retrievalConfig.minSimilarity, qualityMinSim)
-                    case .balanced:
-                        baseMin = retrievalConfig.minSimilarity
-                    case .thorough:
-                        baseMin = max(retrievalConfig.minSimilarity, qualityMinSim)
-                    }
+                    // Simplified: use quality mode threshold directly
+                    baseMin = qualityMinSim
                 }
 
                 var dynamicMin: Float = lenient ? min(baseMin, 0.35) : baseMin
@@ -3666,6 +3798,115 @@ class RAGService: ObservableObject {
                     }
                 }
 
+                // Step 4.6: Parent Document Retrieval (optional)
+                // Expand matched chunks to include sibling context from same section/page
+                // Respect both user settings AND adaptive pipeline (thermal/battery aware)
+                let useParentDocSetting = settingsStore?.enableParentDocumentRetrieval ?? true
+                let useParentDocRetrieval = useParentDocSetting && adaptiveConfig.enableParentDocumentRetrieval
+
+                if useParentDocRetrieval, contextCandidates.count > 0, let allChunks = cachedAllChunks {
+                    // Deep Think uses thorough parent config, Standard uses default
+                    let parentConfig: ParentDocumentService.Config = qualityMode.usesAgenticOrchestrator
+                        ? .thorough
+                        : .default
+                    let parentService = ParentDocumentService(config: parentConfig)
+
+                    let expansionResult = await parentService.expandWithSiblings(
+                        retrievedChunks: contextCandidates,
+                        allChunks: allChunks,
+                        query: question
+                    )
+
+                    if expansionResult.addedSiblings > 0 {
+                        contextCandidates = expansionResult.expandedChunks
+                        contextStrategy = "parent_expanded"
+
+                        TelemetryCenter.emit(
+                            .retrieval,
+                            title: "Parent document expansion",
+                            metadata: [
+                                "original": "\(expansionResult.originalChunks.count)",
+                                "expanded": "\(expansionResult.expandedChunks.count)",
+                                "siblings": "\(expansionResult.addedSiblings)",
+                                "ratio": String(format: "%.2f", expansionResult.expansionRatio),
+                            ]
+                        )
+
+                        emitThinkingEvent(
+                            .context,
+                            title: "Parent context expanded",
+                            detail: "+\(expansionResult.addedSiblings) siblings • \(expansionResult.expandedChunks.count) total chunks"
+                        )
+
+                        Log.info(
+                            "📚 Parent document expansion: \(expansionResult.originalChunks.count) → \(expansionResult.expandedChunks.count) chunks (+\(expansionResult.addedSiblings) siblings)",
+                            category: .retrieval
+                        )
+                    }
+                }
+
+                // Step 4.7: Contextual Compression (optional)
+                // Extract only query-relevant sentences from chunks to maximize signal and save tokens
+                // Respect both user settings AND adaptive pipeline (thermal/battery aware)
+                let useCompressionSetting = settingsStore?.enableContextualCompression ?? true
+                let useContextualCompression = useCompressionSetting && adaptiveConfig.enableContextualCompression
+                var compressionSavings = 0
+
+                if useContextualCompression, HyDEService.isAvailable, contextCandidates.count > 0 {
+                    let compressionService = ContextualCompressionService()
+                    let chunkTexts = contextCandidates.map { $0.chunk.text }
+
+                    do {
+                        let compressionStartTime = Date()
+                        let compressionResults = try await compressionService.compressChunks(
+                            chunkTexts,
+                            forQuery: question,
+                            config: .default
+                        )
+                        let compressionTime = Date().timeIntervalSince(compressionStartTime)
+
+                        // Update chunk texts with compressed content
+                        var updatedCandidates: [RetrievedChunk] = []
+                        for (index, result) in compressionResults.enumerated() where index < contextCandidates.count {
+                            let original = contextCandidates[index]
+                            let effectiveText = result.effectiveContent
+
+                            // Skip chunks that were entirely irrelevant
+                            if effectiveText.isEmpty {
+                                Log.debug("[Compression] Dropping irrelevant chunk: \(original.chunk.text.prefix(50))...", category: .retrieval)
+                                continue
+                            }
+
+                            // Create updated chunk with compressed text
+                            var compressedChunk = original.chunk
+                            compressedChunk.text = effectiveText
+                            updatedCandidates.append(RetrievedChunk(
+                                chunk: compressedChunk,
+                                similarityScore: original.similarityScore,
+                                rank: original.rank,
+                                sourceDocument: original.sourceDocument,
+                                pageNumber: original.pageNumber
+                            ))
+                        }
+
+                        let originalTokens = compressionResults.reduce(0) { $0 + $1.originalTokens }
+                        let compressedTokens = compressionResults.reduce(0) { $0 + $1.compressedTokens }
+                        compressionSavings = originalTokens - compressedTokens
+
+                        if updatedCandidates.count > 0 {
+                            contextCandidates = updatedCandidates
+                            Log.info("[Compression] \(originalTokens)→\(compressedTokens) tokens saved \(compressionSavings) in \(String(format: "%.0f", compressionTime * 1000))ms", category: .retrieval)
+                            emitThinkingEvent(
+                                .context,
+                                title: "Context compressed",
+                                detail: "Saved \(compressionSavings) tokens • \(contextCandidates.count) chunks"
+                            )
+                        }
+                    } catch {
+                        Log.warning("[Compression] Failed, using original chunks: \(error.localizedDescription)", category: .retrieval)
+                    }
+                }
+
                 // Step 5: Construct context from retrieved chunks (off-main)
                 // Note: rawContext assembly is handled via engine.assembleContext with size limits
 
@@ -3944,6 +4185,11 @@ class RAGService: ObservableObject {
 
                 // Step 6: Generate response using LLM with augmented context
                 Log.section("Step 6: LLM Generation", level: .info, category: .pipeline)
+
+                // Apply thermal cooldown before heavy LLM generation if device is under pressure
+                // This prevents throttling and improves generation quality on hot devices
+                await AdaptivePipelineOptimizer.shared.applyCooldown()
+
                 let generationStartTime = Date()
 
                 var genConfig = inferenceConfig
@@ -3964,17 +4210,8 @@ class RAGService: ObservableObject {
                 Be thorough and helpful.Short answers are only acceptable for simple factual questions.
                 """
 
-                // Adjust temperature based on quality mode for accuracy control
-                switch qualityMode {
-                case .fast:
-                    // Allow more creative responses
-                    break
-                case .balanced:
-                    genConfig.temperature = min(genConfig.temperature, 0.5)
-                case .thorough:
-                    // Very deterministic for maximum accuracy
-                    genConfig.temperature = min(genConfig.temperature, 0.3)
-                }
+                // Use quality mode's temperature (already optimized in enum)
+                genConfig.temperature = min(genConfig.temperature, qualityMode.temperature)
 
                 // High Accuracy retrieval config overrides quality mode
                 if retrievalConfig == .highAccuracy {
@@ -6257,6 +6494,37 @@ extension RAGService: RAGToolHandler {
 
         Log.info(" [Tool Call] Returned \(retrievedChunks.count) chunks")
         return result
+    }
+
+    /// Search and return raw chunks for agentic orchestrator (not just formatted string)
+    /// Used internally by AgenticOrchestrator to collect chunks for UnifiedMetricsBar
+    func searchDocumentsRaw(query: String, topK: Int = 5, minSimilarity: Float = 0.3) async throws -> [RetrievedChunk] {
+        let embeddingContext = await resolveEmbeddingContext()
+        let queryEmbedding = try await embeddingContext.service.generateEmbedding(for: query)
+
+        let db = await dbFor(embeddingContext.containerId)
+        var retrievedChunks = try await db.search(
+            embedding: queryEmbedding,
+            topK: topK
+        )
+
+        let engine = RAGEngine.shared
+        retrievedChunks = await engine.filterBySimilarity(chunks: retrievedChunks, min: minSimilarity)
+
+        // Enrich with source document names
+        var enrichedChunks: [RetrievedChunk] = []
+        for (rank, retrieved) in retrievedChunks.enumerated() {
+            let docName = await documentName(for: retrieved.chunk.documentId)
+            enrichedChunks.append(RetrievedChunk(
+                chunk: retrieved.chunk,
+                similarityScore: retrieved.similarityScore,
+                rank: rank + 1,
+                sourceDocument: docName,
+                pageNumber: retrieved.chunk.metadata.pageNumber
+            ))
+        }
+
+        return enrichedChunks
     }
 
     /// Agentic search with optional topK and minSimilarity (called by Function Calling)
