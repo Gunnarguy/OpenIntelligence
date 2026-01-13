@@ -61,6 +61,7 @@ final class SettingsStore: ObservableObject {
         static let enableHyDE = "enableHyDE"
         static let enableContextualCompression = "enableContextualCompression"
         static let enableParentDocumentRetrieval = "enableParentDocumentRetrieval"
+        static let enableConversationMemory = "enableConversationMemory"
     }
 
     // MARK: - Published Settings (bind from UI)
@@ -143,6 +144,11 @@ final class SettingsStore: ObservableObject {
     /// When a chunk matches, include surrounding chunks from the same section/page.
     /// Improves coherence for multi-paragraph answers.
     @Published var enableParentDocumentRetrieval: Bool
+
+    /// Enable conversation memory for multi-turn context awareness.
+    /// Summarizes long conversations and injects relevant context into queries.
+    /// Improves follow-up questions and pronoun resolution.
+    @Published var enableConversationMemory: Bool
 
     // MARK: - Quality Mode
 
@@ -323,6 +329,8 @@ final class SettingsStore: ObservableObject {
         enableContextualCompression = defaults.object(forKey: Keys.enableContextualCompression) as? Bool ?? true
         // Parent document retrieval defaults to true - improves multi-paragraph coherence
         enableParentDocumentRetrieval = defaults.object(forKey: Keys.enableParentDocumentRetrieval) as? Bool ?? true
+        // Conversation memory defaults to true - enables multi-turn context awareness
+        enableConversationMemory = defaults.object(forKey: Keys.enableConversationMemory) as? Bool ?? true
 
         // Quality mode - default to Standard (was balanced)
         ragQualityMode = .standard
@@ -385,6 +393,7 @@ final class SettingsStore: ObservableObject {
             $enableHyDE.map { _ in () }.eraseToAnyPublisher(),
             $enableContextualCompression.map { _ in () }.eraseToAnyPublisher(),
             $enableParentDocumentRetrieval.map { _ in () }.eraseToAnyPublisher(),
+            $enableConversationMemory.map { _ in () }.eraseToAnyPublisher(),
         ]
         Publishers.MergeMany(publishers)
             .sink { [weak self] in
@@ -503,6 +512,7 @@ final class SettingsStore: ObservableObject {
         defaults.set(enableHyDE, forKey: Keys.enableHyDE)
         defaults.set(enableContextualCompression, forKey: Keys.enableContextualCompression)
         defaults.set(enableParentDocumentRetrieval, forKey: Keys.enableParentDocumentRetrieval)
+        defaults.set(enableConversationMemory, forKey: Keys.enableConversationMemory)
     }
 
     // MARK: - Side Effects (Debounced)

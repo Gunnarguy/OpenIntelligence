@@ -298,10 +298,11 @@ class RAGService: ObservableObject {
         chatHistories[resolvedId] = []
         saveChatHistory([], for: resolvedId)
 
-        // Also clear the persisted transcript when clearing chat history
+        // Also clear the persisted transcript and conversation memory when clearing chat history
         if #available(iOS 26.0, *) {
             TranscriptPersistenceService.shared.deleteTranscript(for: resolvedId)
-            Log.debug("[RAGService] Cleared chat history and transcript for container \(resolvedId)", category: .initialization)
+            ConversationMemoryService.shared.clearMemory(for: resolvedId)
+            Log.debug("[RAGService] Cleared chat history, transcript, and memory for container \(resolvedId)", category: .initialization)
         }
     }
 
@@ -2860,17 +2861,46 @@ class RAGService: ObservableObject {
                     )
 
                     // Build conversation context for pronoun resolution
-                    let conversationHistory = chatHistory(for: selectedId)
-                    let recentTurns: [ConversationTurn] = conversationHistory
-                        .filter { $0.role != .system }
-                        .suffix(4) // Last 4 messages
-                        .map { msg in
+                    // Use ConversationMemoryService for enhanced entity-aware context if available
+                    let useConversationMemory = settingsStore?.enableConversationMemory ?? true
+                    var recentTurns: [ConversationTurn] = []
+
+                    if #available(iOS 26.0, *), useConversationMemory {
+                        // Get memory-enhanced context with tracked entities
+                        let memory = ConversationMemoryService.shared.memory(for: selectedId)
+                        recentTurns = memory.recentTurns.suffix(3).map { turn in
                             ConversationTurn(
-                                role: msg.role == .user ? "user" : "assistant",
-                                content: String(msg.content.prefix(300)),
-                                entities: [] // Will be extracted by the service
+                                role: "user",
+                                content: turn.userQuery,
+                                entities: turn.extractedFacts.prefix(3).map { String($0.prefix(50)) }
                             )
                         }
+                        // Add tracked entities from memory for better resolution
+                        if recentTurns.isEmpty, !memory.entities.isEmpty {
+                            // Create a synthetic turn with memory entities for context
+                            recentTurns = [ConversationTurn(
+                                role: "context",
+                                content: "Topics discussed: \(memory.entities.prefix(5).joined(separator: ", "))",
+                                entities: Array(memory.entities.prefix(5))
+                            )]
+                        }
+                        Log.debug("[ConversationMemory] Using memory for query rewriting (\(recentTurns.count) turns, \(memory.entities.count) entities)", category: .retrieval)
+                    }
+
+                    // Fallback to raw chat history if memory didn't provide context
+                    if recentTurns.isEmpty { 
+                        let conversationHistory = chatHistory(for: selectedId)
+                        recentTurns = conversationHistory
+                            .filter { $0.role != .system }
+                            .suffix(4) // Last 4 messages
+                            .map { msg in
+                                ConversationTurn(
+                                    role: msg.role == .user ? "user" : "assistant",
+                                    content: String(msg.content.prefix(300)),
+                                    entities: [] // Will be extracted by the service
+                                )
+                            }
+                    }
 
                     do {
                         let rewriteResult = try await queryRewriter.rewrite(
@@ -4238,7 +4268,7 @@ class RAGService: ObservableObject {
                     genConfig.maxTokens = capped
                 }
 
-                // Inject conversational history (last 2 turns) to support follow-up questions
+                // Inject conversational history to support follow-up questions
                 // e.g. "What is it?" uses history to resolve "it"
                 let history = chatHistory(for: selectedId)
 
@@ -4253,8 +4283,22 @@ class RAGService: ObservableObject {
                     .dropLast(dropsCurrent ? 1 : 0)
                     .suffix(4) // Keep last 4 turns (2 User, 2 Assistant)
 
+                // Use ConversationMemoryService for enhanced context if enabled
+                let useConversationMemory = settingsStore?.enableConversationMemory ?? true
                 var historyContext = ""
-                if !previousMessages.isEmpty {
+
+                if #available(iOS 26.0, *), useConversationMemory {
+                    // Get intelligent memory context with summarization
+                    // DYNAMIC: Pass question for semantic relevance scoring and adaptive budgeting
+                    let memoryContext = ConversationMemoryService.shared.contextInjection(for: selectedId, query: question)
+                    if !memoryContext.isEmpty {
+                        historyContext = memoryContext + "\nCURRENT QUESTION: "
+                        Log.debug("[ConversationMemory] Injected memory context (\(memoryContext.count) chars)", category: .retrieval)
+                    }
+                }
+
+                // Fallback to simple history if memory service didn't provide context
+                if historyContext.isEmpty, !previousMessages.isEmpty { 
                     historyContext = "PREVIOUS CONVERSATION:\n" + previousMessages.map {
                         let role = $0.role == .user ? "User" : "Assistant"
                         // Truncate long history items to preserve token budget for RAG context
@@ -5591,6 +5635,21 @@ class RAGService: ObservableObject {
                 chunks: response.retrievedChunks
             )
         }
+
+        // Record conversation turn for memory service (enables multi-turn context)
+        // IMPORTANT: Fire-and-forget to avoid blocking response delivery
+        let useConversationMemory = await MainActor.run { settingsStore?.enableConversationMemory ?? true }
+        if #available(iOS 26.0, *), useConversationMemory {
+            // Detached task prevents blocking the response return
+            Task.detached(priority: .utility) {
+                await ConversationMemoryService.shared.addTurn(
+                    userQuery: query,
+                    assistantResponse: response.generatedResponse,
+                    for: containerId
+                )
+            }
+        }
+
         await logQueryStats(query: query, response: response)
         return response
     }

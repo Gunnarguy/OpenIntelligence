@@ -1184,6 +1184,7 @@ Text("Context Window")
                     alwaysOnFeatureRow(icon: "text.redaction", label: "Contextual Compression", description: "Focuses on relevant information")
                     alwaysOnFeatureRow(icon: "doc.on.doc", label: "Parent Document Retrieval", description: "Includes surrounding context")
                     alwaysOnFeatureRow(icon: "lightbulb", label: "Query Understanding", description: "Rewrites vague queries intelligently")
+                    alwaysOnFeatureRow(icon: "brain.head.profile", label: "Conversation Memory", description: "Remembers context across turns")
                 }
             }
 .padding(10)
