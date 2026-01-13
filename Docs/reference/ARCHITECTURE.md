@@ -537,6 +537,47 @@ enum GroundingStatus {
 
 ---
 
+### Conversation Memory Service
+
+**Purpose**: Enable multi-turn context awareness with intelligent summarization
+
+**Problem Solved**: Each query is isolated—the LLM has no memory of prior questions. Users asking follow-up questions ("What about its price?") get confused responses because the pronoun "it" has no referent.
+
+**Solution**: Persistent conversation memory with dynamic context injection:
+
+```text
+Turn 1: "What's the oil capacity for the Sportage?"
+Turn 2: "What about the Telluride?"
+Turn 3: "And its towing capacity?"  ← "its" = Telluride
+```
+
+**Implementation** (`ConversationMemoryService.swift`):
+
+| Component | Details |
+|-----------|---------|
+| Memory Storage | Per-container JSON persistence |
+| Recent Turns | Last 3 turns kept verbatim |
+| Summarization | LLM-powered background summarization of older turns |
+| Entity Tracking | Extracts people, places, products mentioned |
+| Topic Tracking | Identifies recurring themes |
+
+**Dynamic Optimizations**:
+
+| Feature | Description |
+|---------|-------------|
+| Query-Adaptive Budget | Simple queries: 500 chars, follow-ups: 3000 chars |
+| Semantic Relevance Scoring | Jaccard + entity matching ranks turns by relevance to current query |
+| Importance-Weighted Summarization | High-info turns preserved longer, low-value summarized first |
+| Recency Boost | Recent turns scored higher with 1-hour decay |
+| Debounced Persistence | 2-second delay prevents disk thrashing |
+| Non-Blocking | Fire-and-forget turn recording, background summarization |
+
+**Setting**: `SettingsStore.enableConversationMemory` (default: `true`)
+
+**File**: `OpenIntelligence/Services/ConversationMemoryService.swift`
+
+---
+
 ### Multi-Session Agentic Orchestration
 
 **Purpose**: Transcend the 4,096-token limit through intelligent session chaining
