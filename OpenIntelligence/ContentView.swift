@@ -138,7 +138,7 @@ struct ContentView: View {
             .tag(Tab.documents)
 
             NavigationView {
-                VisualizationsView(onRequestAddDocuments: { selectedTab = .documents })
+                AdaptiveVisualizationsView()
                     .environmentObject(ragService)
                     .environmentObject(containerService)
             }
@@ -146,7 +146,7 @@ struct ContentView: View {
             .navigationViewStyle(.stack)
             #endif
             .tabItem {
-                Label("Visualizations", systemImage: "cube.transparent")
+                Label("Atlas", systemImage: "globe.americas")
             }
             .tag(Tab.visualizations)
 

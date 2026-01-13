@@ -50,6 +50,14 @@ struct ProcessingSummaryView: View {
                         DetailInfoRow(label: "Chunks Created", value: "\(summary.chunksCreated)")
                         DetailInfoRow(label: "Avg Chunk Size", value: "\(summary.chunkStats.avgChars) chars")
                         DetailInfoRow(label: "Size Range", value: "\(summary.chunkStats.minChars) - \(summary.chunkStats.maxChars) chars")
+                        HStack(spacing: 4) {
+                            Image(systemName: "bolt.horizontal.fill")
+                                .font(.caption)
+                                .foregroundColor(.cyan)
+                            Text("Semantic boundary detection")
+                                .font(.caption)
+                                .foregroundColor(.cyan)
+                        }
                     }
 
                     // Embedding Model Section
@@ -66,6 +74,14 @@ struct ProcessingSummaryView: View {
                             }
                         }
                         DetailInfoRow(label: "Dimensions", value: "512")
+                        HStack(spacing: 4) {
+                            Image(systemName: "bolt.horizontal.fill")
+                                .font(.caption)
+                                .foregroundColor(.cyan)
+                            Text("Neural Engine accelerated")
+                                .font(.caption)
+                                .foregroundColor(.cyan)
+                        }
                     }
 
                     // Performance Section
@@ -76,6 +92,14 @@ struct ProcessingSummaryView: View {
                         DetailInfoRow(label: "Avg per Chunk", value: String(format: "%.0f ms", (summary.embeddingTime / Double(summary.chunksCreated)) * 1000))
                         Divider()
                         DetailInfoRow(label: "Total Time", value: String(format: "%.2f s", summary.totalTime), highlight: true)
+                        HStack(spacing: 4) {
+                            Image(systemName: "bolt.horizontal.fill")
+                                .font(.caption)
+                                .foregroundColor(.cyan)
+                            Text("Accelerate vDSP • Device-optimized batches")
+                                .font(.caption)
+                                .foregroundColor(.cyan)
+                        }
                     }
                 }
                 .padding()

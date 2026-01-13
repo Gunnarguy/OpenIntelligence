@@ -7,9 +7,22 @@
 //
 //  MainActor-isolated for safe UI state coordination and VectorDatabase creation.
 //
+//  ## Cross-Container Search (Unified RAG)
+//
+//  The `searchAll()` method enables searching across ALL containers simultaneously.
+//  This is essential for agentic RAG where the LLM may need to synthesize knowledge
+//  from multiple knowledge bases.
+//
+//  Implementation leverages the Accelerate-powered BNNSVectorDatabase, performing
+//  parallel container searches with Reciprocal Rank Fusion (RRF) to merge results.
+//
+//  See also: https://developer.apple.com/documentation/accelerate/simd
+//            https://developer.apple.com/documentation/accelerate/bnns
+//
 
 import Foundation
 import UIKit
+import Accelerate
 
 /// Routes vector database access per container with type and dimension awareness.
 /// MainActor-isolated since VectorDatabase implementations are also MainActor.
@@ -165,5 +178,119 @@ final class VectorStoreRouter {
             results[id] = await db.statistics()
         }
         return results
+    }
+
+    // MARK: - Cross-Container Search (Unified RAG)
+
+    /// Search result enriched with container source metadata
+    struct CrossContainerResult: Sendable {
+        let chunk: DocumentChunk
+        let similarityScore: Float
+        let fusedRank: Int
+        let containerId: UUID
+        let containerName: String
+    }
+
+    /// Search across ALL containers using parallel vector search + Reciprocal Rank Fusion.
+    ///
+    /// Algorithm:
+    /// 1. Query each container's vector DB in parallel (TaskGroup)
+    /// 2. Collect per-container ranked results
+    /// 3. Fuse rankings using RRF: score = sum(1 / (k + rank)) across containers
+    /// 4. Re-rank by fused score and return top-K global results
+    ///
+    /// - Parameters:
+    ///   - embedding: Query embedding vector (must match container dimensions)
+    ///   - containers: All KnowledgeContainers to search
+    ///   - topK: Maximum results to return per container (before fusion)
+    ///   - globalTopK: Maximum global results after fusion
+    ///   - k: RRF constant (default 60, per Cormack et al. 2009)
+    ///
+    /// - Returns: Fused results ranked by cross-container relevance
+    ///
+    /// - Note: Containers with mismatched embedding dimensions are automatically skipped.
+    ///         For best results, ensure all containers use the same embedding provider.
+    func searchAll(
+        embedding: [Float],
+        containers: [KnowledgeContainer],
+        topK: Int = 10,
+        globalTopK: Int = 20,
+        k: Float = 60
+    ) async -> [CrossContainerResult] {
+        guard !containers.isEmpty else { return [] }
+
+        let queryDim = embedding.count
+        let matchingContainers = containers.filter { $0.embeddingDim == queryDim }
+
+        if matchingContainers.isEmpty {
+            Log.warning("[VectorStoreRouter] No containers match query embedding dimension \(queryDim)", category: .vectorDB)
+            return []
+        }
+
+        // Parallel search across all matching containers
+        let perContainerResults = await withTaskGroup(
+            of: (UUID, String, [RetrievedChunk]).self
+        ) { group -> [(UUID, String, [RetrievedChunk])] in
+            for container in matchingContainers {
+                group.addTask { [self] in
+                    let database = await MainActor.run { self.db(for: container) }
+                    do {
+                        let results = try await database.search(embedding: embedding, topK: topK)
+                        return (container.id, container.name, results)
+                    } catch {
+                        Log.error("[VectorStoreRouter] Search failed for container \(container.name): \(error)", category: .vectorDB)
+                        return (container.id, container.name, [])
+                    }
+                }
+            }
+
+            var collected: [(UUID, String, [RetrievedChunk])] = []
+            for await result in group {
+                collected.append(result)
+            }
+            return collected
+        }
+
+        // Flatten and track per-chunk reciprocal rank scores
+        var chunkScores: [UUID: (chunk: DocumentChunk, score: Float, containerId: UUID, containerName: String, bestSimilarity: Float)] = [:]
+
+        for (containerId, containerName, results) in perContainerResults {
+            for (idx, retrieved) in results.enumerated() {
+                let rank = Float(idx + 1)
+                let rrfScore = 1.0 / (k + rank)
+
+                let chunkId = retrieved.chunk.id
+                if var existing = chunkScores[chunkId] {
+                    // Same chunk found in multiple containers - aggregate RRF scores
+                    existing.score += rrfScore
+                    existing.bestSimilarity = max(existing.bestSimilarity, retrieved.similarityScore)
+                    chunkScores[chunkId] = existing
+                } else {
+                    chunkScores[chunkId] = (retrieved.chunk, rrfScore, containerId, containerName, retrieved.similarityScore)
+                }
+            }
+        }
+
+        // Sort by fused RRF score (descending)
+        let sorted = chunkScores.values.sorted { $0.score > $1.score }
+
+        // Take global top-K and assign final ranks
+        let topResults = sorted.prefix(globalTopK)
+        var finalResults: [CrossContainerResult] = []
+        finalResults.reserveCapacity(min(globalTopK, sorted.count))
+
+        for (idx, entry) in topResults.enumerated() {
+            finalResults.append(CrossContainerResult(
+                chunk: entry.chunk,
+                similarityScore: entry.bestSimilarity,
+                fusedRank: idx + 1,
+                containerId: entry.containerId,
+                containerName: entry.containerName
+            ))
+        }
+
+        Log.info("[VectorStoreRouter] Cross-container search: \(matchingContainers.count) containers → \(finalResults.count) fused results", category: .vectorDB)
+
+        return finalResults
     }
 }

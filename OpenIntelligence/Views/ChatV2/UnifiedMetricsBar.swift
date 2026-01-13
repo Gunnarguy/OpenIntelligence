@@ -9,6 +9,31 @@
 
 import SwiftUI
 
+// MARK: - RAG Pipeline Mode
+
+/// Indicates the retrieval strategy being used for the current query
+enum RetrievalMode: String, Sendable {
+    case hybrid = "Hybrid" // Vector + BM25 with RRF fusion
+    case vectorOnly = "Vector" // Pure semantic search
+    case lexicalBoosted = "BM25+" // Lexical-heavy for keyword queries
+
+    var icon: String {
+        switch self {
+        case .hybrid: return "arrow.triangle.merge"
+        case .vectorOnly: return "brain"
+        case .lexicalBoosted: return "text.magnifyingglass"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .hybrid: return .purple
+        case .vectorOnly: return .blue
+        case .lexicalBoosted: return .orange
+        }
+    }
+}
+
 // MARK: - Main Unified Component
 
 /// The ONE metrics bar to rule them all.
@@ -50,6 +75,13 @@ struct UnifiedMetricsBar: View {
     // Model info
     let modelName: String?
     let requestedExecutionContext: ExecutionContext
+
+    // RAG Pipeline Intelligence (optional - shows when available)
+    var retrievalMode: RetrievalMode = .hybrid
+    var mmrDiversity: Double = 0.7
+    var semanticChunksUsed: Bool = true
+    var vectorWeight: Double = 0.65
+    var lexicalWeight: Double = 0.35
 
     // Callbacks
     var onTapDetails: (() -> Void)?
@@ -123,58 +155,53 @@ struct UnifiedMetricsBar: View {
 
     private var mainCompactStrip: some View {
         VStack(spacing: 6) {
-            // Top row: Execution + Stage + System State + Context + Speed + Sources
-            HStack(spacing: 6) {
-                // Execution location (with model name if available)
-                executionBadge
+            // Top row: Key badges with horizontal scroll for overflow
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    // Execution location (with model name if available)
+                    executionBadge
 
-                qualityBadge
+                    qualityBadge
 
-                // Stage indicator (when actively processing)
-                if isProcessing && stage != .idle && stage != .complete {
-                    stageBadge
+                    // Stage indicator (when actively processing)
+                    if isProcessing, stage != .idle, stage != .complete {
+                        stageBadge
+                    }
+
+                    // System state indicator (thermal/battery/memory warning)
+                    systemStateBadge
+
+                    Spacer(minLength: 8)
+
+                    // Right-aligned metrics
+                    HStack(spacing: 6) { 
+                        // Context gauge (always visible)
+                        contextGauge
+
+                        // Speed (during generation or after completion)
+                        if tokensGenerated > 0 || isProcessing {
+                            speedBadge
+                        }
+
+                        // Sources (when we have them)
+                        if sourceCount > 0 {
+                            sourcesBadge
+                        }
+
+                        // Expand chevron
+                        Image(systemName: showExpandedDetails ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(.secondary.opacity(0.7))
+                    }
                 }
-
-                // Note: executionBadge already shows "PCC" when pccActive
-                // Don't add duplicate pccActiveBadge
-
-                if cloudFallbackActive {
-                    cloudFallbackBadge
-                }
-
-                // System state indicator (thermal/battery/memory warning)
-                systemStateBadge
-
-                Spacer(minLength: 4)
-
-                // Context gauge (always visible)
-                contextGauge
-
-                // Speed (during generation or after completion)
-                if tokensGenerated > 0 || isProcessing {
-                    speedBadge
-                }
-
-                // Sources (when we have them)
-                if sourceCount > 0 {
-                    sourcesBadge
-                }
-
-                if totalDocuments > 0, coveredDocuments > 0 {
-                    coverageBadge
-                }
-
-                // Expand chevron
-                Image(systemName: showExpandedDetails ? "chevron.up" : "chevron.down")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.secondary.opacity(0.7))
+                .padding(.horizontal, 2)
             }
 
             // Bottom row: Live generation stats (only during/after generation)
             if tokensGenerated > 0 {
                 HStack(spacing: 8) {
                     // Token count
-                    microMetric(icon: "number", value: "\(tokensGenerated)", label: "tok")
+                    microMetric(icon: "number", value: "\(tokensGenerated)", label: "tokens")
 
                     // Character count
                     microMetric(icon: "text.alignleft", value: formatCount(characterCount), label: "chars")
@@ -390,6 +417,29 @@ struct UnifiedMetricsBar: View {
         .clipShape(Capsule())
     }
 
+    // MARK: - RAG Mode Badge
+
+    private var ragModeBadge: some View {
+        HStack(spacing: 3) {
+            Image(systemName: retrievalMode.icon)
+                .font(.system(size: 8, weight: .semibold))
+            Text(retrievalMode.rawValue)
+                .font(.system(size: 8, weight: .semibold))
+            if semanticChunksUsed {
+                Text("•")
+                    .font(.system(size: 4))
+                    .opacity(0.5)
+                Image(systemName: "brain")
+                    .font(.system(size: 7, weight: .medium))
+            }
+        }
+        .foregroundStyle(retrievalMode.color)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
+        .background(retrievalMode.color.opacity(0.12))
+        .clipShape(Capsule())
+    }
+
     private var sourceQualityColor: Color {
         guard let score = averageSourceScore else { return .purple }
         if score > 0.7 { return .green }
@@ -495,38 +545,725 @@ struct UnifiedMetricsBar: View {
         }
     }
 
-    // MARK: - Expanded Panel
+// MARK: - Expanded Panel (Redesigned for Clarity)
 
     private var expandedDetailsPanel: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Row 1: Execution + Context
-            HStack(spacing: 12) {
-                executionDetailCard
-                contextDetailCard
+        VStack(alignment: .leading, spacing: 14) {
+            // Section 1: Where It's Running
+            whereRunningSection
+
+            // Section 2: How Smart It's Being (only when relevant)
+            if sourceCount > 0 || stage == .searching || stage == .embedding {
+                howSmartSection
             }
 
-            if pccActive || cloudFallbackActive {
-                cloudStatusBanner
+            // Section 3: What It Found
+            if sourceCount > 0 || totalDocuments > 0 {
+                whatFoundSection
             }
 
-            // Row 2: System State (full details)
-            systemStateDetailCard
-
-            // Row 3: Coverage + Routing
-            HStack(spacing: 12) {
-                coverageDetailCard
-                routingDetailCard
-            }
-
-            architectureNote
+            // Section 4: Device Health (compact, only notable states)
+            deviceHealthSection
         }
-        .padding(12)
+        .padding(14)
         .background(Color(uiColor: .secondarySystemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .padding(.top, 4)
     }
 
-    // MARK: - System State Detail Card
+    // MARK: - Section: Where It's Running
+
+    private var whereRunningSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // Section header
+            HStack(spacing: 6) {
+                Image(systemName: execution.icon)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(execution.color)
+                Text("Processing Location")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(spacing: 12) {
+                // Main execution info
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(executionExplanation)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.primary)
+
+                    if let modelName, !modelName.isEmpty {
+                        Text("Model: \(modelName)")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Spacer()
+
+                // Context usage (visual + text)
+                VStack(alignment: .trailing, spacing: 4) {
+                    // Context bar
+                    HStack(spacing: 6) {
+                        Text("Memory Used")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+
+                        ZStack(alignment: .leading) {
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(Color.secondary.opacity(0.2))
+                                .frame(width: 60, height: 6)
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(contextColor)
+                                .frame(width: 60 * contextUsageRatio, height: 6)
+                        }
+
+                        Text("\(Int(contextUsageRatio * 100))%")
+                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(contextColor)
+                    }
+
+                    // Response time
+                    if let t = ttft {
+                        HStack(spacing: 4) {
+                            Image(systemName: "clock")
+                                .font(.system(size: 9))
+                            Text("First response: \(String(format: "%.0fms", t * 1000))")
+                                .font(.system(size: 10))
+                        }
+                        .foregroundStyle(t < 0.5 ? .green : .blue)
+                    }
+                }
+            }
+        }
+        .padding(12)
+        .background(execution.color.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    private var executionExplanation: String {
+        switch execution {
+        case .onDevice:
+            return "Running privately on your device"
+        case .privateCloudCompute:
+            return "Using Apple's secure cloud servers"
+        case .mlxLocal:
+            return "Running on device with MLX acceleration"
+        case .unknown:
+            return "Processing..."
+        }
+    }
+
+    // MARK: - Section: How Smart It's Being
+
+    private var howSmartSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            // Section header
+            HStack(spacing: 6) {
+                Image(systemName: "brain.head.profile")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.purple)
+                Text("Search Intelligence")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+
+            // Two-column layout for search methods
+            HStack(spacing: 16) {
+                // Meaning-based search
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(Color.blue)
+                            .frame(width: 8, height: 8)
+                        Text("Meaning")
+                            .font(.system(size: 11, weight: .semibold))
+                    }
+                    Text("Finds similar ideas")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+
+                    // Visual bar
+                    GeometryReader { geo in
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(Color.blue)
+                            .frame(width: geo.size.width * vectorWeight)
+                    }
+                    .frame(height: 6)
+                    .background(Color.blue.opacity(0.2), in: RoundedRectangle(cornerRadius: 3))
+
+                    Text("\(Int(vectorWeight * 100))% weight")
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.blue)
+                }
+                .frame(maxWidth: .infinity)
+
+                // Keyword-based search
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(Color.orange)
+                            .frame(width: 8, height: 8)
+                        Text("Keywords")
+                            .font(.system(size: 11, weight: .semibold))
+                    }
+                    Text("Matches exact words")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+
+                    // Visual bar
+                    GeometryReader { geo in
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(Color.orange)
+                            .frame(width: geo.size.width * lexicalWeight)
+                    }
+                    .frame(height: 6)
+                    .background(Color.orange.opacity(0.2), in: RoundedRectangle(cornerRadius: 3))
+
+                    Text("\(Int(lexicalWeight * 100))% weight")
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.orange)
+                }
+                .frame(maxWidth: .infinity)
+            }
+
+            // Bottom row: diversity setting
+            HStack(spacing: 16) {
+                HStack(spacing: 6) {
+                    Image(systemName: "shuffle")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.cyan)
+                    Text("Diversity: \(diversityDescription)")
+                        .font(.system(size: 11))
+                }
+
+                if semanticChunksUsed {
+                    HStack(spacing: 4) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.green)
+                        Text("Smart chunking enabled")
+                            .font(.system(size: 11))
+                    }
+                }
+
+                Spacer()
+            }
+            .foregroundStyle(.secondary)
+        }
+        .padding(12)
+        .background(Color.purple.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    private var diversityDescription: String {
+        if mmrDiversity >= 0.8 { return "High (varied sources)" }
+        if mmrDiversity >= 0.5 { return "Balanced" }
+        return "Low (focused)"
+    }
+
+    // MARK: - Section: What It Found
+
+    private var whatFoundSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            // Section header
+            HStack(spacing: 6) {
+                Image(systemName: "doc.text.magnifyingglass")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.blue)
+                Text("Search Results")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+
+            // Stats in readable format
+            HStack(spacing: 20) {
+                if sourceCount > 0 {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 4) {
+                            Text("\(sourceCount)")
+                                .font(.system(size: 18, weight: .bold, design: .rounded))
+                                .foregroundStyle(sourceQualityColor)
+                            Text("sources used")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
+                        }
+                        if let avg = averageSourceScore {
+                            Text("\(sourceQualityLabel(avg)) relevance")
+                                .font(.system(size: 11))
+                                .foregroundStyle(sourceQualityColor)
+                        }
+                    }
+                }
+
+                if totalDocuments > 0 {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 4) {
+                            Text("\(coveredDocuments)/\(totalDocuments)")
+                                .font(.system(size: 18, weight: .bold, design: .rounded))
+                                .foregroundStyle(.blue)
+                            Text("docs searched")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
+                        }
+                        if totalChunks > 0 {
+                            Text("\(totalChunks) passages scanned")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                Spacer()
+
+                if toolCallCount > 0 {
+                    VStack(alignment: .trailing, spacing: 2) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "wrench.and.screwdriver")
+                                .font(.system(size: 12))
+                            Text("\(toolCallCount)")
+                                .font(.system(size: 18, weight: .bold, design: .rounded))
+                        }
+                        .foregroundStyle(.purple)
+                        Text("tools used")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+        .padding(12)
+        .background(Color.blue.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    private func sourceQualityLabel(_ score: Float) -> String {
+        if score > 0.7 { return "Excellent" }
+        if score > 0.5 { return "Good" }
+        if score > 0.3 { return "Fair" }
+        return "Low"
+    }
+
+    // MARK: - Section: Device Health
+
+    private var deviceHealthSection: some View {
+        let state = systemMonitor.currentState
+        let device = DeviceCapabilityService.shared
+
+        return VStack(alignment: .leading, spacing: 8) {
+            // Header with live indicator
+            HStack(spacing: 6) {
+                Image(systemName: "gauge.with.dots.needle.bottom.50percent")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.green)
+                Text("Device Status")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(Color.green)
+                        .frame(width: 6, height: 6)
+                    Text("Live")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.green)
+                }
+            }
+
+            // Horizontal scroll of status pills
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    // Chip
+                    statusPill(
+                        icon: "cpu",
+                        title: device.chipName,
+                        subtitle: "\(device.tier.estimatedNPUTops)T neural",
+                        color: .purple
+                    )
+
+                    // Thermal
+                    statusPill(
+                        icon: SystemStateMonitor.thermalIcon(for: state.thermalState),
+                        title: state.thermalStateName,
+                        subtitle: thermalSubtitle(state.thermalState),
+                        color: systemStateThermalColor(state.thermalState)
+                    )
+
+                    // Memory
+                    statusPill(
+                        icon: state.memoryPressure.icon,
+                        title: formatMemory(state.availableMemoryMB),
+                        subtitle: memorySubtitle(state.memoryPressure),
+                        color: memoryColor(pressure: state.memoryPressure)
+                    )
+
+                    // Battery
+                    if state.batteryLevel >= 0 {
+                        statusPill(
+                            icon: SystemStateMonitor.batteryIcon(level: state.batteryLevel, isCharging: state.isCharging),
+                            title: "\(state.batteryPercent)%",
+                            subtitle: state.isCharging ? "Charging" : "Battery",
+                            color: batteryColor(level: state.batteryLevel, isCharging: state.isCharging)
+                        )
+                    }
+                }
+            }
+
+            // Warnings (if any)
+            if pccActive || cloudFallbackActive || state.isConstrained {
+                HStack(spacing: 8) {
+                    if pccActive {
+                        warningChip(icon: "cloud.fill", text: "Using Apple's secure cloud", color: .blue)
+                    }
+                    if cloudFallbackActive {
+                        warningChip(icon: "iphone", text: "Cloud unavailable, using device", color: .orange)
+                    }
+                    if state.isConstrained {
+                        warningChip(
+                            icon: "exclamationmark.triangle.fill",
+                            text: "Performance reduced: \(constraintReason(state))",
+                            color: .orange
+                        )
+                    }
+                }
+            }
+        }
+        .padding(12)
+        .background(Color(uiColor: .tertiarySystemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    private func thermalSubtitle(_ state: ProcessInfo.ThermalState) -> String {
+        switch state {
+        case .nominal: return "Running cool"
+        case .fair: return "Slightly warm"
+        case .serious: return "Getting hot"
+        case .critical: return "Throttling"
+        @unknown default: return ""
+        }
+    }
+
+    private func memorySubtitle(_ pressure: MemoryPressureLevel) -> String {
+        switch pressure {
+        case .nominal: return "Plenty free"
+        case .warning: return "Getting low"
+        case .critical: return "Very low"
+        }
+    }
+
+    private func statusPill(icon: String, title: String, subtitle: String, color: Color) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(color)
+                .frame(width: 24)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.primary)
+                Text(subtitle)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(color.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func warningChip(icon: String, text: String, color: Color) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: 10))
+            Text(text)
+                .font(.system(size: 11, weight: .medium))
+        }
+        .foregroundStyle(color)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(color.opacity(0.12))
+        .clipShape(Capsule())
+    }
+
+    // MARK: - Legacy Compact Row: Execution + Context (kept for reference)
+
+    private var executionContextRow: some View {
+        HStack(spacing: 12) { 
+            // Execution
+            HStack(spacing: 4) {
+                Image(systemName: execution.icon)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(execution.color)
+                Text(execution.displayName)
+                    .font(.system(size: 11, weight: .semibold))
+                if let modelName, !modelName.isEmpty {
+                    Text("•")
+                        .font(.system(size: 6))
+                        .foregroundStyle(.secondary)
+                    Text(modelName)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+
+            Spacer()
+
+            // Context gauge inline
+            HStack(spacing: 4) {
+                Text("Context:")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+                Text("\(contextTokens)/\(maxContextTokens)")
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .foregroundStyle(contextColor)
+
+                // Mini progress bar
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(Color.secondary.opacity(0.2))
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(contextColor)
+                            .frame(width: geo.size.width * contextUsageRatio)
+                    }
+                }
+                .frame(width: 40, height: 4)
+            }
+
+            // TTFT if available
+            if let t = ttft {
+                Text(String(format: "%.0fms", t * 1000))
+                    .font(.system(size: 9, weight: .medium, design: .monospaced))
+                    .foregroundStyle(t < 0.5 ? .green : .blue)
+            }
+        }
+    }
+
+    // MARK: - Compact Row: System Vitals
+
+    private var systemVitalsRow: some View {
+        let state = systemMonitor.currentState
+        let device = DeviceCapabilityService.shared
+
+        return HStack(spacing: 10) {
+            // Chip
+            compactMetric(icon: "cpu", value: device.chipName, color: .purple)
+
+            // Thermal
+            compactMetric(
+                icon: SystemStateMonitor.thermalIcon(for: state.thermalState),
+                value: state.thermalStateName,
+                color: systemStateThermalColor(state.thermalState)
+            )
+
+            // Memory
+            compactMetric(
+                icon: state.memoryPressure.icon,
+                value: formatMemory(state.availableMemoryMB),
+                color: memoryColor(pressure: state.memoryPressure)
+            )
+
+            // Battery
+            if state.batteryLevel >= 0 {
+                compactMetric(
+                    icon: SystemStateMonitor.batteryIcon(level: state.batteryLevel, isCharging: state.isCharging),
+                    value: "\(state.batteryPercent)%",
+                    color: batteryColor(level: state.batteryLevel, isCharging: state.isCharging)
+                )
+            }
+
+            // NPU
+            compactMetric(
+                icon: "brain.head.profile",
+                value: "\(device.tier.estimatedNPUTops)T",
+                color: .blue
+            )
+
+            Spacer()
+
+            // Live indicator
+            HStack(spacing: 3) {
+                Circle()
+                    .fill(Color.green)
+                    .frame(width: 5, height: 5)
+                Text("Live")
+                    .font(.system(size: 8, weight: .medium))
+                    .foregroundStyle(.green)
+            }
+        }
+        .padding(.vertical, 4)
+        .padding(.horizontal, 8)
+        .background(Color(uiColor: .tertiarySystemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+    }
+
+    // MARK: - Compact Row: RAG Pipeline
+
+    private var ragPipelineRow: some View {
+        HStack(spacing: 10) {
+            // Mode
+            HStack(spacing: 3) {
+                Image(systemName: retrievalMode.icon)
+                    .font(.system(size: 9))
+                Text(retrievalMode.rawValue)
+                    .font(.system(size: 10, weight: .semibold))
+            }
+            .foregroundStyle(retrievalMode.color)
+
+            // Semantic/Lexical split bar
+            HStack(spacing: 4) {
+                Text("V:\(Int(vectorWeight * 100))")
+                    .font(.system(size: 8, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.blue)
+
+                GeometryReader { geo in
+                    HStack(spacing: 0) {
+                        Rectangle().fill(Color.blue)
+                            .frame(width: geo.size.width * vectorWeight)
+                        Rectangle().fill(Color.orange)
+                            .frame(width: geo.size.width * lexicalWeight)
+                    }
+                }
+                .frame(width: 50, height: 4)
+                .clipShape(Capsule())
+
+                Text("L:\(Int(lexicalWeight * 100))")
+                    .font(.system(size: 8, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.orange)
+            }
+
+            // Chunking
+            if semanticChunksUsed {
+                HStack(spacing: 2) {
+                    Image(systemName: "brain")
+                        .font(.system(size: 8))
+                    Text("Semantic")
+                        .font(.system(size: 9, weight: .medium))
+                }
+                .foregroundStyle(.purple)
+            }
+
+            // MMR
+            Text("MMR:\(String(format: "%.1f", mmrDiversity))")
+                .font(.system(size: 8, weight: .medium, design: .monospaced))
+                .foregroundStyle(.cyan)
+
+            Spacer()
+
+            // Silicon badge
+            HStack(spacing: 2) {
+                Image(systemName: "bolt.horizontal.fill")
+                    .font(.system(size: 7))
+                Text("vDSP")
+                    .font(.system(size: 8, weight: .medium))
+            }
+            .foregroundStyle(.cyan)
+        }
+        .padding(.vertical, 4)
+            .padding(.horizontal, 8)
+            .background(Color.purple.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+    }
+
+    // MARK: - Compact Row: Coverage
+
+    private var coverageRow: some View {
+        HStack(spacing: 12) { 
+            if sourceCount > 0 {
+                HStack(spacing: 3) {
+                    Circle()
+                        .fill(sourceQualityColor)
+                        .frame(width: 5, height: 5)
+                    Text("\(sourceCount) sources")
+                        .font(.system(size: 10, weight: .medium))
+                    if let avg = averageSourceScore {
+                        Text("(\(String(format: "%.0f%%", avg * 100)) avg)")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            if totalDocuments > 0 {
+                Text("\(coveredDocuments)/\(totalDocuments) docs")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.blue)
+            }
+
+            if totalChunks > 0 {
+                Text("\(totalChunks) chunks")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            }
+
+            if toolCallCount > 0 {
+                HStack(spacing: 2) {
+                    Image(systemName: "wrench.and.screwdriver")
+                        .font(.system(size: 8))
+                    Text("\(toolCallCount)")
+                        .font(.system(size: 10, weight: .medium))
+                }
+                .foregroundStyle(.purple)
+            }
+
+            Spacer()
+        }
+    }
+
+    // MARK: - Compact Row: Warnings
+
+    private var statusWarningsRow: some View {
+        HStack(spacing: 8) {
+            if pccActive {
+                miniWarning(icon: "cloud.fill", text: "PCC Active", color: .blue)
+            }
+            if cloudFallbackActive {
+                miniWarning(icon: "iphone", text: "Local Fallback", color: .orange)
+            }
+            if systemMonitor.currentState.isConstrained {
+                miniWarning(
+                    icon: "exclamationmark.triangle.fill",
+                    text: "Throttled: \(constraintReason(systemMonitor.currentState))",
+                    color: .orange
+                )
+            }
+            Spacer()
+        }
+    }
+
+    @ViewBuilder
+    private func compactMetric(icon: String, value: String, color: Color) -> some View {
+        HStack(spacing: 3) {
+            Image(systemName: icon)
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(color)
+            Text(value)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.primary)
+        }
+    }
+
+    @ViewBuilder
+    private func miniWarning(icon: String, text: String, color: Color) -> some View {
+        HStack(spacing: 3) {
+            Image(systemName: icon)
+                .font(.system(size: 8))
+            Text(text)
+                .font(.system(size: 9, weight: .medium))
+        }
+.foregroundStyle(color)
+    .padding(.horizontal, 6)
+    .padding(.vertical, 3)
+    .background(color.opacity(0.12))
+    .clipShape(Capsule())
+    }
+
+    // MARK: - System State Detail Card (Legacy - kept for reference)
 
     private var systemStateDetailCard: some View {
         let state = systemMonitor.currentState
@@ -652,6 +1389,159 @@ struct UnifiedMetricsBar: View {
         .padding(12)
         .background(Color(uiColor: .tertiarySystemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    // MARK: - RAG Intelligence Card
+
+    private var ragIntelligenceCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Header
+            HStack(spacing: 6) {
+                Image(systemName: "brain.head.profile")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.purple)
+                Text("RAG Pipeline")
+                    .font(.system(size: 13, weight: .semibold))
+                Spacer()
+                // Silicon badge
+                HStack(spacing: 4) {
+                    Image(systemName: "bolt.horizontal.fill")
+                        .font(.system(size: 8))
+                    Text(DeviceCapabilityService.shared.chipName)
+                        .font(.system(size: 9, weight: .medium))
+                }
+                .foregroundStyle(.cyan)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(Color.cyan.opacity(0.12))
+                .clipShape(Capsule())
+            }
+
+            // 2-column grid for RAG metrics
+            LazyVGrid(columns: [
+                GridItem(.flexible(), spacing: 10),
+                GridItem(.flexible(), spacing: 10),
+            ], spacing: 10) {
+                // Retrieval Mode
+                ragMetricCell(
+                    icon: retrievalMode.icon,
+                    label: "Retrieval Mode",
+                    value: retrievalMode.rawValue,
+                    detail: retrievalModeDetail,
+                    color: retrievalMode.color
+                )
+
+                // Semantic Chunking
+                ragMetricCell(
+                    icon: "text.line.first.and.arrowtriangle.forward",
+                    label: "Chunking",
+                    value: semanticChunksUsed ? "Semantic" : "Fixed",
+                    detail: semanticChunksUsed ? "Topic boundaries" : "Word windows",
+                    color: semanticChunksUsed ? .purple : .gray
+                )
+
+                // Vector Weight
+                ragMetricCell(
+                    icon: "brain",
+                    label: "Semantic",
+                    value: "\(Int(vectorWeight * 100))%",
+                    detail: "Embedding similarity",
+                    color: .blue
+                )
+
+                // Lexical Weight
+                ragMetricCell(
+                    icon: "text.magnifyingglass",
+                    label: "Keyword",
+                    value: "\(Int(lexicalWeight * 100))%",
+                    detail: "BM25 scoring",
+                    color: .orange
+                )
+            }
+
+            // Fusion visualization
+            HStack(spacing: 8) {
+                // Vector bar
+                GeometryReader { geo in
+                    HStack(spacing: 0) {
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(Color.blue)
+                            .frame(width: geo.size.width * vectorWeight)
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(Color.orange)
+                            .frame(width: geo.size.width * lexicalWeight)
+                    }
+                }
+                .frame(height: 8)
+                .clipShape(Capsule())
+
+                Text("RRF")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.purple)
+            }
+
+            // Feature pills
+            HStack(spacing: 8) {
+                ragFeaturePill(icon: "function", label: "vDSP Math")
+                ragFeaturePill(icon: "arrow.triangle.branch", label: "MMR \(String(format: "%.2f", mmrDiversity))")
+                if totalChunks > 0 {
+                    ragFeaturePill(icon: "square.stack.3d.up", label: "\(totalChunks) chunks")
+                }
+                Spacer()
+            }
+        }
+        .padding(12)
+        .background(Color(uiColor: .tertiarySystemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    private var retrievalModeDetail: String {
+        switch retrievalMode {
+        case .hybrid: return "Vector + BM25 fusion"
+        case .vectorOnly: return "Pure semantic search"
+        case .lexicalBoosted: return "Keyword-heavy search"
+        }
+    }
+
+    @ViewBuilder
+    private func ragMetricCell(icon: String, label: String, value: String, detail: String, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(color)
+                Text(label)
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+
+            Text(value)
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundStyle(.primary)
+
+            Text(detail)
+                .font(.system(size: 8, weight: .medium))
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(8)
+        .background(color.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    @ViewBuilder
+    private func ragFeaturePill(icon: String, label: String) -> some View {
+        HStack(spacing: 3) {
+            Image(systemName: icon)
+                .font(.system(size: 8, weight: .semibold))
+            Text(label)
+                .font(.system(size: 8, weight: .medium))
+        }
+        .foregroundStyle(.cyan)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(Color.cyan.opacity(0.12))
+        .clipShape(Capsule())
     }
 
     @ViewBuilder
@@ -817,18 +1707,7 @@ struct UnifiedMetricsBar: View {
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
-    private var executionExplanation: String {
-        switch execution {
-        case .unknown:
-            return "Determining optimal processing location..."
-        case .onDevice:
-            return "Running on Neural Engine. 4,096-token context, no network needed."
-        case .privateCloudCompute:
-            return "Using attested PCC nodes for long-context reasoning. Zero data retention."
-        case .mlxLocal:
-            return "Local MLX model processing."
-        }
-    }
+    // executionExplanation defined earlier in file
 
     private var cloudStatusBanner: some View {
         let (icon, text, tint): (String, String, Color) = {

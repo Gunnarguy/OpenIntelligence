@@ -71,7 +71,14 @@ struct DeveloperDiagnosticsHubView: View {
                                 VisualizationsView()
                                     .environmentObject(ragService)
                             } label: {
-                                Label("Visualizations", systemImage: "chart.xyaxis.line")
+                                Label("Legacy Visualizations", systemImage: "chart.xyaxis.line")
+                            }
+
+                            NavigationLink {
+                                AdaptiveVisualizationsView()
+                                    .environmentObject(ragService)
+                            } label: {
+                                Label("Knowledge Atlas (Adaptive)", systemImage: "globe.americas")
                             }
 
                             NavigationLink {

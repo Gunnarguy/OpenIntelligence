@@ -163,6 +163,65 @@ final class DeviceCapabilityService: @unchecked Sendable {
         cachedTier == .baseline
     }
 
+    // MARK: - Vector Operation Batch Sizes (Accelerate/BNNS)
+
+    /// Recommended batch size for vector similarity operations using Accelerate/BNNS.
+    ///
+    /// These values are tuned for the Neural Engine memory bandwidth and cache hierarchy:
+    /// - Smaller batches: Better for thermal-constrained devices (iPhone)
+    /// - Larger batches: Better for high-bandwidth devices (iPad Pro, M-series)
+    ///
+    /// Used by BNNSVectorDatabase for vDSP_mmul batch matrix operations.
+    var vectorBatchSize: Int {
+        switch cachedTier {
+        case .unsupported: return 64
+        case .baseline: return 256 // A17 Pro: Conservative to avoid ANE throttling
+        case .enhanced: return 512 // A18: Better Neural Engine bandwidth
+        case .advanced: return 768 // A19: Projected improvement
+        case .ultraAdvanced: return 1024 // M-series: Maximum throughput
+        }
+    }
+
+    /// Recommended batch size for embedding generation.
+    ///
+    /// Larger batches amortize CoreML model loading overhead but risk memory pressure.
+    var embeddingBatchSize: Int {
+        switch cachedTier {
+        case .unsupported: return 8
+        case .baseline: return 16 // A17 Pro: Conservative memory usage
+        case .enhanced: return 24 // A18: Better memory bandwidth
+        case .advanced: return 32 // A19: Projected
+        case .ultraAdvanced: return 48 // M-series with 8GB+ RAM
+        }
+    }
+
+    /// Threshold above which to use batch matrix multiply vs individual dot products.
+    ///
+    /// Batch matrix multiply has overhead but scales better for large chunk counts.
+    /// Below this threshold, individual vDSP_dotpr calls are faster.
+    var batchMatrixMultiplyThreshold: Int {
+        switch cachedTier {
+        case .unsupported: return Int.max // Never use batch
+        case .baseline: return 500 // A17 Pro: Conservative threshold
+        case .enhanced: return 300 // A18: Earlier switch to batch
+        case .advanced: return 200 // A19: More aggressive batching
+        case .ultraAdvanced: return 100 // M-series: Batch almost always
+        }
+    }
+
+    /// Maximum chunks to process in a single vector search before yielding.
+    ///
+    /// Prevents UI jank during large searches by breaking work into cooperative chunks.
+    var maxChunksPerSearchYield: Int {
+        switch cachedTier {
+        case .unsupported: return 100
+        case .baseline: return 500
+        case .enhanced: return 1000
+        case .advanced: return 2000
+        case .ultraAdvanced: return 5000
+        }
+    }
+
     /// Get optimized AgenticConfig for current device
     func optimizedAgenticConfig() -> AgenticConfig {
         switch cachedTier {

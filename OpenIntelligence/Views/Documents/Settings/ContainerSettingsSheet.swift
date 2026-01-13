@@ -142,6 +142,7 @@ struct ContainerSettingsSheet: View {
                 accuracyDefaultsSection
                 intelligenceSection
                 chunkingSection
+                retrievalStyleSection
                 if settings.developerRAGTuningEnabled {
                     retrievalTuningSection
                 }

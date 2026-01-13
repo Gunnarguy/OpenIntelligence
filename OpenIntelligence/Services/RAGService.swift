@@ -6660,4 +6660,91 @@ extension RAGService: RAGToolHandler {
         formatter.timeStyle = .short
         return formatter.string(from: date)
     }
+
+    // MARK: - Cross-Container Search (Unified RAG)
+
+    /// Search ALL knowledge containers simultaneously using Reciprocal Rank Fusion.
+    ///
+    /// This enables the LLM to synthesize knowledge from multiple knowledge bases,
+    /// e.g., combining legal documents, technical manuals, and internal policies
+    /// into a unified answer.
+    ///
+    /// - Parameters:
+    ///   - query: Natural language search query
+    ///   - globalTopK: Maximum results after cross-container fusion
+    ///
+    /// - Returns: Formatted string with fused results and container source attribution
+    func searchAllContainers(query: String, globalTopK: Int = 10) async throws -> String {
+        Log.debug(" [Tool Call] search_all_containers(query: \"\(query)\", globalTopK: \(globalTopK))")
+
+        // Get all containers (MainActor - no await needed)
+        let allContainers = containerService.containers
+
+        guard !allContainers.isEmpty else {
+            return "No knowledge containers available."
+        }
+
+        // Embed the query - use the active container's embedding service
+        let embeddingContext = await resolveEmbeddingContext()
+        let queryEmbedding = try await embeddingContext.service.generateEmbedding(for: query)
+
+        // Perform cross-container search with RRF
+        let results = await vectorRouter.searchAll(
+            embedding: queryEmbedding,
+            containers: allContainers,
+            topK: 10,
+            globalTopK: globalTopK
+        )
+
+        if results.isEmpty {
+            return "No relevant information found across all containers for: \(query)"
+        }
+
+        // Format results with container attribution
+        var output = "Found \(results.count) results across \(allContainers.count) knowledge containers:\n\n"
+
+        for result in results {
+            let docName = await documentName(for: result.chunk.documentId)
+            output += "[\(result.fusedRank)] From \(docName) [📁 \(result.containerName)]"
+            if let page = result.chunk.metadata.pageNumber {
+                output += " (Page \(page))"
+            }
+            output += " (Relevance: \(String(format: "%.1f%%", result.similarityScore * 100))):\n"
+
+            let fullText = result.chunk.content.trimmingCharacters(in: .whitespacesAndNewlines)
+            let preview = fullText.count > 500 ? String(fullText.prefix(500)) + " [...]" : fullText
+            output += preview
+            output += "\n\n"
+        }
+
+        Log.info(" [Tool Call] Cross-container search returned \(results.count) fused results")
+        return output
+    }
+
+    /// Raw cross-container search returning structured results (for agentic orchestrator).
+    /// Returns enriched results with container metadata for UI display.
+    func searchAllContainersRaw(
+        query: String,
+        globalTopK: Int = 10,
+        minSimilarity: Float = 0.3
+    ) async throws -> [VectorStoreRouter.CrossContainerResult] {
+        // MainActor - no await needed for containerService access
+        let allContainers = containerService.containers
+        guard !allContainers.isEmpty else { return [] }
+
+        let embeddingContext = await resolveEmbeddingContext()
+        let queryEmbedding = try await embeddingContext.service.generateEmbedding(for: query)
+
+        var results = await vectorRouter.searchAll(
+            embedding: queryEmbedding,
+            containers: allContainers,
+            topK: 10,
+            globalTopK: globalTopK
+        )
+
+        // Filter by minimum similarity
+        results = results.filter { $0.similarityScore >= minSimilarity }
+
+        return results
+    }
 }
