@@ -18,11 +18,10 @@ extension ContainerSettingsSheet {
                 .foregroundColor(.secondary)
 
             TextField("Name", text: $name)
-            TextField("Icon (SF Symbol)", text: $icon)
-            Text("Examples: book.closed, doc.text, sparkles, folder.badge.gear. Open the SF Symbols app to browse icons that match your library's vibe.")
-                .font(.caption2)
-                .foregroundColor(.secondary)
-                .padding(.bottom, 2)
+
+            // SF Symbol Picker
+            SFSymbolPickerButton(selectedSymbol: $icon)
+
             TextField("Color Hex", text: $colorHex)
             Text("Use #RRGGBB values (e.g., #3366FF). This tints cards and pickers so it's obvious which library is active.")
                 .font(.caption2)
@@ -52,16 +51,24 @@ extension ContainerSettingsSheet {
             }
 
             if autoAdaptDimension {
+                // Live Corpus Intelligence Panel
+                if let report = activeIntelligenceReport {
+                    corpusIntelligenceCard(report: report)
+                }
+
                 SettingHelpCallout(
                     icon: "wand.and.stars",
                     title: "Auto-tuning active",
                     description: "Chunking is managed by Auto Intelligence based on your document content. Disable auto-tuning to manually configure.",
-                    bullets: [
+                    bullets: activeIntelligenceReport?.chunking.rationales ?? [
                         "Current: \(chunkingStrategy.capitalized) strategy",
                         "Window: \(targetWordWindow) words, Overlap: \(overlapWords) words",
                     ],
                     accent: .accentColor
                 )
+
+                // Silicon-Native optimization info
+                siliconNativeChunkingInfo
             } else {
                 // Strategy picker
                 VStack(alignment: .leading, spacing: 8) {
@@ -142,6 +149,491 @@ extension ContainerSettingsSheet {
         }
     }
 
+    // MARK: - Silicon-Native RAG Info
+
+    @ViewBuilder
+    var siliconNativeChunkingInfo: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "bolt.horizontal.fill")
+                    .font(.caption)
+                    .foregroundColor(.cyan)
+                Text("Silicon-Native Acceleration")
+                    .font(.subheadline.weight(.medium))
+                Spacer()
+                Text(DeviceCapabilityService.shared.chipName)
+                    .font(.caption2.weight(.medium))
+                    .foregroundColor(.cyan)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.cyan.opacity(0.15))
+                    .clipShape(Capsule())
+            }
+
+            Text("All vector operations use Apple's Accelerate framework with Neural Engine optimization. Batch sizes are tuned for your device.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            VStack(alignment: .leading, spacing: 6) {
+                siliconFeatureRow(
+                    icon: "function",
+                    label: "vDSP Vector Math",
+                    detail: "Hardware-accelerated similarity"
+                )
+                siliconFeatureRow(
+                    icon: "text.line.first.and.arrowtriangle.forward",
+                    label: "Semantic Boundaries",
+                    detail: "Topic detection via embeddings"
+                )
+                siliconFeatureRow(
+                    icon: "rectangle.stack.fill",
+                    label: "Cross-Container Search",
+                    detail: "Unified search with RRF fusion"
+                )
+            }
+
+            HStack(spacing: 12) {
+                siliconInfoPill(
+                    icon: "square.stack.3d.up",
+                    label: "Vector",
+                    value: "\(DeviceCapabilityService.shared.vectorBatchSize)"
+                )
+                siliconInfoPill(
+                    icon: "text.badge.checkmark",
+                    label: "Embed",
+                    value: "\(DeviceCapabilityService.shared.embeddingBatchSize)"
+                )
+                siliconInfoPill(
+                    icon: "square.grid.3x3",
+                    label: "Matrix",
+                    value: "\(DeviceCapabilityService.shared.batchMatrixMultiplyThreshold)+"
+                )
+            }
+        }
+        .padding(12)
+        .background(Color.cyan.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    @ViewBuilder
+    private func siliconFeatureRow(icon: String, label: String, detail: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.caption2)
+                .foregroundColor(.cyan)
+                .frame(width: 16)
+            Text(label)
+                .font(.caption.weight(.medium))
+            Spacer()
+            Text(detail)
+                .font(.caption2)
+                .foregroundColor(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private func siliconInfoPill(icon: String, label: String, value: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.caption2)
+            Text(label)
+                .font(.caption2)
+            Text(value)
+                .font(.caption2.weight(.semibold))
+        }
+        .foregroundColor(.cyan)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(Color.cyan.opacity(0.15))
+        .clipShape(Capsule())
+    }
+
+    // MARK: - Corpus Intelligence Card
+
+    @ViewBuilder
+    private func corpusIntelligenceCard(report: LibraryIntelligenceCenter.IntelligenceReport) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Header with live status
+            HStack(spacing: 8) {
+                Image(systemName: "brain.head.profile")
+                    .font(.subheadline)
+                    .foregroundColor(.purple)
+                Text("Live Corpus Intelligence")
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                Text("Analyzed")
+                    .font(.caption2.weight(.medium))
+                    .foregroundColor(.green)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.green.opacity(0.15))
+                    .clipShape(Capsule())
+            }
+
+            // Content Detection Grid
+            LazyVGrid(columns: [
+                GridItem(.flexible(), spacing: 8),
+                GridItem(.flexible(), spacing: 8),
+            ], spacing: 8) {
+                intelligenceStatCell(
+                    icon: "doc.text.fill",
+                    label: "Documents",
+                    value: "\(report.corpus.documentCount)",
+                    color: .blue
+                )
+                intelligenceStatCell(
+                    icon: "square.split.2x2.fill",
+                    label: "Chunks",
+                    value: "\(report.corpus.chunkCount)",
+                    color: .indigo
+                )
+                intelligenceStatCell(
+                    icon: "character.textbox",
+                    label: "Avg Words",
+                    value: "\(Int(report.corpus.avgWordsPerChunk))",
+                    color: .orange
+                )
+                intelligenceStatCell(
+                    icon: "brain",
+                    label: "Complexity",
+                    value: complexityLabel(report.corpus.semanticComplexity),
+                    color: .purple
+                )
+            }
+
+            // Content Type Detection
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Content Detected")
+                    .font(.caption.weight(.medium))
+                    .foregroundColor(.secondary)
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        if report.corpus.hasCode {
+                            contentBadge(icon: "chevron.left.forwardslash.chevron.right", label: "Code", color: .green)
+                        }
+                        if report.corpus.hasMath {
+                            contentBadge(icon: "function", label: "Math", color: .orange)
+                        }
+                        if report.corpus.technicalDensity > 0.3 {
+                            contentBadge(icon: "gearshape.2.fill", label: "Technical", color: .blue)
+                        }
+                        if report.corpus.multilingualScore > 0.2 {
+                            contentBadge(icon: "globe", label: "Multilingual", color: .purple)
+                        }
+                        if report.corpus.structuredRatio > 0.4 {
+                            contentBadge(icon: "list.bullet.rectangle", label: "Structured", color: .indigo)
+                        }
+                        if report.corpus.vocabularyRichness > 0.4 {
+                            contentBadge(icon: "textformat.abc", label: "Rich Vocab", color: .cyan)
+                        }
+                        // Always show at least one badge
+                        if !report.corpus.hasCode && !report.corpus.hasMath && report.corpus.technicalDensity <= 0.3 {
+                            contentBadge(icon: "doc.plaintext", label: "Prose", color: .secondary)
+                        }
+                    }
+                }
+            }
+
+            // Recommended Strategy
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Image(systemName: "sparkles")
+                        .font(.caption)
+                        .foregroundColor(.accentColor)
+                    Text("Recommended: \(report.chunking.strategy.rawValue.capitalized)")
+                        .font(.caption.weight(.semibold))
+                    Spacer()
+                    Text("\(report.chunking.targetWordWindow)w / \(report.chunking.overlapWords)w overlap")
+                        .font(.caption2.monospacedDigit())
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.purple.opacity(0.08))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.purple.opacity(0.2), lineWidth: 1)
+                )
+        )
+    }
+
+    @ViewBuilder
+    private func intelligenceStatCell(icon: String, label: String, value: String, color: Color) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.caption)
+                .foregroundColor(color)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(value)
+                    .font(.caption.weight(.semibold).monospacedDigit())
+                Text(label)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
+        }
+        .padding(8)
+        .background(color.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    @ViewBuilder
+    private func contentBadge(icon: String, label: String, color: Color) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.caption2)
+            Text(label)
+                .font(.caption2.weight(.medium))
+        }
+        .foregroundColor(color)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(color.opacity(0.12))
+        .clipShape(Capsule())
+    }
+
+    private func complexityLabel(_ score: Double) -> String {
+        switch score {
+        case 0 ..< 0.3: return "Simple"
+        case 0.3 ..< 0.6: return "Moderate"
+        case 0.6 ..< 0.8: return "Complex"
+        default: return "Dense"
+        }
+    }
+
+    @ViewBuilder
+    private func retrievalIntelligenceCard(report: LibraryIntelligenceCenter.IntelligenceReport) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass.circle.fill")
+                    .font(.caption)
+                    .foregroundColor(.teal)
+                Text("Smart Retrieval Config")
+                    .font(.subheadline.weight(.medium))
+                Spacer()
+                Text(report.retrieval.fusionStyle.rawValue.capitalized)
+                    .font(.caption2.weight(.medium))
+                    .foregroundColor(.teal)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.teal.opacity(0.15))
+                    .clipShape(Capsule())
+            }
+
+            // Weight visualization
+            HStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Semantic")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    HStack(spacing: 4) {
+                        GeometryReader { geo in
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(Color.blue)
+                                .frame(width: geo.size.width * report.retrieval.vectorWeight)
+                        }
+                        .frame(height: 6)
+                        Text("\(Int(report.retrieval.vectorWeight * 100))%")
+                            .font(.caption2.monospacedDigit())
+                            .foregroundColor(.blue)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Keyword")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    HStack(spacing: 4) {
+                        GeometryReader { geo in
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(Color.orange)
+                                .frame(width: geo.size.width * report.retrieval.lexicalWeight)
+                        }
+                        .frame(height: 6)
+                        Text("\(Int(report.retrieval.lexicalWeight * 100))%")
+                            .font(.caption2.monospacedDigit())
+                            .foregroundColor(.orange)
+                    }
+                }
+            }
+
+            // MMR and Reranker info
+            HStack(spacing: 12) {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.triangle.branch")
+                        .font(.caption2)
+                    Text("MMR: \(String(format: "%.2f", report.retrieval.mmrLambda))")
+                        .font(.caption2.weight(.medium))
+                }
+                .foregroundColor(.teal)
+
+                if report.retrieval.reranker != .none {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.up.arrow.down")
+                            .font(.caption2)
+                        Text("Reranker: \(report.retrieval.reranker.rawValue.capitalized)")
+                            .font(.caption2.weight(.medium))
+                    }
+                    .foregroundColor(.purple)
+                }
+            }
+
+            // Notes
+            if !report.retrieval.notes.isEmpty {
+                Text(report.retrieval.notes.first ?? "")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(12)
+        .background(Color.teal.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    // MARK: - Retrieval Style Section (User-Friendly Presets)
+
+    @ViewBuilder
+    var retrievalStyleSection: some View {
+        Section(header: Text("Search behavior — how results are found")) {
+            Text("Choose a search style that matches your content. This tunes how strictly results are filtered and how semantic vs keyword matching is balanced.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            VStack(spacing: 10) {
+                retrievalStyleCard(
+                    style: .balanced,
+                    icon: "scale.3d",
+                    title: "Balanced",
+                    subtitle: "Best for most documents",
+                    description: "Good mix of precision and recall. Works well for general knowledge bases.",
+                    isSelected: retrievalConfig.isCloseTo(.default)
+                )
+
+                retrievalStyleCard(
+                    style: .precision,
+                    icon: "target",
+                    title: "High Precision",
+                    subtitle: "Strict filtering, explicit citations",
+                    description: "For research, legal, or medical content where accuracy matters most.",
+                    isSelected: retrievalConfig.isCloseTo(.highAccuracy)
+                )
+
+                retrievalStyleCard(
+                    style: .technical,
+                    icon: "wrench.and.screwdriver",
+                    title: "Technical Manual",
+                    subtitle: "Keyword-heavy, low threshold",
+                    description: "Optimized for specs, manuals, and reference docs with domain-specific terms.",
+                    isSelected: retrievalConfig.isCloseTo(.technicalManual)
+                )
+
+                retrievalStyleCard(
+                    style: .exploratory,
+                    icon: "binoculars",
+                    title: "Exploratory",
+                    subtitle: "Diverse results, permissive",
+                    description: "For creative or brainstorming queries where you want varied perspectives.",
+                    isSelected: retrievalConfig.isCloseTo(.exploratory)
+                )
+            }
+
+            // Quick stats showing current config
+            if !retrievalConfig.isCloseTo(.default) && !retrievalConfig.isCloseTo(.highAccuracy)
+                && !retrievalConfig.isCloseTo(.technicalManual) && !retrievalConfig.isCloseTo(.exploratory)
+            {
+                HStack(spacing: 12) {
+                    Image(systemName: "slider.horizontal.3")
+                        .foregroundColor(.orange)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Custom Configuration")
+                            .font(.caption.weight(.medium))
+                        Text("Min: \(Int(retrievalConfig.minSimilarity * 100))% • Vector: \(Int(retrievalConfig.vectorWeight * 100))% • MMR: \(String(format: "%.2f", retrievalConfig.mmrLambda))")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding(10)
+                .background(Color.orange.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+        }
+    }
+
+    private enum RetrievalStyle {
+        case balanced, precision, technical, exploratory
+    }
+
+    @ViewBuilder
+    private func retrievalStyleCard(
+        style: RetrievalStyle,
+        icon: String,
+        title: String,
+        subtitle: String,
+        description: String,
+        isSelected: Bool
+    ) -> some View {
+        Button {
+            withAnimation(.spring(response: 0.3)) {
+                switch style {
+                case .balanced:
+                    retrievalConfig = .default
+                case .precision:
+                    retrievalConfig = .highAccuracy
+                case .technical:
+                    retrievalConfig = .technicalManual
+                case .exploratory:
+                    retrievalConfig = .exploratory
+                }
+            }
+            DSHaptics.selection()
+        } label: {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(isSelected ? Color.accentColor.opacity(0.15) : Color.secondary.opacity(0.1))
+                        .frame(width: 40, height: 40)
+                    Image(systemName: icon)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(isSelected ? .accentColor : .secondary)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundColor(isSelected ? .primary : .secondary)
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.accentColor)
+                } else {
+                    Circle()
+                        .stroke(Color.secondary.opacity(0.3), lineWidth: 2)
+                        .frame(width: 22, height: 22)
+                }
+            }
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(isSelected ? Color.accentColor.opacity(0.08) : DSColors.surface)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(isSelected ? Color.accentColor.opacity(0.3) : Color.clear, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
     // MARK: - Retrieval Tuning Section
 
     @ViewBuilder
@@ -150,6 +642,11 @@ extension ContainerSettingsSheet {
             Text("Fine-tune how the search engine balances semantic meaning vs keyword matching, and how strictly it filters results. No presets—just direct controls.")
                 .font(.caption)
                 .foregroundColor(.secondary)
+
+            // Show retrieval intelligence when auto-tuning is on
+            if autoAdaptDimension, let report = activeIntelligenceReport {
+                retrievalIntelligenceCard(report: report)
+            }
 
             // Advanced sliders (collapsed by default, expand for custom)
             DisclosureGroup("Advanced Controls") {
@@ -301,6 +798,11 @@ extension ContainerSettingsSheet {
                 .font(.caption)
                 .foregroundColor(.secondary)
 
+            // Show embedding intelligence when auto-tuning is on
+            if autoAdaptDimension, let report = activeIntelligenceReport {
+                embeddingIntelligenceCard(report: report)
+            }
+
             ForEach(embeddingProviderOptions) { option in
                 SelectableOptionCard(
                     icon: option.icon,
@@ -332,6 +834,62 @@ extension ContainerSettingsSheet {
                 .padding(.top, 6)
             }
         }
+    }
+
+    @ViewBuilder
+    private func embeddingIntelligenceCard(report: LibraryIntelligenceCenter.IntelligenceReport) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "arrow.triangle.branch")
+                    .font(.caption)
+                    .foregroundColor(.indigo)
+                Text("Smart Embedding Selection")
+                    .font(.subheadline.weight(.medium))
+                Spacer()
+                Text("\(Int(report.embedding.confidence * 100))% match")
+                    .font(.caption2.weight(.medium))
+                    .foregroundColor(.green)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.green.opacity(0.15))
+                    .clipShape(Capsule())
+            }
+
+            Text(report.embedding.rationale)
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            HStack(spacing: 12) {
+                HStack(spacing: 4) {
+                    Image(systemName: "cpu")
+                        .font(.caption2)
+                    Text("Dim: \(report.embedding.dimension)")
+                        .font(.caption2.weight(.medium))
+                }
+                .foregroundColor(.indigo)
+
+                if report.embedding.requiresCloudConsent {
+                    HStack(spacing: 4) {
+                        Image(systemName: "cloud")
+                            .font(.caption2)
+                        Text("Cloud")
+                            .font(.caption2.weight(.medium))
+                    }
+                    .foregroundColor(.orange)
+                } else {
+                    HStack(spacing: 4) {
+                        Image(systemName: "iphone")
+                            .font(.caption2)
+                        Text("On-Device")
+                            .font(.caption2.weight(.medium))
+                    }
+                    .foregroundColor(.green)
+                }
+            }
+        }
+        .padding(12)
+        .background(Color.indigo.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     @ViewBuilder
@@ -499,33 +1057,61 @@ struct ChunkingPreview: View {
     let overlap: Int
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Chunk Layout Preview")
-                .font(.caption.weight(.semibold))
-                .foregroundColor(.secondary)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Chunk Layout Preview")
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(.secondary)
+                Spacer()
+                // Semantic chunking indicator
+                HStack(spacing: 4) {
+                    Image(systemName: "brain")
+                        .font(.caption2)
+                    Text("Semantic")
+                        .font(.caption2.weight(.medium))
+                }
+                .foregroundColor(.purple)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Color.purple.opacity(0.12))
+                .clipShape(Capsule())
+            }
 
             GeometryReader { geometry in
                 let width = geometry.size.width
-                let chunkWidth = min(width * 0.4, CGFloat(targetWords) / 600.0 * width * 0.8)
-                let overlapWidth = min(chunkWidth * 0.5, CGFloat(overlap) / CGFloat(targetWords) * chunkWidth)
+                let chunkWidth = min(width * 0.35, CGFloat(targetWords) / 600.0 * width * 0.7)
+                let overlapWidth = min(chunkWidth * 0.4, CGFloat(overlap) / CGFloat(targetWords) * chunkWidth)
 
                 HStack(spacing: -overlapWidth) {
                     ForEach(0 ..< 3, id: \.self) { index in
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(chunkColor(for: index))
-                            .frame(width: chunkWidth, height: 24)
-                            .overlay(
-                                Text("Chunk \(index + 1)")
-                                    .font(.caption2)
-                                    .foregroundColor(.white)
-                            )
+                        VStack(spacing: 2) { 
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(chunkColor(for: index))
+.frame(width: chunkWidth, height: 20)
+    .overlay(
+        Text("Chunk \(index + 1)")
+            .font(.caption2)
+            .foregroundColor(.white)
+    )
+                            // Section snap indicator
+                            if index == 0 {
+                                HStack(spacing: 2) {
+                                    Image(systemName: "arrow.turn.right.down")
+                                        .font(.system(size: 6))
+                                    Text("Section")
+                                        .font(.system(size: 7))
+                                }
+                                .foregroundColor(.purple.opacity(0.8))
+                            }
+                        }
                     }
                 }
             }
-            .frame(height: 24)
+            .frame(height: 36)
 
-            HStack(spacing: 16) {
-                Label("\(targetWords)w each", systemImage: "text.alignleft")
+            // Stats row
+            HStack(spacing: 12) {
+                Label("\(targetWords)w target", systemImage: "text.alignleft")
                     .font(.caption2)
                     .foregroundColor(.secondary)
 
@@ -534,17 +1120,44 @@ struct ChunkingPreview: View {
                         .font(.caption2)
                         .foregroundColor(.orange)
                 }
+
+                Spacer()
+
+                // Overlap percentage
+                let overlapPct = targetWords > 0 ? Int(Double(overlap) / Double(targetWords) * 100) : 0
+                Text("\(overlapPct)% context")
+                    .font(.caption2.monospacedDigit())
+                    .foregroundColor(.cyan)
             }
 
-            // Estimated chunks for sample doc
+            // Estimated chunks with semantic features
             let estimatedChunks = max(1, 2000 / max(1, targetWords - overlap))
-            Text("A 2,000-word document would produce ~\(estimatedChunks) chunks")
-                .font(.caption2)
-                .foregroundColor(.secondary)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("A 2,000-word document → ~\(estimatedChunks) semantic chunks")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+
+                HStack(spacing: 8) {
+                    featureTag(icon: "text.line.first.and.arrowtriangle.forward", label: "Topic boundaries")
+                    featureTag(icon: "list.bullet.indent", label: "Section snapping")
+                }
+            }
         }
         .padding(12)
         .background(Color.gray.opacity(0.08))
         .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    @ViewBuilder
+    private func featureTag(icon: String, label: String) -> some View {
+        HStack(spacing: 3) {
+            Image(systemName: icon)
+                .font(.system(size: 8))
+            Text(label)
+                .font(.system(size: 9))
+        }
+        .foregroundColor(.secondary)
     }
 
     private func chunkColor(for index: Int) -> Color {

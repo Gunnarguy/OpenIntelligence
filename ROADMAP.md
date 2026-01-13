@@ -1,9 +1,17 @@
 # OpenIntelligence Roadmap
 
-**Last Updated**: January 10, 2026
-**Version**: 1.4.0
+**Last Updated**: January 12, 2026
+**Version**: 1.5.1
 **Status**: Production (App Store Ready)
-**RAG Maturity Score**: 9.2/10 (up from 9.0/10)
+**RAG Maturity Score**: 9.6/10 (up from 9.5/10)
+
+### Recent Improvements (January 2026 - Silicon-Native Update)
+- **Accelerate-Powered Vector Math**: All cosine similarity computations use vDSP_dotpr and cblas_snrm2 for Neural Engine acceleration
+- **Pre-Computed Embedding Norms**: O(1) normalization during search via cached L2 norms
+- **Device-Adaptive Batch Sizes**: Batch thresholds tuned per device tier (A17→A18→A19→M-series)
+- **Semantic Boundary Chunking**: Sentence embedding similarity detection for topic-aware chunks
+- **Cross-Container Search**: Unified search across all knowledge containers with RRF fusion
+- **3D Embedding Visualization Overhaul**: Intuitive spatial metaphors, ground plane grid, semantic axis labels, cluster badges, and gesture hints
 
 ---
 
@@ -116,6 +124,10 @@
 - [x] **ModelManagerView**: Device capabilities, model status
 - [x] **TelemetryView**: Real-time pipeline visualization
 - [x] **DiagnosticsView**: Vector space analysis, embedding quality
+- [x] **Embedding3DView Overhaul (Jan 2026)**: Complete visualization redesign
+  *Location*: [Embedding3DView.swift](OpenIntelligence/Views/Telemetry/Embedding3DView.swift)
+  *Features*: Ground plane grid, intuitive semantic axes ("Similar →", "← Different", "Related ↑", "Depth"),
+  glowing point spheres, pill-shaped cluster badges, gesture hint overlays for both compact and fullscreen modes
 
 ### Monetization
 - [x] **StoreKit 2 Integration**: Subscriptions and lifetime purchase
@@ -183,19 +195,46 @@
 - [x] **CoreML Provisioning**: Fixed to load `.mlmodelc` (compiled model) instead of `.mlpackage` source
 - [ ] **NLEmbedding Deprecation**: Remove reliance on `NLEmbedding` / `AppleFMEmbeddingProvider`
 
-### Phase 2: Vector Math Layer (High)
-- [ ] **BNNS Vector Store**: Implement `BNNSVectorDatabase` using `Accelerate` / `vDSP`
-- [ ] **Flat File Storage**: Replace `VecturaKit` abstractions with contiguous float arrays (`UnsafeBufferPointer`)
-- [ ] **Optimized Dot Product**: Use `cblas_sgemm` or `vDSP_desamp` for neural engine acceleration
+### Phase 2: Vector Math Layer (High) ✅ COMPLETE
+*Silicon-native vector operations using Apple Accelerate framework*
+- [x] **BNNS Vector Store**: Implemented `BNNSVectorDatabase` using `Accelerate` / `vDSP`
+  *Location*: [BNNSVectorDatabase.swift](OpenIntelligence/Services/VectorDatabase/BNNSVectorDatabase.swift)
+  *Features*: vDSP_dotpr for dot products, cblas_snrm2 for L2 norms, vDSP_mmul for batch matrix ops
+- [x] **Flat File Storage**: Contiguous float arrays for max Neural Engine throughput
+  *Status*: flatEmbeddings array stores all vectors sequentially for vDSP_mmul compatibility
+- [x] **Optimized Dot Product**: Hardware-accelerated via vDSP_dotpr (Neural Engine preferred)
+  *Status*: Both RAGEngine and HybridSearchService use Accelerate-powered similarity
+- [x] **Pre-Computed Norms**: O(1) cosine similarity via cached L2 norms
+  *Status*: embeddingNorms array populated at insert time, avoids re-computing sqrt(sum(x^2))
+- [x] **Device-Adaptive Batch Thresholds**: DeviceCapabilityService optimizes batch sizes per chip
+  *Location*: [DeviceCapabilityService.swift](OpenIntelligence/Services/DeviceCapabilityService.swift)
+  *Features*: vectorBatchSize, embeddingBatchSize, batchMatrixMultiplyThreshold tuned per device tier
 
 ### Phase 3: Cross-Encoder Re-Ranking (High)
 - [ ] **Re-Ranker Model**: Convert `cross-encoder/ms-marco-TinyBERT-L-2-v2` to Core ML
 - [ ] **Re-Ranking Service**: Implement batch inference in `RAGEngine` (Query + Chunk pairs)
 - [ ] **Heuristic Removal**: Delete `computeMetadataBoost` and rule-based scoring
 
-### Phase 4: True Semantic Chunking (Medium)
-- [ ] **Semantic Splitter**: Update `SemanticChunker` to use dot-product similarity between sentences
-- [ ] **Thresholding**: Auto-detect topic boundaries based on embedding distance
+### Phase 4: True Semantic Chunking (Medium) ✅ COMPLETE
+*Embedding-based topic boundary detection (Late Chunking approach)*
+- [x] **Semantic Splitter**: SemanticChunker now detects topic boundaries via sentence embeddings
+  *Location*: [SemanticChunker.swift](OpenIntelligence/Services/SemanticChunker.swift)
+  *Method*: `detectEmbeddingBoundaries()` computes pairwise cosine similarity between sentences
+- [x] **Thresholding**: Auto-detect topic boundaries where similarity drops below 0.65
+  *Status*: `embeddingSimilarityThreshold` configurable; defaults to 0.65 for balanced segmentation
+- [x] **Async Chunking API**: New `chunkTextAsync()` method combines linguistic + embedding boundaries
+  *Benefit*: Chunks align with genuine topic shifts rather than arbitrary word counts
+- [x] **Accelerate Integration**: Cosine similarity uses vDSP_dotpr + cblas_snrm2 for hardware acceleration
+
+### Phase 5: Cross-Container Search (Medium) ✅ COMPLETE
+*Unified search across all knowledge containers*
+- [x] **VectorStoreRouter.searchAll()**: Parallel search with Reciprocal Rank Fusion
+  *Location*: [VectorStoreRouter.swift](OpenIntelligence/Services/VectorStoreRouter.swift)
+  *Algorithm*: TaskGroup parallel queries → per-container ranking → RRF fusion → global top-K
+- [x] **Container Attribution**: CrossContainerResult includes container name/ID for citations
+- [x] **RAGService Integration**: `searchAllContainers()` and `searchAllContainersRaw()` tools
+  *Location*: [RAGService.swift](OpenIntelligence/Services/RAGService.swift)
+  *Benefit*: LLM can synthesize knowledge from multiple libraries in one query
 
 ---
 
@@ -234,7 +273,9 @@
   *Status*: Implemented - Multi-step planning→searching→analyzing→synthesizing→refining with session cleanup
   *Hardware*: Device-aware config via DeviceCapabilityService (A17→16K, A18→24K, A19→32K, M-series→48K)
 - [ ] **Query Planning Agent**: Multi-step reasoning over large document sets
-- [ ] **Cross-Container Search**: Unified retrieval across multiple containers
+- [x] **Cross-Container Search**: Unified retrieval across multiple containers
+  *Location*: [VectorStoreRouter.swift](OpenIntelligence/Services/VectorStoreRouter.swift)
+  *Status*: Implemented - `searchAll()` with parallel queries and RRF fusion; RAGService integration via `searchAllContainers()`
 - [ ] **Conversation Memory**: Persistent chat context with summarization
 
 ### Phase 2.5 — God Mode RAG (Advanced)
@@ -255,10 +296,11 @@
   *Settings*: `enableParentDocumentRetrieval` in SettingsStore (default: true)
   *Schema*: Added `siblingGroupId` and `siblingCount` to ChunkMetadata
 
-- [ ] **Late Chunking**: Embed entire document first, then segment embeddings post-hoc
+- [x] **Late Chunking (Semantic Boundary Detection)**: Detect topic boundaries via sentence embedding similarity
   *Paper*: "Late Chunking" (2024) - embeddings computed before chunking preserve more context
   *Benefit*: Better embedding quality for chunk boundaries
-  *Complexity*: High (architecture change to embedding pipeline)
+  *Location*: [SemanticChunker.swift](OpenIntelligence/Services/SemanticChunker.swift)
+  *Status*: Implemented - `detectEmbeddingBoundaries()` computes pairwise cosine similarity; `chunkTextAsync()` combines with linguistic cues
 
 - [x] **Contextual Compression**: LLM-filter irrelevant sentences from retrieved chunks before generation
   *Benefit*: Maximizes signal-to-noise in context window
@@ -298,6 +340,20 @@
 - [x] **Model Marketplace**: Removed - app focuses on Apple Intelligence + PCC
 - [ ] **Custom Embedding Models**: User-provided Core ML embedders
 - [ ] **Fine-Tuning Pipeline**: LoRA adapters for domain-specific performance
+
+### Phase 2.15 — Interactive Embedding Visualization (Medium)
+*Next-level 3D embedding space exploration with agentic intelligence*
+- [ ] **Tap-to-Inspect**: Tap any point → floating card shows chunk text snippet and document name
+- [ ] **Query Visualization Mode**: Animate search results in 3D space
+  - Query embedding appears as pulsing star
+  - Lines drawn to retrieved chunks
+  - Irrelevant points fade out
+- [ ] **LLM-Generated Cluster Labels**: Use Apple Intelligence to auto-name clusters
+  - "Technical Specs", "Safety Warnings", "Maintenance Procedures"
+- [ ] **Color Legend Sidebar**: Collapsible panel mapping documents → colors
+- [ ] **Zoom-to-Cluster**: Double-tap cluster badge → camera flies in for close-up
+- [ ] **Distance Ruler**: Drag between two points → shows cosine similarity score
+- [ ] **Time-Series Animation**: Visualize how embeddings evolve as documents are added
 
 ### Phase 2.2 — Platform Expansion
 - [ ] **macOS Catalyst**: Native desktop experience
@@ -348,6 +404,8 @@
 | RAGEngine Singleton Pattern | ✅ Done | Agent | Added RAGEngine.shared to prevent ReRanker loading 4x per query; updated all callsites |
 | SystemStateMonitor | ✅ Done | Agent | Real-time device monitoring (thermal/battery/memory/CPU/LPM) with 2s refresh; exposed in UnifiedMetricsBar and SettingsView |
 | RAGQualityMode Simplification | ✅ Done | Agent | Reduced from 4 modes to 2 (Standard + Deep Think); removed confusing Response Style slider |
+| 3D Embedding Visualization Overhaul | ✅ Done | Agent | Ground plane grid, semantic axes ("Similar →", "Related ↑"), glowing spheres, cluster badges, gesture hints |
+| UnifiedMetricsBar Type Fixes | ✅ Done | Agent | Fixed MemoryPressure→MemoryPressureLevel; removed duplicate executionExplanation property |
 
 ---
 

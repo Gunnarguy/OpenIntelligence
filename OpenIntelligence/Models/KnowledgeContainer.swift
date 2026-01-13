@@ -257,6 +257,25 @@ struct RetrievalConfig: Codable, Equatable, Sendable {
         }
     }
 
+    // MARK: - Comparison Helpers
+
+    /// Checks if this config is approximately equal to another preset (within tolerance).
+    /// Useful for detecting which preset the user is currently using.
+    func isCloseTo(_ other: RetrievalConfig, tolerance: Float = 0.08) -> Bool {
+        abs(minSimilarity - other.minSimilarity) <= tolerance &&
+            abs(vectorWeight - other.vectorWeight) <= tolerance &&
+            abs(mmrLambda - other.mmrLambda) <= tolerance
+    }
+
+    /// Human-readable summary of the current configuration
+    var summary: String {
+        if isCloseTo(.default) { return "Balanced" }
+        if isCloseTo(.highAccuracy) { return "High Precision" }
+        if isCloseTo(.technicalManual) { return "Technical Manual" }
+        if isCloseTo(.exploratory) { return "Exploratory" }
+        return "Custom"
+    }
+
     // MARK: - Content-Aware Config Recommendation
 
     /// Recommends optimal RetrievalConfig based on document types in the container.
@@ -334,23 +353,6 @@ struct RetrievalConfig: Codable, Equatable, Sendable {
             category: .retrieval
         )
         return .default
-    }
-
-    /// Human-readable description of the current configuration
-    var summary: String {
-        if self == .default {
-            return "Balanced"
-        } else if self == .technicalManual {
-            return "Technical Manual"
-        } else if minSimilarity >= 0.5 {
-            return "High Accuracy"
-        } else if minSimilarity <= 0.25 && vectorWeight >= 0.6 {
-            return "Exploratory"
-        } else if lexicalWeight >= 0.65 {
-            return "Keyword-Heavy"
-        } else {
-            return "Custom"
-        }
     }
 }
 

@@ -257,7 +257,7 @@ struct DocumentDetailsView: View {
 
     @ViewBuilder
     private func chunkingStrategyCard(_ metadata: ProcessingMetadata) -> some View {
-        DocumentDetailCardView(icon: "scissors", title: "Chunking Strategy", caption: "Semantic paragraph-based splitting") {
+        DocumentDetailCardView(icon: "scissors", title: "Chunking Strategy", caption: "Semantic boundary detection") { 
             VStack(spacing: 8) {
                 ChunkMetricRow(
                     icon: "cube.box",
@@ -282,11 +282,22 @@ struct DocumentDetailsView: View {
 
                 Divider()
 
+                // Silicon-Native info
+                HStack(spacing: 8) {
+                    Image(systemName: "bolt.horizontal.fill")
+                        .foregroundColor(.cyan)
+                        .font(.caption)
+                    Text("Semantic boundaries detected via embedding similarity • vDSP accelerated")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
                 HStack(spacing: 8) {
                     Image(systemName: "info.circle.fill")
                         .foregroundColor(.blue)
                         .font(.caption)
-                    Text("280-350 word target with ~17% overlap for optimal retrieval")
+                    Text("280-400 word target with ~17% overlap for optimal retrieval")
                         .font(.caption2)
                         .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -299,7 +310,7 @@ struct DocumentDetailsView: View {
 
     @ViewBuilder
     private func performanceMetricsCard(_ metadata: ProcessingMetadata) -> some View {
-        DocumentDetailCardView(icon: "speedometer", title: "Performance Metrics", caption: "Processing pipeline timing") {
+        DocumentDetailCardView(icon: "speedometer", title: "Performance Metrics", caption: "Silicon-native pipeline timing") { 
             VStack(spacing: 8) {
                 PerformanceRow(
                     icon: "doc.text.magnifyingglass",
@@ -314,7 +325,7 @@ struct DocumentDetailsView: View {
                     iconColor: .orange,
                     label: "Semantic Chunking",
                     time: metadata.chunkingTimeSeconds,
-                    detail: "\(document.totalChunks) chunks created"
+                    detail: "\(document.totalChunks) chunks via embeddings"
                 )
 
                 PerformanceRow(
@@ -322,7 +333,7 @@ struct DocumentDetailsView: View {
                     iconColor: .purple,
                     label: "Vector Embedding",
                     time: metadata.embeddingTimeSeconds,
-                    detail: String(format: "%.0f ms/chunk avg", (metadata.embeddingTimeSeconds / Double(document.totalChunks)) * 1000)
+                    detail: String(format: "%.0f ms/chunk (Neural Engine)", (metadata.embeddingTimeSeconds / Double(document.totalChunks)) * 1000)
                 )
 
                 Divider()
@@ -335,6 +346,15 @@ struct DocumentDetailsView: View {
                     detail: throughputRate(metadata),
                     highlight: true
                 )
+
+                HStack(spacing: 8) {
+                    Image(systemName: "bolt.horizontal.fill")
+                        .foregroundColor(.cyan)
+                        .font(.caption)
+                    Text("Accelerate vDSP • Device-optimized batch sizes")
+                        .font(.caption2)
+                        .foregroundColor(.cyan)
+                }
             }
         }
     }

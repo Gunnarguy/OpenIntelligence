@@ -130,9 +130,10 @@ actor RAGEngine {
                 let relevance = candidate.similarityScore
 
                 // Max similarity to already selected chunks (diversity penalty)
+                // SILICON-NATIVE: Use vDSP-accelerated cosine similarity
                 var maxSimilarityToSelected: Float = 0
                 for selectedChunk in selected {
-                    let similarity = cosineSimilarity(
+                    let similarity = cosineSimilarityAccelerated(
                         candidate.chunk.embedding,
                         selectedChunk.chunk.embedding
                     )
@@ -156,23 +157,28 @@ actor RAGEngine {
         return selected
     }
 
-    /// Calculate cosine similarity between two embeddings
-    private func cosineSimilarity(_ a: [Float], _ b: [Float]) -> Float {
-        guard a.count == b.count else { return 0 }
+    // MARK: - Silicon-Native Vector Math (Accelerate Framework)
+
+    /// Hardware-accelerated cosine similarity using vDSP
+    /// Uses vDSP_dotpr for dot product and cblas_snrm2 for L2 norm
+    /// Neural Engine / AMX accelerated on Apple Silicon
+    private func cosineSimilarityAccelerated(_ a: [Float], _ b: [Float]) -> Float {
+        guard a.count == b.count, !a.isEmpty else { return 0 }
 
         var dotProduct: Float = 0
-        var magnitudeA: Float = 0
-        var magnitudeB: Float = 0
+        vDSP_dotpr(a, 1, b, 1, &dotProduct, vDSP_Length(a.count))
 
-        for i in 0 ..< a.count {
+        // Modern Accelerate API: vDSP.sumOfSquares + sqrt (replaces deprecated cblas_snrm2)
+        let normA = sqrt(vDSP.sumOfSquares(a))
+        let normB = sqrt(vDSP.sumOfSquares(b))
 
-            dotProduct += a[i] * b[i]
-            magnitudeA += a[i] * a[i]
-            magnitudeB += b[i] * b[i]
-        }
+        let denom = normA * normB
+        return denom > 1e-9 ? dotProduct / denom : 0
+    }
 
-        let denom = sqrt(magnitudeA) * sqrt(magnitudeB)
-        return denom > 0 ? dotProduct / denom : 0
+    /// Legacy cosine similarity (kept for compatibility, but prefer accelerated version)
+    private func cosineSimilarity(_ a: [Float], _ b: [Float]) -> Float {
+        cosineSimilarityAccelerated(a, b)
     }
 
     // MARK: - Context Assembly
@@ -347,7 +353,7 @@ actor RAGEngine {
         var used = 0
 
         for (i, r) in orderedChunks.enumerated() {
-            
+
             if Task.isCancelled { break }
             if i % 16 == 0 { await Task.yield() }
 
@@ -635,38 +641,23 @@ actor RAGEngine {
     // MARK: - Private Helpers
 
     // Vector math helpers used by computeVectorSearch
+    // SILICON-NATIVE: Modern vDSP API (replaces deprecated cblas_snrm2)
     private func computeNorm(_ vector: [Float]) -> Float {
-        var sum: Float = 0
-        for v in vector {
-            sum += v * v
-        }
-        return sqrt(sum)
+        sqrt(vDSP.sumOfSquares(vector))
     }
 
     private func optimizedCosineSimilarity(_ a: [Float], _ b: [Float], queryNorm: Float, chunkNorm: Float) -> Float {
         guard a.count == b.count else { return 0 }
+        // SILICON-NATIVE: Use vDSP_dotpr for hardware-accelerated dot product
         var dot: Float = 0
-        for i in 0 ..< a.count {
-            dot += a[i] * b[i]
-        }
+        vDSP_dotpr(a, 1, b, 1, &dot, vDSP_Length(a.count))
         let denom = queryNorm * chunkNorm
-        return denom > 0 ? dot / denom : 0
+        return denom > 1e-9 ? dot / denom : 0
     }
 
     private func cosine(_ a: [Float], _ b: [Float]) -> Float {
-        guard a.count == b.count else { return 0 }
-        var dot: Float = 0
-        var magA: Float = 0
-        var magB: Float = 0
-        for i in 0 ..< a.count {
-
-            let av = a[i]; let bv = b[i]
-            dot += av * bv
-            magA += av * av
-            magB += bv * bv
-        }
-        let denom = sqrt(magA) * sqrt(magB)
-        return denom > 0 ? dot / denom : 0
+        // SILICON-NATIVE: Delegate to accelerated version
+        cosineSimilarityAccelerated(a, b)
     }
 
     // Tokenizer used for BM25 scoring

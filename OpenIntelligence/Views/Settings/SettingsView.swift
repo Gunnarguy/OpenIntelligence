@@ -38,6 +38,9 @@ struct SettingsView: View {
                 // Intelligence Mode (Standard vs Deep Think)
                 retrievalCard
 
+                // Generation Tuning (exposed hidden settings)
+                generationTuningCard
+
                 // Context & Performance
                 contextWindowCard
 
@@ -551,6 +554,11 @@ Text("Context Window")
 
             Divider()
 
+            // Silicon-Native RAG Engine
+            siliconNativeRAGSection(deviceService: deviceService)
+
+            Divider()
+
             // Live System Monitor
             liveSystemMonitorSection
 
@@ -632,6 +640,108 @@ Text("Context Window")
                 .font(.caption2)
         }
 .foregroundColor(.secondary)
+    }
+
+    // MARK: - Silicon-Native RAG Engine Section
+
+    @ViewBuilder
+    private func siliconNativeRAGSection(deviceService: DeviceCapabilityService) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            // Header
+            HStack(spacing: 8) {
+                Image(systemName: "bolt.horizontal.fill")
+                    .font(.caption)
+                    .foregroundColor(.cyan)
+                Text("Silicon-Native RAG Engine")
+                    .font(.subheadline.weight(.medium))
+                Spacer()
+                Text("Accelerate")
+                    .font(.caption2.weight(.medium))
+                    .foregroundColor(.cyan)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.cyan.opacity(0.15))
+                    .clipShape(Capsule())
+            }
+
+            Text("Vector operations use Apple's Accelerate framework for Neural Engine acceleration. Batch sizes are tuned for your \(deviceService.chipName).")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            // Optimizations grid
+            VStack(alignment: .leading, spacing: 6) {
+                siliconFeatureRow(
+                    icon: "function",
+                    label: "vDSP Vector Math",
+                    detail: "Hardware-accelerated similarity"
+                )
+                siliconFeatureRow(
+                    icon: "square.grid.3x3.fill",
+                    label: "Batch Matrix Ops",
+                    detail: "Threshold: \(deviceService.batchMatrixMultiplyThreshold)+ chunks"
+                )
+                siliconFeatureRow(
+                    icon: "text.line.first.and.arrowtriangle.forward",
+                    label: "Semantic Chunking",
+                    detail: "Topic boundaries via embeddings"
+                )
+                siliconFeatureRow(
+                    icon: "rectangle.stack.fill",
+                    label: "Cross-Container Search",
+                    detail: "Unified search with RRF fusion"
+                )
+            }
+
+            // Batch size info
+            HStack(spacing: 12) {
+                siliconInfoPill(
+                    icon: "square.stack.3d.up",
+                    label: "Vector Batch",
+                    value: "\(deviceService.vectorBatchSize)"
+                )
+                siliconInfoPill(
+                    icon: "text.badge.checkmark",
+                    label: "Embed Batch",
+                    value: "\(deviceService.embeddingBatchSize)"
+                )
+            }
+        }
+        .padding(12)
+        .background(Color.cyan.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    @ViewBuilder
+    private func siliconFeatureRow(icon: String, label: String, detail: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.caption2)
+                .foregroundColor(.cyan)
+                .frame(width: 16)
+            Text(label)
+                .font(.caption.weight(.medium))
+            Spacer()
+            Text(detail)
+                .font(.caption2)
+                .foregroundColor(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private func siliconInfoPill(icon: String, label: String, value: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.caption2)
+            Text(label)
+                .font(.caption2)
+            Text(value)
+                .font(.caption2.weight(.semibold))
+        }
+        .foregroundColor(.cyan)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(Color.cyan.opacity(0.15))
+        .clipShape(Capsule())
     }
 
     // MARK: - Live System Monitor Section
@@ -906,6 +1016,125 @@ Text("Context Window")
             reasons.append("low power mode")
         }
         return reasons.isEmpty ? "device constraints" : reasons.joined(separator: ", ")
+    }
+
+    // MARK: - Generation Tuning Card
+
+    @ViewBuilder
+    private var generationTuningCard: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // Header
+            HStack {
+                Image(systemName: "slider.horizontal.below.square.filled.and.square")
+                    .foregroundColor(.purple)
+                Text("Generation Tuning")
+                    .font(.headline)
+                Spacer()
+
+                Button {
+                    withAnimation(.spring(response: 0.3)) {
+                        showAdvancedGeneration.toggle()
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(showAdvancedGeneration ? "Less" : "More")
+                            .font(.caption.weight(.medium))
+                        Image(systemName: showAdvancedGeneration ? "chevron.up" : "chevron.down")
+                            .font(.caption)
+                    }
+                    .foregroundColor(.accentColor)
+                }
+            }
+
+            Text("Fine-tune how the AI generates responses.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            // Reliability mode toggle (always visible - most useful)
+            Toggle(isOn: $settings.reliabilityModeEnabled) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Reliability First")
+                        .font(.subheadline.weight(.medium))
+                    Text("Prefer fallbacks over showing errors")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .tint(.green)
+
+            // Advanced section (collapsible)
+            if showAdvancedGeneration {
+                Divider()
+
+                VStack(alignment: .leading, spacing: 14) {
+                    // System Prompt
+                    VStack(alignment: .leading, spacing: 6) {
+                        Label("System Prompt", systemImage: "text.quote")
+                            .font(.subheadline.weight(.medium))
+
+                        TextField("You are a helpful assistant...", text: $settings.systemPrompt, axis: .vertical)
+                            .textFieldStyle(.roundedBorder)
+                            .lineLimit(3 ... 6)
+                            .font(.caption)
+
+                        Text("Instructions given to the AI before each conversation.")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+
+                    // Max Tokens
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Label("Max Response Length", systemImage: "text.word.spacing")
+                                .font(.subheadline.weight(.medium))
+                            Spacer()
+                            Text("\(settings.maxTokens) tokens")
+                                .font(.caption.monospacedDigit())
+                                .foregroundColor(.accentColor)
+                        }
+
+                        Slider(
+                            value: Binding(
+                                get: { Double(settings.maxTokens) },
+                                set: { settings.maxTokens = Int($0) }
+                            ),
+                            in: 256 ... 4096,
+                            step: 256
+                        )
+                        .tint(.blue)
+
+                        Text("Maximum number of tokens in AI responses. Higher = longer responses.")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+
+                    // Reset button
+                    Button {
+                        withAnimation {
+                            settings.maxTokens = 2048
+                            settings.systemPrompt = "You are a helpful assistant."
+                        }
+                    } label: {
+                        HStack {
+                            Image(systemName: "arrow.counterclockwise")
+                            Text("Reset to Defaults")
+                        }
+                        .font(.caption.weight(.medium))
+                        .foregroundColor(.secondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(Color.secondary.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                    }
+                    .buttonStyle(.plain)
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .padding()
+        .background(DSColors.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .animation(.spring(response: 0.35), value: showAdvancedGeneration)
     }
 
     // MARK: - Retrieval Card

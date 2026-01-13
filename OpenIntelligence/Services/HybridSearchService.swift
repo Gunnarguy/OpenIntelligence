@@ -2,11 +2,21 @@
 //  HybridSearchService.swift
 //  OpenIntelligence
 //
-//  Hybrid search combining vector similarity and BM25 keyword matching
+//  Hybrid search combining vector similarity and BM25 keyword matching.
+//
+//  ## Silicon-Native Vector Math
+//
+//  Uses Apple Accelerate framework for hardware-accelerated similarity:
+//  - cblas_snrm2: L2 norm computation (AMX/Neural Engine)
+//  - vDSP_dotpr: Dot product (Neural Engine optimized)
+//
+//  See: https://developer.apple.com/documentation/accelerate/vdsp
+//       https://developer.apple.com/documentation/accelerate/blas
 //
 
 import Foundation
 import NaturalLanguage
+import Accelerate
 
 /// Snapshot of BM25 corpus statistics for off-main scoring
 struct BM25Snapshot: Sendable {
@@ -308,22 +318,21 @@ class HybridSearchService {
     }
 
     private func computeNorm(_ vector: [Float]) -> Float {
-        var sum: Float = 0
-        for v in vector { sum += v * v }
-        return sqrt(sum)
+        // Modern Accelerate API: vDSP.sumOfSquares + sqrt (replaces deprecated cblas_snrm2)
+        sqrt(vDSP.sumOfSquares(vector))
     }
 
     private func cosineSimilarity(_ a: [Float], _ b: [Float], queryNorm: Float) -> Float {
         guard a.count == b.count, queryNorm > 0 else { return 0 }
+
+        // Accelerate-powered dot product using vDSP (Neural Engine optimized)
         var dot: Float = 0
-        var magB: Float = 0
-        for i in 0 ..< a.count {
-            let av = a[i]
-            let bv = b[i]
-            dot += av * bv
-            magB += bv * bv
-        }
-        let denom = queryNorm * sqrt(magB)
+        vDSP_dotpr(a, 1, b, 1, &dot, vDSP_Length(a.count))
+
+        // Modern Accelerate API for L2 norm (replaces deprecated cblas_snrm2)
+        let magB = sqrt(vDSP.sumOfSquares(b))
+        let denom = queryNorm * magB
+
         return denom > 0 ? dot / denom : 0
     }
 

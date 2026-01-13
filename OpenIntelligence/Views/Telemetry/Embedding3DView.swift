@@ -126,11 +126,11 @@ enum EmbeddingSceneBackgroundStyle: String, CaseIterable, Identifiable {
 struct EmbeddingSpaceRenderer: View {
     @EnvironmentObject var ragService: RAGService
     @EnvironmentObject var containerService: ContainerService
-    
+
     let projectionMethod: EmbeddingSpaceView.ProjectionMethod
     let chunkCount: Int
     let documentCount: Int
-    
+
     @State private var isLoading = true
     @State private var points: [SCNVector3] = []
     @State private var pointColorsUI: [PlatformColor] = []
@@ -143,7 +143,7 @@ struct EmbeddingSpaceRenderer: View {
     }
     @State private var legendItems: [VizLegendItem] = []
     @State private var errorText: String? = nil
-    
+
     // Deterministic per-container controls and state
     @State private var sampleLimit: Int = 2000
     @State private var allDocIdsForPoints: [UUID] = [] // aligned with points/colors
@@ -160,7 +160,7 @@ struct EmbeddingSpaceRenderer: View {
     @State private var focusMode = false
     @State private var showHUD = true
     @State private var annotationLabels: [PointAnnotationLabel] = []
-    
+
     // Default: 1K/2K/5K
     private let sampleOptions = [1000, 2000, 5000]
     private static let countFormatter: NumberFormatter = {
@@ -168,7 +168,7 @@ struct EmbeddingSpaceRenderer: View {
         formatter.numberStyle = .decimal
         return formatter
     }()
-    
+
     var body: some View {
         VStack(spacing: 12) {
             if let err = errorText {
@@ -191,16 +191,16 @@ struct EmbeddingSpaceRenderer: View {
             loadTask?.cancel()
         }
     }
-    
+
         // MARK: - Subview builders (split to help the type-checker)
-    
+
     private func errorBanner(_ err: String) -> some View {
         Text(err)
             .font(.caption)
             .foregroundColor(.red)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
-    
+
     @ViewBuilder
     private var contentBody: some View {
         if isLoading {
@@ -221,7 +221,7 @@ struct EmbeddingSpaceRenderer: View {
             legendSection
         }
     }
-    
+
     private var loadingCard: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 16)
@@ -237,7 +237,7 @@ struct EmbeddingSpaceRenderer: View {
         }
         .frame(height: 340)
     }
-    
+
     private var emptyStateCard: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 16)
@@ -254,7 +254,7 @@ struct EmbeddingSpaceRenderer: View {
         }
         .frame(height: 340)
     }
-    
+
     private var heroScene: some View {
         let (filteredPoints, filteredColors) = filteredArrays()
         return ZStack {
@@ -322,7 +322,7 @@ struct EmbeddingSpaceRenderer: View {
 
             InfoButtonView(
                 title: "Sampling",
-                explanation: "The renderer downsamples embeddings per document to stay interactive. Increase the cap to inspect more of the space; auto-rotate helps validate structure." 
+                explanation: "The renderer downsamples embeddings per document to stay interactive. Increase the cap to inspect more of the space; auto-rotate helps validate structure."
             )
         }
     }
@@ -351,16 +351,16 @@ struct EmbeddingSpaceRenderer: View {
             backgroundStyle: backgroundStyle
         )
     }
-    
+
     private func buildSceneAnnotations() -> [Embedding3DSceneView.AnnotationData] {
         guard showHUD, !annotationLabels.isEmpty, !points.isEmpty else { return [] }
-        
+
         var result: [Embedding3DSceneView.AnnotationData] = []
         for label in annotationLabels {
             guard label.pointIndex < points.count else { continue }
             let position = points[label.pointIndex]
             let uiColor = pointColorsUI[label.pointIndex]
-            
+
             // Determine detail level based on spatial clustering
             // In a real implementation, this would check camera distance
             // For now, use score as a proxy
@@ -372,7 +372,7 @@ struct EmbeddingSpaceRenderer: View {
             } else {
                 detailLevel = 0 // Minimal dot
             }
-            
+
             result.append(Embedding3DSceneView.AnnotationData(
                 position: position,
                 title: label.title,
@@ -760,7 +760,7 @@ struct EmbeddingSpaceRenderer: View {
             .buttonStyle(.plain)
         }
     }
-    
+
     @ViewBuilder
     private var legendSection: some View {
         if !legendItems.isEmpty {
@@ -778,13 +778,13 @@ struct EmbeddingSpaceRenderer: View {
             }
         }
     }
-    
+
     // Extracted legend chips to reduce type-checking complexity
     struct LegendChipsView: View {
         let items: [EmbeddingSpaceRenderer.VizLegendItem]
         @Binding var selectedDocFilters: Set<UUID>
         let totalPoints: Int
-        
+
         var body: some View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
@@ -802,7 +802,7 @@ struct EmbeddingSpaceRenderer: View {
                 .padding(.leading)
             }
         }
-        
+
         private func toggle(_ id: UUID) {
             if selectedDocFilters.isEmpty {
                 selectedDocFilters = Set(items.map { $0.docId })
@@ -817,18 +817,18 @@ struct EmbeddingSpaceRenderer: View {
             }
         }
     }
-    
+
     struct LegendChip: View {
         let item: EmbeddingSpaceRenderer.VizLegendItem
         let selected: Bool
         let totalPoints: Int
-        
+
         private var pctStr: String {
             totalPoints > 0
                 ? String(format: "%.0f%%", (Double(item.count) / Double(totalPoints)) * 100.0)
                 : "0%"
         }
-        
+
         var body: some View {
             HStack(spacing: 6) {
                 Circle()
@@ -871,13 +871,13 @@ struct EmbeddingSpaceRenderer: View {
             }
             .allowsHitTesting(false)
         }
-        
+
         private func depthScale(_ depth: CGFloat) -> CGFloat {
             // Subtle depth parallax: closer = slightly larger
             let base = focusMode ? 1.0 : 0.95
             return base + (depth * 0.12)
         }
-        
+
         private func depthOpacity(_ depth: CGFloat, score: Double) -> Double {
             // Fade distant labels more aggressively
             let depthFade = 0.65 + (depth * 0.35)
@@ -898,12 +898,12 @@ struct EmbeddingSpaceRenderer: View {
                 Circle()
                     .fill(label.accent)
                     .frame(width: 4, height: 4)
-                
+
                 Text(label.title)
                     .font(.system(size: 8, weight: .medium, design: .rounded))
                     .lineLimit(1)
                     .foregroundColor(.primary.opacity(0.85))
-                
+
                 if let keyword = keywordTag {
                     Text("·")
                         .font(.system(size: 7))
@@ -954,9 +954,9 @@ struct EmbeddingSpaceRenderer: View {
             .cornerRadius(14)
         }
     }
-    
+
 // MARK: - Filtering
-    
+
     private func filteredArrays() -> ([SCNVector3], [PlatformColor]) {
         guard !points.isEmpty else { return ([], []) }
         // If no explicit filters, return all
@@ -1191,9 +1191,9 @@ struct EmbeddingSpaceRenderer: View {
             )
         }
     }
-    
+
     // MARK: - Data + Projection
-    
+
     private func loadAndProject() async {
         // Cancel any ongoing load
         loadTask?.cancel()
@@ -1204,7 +1204,7 @@ struct EmbeddingSpaceRenderer: View {
                 annotationLabels = []
             }
             let annotationLimit = await MainActor.run { focusMode ? 5 : 3 }
-            
+
             // Snapshot documents to resolve names and filter by active container
             let docsSnapshot = await MainActor.run { ragService.documents }
             let activeId = containerService.activeContainerId
@@ -1219,7 +1219,7 @@ struct EmbeddingSpaceRenderer: View {
             }
             let activeDocIdsSet = Set(activeDocs.map { $0.id })
             let nameById: [UUID: String] = Dictionary(uniqueKeysWithValues: activeDocs.map { ($0.id, $0.filename) })
-            
+
             // Pull chunks from the active container's vector DB
             let allChunks = await ragService.allChunksForActiveContainer()
             if Task.isCancelled { return }
@@ -1252,13 +1252,13 @@ struct EmbeddingSpaceRenderer: View {
                 }
                 return
             }
-            
+
             // Group by document for stratified downsampling
             var chunksByDoc: [UUID: [DocumentChunk]] = [:]
             for c in filtered {
                 chunksByDoc[c.documentId, default: []].append(c)
             }
-            
+
             // Allocate fair share of sampleLimit across docs
             let docIds = Array(chunksByDoc.keys)
             let perDocQuota = max(1, sampleLimit / max(docIds.count, 1))
@@ -1269,11 +1269,11 @@ struct EmbeddingSpaceRenderer: View {
             sampledEmbeddings.reserveCapacity(capacity)
             sampledDocIds.reserveCapacity(capacity)
             sampledChunks.reserveCapacity(capacity)
-            
+
             // Deterministic sampling per containerId
             let rngSeed = UInt64(abs(Int64(activeId.uuidString.hashValue)))
             var prng = VizLCG(seed: rngSeed)
-            
+
             for did in docIds {
                 let arr = chunksByDoc[did] ?? []
                 if arr.count > perDocQuota {
@@ -1320,7 +1320,7 @@ struct EmbeddingSpaceRenderer: View {
                 sampledDocIds = newIds
                 sampledChunks = newChunks
             }
-            
+
             // Validate dims while keeping identifiers aligned
             var filteredEmbeddings: [[Float]] = []
             var filteredDocIds: [UUID] = []
@@ -1353,7 +1353,7 @@ struct EmbeddingSpaceRenderer: View {
                 }
                 return
             }
-            
+
             // Projection & caching
             let methodKind: ProjectionMethodKind
             switch projectionMethod {
@@ -1370,7 +1370,7 @@ struct EmbeddingSpaceRenderer: View {
                 sampleLimit: sampleLimit,
                 seed: rngSeed
             )
-            
+
             var coords3D: [SIMD3<Float>]
             if let cached = ProjectionCache.shared.get(cacheKey),
                cached.coords.count == sampledEmbeddings.count {
@@ -1396,7 +1396,7 @@ struct EmbeddingSpaceRenderer: View {
                 ProjectionCache.shared.set(entry, for: cacheKey)
             }
             if Task.isCancelled { return }
-            
+
             // Color mapping per document (deterministic by sorted doc ids)
             let palette = ColorPalette.makePalette(count: docIds.count)
             var colorByDoc: [UUID: PlatformColor] = [:]
@@ -1405,7 +1405,7 @@ struct EmbeddingSpaceRenderer: View {
                 let pcol = palette[i % palette.count]
                 colorByDoc[did] = pcol
             }
-            
+
             // Legend build with counts
             var counts: [UUID: Int] = [:]
             for did in sampledDocIds { counts[did, default: 0] += 1 }
@@ -1417,7 +1417,7 @@ struct EmbeddingSpaceRenderer: View {
                 let cnt = counts[did] ?? 0
                 legend.append(VizLegendItem(docId: did, name: name, color: swiftUIColor, count: cnt))
             }
-            
+
             // Build SceneKit vectors and color list aligned
             let scnPoints: [SCNVector3] = coords3D.map { SCNVector3($0.x, $0.y, $0.z) }
             let uiColors: [PlatformColor] = sampledDocIds.map { colorByDoc[$0] ?? ColorPalette.fallback }
@@ -1435,7 +1435,7 @@ struct EmbeddingSpaceRenderer: View {
                 colorByDoc: colorByDoc,
                 limit: annotationLimit
             )
-            
+
             await MainActor.run {
                 self.points = scnPoints
                 self.pointColorsUI = uiColors
@@ -1449,14 +1449,14 @@ struct EmbeddingSpaceRenderer: View {
             }
         }
     }
-    
+
     // MARK: - SampleLimit persistence
-    
+
     private func saveSampleLimit(_ value: Int) {
         let key = "viz.sampleLimit.\(containerService.activeContainerId.uuidString)"
         UserDefaults.standard.setValue(value, forKey: key)
     }
-    
+
     private func loadSampleLimitForActive() {
         let key = "viz.sampleLimit.\(containerService.activeContainerId.uuidString)"
         if let v = UserDefaults.standard.value(forKey: key) as? Int, sampleOptions.contains(v) {
@@ -1477,7 +1477,7 @@ struct Embedding3DSceneView: View {
         let depthCue: Bool
         let backgroundStyle: EmbeddingSceneBackgroundStyle
     }
-    
+
     struct AnnotationData: Identifiable {
         let id = UUID()
         let position: SCNVector3
@@ -1526,29 +1526,29 @@ struct SceneViewContainer: UIViewRepresentable {
         view.autoenablesDefaultLighting = true
         view.backgroundColor = .clear
     }
-    
+
     func makeCoordinator() -> Coordinator {
         Coordinator()
     }
-    
+
     class Coordinator: NSObject, SCNSceneRendererDelegate {
         func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
             guard let scene = renderer.scene else { return }
             updateLabelLOD(scene: scene, pointOfView: renderer.pointOfView)
         }
-        
+
         private func updateLabelLOD(scene: SCNScene, pointOfView: SCNNode?) {
             guard let camera = pointOfView else { return }
             let cameraPos = camera.position
-            
+
             scene.rootNode.enumerateChildNodes { node, _ in
                 guard node.name == "contentRoot" else { return }
-                
+
                 node.enumerateChildNodes { labelNode, _ in
                     guard labelNode.geometry is SCNText || labelNode.childNodes.contains(where: { $0.geometry is SCNText }) else { return }
-                    
+
                     let distance = simd_distance(simd_float3(cameraPos), simd_float3(labelNode.position))
-                    
+
                     // Dynamic LOD based on distance
                     if distance < 2.0 {
                         // Close: show full detail
@@ -1598,29 +1598,29 @@ struct SceneViewContainer: NSViewRepresentable {
         view.autoenablesDefaultLighting = true
         view.backgroundColor = .clear
     }
-    
+
     func makeCoordinator() -> Coordinator {
         Coordinator()
     }
-    
+
     class Coordinator: NSObject, SCNSceneRendererDelegate {
         func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
             guard let scene = renderer.scene else { return }
             updateLabelLOD(scene: scene, pointOfView: renderer.pointOfView)
         }
-        
+
         private func updateLabelLOD(scene: SCNScene, pointOfView: SCNNode?) {
             guard let camera = pointOfView else { return }
             let cameraPos = camera.position
-            
+
             scene.rootNode.enumerateChildNodes { node, _ in
                 guard node.name == "contentRoot" else { return }
-                
+
                 node.enumerateChildNodes { labelNode, _ in
                     guard labelNode.geometry is SCNText || labelNode.childNodes.contains(where: { $0.geometry is SCNText }) else { return }
-                    
+
                     let distance = simd_distance(simd_float3(cameraPos), simd_float3(labelNode.position))
-                    
+
                     // Dynamic LOD based on distance
                     if distance < 2.0 {
                         // Close: show full detail
@@ -1656,24 +1656,28 @@ private func buildScene(points: [SCNVector3], colors: [PlatformColor], options: 
     contentRoot.name = "contentRoot"
     scene.rootNode.addChildNode(contentRoot)
 
+    // Always add a subtle ground plane and grid for spatial reference
+    contentRoot.addChildNode(makeGroundPlane())
+
+    // Add intuitive axes with human-readable labels
     if options.showAxes {
-        contentRoot.addChildNode(makeAxesNode())
+        contentRoot.addChildNode(makeIntuiveAxesNode())
     }
 
     addPointNodes(points, colors, scale: options.pointScale, depthCue: options.depthCue, into: contentRoot)
-    addAnnotationLabels(annotations, into: contentRoot)
+    addClusterLabels(annotations, into: contentRoot)
     addLighting(into: scene.rootNode, depthCue: options.depthCue)
     applyBackground(style: options.backgroundStyle, to: scene)
     applyAutoRotate(options.autoRotate, to: contentRoot)
 
     if options.depthCue {
-        scene.fogStartDistance = 3.5
-        scene.fogEndDistance = 7.5
-        scene.fogDensityExponent = 1.2
+        scene.fogStartDistance = 4.0
+        scene.fogEndDistance = 9.0
+        scene.fogDensityExponent = 1.0
         #if canImport(UIKit)
-        scene.fogColor = options.backgroundStyle.fogColor.withAlphaComponent(0.85)
+        scene.fogColor = options.backgroundStyle.fogColor.withAlphaComponent(0.7)
         #else
-        scene.fogColor = options.backgroundStyle.fogColor.withAlphaComponent(0.85)
+        scene.fogColor = options.backgroundStyle.fogColor.withAlphaComponent(0.7)
         #endif
     } else {
         scene.fogStartDistance = 0
@@ -1681,6 +1685,102 @@ private func buildScene(points: [SCNVector3], colors: [PlatformColor], options: 
     }
 
     return scene
+}
+
+// MARK: - Ground Plane (Spatial Reference)
+
+private func makeGroundPlane() -> SCNNode {
+    let container = SCNNode()
+
+    // Subtle grid floor
+    let gridSize: Float = 2.4
+    let gridLines = 8
+    let spacing = gridSize / Float(gridLines)
+
+    for i in 0 ... gridLines {
+        let offset = -gridSize / 2 + Float(i) * spacing
+
+        // X-axis lines
+        let xLine = SCNCylinder(radius: 0.002, height: CGFloat(gridSize))
+        let xMat = SCNMaterial()
+        #if canImport(UIKit)
+            xMat.diffuse.contents = UIColor.white.withAlphaComponent(0.08)
+        #else
+            xMat.diffuse.contents = NSColor.white.withAlphaComponent(0.08)
+        #endif
+        xLine.materials = [xMat]
+        let xNode = SCNNode(geometry: xLine)
+        xNode.eulerAngles = SCNVector3(0, 0, Float.pi / 2)
+        xNode.position = SCNVector3(0, -1.0, offset)
+        container.addChildNode(xNode)
+
+        // Z-axis lines
+        let zLine = SCNCylinder(radius: 0.002, height: CGFloat(gridSize))
+        zLine.materials = [xMat]
+        let zNode = SCNNode(geometry: zLine)
+        zNode.eulerAngles = SCNVector3(Float.pi / 2, 0, 0)
+        zNode.position = SCNVector3(offset, -1.0, 0)
+        container.addChildNode(zNode)
+    }
+
+    return container
+}
+
+// MARK: - Intuitive Axes
+
+private func makeIntuiveAxesNode() -> SCNNode { 
+    let node = SCNNode()
+
+    // Axes with gradient fade
+    #if canImport(UIKit)
+    let xColor = UIColor.systemBlue.withAlphaComponent(0.6)
+    let yColor = UIColor.systemGreen.withAlphaComponent(0.6)
+    let zColor = UIColor.systemPurple.withAlphaComponent(0.6)
+    #else
+    let xColor = NSColor.systemBlue.withAlphaComponent(0.6)
+    let yColor = NSColor.systemGreen.withAlphaComponent(0.6)
+    let zColor = NSColor.systemPurple.withAlphaComponent(0.6)
+    #endif
+
+    node.addChildNode(axisNode(length: 1.4, color: xColor, axis: .x))
+    node.addChildNode(axisNode(length: 1.4, color: yColor, axis: .y))
+    node.addChildNode(axisNode(length: 1.4, color: zColor, axis: .z))
+
+    // Human-readable endpoint labels
+    node.addChildNode(makeAxisEndLabel(text: "Similar →", position: SCNVector3(1.3, 0, 0), color: xColor))
+    node.addChildNode(makeAxisEndLabel(text: "← Different", position: SCNVector3(-1.3, 0, 0), color: xColor))
+    node.addChildNode(makeAxisEndLabel(text: "Related ↑", position: SCNVector3(0, 1.2, 0), color: yColor))
+    node.addChildNode(makeAxisEndLabel(text: "Depth", position: SCNVector3(0, 0, 1.2), color: zColor))
+
+    return node
+}
+
+private func makeAxisEndLabel(text: String, position: SCNVector3, color: PlatformColor) -> SCNNode {
+    let textGeo = SCNText(string: text, extrusionDepth: 0)
+    #if canImport(UIKit)
+    textGeo.font = UIFont.systemFont(ofSize: 0.06, weight: .medium)
+    #else
+    textGeo.font = NSFont.systemFont(ofSize: 0.06, weight: .medium)
+    #endif
+    textGeo.flatness = 0.05
+
+    let mat = SCNMaterial()
+    mat.diffuse.contents = color
+    mat.emission.contents = color
+    mat.emission.intensity = 0.4
+    textGeo.materials = [mat]
+
+    let textNode = SCNNode(geometry: textGeo)
+    let (min, max) = textGeo.boundingBox
+    textNode.pivot = SCNMatrix4MakeTranslation(min.x + (max.x - min.x) / 2, min.y, 0)
+    textNode.scale = SCNVector3(0.5, 0.5, 0.5)
+    textNode.position = position
+
+    let billboard = SCNBillboardConstraint()
+    billboard.freeAxes = .all
+    textNode.constraints = [billboard]
+
+    return textNode
 }
 
 private func makeCameraNode(depthCue: Bool) -> SCNNode {
@@ -1698,73 +1798,34 @@ private func makeCameraNode(depthCue: Bool) -> SCNNode {
     return node
 }
 
-private func makeAxesNode() -> SCNNode {
-    let node = SCNNode()
-#if canImport(UIKit)
-    node.addChildNode(axisNode(length: 1.6, color: .systemRed, axis: .x))
-    node.addChildNode(axisNode(length: 1.6, color: .systemGreen, axis: .y))
-    node.addChildNode(axisNode(length: 1.6, color: .systemBlue, axis: .z))
-#else
-    node.addChildNode(axisNode(length: 1.6, color: .systemRed, axis: .x))
-    node.addChildNode(axisNode(length: 1.6, color: .systemGreen, axis: .y))
-    node.addChildNode(axisNode(length: 1.6, color: .systemBlue, axis: .z))
-#endif
-    node.opacity = 0.24
-    node.addChildNode(axisLabelNode(text: "X", color: .systemRed, axis: .x))
-    node.addChildNode(axisLabelNode(text: "Y", color: .systemGreen, axis: .y))
-    node.addChildNode(axisLabelNode(text: "Z", color: .systemBlue, axis: .z))
-    return node
-}
-
-private func axisLabelNode(text: String, color: PlatformColor, axis: AxisDirection) -> SCNNode {
-    let label = SCNText(string: text, extrusionDepth: 0.01)
-    #if canImport(UIKit)
-    label.font = UIFont.systemFont(ofSize: 0.18, weight: .semibold)
-    #else
-    label.font = NSFont.systemFont(ofSize: 0.18, weight: .semibold)
-    #endif
-    label.flatness = 0.1
-    label.firstMaterial?.diffuse.contents = color
-    label.firstMaterial?.emission.contents = color
-
-    let textNode = SCNNode(geometry: label)
-    let (min, max) = label.boundingBox
-    let width = max.x - min.x
-    textNode.pivot = SCNMatrix4MakeTranslation(min.x + width / 2, min.y, 0)
-    textNode.scale = SCNVector3(0.4, 0.4, 0.4)
-
-    switch axis {
-    case .x:
-        textNode.position = SCNVector3(1.0, 0.0, 0.0)
-    case .y:
-        textNode.position = SCNVector3(0.0, 1.0, 0.0)
-    case .z:
-        textNode.position = SCNVector3(0.0, 0.0, 1.0)
-    }
-
-    let billboard = SCNBillboardConstraint()
-    billboard.freeAxes = .all
-    textNode.constraints = [billboard]
-    return textNode
-}
+// Legacy makeAxesNode removed - replaced by makeIntuiveAxesNode
 
 private func addPointNodes(_ points: [SCNVector3], _ colors: [PlatformColor], scale: CGFloat, depthCue: Bool, into root: SCNNode) {
     let count = min(points.count, colors.count)
     guard count > 0 else { return }
 
-    let radius = max(0.01, 0.015 * scale)
+    // Larger, more visible points
+    let baseRadius: CGFloat = 0.025
+    let radius = max(0.015, baseRadius * scale)
+
     for index in 0..<count {
         let sphere = SCNSphere(radius: radius)
-        sphere.segmentCount = 12
+        sphere.segmentCount = 16
+
         let material = SCNMaterial()
         material.diffuse.contents = colors[index]
+
         if depthCue {
             material.lightingModel = .physicallyBased
-            material.roughness.contents = NSNumber(value: 0.35)
-            material.metalness.contents = NSNumber(value: 0.05)
+            material.roughness.contents = NSNumber(value: 0.25)
+            material.metalness.contents = NSNumber(value: 0.1)
+            // Add subtle glow
+            material.emission.contents = colors[index]
+            material.emission.intensity = 0.15
         } else {
             material.lightingModel = .blinn
             material.emission.contents = colors[index]
+            material.emission.intensity = 0.3
         }
         sphere.materials = [material]
 
@@ -1774,120 +1835,128 @@ private func addPointNodes(_ points: [SCNVector3], _ colors: [PlatformColor], sc
     }
 }
 
-private func addAnnotationLabels(_ annotations: [Embedding3DSceneView.AnnotationData], into root: SCNNode) {
+// MARK: - Cluster Labels (Redesigned)
+
+private func addClusterLabels(_ annotations: [Embedding3DSceneView.AnnotationData], into root: SCNNode) { 
     for annotation in annotations {
-        let labelNode = makeBillboardLabel(
-            text: annotation.title,
-            keyword: annotation.keywords.first,
-            color: annotation.color,
-            detailLevel: annotation.detailLevel
+        let labelNode = makeClusterBadge(
+            title: annotation.title,
+            count: annotation.detailLevel, // Repurposed: number of items in cluster
+            color: annotation.color
         )
+        // Position label above the cluster centroid
         labelNode.position = SCNVector3(
             annotation.position.x,
-            annotation.position.y + 0.08, // Offset above point
+            annotation.position.y + 0.12,
             annotation.position.z
         )
         root.addChildNode(labelNode)
     }
 }
 
-private func makeBillboardLabel(text: String, keyword: String?, color: PlatformColor, detailLevel: Int) -> SCNNode {
+/// Creates a floating badge label that looks like a pill with topic name
+private func makeClusterBadge(title: String, count: Int, color: PlatformColor) -> SCNNode { 
     let container = SCNNode()
-    
-    // Build label text based on detail level
-    let labelText: String
-    switch detailLevel {
-    case 0: // Minimal: just a dot
-        labelText = "•"
-    case 1: // Normal: title only
-        labelText = text
-    default: // Detailed: title + keyword
-        if let kw = keyword {
-            labelText = "\(text) · \(kw)"
-        } else {
-            labelText = text
-        }
-    }
-    
-    let textGeo = SCNText(string: labelText, extrusionDepth: 0)
+
+    // Create text
+    let displayText = title
+    let textGeo = SCNText(string: displayText, extrusionDepth: 0.005)
     #if canImport(UIKit)
-    textGeo.font = UIFont.systemFont(ofSize: detailLevel == 0 ? 0.12 : 0.08, weight: .medium)
+        textGeo.font = UIFont.systemFont(ofSize: 0.07, weight: .semibold)
     #else
-    textGeo.font = NSFont.systemFont(ofSize: detailLevel == 0 ? 0.12 : 0.08, weight: .medium)
+        textGeo.font = NSFont.systemFont(ofSize: 0.07, weight: .semibold)
     #endif
-    textGeo.flatness = 0.05
-    textGeo.chamferRadius = 0.001
-    
-    let textMaterial = SCNMaterial()
-    textMaterial.diffuse.contents = color
-    textMaterial.emission.contents = color
-    textMaterial.emission.intensity = 0.3
-    textMaterial.isDoubleSided = true
-    textGeo.materials = [textMaterial]
-    
+    textGeo.flatness = 0.02
+    textGeo.chamferRadius = 0.002
+
+    // Text material - bright and readable
+    let textMat = SCNMaterial()
+    #if canImport(UIKit)
+    textMat.diffuse.contents = UIColor.white
+    textMat.emission.contents = UIColor.white
+    #else
+    textMat.diffuse.contents = NSColor.white
+    textMat.emission.contents = NSColor.white
+    #endif
+    textMat.emission.intensity = 0.5
+    textMat.isDoubleSided = true
+    textGeo.materials = [textMat]
+
     let textNode = SCNNode(geometry: textGeo)
     let (min, max) = textGeo.boundingBox
     let width = max.x - min.x
     let height = max.y - min.y
     textNode.pivot = SCNMatrix4MakeTranslation(min.x + width/2, min.y + height/2, 0)
-    textNode.scale = SCNVector3(0.35, 0.35, 0.35)
-    
-    // Add subtle background pill
-    if detailLevel > 0 {
-        let pillWidth = CGFloat(width) * 0.38
-        let pillHeight = CGFloat(height) * 0.42
-        let pill = SCNBox(width: pillWidth, height: pillHeight, length: 0.002, chamferRadius: pillHeight * 0.5)
-        let pillMaterial = SCNMaterial()
-        #if canImport(UIKit)
-        pillMaterial.diffuse.contents = UIColor.white.withAlphaComponent(0.15)
-        #else
-        pillMaterial.diffuse.contents = NSColor.white.withAlphaComponent(0.15)
-        #endif
-        pillMaterial.isDoubleSided = true
-        pill.materials = [pillMaterial]
-        let pillNode = SCNNode(geometry: pill)
-        pillNode.position = SCNVector3(0, 0, -0.002)
-        container.addChildNode(pillNode)
-    }
-    
+    textNode.scale = SCNVector3(0.4, 0.4, 0.4)
+
+    // Background pill
+    let pillWidth = CGFloat(width) * 0.45 + 0.04
+    let pillHeight = CGFloat(height) * 0.45 + 0.02
+    let pill = SCNBox(width: pillWidth, height: pillHeight, length: 0.008, chamferRadius: pillHeight * 0.4)
+
+    let pillMat = SCNMaterial()
+    pillMat.diffuse.contents = color
+    pillMat.transparency = 0.85
+    pillMat.isDoubleSided = true
+    pill.materials = [pillMat]
+
+    let pillNode = SCNNode(geometry: pill)
+    pillNode.position = SCNVector3(0, 0, -0.005)
+
+    // Thin border ring for definition
+    let borderBox = SCNBox(width: pillWidth + 0.004, height: pillHeight + 0.004, length: 0.002, chamferRadius: (pillHeight + 0.004) * 0.4)
+    let borderMat = SCNMaterial()
+    #if canImport(UIKit)
+    borderMat.diffuse.contents = UIColor.white.withAlphaComponent(0.3)
+    #else
+    borderMat.diffuse.contents = NSColor.white.withAlphaComponent(0.3)
+    #endif
+    borderMat.isDoubleSided = true
+    borderBox.materials = [borderMat]
+    let borderNode = SCNNode(geometry: borderBox)
+    borderNode.position = SCNVector3(0, 0, -0.008)
+
+    container.addChildNode(borderNode)
+    container.addChildNode(pillNode)
     container.addChildNode(textNode)
-    
-    // Billboard constraint to always face camera
+
+    // Billboard to always face camera
     let billboard = SCNBillboardConstraint()
     billboard.freeAxes = [.X, .Y]
     container.constraints = [billboard]
-    
-    // LOD: fade out when far, scale when close
-    container.opacity = detailLevel == 0 ? 0.5 : 0.85
-    
+
+    container.opacity = 0.92
+
     return container
 }
 
 private func addLighting(into root: SCNNode, depthCue: Bool) {
+    // Brighter, more even lighting for better visibility
     let keyLight = SCNLight()
     keyLight.type = .omni
-    keyLight.intensity = depthCue ? 1200 : 900
-    keyLight.castsShadow = true
-    keyLight.attenuationStartDistance = depthCue ? 1.6 : 3.0
-    keyLight.attenuationEndDistance = depthCue ? 12 : 18
+    keyLight.intensity = depthCue ? 1400 : 1100
+    keyLight.castsShadow = false // Shadows can obscure points
+    keyLight.attenuationStartDistance = 2.0
+    keyLight.attenuationEndDistance = 15
     let keyNode = SCNNode()
     keyNode.light = keyLight
-    keyNode.position = SCNVector3(2.0, 1.8, 2.4)
+    keyNode.position = SCNVector3(2.5, 2.5, 3.0)
     root.addChildNode(keyNode)
 
     let fillLight = SCNLight()
     fillLight.type = .omni
-    fillLight.intensity = depthCue ? 520 : 450
-    fillLight.attenuationStartDistance = depthCue ? 1.2 : 3.5
-    fillLight.attenuationEndDistance = depthCue ? 10 : 18
+    fillLight.intensity = depthCue ? 700 : 600
+    fillLight.attenuationStartDistance = 2.0
+    fillLight.attenuationEndDistance = 15
     let fillNode = SCNNode()
     fillNode.light = fillLight
-    fillNode.position = SCNVector3(-2.2, -1.4, -2.6)
+    fillNode.position = SCNVector3(-2.5, -1.5, -3.0)
     root.addChildNode(fillNode)
 
+    // Stronger ambient for base visibility
     let ambient = SCNLight()
     ambient.type = .ambient
-    ambient.intensity = 220
+    ambient.intensity = 350
     let ambientNode = SCNNode()
     ambientNode.light = ambient
     root.addChildNode(ambientNode)
@@ -2005,7 +2074,7 @@ enum ColorPalette {
         return NSColor.systemGray
         #endif
     }()
-    
+
     static func makePalette(count: Int) -> [PlatformColor] {
         let base = 12
         let n = max(count, base)

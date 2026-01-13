@@ -2,11 +2,28 @@
 //  SemanticChunker.swift
 //  OpenIntelligence
 //
-//  Advanced semantic chunking with topic detection and metadata enrichment
+//  Advanced semantic chunking with topic detection and metadata enrichment.
+//
+//  ## Semantic Boundary Detection (Late Chunking)
+//
+//  This chunker implements research-paper-level semantic boundary detection:
+//  1. **Embedding-Based Topic Detection**: Computes sentence embeddings and detects
+//     topic shifts where cosine similarity between adjacent sentences drops below threshold.
+//  2. **Linguistic Cue Detection**: Uses transition phrases as secondary boundary signals.
+//  3. **Section Header Detection**: Recognizes markdown headers, numbered sections, etc.
+//
+//  The embedding approach (sometimes called "Late Chunking" in RAG literature) provides
+//  semantically coherent chunks that align with actual topic boundaries rather than
+//  arbitrary word counts.
+//
+//  See also:
+//  - https://developer.apple.com/documentation/naturallanguage
+//  - https://developer.apple.com/documentation/accelerate/vdsp
 //
 
 import Foundation
 import NaturalLanguage
+import Accelerate
 
 // Notification name for SemanticChunker diagnostics updates
 extension Notification.Name {
@@ -23,6 +40,7 @@ class SemanticChunker {
         let languageHypotheses: [NLLanguage: Double]
         let sectionCount: Int
         let topicBoundaryCount: Int
+        let embeddingBoundaryCount: Int // New: boundaries detected via embedding similarity
         let totalSentences: Int
         let averageSentenceLengthWords: Double
         let averageWordsPerChunk: Double
@@ -32,6 +50,15 @@ class SemanticChunker {
 
     private let languageRecognizer = NLLanguageRecognizer()
     private(set) var lastDiagnostics: ChunkingDiagnostics?
+
+    /// Optional embedding service for semantic boundary detection (Late Chunking)
+    /// When set, topic boundaries are detected via sentence embedding similarity
+    var embeddingService: EmbeddingService?
+
+    /// Threshold for embedding-based topic boundary detection
+    /// A drop in cosine similarity below this triggers a chunk boundary
+    /// Default 0.65 balances sensitivity with avoiding over-segmentation
+    var embeddingSimilarityThreshold: Float = 0.65
 
     func diagnostics() -> ChunkingDiagnostics? { lastDiagnostics }
 
@@ -208,6 +235,7 @@ class SemanticChunker {
                 languageHypotheses: languageHypotheses(for: text),
                 sectionCount: 0,
                 topicBoundaryCount: 0,
+                embeddingBoundaryCount: 0,
                 totalSentences: estimateSentenceCount(for: text),
                 averageSentenceLengthWords: averageSentenceLength(for: text),
                 averageWordsPerChunk: Double(small.metadata.wordCount),
@@ -222,9 +250,9 @@ class SemanticChunker {
         let sections = detectSections(text)
         Log.debug("[SemanticChunker] Detected \(sections.count) sections", category: .ingestion)
 
-        // 2. Detect topic boundaries if enabled
+        // 2. Detect topic boundaries if enabled (linguistic cues only in sync version)
         let topicBoundaries = config.useTopicDetection ? detectTopicBoundaries(text) : []
-        Log.debug("[SemanticChunker] Detected \(topicBoundaries.count) topic boundaries", category: .ingestion)
+        Log.debug("[SemanticChunker] Detected \(topicBoundaries.count) linguistic topic boundaries", category: .ingestion)
 
         // 3. Chunk with semantic awareness
         var chunks: [EnhancedChunk] = []
@@ -330,6 +358,7 @@ class SemanticChunker {
             languageHypotheses: languageHypotheses(for: text),
             sectionCount: sections.count,
             topicBoundaryCount: topicBoundaries.count,
+            embeddingBoundaryCount: 0, // Sync version doesn't use embedding boundaries
             totalSentences: estimateSentenceCount(for: text),
             averageSentenceLengthWords: averageSentenceLength(for: text),
             averageWordsPerChunk: avgWordsPerChunk,
@@ -338,6 +367,155 @@ class SemanticChunker {
         )
         NotificationCenter.default.post(name: .semanticChunkerDiagnosticsUpdated, object: self.lastDiagnostics)
 
+        return chunks
+    }
+
+    // MARK: - Async Chunking with Embedding Boundaries (Late Chunking)
+
+    /// Chunk text with semantic boundaries detected via sentence embeddings.
+    ///
+    /// This is the preferred method when an EmbeddingService is available.
+    /// It combines three levels of semantic boundary detection:
+    /// 1. Section headers (markdown, numbered, ALL CAPS)
+    /// 2. Linguistic transition phrases (However, Moreover, etc.)
+    /// 3. **Embedding similarity drops** (Late Chunking - research-paper level)
+    ///
+    /// The embedding approach identifies genuine topic shifts by comparing
+    /// sentence embeddings and detecting where cosine similarity drops below
+    /// the threshold (default 0.65).
+    ///
+    /// - Note: Pass `ChunkingConfig()` explicitly from MainActor context if needed.
+    func chunkTextAsync(
+        _ text: String,
+        documentId: UUID,
+        config: ChunkingConfig,
+        pageNumbers: [Int: Range<String.Index>]? = nil
+    ) async -> [EnhancedChunk] {
+        Log.debug("[SemanticChunker] Starting async chunking with embedding boundaries", category: .ingestion)
+
+        // Detect embedding-based boundaries if service available
+        let embeddingBoundaries = await detectEmbeddingBoundaries(text)
+
+        // Merge with linguistic boundaries
+        var allBoundaries = config.useTopicDetection ? detectTopicBoundaries(text) : []
+        allBoundaries.append(contentsOf: embeddingBoundaries)
+        allBoundaries = Array(Set(allBoundaries)).sorted() // Deduplicate and sort
+
+        Log.debug("[SemanticChunker] Total boundaries: \(allBoundaries.count) (embedding: \(embeddingBoundaries.count))", category: .ingestion)
+
+        // Use sync chunking with the combined boundaries
+        let chunks = chunkTextWithBoundaries(
+            text,
+            documentId: documentId,
+            config: config,
+            topicBoundaries: allBoundaries,
+            pageNumbers: pageNumbers
+        )
+
+        // Update diagnostics with embedding boundary count
+        let avgWordsPerChunk = chunks.isEmpty
+            ? 0.0
+            : Double(chunks.map { $0.metadata.wordCount }.reduce(0, +)) / Double(chunks.count)
+
+        let linguisticCount = config.useTopicDetection ? detectTopicBoundaries(text).count : 0
+
+        self.lastDiagnostics = ChunkingDiagnostics(
+            language: detectLanguage(for: text),
+            languageHypotheses: languageHypotheses(for: text),
+            sectionCount: detectSections(text).count,
+            topicBoundaryCount: linguisticCount,
+            embeddingBoundaryCount: embeddingBoundaries.count,
+            totalSentences: estimateSentenceCount(for: text),
+            averageSentenceLengthWords: averageSentenceLength(for: text),
+            averageWordsPerChunk: avgWordsPerChunk,
+            overlapWords: config.overlap,
+            warnings: embeddingService == nil ? ["Embedding service unavailable - using linguistic boundaries only"] : []
+        )
+        NotificationCenter.default.post(name: .semanticChunkerDiagnosticsUpdated, object: self.lastDiagnostics)
+
+        return chunks
+    }
+
+    /// Internal chunking method that accepts pre-computed topic boundaries
+    private func chunkTextWithBoundaries(
+        _ text: String,
+        documentId: UUID,
+        config: ChunkingConfig,
+        topicBoundaries: [String.Index],
+        pageNumbers: [Int: Range<String.Index>]?
+    ) -> [EnhancedChunk] {
+        let wordCount = tokenWordCount(text)
+        if wordCount < config.minSize {
+            return [createSingleChunk(text, documentId: documentId, pageNumbers: pageNumbers)]
+        }
+
+        let sections = detectSections(text)
+
+        var chunks: [EnhancedChunk] = []
+        var currentPosition = text.startIndex
+        var chunkIndex = 0
+        let maxChunks = 5000
+
+        while currentPosition < text.endIndex, chunkIndex < maxChunks {
+            let remainingDistance = text.distance(from: currentPosition, to: text.endIndex)
+            if remainingDistance < 10 {
+                if remainingDistance > 0 {
+                    let finalText = String(text[currentPosition ..< text.endIndex])
+                    let wc = tokenWordCount(finalText)
+                    if wc > 0 {
+                        let metadata = extractMetadata(
+                            chunkText: finalText,
+                            chunkIndex: chunkIndex,
+                            documentId: documentId,
+                            range: currentPosition ..< text.endIndex,
+                            in: text,
+                            sections: sections,
+                            pageNumbers: pageNumbers
+                        )
+                        chunks.append(EnhancedChunk(content: finalText, metadata: metadata, embedding: nil))
+                    }
+                }
+                break
+            }
+
+            let chunkRange = findOptimalChunkRange(
+                in: text,
+                from: currentPosition,
+                config: config,
+                topicBoundaries: topicBoundaries,
+                sections: sections
+            )
+
+            guard chunkRange.lowerBound < chunkRange.upperBound else { break }
+
+            let chunkText = String(text[chunkRange])
+            let metadata = extractMetadata(
+                chunkText: chunkText,
+                chunkIndex: chunkIndex,
+                documentId: documentId,
+                range: chunkRange,
+                in: text,
+                sections: sections,
+                pageNumbers: pageNumbers
+            )
+            chunks.append(EnhancedChunk(content: chunkText, metadata: metadata, embedding: nil))
+
+            let nextPosition = advancePosition(
+                from: currentPosition,
+                chunkEnd: chunkRange.upperBound,
+                overlap: config.overlap,
+                in: text
+            )
+
+            if nextPosition <= currentPosition {
+                currentPosition = text.index(after: currentPosition)
+            } else {
+                currentPosition = nextPosition
+            }
+            chunkIndex += 1
+        }
+
+        Log.debug("[SemanticChunker] Created \(chunks.count) chunks with embedding-aware boundaries", category: .ingestion)
         return chunks
     }
 
@@ -396,6 +574,102 @@ class SemanticChunker {
         }
 
         return boundaries.sorted()
+    }
+
+    // MARK: - Embedding-Based Semantic Boundary Detection (Late Chunking)
+
+    /// Detects topic boundaries using sentence embeddings and cosine similarity.
+    ///
+    /// Algorithm (based on Late Chunking research):
+    /// 1. Split text into sentences using NLTokenizer
+    /// 2. Generate embeddings for each sentence (batched for efficiency)
+    /// 3. Compute cosine similarity between adjacent sentence pairs
+    /// 4. Mark boundaries where similarity drops below threshold
+    ///
+    /// This approach identifies genuine topic shifts rather than relying on
+    /// heuristic word counts or transition phrases.
+    ///
+    /// - Parameters:
+    ///   - text: The full document text
+    ///   - threshold: Cosine similarity threshold (default from instance property)
+    ///
+    /// - Returns: Array of text indices where topic boundaries occur
+    func detectEmbeddingBoundaries(
+        _ text: String,
+        threshold: Float? = nil
+    ) async -> [String.Index] {
+        guard let embeddingService = embeddingService, embeddingService.isAvailable else {
+            Log.debug("[SemanticChunker] Embedding service unavailable, skipping embedding boundaries", category: .ingestion)
+            return []
+        }
+
+        let actualThreshold = threshold ?? embeddingSimilarityThreshold
+
+        // 1. Split into sentences
+        let sentenceTokenizer = NLTokenizer(unit: .sentence)
+        sentenceTokenizer.string = text
+
+        var sentences: [(text: String, range: Range<String.Index>)] = []
+        sentenceTokenizer.enumerateTokens(in: text.startIndex ..< text.endIndex) { range, _ in
+            let sentenceText = String(text[range]).trimmingCharacters(in: .whitespacesAndNewlines)
+            if sentenceText.count > 10 { // Filter out very short fragments
+                sentences.append((sentenceText, range))
+            }
+            return true
+        }
+
+        guard sentences.count >= 2 else {
+            Log.debug("[SemanticChunker] Only \(sentences.count) sentences, skipping embedding boundaries", category: .ingestion)
+            return []
+        }
+
+        // 2. Generate embeddings in batch (efficient for CoreML/NLEmbedding)
+        let sentenceTexts = sentences.map { $0.text }
+        let embeddings: [[Float]]
+        do {
+            embeddings = try await embeddingService.generateEmbeddings(for: sentenceTexts)
+        } catch {
+            Log.error("[SemanticChunker] Failed to generate sentence embeddings: \(error)", category: .ingestion)
+            return []
+        }
+
+        guard embeddings.count == sentences.count else {
+            Log.warning("[SemanticChunker] Embedding count mismatch", category: .ingestion)
+            return []
+        }
+
+        // 3. Compute pairwise cosine similarity and detect drops
+        var boundaries: [String.Index] = []
+
+        for i in 1 ..< embeddings.count {
+            let similarity = cosineSimilarityAccelerated(embeddings[i - 1], embeddings[i])
+
+            if similarity < actualThreshold {
+                // Topic shift detected - mark boundary at start of new sentence
+                boundaries.append(sentences[i].range.lowerBound)
+                Log.verbose("[SemanticChunker] Embedding boundary at sentence \(i): similarity=\(String(format: "%.3f", similarity))", category: .ingestion)
+            }
+        }
+
+        Log.debug("[SemanticChunker] Detected \(boundaries.count) embedding-based topic boundaries from \(sentences.count) sentences", category: .ingestion)
+        return boundaries
+    }
+
+    /// Accelerate-powered cosine similarity for sentence embeddings
+    /// Uses vDSP dot product and modern vDSP.sumOfSquares for L2 norm
+    private func cosineSimilarityAccelerated(_ a: [Float], _ b: [Float]) -> Float {
+        guard a.count == b.count, !a.isEmpty else { return 0 }
+
+        // Dot product via vDSP (Neural Engine optimized)
+        var dot: Float = 0
+        vDSP_dotpr(a, 1, b, 1, &dot, vDSP_Length(a.count))
+
+        // Modern Accelerate API: vDSP.sumOfSquares + sqrt (replaces deprecated cblas_snrm2)
+        let normA = sqrt(vDSP.sumOfSquares(a))
+        let normB = sqrt(vDSP.sumOfSquares(b))
+
+        let denom = normA * normB
+        return denom > 0 ? dot / denom : 0
     }
 
     /// Find optimal chunk range respecting semantic boundaries
