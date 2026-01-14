@@ -62,6 +62,9 @@ final class SettingsStore: ObservableObject {
         static let enableContextualCompression = "enableContextualCompression"
         static let enableParentDocumentRetrieval = "enableParentDocumentRetrieval"
         static let enableConversationMemory = "enableConversationMemory"
+
+        // Appearance
+        static let appAccentColorHex = "appAccentColorHex" // nil = system default
     }
 
     // MARK: - Published Settings (bind from UI)
@@ -157,6 +160,12 @@ final class SettingsStore: ObservableObject {
     /// - balanced: Good accuracy with smart context selection (default)
     /// - thorough: Maximum accuracy with multi-pass verification
     @Published var ragQualityMode: RAGQualityMode
+
+    // MARK: - Appearance
+
+    /// App-wide accent color. nil = use system default.
+    /// When set, overrides the tint color throughout the app.
+    @Published var appAccentColorHex: String?
 
     // MARK: - Infra
 
@@ -332,11 +341,21 @@ final class SettingsStore: ObservableObject {
         // Conversation memory defaults to true - enables multi-turn context awareness
         enableConversationMemory = defaults.object(forKey: Keys.enableConversationMemory) as? Bool ?? true
 
-        // Quality mode - default to Standard (was balanced)
-        ragQualityMode = .standard
+        // Appearance settings
+        // Accent color - nil means use system default
+        appAccentColorHex = defaults.string(forKey: Keys.appAccentColorHex)
+
+        // Quality mode - load from UserDefaults or default to standard
+        if let savedMode = defaults.string(forKey: Keys.ragQualityMode),
+           let mode = RAGQualityMode(rawValue: savedMode)
+        {
+            ragQualityMode = mode
+        } else {
+            ragQualityMode = .standard
+            defaults.set(RAGQualityMode.standard.rawValue, forKey: Keys.ragQualityMode)
+        }
         lenientRetrievalMode = false
         defaults.set(false, forKey: Keys.lenient)
-        defaults.set(RAGQualityMode.standard.rawValue, forKey: Keys.ragQualityMode)
 
         // Auto-upgrade from On-Device Analysis to Apple Intelligence if device is capable
         if selectedModel == .onDeviceAnalysis,
@@ -394,6 +413,7 @@ final class SettingsStore: ObservableObject {
             $enableContextualCompression.map { _ in () }.eraseToAnyPublisher(),
             $enableParentDocumentRetrieval.map { _ in () }.eraseToAnyPublisher(),
             $enableConversationMemory.map { _ in () }.eraseToAnyPublisher(),
+            $appAccentColorHex.map { _ in () }.eraseToAnyPublisher(),
         ]
         Publishers.MergeMany(publishers)
             .sink { [weak self] in
@@ -430,12 +450,7 @@ final class SettingsStore: ObservableObject {
             .dropFirst()
             .sink { [weak self] mode in
                 guard let self else { return }
-                // Normalize to canonical form and persist
-                let canonical = mode.canonical
-                if mode != canonical {
-                    self.ragQualityMode = canonical
-                }
-                self.defaults.set(canonical.rawValue, forKey: Keys.ragQualityMode)
+                self.defaults.set(mode.rawValue, forKey: Keys.ragQualityMode)
             }
             .store(in: &cancellables)
 
@@ -513,6 +528,9 @@ final class SettingsStore: ObservableObject {
         defaults.set(enableContextualCompression, forKey: Keys.enableContextualCompression)
         defaults.set(enableParentDocumentRetrieval, forKey: Keys.enableParentDocumentRetrieval)
         defaults.set(enableConversationMemory, forKey: Keys.enableConversationMemory)
+
+        // Appearance
+        defaults.set(appAccentColorHex, forKey: Keys.appAccentColorHex)
     }
 
     // MARK: - Side Effects (Debounced)

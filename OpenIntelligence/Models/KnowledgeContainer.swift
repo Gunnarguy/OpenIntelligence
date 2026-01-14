@@ -316,6 +316,10 @@ struct RetrievalConfig: Codable, Equatable, Sendable {
                 // CSV data files benefit from exact keyword matching
                 technicalCount += 1
 
+            case .audio, .video, .m4a, .mp3, .wav, .mp4, .mov:
+                // Transcribed audio/video - treat as narrative
+                narrativeCount += 1
+
             case .unknown:
                 narrativeCount += 1
             }

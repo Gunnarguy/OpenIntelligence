@@ -1,11 +1,18 @@
 # OpenIntelligence Roadmap
 
-**Last Updated**: January 12, 2026
-**Version**: 1.5.1
+**Last Updated**: January 13, 2026
+**Version**: 1.6.0
 **Status**: Production (App Store Ready)
-**RAG Maturity Score**: 9.8/10 (up from 9.6/10)
+**RAG Maturity Score**: 9.0/10 (Language Detection + Audio RAG + Table Detection)
 
-### Recent Improvements (January 2026 - Silicon-Native Update)
+### Recent Improvements (January 2026 - Visual Document Understanding)
+- **Spatial Text Ordering**: OCR now sorts text by reading order using bounding boxes (top→bottom, left→right)
+- **Multi-Column Detection**: Automatically detects and processes multi-column layouts correctly
+- **Image Classification**: ClassifyImageRequest integration tags embedded images (iOS 18+)
+- **Caption-Image Association**: Links captions to nearby images via spatial proximity analysis
+- **Image Descriptions**: Generates searchable text from image classifications + captions
+- **VisualContentMetadata**: New metadata struct tracks visual elements per document
+- **ImageUnderstandingService**: New service for comprehensive image analysis
 - **Accelerate-Powered Vector Math**: All cosine similarity computations use vDSP_dotpr and cblas_snrm2 for Neural Engine acceleration
 - **Pre-Computed Embedding Norms**: O(1) normalization during search via cached L2 norms
 - **Device-Adaptive Batch Sizes**: Batch thresholds tuned per device tier (A17→A18→A19→M-series)
@@ -280,7 +287,9 @@
   *Location*: [AgenticOrchestrator.swift](OpenIntelligence/Services/AgenticOrchestrator.swift)
   *Status*: Implemented - Multi-step planning→searching→analyzing→synthesizing→refining with session cleanup
   *Hardware*: Device-aware config via DeviceCapabilityService (A17→16K, A18→24K, A19→32K, M-series→48K)
-- [ ] **Query Planning Agent**: Multi-step reasoning over large document sets
+- [x] **Query Planning Agent**: Multi-step reasoning over large document sets
+  *Location*: [AgenticOrchestrator.swift](OpenIntelligence/Services/AgenticOrchestrator.swift)
+  *Status*: Implemented - `executePlanningStep()` decomposes queries into 2-4 focused sub-questions, executed in parallel
 - [x] **Cross-Container Search**: Unified retrieval across multiple containers
   *Location*: [VectorStoreRouter.swift](OpenIntelligence/Services/VectorStoreRouter.swift)
   *Status*: Implemented - `searchAll()` with parallel queries and RRF fusion; RAGService integration via `searchAllContainers()`
@@ -355,6 +364,87 @@
   *Benefit*: Medical queries → medical-optimized index, legal → legal index
   *Complexity*: Medium (requires domain classification and multiple indices)
 
+### Phase 2.05 — Visual Document Understanding (Q1-Q2 2026)
+*Full Vision framework integration for layout-aware document processing*
+
+#### Layout-Aware Text Extraction
+- [x] **Spatial Text Ordering**: Use VNRecognizedTextObservation bounding boxes to sort text by reading order
+  *Problem*: PDF text extraction can return jumbled text when layout is complex (multi-column, sidebars)
+  *Solution*: Sort OCR observations by Y position (top-to-bottom), then X position (left-to-right)
+  *Impact*: Fixes copy-paste weirdness where text order doesn't match visual layout
+  *Location*: `performOCR()` in [DocumentProcessor.swift](OpenIntelligence/Services/DocumentProcessor.swift)
+  *Status*: Implemented - observations sorted by bounding box with 2% line threshold
+
+- [x] **Column Detection**: Detect multi-column layouts via bounding box clustering
+  *Benefit*: Process columns independently before merging text
+  *API*: VNRecognizedTextObservation.boundingBox + clustering algorithm
+  *Location*: `detectColumns()` and `extractTextWithColumnAwareness()` in DocumentProcessor.swift
+  *Status*: Implemented - detects significant gaps (>15% page width) as column boundaries
+
+- [x] **Reading Order Reconstruction**: Reconstruct logical reading flow from spatial positions
+  *Benefit*: "If you highlight half a page, the text flows correctly"
+  *Location*: `extractTextWithColumnAwareness()` in DocumentProcessor.swift
+  *Status*: Implemented - processes each column top-to-bottom, then combines
+
+#### Image Understanding (Vision + Intelligence)
+- [x] **PDF Image Extraction**: Extract embedded images from PDF pages
+  *API*: PDFKit page rendering + CGImage extraction at image positions
+  *Benefit*: Access to diagrams, charts, photos in documents
+  *Location*: `extractImagesFromPDFPage()` and `extractAllImagesFromPDF()` in DocumentProcessor.swift
+  *Status*: Implemented - extracts from annotations and full-page scans
+
+- [x] **Image Classification**: Use ClassifyImageRequest to tag images
+  *API*: `ClassifyImageRequest()` → [ClassificationObservation] with identifiers and confidence
+  *Benefit*: "This PDF contains: diagrams (0.85), technical_drawings (0.72), charts (0.68)"
+  *Location*: [ImageUnderstandingService.swift](OpenIntelligence/Services/ImageUnderstandingService.swift)
+  *Status*: Implemented - iOS 18+ modern API with legacy fallback; ImageContentType enum for high-level categorization
+
+- [x] **Image-to-Text Description**: Generate text descriptions of images via Apple Intelligence
+  *API*: Classification-based descriptions (full Foundation Models image input planned for iOS 26+)
+  *Benefit*: Diagrams become searchable ("fluid diagram", "wiring schematic")
+  *Location*: `generateImageDescription()` in ImageUnderstandingService.swift
+  *Status*: Implemented - combines classifications + captions into searchable text
+
+- [x] **Caption-Image Association**: Link captions to adjacent images via spatial proximity
+  *Heuristic*: Text within 5% of page height below an image is likely its caption
+  *Location*: `findAssociatedCaption()` in ImageUnderstandingService.swift
+  *Status*: Implemented - detects "Figure", "Image", "Diagram" prefixes and short nearby text
+
+#### Document Structure Analysis (iOS 18+)
+- [ ] **DetectDocumentSegmentationRequest**: Detect document boundaries and regions
+  *API*: New iOS 18 Vision API for structured document detection
+  *Output*: Document quadrilateral and saliency masks
+
+- [ ] **RecognizeDocumentsRequest**: Structured document understanding
+  *API*: New iOS 18 API for receipts, business cards, forms
+  *Benefit*: Extract structured data from known document types
+
+- [x] **Table Recognition**: Detect and extract table structures
+  *API*: VNRecognizedTextObservation bounding box clustering for row/column alignment
+  *Benefit*: Tables extracted as structured markdown format for better retrieval
+  *Location*: `detectTables()` in [DocumentProcessor.swift](OpenIntelligence/Services/DocumentProcessor.swift)
+  *Status*: Implemented - Grid alignment analysis, DetectedTable struct, markdown output
+  *API*: Vision's table recognition capabilities
+  *Output*: Structured table data (rows, columns, headers)
+  *Chunking*: Tables → structured text chunks with column headers preserved
+
+#### Enhanced Metadata
+- [x] **VisualContentMetadata**: Track visual elements per page/chunk
+  *Location*: [ImageUnderstandingService.swift](OpenIntelligence/Services/ImageUnderstandingService.swift)
+  *Status*: Implemented - tracks imageCount, imageClassifications, hasTableContent, columnLayout, captionedImages, imagesWithDescriptions
+  ```swift
+  struct VisualContentMetadata: Codable {
+      let imageCount: Int
+      let imageClassifications: [String: Float]  // label → confidence
+      let hasTableContent: Bool
+      let columnLayout: ColumnLayout  // single, double, complex
+      let captionedImages: Int
+  }
+  ```
+
+- [ ] **ProcessingMetadata Extension**: Add visual processing stats
+  *Fields*: `imagesProcessed`, `imagesWithDescriptions`, `tablesExtracted`, `layoutComplexity`
+
 ### Phase 2.1 — Model Ecosystem
 - [x] **Model Marketplace**: Removed - app focuses on Apple Intelligence + PCC
 - [ ] **Custom Embedding Models**: User-provided Core ML embedders
@@ -373,6 +463,41 @@
 - [ ] **Zoom-to-Cluster**: Double-tap cluster badge → camera flies in for close-up
 - [ ] **Distance Ruler**: Drag between two points → shows cosine similarity score
 - [ ] **Time-Series Animation**: Visualize how embeddings evolve as documents are added
+
+### Phase 2.15 — Missing Apple Framework Opportunities
+*Native frameworks not yet leveraged for hyper-intelligence*
+
+#### NaturalLanguage Gaps
+- [x] **NLLanguageRecognizer**: Auto-detect document/query language for multi-language RAG
+  *Location*: [LanguageDetectionService.swift](OpenIntelligence/Services/LanguageDetectionService.swift)
+  *Status*: Implemented - Detects query/document language, caches results, provides embedding language routing
+- [ ] **NLGazetteer**: Custom entity extraction (product names, part numbers, domain terms)
+  *Benefit*: Boost retrieval for exact entity matches, enable domain-specific NER
+
+#### Vision Framework Gaps
+- [ ] **DataScannerViewController**: Live camera document scanning with real-time OCR
+  *Benefit*: "Point at document, start querying" UX — zero friction ingestion
+
+#### Multimedia RAG
+- [x] **Speech.SFSpeechRecognizer**: Transcribe audio/video files for indexing
+  *Location*: [AudioTranscriptionService.swift](OpenIntelligence/Services/AudioTranscriptionService.swift)
+  *Status*: Implemented - On-device transcription for M4A, MP3, WAV, MP4, MOV; language detection; time-stamped segments
+  *Supported*: m4a, mp3, wav, caf, aiff, mp4, mov, m4v (max 10 min)
+- [ ] **SoundAnalysis**: Classify audio content (speech, music, ambient)
+
+#### Translation & Localization
+- [ ] **Translation.framework (iOS 17+)**: On-device translation for multi-language documents
+  *Benefit*: Translate foreign docs to English before embedding for unified search
+
+#### On-Device Learning
+- [ ] **CreateMLComponents**: Train small classifiers on user's document patterns
+  *Benefit*: Learn document types, topics, quality signals from usage
+
+#### Observability
+- [ ] **MetricKit**: Collect real device performance metrics
+  *Benefit*: Optimize pipeline based on actual user hardware patterns
+- [ ] **OSSignposter**: Instruments-visible pipeline profiling
+  *Benefit*: Make embedding/search/generation visible in Xcode Instruments
 
 ### Phase 2.2 — Platform Expansion
 - [ ] **macOS Catalyst**: Native desktop experience

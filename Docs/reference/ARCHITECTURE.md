@@ -179,6 +179,71 @@ User Query Input
 
 **File**: `OpenIntelligence/Services/DocumentProcessor.swift`
 
+#### Vision Framework Integration
+
+**Current Implementation** (Jan 2026):
+
+| Capability | API Used | Status |
+|------------|----------|--------|
+| OCR Text Recognition | `VNRecognizeTextRequest` | ✅ Implemented |
+| Multi-language OCR | Recognition languages config | ✅ 10 languages |
+| Accurate Mode | `.recognitionLevel = .accurate` | ✅ Enabled |
+| Language Correction | `.usesLanguageCorrection = true` | ✅ Enabled |
+
+**OCR Pipeline**:
+```swift
+**Implementation Status** (Jan 2026 - Visual Document Understanding):
+
+| Capability | API Used | Status | Location |
+|------------|----------|--------|----------|
+| Spatial Text Ordering | `VNRecognizedTextObservation.boundingBox` | ✅ Implemented | `performOCR()` |
+| Column Detection | Bounding box clustering | ✅ Implemented | `detectColumns()` |
+| Image Classification | `ClassifyImageRequest` (iOS 18+) | ✅ Implemented | `ImageUnderstandingService` |
+| Caption Association | Spatial proximity analysis | ✅ Implemented | `findAssociatedCaption()` |
+| Image Description | Classification + caption fusion | ✅ Implemented | `generateImageDescription()` |
+| Document Segmentation | `DetectDocumentSegmentationRequest` | ❌ Not yet | Planned |
+| Table Recognition | Vision table APIs | ❌ Not yet | Planned |
+
+**Layout-Aware OCR** (Implemented):
+```swift
+// Sort observations by reading order (top-to-bottom, left-to-right)
+let sortedObservations = observations.sorted { obs1, obs2 in
+    let box1 = obs1.boundingBox
+    let box2 = obs2.boundingBox
+    // Use 2% threshold to detect "same line"
+    let lineThreshold: CGFloat = 0.02
+    if abs(box1.midY - box2.midY) > lineThreshold {
+        return box1.midY > box2.midY  // Higher Y = higher on page
+    }
+    return box1.minX < box2.minX  // Left-to-right within line
+}
+// Then apply column detection for multi-column layouts
+let columnText = extractTextWithColumnAwareness(from: sortedObservations)
+```
+
+**Multi-Column Detection**:
+```swift
+// Detect significant gaps (>15% page width) as column boundaries
+let significantGapThreshold: CGFloat = 0.15
+let columnBoundaries = gaps.filter { $0.gap > significantGapThreshold }
+// Group text by column, process each top-to-bottom
+```
+
+**Image Understanding Flow** (Implemented):
+```
+PDF Page → extractImagesFromPDFPage() → ClassifyImageRequest → Image tags
+                                      ↓
+                        findAssociatedCaption() → Nearby caption text
+                                      ↓
+                      generateImageDescription() → Searchable text
+                                      ↓
+            "[Image on page N]: [Chart] Contains: line_graph, data_visualization. Caption: Figure 3..."
+```
+
+**Files**:
+- `OpenIntelligence/Services/DocumentProcessor.swift` - Layout-aware OCR, PDF image extraction
+- `OpenIntelligence/Services/ImageUnderstandingService.swift` - Image classification and description
+
 
 ### EmbeddingService
 

@@ -357,19 +357,23 @@ actor RAGEngine {
             if Task.isCancelled { break }
             if i % 16 == 0 { await Task.yield() }
 
+            // Sanitize content to help Apple FM's language detector
+            // URLs and special Unicode can confuse it into detecting wrong languages
+            let sanitizedContent = sanitizeForLanguageDetection(r.chunk.content)
+
             let block: String
             if compact {
                 // Compact mode: minimal headers, no similarity scores, tighter separators
                 // Saves ~30-50 chars per chunk for more content in constrained budgets
                 let source = r.sourceDocument.isEmpty ? "" : URL(fileURLWithPath: r.sourceDocument).lastPathComponent
                 let sourceRef = source.isEmpty ? "" : "(\(source)) "
-                block = "[S\(i + 1)] \(sourceRef)\(r.chunk.content)" + (i != orderedChunks.count - 1 ? "\n---\n" : "")
+                block = "[S\(i + 1)] \(sourceRef)\(sanitizedContent)" + (i != orderedChunks.count - 1 ? "\n---\n" : "")
             } else {
                 // Full mode: rich metadata for better citation context
                 let source = r.sourceDocument.isEmpty ? "Unknown" : r.sourceDocument
                 let page = r.pageNumber.map { " p.\($0)" } ?? ""
                 let header = "[S\(i + 1)] \(source)\(page) • sim \(String(format: "%.3f", r.similarityScore))\n"
-                block = header + r.chunk.content + (i != orderedChunks.count - 1 ? "\n\n---\n\n" : "")
+                block = header + sanitizedContent + (i != orderedChunks.count - 1 ? "\n\n---\n\n" : "")
             }
 
             if builder.count + block.count <= maxChars || used == 0 {
@@ -381,6 +385,51 @@ actor RAGEngine {
         }
 
         return (builder, used)
+    }
+
+    /// Sanitizes content to help Apple Foundation Models' language detector.
+    /// URLs, special Unicode, and non-ASCII characters can confuse it into detecting wrong languages.
+    /// This preserves semantic content while removing problematic patterns.
+    private func sanitizeForLanguageDetection(_ text: String) -> String {
+        var result = text
+
+        // 1. Replace URLs with placeholder (URLs often trigger wrong language detection)
+        // Matches http://, https://, and www. URLs
+        let urlPattern = #"https?://[^\s\]\)]+|www\.[^\s\]\)]+"#
+        if let urlRegex = try? NSRegularExpression(pattern: urlPattern, options: .caseInsensitive) {
+            result = urlRegex.stringByReplacingMatches(
+                in: result,
+                options: [],
+                range: NSRange(result.startIndex..., in: result),
+                withTemplate: "[URL]"
+            )
+        }
+
+        // 2. Replace non-ASCII punctuation that might confuse language detection
+        // Polish-like characters: ł, ą, ę, ś, ć, ń, ź, ż, ó
+        // Replace with closest ASCII equivalents
+        let replacements: [(String, String)] = [
+            ("ł", "l"), ("Ł", "L"),
+            ("ą", "a"), ("Ą", "A"),
+            ("ę", "e"), ("Ę", "E"),
+            ("ś", "s"), ("Ś", "S"),
+            ("ć", "c"), ("Ć", "C"),
+            ("ń", "n"), ("Ń", "N"),
+            ("ź", "z"), ("Ź", "Z"),
+            ("ż", "z"), ("Ż", "Z"),
+            ("ó", "o"), ("Ó", "O"),
+        ]
+        for (from, to) in replacements {
+            result = result.replacingOccurrences(of: from, with: to)
+        }
+
+        // 3. Remove zero-width characters that can confuse tokenizers
+        result = result.replacingOccurrences(of: "\u{200B}", with: "") // zero-width space
+        result = result.replacingOccurrences(of: "\u{200C}", with: "") // zero-width non-joiner
+        result = result.replacingOccurrences(of: "\u{200D}", with: "") // zero-width joiner
+        result = result.replacingOccurrences(of: "\u{FEFF}", with: "") // byte order mark
+
+        return result
     }
 
     /// Reorders chunks to mitigate "Lost in the Middle" attention patterns.

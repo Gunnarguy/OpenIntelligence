@@ -9,7 +9,7 @@ import SwiftUI
 
 struct DocumentRow: View {
     let document: Document
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
@@ -18,14 +18,14 @@ struct DocumentRow: View {
                 Text(document.filename)
                     .font(.headline)
             }
-            
+
             HStack {
                 Text("\(document.totalChunks) chunks")
                     .font(.caption)
                     .foregroundColor(.secondary)
-                
+
                 Spacer()
-                
+
                 Text(document.addedAt, style: .relative)
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -33,7 +33,7 @@ struct DocumentRow: View {
         }
         .padding(.vertical, 4)
     }
-    
+
     private func iconName(for type: DocumentType) -> String {
         DocumentRow.iconName(for: type)
     }
@@ -51,11 +51,11 @@ extension DocumentRow {
             return "doc.richtext.fill"
         case .rtf:
             return "doc.richtext.fill"
-            
+
         // Images
         case .png, .jpeg, .heic, .tiff, .gif, .image:
             return "photo.fill"
-            
+
         // Code files
         case .swift:
             return "swift"
@@ -73,7 +73,7 @@ extension DocumentRow {
             return "cylinder.fill"
         case .shell, .code:
             return "terminal.fill"
-            
+
         // Office documents
         case .word:
             return "doc.text.fill"
@@ -87,7 +87,13 @@ extension DocumentRow {
             return "tablecells.fill"
         case .keynote:
             return "rectangle.3.group.fill"
-            
+
+        // Audio/Video
+        case .audio, .m4a, .mp3, .wav:
+            return "waveform"
+        case .video, .mp4, .mov:
+            return "video.fill"
+
         case .unknown:
             return "doc.questionmark"
         }

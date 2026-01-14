@@ -85,7 +85,7 @@ enum RAGQualityMode: String, Identifiable, Sendable {
     var temperature: Float {
         switch canonical {
         case .standard: return 0.4 // Slightly deterministic for accuracy
-        case .deepThink: return 0.4 // Slightly creative for diverse sub-queries
+        case .deepThink: return 0.4 // Consistent quality
         default: return 0.4
         }
     }

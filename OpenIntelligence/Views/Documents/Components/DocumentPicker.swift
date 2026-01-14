@@ -11,37 +11,49 @@ import UniformTypeIdentifiers
 #if canImport(UIKit)
 struct DocumentPicker: UIViewControllerRepresentable {
     let onDocumentsPicked: ([URL]) -> Void
-    
+
     func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
         let picker = UIDocumentPickerViewController(forOpeningContentTypes: [
+            // Documents
             .pdf,
             .plainText,
             .text,
             UTType(filenameExtension: "md") ?? .plainText,
-            .rtf
+.rtf,
+    // Audio (for transcription)
+    .audio,
+            .mp3,
+            UTType(filenameExtension: "m4a") ?? .audio,
+            .wav,
+            UTType(filenameExtension: "aiff") ?? .audio,
+            UTType(filenameExtension: "caf") ?? .audio,
+    // Video (for transcription)
+    .movie,
+            .mpeg4Movie,
+            .quickTimeMovie,
         ])
         picker.delegate = context.coordinator
         picker.allowsMultipleSelection = true  // Enable multiple file selection
         return picker
     }
-    
+
     func updateUIViewController(_ uiViewController: UIDocumentPickerViewController, context: Context) {}
-    
+
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }
-    
+
     class Coordinator: NSObject, UIDocumentPickerDelegate {
         let parent: DocumentPicker
-        
+
         init(_ parent: DocumentPicker) {
             self.parent = parent
         }
-        
+
         func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
             // Process ALL selected files
             print("📚 Processing \(urls.count) selected file(s)...")
-            
+
             var copiedURLs: [URL] = []
             for url in urls {
                 // Start accessing a security-scoped resource
@@ -49,14 +61,14 @@ struct DocumentPicker: UIViewControllerRepresentable {
                     print("❌ Failed to access security-scoped resource: \(url.lastPathComponent)")
                     continue
                 }
-                
+
                 defer { url.stopAccessingSecurityScopedResource() }
-                
+
                 // Copy to app's document directory
                 let fileManager = FileManager.default
                 let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
                 let destinationURL = documentsPath.appendingPathComponent(url.lastPathComponent)
-                
+
                 do {
                     if fileManager.fileExists(atPath: destinationURL.path) {
                         try fileManager.removeItem(at: destinationURL)

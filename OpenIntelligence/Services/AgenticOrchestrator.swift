@@ -2,8 +2,8 @@
 //  AgenticOrchestrator.swift
 //  OpenIntelligence
 //
-//  Multi-session agentic reasoning loop that transcends the 4K token limit.
-//  Each "thinking step" gets a fresh session with compressed context from previous steps.
+//  Retrieval-first agentic reasoning that escalates based on confidence.
+//  Key insight: Don't decide complexity upfront - let retrieval results guide the pipeline.
 //
 
 import Foundation
@@ -24,6 +24,7 @@ struct ThinkingStep: Identifiable, Sendable {
         case analyzing = "🧠 Analyzing"
         case synthesizing = "✨ Synthesizing"
         case refining = "🔧 Refining"
+        case reformulating = "🔄 Reformulating" // New: query reformulation step
 
         /// Display name for UI
         var displayName: String { rawValue }
@@ -32,10 +33,9 @@ struct ThinkingStep: Identifiable, Sendable {
         var thinkingKind: ThinkingEvent.Kind {
             switch self {
             case .planning: return .planning
-            case .searching: return .retrieval
+            case .searching, .reformulating: return .retrieval
             case .analyzing: return .rerank
-            case .synthesizing: return .generation
-            case .refining: return .generation
+            case .synthesizing, .refining: return .generation
             }
         }
     }
@@ -52,28 +52,34 @@ struct AgenticConfig: Sendable {
     /// Whether to stream intermediate results
     let streamIntermediateResults: Bool
 
-    /// Minimum confidence threshold to stop early
+    /// Minimum confidence threshold to stop early (high = good enough to answer)
     let confidenceThreshold: Float
+
+    /// Similarity threshold below which we escalate to deeper retrieval
+    let escalationThreshold: Float
 
     nonisolated static let defaultConfig = AgenticConfig(
         maxSteps: 5,
-        maxTotalTokens: 16000, // 4 full sessions worth
+        maxTotalTokens: 16000,
         streamIntermediateResults: true,
-        confidenceThreshold: 0.85
+        confidenceThreshold: 0.85,
+        escalationThreshold: 0.35 // If top result < 35% similarity, try harder
     )
 
     nonisolated static let fast = AgenticConfig(
         maxSteps: 2,
         maxTotalTokens: 8000,
         streamIntermediateResults: false,
-        confidenceThreshold: 0.7
+        confidenceThreshold: 0.7,
+        escalationThreshold: 0.25
     )
 
     nonisolated static let thorough = AgenticConfig(
         maxSteps: 8,
-        maxTotalTokens: 32000, // 8 sessions
+        maxTotalTokens: 32000,
         streamIntermediateResults: true,
-        confidenceThreshold: 0.95
+        confidenceThreshold: 0.95,
+        escalationThreshold: 0.45 // Higher bar = more likely to escalate
     )
 }
 
@@ -94,8 +100,8 @@ struct AgenticResult: Sendable {
     }
 }
 
-/// Multi-session agentic orchestrator
-/// Breaks complex queries into multiple focused LLM calls, each with fresh 4K context
+/// Retrieval-first agentic orchestrator
+/// Key principle: Retrieve FIRST, then decide if escalation is needed based on results
 @MainActor
 final class AgenticOrchestrator: Sendable {
     private weak var ragService: RAGService?
@@ -106,12 +112,14 @@ final class AgenticOrchestrator: Sendable {
         self.config = config
     }
 
-    /// Execute an agentic reasoning loop for a complex query
-    /// - Parameters:
-    ///   - query: The user's question
-    ///   - context: Initial retrieved context (if any)
-    ///   - onStep: Callback for each thinking step (for UI updates)
-    /// - Returns: The final synthesized result
+    /// Execute a retrieval-first reasoning loop
+    ///
+    /// STRATEGY:
+    /// 1. Initial retrieval with the ORIGINAL query (no decomposition)
+    /// 2. EVALUATE results - are they good enough?
+    /// 3. If yes → synthesize immediately
+    /// 4. If no → escalate: reformulate query OR decompose for multi-faceted questions
+    /// 5. Final synthesis with accumulated context
     func execute(
         query: String,
         initialContext: String = "",
@@ -124,13 +132,349 @@ final class AgenticOrchestrator: Sendable {
         var steps: [ThinkingStep] = []
         var totalTokens = 0
         let startTime = Date()
-        // workingContext reserved for future context accumulation between steps
-        _ = initialContext
-        var confidence: Float = 0.0
-        var sourcesUsed = 0
-        var allRetrievedChunks: [RetrievedChunk] = [] // Collect chunks for UnifiedMetricsBar
+        var allRetrievedChunks: [RetrievedChunk] = []
 
-        // STEP 1: Planning - Decompose the query
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // STEP 1: Initial Retrieval (with ORIGINAL query - no decomposition)
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        Log.info("[Agentic] Step 1: Initial retrieval with original query", category: .llm)
+
+        let (initialSearchStep, initialChunks) = try await executeSearchStepWithChunks(
+            subQuery: query,
+            ragService: ragService
+        )
+        steps.append(initialSearchStep)
+        totalTokens += initialSearchStep.tokensUsed
+        allRetrievedChunks.append(contentsOf: initialChunks)
+        await onStep?(initialSearchStep)
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // STEP 2: Evaluate Retrieval Quality
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        let retrievalQuality = evaluateRetrievalQuality(chunks: initialChunks, query: query)
+        Log.info("[Agentic] Retrieval quality: \(retrievalQuality.description)", category: .llm)
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // DECISION POINT: Based on retrieval quality
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        switch retrievalQuality {
+        case .excellent, .good:
+            // HIGH CONFIDENCE: Go straight to synthesis
+            Log.info("[Agentic] High confidence retrieval → direct synthesis", category: .llm)
+
+            let synthesisStep = try await executeDirectSynthesis(
+                query: query,
+                searchResults: initialSearchStep.output,
+                ragService: ragService
+            )
+            steps.append(synthesisStep)
+            totalTokens += synthesisStep.tokensUsed
+            await onStep?(synthesisStep)
+
+            return AgenticResult(
+                finalAnswer: synthesisStep.output,
+                steps: steps,
+                totalTokens: totalTokens,
+                totalDuration: Date().timeIntervalSince(startTime),
+                confidence: retrievalQuality.confidenceScore,
+                sourcesUsed: initialChunks.count,
+                retrievedChunks: allRetrievedChunks
+            )
+
+        case .moderate:
+            // MEDIUM CONFIDENCE: Try query reformulation before decomposing
+            Log.info("[Agentic] Moderate confidence → trying query reformulation", category: .llm)
+
+            let reformulatedQuery = try await reformulateQuery(
+                originalQuery: query,
+                retrievedContext: initialSearchStep.output,
+                ragService: ragService
+            )
+
+            if let reformulatedQuery = reformulatedQuery, reformulatedQuery != query {
+                let reformulationStep = ThinkingStep(
+                    id: UUID(),
+                    type: .reformulating,
+                    input: query,
+                    output: "Reformulated: \(reformulatedQuery)",
+                    tokensUsed: 20,
+                    duration: 0.1,
+                    timestamp: Date()
+                )
+                steps.append(reformulationStep)
+                await onStep?(reformulationStep)
+
+                // Search again with reformulated query
+                let (reformulatedSearchStep, reformulatedChunks) = try await executeSearchStepWithChunks(
+                    subQuery: reformulatedQuery,
+                    ragService: ragService
+                )
+                steps.append(reformulatedSearchStep)
+                totalTokens += reformulatedSearchStep.tokensUsed
+
+                // Merge chunks (dedupe)
+                for chunk in reformulatedChunks {
+                    if !allRetrievedChunks.contains(where: { $0.chunk.id == chunk.chunk.id }) {
+                        allRetrievedChunks.append(chunk)
+                    }
+                }
+                await onStep?(reformulatedSearchStep)
+
+                // Re-evaluate
+                let newQuality = evaluateRetrievalQuality(chunks: allRetrievedChunks, query: query)
+                if newQuality.confidenceScore > retrievalQuality.confidenceScore {
+                    Log.info("[Agentic] Reformulation improved results → synthesizing", category: .llm)
+
+                    // Combine both search results
+                    let combinedResults = initialSearchStep.output + "\n\n---\n\n" + reformulatedSearchStep.output
+
+                    let synthesisStep = try await executeDirectSynthesis(
+                        query: query,
+                        searchResults: combinedResults,
+                        ragService: ragService
+                    )
+                    steps.append(synthesisStep)
+                    totalTokens += synthesisStep.tokensUsed
+                    await onStep?(synthesisStep)
+
+                    return AgenticResult(
+                        finalAnswer: synthesisStep.output,
+                        steps: steps,
+                        totalTokens: totalTokens,
+                        totalDuration: Date().timeIntervalSince(startTime),
+                        confidence: newQuality.confidenceScore,
+                        sourcesUsed: allRetrievedChunks.count,
+                        retrievedChunks: allRetrievedChunks
+                    )
+                }
+            }
+
+            // Reformulation didn't help enough - fall through to decomposition
+            fallthrough
+
+        case .low:
+            // LOW CONFIDENCE: Check if decomposition makes sense
+            Log.info("[Agentic] Low confidence → checking if decomposition helps", category: .llm)
+
+            // Only decompose if query has multi-faceted structure
+            if queryBenefitsFromDecomposition(query) {
+                return try await executeDecomposedPipeline(
+                    query: query,
+                    initialChunks: allRetrievedChunks,
+                    initialSearchOutput: initialSearchStep.output,
+                    steps: &steps,
+                    totalTokens: &totalTokens,
+                    ragService: ragService,
+                    onStep: onStep,
+                    startTime: startTime
+                )
+            } else {
+                // Single-topic query with low results - be honest about it
+                Log.info("[Agentic] Single-topic query, low confidence → honest synthesis", category: .llm)
+
+                let synthesisStep = try await executeHonestSynthesis(
+                    query: query,
+                    searchResults: initialSearchStep.output,
+                    confidence: retrievalQuality,
+                    ragService: ragService
+                )
+                steps.append(synthesisStep)
+                totalTokens += synthesisStep.tokensUsed
+                await onStep?(synthesisStep)
+
+                return AgenticResult(
+                    finalAnswer: synthesisStep.output,
+                    steps: steps,
+                    totalTokens: totalTokens,
+                    totalDuration: Date().timeIntervalSince(startTime),
+                    confidence: retrievalQuality.confidenceScore,
+                    sourcesUsed: allRetrievedChunks.count,
+                    retrievedChunks: allRetrievedChunks
+                )
+            }
+        }
+    }
+
+    // MARK: - Retrieval Quality Evaluation
+
+    private enum RetrievalQuality {
+        case excellent // Top results > 0.5 similarity, good coverage
+        case good // Top results > 0.35 similarity
+        case moderate // Top results 0.2-0.35 similarity
+        case low // Top results < 0.2 similarity or no results
+
+        var confidenceScore: Float {
+            switch self {
+            case .excellent: return 0.9
+            case .good: return 0.75
+            case .moderate: return 0.5
+            case .low: return 0.3
+            }
+        }
+
+        var description: String {
+            switch self {
+            case .excellent: return "Excellent (>50% match)"
+            case .good: return "Good (35-50% match)"
+            case .moderate: return "Moderate (20-35% match)"
+            case .low: return "Low (<20% match)"
+            }
+        }
+    }
+
+    /// Evaluate retrieval quality based on similarity scores and coverage
+    private func evaluateRetrievalQuality(chunks: [RetrievedChunk], query: String) -> RetrievalQuality {
+        guard !chunks.isEmpty else { return .low }
+
+        let topScore = chunks.first?.similarityScore ?? 0
+        let top3Avg = chunks.prefix(3).map { $0.similarityScore }.reduce(0, +) / Float(min(3, chunks.count))
+
+        // Primary signal: top similarity score
+        if topScore > 0.5 {
+            return .excellent
+        } else if topScore > 0.35 {
+            return .good
+        } else if topScore > 0.2 || top3Avg > 0.25 {
+            return .moderate
+        } else {
+            return .low
+        }
+    }
+
+    /// Check if a query would benefit from decomposition
+    /// Only true for genuinely multi-faceted questions, not just low-confidence single-topic
+    private func queryBenefitsFromDecomposition(_ query: String) -> Bool {
+        let lowercased = query.lowercased()
+
+        // Multi-faceted indicators
+        let multiFacetedPatterns = [
+            "compare", "contrast", "versus", " vs ",
+            "pros and cons", "advantages and disadvantages",
+            "all the ways", "everything about", "complete overview",
+            "relationship between .* and",
+            "how does .* affect .* and",
+            " and also ", " as well as ", " in addition to ",
+        ]
+
+        for pattern in multiFacetedPatterns {
+            if pattern.contains(".*") {
+                if lowercased.range(of: pattern, options: .regularExpression) != nil {
+                    return true
+                }
+            } else if lowercased.contains(pattern) {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    /// Reformulate query based on what we found (or didn't find) in initial retrieval
+    private func reformulateQuery(
+        originalQuery: String,
+        retrievedContext: String,
+        ragService: RAGService
+    ) async throws -> String? {
+        let prompt = """
+        The following search for a document returned limited results.
+
+        Original query: \(originalQuery)
+
+        Retrieved (partial): \(retrievedContext.prefix(500))
+
+        Based on the terminology found in the retrieved content, suggest ONE alternative query that might find more relevant information. Use similar vocabulary to what appears in the documents. Output ONLY the new query, nothing else.
+        """
+
+        let response = try await ragService.generateWithFreshSession(prompt: prompt, maxTokens: 64)
+        let reformulated = response.text.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Validate it's actually different and reasonable
+        if reformulated.count > 10, reformulated.count < 200, reformulated != originalQuery {
+            return reformulated
+        }
+        return nil
+    }
+
+    /// Direct synthesis when retrieval confidence is high
+    private func executeDirectSynthesis(
+        query: String,
+        searchResults: String,
+        ragService: RAGService
+    ) async throws -> ThinkingStep {
+        let startTime = Date()
+
+        let prompt = """
+        Answer the following question based on the search results provided.
+
+        Question: \(query)
+
+        Search Results:
+        \(searchResults)
+
+        Provide a clear, accurate answer. If citing specific information, reference the source.
+        """
+
+        let response = try await ragService.generateWithFreshSession(prompt: prompt, maxTokens: 1024)
+
+        return ThinkingStep(
+            id: UUID(),
+            type: .synthesizing,
+            input: query,
+            output: response.text,
+            tokensUsed: response.tokensGenerated,
+            duration: Date().timeIntervalSince(startTime),
+            timestamp: startTime
+        )
+    }
+
+    /// Honest synthesis when confidence is low - acknowledges limitations
+    private func executeHonestSynthesis(
+        query: String,
+        searchResults: String,
+        confidence: RetrievalQuality,
+        ragService: RAGService
+    ) async throws -> ThinkingStep {
+        let startTime = Date()
+
+        let prompt = """
+        Answer the following question based on the search results. The search returned limited matches, so be clear about what you found and what's uncertain.
+
+        Question: \(query)
+
+        Search Results:
+        \(searchResults)
+
+        Provide the best answer you can based on available information. If the documents don't directly address the question, say so clearly rather than guessing.
+        """
+
+        let response = try await ragService.generateWithFreshSession(prompt: prompt, maxTokens: 1024)
+
+        return ThinkingStep(
+            id: UUID(),
+            type: .synthesizing,
+            input: query,
+            output: response.text,
+            tokensUsed: response.tokensGenerated,
+            duration: Date().timeIntervalSince(startTime),
+            timestamp: startTime
+        )
+    }
+
+    /// Decomposed pipeline for genuinely multi-faceted questions
+    private func executeDecomposedPipeline(
+        query: String,
+        initialChunks: [RetrievedChunk],
+        initialSearchOutput: String,
+        steps: inout [ThinkingStep],
+        totalTokens: inout Int,
+        ragService: RAGService,
+        onStep: ((ThinkingStep) async -> Void)?,
+        startTime: Date
+    ) async throws -> AgenticResult {
+        var allRetrievedChunks = initialChunks
+
+        // Planning step to decompose
         let planningStep = try await executePlanningStep(query: query, ragService: ragService)
         steps.append(planningStep)
         totalTokens += planningStep.tokensUsed
@@ -138,11 +482,12 @@ final class AgenticOrchestrator: Sendable {
 
         let subQueries = parseSubQueries(from: planningStep.output)
 
-        // STEP 2: Parallel Search - Execute sub-queries
-        // Each search gets its own fresh context window
-        var searchResults: [(query: String, result: String)] = []
+        // Execute sub-queries
+        var searchResults: [(query: String, result: String)] = [(query, initialSearchOutput)]
 
-        for subQuery in subQueries.prefix(config.maxSteps - 2) { // Reserve steps for analysis + synthesis
+        for subQuery in subQueries.prefix(config.maxSteps - 2) {
+            
+
             guard totalTokens < config.maxTotalTokens else { break }
 
             let (searchStep, chunks) = try await executeSearchStepWithChunks(
@@ -152,9 +497,7 @@ final class AgenticOrchestrator: Sendable {
             steps.append(searchStep)
             totalTokens += searchStep.tokensUsed
             searchResults.append((subQuery, searchStep.output))
-            sourcesUsed += chunks.count
 
-            // Collect unique chunks (dedupe by chunk ID)
             for chunk in chunks {
                 if !allRetrievedChunks.contains(where: { $0.chunk.id == chunk.chunk.id }) {
                     allRetrievedChunks.append(chunk)
@@ -164,34 +507,8 @@ final class AgenticOrchestrator: Sendable {
             await onStep?(searchStep)
         }
 
-        // STEP 3: Analysis - Synthesize search results
-        // Compress all search results into a focused analysis
-        let compressedSearchResults = compressSearchResults(searchResults)
-
-        let analysisStep = try await executeAnalysisStep(
-            query: query,
-            searchResults: compressedSearchResults,
-            ragService: ragService
-        )
-        steps.append(analysisStep)
-        totalTokens += analysisStep.tokensUsed
-        confidence = extractConfidence(from: analysisStep.output)
-        await onStep?(analysisStep)
-
-        // STEP 4: Refinement (if confidence is low)
-        if confidence < config.confidenceThreshold && totalTokens < config.maxTotalTokens {
-            let refinementStep = try await executeRefinementStep(
-                query: query,
-                currentAnswer: analysisStep.output,
-                ragService: ragService
-            )
-            steps.append(refinementStep)
-            totalTokens += refinementStep.tokensUsed
-            confidence = extractConfidence(from: refinementStep.output)
-            await onStep?(refinementStep)
-        }
-
-        // STEP 5: Final Synthesis
+        // Final synthesis
+        _ = compressSearchResults(searchResults) // Compressed for potential future use
         let synthesisStep = try await executeSynthesisStep(
             query: query,
             steps: steps,
@@ -206,8 +523,8 @@ final class AgenticOrchestrator: Sendable {
             steps: steps,
             totalTokens: totalTokens,
             totalDuration: Date().timeIntervalSince(startTime),
-            confidence: confidence,
-            sourcesUsed: sourcesUsed,
+            confidence: 0.7,
+            sourcesUsed: allRetrievedChunks.count,
             retrievedChunks: allRetrievedChunks
         )
     }
@@ -253,8 +570,8 @@ final class AgenticOrchestrator: Sendable {
         // Use the RAG pipeline to search documents
         let searchResult = try await ragService.searchDocuments(
             query: subQuery,
-            topK: 5,
-            minSimilarity: 0.3
+            topK: 12,
+            minSimilarity: 0.25
         )
 
         return ThinkingStep(
@@ -272,8 +589,8 @@ final class AgenticOrchestrator: Sendable {
     private func executeSearchStepWithChunks(subQuery: String, ragService: RAGService) async throws -> (ThinkingStep, [RetrievedChunk]) {
         let startTime = Date()
 
-        // Get raw chunks for metrics bar
-        let chunks = try await ragService.searchDocumentsRaw(query: subQuery, topK: 5, minSimilarity: 0.3)
+        // Get raw chunks for metrics bar - use higher topK for large documents
+        let chunks = try await ragService.searchDocumentsRaw(query: subQuery, topK: 12, minSimilarity: 0.25)
 
         // Format for LLM consumption
         var searchResult = chunks.isEmpty

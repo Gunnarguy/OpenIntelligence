@@ -142,7 +142,7 @@ struct ContainerSettingsSheet: View {
                 accuracyDefaultsSection
                 intelligenceSection
                 chunkingSection
-                retrievalStyleSection
+                // Search behavior presets removed — auto-tuned by AdaptivePipelineOptimizer
                 if settings.developerRAGTuningEnabled {
                     retrievalTuningSection
                 }

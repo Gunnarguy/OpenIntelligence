@@ -14,6 +14,9 @@ struct MessageListV2: View {
     let generationStart: Date?
     var onRegenerate: ((ChatMessage) -> Void)?
 
+    /// Called when user taps "Go Deeper" to re-query with agentic mode
+    var onGoDeeper: (() -> Void)?
+
     // iOS 26+: Apple Intelligence feedback callbacks
     var onThumbsUp: (() -> Void)?
     var onThumbsDown: (() -> Void)?
@@ -26,6 +29,7 @@ struct MessageListV2: View {
         isStreaming: Bool,
         generationStart: Date? = nil,
         onRegenerate: ((ChatMessage) -> Void)? = nil,
+        onGoDeeper: (() -> Void)? = nil,
         onThumbsUp: (() -> Void)? = nil,
         onThumbsDown: (() -> Void)? = nil
     ) {
@@ -34,6 +38,7 @@ struct MessageListV2: View {
         self.isStreaming = isStreaming
         self.generationStart = generationStart
         self.onRegenerate = onRegenerate
+        self.onGoDeeper = onGoDeeper
         self.onThumbsUp = onThumbsUp
         self.onThumbsDown = onThumbsDown
     }
@@ -53,6 +58,7 @@ struct MessageListV2: View {
                                 MessageBubbleV2(
                                     message: $message,
                                     onRegenerate: snapshot.role == .assistant ? { onRegenerate?(snapshot) } : nil,
+                                    onGoDeeper: snapshot.role == .assistant ? onGoDeeper : nil,
                                     onThumbsUp: snapshot.role == .assistant ? onThumbsUp : nil,
                                     onThumbsDown: snapshot.role == .assistant ? onThumbsDown : nil
                                 )

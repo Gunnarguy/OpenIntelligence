@@ -33,20 +33,30 @@ final class ParentDocumentService {
 
         nonisolated static var `default`: Config {
             Config(
-                maxSiblingsPerSide: 2,
-                maxExpandedTokens: 2000,
+                maxSiblingsPerSide: 3, // Increased from 2 for better procedural coverage
+                    maxExpandedTokens: 2500, // Increased from 2000
                 allowCrossPageExpansion: false,
-                minRelevanceForExpansion: 0.3
+                minRelevanceForExpansion: 0.25 // Slightly more permissive
             )
         }
 
-        /// More aggressive expansion for thorough mode
+        /// More aggressive expansion for thorough mode (Deep Think, complex procedures)
         nonisolated static var thorough: Config {
             Config(
-                maxSiblingsPerSide: 3,
-                maxExpandedTokens: 3000,
+                maxSiblingsPerSide: 5, // Increased from 3 - captures full procedure sections
+                    maxExpandedTokens: 4000, // Increased from 3000
                 allowCrossPageExpansion: true,
-                minRelevanceForExpansion: 0.2
+                minRelevanceForExpansion: 0.15 // More permissive for related steps
+            )
+        }
+
+        /// Maximum expansion for procedural/technical documents where sequence matters
+        nonisolated static var procedural: Config {
+            Config(
+                maxSiblingsPerSide: 8, // Capture entire procedure sections
+                maxExpandedTokens: 6000,
+                allowCrossPageExpansion: true,
+                minRelevanceForExpansion: 0.1
             )
         }
     }

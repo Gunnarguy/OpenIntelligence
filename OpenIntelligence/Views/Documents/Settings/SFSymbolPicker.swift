@@ -13,6 +13,14 @@ struct SFSymbolPicker: View {
     @State private var searchText = ""
     @State private var selectedCategory: SymbolCategory = .all
 
+    /// Optional suggested icons based on library content (shown at top when provided)
+    var suggestedIcons: [String] = []
+
+    /// Whether to show the "Suggested for you" section
+    private var showSuggestions: Bool {
+        !suggestedIcons.isEmpty && searchText.isEmpty && selectedCategory == .all
+    }
+
     // Common symbols organized by category
     enum SymbolCategory: String, CaseIterable {
         case all = "All"
@@ -176,12 +184,44 @@ struct SFSymbolPicker: View {
 
                 // Symbol grid
                 ScrollView {
-                    LazyVGrid(columns: columns, spacing: 8) {
-                        ForEach(filteredSymbols, id: \.self) { symbol in
-                            symbolButton(symbol)
+                    VStack(alignment: .leading, spacing: 16) {
+                        // Suggested icons section (when available)
+                        if showSuggestions {
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "sparkles")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(.orange)
+                                    Text("Suggested for your content")
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(.primary)
+                                }
+                                .padding(.horizontal, 16)
+
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: 10) {
+                                        ForEach(suggestedIcons, id: \.self) { symbol in
+                                            suggestedSymbolButton(symbol)
+                                        }
+                                    }
+                                    .padding(.horizontal, 16)
+                                }
+                            }
+                            .padding(.top, 8)
+
+                            Divider()
+                                .padding(.horizontal, 16)
                         }
+
+                        // All symbols grid
+                        LazyVGrid(columns: columns, spacing: 8) {
+                            ForEach(filteredSymbols, id: \.self) { symbol in
+                                symbolButton(symbol)
+                            }
+                        }
+.padding(.horizontal, 16)
+    .padding(.bottom, 16)
                     }
-                    .padding(16)
                 }
 
                 // Current selection preview
@@ -270,13 +310,57 @@ struct SFSymbolPicker: View {
         }
         .buttonStyle(.plain)
     }
+
+    @ViewBuilder
+    private func suggestedSymbolButton(_ symbol: String) -> some View {
+        Button {
+            selectedSymbol = symbol
+            DSHaptics.selection()
+        } label: {
+            VStack(spacing: 6) {
+                ZStack {
+                    Circle()
+                        .fill(
+                            selectedSymbol == symbol
+                                ? Color.accentColor
+                                : Color.orange.opacity(0.15)
+                        )
+                        .frame(width: 56, height: 56)
+
+                    Image(systemName: symbol)
+                        .font(.system(size: 26))
+                        .foregroundStyle(
+                            selectedSymbol == symbol
+                                ? .white
+                                : .orange
+                        )
+                }
+                .overlay(
+                    Circle()
+                        .strokeBorder(
+                            selectedSymbol == symbol ? Color.accentColor : Color.orange.opacity(0.3),
+                            lineWidth: selectedSymbol == symbol ? 0 : 2
+                        )
+                )
+            }
+        }
+        .buttonStyle(.plain)
+    }
 }
 
 // MARK: - Compact inline picker for settings
 
 struct SFSymbolPickerButton: View {
     @Binding var selectedSymbol: String
+    /// Document names for smart icon suggestions
+    var documentNames: [String] = []
     @State private var showingPicker = false
+
+    /// Computed suggested icons based on document content
+    private var suggestedIcons: [String] {
+        guard !documentNames.isEmpty else { return [] }
+        return LibraryIconSuggestionService.suggestIcons(documentNames: documentNames, limit: 6)
+    }
 
     var body: some View {
         Button {
@@ -310,7 +394,7 @@ struct SFSymbolPickerButton: View {
         }
         .buttonStyle(.plain)
         .sheet(isPresented: $showingPicker) {
-            SFSymbolPicker(selectedSymbol: $selectedSymbol)
+            SFSymbolPicker(selectedSymbol: $selectedSymbol, suggestedIcons: suggestedIcons)
         }
     }
 }

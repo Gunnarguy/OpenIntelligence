@@ -30,6 +30,10 @@ struct DocumentLibraryView: View {
     @State private var showingNewLibraryPrompt = false
     @State private var newLibraryName = ""
 
+    // Delete library confirmation
+    @State private var showingDeleteConfirmation = false
+    @State private var libraryToDelete: KnowledgeContainer?
+
     let onViewVisualizations: (() -> Void)?
 
     private var documentLimit: Int { entitlementStore.documentLimit }
@@ -63,25 +67,31 @@ struct DocumentLibraryView: View {
     }
 
     private var emptyStateView: some View {
-        VStack(spacing: 12) {
-            ContainerPickerStrip(
-                containerService: containerService,
-                allowsCreation: true,
-                onCreateLibrary: handleNewLibraryTapped
-            )
-            .padding(.horizontal)
-            DocumentQuotaBanner(
-                currentCount: ragService.documents.count,
-                limit: documentLimit,
-                tierName: entitlementStore.activeTier.displayName,
-                addOnPacks: entitlementStore.addOnPacks,
-                packCap: entitlementStore.documentPackCap,
-                remainingPackCapacity: entitlementStore.remainingDocumentPackCapacity,
-                hasReachedPackCap: entitlementStore.hasReachedDocumentPackCap,
-                onUpgrade: { presentPlanSheet(for: .quotaBanner) },
-                onRefillPack: refillDocumentPack
-            )
-            .padding(.horizontal)
+        VStack(spacing: 0) {
+            // Fixed header section
+            VStack(spacing: 12) {
+                ContainerPickerStrip(
+                    containerService: containerService,
+                    allowsCreation: true, 
+                    onCreateLibrary: handleNewLibraryTapped,
+                    onDeleteLibrary: handleDeleteLibrary
+                )
+                .padding(.horizontal)
+                DocumentQuotaBanner(
+                    currentCount: ragService.documents.count,
+                    limit: documentLimit,
+                    tierName: entitlementStore.activeTier.displayName,
+                    addOnPacks: entitlementStore.addOnPacks,
+                    packCap: entitlementStore.documentPackCap,
+                    remainingPackCapacity: entitlementStore.remainingDocumentPackCapacity,
+                    hasReachedPackCap: entitlementStore.hasReachedDocumentPackCap,
+                    onUpgrade: { presentPlanSheet(for: .quotaBanner) },
+                    onRefillPack: refillDocumentPack
+                )
+                .padding(.horizontal)
+            }
+
+            // Expandable content section
             EmptyDocumentsView(
                 isImportingSamples: isImportingSamples,
                 hasImportedSamples: onboardingStore.hasImportedSamples,
@@ -93,6 +103,7 @@ struct DocumentLibraryView: View {
             )
             .padding(.horizontal)
         }
+.frame(maxHeight: .infinity)
     }
 
     private var documentListView: some View {
@@ -100,7 +111,8 @@ struct DocumentLibraryView: View {
             ContainerPickerStrip(
                 containerService: containerService,
                 allowsCreation: true,
-                onCreateLibrary: handleNewLibraryTapped
+                onCreateLibrary: handleNewLibraryTapped,
+                onDeleteLibrary: handleDeleteLibrary
             )
             .padding(.horizontal)
             DocumentQuotaBanner(
@@ -278,6 +290,21 @@ struct DocumentLibraryView: View {
 } message: {
     Text("Enter a name for your new library")
 }
+.alert("Delete Library?", isPresented: $showingDeleteConfirmation) {
+    Button("Cancel", role: .cancel) {
+        libraryToDelete = nil
+    }
+    Button("Delete", role: .destructive) {
+        confirmDeleteLibrary()
+    }
+} message: {
+    if let lib = libraryToDelete {
+        let docCount = ragService.documents.filter { $0.containerId == lib.id }.count
+        Text("This will permanently delete \"\(lib.name)\" and all \(docCount) document\(docCount == 1 ? "" : "s") inside it. This cannot be undone.")
+    } else {
+        Text("This will permanently delete this library and all documents inside it.")
+    }
+}
     }
 
     /// Launches the file picker if the user still has document quota remaining.
@@ -366,6 +393,37 @@ struct DocumentLibraryView: View {
         )
         containerService.setActive(newContainer.id)
         newLibraryName = "" // Reset for next time
+    }
+
+    @MainActor
+    private func handleDeleteLibrary(_ container: KnowledgeContainer) {
+        // Can't delete the last library
+        guard containerService.containers.count > 1 else { return }
+        libraryToDelete = container
+        showingDeleteConfirmation = true
+    }
+
+    @MainActor
+    private func confirmDeleteLibrary() {
+        guard let container = libraryToDelete else { return }
+
+        // Get documents in this library before deletion
+        let docsToRemove = ragService.documents.filter { $0.containerId == container.id }
+
+        // Remove all documents in this library
+        Task {
+            for doc in docsToRemove {
+                try? await ragService.removeDocument(doc)
+            }
+        }
+
+        // Delete the container
+        containerService.deleteContainer(id: container.id)
+
+        // Invalidate visualization cache
+        LibraryVisualizationEngine.shared.invalidateCache(for: container.id)
+
+        libraryToDelete = nil
     }
 
     @MainActor

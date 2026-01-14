@@ -197,6 +197,9 @@ struct ChatScreen: View {
                         onRegenerate: { message in
                             regenerateResponse(for: message)
                         },
+                        onGoDeeper: {
+                            goDeeper()
+                        },
                         onThumbsUp: {
                                 #if canImport(FoundationModels)
                                     if #available(iOS 26.0, *) {
@@ -838,6 +841,86 @@ struct ChatScreen: View {
                 // Re-send the query
                 DSHaptics.selection()
                 sendMessage(previousMessage.content)
+            }
+        }
+    }
+
+    /// Re-queries the last question using forced agentic (deep reasoning) mode.
+    /// Called when user taps "Go Deeper" on a single-pass response.
+    private func goDeeper() {
+        guard !isProcessing else { return }
+
+        DSHaptics.selection()
+
+        // Show immediate feedback
+        toastManager.show(
+            ToastItem(
+                title: "Diving deeper with multi-step reasoning...",
+                icon: "brain",
+                tint: .purple
+            ),
+            duration: 2.0
+        )
+
+        Task {
+            isProcessing = true
+            stage = .searching // Use searching stage for agentic re-query
+            streamingText = ""
+            generationStart = Date()
+
+            do {
+                // Create inline stream handler for this re-query
+                // Note: Can't use [weak self] because ChatScreen is a struct
+                let goDeeperStreamHandler: LLMStreamHandler = { event in
+                    Task { @MainActor in
+                        self.streamingText += event.text
+                    }
+                }
+
+                if let response = try await ragService.reQueryWithAgenticMode(streamHandler: goDeeperStreamHandler) {
+                    await MainActor.run {
+                        // Add the deeper response as a new assistant message
+                        let deeperMessage = ChatMessage(
+                            role: .assistant,
+                            content: response.generatedResponse,
+                            metadata: response.metadata,
+                            retrievedChunks: response.retrievedChunks
+                        )
+                        messages.append(deeperMessage)
+
+                        streamingText = ""
+                        isProcessing = false
+                        stage = .complete
+
+                        DSHaptics.success()
+                    }
+                } else {
+                    await MainActor.run {
+                        toastManager.show(
+                            ToastItem(
+                                title: "No previous query to analyze deeper",
+                                icon: "exclamationmark.triangle",
+                                tint: .orange
+                            ),
+                            duration: 2.0
+                        )
+                        isProcessing = false
+                        stage = .idle
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    toastManager.show(
+                        ToastItem(
+                            title: "Deeper analysis failed: \(error.localizedDescription)",
+                            icon: "xmark.circle",
+                            tint: .red
+                        ),
+                        duration: 3.0
+                    )
+                    isProcessing = false
+                    stage = .idle
+                }
             }
         }
     }
@@ -1638,6 +1721,7 @@ struct CompactChatHeader: View {
 }
 
 /// Quick picker for quality mode - shows in chat header
+/// Dropdown menu to switch between Standard and Deep Think
 struct QualityModeQuickPicker: View {
     @Binding var selectedMode: RAGQualityMode
 
@@ -1664,9 +1748,9 @@ struct QualityModeQuickPicker: View {
             }
         } label: {
             HStack(spacing: 4) {
-                Image(systemName: selectedMode.icon)
+                Image(systemName: selectedMode.canonical.icon)
                     .font(.system(size: 10, weight: .semibold))
-                Text(selectedMode.displayName)
+                Text(selectedMode.canonical.displayName)
                     .font(.system(size: 11, weight: .semibold))
                 Image(systemName: "chevron.down")
                     .font(.system(size: 8, weight: .bold))

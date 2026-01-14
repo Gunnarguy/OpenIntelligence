@@ -20,6 +20,9 @@ struct MessageActionsBar: View {
     let onToggleHidden: (() -> Void)?
     let onReport: (() -> Void)?
 
+    /// Called when user taps "Go Deeper" to re-query with agentic mode
+    var onGoDeeper: (() -> Void)?
+
     // iOS 26+: Thumbs up/down feedback for Apple Foundation Models
     let onThumbsUp: (() -> Void)?
     let onThumbsDown: (() -> Void)?
@@ -35,8 +38,24 @@ struct MessageActionsBar: View {
         return modelName.contains("Apple") || modelName.contains("Foundation")
     }
 
+    /// Check if this message can benefit from deeper analysis (single-pass was used)
+    private var canGoDeeper: Bool {
+        message.metadata?.canGoDeeper ?? false
+    }
+
     var body: some View {
         HStack(spacing: 2) {
+            // "Go Deeper" button for single-pass responses that could benefit from agentic mode
+            if !isUser, canGoDeeper, let onGoDeeper {
+                ActionButton(
+                    icon: "brain",
+                    label: "Go Deeper",
+                    color: .purple
+                ) {
+                    onGoDeeper()
+                }
+            }
+
             // Thumbs up/down for Apple Intelligence responses (iOS 26+)
             if !isUser, isAppleIntelligenceResponse {
                 if let onThumbsUp {

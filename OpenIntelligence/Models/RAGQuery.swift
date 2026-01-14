@@ -80,6 +80,14 @@ struct ResponseMetadata: Codable, Sendable {
     let toolCallsMade: Int?
     let embeddingProvider: String? // e.g., "nl_embedding", "nl_contextual_embedding"
 
+    /// Whether the agentic (multi-step reasoning) mode was used for this response.
+    /// When false, single-pass retrieval was used. Users can request deeper analysis
+    /// via the "Go Deeper" button if they want agentic processing.
+    let usedAgenticMode: Bool
+
+    /// The original query that triggered this response (for re-query with deeper mode)
+    let originalQuery: String?
+
     init(timeToFirstToken: TimeInterval? = nil,
          totalGenerationTime: TimeInterval,
          tokensGenerated: Int,
@@ -89,7 +97,9 @@ struct ResponseMetadata: Codable, Sendable {
          retrievalConfigSummary: String = "Balanced",
          gatingDecision: String? = nil,
          toolCallsMade: Int? = nil,
-         embeddingProvider: String? = nil)
+         embeddingProvider: String? = nil,
+         usedAgenticMode: Bool = false,
+         originalQuery: String? = nil)
     {
         self.timeToFirstToken = timeToFirstToken
         self.totalGenerationTime = totalGenerationTime
@@ -101,6 +111,8 @@ struct ResponseMetadata: Codable, Sendable {
         self.gatingDecision = gatingDecision
         self.toolCallsMade = toolCallsMade
         self.embeddingProvider = embeddingProvider
+        self.usedAgenticMode = usedAgenticMode
+        self.originalQuery = originalQuery
     }
 
     // MARK: - Computed Properties
@@ -108,5 +120,10 @@ struct ResponseMetadata: Codable, Sendable {
     /// True if using High Accuracy retrieval config (formerly "strict mode")
     var isHighAccuracyMode: Bool {
         retrievalConfigSummary == "High Accuracy"
+    }
+
+    /// True if this response used single-pass and could benefit from deeper analysis
+    var canGoDeeper: Bool {
+        !usedAgenticMode && originalQuery != nil
     }
 }

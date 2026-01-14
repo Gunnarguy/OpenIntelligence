@@ -255,6 +255,15 @@ enum DocumentType: String, Codable {
     // Web and data formats
     case csv
 
+    // Audio/Video formats (will use Speech transcription)
+    case audio
+    case video
+    case m4a
+    case mp3
+    case wav
+    case mp4
+    case mov
+
     case unknown
 }
 

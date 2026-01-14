@@ -74,7 +74,15 @@ struct DeviceRuntimeState: Sendable {
 
     /// Whether this is a "constrained" state requiring caution
     var isConstrained: Bool {
-        thermalState != .nominal ||
+        // On Mac, only thermal and memory matter (battery API is unreliable)
+        let isMac = DeviceCapabilityService.shared.isMac || ProcessInfo.processInfo.isiOSAppOnMac
+
+        if isMac {
+            return thermalState != .nominal || memoryPressure != .nominal
+        }
+
+        // On real iOS devices, also consider battery
+        return thermalState != .nominal ||
             memoryPressure != .nominal ||
             (batteryLevel < 0.20 && !isCharging)
     }
@@ -422,9 +430,43 @@ final class AdaptivePipelineOptimizer: ObservableObject {
 
     private static func captureCurrentState() -> DeviceRuntimeState {
         let thermal = ProcessInfo.processInfo.thermalState
-        let battery = UIDevice.current.batteryLevel
-        let charging = UIDevice.current.batteryState == .charging ||
-            UIDevice.current.batteryState == .full
+        let rawBattery = UIDevice.current.batteryLevel
+        let rawBatteryState = UIDevice.current.batteryState
+
+        // On Mac, the iOS battery API often returns garbage values (e.g., 0.02 when actually at 99%)
+        // We need to detect this and handle it gracefully
+        let isMac = DeviceCapabilityService.shared.isMac || ProcessInfo.processInfo.isiOSAppOnMac
+
+        let battery: Float
+        let charging: Bool
+
+        if isMac {
+            // On Mac, the battery API is unreliable. The safest approach is to assume
+            // the device has adequate power (Mac users typically have good power situations)
+            // This prevents false "low battery" degradation of the pipeline
+            //
+            // We check for obviously garbage values:
+            // - batteryState == .unknown (API not working)
+            // - batteryLevel < 0 (no battery info)
+            // - batteryLevel suspiciously low (< 5%) with .unknown state
+            let looksLikeGarbage = rawBatteryState == .unknown ||
+                rawBattery < 0 ||
+                (rawBattery < 0.05 && rawBatteryState != .unplugged)
+
+            if looksLikeGarbage {
+                // Garbage values - assume full power
+                battery = 1.0
+                charging = true
+            } else {
+                // Values look plausible - trust them (MacBook with working battery API)
+                battery = rawBattery
+                charging = rawBatteryState == .charging || rawBatteryState == .full
+            }
+        } else {
+            // Real iOS device: use actual values
+            battery = rawBattery >= 0 ? rawBattery : 1.0
+            charging = rawBatteryState == .charging || rawBatteryState == .full
+        }
 
         // Memory pressure detection
         let memoryPressure: DeviceRuntimeState.MemoryPressure
@@ -442,7 +484,7 @@ final class AdaptivePipelineOptimizer: ObservableObject {
 
         return DeviceRuntimeState(
             thermalState: thermal,
-            batteryLevel: battery >= 0 ? battery : 1.0, // -1 means unknown
+            batteryLevel: battery,
             isCharging: charging,
             memoryPressure: memoryPressure,
             timestamp: Date()

@@ -3,6 +3,7 @@ import Foundation
 enum IngestionStage: String, CaseIterable, Sendable {
     case queued
     case loading
+    case transcribing // Audio/video transcription via Speech.framework
     case extracting
     case chunking
     case analyzing
@@ -13,6 +14,7 @@ enum IngestionStage: String, CaseIterable, Sendable {
 
     static let pipelineStages: [IngestionStage] = [
         .loading,
+.transcribing,
         .extracting,
         .chunking,
         .analyzing,
@@ -24,6 +26,7 @@ enum IngestionStage: String, CaseIterable, Sendable {
         switch self {
         case .queued: return "Queued"
         case .loading: return "Loading"
+        case .transcribing: return "Transcribing"
         case .extracting: return "Extracting"
         case .chunking: return "Chunking"
         case .analyzing: return "Analyzing"

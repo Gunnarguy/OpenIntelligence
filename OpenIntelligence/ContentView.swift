@@ -56,6 +56,14 @@ struct ContentView: View {
         return onboardingStore.hasOutstandingSteps && !onboardingStore.isChecklistVisible
     }
 
+    /// Computed accent color from settings, with system default fallback
+    private var appAccentColor: Color {
+        if let hex = settingsStore.appAccentColorHex, let color = Color(hex: hex) {
+            return color
+        }
+        return .accentColor
+    }
+
     var body: some View {
         ZStack {
             tabViewContent
@@ -70,6 +78,7 @@ struct ContentView: View {
                 .zIndex(1)
             }
         }
+.tint(appAccentColor)
         .overlay(alignment: .bottomTrailing) {
             if shouldShowChecklistLauncher {
                 OnboardingChecklistLauncher(

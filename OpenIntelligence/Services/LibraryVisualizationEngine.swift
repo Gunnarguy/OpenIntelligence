@@ -274,6 +274,26 @@ final class LibraryVisualizationEngine: ObservableObject {
 
     private init() {}
 
+    // MARK: - Cache Management
+
+    /// Invalidate cached profile to force rebuild with latest settings
+    func invalidateCache() {
+        currentProfile = nil
+        profileCache.removeAll()
+        insights = []
+        recommendedViews = []
+        lastAnalyzed = nil
+        Log.info("LibraryVisualizationEngine cache invalidated", category: .initialization)
+    }
+
+    /// Invalidate cache for specific container
+    func invalidateCache(for containerId: UUID) {
+        profileCache.removeValue(forKey: containerId)
+        if currentProfile?.containerId == containerId {
+            currentProfile = nil
+        }
+    }
+
     // MARK: - Analysis
 
     /// Analyze a library and generate profile + insights
@@ -377,16 +397,47 @@ final class LibraryVisualizationEngine: ObservableObject {
     private func analyzeTopics(chunks: [DocumentChunk]) async -> ([TopicCluster], Float) {
         guard !chunks.isEmpty else { return ([], 0) }
 
-        // Extract keywords from all chunks
+        // Comprehensive stop words to filter out
+        let stopWords: Set<String> = [
+            "the", "and", "for", "with", "this", "that", "from", "have", "are",
+            "was", "were", "been", "will", "would", "could", "should", "can",
+            "its", "use", "see", "set", "get", "one", "two", "also", "more",
+            "your", "you", "our", "their", "they", "them", "his", "her", "has",
+            "had", "may", "might", "must", "shall", "need", "let", "than",
+            "when", "where", "what", "which", "who", "how", "why", "there",
+            "here", "then", "now", "just", "only", "even", "still", "already",
+            "very", "much", "most", "some", "any", "all", "each", "every",
+            "both", "few", "many", "several", "such", "same", "other", "another",
+            "being", "does", "did", "done", "doing", "make", "made", "take",
+            "come", "came", "going", "goes", "went", "gone", "know", "knew",
+            "think", "thought", "want", "wanted", "like", "liked", "said",
+            "page", "section", "chapter", "figure", "table", "note", "item",
+        ]
+
+        // Extract keywords from all chunks - use BOTH metadata and content
         var keywordCounts: [String: Int] = [:]
         var keywordChunks: [String: Set<UUID>] = [:]
 
         for chunk in chunks {
+            var chunkKeywords: Set<String> = []
+
+            // 1. Use metadata keywords if available
             for keyword in chunk.metadata.keywords {
                 let normalized = keyword.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-                guard normalized.count > 2 else { continue }
-                keywordCounts[normalized, default: 0] += 1
-                keywordChunks[normalized, default: []].insert(chunk.id)
+                if isValidKeyword(normalized, stopWords: stopWords) {
+                    chunkKeywords.insert(normalized)
+                }
+            }
+
+            // 2. Also extract significant words directly from content
+            // This helps when metadata keywords are weak
+            let contentWords = extractContentKeywords(from: chunk.content, stopWords: stopWords)
+            chunkKeywords.formUnion(contentWords)
+
+            // Record all keywords for this chunk
+            for kw in chunkKeywords {
+                keywordCounts[kw, default: 0] += 1
+                keywordChunks[kw, default: []].insert(chunk.id)
             }
         }
 
@@ -464,9 +515,75 @@ final class LibraryVisualizationEngine: ObservableObject {
     private func generateTopicName(from keywords: [String]) -> String {
         guard !keywords.isEmpty else { return "General" }
 
-        // Take top 2-3 keywords and make a readable name
-        let top = keywords.prefix(2)
-        return top.map { $0.capitalized }.joined(separator: " & ")
+        // Common garbage words to skip (fragments, articles, etc.)
+        let skipWords: Set<String> = [
+            "the", "and", "for", "with", "this", "that", "from", "have", "are",
+            "was", "were", "been", "being", "will", "would", "could", "should",
+            "may", "might", "must", "can", "not", "but", "all", "any", "some",
+            "its", "use", "using", "used", "also", "more", "most", "other",
+            "new", "one", "two", "see", "set", "get", "make", "made",
+        ]
+
+        // Filter to meaningful keywords (3+ chars, not garbage)
+        let validKeywords = keywords.filter { keyword in
+            let word = keyword.lowercased()
+            return word.count >= 3 &&
+                !skipWords.contains(word) &&
+                word.rangeOfCharacter(from: .decimalDigits) == nil && // No numbers
+                word.first?.isLetter == true // Starts with letter
+        }
+
+        guard !validKeywords.isEmpty else { return "Content" }
+
+        // Take top 1-2 meaningful keywords
+        let top = validKeywords.prefix(2)
+
+        // Capitalize properly - handle multi-word phrases
+        let formatted = top.map { keyword -> String in
+            if keyword.contains(" ") {
+                // Multi-word phrase: title case each word
+                return keyword.split(separator: " ")
+                    .map { $0.prefix(1).uppercased() + $0.dropFirst().lowercased() }
+                    .joined(separator: " ")
+            } else {
+                return keyword.prefix(1).uppercased() + keyword.dropFirst().lowercased()
+            }
+        }
+
+        return formatted.joined(separator: " & ")
+    }
+
+    /// Check if a keyword is valid (not a stop word, proper length, etc.)
+    private func isValidKeyword(_ word: String, stopWords: Set<String>) -> Bool {
+        return word.count >= 4 && // Minimum 4 chars for topic keywords
+            word.count <= 25 && // Not too long
+            !stopWords.contains(word) &&
+            word.first?.isLetter == true &&
+            word.rangeOfCharacter(from: .decimalDigits) == nil
+    }
+
+    /// Extract meaningful keywords directly from content text
+    private func extractContentKeywords(from content: String, stopWords: Set<String>) -> Set<String> {
+        var keywords: Set<String> = []
+
+        // Split on non-alphanumeric characters
+        let words = content.lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { isValidKeyword($0, stopWords: stopWords) }
+
+        // Count word frequencies in this chunk
+        var wordFreq: [String: Int] = [:]
+        for word in words {
+            wordFreq[word, default: 0] += 1
+        }
+
+        // Keep top 5 most frequent meaningful words from this chunk
+        let topWords = wordFreq.sorted { $0.value > $1.value }.prefix(5)
+        for (word, _) in topWords {
+            keywords.insert(word)
+        }
+
+        return keywords
     }
 
     private func calculateEntropy(_ distribution: [Float]) -> Float {

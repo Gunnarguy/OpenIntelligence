@@ -15,6 +15,9 @@ struct MessageBubbleV2: View {
     let showMetadata: Bool
     let onRegenerate: (() -> Void)?
 
+    /// Called when user wants deeper analysis (re-query with agentic mode)
+    let onGoDeeper: (() -> Void)?
+
     // iOS 26+: Apple Intelligence feedback callbacks
     let onThumbsUp: (() -> Void)?
     let onThumbsDown: (() -> Void)?
@@ -29,12 +32,14 @@ struct MessageBubbleV2: View {
         message: Binding<ChatMessage>,
         showMetadata: Bool = true,
         onRegenerate: (() -> Void)? = nil,
+        onGoDeeper: (() -> Void)? = nil,
         onThumbsUp: (() -> Void)? = nil,
         onThumbsDown: (() -> Void)? = nil
     ) { 
         _message = message
         self.showMetadata = showMetadata
         self.onRegenerate = onRegenerate
+        self.onGoDeeper = onGoDeeper
         self.onThumbsUp = onThumbsUp
         self.onThumbsDown = onThumbsDown
     }
@@ -85,17 +90,41 @@ struct MessageBubbleV2: View {
                     onShare: { shareMessage() },
                     onToggleHidden: (!isUser ? { toggleHidden() } : nil),
                     onReport: (!isUser ? { showReportSheet = true } : nil),
+                    onGoDeeper: isUser ? nil : onGoDeeper,
                     onThumbsUp: onThumbsUp,
                     onThumbsDown: onThumbsDown
                 )
                 .transition(.scale.combined(with: .opacity))
             }
 
-            // Timestamp only - detailed metrics shown in header area
+            // Timestamp and mode indicator - detailed metrics shown in header area
             if showMetadata, !showActions {
-                Text(relativeTime(message.timestamp))
-                    .font(.system(size: 10))
-                    .foregroundStyle(Color.secondary.opacity(0.6))
+                HStack(spacing: 6) { 
+                    Text(relativeTime(message.timestamp))
+                        .font(.system(size: 10))
+                        .foregroundStyle(Color.secondary.opacity(0.6))
+
+                    // Mode indicator for assistant messages
+                    if !isUser, let meta = message.metadata {
+                        if meta.usedAgenticMode {
+                            HStack(spacing: 2) {
+                                Image(systemName: "brain")
+                                    .font(.system(size: 8, weight: .medium))
+                                Text("Deep")
+                                    .font(.system(size: 9, weight: .medium))
+                            }
+                            .foregroundStyle(.purple.opacity(0.7))
+                        } else if meta.canGoDeeper {
+                            HStack(spacing: 2) {
+                                Image(systemName: "bolt")
+                                    .font(.system(size: 8, weight: .medium))
+                                Text("Quick")
+                                    .font(.system(size: 9, weight: .medium))
+                            }
+                            .foregroundStyle(.blue.opacity(0.6))
+                        }
+                    }
+                }
 .padding(.horizontal, isUser ? 0 : 4)
             }
 
