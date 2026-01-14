@@ -469,6 +469,8 @@ actor LibraryIntelligenceCenter {
         case .numbers: return "Numbers sheet"
         case .keynote: return "Keynote deck"
         case .csv: return "CSV data"
+        case .audio, .m4a, .mp3, .wav: return "Audio file"
+        case .video, .mp4, .mov: return "Video file"
         case .unknown: return "Document"
         }
     }

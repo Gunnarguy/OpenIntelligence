@@ -185,6 +185,10 @@ class SemanticChunker {
                 // Data files - small chunks
                 return .technicalReference
 
+            case .audio, .video, .m4a, .mp3, .wav, .mp4, .mov:
+                // Transcribed audio/video - use narrative preset
+                return .narrative
+
             case .unknown:
                 return ChunkingConfig()
             }

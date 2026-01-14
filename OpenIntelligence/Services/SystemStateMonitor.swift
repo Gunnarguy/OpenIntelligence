@@ -49,6 +49,15 @@ struct SystemStateSnapshot: Sendable, Equatable {
         batteryLevel >= 0 ? Int(batteryLevel * 100) : -1
     }
 
+    /// Display string for battery - handles Mac/desktop where battery info unavailable
+    var batteryDisplayString: String {
+        if batteryLevel < 0 {
+            // On Mac or devices without battery info
+            return "Plugged In"
+        }
+        return "\(batteryPercent)%"
+    }
+
     var availableMemoryMB: Int {
         Int(availableMemoryBytes / 1024 / 1024)
     }
@@ -63,6 +72,9 @@ struct SystemStateSnapshot: Sendable, Equatable {
         parts.append("🌡️ \(thermalStateName)")
         if batteryLevel >= 0 {
             parts.append("🔋 \(batteryPercent)%\(isCharging ? "⚡" : "")")
+        } else {
+            // Mac or device without battery - show as plugged in
+            parts.append("🔌 Plugged In")
         }
         parts.append("💾 \(availableMemoryMB)MB free")
         if isLowPowerModeEnabled {
@@ -233,11 +245,41 @@ final class SystemStateMonitor: ObservableObject {
             }
         }()
 
-        // Battery
-        let batteryLevel = device.batteryLevel
-        let batteryState = device.batteryState
-        let isCharging = batteryState == .charging || batteryState == .full
-        let isFullyCharged = batteryState == .full
+        // Battery - Mac detection needed because iOS battery API often returns garbage on Mac
+        let isMac = DeviceCapabilityService.shared.isMac || processInfo.isiOSAppOnMac
+        let rawBatteryLevel = device.batteryLevel
+        let rawBatteryState = device.batteryState
+
+        let batteryLevel: Float
+        let batteryState: UIDevice.BatteryState
+        let isCharging: Bool
+        let isFullyCharged: Bool
+
+        if isMac {
+            // On Mac, check if battery values look like garbage
+            let looksLikeGarbage = rawBatteryState == .unknown ||
+                rawBatteryLevel < 0 ||
+                (rawBatteryLevel < 0.05 && rawBatteryState != .unplugged)
+
+            if looksLikeGarbage {
+                // Garbage values - assume full power (desktop Mac or broken API)
+                batteryLevel = 1.0
+                batteryState = .full
+                isCharging = true
+                isFullyCharged = true
+            } else {
+                // Values look plausible - trust them (MacBook with working battery API)
+                batteryLevel = rawBatteryLevel
+                batteryState = rawBatteryState
+                isCharging = rawBatteryState == .charging || rawBatteryState == .full
+                isFullyCharged = rawBatteryState == .full
+            }
+        } else {
+            batteryLevel = rawBatteryLevel
+            batteryState = rawBatteryState
+            isCharging = rawBatteryState == .charging || rawBatteryState == .full
+            isFullyCharged = rawBatteryState == .full
+        }
 
         // Memory
         let availableMemory = UInt64(os_proc_available_memory())

@@ -83,6 +83,16 @@ struct UnifiedMetricsBar: View {
     var vectorWeight: Double = 0.65
     var lexicalWeight: Double = 0.35
 
+    // NEW: Real-time query understanding (set from RAGService thinking events)
+    var originalQuery: String = ""
+    var rewrittenQuery: String = ""
+    var extractedKeywords: [String] = []
+    var queryIntent: String = ""
+    var hydeEnabled: Bool = false
+    var expansionCount: Int = 0
+    var topMatchScore: Float = 0.0
+    var topMatchSource: String = ""
+
     // Callbacks
     var onTapDetails: (() -> Void)?
 
@@ -449,11 +459,12 @@ struct UnifiedMetricsBar: View {
     }
 
     private var qualityBadge: some View {
+        // Show quality mode icon with appropriate color
         Image(systemName: qualityMode.icon)
             .font(.system(size: 9, weight: .semibold))
-            .foregroundStyle(qualityModeColor.opacity(0.8))
+.foregroundStyle(qualityModeColor.opacity(0.8))
             .padding(4)
-            .background(qualityModeColor.opacity(0.08))
+.background(qualityModeColor.opacity(0.08))
             .clipShape(Circle())
     }
 
@@ -548,27 +559,406 @@ struct UnifiedMetricsBar: View {
 // MARK: - Expanded Panel (Redesigned for Clarity)
 
     private var expandedDetailsPanel: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            // Section 1: Where It's Running
-            whereRunningSection
+        ScrollView(.vertical, showsIndicators: false) { 
+            VStack(alignment: .leading, spacing: 14) { 
+                // Section 1: Query Understanding (NEW - most important for user insight)
+                if !originalQuery.isEmpty || stage == .embedding || stage == .searching {
+                    queryUnderstandingSection
+                }
 
-            // Section 2: How Smart It's Being (only when relevant)
-            if sourceCount > 0 || stage == .searching || stage == .embedding {
-                howSmartSection
+                // Section 2: Where It's Running
+                whereRunningSection
+
+                // Section 3: Search Results & Quality
+                if sourceCount > 0 || totalDocuments > 0 {
+                    searchResultsSection
+                }
+
+                // Section 4: How Smart It's Being (retrieval strategy)
+                if sourceCount > 0 || stage == .searching || stage == .embedding {
+                    searchStrategySection
+                }
+
+                // Section 5: Device Health (compact, only notable states)
+                deviceHealthSection
             }
-
-            // Section 3: What It Found
-            if sourceCount > 0 || totalDocuments > 0 {
-                whatFoundSection
-            }
-
-            // Section 4: Device Health (compact, only notable states)
-            deviceHealthSection
         }
+        .frame(maxHeight: 400) // Allow scrolling for rich content
         .padding(14)
         .background(Color(uiColor: .secondarySystemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .padding(.top, 4)
+    }
+
+    // MARK: - Section: Query Understanding (NEW)
+
+    private var queryUnderstandingSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            // Section header
+            HStack(spacing: 6) {
+                Image(systemName: "text.bubble.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.indigo)
+                Text("Query Understanding")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+
+                if hydeEnabled {
+                    HStack(spacing: 3) {
+                        Image(systemName: "wand.and.stars")
+                            .font(.system(size: 9))
+                        Text("HyDE Active")
+                            .font(.system(size: 9, weight: .medium))
+                    }
+                    .foregroundStyle(.purple)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(Color.purple.opacity(0.12))
+                    .clipShape(Capsule())
+                }
+            }
+
+            // Original query (full, not truncated)
+            if !originalQuery.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("You asked:")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    Text(originalQuery)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.primary)
+                        .fixedSize(horizontal: false, vertical: true) // Full text, never truncate
+                }
+            }
+
+            // Rewritten/clarified query (if different)
+            if !rewrittenQuery.isEmpty && rewrittenQuery != originalQuery {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.right.circle.fill")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.green)
+                        Text("Clarified to:")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.secondary)
+                    }
+                    Text(rewrittenQuery)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.green)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(8)
+                .background(Color.green.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+
+            // Extracted keywords & intent
+            HStack(spacing: 16) {
+                // Keywords
+                if !extractedKeywords.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Key terms extracted:")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.secondary)
+                        FlowLayout(spacing: 4) {
+                            ForEach(extractedKeywords.prefix(8), id: \.self) { keyword in
+                                Text(keyword)
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(Color.blue.opacity(0.12))
+                                    .foregroundStyle(.blue)
+                                    .clipShape(Capsule())
+                            }
+                        }
+                    }
+                }
+
+                Spacer()
+
+                // Query expansions
+                if expansionCount > 0 {
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text("\(expansionCount)")
+                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                            .foregroundStyle(.purple)
+                        Text("query variations")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            // Intent classification
+            if !queryIntent.isEmpty {
+                HStack(spacing: 6) {
+                    Image(systemName: "lightbulb.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.yellow)
+                    Text("Detected intent: \(queryIntent)")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.primary)
+                }
+            }
+        }
+        .padding(12)
+        .background(Color.indigo.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    // MARK: - Section: Search Results
+
+    private var searchResultsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            // Section header
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass.circle.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.blue)
+                Text("Search Results")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+
+            // Best match info (if available)
+            if topMatchScore > 0 {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "star.fill")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.yellow)
+                            Text("Best Match")
+                                .font(.system(size: 11, weight: .semibold))
+                        }
+                        if !topMatchSource.isEmpty {
+                            Text(topMatchSource)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(.primary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Text("\(Int(topMatchScore * 100))% relevance score")
+                            .font(.system(size: 11))
+                            .foregroundStyle(matchScoreColor(topMatchScore))
+                    }
+
+                    Spacer()
+
+                    // Relevance gauge
+                    ZStack {
+                        Circle()
+                            .stroke(Color.secondary.opacity(0.2), lineWidth: 4)
+                        Circle()
+                            .trim(from: 0, to: CGFloat(topMatchScore))
+                            .stroke(matchScoreColor(topMatchScore), style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                            .rotationEffect(.degrees(-90))
+                        Text("\(Int(topMatchScore * 100))")
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .foregroundStyle(matchScoreColor(topMatchScore))
+                    }
+                    .frame(width: 40, height: 40)
+                }
+                .padding(10)
+                .background(matchScoreColor(topMatchScore).opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+
+            // Stats grid
+            HStack(spacing: 20) {
+                if sourceCount > 0 {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 4) {
+                            Text("\(sourceCount)")
+                                .font(.system(size: 22, weight: .bold, design: .rounded))
+                                .foregroundStyle(sourceQualityColor)
+                            Text("sources")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
+                        }
+                        if let avg = averageSourceScore {
+                            Text("\(Int(avg * 100))% average relevance")
+                                .font(.system(size: 11))
+                                .foregroundStyle(sourceQualityColor)
+                        }
+                    }
+                }
+
+                if totalDocuments > 0 {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 4) {
+                            Text("\(coveredDocuments)")
+                                .font(.system(size: 22, weight: .bold, design: .rounded))
+                                .foregroundStyle(.blue)
+                            Text("of \(totalDocuments) docs")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
+                        }
+                        if totalChunks > 0 {
+                            Text("\(totalChunks) passages scanned")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                Spacer()
+
+                if toolCallCount > 0 {
+                    VStack(alignment: .trailing, spacing: 2) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "wrench.and.screwdriver.fill")
+                                .font(.system(size: 14))
+                            Text("\(toolCallCount)")
+                                .font(.system(size: 22, weight: .bold, design: .rounded))
+                        }
+                        .foregroundStyle(.purple)
+                        Text("agentic tools invoked")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+        .padding(12)
+        .background(Color.blue.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    private func matchScoreColor(_ score: Float) -> Color {
+        if score > 0.7 { return .green }
+        if score > 0.5 { return .blue }
+        if score > 0.3 { return .orange }
+        return .red
+    }
+
+    // MARK: - Section: Search Strategy
+
+    private var searchStrategySection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            // Section header
+            HStack(spacing: 6) {
+                Image(systemName: "brain.head.profile.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.purple)
+                Text("Search Strategy")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+
+                // Retrieval mode badge
+                HStack(spacing: 3) {
+                    Image(systemName: retrievalMode.icon)
+                        .font(.system(size: 9))
+                    Text(retrievalMode.rawValue)
+                        .font(.system(size: 9, weight: .semibold))
+                }
+                .foregroundStyle(retrievalMode.color)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(retrievalMode.color.opacity(0.12))
+                .clipShape(Capsule())
+            }
+
+            // Visual weight comparison
+            HStack(spacing: 16) {
+                // Semantic search
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(Color.blue)
+                            .frame(width: 10, height: 10)
+                        Text("Semantic Search")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    Text("Finds content with similar meaning, even if different words are used")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    HStack(spacing: 8) {
+                        GeometryReader { geo in
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color.blue)
+                                .frame(width: geo.size.width * vectorWeight)
+                        }
+                        .frame(height: 8)
+                        .background(Color.blue.opacity(0.2), in: RoundedRectangle(cornerRadius: 4))
+
+                        Text("\(Int(vectorWeight * 100))%")
+                            .font(.system(size: 12, weight: .bold, design: .monospaced))
+                            .foregroundStyle(.blue)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+
+                // Keyword search
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(Color.orange)
+                            .frame(width: 10, height: 10)
+                        Text("Keyword Search")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    Text("Matches exact words and phrases using BM25 scoring algorithm")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    HStack(spacing: 8) {
+                        GeometryReader { geo in
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color.orange)
+                                .frame(width: geo.size.width * lexicalWeight)
+                        }
+                        .frame(height: 8)
+                        .background(Color.orange.opacity(0.2), in: RoundedRectangle(cornerRadius: 4))
+
+                        Text("\(Int(lexicalWeight * 100))%")
+                            .font(.system(size: 12, weight: .bold, design: .monospaced))
+                            .foregroundStyle(.orange)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+            }
+
+            // Additional strategy details
+            HStack(spacing: 12) {
+                if semanticChunksUsed {
+                    HStack(spacing: 4) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.green)
+                        Text("Smart chunking preserves topic boundaries")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Spacer()
+
+                HStack(spacing: 4) {
+                    Image(systemName: "shuffle")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.cyan)
+                    Text("Diversity: \(diversityDescriptionFull)")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(12)
+        .background(Color.purple.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    private var diversityDescriptionFull: String {
+        if mmrDiversity >= 0.8 { return "High – pulls from varied sources to give broader perspective" }
+        if mmrDiversity >= 0.5 { return "Balanced – mix of relevance and source variety" }
+        return "Low – focuses on most relevant matches only"
     }
 
     // MARK: - Section: Where It's Running
@@ -587,13 +977,29 @@ struct UnifiedMetricsBar: View {
 
             HStack(spacing: 12) {
                 // Main execution info
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(executionExplanation)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(executionExplanationFull)
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(.primary)
+.fixedSize(horizontal: false, vertical: true) // Never truncate
 
                     if let modelName, !modelName.isEmpty {
-                        Text("Model: \(modelName)")
+                        HStack(spacing: 4) {
+                            Image(systemName: "brain")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.secondary)
+                            Text(modelName)
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    // Privacy assurance
+                    HStack(spacing: 4) {
+                        Image(systemName: execution == .privateCloudCompute ? "lock.shield.fill" : "iphone")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.green)
+                        Text(privacyExplanation)
                             .font(.system(size: 11))
                             .foregroundStyle(.secondary)
                     }
@@ -602,36 +1008,42 @@ struct UnifiedMetricsBar: View {
                 Spacer()
 
                 // Context usage (visual + text)
-                VStack(alignment: .trailing, spacing: 4) {
+                VStack(alignment: .trailing, spacing: 6) {
                     // Context bar
-                    HStack(spacing: 6) {
-                        Text("Memory Used")
-                            .font(.system(size: 10))
+                    VStack(alignment: .trailing, spacing: 4) { 
+                        Text("Context Window")
+                            .font(.system(size: 10, weight: .medium))
                             .foregroundStyle(.secondary)
 
-                        ZStack(alignment: .leading) {
-                            RoundedRectangle(cornerRadius: 3)
-                                .fill(Color.secondary.opacity(0.2))
-                                .frame(width: 60, height: 6)
-                            RoundedRectangle(cornerRadius: 3)
-                                .fill(contextColor)
-                                .frame(width: 60 * contextUsageRatio, height: 6)
+                        HStack(spacing: 6) { 
+                            ZStack(alignment: .leading) { 
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(Color.secondary.opacity(0.2))
+.frame(width: 70, height: 8)
+RoundedRectangle(cornerRadius: 4)
+    .fill(contextColor)
+.frame(width: 70 * contextUsageRatio, height: 8)
+                            }
+
+                            Text("\(Int(contextUsageRatio * 100))%")
+.font(.system(size: 12, weight: .bold, design: .monospaced))
+    .foregroundStyle(contextColor)
                         }
 
-                        Text("\(Int(contextUsageRatio * 100))%")
-                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                            .foregroundStyle(contextColor)
+                        Text("\(contextTokens) of \(maxContextTokens) tokens")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
                     }
 
                     // Response time
                     if let t = ttft {
                         HStack(spacing: 4) {
-                            Image(systemName: "clock")
-                                .font(.system(size: 9))
-                            Text("First response: \(String(format: "%.0fms", t * 1000))")
+                            Image(systemName: "clock.fill")
                                 .font(.system(size: 10))
+                            Text("First token in \(String(format: "%.0fms", t * 1000))")
+                                .font(.system(size: 11, weight: .medium))
                         }
-                        .foregroundStyle(t < 0.5 ? .green : .blue)
+.foregroundStyle(t < 0.5 ? .green : (t < 1.5 ? .blue : .orange))
                     }
                 }
             }
@@ -641,16 +1053,29 @@ struct UnifiedMetricsBar: View {
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
-    private var executionExplanation: String {
+    private var executionExplanationFull: String { 
         switch execution {
         case .onDevice:
-            return "Running privately on your device"
+            return "Running privately on your device's Neural Engine – no data leaves your phone"
         case .privateCloudCompute:
-            return "Using Apple's secure cloud servers"
+            return "Using Apple's Private Cloud Compute – encrypted processing on attested Apple Silicon servers"
         case .mlxLocal:
-            return "Running on device with MLX acceleration"
+            return "Running locally with MLX acceleration on Apple Silicon for fast on-device inference"
         case .unknown:
-            return "Processing..."
+            return "Determining optimal processing location..."
+        }
+    }
+
+    private var privacyExplanation: String {
+        switch execution {
+        case .onDevice:
+            return "Your data never leaves this device"
+        case .privateCloudCompute:
+            return "End-to-end encrypted, Apple cannot access your data"
+        case .mlxLocal:
+            return "Fully private, local processing only"
+        case .unknown:
+            return "Privacy-first processing"
         }
     }
 
@@ -879,7 +1304,7 @@ struct UnifiedMetricsBar: View {
                     statusPill(
                         icon: "cpu",
                         title: device.chipName,
-                        subtitle: "\(device.tier.estimatedNPUTops)T neural",
+                        subtitle: "\(device.npuTops)T neural",
                         color: .purple
                     )
 
@@ -1080,7 +1505,7 @@ struct UnifiedMetricsBar: View {
             // NPU
             compactMetric(
                 icon: "brain.head.profile",
-                value: "\(device.tier.estimatedNPUTops)T",
+                value: "\(device.npuTops)T",
                 color: .blue
             )
 
@@ -1307,7 +1732,7 @@ struct UnifiedMetricsBar: View {
                 systemMetricCell(
                     icon: SystemStateMonitor.batteryIcon(level: state.batteryLevel, isCharging: state.isCharging),
                     label: "Battery Level",
-                    value: state.batteryPercent >= 0 ? "\(state.batteryPercent)%" : "N/A",
+                    value: state.batteryDisplayString,
                     detail: batteryDetail(state),
                     color: batteryColor(level: state.batteryLevel, isCharging: state.isCharging)
                 )
@@ -1343,7 +1768,7 @@ struct UnifiedMetricsBar: View {
                 systemMetricCell(
                     icon: "brain.head.profile",
                     label: "Neural Engine",
-                    value: "\(deviceService.tier.estimatedNPUTops) TOPS",
+                    value: "\(deviceService.npuTops) TOPS",
                     detail: deviceService.tier.displayName,
                     color: .blue
                 )
@@ -1685,10 +2110,10 @@ struct UnifiedMetricsBar: View {
                     .lineLimit(1)
             }
 
-            Text(executionExplanation)
+            Text(executionExplanationFull)
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
-                .lineLimit(3)
+.fixedSize(horizontal: false, vertical: true)
 
             if let t = ttft {
                 HStack(spacing: 4) {
@@ -1969,7 +2394,7 @@ private struct MiniSparkline: View {
     struct UnifiedMetricsBar_Previews: PreviewProvider {
         static var previews: some View {
             VStack(spacing: 20) {
-                // Active generation on device - Standard mode
+                // Active generation on device - Adaptive mode
                 UnifiedMetricsBar(
                     stage: .generating,
                     execution: .onDevice,
@@ -1993,12 +2418,12 @@ private struct MiniSparkline: View {
                     requestedExecutionContext: .preferCloud
                 )
 
-                // Completed on PCC - Deep Think mode
+                // Completed on PCC - Adaptive mode
                 UnifiedMetricsBar(
                     stage: .complete,
                     execution: .privateCloudCompute,
                     isProcessing: false,
-                    qualityMode: .deepThink,
+                    qualityMode: .standard,
                     contextTokens: 3800,
                     maxContextTokens: 4096,
                     tokensGenerated: 156,
@@ -2017,7 +2442,7 @@ private struct MiniSparkline: View {
                     requestedExecutionContext: .preferCloud
                 )
 
-                // Searching stage - Standard mode
+                // Searching stage - Adaptive mode
                 UnifiedMetricsBar(
                     stage: .searching,
                     execution: .unknown,
@@ -2046,3 +2471,5 @@ private struct MiniSparkline: View {
         }
     }
 #endif
+
+// FlowLayout is defined in DocumentDetailsView.swift - reusing it from Shared scope

@@ -39,7 +39,7 @@ struct RAGAuditSnapshot: Identifiable, Sendable {
     let chunkingTargetWords: Int
     let chunkingOverlapWords: Int
     let chunkingSource: String
-    let qualityMode: RAGQualityMode
+    let qualityModeName: String // Changed from RAGQualityMode enum to String
     let retrievalConfig: RetrievalConfig
 
     let lenientRetrieval: Bool
@@ -395,6 +395,16 @@ class RAGService: ObservableObject {
     /// The container context for the currently executing query (if any).
     /// Used to scope agentic tool calls and document listings during an in-flight query.
     @MainActor private var currentQueryContainerId: UUID? = nil
+
+    /// Tracks whether the last query used agentic (deep) mode or single-pass.
+    /// Used by UI to show "Go Deeper" button when single-pass was used.
+    @MainActor @Published private(set) var lastQueryUsedAgentic: Bool = false
+
+    /// The last query text, for re-querying with forced agentic mode.
+    @MainActor private(set) var lastQueryText: String? = nil
+
+    /// Forces the next query to use agentic mode regardless of complexity detection.
+    @MainActor var forceAgenticOnNextQuery: Bool = false
 
     @MainActor @Published var documents: [Document] = []
     @MainActor @Published var isProcessing: Bool = false
@@ -1581,11 +1591,14 @@ class RAGService: ObservableObject {
         // Set up progress handler for real-time updates
         documentProcessor.progressHandler = { [weak self] progress in
             Task { @MainActor in
+                // Use transcribing stage for audio/video files
+                let stage: IngestionStage = progress.contains("transcribing") ? .transcribing : .extracting
+                let detail = progress.contains("transcribing") ? "Transcribing audio" : "Extracting (\(progress))"
                 self?.updateIngestionItem(
                     id: trackingId,
                     filename: filename,
-                    stage: .extracting,
-                    detail: "Extracting (\(progress))"
+                    stage: stage,
+                    detail: detail
                 )
             }
         }
@@ -2538,7 +2551,9 @@ class RAGService: ObservableObject {
                     modelUsed: "Apple Foundation Model (Agentic)",
                     retrievalTime: 0,
                     retrievalConfigSummary: "Agentic",
-                    toolCallsMade: result.steps.filter { $0.type == .searching }.count
+                    toolCallsMade: result.steps.filter { $0.type == .searching }.count,
+                    usedAgenticMode: true, // Agentic (deep) mode was used
+                        originalQuery: question
                 ),
                 confidenceScore: result.confidence
             )
@@ -2549,6 +2564,23 @@ class RAGService: ObservableObject {
     }
 
     // MARK: - RAG Query Pipeline
+
+    /// Re-query the last question using forced agentic (deep reasoning) mode.
+    /// Called by UI when user taps "Go Deeper" after a single-pass response.
+    /// - Parameter streamHandler: Optional stream handler for live token updates
+    /// - Returns: The RAG response with deeper analysis, or nil if no previous query exists
+    func reQueryWithAgenticMode(streamHandler: LLMStreamHandler? = nil) async throws -> RAGResponse? {
+        guard let query = await MainActor.run(body: { self.lastQueryText }) else {
+            Log.warning("[RAG] No previous query to re-run with agentic mode", category: .pipeline)
+            return nil
+        }
+
+        // Set the force flag before querying
+        await MainActor.run { self.forceAgenticOnNextQuery = true }
+
+        Log.info("[RAG] Re-querying with forced agentic mode: \(query.prefix(50))...", category: .pipeline)
+        return try await self.query(query, streamHandler: streamHandler)
+    }
 
     /// Execute a RAG query: expand query → embed → hybrid search → re-rank → generate response
     func query(
@@ -2571,9 +2603,8 @@ class RAGService: ObservableObject {
     ) async throws -> RAGResponse {
         var inferenceConfig = config ?? InferenceConfig()
         let networkAvailable = NetworkMonitor.shared.isConnected
-        let reliabilityModeEnabled: Bool = await MainActor.run {
-            settingsStore?.reliabilityModeEnabled ?? true
-        }
+        // Reliability mode always enabled — UI toggle removed for simplicity
+        let reliabilityModeEnabled = true
         if reliabilityModeEnabled {
             Log.info("[RAG] Reliability-first fallbacks enabled", category: .pipeline)
         }
@@ -2625,9 +2656,34 @@ class RAGService: ObservableObject {
             }
         #endif
 
-        // Get quality mode from settings (affects retrieval parameters)
-        let qualityMode: RAGQualityMode = await MainActor.run {
-            settingsStore?.ragQualityMode ?? .standard
+        // Check user's quality mode setting to determine pipeline behavior
+        // If user selected "deepThink" (Deep Think), use agentic orchestrator
+        // Otherwise, use single-pass retrieval based on quality mode parameters
+        let qualityMode = await MainActor.run {
+            self.settingsStore?.ragQualityMode ?? .standard
+        }
+
+        // Also check for manual override via forceAgenticOnNextQuery
+        let forceAgentic = await MainActor.run {
+            let forced = self.forceAgenticOnNextQuery
+            self.forceAgenticOnNextQuery = false // Reset after checking
+            return forced
+        }
+
+        let useAgentic = forceAgentic || qualityMode.usesAgenticOrchestrator
+
+        // Track query context for potential "Go Deeper" re-query
+        await MainActor.run {
+            self.lastQueryUsedAgentic = useAgentic
+            self.lastQueryText = question
+        }
+
+        if forceAgentic {
+            Log.info("[Pipeline] Query FORCED to agentic mode by user request", category: .pipeline)
+        } else if useAgentic {
+            Log.info("[Pipeline] Using Deep Think mode (user selected)", category: .pipeline)
+        } else {
+            Log.info("[Pipeline] Using Standard mode", category: .pipeline)
         }
 
         // Get adaptive pipeline config based on current device state (thermal, battery, memory)
@@ -2647,8 +2703,9 @@ class RAGService: ObservableObject {
         let selectedName = embeddingContext.containerName
         let selectedDim = embeddingContext.dimension
 
-        // AGENTIC MODE: Use multi-session orchestrator for complex reasoning
-        if qualityMode.usesAgenticOrchestrator {
+        // AGENTIC MODE: Use multi-session orchestrator for Deep Think mode
+        // Triggered by user selecting Deep Think mode, or via "Go Deeper" re-query
+        if useAgentic { 
             return try await executeAgenticQuery(
                 question: question,
                 containerId: selectedId,
@@ -2656,23 +2713,24 @@ class RAGService: ObservableObject {
             )
         }
 
+        // Quality mode parameters from user settings
+        let qualityModeDisplayName = qualityMode.displayName
+        let qualityModeInitialTopK = qualityMode.initialTopK
+        let qualityModeMinSimilarity = qualityMode.minSimilarity
+        let qualityModeTemperature = qualityMode.temperature
+        let qualityModeUsesQueryRewriting = qualityMode.usesQueryRewriting
+        let qualityModeUsesIterativeRetrieval = qualityMode.usesIterativeRetrieval
+        let qualityModeRequiresCitations = qualityMode.requiresCitations
+
         let developerTuningEnabled: Bool = await MainActor.run {
             settingsStore?.developerRAGTuningEnabled ?? false
         }
 
         let allowUngroundedFallback = reliabilityModeEnabled || developerTuningEnabled
 
-        let rawRetrievalConfig: RetrievalConfig = await MainActor.run {
-            if let id = containerId,
-               let container = self.containerService.containers.first(where: { $0.id == id })
-            {
-                return container.retrievalConfig
-            } else {
-                return self.containerService.activeContainer?.retrievalConfig ?? .default
-            }
-        }
-        let retrievalConfig =
-            rawRetrievalConfig == .highAccuracy ? .default : rawRetrievalConfig
+        // Always use default retrieval config — per-container presets removed for simplicity
+        // AdaptivePipelineOptimizer handles auto-tuning based on query patterns
+        let retrievalConfig: RetrievalConfig = .default
 
         let selectedContainer = await MainActor.run {
             self.containerService.containers.first { $0.id == selectedId }
@@ -2700,8 +2758,8 @@ class RAGService: ObservableObject {
             Task { await MainActor.run { self.currentQueryContainerId = nil } }
         }
 
-        // Adjust topK based on quality mode (quality mode is the default floor)
-        let requestedTopK = max(topK, qualityMode.initialTopK)
+        // Adjust topK based on adaptive mode parameters
+        let requestedTopK = max(topK, qualityModeInitialTopK)
         let baseTopK = requestedTopK
 
         let queryWords = question.split(separator: " ").count
@@ -2751,14 +2809,14 @@ class RAGService: ObservableObject {
                 "📝 Query: \(question)",
                 "🎯 Retrieving top \(effectiveTopK) chunks from \(totalStored) total",
                 "🧬 Embeddings: \(embeddingProviderId) • \(selectedDim)D",
-                "⚙️ Quality Mode: \(qualityMode.displayName)",
+                "⚙️ Quality Mode: \(qualityModeDisplayName)",
             ]
         )
 
         emitThinkingEvent(
             .planning,
             title: "Scoping query",
-            detail: "Top \(effectiveTopK) • \(selectedName) • \(qualityMode.displayName) mode"
+            detail: "Top \(effectiveTopK) • \(selectedName) • \(qualityModeDisplayName) mode"
         )
 
         TelemetryCenter.emit(
@@ -2768,7 +2826,7 @@ class RAGService: ObservableObject {
                 "question": String(question.prefix(80)),
                 "container": selectedName,
                 "containerId": selectedId.uuidString,
-                "qualityMode": qualityMode.rawValue,
+                "qualityMode": qualityModeDisplayName,
                 "words": "\(queryWords)",
                 "characters": "\(question.count)",
                 "topK": "\(effectiveTopK)",
@@ -2842,9 +2900,9 @@ class RAGService: ObservableObject {
                 }
 
                 // Check advanced RAG settings
-                let useQueryRewriting = settingsStore?.enableQueryRewriting ?? qualityMode.usesQueryRewriting
+                let useQueryRewriting = settingsStore?.enableQueryRewriting ?? qualityModeUsesQueryRewriting
                 // Note: Iterative retrieval is a future enhancement, capturing setting for later use
-                _ = settingsStore?.enableIterativeRetrieval ?? qualityMode.usesIterativeRetrieval
+                _ = settingsStore?.enableIterativeRetrieval ?? qualityModeUsesIterativeRetrieval
 
                 // Step 1: LLM-Powered Query Understanding (if enabled)
                 var effectiveQuery = question
@@ -2867,6 +2925,8 @@ class RAGService: ObservableObject {
 
                     if #available(iOS 26.0, *), useConversationMemory {
                         // Get memory-enhanced context with tracked entities
+                        // ONLY use actual conversation turns - NOT synthetic context from memory entities
+                        // Synthetic context causes false-positive rewrites (e.g., "this button" → "the button you mentioned")
                         let memory = ConversationMemoryService.shared.memory(for: selectedId)
                         recentTurns = memory.recentTurns.suffix(3).map { turn in
                             ConversationTurn(
@@ -2875,15 +2935,8 @@ class RAGService: ObservableObject {
                                 entities: turn.extractedFacts.prefix(3).map { String($0.prefix(50)) }
                             )
                         }
-                        // Add tracked entities from memory for better resolution
-                        if recentTurns.isEmpty, !memory.entities.isEmpty {
-                            // Create a synthetic turn with memory entities for context
-                            recentTurns = [ConversationTurn(
-                                role: "context",
-                                content: "Topics discussed: \(memory.entities.prefix(5).joined(separator: ", "))",
-                                entities: Array(memory.entities.prefix(5))
-                            )]
-                        }
+                        // Note: Intentionally NOT creating synthetic turns from memory.entities
+                        // Memory entities persist across sessions and don't provide reliable pronoun referents
                         Log.debug("[ConversationMemory] Using memory for query rewriting (\(recentTurns.count) turns, \(memory.entities.count) entities)", category: .retrieval)
                     }
 
@@ -2985,13 +3038,13 @@ class RAGService: ObservableObject {
                 // Respect both user settings AND adaptive pipeline (thermal/battery aware)
                 let useHyDESetting = settingsStore?.enableHyDE ?? true
                 let useHyDE = useHyDESetting && adaptiveConfig.enableHyDE
-                var textToEmbed = question
+                var textToEmbed = effectiveQuery // Use rewritten query for embedding
                 var hydeUsed = false
 
-                if useHyDE, HyDEService.isAvailable, HyDEService.shouldUseHyDE(for: question) {
+                if useHyDE, HyDEService.isAvailable, HyDEService.shouldUseHyDE(for: effectiveQuery) { 
                     let hydeService = HyDEService()
                     do {
-                        let hydeResult = try await hydeService.generateHyDEQuery(for: question)
+                        let hydeResult = try await hydeService.generateHyDEQuery(for: effectiveQuery)
                         textToEmbed = hydeResult.combinedForEmbedding
                         hydeUsed = true
                         Log.info("[HyDE] Using hypothetical document for embedding", category: .retrieval)
@@ -3059,7 +3112,7 @@ class RAGService: ObservableObject {
                 // Step 3: Hybrid Search (vector + BM25 keyword search with RRF fusion)
                 // With optional iterative retrieval for multi-pass refinement
                 let useIterative = settingsStore?.enableIterativeRetrieval ?? false
-                let iterativeConfig = qualityMode.iterativeRetrievalConfig
+                let iterativeConfig = IterativeRetrievalConfig.default
 
                 let retrievalStartTime = Date()
                 let retrievedChunks: [RetrievedChunk]
@@ -3478,8 +3531,8 @@ class RAGService: ObservableObject {
                 auditSecondSim = secondSim
                 auditAvgTop5 = avgTop5
 
-                // Use quality mode's minSimilarity, adjusted for lenient/trivial
-                let qualityMinSim = qualityMode.minSimilarity
+                // Use adaptive mode's minSimilarity, adjusted for lenient/trivial
+                let qualityMinSim = qualityModeMinSimilarity
                 let baseMin: Float
                 if retrievalConfig == .highAccuracy {
                     baseMin = retrievalConfig.minSimilarity
@@ -3489,8 +3542,35 @@ class RAGService: ObservableObject {
                 }
 
                 var dynamicMin: Float = lenient ? min(baseMin, 0.35) : baseMin
-                if !lenient, avgTop5 > 0, avgTop5 < baseMin {
-                    dynamicMin = max(0.28, avgTop5 - 0.03)
+
+                // Vocabulary mismatch detection: When ALL scores are low but we have a corpus,
+                // the problem is likely conversational-vs-technical language mismatch, not irrelevant docs.
+                // In this case, trust relative ranking over absolute thresholds.
+                let vocabularyMismatch = rerankedChunks.count >= 5 && topSim < 0.25 && avgTop5 < 0.20
+
+                if vocabularyMismatch {
+                    // Adaptive floor: use the corpus's natural score distribution
+                    // Keep chunks that are in the top tier relative to this corpus
+                    let scoreSpread = topSim - avgTop5
+                    dynamicMin = max(0.10, avgTop5 - scoreSpread)
+                    Log.info(
+                        "[RAG] Vocabulary mismatch detected (topSim=\(String(format: "%.2f", topSim)), avgTop5=\(String(format: "%.2f", avgTop5))) - using adaptive floor \(String(format: "%.2f", dynamicMin))",
+                        category: .retrieval
+                    )
+                } else if !lenient, avgTop5 > 0, avgTop5 < baseMin {
+                    // Standard case: lower floor to preserve procedural/technical chunks
+                    dynamicMin = max(0.15, avgTop5 - 0.05)
+                }
+
+                // Procedural document detection: procedural queries need HIGHER quality evidence
+                // Wrong order in procedures is worse than no answer at all
+                let proceduralTerms = ["how to", "steps", "procedure", "process", "reprocess", "instructions", "guide", "workflow"]
+                let isProceduralQuery = proceduralTerms.contains { question.lowercased().contains($0) }
+                if isProceduralQuery {
+                    // Procedural queries require HIGHER thresholds, not lower
+                    // If evidence is weak, we should abstain rather than guess steps
+                    dynamicMin = max(dynamicMin, 0.25)
+                    Log.info("[RAG] Procedural query detected - requiring higher evidence threshold \(dynamicMin)", category: .retrieval)
                 }
 
                 auditDynamicMin = dynamicMin
@@ -3500,9 +3580,13 @@ class RAGService: ObservableObject {
                 )
 
                 // Acceptance override if relative signals are strong even with modest absolute scores
+                // Also override for vocabulary mismatch scenarios where we trust relative ranking
                 let acceptanceOverride: Bool =
-                    (topSim >= 0.50) || (topSim >= 0.38 && (topSim - avgTop5) >= 0.05)
+                    vocabularyMismatch // Trust relative ranking when all scores are low
+                        || (topSim >= 0.50)
+                        || (topSim >= 0.38 && (topSim - avgTop5) >= 0.05)
                         || ((topSim - secondSim) >= 0.07)
+                    || (topSim >= 0.15 && rerankedChunks.count >= 10) // Have corpus, use it
                 auditAcceptanceOverride = acceptanceOverride
 
                 TelemetryCenter.emit(
@@ -3650,7 +3734,15 @@ class RAGService: ObservableObject {
                 // Step 4.5: Apply MMR for diversity using container's retrieval config
                 Log.section("Step 4.5: MMR Diversification", level: .info, category: .pipeline)
                 let mmrStartTime = Date()
-                let mmrLambda = retrievalConfig.mmrLambda
+
+                // Procedural query override: favor relevance over diversity for step-by-step content
+                // Consecutive chunks from same document are valuable context, not redundant
+                // Note: isProceduralQuery already defined in Step 4.3
+                let mmrLambda = isProceduralQuery ? max(retrievalConfig.mmrLambda, 0.85) : retrievalConfig.mmrLambda
+                if isProceduralQuery {
+                    Log.info("[RAG] Procedural query - boosting MMR lambda to \(mmrLambda) (favor sequential chunks)", category: .retrieval)
+                }
+
                 let diverseChunks = await engine.applyMMR(
                     candidates: filteredChunks,
                     queryEmbedding: queryEmbedding,
@@ -3835,10 +3927,20 @@ class RAGService: ObservableObject {
                 let useParentDocRetrieval = useParentDocSetting && adaptiveConfig.enableParentDocumentRetrieval
 
                 if useParentDocRetrieval, contextCandidates.count > 0, let allChunks = cachedAllChunks {
-                    // Deep Think uses thorough parent config, Standard uses default
-                    let parentConfig: ParentDocumentService.Config = qualityMode.usesAgenticOrchestrator
-                        ? .thorough
-                        : .default
+                    // Select parent config based on query type and quality mode
+                    // Procedural queries get maximum expansion to capture full procedure sections
+                    let proceduralTerms = ["how to", "steps", "procedure", "process", "reprocess", "instructions", "guide", "workflow"]
+                    let isProceduralQuery = proceduralTerms.contains { question.lowercased().contains($0) }
+
+                    let parentConfig: ParentDocumentService.Config
+                    if isProceduralQuery {
+                        parentConfig = .procedural // 8 siblings, 6000 tokens, very permissive
+                        Log.info("[RAG] Procedural query - using maximum parent expansion (8 siblings)", category: .retrieval)
+                    } else if useAgentic {
+                        parentConfig = .thorough
+                    } else {
+                        parentConfig = .default
+                    }
                     let parentService = ParentDocumentService(config: parentConfig)
 
                     let expansionResult = await parentService.expandWithSiblings(
@@ -3878,9 +3980,23 @@ class RAGService: ObservableObject {
                 // Step 4.7: Contextual Compression (optional)
                 // Extract only query-relevant sentences from chunks to maximize signal and save tokens
                 // Respect both user settings AND adaptive pipeline (thermal/battery aware)
+                // CRITICAL: Skip compression for procedural queries - compression destroys step ordering
+                // (e.g., 335→27 tokens = 8% retention loses critical procedural constraints)
+                // CRITICAL: Skip compression for vocabulary mismatch - compressor can't judge relevance
+                // when query terms don't match document vocabulary (conversational vs technical)
                 let useCompressionSetting = settingsStore?.enableContextualCompression ?? true
-                let useContextualCompression = useCompressionSetting && adaptiveConfig.enableContextualCompression
+                let skipCompressionForProcedural = isProceduralQuery // Preserve contiguous spans
+                let skipCompressionForVocabMismatch = vocabularyMismatch // Compressor will destroy content
+                let useContextualCompression = useCompressionSetting && adaptiveConfig.enableContextualCompression && !skipCompressionForProcedural && !skipCompressionForVocabMismatch
                 var compressionSavings = 0
+
+                if skipCompressionForProcedural {
+                    Log.info("[RAG] Skipping compression for procedural query - preserving contiguous spans", category: .retrieval)
+                }
+
+                if skipCompressionForVocabMismatch {
+                    Log.info("[RAG] Skipping compression for vocabulary mismatch - compressor can't judge relevance", category: .retrieval)
+                }
 
                 if useContextualCompression, HyDEService.isAvailable, contextCandidates.count > 0 {
                     let compressionService = ContextualCompressionService()
@@ -3933,7 +4049,10 @@ class RAGService: ObservableObject {
                             )
                         }
                     } catch {
+                        // Safety filter or other compression failures - keep ALL original chunks intact
+                        // This is critical for procedural content that may trigger false positives
                         Log.warning("[Compression] Failed, using original chunks: \(error.localizedDescription)", category: .retrieval)
+                        Log.info("[Compression] Preserving all \(contextCandidates.count) original chunks for procedural safety", category: .retrieval)
                     }
                 }
 
@@ -4014,7 +4133,12 @@ class RAGService: ObservableObject {
                 #endif
                 let allowLargeContext = pccEligible && (cloudConsentAllowed || hasTransientGrant)
                 let applyTrivialCaps = isTrivial && !allowLargeContext
-                let conservativeCharsPerToken: Double = isAppleFMOnDevice ? 2.5 : 3.5
+
+                // CRITICAL: Token estimation was off by ~2x (estimated 3056, actual 5994)
+                // Apple FM tokenizer is more aggressive than typical 2.5 chars/token
+                // Using 1.4 chars/token for Apple FM (empirically observed ratio)
+                // Safety is applied ONCE at the end, not per-component (avoids compound paranoia)
+                let conservativeCharsPerToken: Double = isAppleFMOnDevice ? 1.4 : 2.5
 
                 func estimateTokens(chars: Int) -> Int {
                     max(1, Int(ceil(Double(chars) / conservativeCharsPerToken)))
@@ -4032,32 +4156,37 @@ class RAGService: ObservableObject {
                     return inferenceConfig.contextLength ?? 4096
                 }()
 
-                // More conservative token budgeting for Apple Intelligence's 4096 limit
+                // Token estimation for budget calculation (no compound safety factors)
                 func estimateTokensConservative(chars: Int) -> Int {
                     max(1, Int(ceil(Double(chars) / conservativeCharsPerToken)))
                 }
 
-                // Safety margins for 4096 token window
-                // Reduced from 900→500: 900 was too aggressive and wasted ~1000 chars of usable context
-                let safetyTokens = isAppleFMOnDevice ? 500 : 400
+                // Single safety margin: 15% of window + 200 flat buffer
+                // This replaces the previous compound safety (1.6x factor + 800 buffer)
+                let safetyTokens = isAppleFMOnDevice ? 400 : 300
                 let systemPromptTokens = estimateTokensConservative(chars: (inferenceConfig.systemPrompt ?? "").count)
-                let promptOverheadTokens = 150 + systemPromptTokens // Template overhead (reduced from 200)
+                let promptOverheadTokens = 120 + systemPromptTokens // Template overhead
                 let questionTokens = estimateTokensConservative(chars: question.count)
 
-                // Reserve room for output (conservative for 4096 window)
-                let reservedOutputTokens = max(200, min(inferenceConfig.maxTokens, 400))
+                // Reserve room for output
+                let reservedOutputTokens = max(150, min(inferenceConfig.maxTokens, 300))
+
+                // Calculate available tokens, then apply ONE 15% safety haircut at the end
+                let rawAvailableTokens = baseWindowTokens - promptOverheadTokens - questionTokens - reservedOutputTokens
+                let globalSafetyFactor: Double = isAppleFMOnDevice ? 0.85 : 0.90 // 15% or 10% safety margin
                 let availableForContextTokens = max(
                     0,
-                    baseWindowTokens - safetyTokens - promptOverheadTokens - questionTokens - reservedOutputTokens
+                    Int(Double(rawAvailableTokens) * globalSafetyFactor) - safetyTokens
                 )
                 let cappedContextTokens = applyTrivialCaps
                     ? min(availableForContextTokens, 2600)
                     : availableForContextTokens
-                // Increased char limits for better RAG context coverage
-                // At ~2.5 chars/token, 2800 tokens = ~7000 chars
+                // Char limits: with 1.4 chars/token and 15% safety, we can use more context
+                // Target: ~2800 tokens * 1.4 = ~3900 chars (non-trivial)
+                // Trivial cap: ~1800 tokens * 1.4 = ~2500 chars
                 let maxContextCharsCap = isAppleFMOnDevice
-                    ? (applyTrivialCaps ? 4000 : 7500):
-                        applyTrivialCaps ? 8000 : 14000
+                    ? (applyTrivialCaps ? 2500 : 5500):
+                        applyTrivialCaps ? 6000 : 10000
                 let maxContextChars = min(
                     max(800, Int(Double(cappedContextTokens) * conservativeCharsPerToken)),
                     maxContextCharsCap
@@ -4072,10 +4201,31 @@ class RAGService: ObservableObject {
 
                 Log.debug("Context budget: base=\(baseWindowTokens), question=\(questionTokens), available=\(availableForContextTokens) tokens → \(maxContextChars) chars, compact=\(useCompactMode)", category: .pipeline)
 
+                // For procedural queries, preserve document order instead of relevance order
+                // This prevents sequence inversions (e.g., "dry before disinfect" errors)
+                let orderedCandidates: [RetrievedChunk]
+                if isProceduralQuery {
+                    // Sort by document ID then chunk index to preserve original document sequence
+                    orderedCandidates = contextCandidates.sorted(by: { (a: RetrievedChunk, b: RetrievedChunk) -> Bool in
+                        if a.chunk.documentId == b.chunk.documentId {
+                            return a.chunk.metadata.chunkIndex < b.chunk.metadata.chunkIndex
+                        }
+                        // Group by document, then by first appearance order
+                        return a.rank < b.rank
+                    })
+                    Log.info("[RAG] Procedural query - preserving document order for sequence fidelity", category: .retrieval)
+                } else {
+                    orderedCandidates = contextCandidates
+                }
+
+                // For procedural queries, disable "Lost in Middle" reordering to preserve sequence
+                let useLostInMiddleMitigation = !isProceduralQuery
+
                 let (context, actualChunksUsed) = await engine.assembleContext(
-                    chunks: contextCandidates,
+                    chunks: orderedCandidates,
                     maxChars: maxContextChars,
-                    compact: useCompactMode
+                    compact: useCompactMode,
+                    useLostInMiddleMitigation: useLostInMiddleMitigation
                 )
                 Log.info(
                     "   ✓ Using \(actualChunksUsed)/\(contextCandidates.count) chunks (\(context.count) chars)\(useCompactMode ? " [compact]" : "") • \(contextStrategy)",
@@ -4129,7 +4279,7 @@ class RAGService: ObservableObject {
                     chunkingTargetWords: chunkingTarget,
                     chunkingOverlapWords: chunkingOverlap,
                     chunkingSource: chunkingSource,
-                    qualityMode: qualityMode,
+                    qualityModeName: qualityModeDisplayName,
                     retrievalConfig: retrievalConfig,
                     lenientRetrieval: auditLenient,
                     dynamicMin: auditDynamicMin,
@@ -4213,6 +4363,50 @@ class RAGService: ObservableObject {
                     )
                 }
 
+                // EVIDENCE-FIRST GATE: Check retrieval quality BEFORE generation
+                // If evidence is weak, switch to Evidence-First mode instead of generating verbosely
+                // Key insight: P(all claims correct) = p^N where N = number of claims
+                // With weak evidence (p=0.92) and N=50 claims: 0.92^50 ≈ 1.5% chance of being fully correct
+                let bestRetrievalSim = includedRetrievedChunks.first?.similarityScore ?? 0
+                let avgRetrievalSim = includedRetrievedChunks.isEmpty ? 0 :
+                    includedRetrievedChunks.map { $0.similarityScore }.reduce(0, +) / Float(includedRetrievedChunks.count)
+                let uniqueSourceDocs = Set(includedRetrievedChunks.map { $0.chunk.documentId }).count
+
+                // Pre-generation confidence estimate
+                let preGenConfidence: Float = {
+                    var score: Float = 0.5
+                    if bestRetrievalSim >= 0.35 { score += 0.15 }
+                    if avgRetrievalSim >= 0.28 { score += 0.10 }
+                    if uniqueSourceDocs >= 2 { score += 0.10 }
+                    if actualChunksUsed >= 5 { score += 0.10 }
+                    return min(1.0, score)
+                }()
+
+                // Evidence-First mode triggers:
+                // 1. Best similarity below threshold
+                // 2. Low pre-generation confidence
+                // 3. Average top-5 similarity below the dynamic minimum (key insight: if avgTop5 < dynamicMin, evidence is weak)
+                let avgTop5BelowThreshold = auditAvgTop5 < auditDynamicMin
+                let evidenceIsWeak = bestRetrievalSim < 0.25 || preGenConfidence < 0.70 || avgTop5BelowThreshold
+                let useEvidenceFirstMode = evidenceIsWeak && isProceduralQuery
+
+                if useEvidenceFirstMode {
+                    let triggerReason: String
+                    if avgTop5BelowThreshold {
+                        triggerReason = "avgTop5 (\(String(format: "%.2f", auditAvgTop5))) < dynamicMin (\(String(format: "%.2f", auditDynamicMin)))"
+                    } else if bestRetrievalSim < 0.25 {
+                        triggerReason = "bestSim (\(String(format: "%.2f", bestRetrievalSim))) < 0.25"
+                    } else {
+                        triggerReason = "preGenConf (\(String(format: "%.2f", preGenConfidence))) < 0.70"
+                    }
+                    Log.warning("[RAG] Evidence-First mode triggered: \(triggerReason)", category: .retrieval)
+                    emitThinkingEvent(
+                        .warning,
+                        title: "Evidence-First mode",
+                        detail: "Low confidence (\(String(format: "%.0f", preGenConfidence * 100))%) - \(triggerReason)"
+                    )
+                }
+
                 // Step 6: Generate response using LLM with augmented context
                 Log.section("Step 6: LLM Generation", level: .info, category: .pipeline)
 
@@ -4224,24 +4418,71 @@ class RAGService: ObservableObject {
 
                 var genConfig = inferenceConfig
 
-                // Set explicit system prompt for RAG to ensure comprehensive answers
-                // PCC tends to give short responses without explicit length guidance
+                // Set explicit system prompt for RAG to ensure comprehensive, ACCURATE answers
+                // Focus on fidelity to source documents, not summarization
                 genConfig.systemPrompt = """
-                You are an intelligent assistant answering questions from the user's knowledge base.
+                [Language: English]
+                You are a precise research assistant answering questions from the user's knowledge base. Always respond in English.
 
-                    INSTRUCTIONS:
-                    1.Read ALL provided excerpts carefully before answering
-                2.Synthesize information from multiple sources when relevant
-                3.Provide DETAILED, COMPREHENSIVE answers(aim for 150 - 300 words minimum)
-                4.If the excerpts cover multiple aspects, explain each one
-                5.Cite sources using[S1], [S2], etc.to ground your answer
-                6.If information is incomplete, say what you found and what's missing
+                    CRITICAL SEQUENCING RULES(for procedures / workflows):
+                    1.NEVER INVERT TEMPORAL ORDER: If source says "A then B then C", you MUST output A → B → C.
+                    Common mistake: saying "dry before disinfect" when source says "disinfect then rinse then dry".
+                    2.PRESERVE PHASE BOUNDARIES: Procedures often have distinct phases(e.g., Decontamination → Prep & Pack → Sterilization → Storage).
+                    Do NOT merge phases or skip phase transitions.
+                    3.NEVER OMIT MAJOR STEPS: If source includes a major action verb(clean, disinfect, rinse, dry, sterilize, wrap, store),
+                   you MUST include it.Skipping "sterilize" in a reprocessing workflow is a critical error.
+                    4.DISTINGUISH PRECONDITIONS FROM STEPS: Things that must be true BEFORE starting(e.g., "remove tip protector")
+                are preconditions, not mid - process steps.
 
-                Be thorough and helpful.Short answers are only acceptable for simple factual questions.
+                    ACCURACY PRINCIPLES:
+                    1.FIDELITY OVER BREVITY: Reproduce information exactly as it appears in sources.Do not summarize or paraphrase procedural steps.
+                    2.COMPLETE ENUMERATION: For procedures, include EVERY step—omissions can be dangerous.
+                    3.PRESERVE EXACT SEQUENCE: Present steps in the EXACT order from the source.If unsure of order, quote the source directly.
+                    4.DISTINGUISH SIMILAR CONCEPTS: Maintain distinctions the source makes(e.g., "button flush ports" vs "base flush areas").
+                    5.CITE PRECISELY: Use[S1], [S2], etc.When sources differ, note the difference.
+                    6.ACKNOWLEDGE GAPS: If excerpts seem incomplete, explicitly state "Note: The provided excerpts may not include all steps."
+                7.NO INVENTION: Never add steps not present in the excerpts.
+
+                    RESPONSE FORMAT:
+                    - For procedures: Use numbered lists matching the source's structure exactly
+                    - For multi - phase processes: Use section headers for each phase
+                    - Include timing / duration constraints verbatim(e.g., "≤30 minutes", "≥60 seconds")
+                    - Aim for 200 - 400 words for complex topics
+
+                If the question asks about something not covered in the excerpts, say "The provided documents don't contain information about [X]."
                 """
 
-                // Use quality mode's temperature (already optimized in enum)
-                genConfig.temperature = min(genConfig.temperature, qualityMode.temperature)
+                // Evidence-First mode: modify system prompt to be more cautious
+                if useEvidenceFirstMode {
+                    genConfig.systemPrompt = """
+                    [Language: English]
+                    You are a precise research assistant in EVIDENCE - FIRST MODE due to low retrieval confidence.Always respond in English.
+
+                        EVIDENCE - FIRST RULES(you MUST follow these):
+                        1.ONLY state what is DIRECTLY quoted or clearly supported by the excerpts below.
+                        2.For each claim, cite the specific source[S1], [S2], etc.
+                        3.EXPLICITLY list what the excerpts do NOT contain(gaps in evidence).
+                        4.If the excerpts seem incomplete for a full procedure, say: "Note: These excerpts may not contain all steps. The sources show: [list what IS present]"
+                    5.Do NOT fill gaps with assumptions or general knowledge.
+                        6.Keep response SHORT - only supported facts, not speculation.
+
+                        FORMAT:
+                    ## What the sources show:
+                        [Cite only directly supported information]
+
+                    ## What appears to be missing:
+                        [List gaps in the evidence]
+
+                    ## Confidence note:
+                        [Brief statement about evidence quality]
+                    """
+                    // Lower temperature for more conservative output
+                    genConfig.temperature = min(genConfig.temperature, 0.2)
+                    Log.info("[RAG] Using Evidence-First prompt (cautious mode)", category: .llm)
+                }
+
+                // Use adaptive mode's temperature
+                genConfig.temperature = min(genConfig.temperature, qualityModeTemperature)
 
                 // High Accuracy retrieval config overrides quality mode
                 if retrievalConfig == .highAccuracy {
@@ -4257,6 +4498,17 @@ class RAGService: ObservableObject {
                 if genConfig.maxTokens > availableForOutput {
                     genConfig.maxTokens = availableForOutput
                 }
+
+                // For procedural queries, ensure adequate tokens to avoid continuation chains
+                // Continuations increase hallucination risk as second pass "fills gaps" creatively
+                if isProceduralQuery, genConfig.maxTokens < 600 {
+                    let boosted = min(availableForOutput, 600)
+                    if boosted > genConfig.maxTokens {
+                        Log.info("[RAG] Procedural query - boosting maxTokens \(genConfig.maxTokens) → \(boosted) to avoid continuations", category: .llm)
+                        genConfig.maxTokens = boosted
+                    }
+                }
+
                 if isTrivial, !allowLargeContext {
                     let capped = min(genConfig.maxTokens, 384)
                     if capped != genConfig.maxTokens {
@@ -4309,7 +4561,7 @@ class RAGService: ObservableObject {
                 }
 
                 let requiresCitations = retrievalConfig.requireExplicitCitations
-                    || qualityMode.requiresCitations
+                    || qualityModeRequiresCitations
                 let promptForGeneration: String
                 if requiresCitations {
                     promptForGeneration = historyContext + question
@@ -4703,7 +4955,9 @@ class RAGService: ObservableObject {
                         retrievalConfigSummary: retrievalConfig.summary,
                         gatingDecision: gatingSummary,
                         toolCallsMade: llmResponse.toolCallsMade,
-                        embeddingProvider: embeddingProviderId
+                        embeddingProvider: embeddingProviderId,
+                        usedAgenticMode: false, // Single-pass mode
+                            originalQuery: question // For "Go Deeper" re-query
                     )
 
                     let response = RAGResponse(
@@ -4758,8 +5012,8 @@ class RAGService: ObservableObject {
                         response: response
                     )
                 }
-
             } else {
+                // No documents case
                 if !allowUngroundedFallback {
                     let response = await makeGroundedAbstainResponse(
                         question: question,
@@ -6556,15 +6810,34 @@ extension RAGService: RAGToolHandler {
     }
 
     /// Search and return raw chunks for agentic orchestrator (not just formatted string)
+    /// Uses hybrid search (vector + BM25) for better retrieval quality on technical documents.
     /// Used internally by AgenticOrchestrator to collect chunks for UnifiedMetricsBar
-    func searchDocumentsRaw(query: String, topK: Int = 5, minSimilarity: Float = 0.3) async throws -> [RetrievedChunk] {
+    func searchDocumentsRaw(query: String, topK: Int = 10, minSimilarity: Float = 0.25) async throws -> [RetrievedChunk] { 
         let embeddingContext = await resolveEmbeddingContext()
         let queryEmbedding = try await embeddingContext.service.generateEmbedding(for: query)
 
         let db = await dbFor(embeddingContext.containerId)
-        var retrievedChunks = try await db.search(
+
+        // Use hybrid search (vector + BM25) for better keyword matching on technical terms
+        // Critical for car manuals, technical docs where exact terms like "5W-30" matter
+        let hybridSearch = HybridSearchService(
+            vectorDatabase: db,
+            vectorWeight: 0.5, // Balance vector and keyword for technical queries
+            keywordWeight: 0.5
+        )
+
+        // Index BM25 with available chunks (for lexical recall)
+        let allChunks = try await db.allChunks()
+        let bm25Scorer = BM25Scorer()
+        bm25Scorer.indexDocuments(allChunks)
+
+        // Request more candidates for better coverage
+        let effectiveTopK = max(topK, 15)
+        var retrievedChunks = try await hybridSearch.search(
+            query: query, 
             embedding: queryEmbedding,
-            topK: topK
+            topK: effectiveTopK,
+            cachedChunks: allChunks
         )
 
         let engine = RAGEngine.shared

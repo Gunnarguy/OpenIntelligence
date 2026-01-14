@@ -488,6 +488,8 @@ struct DocumentDetailsView: View {
         case .numbers: return "tablecells.fill"
         case .keynote: return "rectangle.3.group.fill"
         case .csv: return "tablecells.fill"
+        case .audio, .m4a, .mp3, .wav: return "waveform"
+        case .video, .mp4, .mov: return "video.fill"
         case .unknown: return "doc.questionmark"
         }
     }
@@ -787,7 +789,9 @@ private struct ContentTagPill: View {
 
 // MARK: - Flow Layout (wrapping horizontal layout)
 
-private struct FlowLayout: Layout {
+/// A layout that arranges views horizontally, wrapping to next line when needed
+/// Shared across the app for keyword tags, badges, etc.
+struct FlowLayout: Layout { 
     var spacing: CGFloat = 8
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {

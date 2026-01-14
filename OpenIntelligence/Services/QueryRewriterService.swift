@@ -141,6 +141,25 @@ final class QueryRewriterService: @unchecked Sendable {
         case tooShort // Under 3 words, might need context
     }
 
+    /// Check if a word is a stop word (not a content-bearing noun)
+    private func isStopWord(_ word: String) -> Bool {
+        let stopWords: Set<String> = [
+            "is", "are", "was", "were", "be", "been", "being",
+            "do", "does", "did", "have", "has", "had",
+            "can", "could", "will", "would", "shall", "should", "may", "might", "must",
+            "a", "an", "the", "and", "or", "but", "if", "then", "else",
+            "when", "where", "why", "how", "what", "which", "who", "whom",
+            "to", "of", "in", "for", "on", "with", "at", "by", "from",
+            "about", "into", "through", "during", "before", "after",
+            "i", "you", "he", "she", "we", "they", "me", "him", "her", "us",
+            "my", "your", "his", "its", "our", "their",
+            "all", "any", "both", "each", "few", "more", "most", "some",
+            "no", "not", "only", "same", "so", "than", "too", "very",
+            "just", "also", "now", "here", "there",
+        ]
+        return stopWords.contains(word.lowercased())
+    }
+
     private func detectAmbiguity(_ query: String, conversationContext: [ConversationTurn]) -> AmbiguityType {
         let lower = query.lowercased()
         let words = query.split(separator: " ")
@@ -157,13 +176,33 @@ final class QueryRewriterService: @unchecked Sendable {
         }
 
         // Pronoun ambiguity (only if we have context to resolve from)
-        let ambiguousPronouns = ["it", "this", "that", "these", "those", "they", "them"]
-        if !conversationContext.isEmpty {
-            for pronoun in ambiguousPronouns {
-                // Check if pronoun appears as a standalone word
-                let queryWords = lower.split(separator: " ").map { String($0).trimmingCharacters(in: .punctuationCharacters) }
+        // CRITICAL: "this/that" + noun is NOT ambiguous ("this button" is clear)
+        // Only flag demonstratives that stand alone ("what is this?")
+        if !conversationContext.isEmpty { 
+            let queryWords = lower.split(separator: " ").map { String($0).trimmingCharacters(in: .punctuationCharacters) }
+
+            // These are always ambiguous when present
+            let alwaysAmbiguous = ["it", "they", "them"]
+            for pronoun in alwaysAmbiguous {
+                
                 if queryWords.contains(pronoun) {
                     return .pronouns
+                }
+            }
+
+            // Demonstratives (this/that/these/those) are only ambiguous when:
+            // - They appear at the end of a sentence ("what is this?")
+            // - They stand alone without a following noun
+            let demonstratives = ["this", "that", "these", "those"]
+            for (i, word) in queryWords.enumerated() {
+                if demonstratives.contains(word) {
+                    let isLastWord = (i == queryWords.count - 1)
+                    let nextWordIsNoun = !isLastWord && !isStopWord(queryWords[i + 1])
+                    // Only ambiguous if standalone (last word or followed by verb/stop word)
+                    if isLastWord || !nextWordIsNoun {
+                        return .pronouns
+                    }
+                    // "this button", "that document" - demonstrative + noun is CLEAR, don't rewrite
                 }
             }
         }
@@ -242,17 +281,26 @@ final class QueryRewriterService: @unchecked Sendable {
             The question contains pronouns (it/this/that/etc) that refer to something from the conversation.
             Rewrite the question replacing pronouns with what they refer to.
             Keep it natural and concise. Output only the rewritten question.
+
+            CRITICAL: Do NOT introduce any nouns, entities, or concepts not explicitly present in the conversation.
+                If the pronoun has no clear referent in the context above, leave the original wording unchanged.
             """
         case .followUp:
             prompt += """
             This is a follow-up question. Make it standalone by incorporating the relevant context.
             Keep it natural and concise. Output only the rewritten question.
+
+            CRITICAL: Do NOT introduce any nouns, entities, or concepts not explicitly present in the conversation.
+                If the pronoun has no clear referent in the context above, leave the original wording unchanged.
             """
         case .tooShort:
             prompt += """
             This question is very brief. If it relates to the conversation, make it more complete.
             If it's already clear, output it unchanged.
             Keep it natural. Output only the question.
+
+            CRITICAL: Do NOT introduce any nouns, entities, or concepts not explicitly present in the conversation.
+                If the pronoun has no clear referent in the context above, leave the original wording unchanged.
             """
         case .none:
             return query

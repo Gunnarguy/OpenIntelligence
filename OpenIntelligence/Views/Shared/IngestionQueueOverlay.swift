@@ -12,7 +12,7 @@ struct IngestionQueueOverlay: View {
     private func sortOrder(for item: IngestionItem) -> Int {
         switch item.stage {
         case .queued: return 1
-        case .loading, .extracting, .chunking, .analyzing, .embedding, .storing: return 0
+        case .loading, .transcribing, .extracting, .chunking, .analyzing, .embedding, .storing: return 0
         case .complete, .failed: return 2
         }
     }
@@ -151,6 +151,7 @@ private struct IngestionQueueRow: View {
         switch item.stage {
         case .queued: return "clock"
         case .loading: return "arrow.down.circle"
+        case .transcribing: return "waveform"
         case .extracting: return "doc.text.magnifyingglass"
         case .chunking: return "square.split.2x2"
         case .analyzing: return "brain"

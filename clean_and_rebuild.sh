@@ -14,6 +14,3 @@ rm -rf ~/Library/Developer/Xcode/DerivedData/OpenIntelligence-*
 echo "✅ Clean complete! Now:"
 echo "   1. DELETE the app from your simulator/device"
 echo "   2. Run: ⌘R in Xcode"
-echo ""
-echo "The OpenAI Configuration section should appear in Settings"
-echo "right after 'Private Cloud Compute Settings'"

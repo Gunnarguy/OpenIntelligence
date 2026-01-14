@@ -45,6 +45,7 @@ struct SettingsView: View {
                 contextWindowCard
 
                 // More
+                appearanceCard
                 developerCard
                 aboutCard
             }
@@ -514,7 +515,7 @@ Text(deviceService.chipName)
                         .foregroundColor(.secondary)
                 }
 
-                Text("Neural Engine: \(deviceService.tier.estimatedNPUTops) TOPS • \(deviceService.formFactor == .iPadPro ? "Active cooling" : "Passive cooling")")
+                Text("Neural Engine: \(deviceService.npuTops) TOPS • \(deviceService.formFactor.hasActiveCooling ? "Active cooling" : "Passive cooling")")
                     .font(.caption)
                     .foregroundColor(.secondary)
 
@@ -544,7 +545,7 @@ Text("Context Window")
                     .foregroundColor(.secondary)
 
                 HStack(spacing: 12) {
-                    contextInfoPill(icon: deviceService.isIPad ? "ipad" : "iphone", label: "On-Device", value: "4K tokens")
+                    contextInfoPill(icon: deviceService.isMac ? "desktopcomputer" : (deviceService.isIPad ? "ipad" : "iphone"), label: "On-Device", value: "4K tokens")
                     contextInfoPill(icon: "cloud", label: "PCC", value: "Complex queries")
                 }
             }
@@ -787,7 +788,7 @@ Text("Context Window")
                 liveMetricCard(
                     icon: SystemStateMonitor.batteryIcon(level: state.batteryLevel, isCharging: state.isCharging),
                     label: "Battery Level",
-                    value: state.batteryPercent >= 0 ? "\(state.batteryPercent)%" : "N/A",
+                    value: state.batteryDisplayString,
                     detail: batteryDetailText(state),
                     color: batteryStateColor(level: state.batteryLevel, isCharging: state.isCharging)
                 )
@@ -1046,88 +1047,47 @@ Text("Context Window")
                 }
             }
 
-            Text("Fine-tune how the AI generates responses.")
+            Text("Customize how the AI responds to your questions.")
                 .font(.caption)
                 .foregroundColor(.secondary)
 
-            // Reliability mode toggle (always visible - most useful)
-            Toggle(isOn: $settings.reliabilityModeEnabled) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Reliability First")
-                        .font(.subheadline.weight(.medium))
-                    Text("Prefer fallbacks over showing errors")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-            .tint(.green)
+            // System Prompt (always visible - the only user-facing tuning that makes sense)
+            VStack(alignment: .leading, spacing: 6) {
+                Label("System Prompt", systemImage: "text.quote")
+                    .font(.subheadline.weight(.medium))
 
-            // Advanced section (collapsible)
+                TextField("You are a helpful assistant...", text: $settings.systemPrompt, axis: .vertical)
+                    .textFieldStyle(.roundedBorder)
+                    .lineLimit(3 ... 6)
+                    .font(.caption)
+
+                Text("Instructions given to the AI before each conversation.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+
+            // Advanced section (collapsible) - only reset button now
             if showAdvancedGeneration {
                 Divider()
 
-                VStack(alignment: .leading, spacing: 14) {
-                    // System Prompt
-                    VStack(alignment: .leading, spacing: 6) {
-                        Label("System Prompt", systemImage: "text.quote")
-                            .font(.subheadline.weight(.medium))
-
-                        TextField("You are a helpful assistant...", text: $settings.systemPrompt, axis: .vertical)
-                            .textFieldStyle(.roundedBorder)
-                            .lineLimit(3 ... 6)
-                            .font(.caption)
-
-                        Text("Instructions given to the AI before each conversation.")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
+                // Reset button
+                Button {
+                    withAnimation { 
+                        settings.systemPrompt = "You are a helpful assistant."
                     }
-
-                    // Max Tokens
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack {
-                            Label("Max Response Length", systemImage: "text.word.spacing")
-                                .font(.subheadline.weight(.medium))
-                            Spacer()
-                            Text("\(settings.maxTokens) tokens")
-                                .font(.caption.monospacedDigit())
-                                .foregroundColor(.accentColor)
-                        }
-
-                        Slider(
-                            value: Binding(
-                                get: { Double(settings.maxTokens) },
-                                set: { settings.maxTokens = Int($0) }
-                            ),
-                            in: 256 ... 4096,
-                            step: 256
-                        )
-                        .tint(.blue)
-
-                        Text("Maximum number of tokens in AI responses. Higher = longer responses.")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
+                } label: {
+                    HStack {
+                        Image(systemName: "arrow.counterclockwise")
+                        Text("Reset to Default")
                     }
-
-                    // Reset button
-                    Button {
-                        withAnimation {
-                            settings.maxTokens = 2048
-                            settings.systemPrompt = "You are a helpful assistant."
-                        }
-                    } label: {
-                        HStack {
-                            Image(systemName: "arrow.counterclockwise")
-                            Text("Reset to Defaults")
-                        }
-                        .font(.caption.weight(.medium))
+                    .font(.caption.weight(.medium))
                         .foregroundColor(.secondary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
                         .background(Color.secondary.opacity(0.1))
                         .clipShape(RoundedRectangle(cornerRadius: 8))
-                    }
-                    .buttonStyle(.plain)
                 }
+                .buttonStyle(.plain)
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
@@ -1259,6 +1219,45 @@ VStack(alignment: .leading, spacing: 1) {
                     .foregroundColor(.secondary)
             }
         }
+    }
+
+    // MARK: - Appearance Card
+
+    @ViewBuilder
+    private var appearanceCard: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(Color.purple.opacity(0.15))
+                        .frame(width: 32, height: 32)
+                    Image(systemName: "paintpalette.fill")
+                        .font(.system(size: 14))
+                        .foregroundColor(.purple)
+                }
+
+                Text("Appearance")
+                    .font(.headline)
+
+                Spacer()
+            }
+            .padding(.horizontal)
+            .padding(.top)
+            .padding(.bottom, 8)
+
+            Divider()
+                .padding(.horizontal)
+
+            // Accent Color Row
+            VStack(spacing: 0) {
+                AccentColorSettingsRow(accentColorHex: $settings.appAccentColorHex)
+                    .padding(.horizontal)
+                    .padding(.vertical, 12)
+            }
+        }
+        .background(DSColors.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
     // MARK: - Developer Card

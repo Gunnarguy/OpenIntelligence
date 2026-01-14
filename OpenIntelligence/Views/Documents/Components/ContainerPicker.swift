@@ -11,21 +11,27 @@ struct ContainerPickerStrip: View {
     @ObservedObject var containerService: ContainerService
     var allowsCreation: Bool = false
     var onCreateLibrary: (() -> Void)? = nil
-    
+    var onDeleteLibrary: ((KnowledgeContainer) -> Void)?
+
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 12) {
                 ForEach(containerService.containers) { container in
                     ContainerPill(
                         container: container,
-                        isSelected: containerService.activeContainerId == container.id
-                    ) {
-                        withAnimation {
-                            containerService.setActive(container.id)
+                        isSelected: containerService.activeContainerId == container.id,
+                        canDelete: containerService.containers.count > 1, // Can't delete last library
+                            onSelect: {
+                                withAnimation {
+                                    containerService.setActive(container.id)
+                                }
+                        },
+                        onDelete: {
+                                onDeleteLibrary?(container)
                         }
-                    }
+                    )
                 }
-                
+
                 if allowsCreation {
                     Button {
                         onCreateLibrary?()
@@ -50,10 +56,17 @@ struct ContainerPickerStrip: View {
 struct ContainerPill: View {
     let container: KnowledgeContainer
     let isSelected: Bool
-    let action: () -> Void
-    
+    var canDelete: Bool = true
+    let onSelect: () -> Void
+    var onDelete: (() -> Void)?
+
+    /// The container's custom color, or accent color as fallback
+    private var containerColor: Color {
+        Color(hex: container.colorHex) ?? .accentColor
+    }
+
     var body: some View {
-        Button(action: action) {
+        Button(action: onSelect) { 
             HStack(spacing: 6) {
                 Image(systemName: container.icon)
                     .font(.caption)
@@ -65,14 +78,31 @@ struct ContainerPill: View {
             .padding(.vertical, 8)
             .background(
                 Capsule()
-                    .fill(isSelected ? Color.accentColor : DSColors.surface)
+.fill(isSelected ? containerColor : DSColors.surface)
             )
             .foregroundColor(isSelected ? .white : .primary)
             .overlay(
                 Capsule()
-                    .strokeBorder(isSelected ? Color.clear : Color.secondary.opacity(0.2), lineWidth: 1)
+.strokeBorder(isSelected ? Color.clear : containerColor.opacity(0.3), lineWidth: 1)
             )
-            .shadow(color: isSelected ? Color.accentColor.opacity(0.3) : .clear, radius: 4, x: 0, y: 2)
+.shadow(color: isSelected ? containerColor.opacity(0.3) : .clear, radius: 4, x: 0, y: 2)
+        }
+        .contextMenu {
+            Button {
+                onSelect()
+            } label: {
+                Label("Select Library", systemImage: "checkmark.circle")
+            }
+
+            if canDelete {
+                Divider()
+
+                Button(role: .destructive) {
+                    onDelete?()
+                } label: {
+                    Label("Delete Library", systemImage: "trash")
+                }
+            }
         }
     }
 }

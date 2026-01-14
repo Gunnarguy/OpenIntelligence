@@ -25,11 +25,12 @@ struct AdaptiveVisualizationsView: View {
 
     // Atlas visualization settings
     @State private var atlasProjection: AtlasProjectionMethod = .pca
-    @State private var atlasPointScale: Double = 1.0
-    @State private var atlasAutoRotate = true
-    @State private var atlasDepthCue = true
+    @State private var atlasPointScale: Double = 1.2
+    @State private var atlasAutoRotate = false // Off by default - let user explore
+    @State private var atlasDepthCue = false // Off for cleaner look
     @State private var atlasShowLabels = true
-    @State private var atlasBackground: AtlasBackgroundStyle = .aurora
+    @State private var atlasShowAxes = true // On by default - show spatial reference
+    @State private var atlasBackground: AtlasBackgroundStyle = .midnight // Dark for contrast
 
     enum AtlasProjectionMethod: String, CaseIterable {
         case pca = "PCA"
@@ -1589,7 +1590,7 @@ struct Fullscreen3DAtlasView: View {
         Embedding3DSceneView.SceneOptions(
             pointScale: CGFloat(pointScale),
             autoRotate: autoRotate,
-            showAxes: false,
+            showAxes: true, // Always show axes for spatial reference
             depthCue: depthCue,
             backgroundStyle: backgroundStyle
         )
@@ -1606,7 +1607,7 @@ struct Fullscreen3DAtlasView: View {
             } else if points.isEmpty {
                 emptyView
             } else {
-                ZStack(alignment: .bottomLeading) {
+                ZStack { 
                     Embedding3DSceneView(
                         points: points,
                         colors: colors,
@@ -1616,8 +1617,25 @@ struct Fullscreen3DAtlasView: View {
                     )
                     .ignoresSafeArea()
 
-                    // Interaction hint
-                    fullscreenHintOverlay
+                    // Topic legend - top left
+                    VStack {
+                        HStack {
+                            fullscreenTopicLegend
+                            Spacer()
+                        }
+                        Spacer()
+                    }
+                    .padding(.top, 70) // Below topBar
+
+                    // Interaction hint - bottom left
+                    VStack {
+                        Spacer()
+                        HStack {
+                            fullscreenHintOverlay
+                            Spacer()
+                        }
+                    }
+                    .padding(.bottom, 80) // Above bottomBar
                 }
             }
 
@@ -1757,7 +1775,7 @@ struct Fullscreen3DAtlasView: View {
             if let profile, !profile.dominantTopics.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 12) {
-                        ForEach(profile.dominantTopics.prefix(8)) { topic in
+                        ForEach(profile.dominantTopics) { topic in
                             HStack(spacing: 6) {
                                 Circle()
                                     .fill(topic.color)
@@ -1907,52 +1925,65 @@ struct Fullscreen3DAtlasView: View {
         }
     }
 
-    /// Overlay hint for fullscreen view
-    private var fullscreenHintOverlay: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("How to Read This Map")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(.white)
+    /// Topic color legend for fullscreen view
+    private var fullscreenTopicLegend: some View {
+        let topicColors = buildFullscreenTopicLegend()
 
-            Divider()
-                .background(Color.white.opacity(0.3))
+        return Group {
+            if !topicColors.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(topicColors.prefix(6), id: \.name) { item in
+                        HStack(spacing: 6) {
+                            Circle()
+.fill(item.color)
+    .frame(width: 8, height: 8)
 
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(Color.blue)
-                    .frame(width: 8, height: 8)
-                Text("Each dot is a passage from your documents")
-                    .font(.system(size: 11))
-            }
-
-            HStack(spacing: 8) {
-                Image(systemName: "arrow.left.and.right")
-                    .font(.system(size: 10))
-                Text("Dots close together = similar meaning")
-                    .font(.system(size: 11))
-            }
-
-            HStack(spacing: 8) {
-                Image(systemName: "hand.draw")
-                    .font(.system(size: 10))
-                Text("Drag to rotate • Pinch to zoom")
-                    .font(.system(size: 11))
-            }
-
-            HStack(spacing: 8) {
-                Image(systemName: "tag.fill")
-                    .font(.system(size: 10))
-                Text("Labels show topic clusters")
-                    .font(.system(size: 11))
+                            Text(item.name)
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(.white.opacity(0.5))
+                                .lineLimit(1)
+                        }
+                    }
+                }
+                .padding(8)
             }
         }
-        .foregroundColor(.white.opacity(0.85))
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(.ultraThinMaterial)
-        )
-        .padding(16)
+    }
+
+    private struct FullscreenTopicItem: Hashable {
+        let name: String
+        let color: Color
+        let count: Int
+    }
+
+    private func buildFullscreenTopicLegend() -> [FullscreenTopicItem] {
+        var topicCounts: [String: Int] = [:]
+        for (_, topicName) in chunkTopicAssignments {
+            topicCounts[topicName, default: 0] += 1
+        }
+
+        var result: [FullscreenTopicItem] = []
+        if let prof = profile {
+            for topic in prof.dominantTopics {
+                if let count = topicCounts[topic.name], count > 0 {
+                    result.append(FullscreenTopicItem(name: topic.name, color: topic.color, count: count))
+                }
+            }
+        }
+
+        return result.sorted { $0.count > $1.count }
+    }
+
+    /// Overlay hint for fullscreen view
+    private var fullscreenHintOverlay: some View {
+        HStack(spacing: 5) {
+            Image(systemName: "hand.draw")
+                .font(.system(size: 9))
+            Text("Drag to rotate • Pinch to zoom")
+                .font(.system(size: 9))
+        }
+        .foregroundColor(.white.opacity(0.35))
+        .padding(8)
     }
 
     // MARK: - Data Loading
@@ -1960,13 +1991,26 @@ struct Fullscreen3DAtlasView: View {
     private func loadData() async {
         await MainActor.run { isLoading = true }
 
-        // Get or build profile
+        // Force fresh profile build if none exists or if we need updated topic analysis
         let engine = LibraryVisualizationEngine.shared
-        if let existing = engine.currentProfile {
-            await MainActor.run { profile = existing }
+
+        // Trigger fresh analysis for the active container
+        let activeContainer = await MainActor.run { ragService.containerService.activeContainerId }
+        let allChunks = await ragService.allChunksForActiveContainer()
+        let docs = await MainActor.run { ragService.documents }
+        await engine.analyze(
+            containerId: activeContainer,
+            documents: docs,
+            chunks: allChunks,
+            retrievalHistory: []
+        )
+
+        // Now use the freshly built profile
+        if let freshProfile = engine.currentProfile {
+            await MainActor.run { profile = freshProfile }
         }
 
-        let allChunks = await ragService.allChunksForActiveContainer()
+        // allChunks already fetched above
 
         guard !allChunks.isEmpty else {
             await MainActor.run {
@@ -2000,17 +2044,22 @@ struct Fullscreen3DAtlasView: View {
             seed: seed
         )
 
-        // Topic assignment
+        // Topic assignment using existing functions in this scope
         let topicAssignments = assignTopics(chunks: sampledChunks)
         let mappedColors = mapColors(chunks: sampledChunks, assignments: topicAssignments)
-        let clusterAnnotations = buildAnnotations(
+
+        // Scale points properly for viewing (same approach as CompactAtlasSceneView)
+        let scaledPoints = scaleCoordinatesForViewing(coords3D)
+
+        // Build annotations with proper scaling applied
+        let clusterAnnotations = buildScaledAnnotations(
             chunks: sampledChunks,
             coords: coords3D,
             assignments: topicAssignments
         )
 
         await MainActor.run {
-            points = coords3D.map { SCNVector3($0.x, $0.y, $0.z) }
+            points = scaledPoints
             colors = mappedColors
             annotations = clusterAnnotations
             chunkTopicAssignments = topicAssignments
@@ -2022,16 +2071,20 @@ struct Fullscreen3DAtlasView: View {
     private func sampleChunks(_ chunks: [DocumentChunk]) -> [DocumentChunk] {
         guard chunks.count > sampleLimit else { return chunks }
 
-        // Stratified sampling by document
+        // Stratified sampling by document - DETERMINISTIC order
         var byDocument: [UUID: [DocumentChunk]] = [:]
         for chunk in chunks {
             byDocument[chunk.documentId, default: []].append(chunk)
         }
 
-        var sampled: [DocumentChunk] = []
-        let perDoc = max(1, sampleLimit / max(1, byDocument.count))
+        // Sort document IDs for deterministic iteration order
+        let sortedDocIds = byDocument.keys.sorted { $0.uuidString < $1.uuidString }
 
-        for (_, docChunks) in byDocument {
+        var sampled: [DocumentChunk] = []
+        let perDoc = max(1, sampleLimit / max(1, sortedDocIds.count))
+
+        for docId in sortedDocIds {
+            guard let docChunks = byDocument[docId] else { continue }
             if docChunks.count <= perDoc {
                 sampled.append(contentsOf: docChunks)
             } else {
@@ -2176,6 +2229,117 @@ struct Fullscreen3DAtlasView: View {
 
         return result
     }
+
+    // MARK: - Coordinate Scaling (matches CompactAtlasSceneView)
+
+    /// Scales coordinates properly for 3D viewing - preserves natural clustering
+    private func scaleCoordinatesForViewing(_ coords: [SIMD3<Float>]) -> [SCNVector3] {
+        guard !coords.isEmpty else { return [] }
+
+        // Find bounds
+        var minX = Float.greatestFiniteMagnitude, maxX = -Float.greatestFiniteMagnitude
+        var minY = Float.greatestFiniteMagnitude, maxY = -Float.greatestFiniteMagnitude
+        var minZ = Float.greatestFiniteMagnitude, maxZ = -Float.greatestFiniteMagnitude
+
+        for c in coords {
+            minX = min(minX, c.x); maxX = max(maxX, c.x)
+            minY = min(minY, c.y); maxY = max(maxY, c.y)
+            minZ = min(minZ, c.z); maxZ = max(maxZ, c.z)
+        }
+
+        let centerX = (minX + maxX) / 2
+        let centerY = (minY + maxY) / 2
+        let centerZ = (minZ + maxZ) / 2
+
+        let spanX = max(maxX - minX, 0.0001)
+        let spanY = max(maxY - minY, 0.0001)
+        let spanZ = max(maxZ - minZ, 0.0001)
+        let maxSpan = max(spanX, max(spanY, spanZ))
+
+        let targetSize: Float = 3.0
+        let scale = targetSize / maxSpan
+
+        var result: [SCNVector3] = []
+        result.reserveCapacity(coords.count)
+
+        for c in coords {
+            let x = (c.x - centerX) * scale
+            let y = (c.y - centerY) * scale
+            let z = (c.z - centerZ) * scale
+            result.append(SCNVector3(x, y, z))
+        }
+
+        return result
+    }
+
+    /// Build annotations with same scaling as points
+    private func buildScaledAnnotations(
+        chunks: [DocumentChunk],
+        coords: [SIMD3<Float>],
+        assignments: [UUID: String]
+    ) -> [Embedding3DSceneView.AnnotationData] {
+        guard chunks.count == coords.count, !coords.isEmpty else { return [] }
+
+        // Calculate scaling parameters (same as scaleCoordinatesForViewing)
+        var minX = Float.greatestFiniteMagnitude, maxX = -Float.greatestFiniteMagnitude
+        var minY = Float.greatestFiniteMagnitude, maxY = -Float.greatestFiniteMagnitude
+        var minZ = Float.greatestFiniteMagnitude, maxZ = -Float.greatestFiniteMagnitude
+
+        for c in coords {
+            minX = min(minX, c.x); maxX = max(maxX, c.x)
+            minY = min(minY, c.y); maxY = max(maxY, c.y)
+            minZ = min(minZ, c.z); maxZ = max(maxZ, c.z)
+        }
+
+        let centerX = (minX + maxX) / 2
+        let centerY = (minY + maxY) / 2
+        let centerZ = (minZ + maxZ) / 2
+        let maxSpan = max(max(maxX - minX, maxY - minY), max(maxZ - minZ, 0.0001))
+        let scale = 3.0 / maxSpan
+
+        // Group by topic
+        var topicPoints: [String: [SIMD3<Float>]] = [:]
+        for (i, chunk) in chunks.enumerated() {
+            guard i < coords.count else { continue }
+            let topic = assignments[chunk.id] ?? "General"
+            topicPoints[topic, default: []].append(coords[i])
+        }
+
+        // Get topic colors
+        var topicColorMap: [String: PlatformColor] = [:]
+        if let profile {
+            for topic in profile.dominantTopics {
+                topicColorMap[topic.name] = PlatformColor(topic.color)
+            }
+        }
+
+        var result: [Embedding3DSceneView.AnnotationData] = []
+        for (topic, pts) in topicPoints where pts.count >= 3 {
+            // Calculate centroid in original coords
+            var sumX: Float = 0, sumY: Float = 0, sumZ: Float = 0
+            for p in pts {
+                sumX += p.x; sumY += p.y; sumZ += p.z
+            }
+            let count = Float(pts.count)
+
+            // Apply SAME scaling as points!
+            let centroidX = ((sumX / count) - centerX) * scale
+            let centroidY = ((sumY / count) - centerY) * scale
+            let centroidZ = ((sumZ / count) - centerZ) * scale
+
+            let color = topicColorMap[topic] ?? PlatformColor(.gray)
+
+            result.append(Embedding3DSceneView.AnnotationData(
+                position: SCNVector3(centroidX, centroidY, centroidZ),
+                title: topic,
+                keywords: ["\(pts.count) pts"],
+                color: color,
+                detailLevel: pts.count
+            ))
+        }
+
+        return result
+    }
 }
 
 // MARK: - Compact Atlas Scene View
@@ -2211,7 +2375,7 @@ struct CompactAtlasSceneView: View {
         Embedding3DSceneView.SceneOptions(
             pointScale: CGFloat(pointScale),
             autoRotate: autoRotate,
-            showAxes: false,
+            showAxes: true, // Always show axes for spatial reference
             depthCue: depthCue,
             backgroundStyle: backgroundStyle
         )
@@ -2287,43 +2451,74 @@ struct CompactAtlasSceneView: View {
                 annotations: showLabels ? annotations : []
             )
 
-            // Helpful hint overlay
-            sceneHintOverlay
+            // Legend overlay with topic colors
+            VStack(alignment: .leading, spacing: 0) {
+                topicLegendOverlay
+                sceneHintOverlay
+            }
         }
+    }
+
+    /// Shows what each color represents
+    private var topicLegendOverlay: some View {
+        let topicColors = buildTopicColorLegend()
+
+        return Group {
+            if !topicColors.isEmpty {
+                VStack(alignment: .leading, spacing: 3) {
+                    ForEach(topicColors.prefix(5), id: \.name) { item in
+                        HStack(spacing: 5) {
+                            Circle()
+                                .fill(item.color)
+                                .frame(width: 6, height: 6)
+
+                            Text(item.name)
+                                .font(.system(size: 9, weight: .medium))
+                                .foregroundColor(.white.opacity(0.6))
+                                .lineLimit(1)
+                        }
+                    }
+                }
+                .padding(6)
+            }
+        }
+    }
+
+    private struct TopicColorItem: Hashable {
+        let name: String
+        let color: Color
+        let count: Int
+    }
+
+    private func buildTopicColorLegend() -> [TopicColorItem] {
+        // Count chunks per topic
+        var topicCounts: [String: Int] = [:]
+        for (_, topicName) in chunkTopicAssignments {
+            topicCounts[topicName, default: 0] += 1
+        }
+
+        // Map to colors from profile
+        var result: [TopicColorItem] = []
+        for topic in profile.dominantTopics {
+            if let count = topicCounts[topic.name], count > 0 {
+                result.append(TopicColorItem(name: topic.name, color: topic.color, count: count))
+            }
+        }
+
+        // Sort by count descending
+        return result.sorted { $0.count > $1.count }
     }
 
     /// Small overlay explaining what the user is looking at
     private var sceneHintOverlay: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 6) {
-                Image(systemName: "hand.draw")
-                    .font(.system(size: 10))
-                Text("Drag to rotate • Pinch to zoom")
-                    .font(.system(size: 10, weight: .medium))
-            }
-
-            HStack(spacing: 6) {
-                Image(systemName: "circle.fill")
-                    .font(.system(size: 6))
-                    .foregroundColor(.blue)
-                Text("Each dot = one passage")
-                    .font(.system(size: 10))
-            }
-
-            HStack(spacing: 6) {
-                Image(systemName: "arrow.left.and.right")
-                    .font(.system(size: 10))
-                Text("Nearby = similar meaning")
-                    .font(.system(size: 10))
-            }
+        HStack(spacing: 4) {
+            Image(systemName: "hand.draw")
+                .font(.system(size: 8))
+            Text("Drag to rotate • Pinch to zoom")
+                .font(.system(size: 8))
         }
-        .foregroundColor(.white.opacity(0.7))
-        .padding(10)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(.ultraThinMaterial.opacity(0.6))
-        )
-        .padding(8)
+        .foregroundColor(.white.opacity(0.4))
+        .padding(6)
     }
 
     // MARK: - Data Loading
@@ -2371,15 +2566,19 @@ struct CompactAtlasSceneView: View {
         // Map colors based on topic assignments
         let mappedColors = mapTopicColors(chunks: sampledChunks, assignments: topicAssignments)
 
-        // Build 3D cluster label annotations
+        // Use ACTUAL PCA/UMAP coordinates - scale them properly for viewing
+        // This preserves natural clustering and semantic structure!
+        let scaledPoints = scalePointsForViewing(coords3D)
+
+        // Build 3D cluster label annotations at ACTUAL cluster positions
         let clusterAnnotations = buildClusterAnnotations(
             chunks: sampledChunks,
-            coords: coords3D,
+            coords: coords3D, // Use original coords for centroid calculation
             assignments: topicAssignments
         )
 
         await MainActor.run {
-            points = coords3D.map { SCNVector3($0.x, $0.y, $0.z) }
+            points = scaledPoints
             colors = mappedColors
             annotations = clusterAnnotations
             chunkTopicAssignments = topicAssignments
@@ -2387,6 +2586,62 @@ struct CompactAtlasSceneView: View {
             isLoading = false
         }
     }
+
+    /// Scales actual PCA/UMAP coordinates for proper 3D viewing
+    /// Preserves natural clustering and semantic structure (like Apple Embedding Atlas)
+    private func scalePointsForViewing(_ coords: [SIMD3<Float>]) -> [SCNVector3] {
+        guard !coords.isEmpty else { return [] }
+
+        // Find bounds
+        var minX = Float.greatestFiniteMagnitude, maxX = -Float.greatestFiniteMagnitude
+        var minY = Float.greatestFiniteMagnitude, maxY = -Float.greatestFiniteMagnitude
+        var minZ = Float.greatestFiniteMagnitude, maxZ = -Float.greatestFiniteMagnitude
+
+        for c in coords {
+            minX = min(minX, c.x); maxX = max(maxX, c.x)
+            minY = min(minY, c.y); maxY = max(maxY, c.y)
+            minZ = min(minZ, c.z); maxZ = max(maxZ, c.z)
+        }
+
+        // Calculate center and span
+        let centerX = (minX + maxX) / 2
+        let centerY = (minY + maxY) / 2
+        let centerZ = (minZ + maxZ) / 2
+
+        let spanX = max(maxX - minX, 0.0001)
+        let spanY = max(maxY - minY, 0.0001)
+        let spanZ = max(maxZ - minZ, 0.0001)
+        let maxSpan = max(spanX, max(spanY, spanZ))
+
+        // Target viewing size - fills scene nicely with room for labels
+        let targetSize: Float = 3.0
+        let scale = targetSize / maxSpan
+
+        var result: [SCNVector3] = []
+        result.reserveCapacity(coords.count)
+
+        for c in coords {
+            // Center at origin and scale uniformly to preserve shape
+            let x = (c.x - centerX) * scale
+            let y = (c.y - centerY) * scale
+            let z = (c.z - centerZ) * scale
+
+            // Small jitter to prevent exact overlaps (rare edge case)
+            let seed = UInt32(result.count)
+            let jitterX = (Float((seed &* 1_103_515_245 &+ 12345) % 10000) / 20000.0 - 0.025) * 0.02
+            let jitterY = (Float((seed &* 1_664_525 &+ 1_013_904_223) % 10000) / 20000.0 - 0.025) * 0.02
+            let jitterZ = (Float((seed &* 22_695_477 &+ 1) % 10000) / 20000.0 - 0.025) * 0.02
+
+            result.append(SCNVector3(x + jitterX, y + jitterY, z + jitterZ))
+        }
+
+        return result
+    }
+
+    // MARK: - DEPRECATED: Old Fibonacci sphere distribution (removed - made everything look like a ball!)
+
+    // Keeping commented for reference:
+    // private func spreadPointsOnSphere(_ coords: [SIMD3<Float>]) -> [SCNVector3]
 
     // MARK: - Enhanced NLP Topic Assignment
 
@@ -2583,6 +2838,27 @@ struct CompactAtlasSceneView: View {
     ) -> [Embedding3DSceneView.AnnotationData] {
         guard chunks.count == coords.count else { return [] }
 
+        // First, compute the same scaling parameters used for points
+        var minX = Float.greatestFiniteMagnitude, maxX = -Float.greatestFiniteMagnitude
+        var minY = Float.greatestFiniteMagnitude, maxY = -Float.greatestFiniteMagnitude
+        var minZ = Float.greatestFiniteMagnitude, maxZ = -Float.greatestFiniteMagnitude
+
+        for c in coords {
+            minX = min(minX, c.x); maxX = max(maxX, c.x)
+            minY = min(minY, c.y); maxY = max(maxY, c.y)
+            minZ = min(minZ, c.z); maxZ = max(maxZ, c.z)
+        }
+
+        let centerX = (minX + maxX) / 2
+        let centerY = (minY + maxY) / 2
+        let centerZ = (minZ + maxZ) / 2
+
+        let spanX = max(maxX - minX, 0.0001)
+        let spanY = max(maxY - minY, 0.0001)
+        let spanZ = max(maxZ - minZ, 0.0001)
+        let maxSpan = max(spanX, max(spanY, spanZ))
+        let scale = 3.0 / maxSpan // Same as scalePointsForViewing
+
         // Group points by topic
         var topicPoints: [String: [SIMD3<Float>]] = [:]
         for (index, chunk) in chunks.enumerated() {
@@ -2603,7 +2879,7 @@ struct CompactAtlasSceneView: View {
         for (topicName, pointsInCluster) in topicPoints {
             guard pointsInCluster.count >= 3 else { continue } // Only label significant clusters
 
-            // Calculate centroid
+            // Calculate centroid in ORIGINAL coords
             var sumX: Float = 0
             var sumY: Float = 0
             var sumZ: Float = 0
@@ -2613,7 +2889,13 @@ struct CompactAtlasSceneView: View {
                 sumZ += p.z
             }
             let count = Float(pointsInCluster.count)
-            let centroid = SCNVector3(sumX / count, sumY / count, sumZ / count)
+
+            // Apply same scaling as points so label appears at cluster center!
+            let centroidX = ((sumX / count) - centerX) * scale
+            let centroidY = ((sumY / count) - centerY) * scale
+            let centroidZ = ((sumZ / count) - centerZ) * scale
+
+            let centroid = SCNVector3(centroidX, centroidY, centroidZ)
 
             // Get color for this topic
             let color = topicColorMap[topicName] ?? PlatformColor(.white.opacity(0.7))
@@ -2630,9 +2912,9 @@ struct CompactAtlasSceneView: View {
             ))
         }
 
-        // Sort by cluster size (largest first) and limit to prevent clutter
+        // Sort by cluster size (largest first) - show ALL topics, not just top few
         annotations.sort { $0.detailLevel > $1.detailLevel }
-        return Array(annotations.prefix(8))
+        return annotations
     }
 
     // MARK: - Sampling

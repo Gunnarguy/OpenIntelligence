@@ -286,6 +286,15 @@ struct ExtendedDocumentPicker: UIViewControllerRepresentable {
             .json,
             // Spreadsheets
             .commaSeparatedText,
+            // Audio (for transcription)
+            .audio,
+            .mp3,
+            UTType(filenameExtension: "m4a") ?? .audio,
+            .wav,
+                // Video (for transcription)
+                .movie,
+            .mpeg4Movie,
+            .quickTimeMovie,
         ])
         picker.delegate = context.coordinator
         picker.allowsMultipleSelection = true

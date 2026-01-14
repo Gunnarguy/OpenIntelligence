@@ -145,24 +145,24 @@ struct EmbeddingSpaceRenderer: View {
     @State private var errorText: String? = nil
 
     // Deterministic per-container controls and state
-    @State private var sampleLimit: Int = 2000
+    @State private var sampleLimit: Int = 500
     @State private var allDocIdsForPoints: [UUID] = [] // aligned with points/colors
     @State private var totalPoints: Int = 0
     @State private var selectedDocFilters: Set<UUID> = [] // empty = select all by default
     @State private var loadTask: Task<Void, Never>? = nil
-    @State private var pointScale: Double = 1.0
-    @State private var autoRotate = true
-    @State private var showAxes = false
-    @State private var depthCue = true
-    @State private var backgroundStyle: EmbeddingSceneBackgroundStyle = .aurora
+    @State private var pointScale: Double = 1.2 // Slightly larger points
+    @State private var autoRotate = false // Off by default — let user explore
+    @State private var showAxes = true // On by default — show spatial reference
+    @State private var depthCue = false // Off for cleaner look
+    @State private var backgroundStyle: EmbeddingSceneBackgroundStyle = .midnight // Dark for better contrast
     @State private var sceneReloadToken = UUID()
     @State private var insights: [EmbeddingInsight] = []
     @State private var focusMode = false
     @State private var showHUD = true
     @State private var annotationLabels: [PointAnnotationLabel] = []
 
-    // Default: 1K/2K/5K
-    private let sampleOptions = [1000, 2000, 5000]
+    // Default: 250/500/1K (lower defaults for cleaner, less cluttered view)
+    private let sampleOptions = [250, 500, 1000]
     private static let countFormatter: NumberFormatter = {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
@@ -874,14 +874,14 @@ struct EmbeddingSpaceRenderer: View {
 
         private func depthScale(_ depth: CGFloat) -> CGFloat {
             // Subtle depth parallax: closer = slightly larger
-            let base = focusMode ? 1.0 : 0.95
-            return base + (depth * 0.12)
+            let base = focusMode ? 1.0 : 0.98
+            return base + (depth * 0.08)
         }
 
         private func depthOpacity(_ depth: CGFloat, score: Double) -> Double {
-            // Fade distant labels more aggressively
-            let depthFade = 0.65 + (depth * 0.35)
-            let scoreFade = 0.7 + (score * 0.3)
+            // Keep labels readable - minimum 0.8 opacity
+            let depthFade = 0.85 + (depth * 0.15)
+            let scoreFade = 0.85 + (score * 0.15)
             return min(depthFade, scoreFade)
         }
     }
@@ -894,37 +894,38 @@ struct EmbeddingSpaceRenderer: View {
         }
 
         var body: some View {
-            HStack(spacing: 4) {
+            HStack(spacing: 6) { 
                 Circle()
                     .fill(label.accent)
-                    .frame(width: 4, height: 4)
+.frame(width: 6, height: 6)
+    .shadow(color: label.accent.opacity(0.5), radius: 2, x: 0, y: 0)
 
                 Text(label.title)
-                    .font(.system(size: 8, weight: .medium, design: .rounded))
+.font(.system(size: 11, weight: .semibold, design: .rounded))
                     .lineLimit(1)
-                    .foregroundColor(.primary.opacity(0.85))
+.foregroundColor(.primary)
 
                 if let keyword = keywordTag {
                     Text("·")
-                        .font(.system(size: 7))
-                        .foregroundColor(.secondary.opacity(0.4))
+.font(.system(size: 9, weight: .medium))
+    .foregroundColor(.secondary.opacity(0.7))
                     Text(keyword)
-                        .font(.system(size: 7, weight: .regular, design: .rounded))
-                        .foregroundColor(.secondary.opacity(0.65))
+.font(.system(size: 10, weight: .medium, design: .rounded))
+    .foregroundColor(.secondary)
                         .lineLimit(1)
                 }
             }
-            .padding(.horizontal, 5)
-            .padding(.vertical, 2)
+.padding(.horizontal, 8)
+    .padding(.vertical, 4)
             .background(
                 Capsule()
-                    .fill(.ultraThinMaterial)
+.fill(.regularMaterial)
                     .overlay(
                         Capsule()
-                            .strokeBorder(label.accent.opacity(0.15), lineWidth: 0.33)
+.strokeBorder(label.accent.opacity(0.4), lineWidth: 0.5)
                     )
             )
-            .shadow(color: Color.black.opacity(0.03), radius: 1.5, x: 0, y: 0.5)
+.shadow(color: Color.black.opacity(0.15), radius: 4, x: 0, y: 2)
         }
     }
 
@@ -1398,7 +1399,7 @@ struct EmbeddingSpaceRenderer: View {
             if Task.isCancelled { return }
 
             // Color mapping per document (deterministic by sorted doc ids)
-            let palette = ColorPalette.makePalette(count: docIds.count)
+            let palette = EmbeddingColorPalette.makePalette(count: docIds.count)
             var colorByDoc: [UUID: PlatformColor] = [:]
             let sortedDocIds = docIds.sorted { $0.uuidString < $1.uuidString }
             for (i, did) in sortedDocIds.enumerated() {
@@ -1411,7 +1412,7 @@ struct EmbeddingSpaceRenderer: View {
             for did in sampledDocIds { counts[did, default: 0] += 1 }
             var legend: [VizLegendItem] = []
             for did in sortedDocIds {
-                let uiColor = colorByDoc[did] ?? ColorPalette.fallback
+                let uiColor = colorByDoc[did] ?? EmbeddingColorPalette.fallback
                 let swiftUIColor = Color(uiColor)
                 let name = nameById[did] ?? "Unknown"
                 let cnt = counts[did] ?? 0
@@ -1419,8 +1420,9 @@ struct EmbeddingSpaceRenderer: View {
             }
 
             // Build SceneKit vectors and color list aligned
-            let scnPoints: [SCNVector3] = coords3D.map { SCNVector3($0.x, $0.y, $0.z) }
-            let uiColors: [PlatformColor] = sampledDocIds.map { colorByDoc[$0] ?? ColorPalette.fallback }
+            // Normalize to viewing cube (±1.0) and add jitter to reduce overlap
+            let scnPoints: [SCNVector3] = normalizeToViewingCube(coords3D, jitterAmount: 0.08)
+            let uiColors: [PlatformColor] = sampledDocIds.map { colorByDoc[$0] ?? EmbeddingColorPalette.fallback }
             let generatedInsights = buildInsights(
                 sampledPoints: scnPoints.count,
                 chunkCount: chunkCount,
@@ -1462,7 +1464,7 @@ struct EmbeddingSpaceRenderer: View {
         if let v = UserDefaults.standard.value(forKey: key) as? Int, sampleOptions.contains(v) {
             sampleLimit = v
         } else {
-            sampleLimit = 2000
+            sampleLimit = 500 // Lower default for much cleaner initial view
         }
     }
 }
@@ -1614,30 +1616,24 @@ struct SceneViewContainer: NSViewRepresentable {
             let cameraPos = camera.position
 
             scene.rootNode.enumerateChildNodes { node, _ in
-                guard node.name == "contentRoot" else { return }
+                guard node.name == "labelLayer" else { return }
 
                 node.enumerateChildNodes { labelNode, _ in
-                    guard labelNode.geometry is SCNText || labelNode.childNodes.contains(where: { $0.geometry is SCNText }) else { return }
-
                     let distance = simd_distance(simd_float3(cameraPos), simd_float3(labelNode.position))
 
-                    // Dynamic LOD based on distance
-                    if distance < 2.0 {
-                        // Close: show full detail
+                    // Scale labels based on distance - keep them readable at ALL distances
+                    if distance<3.0 { 
                         labelNode.opacity = 0.95
-                        labelNode.scale = SCNVector3(0.4, 0.4, 0.4)
-                    } else if distance < 4.0 {
-                        // Medium: normal detail
-                        labelNode.opacity = 0.8
-                        labelNode.scale = SCNVector3(0.35, 0.35, 0.35)
+                        labelNode.scale = SCNVector3(0.12, 0.12, 0.12)
                     } else if distance < 6.0 {
-                        // Far: minimal
-                        labelNode.opacity = 0.5
-                        labelNode.scale = SCNVector3(0.3, 0.3, 0.3)
+                        labelNode.opacity = 0.9
+                        labelNode.scale = SCNVector3(0.15, 0.15, 0.15)
+                    } else if distance < 10.0 {
+                        labelNode.opacity = 0.8
+                        labelNode.scale = SCNVector3(0.18, 0.18, 0.18)
                     } else {
-                        // Very far: hide
-                        labelNode.opacity = 0.2
-                        labelNode.scale = SCNVector3(0.25, 0.25, 0.25)
+                        labelNode.opacity = 0.7
+                        labelNode.scale = SCNVector3(0.22, 0.22, 0.22)
                     }
                 }
             }
@@ -1692,16 +1688,16 @@ private func buildScene(points: [SCNVector3], colors: [PlatformColor], options: 
 private func makeGroundPlane() -> SCNNode {
     let container = SCNNode()
 
-    // Subtle grid floor
-    let gridSize: Float = 2.4
-    let gridLines = 8
+    // Subtle grid floor - sized to match full axis extent (6.0)
+    let gridSize: Float = 6.0
+    let gridLines = 12
     let spacing = gridSize / Float(gridLines)
 
     for i in 0 ... gridLines {
         let offset = -gridSize / 2 + Float(i) * spacing
 
         // X-axis lines
-        let xLine = SCNCylinder(radius: 0.002, height: CGFloat(gridSize))
+        let xLine = SCNCylinder(radius: 0.004, height: CGFloat(gridSize))
         let xMat = SCNMaterial()
         #if canImport(UIKit)
             xMat.diffuse.contents = UIColor.white.withAlphaComponent(0.08)
@@ -1711,122 +1707,184 @@ private func makeGroundPlane() -> SCNNode {
         xLine.materials = [xMat]
         let xNode = SCNNode(geometry: xLine)
         xNode.eulerAngles = SCNVector3(0, 0, Float.pi / 2)
-        xNode.position = SCNVector3(0, -1.0, offset)
+        xNode.position = SCNVector3(0, -3.0, offset) // At bottom of Y axis
         container.addChildNode(xNode)
 
         // Z-axis lines
-        let zLine = SCNCylinder(radius: 0.002, height: CGFloat(gridSize))
+        let zLine = SCNCylinder(radius: 0.004, height: CGFloat(gridSize))
         zLine.materials = [xMat]
         let zNode = SCNNode(geometry: zLine)
         zNode.eulerAngles = SCNVector3(Float.pi / 2, 0, 0)
-        zNode.position = SCNVector3(offset, -1.0, 0)
+        zNode.position = SCNVector3(offset, -3.0, 0) // At bottom of Y axis
         container.addChildNode(zNode)
     }
 
     return container
 }
 
-// MARK: - Intuitive Axes
+// MARK: - Clean Arrow Axes (visible, no text clutter)
 
 private func makeIntuiveAxesNode() -> SCNNode { 
     let node = SCNNode()
 
-    // Axes with gradient fade
+    // Bright axis colors
     #if canImport(UIKit)
-    let xColor = UIColor.systemBlue.withAlphaComponent(0.6)
-    let yColor = UIColor.systemGreen.withAlphaComponent(0.6)
-    let zColor = UIColor.systemPurple.withAlphaComponent(0.6)
+    let xColor = UIColor.systemRed
+    let yColor = UIColor.systemGreen
+    let zColor = UIColor.systemBlue
     #else
-    let xColor = NSColor.systemBlue.withAlphaComponent(0.6)
-    let yColor = NSColor.systemGreen.withAlphaComponent(0.6)
-    let zColor = NSColor.systemPurple.withAlphaComponent(0.6)
+    let xColor = NSColor.systemRed
+    let yColor = NSColor.systemGreen
+    let zColor = NSColor.systemBlue
     #endif
 
-    node.addChildNode(axisNode(length: 1.4, color: xColor, axis: .x))
-    node.addChildNode(axisNode(length: 1.4, color: yColor, axis: .y))
-    node.addChildNode(axisNode(length: 1.4, color: zColor, axis: .z))
+    // Create arrow axes - 5 units in each direction from origin
+    let axisHalfLength: Float = 5.0
 
-    // Human-readable endpoint labels
-    node.addChildNode(makeAxisEndLabel(text: "Similar →", position: SCNVector3(1.3, 0, 0), color: xColor))
-    node.addChildNode(makeAxisEndLabel(text: "← Different", position: SCNVector3(-1.3, 0, 0), color: xColor))
-    node.addChildNode(makeAxisEndLabel(text: "Related ↑", position: SCNVector3(0, 1.2, 0), color: yColor))
-    node.addChildNode(makeAxisEndLabel(text: "Depth", position: SCNVector3(0, 0, 1.2), color: zColor))
+    // X axis (red) - horizontal
+    node.addChildNode(makeArrowAxis(from: SCNVector3(-axisHalfLength, 0, 0),
+                                    to: SCNVector3(axisHalfLength, 0, 0),
+                                    color: xColor))
+
+    // Y axis (green) - vertical
+    node.addChildNode(makeArrowAxis(from: SCNVector3(0, -axisHalfLength, 0),
+                                    to: SCNVector3(0, axisHalfLength, 0),
+                                    color: yColor))
+
+    // Z axis (blue) - depth
+    node.addChildNode(makeArrowAxis(from: SCNVector3(0, 0, -axisHalfLength),
+                                    to: SCNVector3(0, 0, axisHalfLength),
+                                    color: zColor))
+
+    // Origin sphere
+    node.addChildNode(makeOriginMarker())
 
     return node
 }
 
-private func makeAxisEndLabel(text: String, position: SCNVector3, color: PlatformColor) -> SCNNode {
-    let textGeo = SCNText(string: text, extrusionDepth: 0)
-    #if canImport(UIKit)
-    textGeo.font = UIFont.systemFont(ofSize: 0.06, weight: .medium)
-    #else
-    textGeo.font = NSFont.systemFont(ofSize: 0.06, weight: .medium)
-    #endif
-    textGeo.flatness = 0.05
+/// Creates an arrow from start to end with a cone tip
+private func makeArrowAxis(from start: SCNVector3, to end: SCNVector3, color: PlatformColor) -> SCNNode {
+    let container = SCNNode()
 
+    // Calculate direction and length
+    let dx = end.x - start.x
+    let dy = end.y - start.y
+    let dz = end.z - start.z
+    let length = sqrt(dx * dx + dy * dy + dz * dz)
+
+    // Shaft (cylinder) - visible but not too thick
+    let shaftLength = length - 0.3 // Leave room for cone tip
+    let shaft = SCNCylinder(radius: 0.025, height: CGFloat(shaftLength))
+    let shaftMat = SCNMaterial()
+    shaftMat.diffuse.contents = color
+    shaftMat.emission.contents = color
+    shaftMat.emission.intensity = 0.8
+    shaftMat.lightingModel = .constant
+    shaft.materials = [shaftMat]
+
+    let shaftNode = SCNNode(geometry: shaft)
+    // Position at midpoint
+    shaftNode.position = SCNVector3((start.x + end.x) / 2 - dx * 0.2 / length,
+                                    (start.y + end.y) / 2 - dy * 0.2 / length,
+                                    (start.z + end.z) / 2 - dz * 0.2 / length)
+
+    // Rotate to align with axis
+    if abs(dy) > abs(dx), abs(dy) > abs(dz) {
+        // Y axis - no rotation needed
+    } else if abs(dx) > abs(dz) {
+        // X axis
+        shaftNode.eulerAngles = SCNVector3(0, 0, Float.pi / 2)
+    } else {
+        // Z axis
+        shaftNode.eulerAngles = SCNVector3(Float.pi / 2, 0, 0)
+    }
+
+    container.addChildNode(shaftNode)
+
+    // Cone tip at positive end
+    let cone = SCNCone(topRadius: 0, bottomRadius: 0.06, height: 0.25)
+    let coneMat = SCNMaterial()
+    coneMat.diffuse.contents = color
+    coneMat.emission.contents = color
+    coneMat.emission.intensity = 1.0
+    coneMat.lightingModel = .constant
+    cone.materials = [coneMat]
+
+    let coneNode = SCNNode(geometry: cone)
+    coneNode.position = SCNVector3(end.x - dx * 0.1 / length,
+                                   end.y - dy * 0.1 / length,
+                                   end.z - dz * 0.1 / length)
+
+    // Rotate cone to point in direction
+    if abs(dy) > abs(dx), abs(dy) > abs(dz) {
+        if dy < 0 { coneNode.eulerAngles = SCNVector3(Float.pi, 0, 0) }
+    } else if abs(dx) > abs(dz) {
+        coneNode.eulerAngles = SCNVector3(0, 0, dx > 0 ? -Float.pi / 2 : Float.pi / 2)
+    } else {
+        coneNode.eulerAngles = SCNVector3(dz > 0 ? Float.pi / 2 : -Float.pi / 2, 0, 0)
+    }
+
+    container.addChildNode(coneNode)
+
+    return container
+}
+
+/// White sphere at origin
+private func makeOriginMarker() -> SCNNode {
+    let sphere = SCNSphere(radius: 0.06)
     let mat = SCNMaterial()
-    mat.diffuse.contents = color
-    mat.emission.contents = color
-    mat.emission.intensity = 0.4
-    textGeo.materials = [mat]
-
-    let textNode = SCNNode(geometry: textGeo)
-    let (min, max) = textGeo.boundingBox
-    textNode.pivot = SCNMatrix4MakeTranslation(min.x + (max.x - min.x) / 2, min.y, 0)
-    textNode.scale = SCNVector3(0.5, 0.5, 0.5)
-    textNode.position = position
-
-    let billboard = SCNBillboardConstraint()
-    billboard.freeAxes = .all
-    textNode.constraints = [billboard]
-
-    return textNode
+    #if canImport(UIKit)
+        mat.diffuse.contents = UIColor.white
+        mat.emission.contents = UIColor.white
+    #else
+        mat.diffuse.contents = NSColor.white
+        mat.emission.contents = NSColor.white
+    #endif
+    mat.emission.intensity = 1.0
+    mat.lightingModel = .constant
+    sphere.materials = [mat]
+    return SCNNode(geometry: sphere)
 }
 
 private func makeCameraNode(depthCue: Bool) -> SCNNode {
     let node = SCNNode()
     let camera = SCNCamera()
     camera.zNear = 0.01
-    camera.zFar = 80
+    camera.zFar = 100
     camera.wantsDepthOfField = depthCue
     if depthCue {
-        camera.focusDistance = 3.2
+        camera.focusDistance = 6.0
         camera.fStop = 8
     }
     node.camera = camera
-    node.position = SCNVector3(0, 0, 3.2)
+    // Close enough to see data clearly, far enough to see axes
+    node.position = SCNVector3(4.0, 3.0, 7.0)
+    node.look(at: SCNVector3(0, 0, 0))
     return node
 }
-
-// Legacy makeAxesNode removed - replaced by makeIntuiveAxesNode
 
 private func addPointNodes(_ points: [SCNVector3], _ colors: [PlatformColor], scale: CGFloat, depthCue: Bool, into root: SCNNode) {
     let count = min(points.count, colors.count)
     guard count > 0 else { return }
 
-    // Larger, more visible points
-    let baseRadius: CGFloat = 0.025
-    let radius = max(0.015, baseRadius * scale)
+    // Size relative to point count: fewer points = larger, more points = smaller
+    // Range: 10 points → 0.12 radius, 500 points → 0.025 radius
+    let countFactor = max(0.3, min(1.0, 50.0 / CGFloat(count)))
+    let baseRadius: CGFloat = 0.08 * countFactor
+    let radius = max(0.02, min(0.12, baseRadius * scale))
 
     for index in 0..<count {
         let sphere = SCNSphere(radius: radius)
-        sphere.segmentCount = 16
+        sphere.segmentCount = 12 // Fewer segments for better performance
 
         let material = SCNMaterial()
         material.diffuse.contents = colors[index]
 
-        if depthCue {
-            material.lightingModel = .physicallyBased
-            material.roughness.contents = NSNumber(value: 0.25)
-            material.metalness.contents = NSNumber(value: 0.1)
-            // Add subtle glow
-            material.emission.contents = colors[index]
-            material.emission.intensity = 0.15
-        } else {
-            material.lightingModel = .blinn
-            material.emission.contents = colors[index]
-            material.emission.intensity = 0.3
-        }
+        // Always add glow for visibility - constant lighting for consistent brightness
+        material.lightingModel = .constant
+        material.emission.contents = colors[index]
+        material.emission.intensity = 0.7 // Strong glow for visibility
+
         sphere.materials = [material]
 
         let node = SCNNode(geometry: sphere)
@@ -1838,94 +1896,98 @@ private func addPointNodes(_ points: [SCNVector3], _ colors: [PlatformColor], sc
 // MARK: - Cluster Labels (Redesigned)
 
 private func addClusterLabels(_ annotations: [Embedding3DSceneView.AnnotationData], into root: SCNNode) { 
+    guard !annotations.isEmpty else { return }
+
+    // Create a dedicated label layer node that renders on top of everything
+    let labelLayer = SCNNode()
+    labelLayer.name = "labelLayer"
+    // Render labels last (on top) by setting rendering order
+    labelLayer.renderingOrder = 100
+
     for annotation in annotations {
         let labelNode = makeClusterBadge(
             title: annotation.title,
-            count: annotation.detailLevel, // Repurposed: number of items in cluster
+            count: annotation.detailLevel,
             color: annotation.color
         )
-        // Position label above the cluster centroid
+        // Position label AT the cluster centroid (annotation.position is already scaled correctly)
+        // Add Y offset to float above the point cluster
         labelNode.position = SCNVector3(
             annotation.position.x,
-            annotation.position.y + 0.12,
+            annotation.position.y + 0.5, // Float above the cluster
             annotation.position.z
         )
-        root.addChildNode(labelNode)
+        labelLayer.addChildNode(labelNode)
     }
+
+    root.addChildNode(labelLayer)
 }
 
-/// Creates a floating badge label that looks like a pill with topic name
+/// Creates a floating text label for cluster - BIG, BOLD, ALWAYS VISIBLE
 private func makeClusterBadge(title: String, count: Int, color: PlatformColor) -> SCNNode { 
     let container = SCNNode()
+    container.renderingOrder = 101 // Render on top of dots
 
-    // Create text
-    let displayText = title
-    let textGeo = SCNText(string: displayText, extrusionDepth: 0.005)
+    // Truncate to reasonable length
+    let displayText = title.prefix(16) + (title.count > 16 ? "…" : "")
+    let textGeo = SCNText(string: String(displayText), extrusionDepth: 0.02)
+
+    // GIANT font - easily readable without zooming. Base 1.2, up to 1.8 for big clusters
+    let fontSize: CGFloat = min(1.8, max(1.2, 1.0 + CGFloat(min(count, 50)) * 0.015))
     #if canImport(UIKit)
-        textGeo.font = UIFont.systemFont(ofSize: 0.07, weight: .semibold)
+        textGeo.font = UIFont.systemFont(ofSize: fontSize, weight: .black)
     #else
-        textGeo.font = NSFont.systemFont(ofSize: 0.07, weight: .semibold)
+        textGeo.font = NSFont.systemFont(ofSize: fontSize, weight: .black)
     #endif
-    textGeo.flatness = 0.02
-    textGeo.chamferRadius = 0.002
+    textGeo.flatness = 0.01 // Smoother curves
+    textGeo.chamferRadius = 0.01
 
-    // Text material - bright and readable
+    // Create contrasting outline/glow effect
     let textMat = SCNMaterial()
-    #if canImport(UIKit)
-    textMat.diffuse.contents = UIColor.white
-    textMat.emission.contents = UIColor.white
-    #else
-    textMat.diffuse.contents = NSColor.white
-    textMat.emission.contents = NSColor.white
-    #endif
-    textMat.emission.intensity = 0.5
+    textMat.diffuse.contents = PlatformColor.white // White text for contrast
+    textMat.emission.contents = color // Glow in topic color
+    textMat.emission.intensity = 0.8
+    textMat.lightingModel = .constant // Always fully lit
     textMat.isDoubleSided = true
+    textMat.writesToDepthBuffer = false // Don't occlude other labels
+    textMat.readsFromDepthBuffer = false // Render on top of everything
     textGeo.materials = [textMat]
 
     let textNode = SCNNode(geometry: textGeo)
-    let (min, max) = textGeo.boundingBox
-    let width = max.x - min.x
-    let height = max.y - min.y
-    textNode.pivot = SCNMatrix4MakeTranslation(min.x + width/2, min.y + height/2, 0)
-    textNode.scale = SCNVector3(0.4, 0.4, 0.4)
 
-    // Background pill
-    let pillWidth = CGFloat(width) * 0.45 + 0.04
-    let pillHeight = CGFloat(height) * 0.45 + 0.02
-    let pill = SCNBox(width: pillWidth, height: pillHeight, length: 0.008, chamferRadius: pillHeight * 0.4)
+    // Center the text pivot
+    let (minBound, maxBound) = textGeo.boundingBox
+    let textWidth = maxBound.x - minBound.x
+    let textHeight = maxBound.y - minBound.y
+    textNode.pivot = SCNMatrix4MakeTranslation(
+        minBound.x + textWidth / 2,
+        minBound.y + textHeight / 2,
+        0
+    )
 
-    let pillMat = SCNMaterial()
-    pillMat.diffuse.contents = color
-    pillMat.transparency = 0.85
-    pillMat.isDoubleSided = true
-    pill.materials = [pillMat]
+    // Add a dark background pill for contrast
+    let bgWidth = CGFloat(textWidth) + 0.15
+    let bgHeight = CGFloat(textHeight) + 0.08
+    let bgPlane = SCNPlane(width: bgWidth, height: bgHeight)
+    bgPlane.cornerRadius = bgHeight / 2
+    let bgMat = SCNMaterial()
+    bgMat.diffuse.contents = PlatformColor(Color.black.opacity(0.7))
+    bgMat.lightingModel = .constant
+    bgMat.writesToDepthBuffer = false
+    bgMat.readsFromDepthBuffer = false
+    bgPlane.materials = [bgMat]
 
-    let pillNode = SCNNode(geometry: pill)
-    pillNode.position = SCNVector3(0, 0, -0.005)
+    let bgNode = SCNNode(geometry: bgPlane)
+    bgNode.renderingOrder = 100 // Behind text but on top of dots
+    bgNode.position = SCNVector3(0, 0, -0.01) // Slightly behind text
 
-    // Thin border ring for definition
-    let borderBox = SCNBox(width: pillWidth + 0.004, height: pillHeight + 0.004, length: 0.002, chamferRadius: (pillHeight + 0.004) * 0.4)
-    let borderMat = SCNMaterial()
-    #if canImport(UIKit)
-    borderMat.diffuse.contents = UIColor.white.withAlphaComponent(0.3)
-    #else
-    borderMat.diffuse.contents = NSColor.white.withAlphaComponent(0.3)
-    #endif
-    borderMat.isDoubleSided = true
-    borderBox.materials = [borderMat]
-    let borderNode = SCNNode(geometry: borderBox)
-    borderNode.position = SCNVector3(0, 0, -0.008)
-
-    container.addChildNode(borderNode)
-    container.addChildNode(pillNode)
+    container.addChildNode(bgNode)
     container.addChildNode(textNode)
 
-    // Billboard to always face camera
+    // Billboard constraint - always face camera
     let billboard = SCNBillboardConstraint()
     billboard.freeAxes = [.X, .Y]
     container.constraints = [billboard]
-
-    container.opacity = 0.92
 
     return container
 }
@@ -1963,14 +2025,16 @@ private func addLighting(into root: SCNNode, depthCue: Bool) {
 }
 
 private func applyAutoRotate(_ isEnabled: Bool, to node: SCNNode) {
-    if !isEnabled {
-        node.removeAnimation(forKey: "autoRotate")
-        return
-    }
+    // Always remove any existing animation first
+    node.removeAnimation(forKey: "autoRotate")
+
+    // Only add rotation if explicitly enabled
+    guard isEnabled else { return }
+
     let animation = CABasicAnimation(keyPath: "rotation")
     animation.fromValue = SCNVector4(0, 1, 0, 0)
     animation.toValue = SCNVector4(0, 1, 0, Float.pi * 2)
-    animation.duration = 26
+    animation.duration = 30 // Slower rotation
     animation.repeatCount = .greatestFiniteMagnitude
     node.addAnimation(animation, forKey: "autoRotate")
 }
@@ -2026,47 +2090,108 @@ private enum AxisDirection { case x, y, z }
 
 #if canImport(UIKit)
 private func axisNode(length: CGFloat, color: UIColor, axis: AxisDirection) -> SCNNode {
-    let cyl = SCNCylinder(radius: 0.0025, height: length)
+    // CHUNKY visible axis rods - 0.15 radius
+    let cyl = SCNCylinder(radius: 0.15, height: length)
     let mat = SCNMaterial()
     mat.diffuse.contents = color
+    mat.emission.contents = color
+    mat.emission.intensity = 1.0
+    mat.lightingModel = .constant
     cyl.materials = [mat]
     let node = SCNNode(geometry: cyl)
     switch axis {
     case .x:
         node.eulerAngles = SCNVector3(0, 0, Float.pi/2)
-        node.position = SCNVector3(length/2, 0, 0)
+        node.position = SCNVector3(0, 0, 0)
     case .y:
-        node.position = SCNVector3(0, length/2, 0)
+        node.position = SCNVector3(0, 0, 0)
     case .z:
         node.eulerAngles = SCNVector3(Float.pi/2, 0, 0)
-        node.position = SCNVector3(0, 0, length/2)
+        node.position = SCNVector3(0, 0, 0)
     }
     return node
 }
 #else
 private func axisNode(length: CGFloat, color: NSColor, axis: AxisDirection) -> SCNNode {
-    let cyl = SCNCylinder(radius: 0.0025, height: length)
+    // CHUNKY visible axis rods - 0.15 radius
+    let cyl = SCNCylinder(radius: 0.15, height: length)
     let mat = SCNMaterial()
     mat.diffuse.contents = color
+    mat.emission.contents = color
+    mat.emission.intensity = 1.0
+    mat.lightingModel = .constant
     cyl.materials = [mat]
     let node = SCNNode(geometry: cyl)
     switch axis {
     case .x:
         node.eulerAngles = SCNVector3(0, 0, Float.pi/2)
-        node.position = SCNVector3(length/2, 0, 0)
+        node.position = SCNVector3(0, 0, 0)
     case .y:
-        node.position = SCNVector3(0, length/2, 0)
+        node.position = SCNVector3(0, 0, 0)
     case .z:
         node.eulerAngles = SCNVector3(Float.pi/2, 0, 0)
-        node.position = SCNVector3(0, 0, length/2)
+        node.position = SCNVector3(0, 0, 0)
     }
     return node
 }
 #endif
 
-// MARK: - Color Palette
+// MARK: - Coordinate Normalization (Apple Embedding Atlas style)
 
-enum ColorPalette {
+/// Scales coordinates to fit viewing space while preserving natural clustering
+/// Unlike forced sphere distribution, this maintains actual embedding relationships
+private func normalizeToViewingCube(_ coords: [SIMD3<Float>], jitterAmount: Float = 0.02) -> [SCNVector3] {
+    guard !coords.isEmpty else { return [] }
+
+    // Find bounds
+    var minX = Float.greatestFiniteMagnitude, maxX = -Float.greatestFiniteMagnitude
+    var minY = Float.greatestFiniteMagnitude, maxY = -Float.greatestFiniteMagnitude
+    var minZ = Float.greatestFiniteMagnitude, maxZ = -Float.greatestFiniteMagnitude
+
+    for c in coords {
+        minX = min(minX, c.x); maxX = max(maxX, c.x)
+        minY = min(minY, c.y); maxY = max(maxY, c.y)
+        minZ = min(minZ, c.z); maxZ = max(maxZ, c.z)
+    }
+
+    // Calculate center and uniform scale
+    let centerX = (minX + maxX) / 2
+    let centerY = (minY + maxY) / 2
+    let centerZ = (minZ + maxZ) / 2
+
+    let spanX = max(maxX - minX, 0.0001)
+    let spanY = max(maxY - minY, 0.0001)
+    let spanZ = max(maxZ - minZ, 0.0001)
+    let maxSpan = max(spanX, max(spanY, spanZ))
+
+    // Target viewing size
+    let targetSize: Float = 3.0
+    let scale = targetSize / maxSpan
+
+    var result: [SCNVector3] = []
+    result.reserveCapacity(coords.count)
+
+    for (index, c) in coords.enumerated() {
+        // Center and scale uniformly to preserve shape
+        var x = (c.x - centerX) * scale
+        var y = (c.y - centerY) * scale
+        var z = (c.z - centerZ) * scale
+
+        // Small jitter to prevent exact overlaps
+        let seed = UInt32(index)
+        x += (Float((seed &* 1_103_515_245 &+ 12345) % 10000) / 20000.0 - 0.025) * jitterAmount
+        y += (Float((seed &* 1_664_525 &+ 1_013_904_223) % 10000) / 20000.0 - 0.025) * jitterAmount
+        z += (Float((seed &* 22_695_477 &+ 1) % 10000) / 20000.0 - 0.025) * jitterAmount
+
+        result.append(SCNVector3(x, y, z))
+    }
+
+    return result
+}
+
+// MARK: - Embedding Visualization Color Palette
+
+enum EmbeddingColorPalette { 
     static let fallback: PlatformColor = {
         #if canImport(UIKit)
         return UIColor.systemGray
@@ -2075,17 +2200,43 @@ enum ColorPalette {
         #endif
     }()
 
+    /// Hand-picked distinct colors that are visually distinguishable in 3D space
     static func makePalette(count: Int) -> [PlatformColor] {
-        let base = 12
-        let n = max(count, base)
+        // Curated palette of highly distinct colors
+        let curated: [(CGFloat, CGFloat, CGFloat)] = [
+            (0.95, 0.26, 0.21), // Red
+            (0.13, 0.59, 0.95), // Blue
+            (0.30, 0.69, 0.31), // Green
+            (1.00, 0.60, 0.00), // Orange
+            (0.61, 0.15, 0.69), // Purple
+            (0.00, 0.74, 0.83), // Cyan
+            (1.00, 0.92, 0.23), // Yellow
+            (0.91, 0.12, 0.39), // Pink
+            (0.47, 0.33, 0.28), // Brown
+            (0.00, 0.59, 0.53), // Teal
+            (0.98, 0.50, 0.45), // Coral
+            (0.40, 0.73, 0.42), // Light Green
+            (0.25, 0.32, 0.71), // Indigo
+            (1.00, 0.76, 0.03), // Amber
+            (0.47, 0.56, 0.61), // Blue Grey
+            (0.85, 0.11, 0.38), // Deep Pink
+        ]
+
         var colors: [PlatformColor] = []
-        colors.reserveCapacity(n)
-        for i in 0..<n {
-            let hue = CGFloat(i) / CGFloat(n)
+        colors.reserveCapacity(max(count, curated.count))
+
+        for i in 0 ..< max(count, curated.count) {
+            let (r, g, b) = curated[i % curated.count]
+            // Add slight variation for repeated colors
+            let variation = CGFloat(i / curated.count) * 0.15
+            let adjustedR = min(1.0, r + variation)
+            let adjustedG = min(1.0, g + variation * 0.5)
+            let adjustedB = min(1.0, b - variation * 0.3)
+
             #if canImport(UIKit)
-            colors.append(UIColor(hue: hue, saturation: 0.75, brightness: 0.95, alpha: 1.0))
+            colors.append(UIColor(red: adjustedR, green: adjustedG, blue: adjustedB, alpha: 1.0))
             #else
-            colors.append(NSColor(calibratedHue: hue, saturation: 0.75, brightness: 0.95, alpha: 1.0))
+            colors.append(NSColor(calibratedRed: adjustedR, green: adjustedG, blue: adjustedB, alpha: 1.0))
             #endif
         }
         return colors

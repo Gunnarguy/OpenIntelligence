@@ -10,6 +10,11 @@ import SwiftUI
 // MARK: - Extracted Form Sections
 
 extension ContainerSettingsSheet {
+    /// Document names for smart icon suggestions
+    private var documentNamesForIconSuggestion: [String] {
+        activeContainerDocuments.map { $0.filename }
+    }
+
     @ViewBuilder
     var identitySection: some View {
         Section(header: Text("Library identity")) {
@@ -19,13 +24,14 @@ extension ContainerSettingsSheet {
 
             TextField("Name", text: $name)
 
-            // SF Symbol Picker
-            SFSymbolPickerButton(selectedSymbol: $icon)
+            // SF Symbol Picker with smart suggestions based on library content
+            SFSymbolPickerButton(
+                selectedSymbol: $icon,
+                documentNames: documentNamesForIconSuggestion
+            )
 
-            TextField("Color Hex", text: $colorHex)
-            Text("Use #RRGGBB values (e.g., #3366FF). This tints cards and pickers so it's obvious which library is active.")
-                .font(.caption2)
-                .foregroundColor(.secondary)
+            // Color Picker
+            ColorPickerButton(selectedColorHex: $colorHex, label: "Color")
         }
     }
 

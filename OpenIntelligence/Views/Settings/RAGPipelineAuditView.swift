@@ -202,7 +202,7 @@ struct RAGPipelineAuditView: View {
         SurfaceCard {
             SectionHeader(icon: "magnifyingglass", title: "Retrieval & Gating")
             if let snapshot = ragService.lastAuditSnapshot {
-                LabeledContent("Quality mode", value: snapshot.qualityMode.rawValue.capitalized)
+                LabeledContent("Quality mode", value: snapshot.qualityModeName)
                 LabeledContent("Retrieval preset", value: snapshot.retrievalConfig.summary)
                 LabeledContent(
                     "Min similarity",

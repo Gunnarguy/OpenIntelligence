@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import NaturalLanguage
 import PDFKit
 import UniformTypeIdentifiers
 import Vision
@@ -296,6 +297,12 @@ class DocumentProcessor {
             text = try await extractTextFromOfficeDocument(url: url, type: type)
             pageInfo = PageInfo(totalPages: 1, ocrPagesUsed: 0, pageNumbers: [1])
 
+        // Audio/Video - Use Speech transcription
+        case .audio, .video, .m4a, .mp3, .wav, .mp4, .mov:
+            Log.debug("[DocumentProcessor] Audio/Video detected; transcribing with Speech.framework", category: .ingestion)
+        text = try await extractTextFromAudioVideo(url: url)
+        pageInfo = PageInfo(totalPages: 1, ocrPagesUsed: 0, pageNumbers: [1])
+
         case .unknown:
             // Last resort: try treating as plain text
             Log.warning("[DocumentProcessor] Unknown format; attempting plain text extraction", category: .ingestion)
@@ -548,6 +555,198 @@ class DocumentProcessor {
         #endif
     }
 
+    // MARK: - PDF Image Extraction (Visual Document Understanding)
+
+    /// Extract embedded images from a PDF page for visual understanding
+    /// Returns array of (image, bounds) tuples where bounds are normalized coordinates
+    private func extractImagesFromPDFPage(page: PDFPage) -> [(image: CIImage, bounds: CGRect)] {
+        var extractedImages: [(CIImage, CGRect)] = []
+        let pageBounds = page.bounds(for: .mediaBox)
+
+        // PDFKit doesn't directly expose embedded images, so we use annotations
+        // and render specific regions that might contain images
+        // For a more comprehensive solution, we'd need to parse the PDF stream
+
+        // Strategy 1: Look for image annotations
+        for annotation in page.annotations {
+            if let bounds = annotation.bounds as CGRect?,
+               bounds.width > 50, bounds.height > 50
+            { // Filter out small icons
+                // Render this region
+                if let regionImage = renderPDFRegion(page: page, region: bounds) {
+                    // Normalize bounds to 0-1 range
+                    let normalizedBounds = CGRect(
+                        x: bounds.minX / pageBounds.width,
+                        y: bounds.minY / pageBounds.height,
+                        width: bounds.width / pageBounds.width,
+                        height: bounds.height / pageBounds.height
+                    )
+                    extractedImages.append((regionImage, normalizedBounds))
+                }
+            }
+        }
+
+        // Strategy 2: If page has no extractable text but renders as image,
+        // the whole page might be a scanned image
+        if page.string?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == true {
+            if let fullPageImage = renderPDFPageAsImage(page: page) {
+                let normalizedBounds = CGRect(x: 0, y: 0, width: 1, height: 1)
+                extractedImages.append((fullPageImage, normalizedBounds))
+            }
+        }
+
+        return extractedImages
+    }
+
+    /// Render a specific region of a PDF page as an image
+    private func renderPDFRegion(page: PDFPage, region: CGRect) -> CIImage? {
+        #if canImport(UIKit)
+            let scale: CGFloat = 2.0 // 2x for better quality
+            let size = CGSize(width: region.width * scale, height: region.height * scale)
+
+            let renderer = UIGraphicsImageRenderer(size: size)
+            let image = renderer.image { context in
+                UIColor.white.set()
+                context.fill(CGRect(origin: .zero, size: size))
+
+                context.cgContext.scaleBy(x: scale, y: scale)
+                context.cgContext.translateBy(x: -region.minX, y: region.maxY - page.bounds(for: .mediaBox).height)
+                context.cgContext.scaleBy(x: 1.0, y: -1.0)
+
+                page.draw(with: .mediaBox, to: context.cgContext)
+            }
+            return CIImage(image: image)
+        #else
+            return nil
+        #endif
+    }
+
+    /// Extract images from entire PDF document with page tracking
+    func extractAllImagesFromPDF(url: URL) async -> [(image: CIImage, pageNumber: Int, bounds: CGRect)] {
+        guard let pdfDocument = PDFDocument(url: url) else {
+            Log.warning("[DocumentProcessor] Cannot extract images: PDF load failed", category: .ingestion)
+            return []
+        }
+
+        var allImages: [(CIImage, Int, CGRect)] = []
+
+        for pageIndex in 0 ..< pdfDocument.pageCount {
+            guard let page = pdfDocument.page(at: pageIndex) else { continue }
+
+            let pageImages = extractImagesFromPDFPage(page: page)
+            for (image, bounds) in pageImages {
+                allImages.append((image, pageIndex + 1, bounds))
+            }
+        }
+
+        Log.info("[DocumentProcessor] Extracted \(allImages.count) images from PDF", category: .ingestion)
+        return allImages
+    }
+
+    /// Process a PDF with full visual understanding (text + images)
+    /// Returns extracted text with image descriptions interleaved at appropriate positions
+    func processDocumentWithVisualUnderstanding(at url: URL) async throws -> (text: String, visualMetadata: VisualContentMetadata) {
+        guard url.pathExtension.lowercased() == "pdf" else {
+            // Non-PDF documents don't have embedded images in the same way
+            return try (await extractTextWithPageInfo(from: url, type: detectDocumentType(url: url)).text, .empty)
+        }
+
+        guard let pdfDocument = PDFDocument(url: url) else {
+            throw DocumentProcessingError.pdfLoadFailed
+        }
+
+        let startTime = Date()
+        var fullText = ""
+        var perPageTextObservations: [[VNRecognizedTextObservation]] = []
+        var extractedImages: [(image: CIImage, pageNumber: Int, bounds: CGRect)] = []
+
+        // First pass: Extract text with bounding boxes for caption matching
+        for pageIndex in 0 ..< pdfDocument.pageCount {
+            guard let page = pdfDocument.page(at: pageIndex) else { continue }
+            let pageNumber = pageIndex + 1
+
+            progressHandler?("analyzing page \(pageNumber)/\(pdfDocument.pageCount)")
+
+            // Get text
+            if let pageText = page.string, !pageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                fullText += pageText + "\n\n"
+                perPageTextObservations.append([]) // No OCR observations for native text
+            } else if let pageImage = renderPDFPageAsImage(page: page) {
+                // OCR with observations for caption matching
+                let observations = try await performOCRWithObservations(on: pageImage)
+                perPageTextObservations.append(observations)
+
+                let ocrText = extractTextWithColumnAwareness(from: observations)
+                fullText += ocrText + "\n\n"
+            } else {
+                perPageTextObservations.append([])
+            }
+
+            // Extract images from this page
+            let pageImages = extractImagesFromPDFPage(page: page)
+            for (image, bounds) in pageImages {
+                extractedImages.append((image, pageNumber, bounds))
+            }
+        }
+
+        // Second pass: Analyze images with ImageUnderstandingService
+        var visualMetadata = VisualContentMetadata.empty
+
+        if !extractedImages.isEmpty {
+            progressHandler?("analyzing \(extractedImages.count) images")
+
+            let (analyzedImages, metadata) = await ImageUnderstandingService.shared.analyzeDocumentImages(
+                images: extractedImages,
+                textObservations: perPageTextObservations
+            )
+
+            visualMetadata = metadata
+
+            // Append image descriptions to text for embedding
+            for analyzed in analyzedImages {
+                if let description = analyzed.description {
+                    fullText += "\n[Image on page \(analyzed.pageNumber)]: \(description)\n"
+                }
+            }
+        }
+
+        let processingTime = Date().timeIntervalSince(startTime)
+        Log.info("[DocumentProcessor] Visual understanding complete in \(String(format: "%.2f", processingTime))s: \(extractedImages.count) images analyzed", category: .ingestion)
+
+        return (fullText, visualMetadata)
+    }
+
+    /// Perform OCR and return raw observations for spatial analysis
+    private func performOCRWithObservations(on image: CIImage) async throws -> [VNRecognizedTextObservation] {
+        let requestHandler = VNImageRequestHandler(ciImage: image, options: [:])
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let request = VNRecognizeTextRequest { request, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                guard let observations = request.results as? [VNRecognizedTextObservation] else {
+                    continuation.resume(returning: [])
+                    return
+                }
+
+                continuation.resume(returning: observations)
+            }
+
+            request.recognitionLevel = .accurate
+            request.usesLanguageCorrection = true
+            request.recognitionLanguages = ["en-US", "es-ES", "fr-FR", "de-DE", "it-IT", "pt-BR", "zh-Hans", "ja-JP", "ko-KR", "ar-SA"]
+
+            do {
+                try requestHandler.perform([request])
+            } catch {
+                continuation.resume(throwing: error)
+            }
+        }
+    }
+
     /// Extract text from RTF using native AttributedString
     private func extractTextFromRTF(url: URL) throws -> String {
         let data = try Data(contentsOf: url)
@@ -589,7 +788,7 @@ class DocumentProcessor {
         return text
     }
 
-    /// Perform OCR on an image using Vision framework
+    /// Perform OCR on an image using Vision framework with layout-aware text ordering
     private func performOCR(on image: CIImage) async throws -> String {
         let requestHandler = VNImageRequestHandler(ciImage: image, options: [:])
 
@@ -605,12 +804,31 @@ class DocumentProcessor {
                     return
                 }
 
-                // Extract text from all observations
-                let recognizedText = observations.compactMap { observation in
-                    observation.topCandidates(1).first?.string
-                }.joined(separator: "\n")
+                // VISUAL DOCUMENT UNDERSTANDING: Sort observations by reading order
+                // Vision uses normalized coordinates where (0,0) is bottom-left
+                // Sort by Y descending (top to bottom), then X ascending (left to right)
+                let sortedObservations = observations.sorted { obs1, obs2 in
+                    let box1 = obs1.boundingBox
+                    let box2 = obs2.boundingBox
 
-                continuation.resume(returning: recognizedText)
+                    // Use a threshold to detect "same line" (within 2% of image height)
+                    let lineThreshold: CGFloat = 0.02
+                    let y1 = box1.midY
+                    let y2 = box2.midY
+
+                    // If on different lines, sort top-to-bottom (higher Y = higher on page in Vision coords)
+                    if abs(y1 - y2) > lineThreshold {
+                        return y1 > y2 // Higher Y value means higher on the page
+                    }
+
+                    // Same line: sort left-to-right
+                    return box1.minX < box2.minX
+                }
+
+                // Detect potential columns by analyzing X-position clusters
+                let columnText = self.extractTextWithColumnAwareness(from: sortedObservations)
+
+                continuation.resume(returning: columnText)
             }
 
             // Configure for maximum accuracy
@@ -626,6 +844,257 @@ class DocumentProcessor {
                 continuation.resume(throwing: error)
             }
         }
+    }
+
+    // MARK: - Layout-Aware Text Extraction
+
+    /// Extract text with awareness of multi-column layouts
+    /// Groups observations by columns and processes each column top-to-bottom
+    private func extractTextWithColumnAwareness(from observations: [VNRecognizedTextObservation]) -> String {
+        guard !observations.isEmpty else { return "" }
+
+        // Collect X midpoints to detect columns
+        let xMidpoints = observations.map { $0.boundingBox.midX }
+        let columns = detectColumns(from: xMidpoints)
+
+        // If single column or can't detect columns, use simple reading order
+        guard columns.count > 1 else {
+            Log.debug("[DocumentProcessor] Single column layout detected", category: .ingestion)
+            return observations.compactMap { $0.topCandidates(1).first?.string }.joined(separator: "\n")
+        }
+
+        Log.debug("[DocumentProcessor] Multi-column layout detected: \(columns.count) columns", category: .ingestion)
+
+        // Group observations by column
+        var columnGroups: [[VNRecognizedTextObservation]] = Array(repeating: [], count: columns.count)
+
+        for observation in observations {
+            let xMid = observation.boundingBox.midX
+            // Find which column this observation belongs to
+            var closestColumn = 0
+            var minDistance = CGFloat.greatestFiniteMagnitude
+
+            for (index, columnCenter) in columns.enumerated() {
+                let distance = abs(xMid - columnCenter)
+                if distance < minDistance {
+                    minDistance = distance
+                    closestColumn = index
+                }
+            }
+
+            columnGroups[closestColumn].append(observation)
+        }
+
+        // Sort each column top-to-bottom and extract text
+        var allText: [String] = []
+        for (index, group) in columnGroups.enumerated() {
+            let sortedGroup = group.sorted { $0.boundingBox.midY > $1.boundingBox.midY }
+            let columnText = sortedGroup.compactMap { $0.topCandidates(1).first?.string }
+
+            if !columnText.isEmpty {
+                Log.debug("[DocumentProcessor] Column \(index + 1): \(columnText.count) text blocks", category: .ingestion)
+                allText.append(contentsOf: columnText)
+                allText.append("") // Paragraph break between columns
+            }
+        }
+
+        return allText.joined(separator: "\n")
+    }
+
+    /// Detect column boundaries using X-position clustering
+    /// Returns array of column center X positions
+    private func detectColumns(from xMidpoints: [CGFloat]) -> [CGFloat] {
+        guard xMidpoints.count > 3 else { return [] }
+
+        // Simple clustering: find gaps in X positions
+        let sorted = xMidpoints.sorted()
+        var gaps: [(position: CGFloat, gap: CGFloat)] = []
+
+        for i in 1 ..< sorted.count {
+            let gap = sorted[i] - sorted[i - 1]
+            gaps.append((position: (sorted[i] + sorted[i - 1]) / 2, gap: gap))
+        }
+
+        // Find significant gaps (> 15% of page width suggests column boundary)
+        let significantGapThreshold: CGFloat = 0.15
+        let columnBoundaries = gaps.filter { $0.gap > significantGapThreshold }.map { $0.position }
+
+        if columnBoundaries.isEmpty {
+            // Single column
+            return [sorted.reduce(0, +) / CGFloat(sorted.count)]
+        }
+
+        // Calculate column centers
+        var centers: [CGFloat] = []
+        var prevBoundary: CGFloat = 0
+
+        for boundary in columnBoundaries.sorted() {
+            centers.append((prevBoundary + boundary) / 2)
+            prevBoundary = boundary
+        }
+        centers.append((prevBoundary + 1.0) / 2) // Last column extends to right edge
+
+        return centers
+    }
+
+    // MARK: - Table Detection
+
+    /// Detected table structure from OCR observations
+    struct DetectedTable: Sendable {
+        let rows: [[String]]
+        let boundingBox: CGRect
+        let confidence: Float
+
+        /// Convert table to readable text format
+        func toText() -> String {
+            guard !rows.isEmpty else { return "" }
+
+            var output = "[Table]\n"
+
+            // Header row
+            if let header = rows.first {
+                output += "| " + header.joined(separator: " | ") + " |\n"
+                output += "|" + header.map { _ in "---" }.joined(separator: "|") + "|\n"
+            }
+
+            // Data rows
+            for row in rows.dropFirst() {
+                output += "| " + row.joined(separator: " | ") + " |\n"
+            }
+
+            output += "[/Table]\n"
+            return output
+        }
+    }
+
+    /// Detect tables in OCR observations using grid alignment analysis
+    /// Returns detected tables and remaining non-table observations
+    func detectTables(from observations: [VNRecognizedTextObservation]) -> (tables: [DetectedTable], remaining: [VNRecognizedTextObservation]) {
+        guard observations.count >= 4 else {
+            return ([], observations)
+        }
+
+        // Group observations by Y position (rows)
+        let lineThreshold: CGFloat = 0.02 // 2% of page height = same row
+        var rows: [[VNRecognizedTextObservation]] = []
+        var currentRow: [VNRecognizedTextObservation] = []
+        var lastY: CGFloat = -1
+
+        let sorted = observations.sorted { $0.boundingBox.midY > $1.boundingBox.midY }
+
+        for obs in sorted {
+            let y = obs.boundingBox.midY
+            if lastY < 0 || abs(y - lastY) < lineThreshold {
+                currentRow.append(obs)
+            } else {
+                if !currentRow.isEmpty {
+                    rows.append(currentRow.sorted { $0.boundingBox.minX < $1.boundingBox.minX })
+                }
+                currentRow = [obs]
+            }
+            lastY = y
+        }
+        if !currentRow.isEmpty {
+            rows.append(currentRow.sorted { $0.boundingBox.minX < $1.boundingBox.minX })
+        }
+
+        // Detect table regions: multiple rows with consistent column count
+        var tables: [DetectedTable] = []
+        var tableObservations: Set<UUID> = []
+        var i = 0
+
+        while i < rows.count {
+            let columnCount = rows[i].count
+
+            // Need at least 2 columns and 2 rows for a table
+            if columnCount >= 2 {
+                var tableRows: [[VNRecognizedTextObservation]] = [rows[i]]
+                var j = i + 1
+
+                // Find consecutive rows with similar column count (±1)
+                while j < rows.count {
+                    let nextColCount = rows[j].count
+                    if abs(nextColCount - columnCount) <= 1, nextColCount >= 2 {
+                        tableRows.append(rows[j])
+                        j += 1
+                    } else {
+                        break
+                    }
+                }
+
+                // If we found 2+ rows with consistent columns, it's likely a table
+                if tableRows.count >= 2 {
+                    // Check X-alignment consistency (column structure)
+                    if hasConsistentColumnAlignment(tableRows) {
+                        let textRows = tableRows.map { row in
+                            row.compactMap { $0.topCandidates(1).first?.string }
+                        }
+
+                        // Calculate bounding box
+                        let allObs = tableRows.flatMap { $0 }
+                        let minX = allObs.map { $0.boundingBox.minX }.min() ?? 0
+                        let maxX = allObs.map { $0.boundingBox.maxX }.max() ?? 1
+                        let minY = allObs.map { $0.boundingBox.minY }.min() ?? 0
+                        let maxY = allObs.map { $0.boundingBox.maxY }.max() ?? 1
+
+                        tables.append(DetectedTable(
+                            rows: textRows,
+                            boundingBox: CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY),
+                            confidence: Float(tableRows.count) / Float(max(1, rows.count))
+                        ))
+
+                        // Mark these observations as table content
+                        for row in tableRows {
+                            for obs in row {
+                                tableObservations.insert(obs.uuid)
+                            }
+                        }
+
+                        Log.debug("[DocumentProcessor] Detected table: \(tableRows.count) rows × \(columnCount) columns", category: .ingestion)
+                    }
+                }
+
+                i = j
+            } else {
+                i += 1
+            }
+        }
+
+        // Return non-table observations
+        let remaining = observations.filter { !tableObservations.contains($0.uuid) }
+
+        return (tables, remaining)
+    }
+
+    /// Check if rows have consistent column X-alignment (suggesting table structure)
+    private func hasConsistentColumnAlignment(_ rows: [[VNRecognizedTextObservation]]) -> Bool {
+        guard rows.count >= 2 else { return false }
+
+        // Get X positions of first row as reference
+        let referenceXs = rows[0].map { $0.boundingBox.midX }
+        let alignmentThreshold: CGFloat = 0.05 // 5% tolerance
+
+        for row in rows.dropFirst() {
+            let rowXs = row.map { $0.boundingBox.midX }
+
+            // Check if this row's X positions roughly align with reference
+            var alignedCount = 0
+            for x in rowXs {
+                for refX in referenceXs {
+                    if abs(x - refX) < alignmentThreshold {
+                        alignedCount += 1
+                        break
+                    }
+                }
+            }
+
+            // Require at least 50% of columns to align
+            if alignedCount < row.count / 2 {
+                return false
+            }
+        }
+
+        return true
     }
 
     /// Extract text from code files - preserve syntax and structure
@@ -680,6 +1149,53 @@ class DocumentProcessor {
         }
 
         return structuredText
+    }
+
+    // MARK: - Audio/Video Transcription
+
+    /// Extract text from audio/video files using Speech.framework
+    private func extractTextFromAudioVideo(url: URL) async throws -> String {
+        let transcriptionService = AudioTranscriptionService.shared
+
+        // Check authorization first
+        let authorized = await transcriptionService.checkAuthorization()
+        if !authorized {
+            Log.warning("[DocumentProcessor] Speech recognition not authorized; requesting permission", category: .ingestion)
+            try await transcriptionService.requestAuthorization()
+        }
+
+        // Detect language from filename or default to English
+        let filename = url.lastPathComponent.lowercased()
+        var language: NLLanguage = .english
+
+        // Simple language hints from filename
+        if filename.contains("_es") || filename.contains("spanish") {
+            language = .spanish
+        } else if filename.contains("_fr") || filename.contains("french") {
+            language = .french
+        } else if filename.contains("_de") || filename.contains("german") {
+            language = .german
+        } else if filename.contains("_zh") || filename.contains("chinese") {
+            language = .simplifiedChinese
+        } else if filename.contains("_ja") || filename.contains("japanese") {
+            language = .japanese
+        }
+
+        progressHandler?("transcribing audio")
+
+        do {
+            let result = try await transcriptionService.transcribe(url: url, language: language)
+
+            if result.isSuccessful {
+                Log.info("[DocumentProcessor] Transcribed \(result.wordCount) words from \(url.lastPathComponent)", category: .ingestion)
+                return transcriptionService.transcriptionToDocument(result, sourceFile: url.lastPathComponent)
+            } else {
+                throw DocumentProcessingError.audioTranscriptionEmpty
+            }
+        } catch let error as TranscriptionError {
+            Log.error("[DocumentProcessor] Transcription failed: \(error.localizedDescription)", category: .ingestion)
+            throw DocumentProcessingError.audioTranscriptionFailed(error.localizedDescription)
+        }
     }
 
     /// Extract text from Office documents (Word, Excel, PowerPoint, iWork)
@@ -872,6 +1388,22 @@ class DocumentProcessor {
         case "csv":
             return .csv
 
+        // Audio formats (Speech transcription)
+        case "m4a", "aac":
+            return .m4a
+        case "mp3":
+            return .mp3
+        case "wav", "wave", "aiff", "aif", "caf":
+            return .wav
+
+        // Video formats (Speech transcription)
+        case "mp4", "m4v":
+            return .mp4
+        case "mov":
+            return .mov
+        case "avi", "mkv", "webm":
+            return .video
+
         default:
             // Try to detect by content type as fallback
             if let resourceValues = try? url.resourceValues(forKeys: [.contentTypeKey]),
@@ -879,6 +1411,10 @@ class DocumentProcessor {
 
                 if contentType.conforms(to: .image) {
                     return .image
+                } else if contentType.conforms(to: .audio) {
+                    return .audio
+                } else if contentType.conforms(to: .audiovisualContent) {
+                    return .video
                 } else if contentType.conforms(to: .plainText) || contentType.conforms(to: .sourceCode) {
                     return .code
                 }
@@ -905,6 +1441,8 @@ enum DocumentProcessingError: LocalizedError {
     case legacyOfficeFormat
     case officeFormatNeedsConversion
     case iWorkExtractionFailed
+    case audioTranscriptionFailed(String)
+    case audioTranscriptionEmpty
 
     var errorDescription: String? {
         switch self {
@@ -934,6 +1472,10 @@ enum DocumentProcessingError: LocalizedError {
             return "Office document detected. For best results, export as PDF before importing."
         case .iWorkExtractionFailed:
             return "iWork document support is limited. Please export as PDF or text for full compatibility."
+        case let .audioTranscriptionFailed(reason):
+            return "Audio transcription failed: \(reason)"
+        case .audioTranscriptionEmpty:
+            return "Audio transcription produced no text. The audio may be silent or incompatible."
         }
     }
 }
