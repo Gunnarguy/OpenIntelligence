@@ -732,7 +732,7 @@ struct LLMResponse {
                     // Very short queries (1-2 words) - add explicit English context
                     fullPrompt =
                         "Please explain the following topic in clean Markdown with short sections and bullets where helpful: \(sanitizedPrompt)"
-                } else if wordCount <= 5, !sanitizedPrompt.contains(" the "), !sanitizedPrompt.contains(" is ") { 
+                } else if wordCount <= 5, !sanitizedPrompt.contains(" the "), !sanitizedPrompt.contains(" is ") {
                     // Short queries without clear English markers
                     fullPrompt =
                         "Answer the following in clean Markdown with short sections and bullets where helpful: \(sanitizedPrompt)"
