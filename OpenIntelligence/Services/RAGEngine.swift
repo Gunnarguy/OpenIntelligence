@@ -51,6 +51,7 @@ actor RAGEngine {
                 do {
                     let config = MLModelConfiguration()
                     config.computeUnits = .all
+                    config.allowLowPrecisionAccumulationOnGPU = true
                     self.rerankerModel = try MLModel(contentsOf: url, configuration: config)
                     Log.info("[RAGEngine] Loaded ReRankerModel.mlmodelc", category: .retrieval)
                 } catch {
@@ -61,6 +62,7 @@ actor RAGEngine {
                 do {
                     let config = MLModelConfiguration()
                     config.computeUnits = .all
+                    config.allowLowPrecisionAccumulationOnGPU = true
                     self.rerankerModel = try MLModel(contentsOf: sourceURL, configuration: config)
                     Log.info("[RAGEngine] Loaded ReRankerModel.mlpackage (fallback)", category: .retrieval)
                 } catch {
@@ -195,7 +197,7 @@ actor RAGEngine {
             if Task.isCancelled { break }
 
             builder += "[Document Chunk \(index + 1), Similarity: \(String(format: "%.3f", retrieved.similarityScore))]\n"
-            builder += retrieved.chunk.content
+            builder += retrieved.chunk.parentContent ?? retrieved.chunk.content
 
             if index != chunks.count - 1 {
                 builder += "\n\n---\n\n"
@@ -359,7 +361,8 @@ actor RAGEngine {
 
             // Sanitize content to help Apple FM's language detector
             // URLs and special Unicode can confuse it into detecting wrong languages
-            let sanitizedContent = sanitizeForLanguageDetection(r.chunk.content)
+            let content = r.chunk.parentContent ?? r.chunk.content
+            let sanitizedContent = sanitizeForLanguageDetection(content)
 
             let block: String
             if compact {

@@ -32,32 +32,41 @@ final class VecturaVectorDatabase: VectorDatabase {
     }
 
     func store(chunk: DocumentChunk) async throws {
+        var metadata: [String: Any] = [
+            "content": chunk.content,
+            "documentId": chunk.documentId.uuidString,
+            "chunkIndex": chunk.metadata.chunkIndex,
+            "startPosition": chunk.metadata.startPosition,
+            "endPosition": chunk.metadata.endPosition,
+        ]
+        if let parentContent = chunk.parentContent {
+            metadata["parentContent"] = parentContent
+        }
+
         try await db.insert(
             id: chunk.id.uuidString,
             vector: chunk.embedding,
-            metadata: [
-                "content": chunk.content,
-                "documentId": chunk.documentId.uuidString,
-                "chunkIndex": chunk.metadata.chunkIndex,
-                "startPosition": chunk.metadata.startPosition,
-                "endPosition": chunk.metadata.endPosition
-            ]
+            metadata: metadata
         )
     }
 
     func storeBatch(chunks: [DocumentChunk]) async throws {
         // Batch insert for performance
         try await db.insertBatch(entries: chunks.map { c in
+            var metadata: [String: Any] = [
+                "content": c.content,
+                "documentId": c.documentId.uuidString,
+                "chunkIndex": c.metadata.chunkIndex,
+                "startPosition": c.metadata.startPosition,
+                "endPosition": c.metadata.endPosition,
+            ]
+            if let parentContent = c.parentContent {
+                metadata["parentContent"] = parentContent
+            }
             .init(
                 id: c.id.uuidString,
                 vector: c.embedding,
-                metadata: [
-                    "content": c.content,
-                    "documentId": c.documentId.uuidString,
-                    "chunkIndex": c.metadata.chunkIndex,
-                    "startPosition": c.metadata.startPosition,
-                    "endPosition": c.metadata.endPosition
-                ]
+                metadata: metadata
             )
         })
         Log.debug("[VecturaVectorDatabase] Stored batch: \(chunks.count)", category: .vectorDB)
@@ -85,10 +94,12 @@ final class VecturaVectorDatabase: VectorDatabase {
                 continue
             }
 
+            let parentContent = meta["parentContent"] as? String
             let chunk = DocumentChunk(
                 id: UUID(uuidString: r.id) ?? UUID(),
                 documentId: documentId,
                 content: content,
+                parentContent: parentContent,
                 embedding: [], // Not required for downstream display; stored in index
                 metadata: ChunkMetadata(
                     chunkIndex: chunkIndex,

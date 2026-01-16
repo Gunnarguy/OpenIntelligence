@@ -727,6 +727,186 @@ final class SystemStateMonitor: ObservableObject {
 
 ---
 
+### Recursive Research Loop
+
+**Purpose**: Enable LLM-driven autonomous multi-hop research for complex queries
+
+**Problem Solved**: Static decomposition (planning sub-questions upfront) doesn't adapt to what's actually found. The LLM might need information it didn't know to ask for initially.
+
+**Solution**: Let the LLM autonomously decide when to search and when to answer using a simple token protocol.
+
+**Protocol**:
+```text
+[SEARCH: specific query] → System executes RAG search, adds results to context
+[ANSWER]                 → LLM provides final response
+```
+
+**Flow Example**:
+```text
+User: "What's the relationship between CoreData and SwiftData?"
+
+Iteration 1: LLM analyzes initial context
+→ "[SEARCH: SwiftData @Model macro migration]"
+→ System retrieves SwiftData modeling chunks
+
+Iteration 2: LLM analyzes expanded context
+→ "[SEARCH: CoreData NSManagedObject conversion]"
+→ System retrieves CoreData migration chunks
+
+Iteration 3: LLM has sufficient information
+→ "[ANSWER]
+CoreData and SwiftData share the underlying persistent store format..."
+```
+
+**Implementation** (`AgenticOrchestrator.executeRecursiveResearch()`):
+
+| Component | Details |
+|-----------|---------|
+| Max Iterations | 7 (configurable) |
+| Context Accumulation | Rolling context window with 8K char limit |
+| Automatic Trimming | Old context truncated when budget exceeded |
+| Forced Synthesis | After max iterations, synthesize with available info |
+| Confidence Estimation | Heuristic based on hedging language detection |
+
+**File**: `OpenIntelligence/Services/AgenticOrchestrator.swift`
+
+---
+
+### Entity Extraction (Connective Tissue)
+
+**Purpose**: Extract named entities from chunks to enable cross-document correlation
+
+**Problem Solved**: Traditional RAG treats each chunk as isolated. When a user asks about "URLSession", all chunks mentioning it should be findable—even if they're in different documents.
+
+**Solution**: NLTagger-based entity extraction during chunking, stored in `ChunkMetadata.entities`.
+
+**Extraction Passes**:
+
+| Pass | Method | Examples |
+|------|--------|----------|
+| Named Entities | `NLTagger(.nameType)` | "Apple", "Tim Cook", "Cupertino" |
+| Technical Terms | PascalCase regex | "URLSession", "CoreData", "SwiftUI" |
+| Capitalized Nouns | Lexical class filtering | "Engine", "Manual", "Safety" |
+
+**Implementation** (`SemanticChunker.extractEntities()`):
+
+```swift
+private func extractEntities(_ text: String) -> [String] {
+    // Pass 1: NER (PersonalName, OrganizationName, PlaceName)
+    let nerTagger = NLTagger(tagSchemes: [.nameType])
+
+    // Pass 2: Technical terms (PascalCase identifiers)
+    let technicalPattern = #"\b([A-Z][a-z]+(?:[A-Z][a-z0-9]*)+)\b"#
+
+    // Pass 3: Capitalized nouns (domain terms)
+    let nounTagger = NLTagger(tagSchemes: [.lexicalClass])
+
+    // Return up to 15 entities per chunk
+    return Array(entities.prefix(15))
+}
+```
+
+**Output**: `ChunkMetadata.entities: [String]` populated during ingestion
+
+**File**: `OpenIntelligence/Services/SemanticChunker.swift`
+
+---
+
+### Global Entity Index
+
+**Purpose**: O(1) lookup from entity name to all chunks containing it
+
+**Problem Solved**: Finding all chunks about "CoreData" requires scanning all chunk metadata. With 10K chunks, this adds latency.
+
+**Solution**: Inverted index maintained in memory and persisted to disk.
+
+**Data Structure**:
+```swift
+actor EntityIndexService {
+    // Forward index: entity → chunks that contain it
+    private var entityToChunks: [String: Set<UUID>] = [:]
+
+    // Reverse index: chunk → its entities (for efficient removal)
+    private var chunkToEntities: [UUID: Set<String>] = [:]
+
+    // Document tracking for bulk deletion
+    private var documentToChunks: [UUID: Set<UUID>] = [:]
+}
+```
+
+**Key Operations**:
+
+| Method | Purpose | Complexity |
+|--------|---------|------------|
+| `indexChunk(_:)` | Add chunk's entities to index | O(e) where e = entities |
+| `chunksForEntity(_:)` | Find all chunks with entity | O(1) |
+| `chunksForEntities(_:)` | Union search across entities | O(e) |
+| `sharedEntities(among:)` | Find common entities in chunks | O(c·e) |
+| `removeDocument(_:)` | Delete all entries for document | O(c·e) |
+
+**GraphRAG Integration**: `AgenticOrchestrator.executeGraphExpansion()` uses `chunksForEntities()` for 2-hop expansion without additional vector search.
+
+**Persistence**: JSON snapshot saved to app container for cold-start performance.
+
+**File**: `OpenIntelligence/Services/EntityIndexService.swift`
+
+---
+
+### mmap Zero-Copy Vector Storage
+
+**Purpose**: Minimize RAM usage for large embedding corpora
+
+**Problem Solved**: 10,000 chunks × 512 dimensions × 4 bytes = ~20MB resident memory. On memory-constrained devices, this competes with the LLM.
+
+**Solution**: Memory-mapped files let the OS page vectors in/out on demand.
+
+**Architecture**:
+```text
+┌─────────────────────────────────────────────────────────────┐
+│ embeddings.bin (mmap'd)                                     │
+│ ┌──────────────────┬──────────────────┬─────────────────┐   │
+│ │ Chunk 0 [512 f32]│ Chunk 1 [512 f32]│ Chunk N [512 f32│   │
+│ └──────────────────┴──────────────────┴─────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+             ↑
+    Data(contentsOf:, options: .alwaysMapped)
+
+┌─────────────────────────────────────────────────────────────┐
+│ metadata.json - chunk IDs, content, metadata                │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│ norms.bin - pre-computed L2 norms for fast cosine similarity│
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Performance Characteristics**:
+
+| Metric | In-Memory DB | mmap DB |
+|--------|--------------|---------|
+| Resident Memory (10K chunks) | ~20 MB | ~2 KB |
+| Cold Start | Instant | ~100ms (metadata load) |
+| Search Latency | ~2ms | ~5ms |
+| Best For | Small corpora (<1K) | Large corpora (>5K) |
+
+**Hardware Acceleration**: Search uses `vDSP_dotpr` for BLAS-accelerated dot products.
+
+**Implementation** (`MmapVectorDatabase`):
+```swift
+// Memory-map embeddings file
+mappedEmbeddings = try Data(contentsOf: embeddingsURL, options: .alwaysMapped)
+
+// BLAS-accelerated search
+mapped.withUnsafeBytes { buffer in
+    let embeddings = buffer.bindMemory(to: Float.self)
+    vDSP_dotpr(query, 1, embeddings.baseAddress!.advanced(by: offset), 1, &dotProduct, vDSP_Length(dim))
+}
+```
+
+**File**: `OpenIntelligence/Services/VectorDatabase.swift` (`MmapVectorDatabase` class)
+
+---
+
 ### Query Task Management
 
 **Purpose**: Handle back-to-back queries without memory leaks or freezing
