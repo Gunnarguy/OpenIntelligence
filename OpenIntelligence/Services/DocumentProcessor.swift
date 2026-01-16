@@ -22,6 +22,7 @@ import AppKit
 class DocumentProcessor {
     struct ProcessedChunk: Sendable {
         let text: String
+        let parentText: String?
         let metadata: ChunkMetadata
     }
 
@@ -129,7 +130,7 @@ class DocumentProcessor {
                 wordCount: chunk.metadata.wordCount,
                 characterCount: chunk.metadata.characterCount
             )
-            return ProcessedChunk(text: chunk.content, metadata: metadata)
+            return ProcessedChunk(text: chunk.content, parentText: chunk.parentContent, metadata: metadata)
         }
 
         let chunkingTime = Date().timeIntervalSince(chunkingStartTime)

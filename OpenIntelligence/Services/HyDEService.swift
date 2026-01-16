@@ -124,11 +124,15 @@ final class HyDEService: @unchecked Sendable {
     }
 
     private func buildHyDEPrompt(query: String, config: Config) -> String {
+        // Extract key terms from the query to keep the hypothetical doc focused
+        let keyTerms = extractKeyTerms(from: query)
+        let keyTermsHint = keyTerms.isEmpty ? "" : " Key terms to include: \(keyTerms.joined(separator: ", "))."
+
         var prompt = """
-        Write a brief passage (2-3 sentences) that directly answers this question.
-        Write as if quoting from a reference document. Be specific and factual.
-        Do NOT include phrases like "According to" or "The document states".
-        Just write the answer content directly.
+        Write a brief factual passage (2-3 sentences) that would answer this question.
+        Write as if this is an excerpt from a product manual or reference guide.
+        IMPORTANT: Your answer MUST directly address the specific action or concept in the question.
+        Do NOT make up unrelated information.\(keyTermsHint)
 
         Question: \(query)
 
@@ -141,6 +145,17 @@ final class HyDEService: @unchecked Sendable {
         prompt += "Passage:"
 
         return prompt
+    }
+
+    /// Extract key terms from a query to keep HyDE grounded
+    private func extractKeyTerms(from query: String) -> [String] {
+        let stopWords: Set<String> = ["what", "what's", "how", "why", "when", "where", "which", "who",
+                                      "is", "are", "was", "were", "do", "does", "did", "the", "a", "an",
+                                      "to", "for", "of", "in", "on", "at", "by", "with", "about"]
+        let words = query.lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty && $0.count > 2 && !stopWords.contains($0) }
+        return Array(words.prefix(5))
     }
 
     /// Clear the session to free memory

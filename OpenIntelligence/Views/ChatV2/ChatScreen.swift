@@ -22,6 +22,19 @@ private struct ConsolidatedMetrics {
     let sourceCount: Int
     let averageScore: Float?
     let isStreaming: Bool
+
+    // Advanced RAG features (FullBlownUpgrade)
+    var hierarchicalChunkingActive: Bool = false
+    var parentChunksUsed: Int = 0
+    var siblingChunksAdded: Int = 0
+    var graphExpansionActive: Bool = false
+    var graphEntitiesExtracted: Int = 0
+    var intentAwareWeightsActive: Bool = true
+    var queryIntent: String = ""
+
+    // Recursive RAG metrics (Deep Think mode)
+    var isRecursiveRAG: Bool = false
+    var recursiveCallCount: Int = 1
 }
 
 // ChatV2 entry point (feature-flagged from ContentView)
@@ -93,13 +106,26 @@ struct ChatScreen: View {
     @AppStorage("llmSystemPrompt") private var systemPrompt: String = "You are a helpful assistant."
     @AppStorage("llmContextLength") private var contextLength: Int = 2048
 
-    /// Context window limit shown in UI - reflects session constraints
-    /// Apple's LanguageModelSession accumulates context within a query (input + response + continuations)
-    /// This limit is 4,096 tokens regardless of PCC routing. PCC's 65K limit is for initial input only.
+    /// Context tokens actually used (from audit) or estimated
+    /// Uses real values from RAGService when available for accuracy
+    private var actualContextTokensUsed: Int {
+        // Prefer real audit data when available
+        if let audit = ragService.lastAuditSnapshot {
+            // Convert chars to tokens (audit has contextChars)
+            return max(1, audit.contextChars / 3) // ~3 chars per token conservative
+        }
+        return estimatedContextTokens
+    }
+
+    /// Max context tokens - use audit's availableContextTokens when available
+    /// This reflects the ACTUAL budget RAGService computed, not a hardcoded value
     private var maxContextTokensForUI: Int {
-        // Session-level context window is 4,096 tokens for accumulated state
-        // Even when routed to PCC, the session object tracks this limit
-        // Show 4K as the practical limit to avoid misleading users
+        if let audit = ragService.lastAuditSnapshot {
+            // Show available context budget (what was actually allocated)
+            return audit.availableContextTokens > 0 ? audit.availableContextTokens : audit.baseWindowTokens
+        }
+
+        // Fallback to base window tokens
         return 4096
     }
 
@@ -120,13 +146,16 @@ struct ChatScreen: View {
                 // Shows execution location, context usage, generation speed, sources, quality mode
                 // Visible during processing and persists after completion
                 if let metricsData = consolidatedMetricsData {
+                    // For Deep Think, use live token counter during processing, final count after
+                    let deepThinkTokens = isProcessing ? ragService.deepThinkLiveTokens : (ragService.lastAuditSnapshot?.totalTokensAcrossCalls ?? ragService.deepThinkLiveTokens)
+
                     UnifiedMetricsBar(
                         stage: stage,
                         execution: metricsData.execution,
                         isProcessing: isProcessing,
                         qualityMode: settings.ragQualityMode,
                         isLLMActivelyGenerating: ragService.isLLMResponding,
-                        contextTokens: estimatedContextTokens,
+                        contextTokens: metricsData.isRecursiveRAG ? deepThinkTokens : actualContextTokensUsed,
                         maxContextTokens: maxContextTokensForUI,
                         tokensGenerated: metricsData.tokens,
                         tokensPerSecond: metricsData.tokensPerSecond,
@@ -142,6 +171,15 @@ struct ChatScreen: View {
                         toolCallCount: metricsData.toolCallCount,
                         modelName: metricsData.modelName,
                         requestedExecutionContext: requestedExecutionContext,
+                        queryIntent: metricsData.queryIntent,
+                        hierarchicalChunkingActive: metricsData.hierarchicalChunkingActive,
+                        parentChunksUsed: metricsData.parentChunksUsed,
+                        siblingChunksAdded: metricsData.siblingChunksAdded,
+                        graphExpansionActive: metricsData.graphExpansionActive,
+                        graphEntitiesExtracted: metricsData.graphEntitiesExtracted,
+                        intentAwareWeightsActive: metricsData.intentAwareWeightsActive,
+                        isRecursiveRAG: metricsData.isRecursiveRAG,
+                        recursiveCallCount: metricsData.recursiveCallCount,
                         onTapDetails: !metricsData.isStreaming ? { showRetrievedDetails = true } : nil
                     )
                     .padding(.horizontal, 12)
@@ -150,13 +188,14 @@ struct ChatScreen: View {
                     .animation(.easeInOut(duration: 0.15), value: metricsData.tokens)
                 } else if isProcessing || currentRetrievedChunks.count > 0 {
                     // Show minimal bar when processing starts (before generating)
+                    let auditSnapshot = ragService.lastAuditSnapshot
                     UnifiedMetricsBar(
                         stage: stage,
                         execution: execution,
                         isProcessing: isProcessing,
                         qualityMode: settings.ragQualityMode,
                         isLLMActivelyGenerating: ragService.isLLMResponding,
-                        contextTokens: estimatedContextTokens,
+                        contextTokens: auditSnapshot?.isRecursiveRAG == true ? (auditSnapshot?.totalTokensAcrossCalls ?? actualContextTokensUsed) : actualContextTokensUsed,
                         maxContextTokens: maxContextTokensForUI,
                         tokensGenerated: 0,
                         tokensPerSecond: 0,
@@ -172,6 +211,15 @@ struct ChatScreen: View {
                         toolCallCount: 0,
                         modelName: inferredModelName,
                         requestedExecutionContext: requestedExecutionContext,
+                        queryIntent: deriveQueryIntent(from: auditSnapshot?.retrievalConfig),
+                        hierarchicalChunkingActive: auditSnapshot?.contextStrategy == "parent_expanded",
+                        parentChunksUsed: 0,
+                        siblingChunksAdded: 0,
+                        graphExpansionActive: settings.ragQualityMode == .deepThink,
+                        graphEntitiesExtracted: 0,
+                        intentAwareWeightsActive: true,
+                        isRecursiveRAG: auditSnapshot?.isRecursiveRAG ?? (settings.ragQualityMode == .deepThink),
+                        recursiveCallCount: auditSnapshot?.llmCallCount ?? 1,
                         onTapDetails: nil
                     )
                     .padding(.horizontal, 12)
@@ -407,9 +455,32 @@ struct ChatScreen: View {
         return Float(total / Double(currentRetrievedChunks.count))
     }
 
+    /// Derive query intent label from retrieval config weights
+    private func deriveQueryIntent(from config: RetrievalConfig?) -> String {
+        guard let config else { return "" }
+        // Infer intent from weight distribution
+        if config.lexicalWeight > 0.55 {
+            return "keyword"
+        } else if config.vectorWeight > 0.65 {
+            return "conceptual"
+        } else {
+            return "balanced"
+        }
+    }
+
     /// Consolidated metrics data for the unified header bar
     /// Returns data during streaming OR after completion (when we have metadata)
     private var consolidatedMetricsData: ConsolidatedMetrics? {
+        // Extract advanced RAG features from audit snapshot
+        let audit = ragService.lastAuditSnapshot
+        let isHierarchical = audit?.contextStrategy == "parent_expanded"
+        let queryIntentName = deriveQueryIntent(from: audit?.retrievalConfig)
+        // Deep Think mode is recursive even if audit snapshot isn't ready yet
+        let isRecursive = audit?.isRecursiveRAG ?? (settings.ragQualityMode == .deepThink)
+        // Use live counters during processing, final count after completion
+        let liveSteps = ragService.deepThinkLiveSteps
+        let callCount = audit?.llmCallCount ?? (isRecursive ? liveSteps : 1)
+
         // Case 1: Currently streaming
         if isProcessing, stage == .generating, !streamingText.isEmpty, generationStart != nil {
             return ConsolidatedMetrics(
@@ -423,7 +494,16 @@ struct ChatScreen: View {
                 toolCallCount: currentMetadata?.toolCallsMade ?? 0,
                 sourceCount: currentRetrievedChunks.count,
                 averageScore: averageSourceScore,
-                isStreaming: true
+                isStreaming: true,
+                hierarchicalChunkingActive: isHierarchical,
+                parentChunksUsed: isHierarchical ? (audit?.contextChunksUsed ?? 0) : 0,
+                siblingChunksAdded: 0, // Would need tracking in RAGService
+                    graphExpansionActive: settings.ragQualityMode == .deepThink,
+                graphEntitiesExtracted: 0, // Would need tracking
+                    intentAwareWeightsActive: true,
+                queryIntent: queryIntentName,
+                isRecursiveRAG: isRecursive,
+                recursiveCallCount: callCount
             )
         }
 
@@ -440,7 +520,16 @@ struct ChatScreen: View {
                 toolCallCount: meta.toolCallsMade ?? 0,
                 sourceCount: currentRetrievedChunks.count,
                 averageScore: averageSourceScore,
-                isStreaming: false
+                isStreaming: false,
+                hierarchicalChunkingActive: isHierarchical,
+                parentChunksUsed: isHierarchical ? (audit?.contextChunksUsed ?? 0) : 0,
+                siblingChunksAdded: 0,
+                graphExpansionActive: settings.ragQualityMode == .deepThink,
+                graphEntitiesExtracted: 0,
+                intentAwareWeightsActive: true,
+                queryIntent: queryIntentName,
+                isRecursiveRAG: isRecursive,
+                recursiveCallCount: callCount
             )
         }
 

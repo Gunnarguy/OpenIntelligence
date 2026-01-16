@@ -77,8 +77,11 @@ final class AudioTranscriptionService: ObservableObject {
 
     // MARK: - Configuration
 
-    /// Maximum audio duration (10 minutes default)
-    let maxDurationSeconds: Int = 600
+    /// Maximum single-segment duration for speech recognition (10 minutes default)
+    let maxSegmentSeconds: Int = 600
+
+    /// Maximum total audio duration for segmented transcription (2 hours default)
+    let maxTotalDurationSeconds: Int = 7200
 
     /// Supported file extensions
     let supportedExtensions: Set<String> = ["m4a", "mp3", "wav", "caf", "aiff", "mp4", "mov", "m4v"]
@@ -146,8 +149,8 @@ final class AudioTranscriptionService: ObservableObject {
         let asset = AVURLAsset(url: url)
         let duration = try await asset.load(.duration).seconds
 
-        guard duration <= Double(maxDurationSeconds) else {
-            throw TranscriptionError.fileTooLarge(maxSeconds: maxDurationSeconds)
+        guard duration <= Double(maxTotalDurationSeconds) else {
+            throw TranscriptionError.fileTooLarge(maxSeconds: maxTotalDurationSeconds)
         }
 
         // Set up recognizer for the target language
@@ -178,8 +181,13 @@ final class AudioTranscriptionService: ObservableObject {
 
         Log.info("[AudioTranscription] Starting transcription: \(url.lastPathComponent) (\(Int(duration))s)", category: .retrieval)
 
-        // Perform transcription
-        let result = try await performTranscription(url: url, duration: duration, language: language)
+        // Perform transcription (segment if needed)
+        let result: TranscriptionResult
+        if duration <= Double(maxSegmentSeconds) {
+            result = try await performTranscription(url: url, duration: duration, language: language)
+        } else {
+            result = try await transcribeInSegments(url: url, duration: duration, language: language)
+        }
 
         Log.info("[AudioTranscription] Complete: \(result.wordCount) words, \(Int(result.confidence * 100))% confidence", category: .retrieval)
 
@@ -267,6 +275,130 @@ final class AudioTranscriptionService: ObservableObject {
                 }
             }
         }
+    }
+
+    private func transcribeInSegments(
+        url: URL,
+        duration: TimeInterval,
+        language: NLLanguage
+    ) async throws -> TranscriptionResult {
+        let asset = AVURLAsset(url: url)
+        let segmentLength = Double(maxSegmentSeconds)
+        let segmentCount = Int(ceil(duration / segmentLength))
+
+        var combinedText: [String] = []
+        var combinedSegments: [TranscriptionSegment] = []
+        var totalConfidence: Float = 0
+        var totalWordCount = 0
+
+        for index in 0 ..< segmentCount {
+            let startSeconds = Double(index) * segmentLength
+            let segmentDuration = min(segmentLength, duration - startSeconds)
+            let exportURL = try await exportSegment(asset: asset, startSeconds: startSeconds, duration: segmentDuration)
+
+            defer { try? FileManager.default.removeItem(at: exportURL) }
+
+            do {
+                let segmentResult = try await performTranscription(
+                    url: exportURL,
+                    duration: segmentDuration,
+                    language: language
+                )
+
+                if !segmentResult.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    combinedText.append(segmentResult.text)
+                    let offset = startSeconds
+                    combinedSegments.append(contentsOf: offsetSegments(segmentResult.segments, by: offset))
+
+                    let wordCount = segmentResult.wordCount
+                    totalWordCount += wordCount
+                    totalConfidence += segmentResult.confidence * Float(max(1, wordCount))
+                } else {
+                    Log.warning("[AudioTranscription] Empty transcription for segment \(index + 1)/\(segmentCount)", category: .retrieval)
+                }
+            } catch {
+                if isNoSpeechError(error) {
+                    Log.warning("[AudioTranscription] No speech detected in segment \(index + 1)/\(segmentCount)", category: .retrieval)
+                } else {
+                    throw error
+                }
+            }
+
+            progress = Double(index + 1) / Double(segmentCount)
+        }
+
+        if combinedText.joined().trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            throw TranscriptionError.transcriptionFailed("No speech detected")
+        }
+
+        let avgConfidence = totalWordCount > 0 ? totalConfidence / Float(totalWordCount) : 0.5
+
+        return TranscriptionResult(
+            text: combinedText.joined(separator: "\n"),
+            duration: duration,
+            language: DetectedLanguage(
+                code: language,
+                confidence: Double(avgConfidence),
+                displayName: Locale.current.localizedString(forLanguageCode: language.rawValue) ?? language.rawValue
+            ),
+            segments: combinedSegments,
+            confidence: avgConfidence
+        )
+    }
+
+    private func exportSegment(
+        asset: AVURLAsset,
+        startSeconds: TimeInterval,
+        duration: TimeInterval
+    ) async throws -> URL {
+        let outputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("m4a")
+
+        guard let exporter = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetAppleM4A) else {
+            throw TranscriptionError.transcriptionFailed("Failed to initialize audio exporter")
+        }
+
+        exporter.timeRange = CMTimeRange(
+            start: CMTime(seconds: startSeconds, preferredTimescale: 600),
+            duration: CMTime(seconds: duration, preferredTimescale: 600)
+        )
+
+        do {
+            try await exporter.export(to: outputURL, as: .m4a)
+            return outputURL
+        } catch {
+            if (error as NSError).code == NSUserCancelledError {
+                throw TranscriptionError.cancelled
+            }
+            throw TranscriptionError.transcriptionFailed(error.localizedDescription)
+        }
+    }
+
+    private func offsetSegments(_ segments: [TranscriptionSegment], by offset: TimeInterval) -> [TranscriptionSegment] {
+        segments.map { segment in
+            TranscriptionSegment(
+                text: segment.text,
+                startTime: segment.startTime + offset,
+                endTime: segment.endTime + offset,
+                confidence: segment.confidence
+            )
+        }
+    }
+
+    private func isNoSpeechError(_ error: Error) -> Bool {
+        if let transcriptionError = error as? TranscriptionError {
+            if case let .transcriptionFailed(reason) = transcriptionError {
+                return reason.lowercased().contains("no speech")
+            }
+        }
+
+        let nsError = error as NSError
+        if nsError.domain == "SFSpeechErrorDomain" && nsError.code == 1110 {
+            return true
+        }
+
+        return nsError.localizedDescription.lowercased().contains("no speech")
     }
 }
 

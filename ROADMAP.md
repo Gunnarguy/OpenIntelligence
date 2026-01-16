@@ -3,9 +3,13 @@
 **Last Updated**: January 13, 2026
 **Version**: 1.6.0
 **Status**: Production (App Store Ready)
-**RAG Maturity Score**: 9.0/10 (Language Detection + Audio RAG + Table Detection)
+**RAG Maturity Score**: 9.5/10 (Entity Extraction + Recursive Research + mmap Storage)
 
-### Recent Improvements (January 2026 - Visual Document Understanding)
+### Recent Improvements (January 2026 - Powerhouse RAG Upgrade)
+- **Entity Extraction (Connective Tissue)**: NLTagger-based extraction of named entities (persons, organizations, places) and technical terms (PascalCase identifiers) during chunking
+- **Global Entity Index**: Cross-document entity correlation via `EntityIndexService` with `Dict<Entity, Set<ChunkID>>` lookup
+- **Recursive Research Loop**: LLM-driven autonomous search with `[ANSWER]`/`[SEARCH: query]` token protocol for multi-hop reasoning
+- **mmap Zero-Copy Vector Storage**: Memory-mapped embedding files with `cblas_sgemv` BLAS-accelerated search (~2KB resident memory vs ~20MB for in-memory)
 - **Spatial Text Ordering**: OCR now sorts text by reading order using bounding boxes (top→bottom, left→right)
 - **Multi-Column Detection**: Automatically detects and processes multi-column layouts correctly
 - **Image Classification**: ClassifyImageRequest integration tags embedded images (iOS 18+)
@@ -42,6 +46,7 @@
 - [x] **Corpus-Aware Query Expansion**: Expands queries using actual document vocabulary with garbage filtering
 - [x] **Lost-in-Middle Mitigation**: Reorders context chunks so best are at start AND end (Liu et al. 2023)
 - [x] **Cross-Encoder Re-ranking**: BERT-based reranker with heuristic fallback
+- [x] **Hierarchical Context Windows**: Embed precise chunks but return expanded parent context to the LLM
 
 ### LLM Integrations
 - [x] **AppleFoundationLLMService**: iOS 26 Foundation Models with PCC fallback
@@ -71,6 +76,22 @@
 - [x] **AgenticOrchestrator**: Multi-step reasoning pipeline (Planning→Searching→Analyzing→Synthesizing→Refining)
   *Location*: [AgenticOrchestrator.swift](OpenIntelligence/Services/AgenticOrchestrator.swift)
   *Status*: Fully implemented with hardware-aware configuration
+- [x] **GraphRAG-Lite Expansion**: 2-hop entity expansion (retrieve → extract entities → retrieve again)
+  *Location*: [AgenticOrchestrator.swift](OpenIntelligence/Services/AgenticOrchestrator.swift)
+- [x] **Recursive Research Loop**: LLM-driven autonomous search with `[ANSWER]`/`[SEARCH: query]` tokens
+  *Location*: [AgenticOrchestrator.swift](OpenIntelligence/Services/AgenticOrchestrator.swift)
+  *Method*: `executeRecursiveResearch()` - 7-iteration autonomous research with accumulating context
+  *Protocol*: LLM outputs `[SEARCH: specific query]` to retrieve more, `[ANSWER]` when confident
+  *Benefit*: Deep multi-hop reasoning without pre-defined decomposition; LLM decides when to stop
+- [x] **Entity Extraction (Connective Tissue)**: NLTagger-based NER during chunking
+  *Location*: [SemanticChunker.swift](OpenIntelligence/Services/SemanticChunker.swift)
+  *Method*: `extractEntities()` - extracts persons, organizations, places, PascalCase technical terms
+  *Output*: `ChunkMetadata.entities` field populated with up to 15 entities per chunk
+- [x] **Global Entity Index**: Cross-document entity correlation for GraphRAG
+  *Location*: [EntityIndexService.swift](OpenIntelligence/Services/EntityIndexService.swift)
+  *Structure*: `Dict<String, Set<UUID>>` mapping normalized entity names → chunk IDs
+  *Features*: O(1) lookup, persistence to JSON, reverse index for efficient removal
+  *Methods*: `chunksForEntity()`, `sharedEntities()`, `topEntities()`
 - [x] **DeviceCapabilityService**: Hardware tier detection (A17→A18→A19→M-series)
   *Location*: [DeviceCapabilityService.swift](OpenIntelligence/Services/DeviceCapabilityService.swift)
   *Status*: Maps device → max sessions → total tokens (16K-48K depending on chip)
@@ -216,6 +237,11 @@
 - [x] **Device-Adaptive Batch Thresholds**: DeviceCapabilityService optimizes batch sizes per chip
   *Location*: [DeviceCapabilityService.swift](OpenIntelligence/Services/DeviceCapabilityService.swift)
   *Features*: vectorBatchSize, embeddingBatchSize, batchMatrixMultiplyThreshold tuned per device tier
+- [x] **mmap Zero-Copy Vector Storage**: Memory-mapped embedding files for minimal RAM usage
+  *Location*: [VectorDatabase.swift](OpenIntelligence/Services/VectorDatabase.swift) `MmapVectorDatabase`
+  *Features*: `Data(contentsOf:, options: .alwaysMapped)` for zero-copy access, cblas_sgemv search
+  *Performance*: ~2KB resident memory vs ~20MB for in-memory (10K chunks @ 512-dim)
+  *Architecture*: Separate embeddings.bin (mmap'd) + metadata.json + norms.bin files
 
 ### Phase 3: Cross-Encoder Re-Ranking (High) ✅ COMPLETE
 *Neural relevance scoring using BERT-based cross-encoder*

@@ -279,6 +279,13 @@ final class QueryEnhancementService {
             "install": ["attach", "connect", "mount", "affix"],
             "check": ["verify", "inspect", "examine", "test"],
             "warning": ["caution", "alert", "notice", "advisory"],
+            // UI/hardware controls
+            "button": ["switch", "toggle", "control", "key", "trigger"],
+            "press": ["tap", "click", "push", "activate", "toggle"],
+            "pressing": ["tapping", "clicking", "pushing", "activating", "toggling"],
+            "click": ["tap", "press", "select", "activate"],
+            "start": ["begin", "initiate", "launch", "enable", "activate"],
+            "stop": ["end", "disable", "deactivate", "halt", "pause"],
         ]
 
         for term in terms {

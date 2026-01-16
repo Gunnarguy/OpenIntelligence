@@ -212,6 +212,54 @@ struct LLMResponse {
         /// Tool handler for agentic RAG function calling
         var toolHandler: RAGToolHandler?
 
+        /// Guards against concurrent warmup calls that cause "Session in Canceled state" warnings
+        private var isWarmingUp = false
+
+        // MARK: - Language Detection Fix
+
+        /// Sanitize text to prevent false language detection by Apple Foundation Models.
+        ///
+        /// Apple's language detector can misidentify English text as Polish or other languages
+        /// when certain character patterns are present (especially Polish diacritics like ł, ą, ę, ó, etc.
+        /// or sequences that resemble them). This function normalizes such characters.
+        private func sanitizeForLanguageDetection(_ text: String) -> String {
+            // Common problematic characters that trigger false Polish detection:
+            // - URLs with encoded characters
+            // - Special Unicode characters
+            // - Technical symbols that resemble diacritics
+            var sanitized = text
+
+            // Replace Polish-like diacritics with ASCII equivalents
+            let replacements: [(String, String)] = [
+                ("ł", "l"), ("Ł", "L"),
+                ("ą", "a"), ("Ą", "A"),
+                ("ę", "e"), ("Ę", "E"),
+                ("ó", "o"), ("Ó", "O"),
+                ("ś", "s"), ("Ś", "S"),
+                ("ź", "z"), ("Ź", "Z"),
+                ("ż", "z"), ("Ż", "Z"),
+                ("ć", "c"), ("Ć", "C"),
+                ("ń", "n"), ("Ń", "N"),
+                // Other problematic diacritics
+                ("ü", "u"), ("ö", "o"), ("ä", "a"),
+                ("è", "e"), ("é", "e"), ("ê", "e"),
+                ("à", "a"), ("á", "a"), ("â", "a"),
+                ("ì", "i"), ("í", "i"), ("î", "i"),
+                ("ù", "u"), ("ú", "u"), ("û", "u"),
+                ("ñ", "n"), ("ç", "c"),
+            ]
+
+            for (original, replacement) in replacements {
+                sanitized = sanitized.replacingOccurrences(of: original, with: replacement)
+            }
+
+            // Normalize certain problematic Unicode sequences
+            // These can confuse language detection
+            sanitized = sanitized.precomposedStringWithCanonicalMapping
+
+            return sanitized
+        }
+
         func resetSession(clearTools: Bool = false) {
             if clearTools {
                 toolHandler = nil
@@ -444,8 +492,18 @@ struct LLMResponse {
             // ✅ GAP #5 FIXED: Model Warm-up
             // Preload model in background to eliminate first-query latency
             // First real user query will be INSTANT (no 5-second wait)
+
+            // Guard against concurrent warmups that cause "Session in Canceled state" warnings
+            guard !isWarmingUp else {
+                Log.debug("[Warm-up] Already warming up, skipping duplicate request", category: .llm)
+                return
+            }
+
+            isWarmingUp = true
+
             Task {
                 await self.warmUpModel()
+                await MainActor.run { self.isWarmingUp = false }
             }
         }
 
@@ -516,15 +574,18 @@ struct LLMResponse {
                 // Create language model session with hybrid RAG+LLM instructions
                 // This enables BOTH document-based RAG and general conversational AI
                 let defaultInstructions = """
-                You are OpenIntelligence, a privacy-first assistant.
+                You are OpenIntelligence, a helpful privacy - first assistant.
 
-                Use tools only when needed:
-                - search_documents to fetch relevant passages
-                - list_documents to show what's available
-                - get_document_summary for details
+                    IMPORTANT: When document context is provided in the prompt, answer directly from that context.
+                    Do NOT call search_documents if context is already given - that wastes time.
 
-                When using document info, cite document names and page numbers when available.
-                If the provided context doesn't contain the answer, say so.
+                Only use tools when NO context is provided and you need to look something up:
+                    - search_documents: Find relevant passages(only if no context given)
+                    - list_documents: Show available documents
+                    - get_document_summary: Get document overview
+
+                Answer confidently based on available information.Extract and synthesize key details.
+                    Cite document names and page numbers when available.
                 """
 
                 let instructionsText = systemPrompt ?? defaultInstructions
@@ -610,12 +671,16 @@ struct LLMResponse {
             )
 
             // Construct augmented prompt with RAG context
+            // Apply language sanitization to prevent false Polish detection
+            let sanitizedPrompt = sanitizeForLanguageDetection(prompt)
+            let sanitizedContext = context.map { sanitizeForLanguageDetection($0) }
+
             let fullPrompt: String
-            if let context = context, !context.isEmpty {
-                Log.debug("RAG mode: context=\(context.count) chars, prompt=\(prompt.prefix(50))...", category: .llm)
+            if let context = sanitizedContext, !context.isEmpty {
+                Log.debug("RAG mode: context=\(context.count) chars, prompt=\(sanitizedPrompt.prefix(50))...", category: .llm)
 
                 // Estimate if we're approaching context window limit (4096 tokens ≈ 10K chars, conservative)
-                let totalInputLength = context.count + prompt.count + 200 // Buffer for instructions
+                let totalInputLength = context.count + sanitizedPrompt.count + 200 // Buffer for instructions
                 let charsPerToken = 2.5
                 let estimatedInputTokens = max(
                     1,
@@ -634,41 +699,45 @@ struct LLMResponse {
                     \(context)
 
                     USER QUESTION:
-                    \(prompt)
+                    \(sanitizedPrompt)
+
+                    Answer directly from the context above. Do not call any tools - the context is already provided.
                     """
                 } else {
                     // No system prompt provided. Embed instructions directly in user prompt.
-                    // Conversational RAG prompt - Intelligent Agentic Mode
+                    // Conversational RAG prompt - Direct answer mode (context already retrieved)
                     fullPrompt = """
-                    You are an intelligent assistant with access to the user's knowledge base.
-                    Synthesize the provided excerpts to answer the user's question comprehensively.
-                    If the excerpts cover multiple functions or contexts (e.g., different modes, actions, or settings), explain all of them to provide a complete picture.
-                    Connect related concepts and provide a smart, coherent summary.
-                    Cite sources like [S1] to ground your answer.
+                    Answer the question using ONLY the document excerpts below.
+                        Extract specific details, steps, or actions mentioned in the text.
+                        Be direct and concrete - state what the documents say, don't hedge.
+                        Cite sources like[Document Name, p.X] when referencing specific information.
+                        Do NOT call search_documents - the relevant context is already provided below.
 
-                    CONTEXT FROM DOCUMENTS:
+                    DOCUMENT EXCERPTS:
                     \(context)
 
-                    \(prompt)
+                    QUESTION: \(sanitizedPrompt)
+
+                    ANSWER:
                     """
                 }
             } else {
-                Log.debug("General chat mode: prompt=\(prompt.prefix(50))...", category: .llm)
+                Log.debug("General chat mode: prompt=\(sanitizedPrompt.prefix(50))...", category: .llm)
 
                 // Handle short queries that may confuse language detection
                 // Per Apple's documentation, the language detector needs sufficient text
-                let wordCount = prompt.split(separator: " ").count
+                let wordCount = sanitizedPrompt.split(separator: " ").count
 
                 if wordCount <= 2 {
                     // Very short queries (1-2 words) - add explicit English context
                     fullPrompt =
-                        "Please explain the following topic in clean Markdown with short sections and bullets where helpful: \(prompt)"
-                } else if wordCount <= 5, !prompt.contains(" the "), !prompt.contains(" is ") {
+                        "Please explain the following topic in clean Markdown with short sections and bullets where helpful: \(sanitizedPrompt)"
+                } else if wordCount <= 5, !sanitizedPrompt.contains(" the "), !sanitizedPrompt.contains(" is ") { 
                     // Short queries without clear English markers
                     fullPrompt =
-                        "Answer the following in clean Markdown with short sections and bullets where helpful: \(prompt)"
+                        "Answer the following in clean Markdown with short sections and bullets where helpful: \(sanitizedPrompt)"
                 } else {
-                    fullPrompt = prompt
+                    fullPrompt = sanitizedPrompt
                 }
             }
 
@@ -919,13 +988,14 @@ struct LLMResponse {
             // Update token count after potential continuation
             finalTokenCount = responseText.split(separator: " ").count
 
+            let toolCalls = await ToolCallCounter.shared.takeAndReset()
             return LLMResponse(
                 text: responseText,
                 tokensGenerated: finalTokenCount,
                 timeToFirstToken: firstTokenTime,
                 totalTime: totalTime,
                 modelName: executionBasedModelName,
-                toolCallsMade: ToolCallCounter.shared.takeAndReset()
+                toolCallsMade: toolCalls
             )
         }
 

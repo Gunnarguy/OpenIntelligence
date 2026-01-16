@@ -93,6 +93,20 @@ struct UnifiedMetricsBar: View {
     var topMatchScore: Float = 0.0
     var topMatchSource: String = ""
 
+    // NEW: Advanced RAG features (FullBlownUpgrade)
+    var hierarchicalChunkingActive: Bool = false // Parent-child indexing enabled
+    var parentChunksUsed: Int = 0 // Number of parent-expanded chunks
+    var siblingChunksAdded: Int = 0 // Siblings merged during expansion
+    var graphExpansionActive: Bool = false // GraphRAG-lite 2-hop search
+    var graphEntitiesExtracted: Int = 0 // Entities found for graph traversal
+    var intentAwareWeightsActive: Bool = true // Dynamic weight adjustment
+
+    /// When true, shows total tokens across calls instead of percentage (for recursive/agentic RAG)
+    /// Recursive RAG bypasses single-call limits by making multiple small calls
+    var isRecursiveRAG: Bool = false
+    /// Number of LLM calls made in recursive mode
+    var recursiveCallCount: Int = 0
+
     // Callbacks
     var onTapDetails: (() -> Void)?
 
@@ -113,6 +127,17 @@ struct UnifiedMetricsBar: View {
         if contextUsageRatio > 0.85 { return .red }
         if contextUsageRatio > 0.65 { return .orange }
         return .green
+    }
+
+    /// Descriptive label for context showing optimization status
+    private var contextDetailLabel: String {
+        if hierarchicalChunkingActive && parentChunksUsed > 0 {
+            return "\(sourceCount) chunks • \(parentChunksUsed) expanded"
+        } else if sourceCount > 0 {
+            return "\(contextTokens) tokens • \(sourceCount) chunks"
+        } else {
+            return "\(contextTokens) of \(maxContextTokens) tokens"
+        }
     }
 
     private var speedColor: Color {
@@ -172,6 +197,11 @@ struct UnifiedMetricsBar: View {
                     executionBadge
 
                     qualityBadge
+
+                    // Advanced RAG indicator (when enhanced features active)
+                    if hierarchicalChunkingActive || graphExpansionActive {
+                        advancedRAGBadge
+                    }
 
                     // Stage indicator (when actively processing)
                     if isProcessing, stage != .idle, stage != .complete {
@@ -343,21 +373,57 @@ struct UnifiedMetricsBar: View {
     }
 
     private var contextGauge: some View {
-        HStack(spacing: 4) {
-            ZStack {
-                Circle()
-                    .stroke(Color.secondary.opacity(0.2), lineWidth: 2)
-                Circle()
-                    .trim(from: 0, to: contextUsageRatio)
-                    .stroke(contextColor, style: StrokeStyle(lineWidth: 2, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-            }
-            .frame(width: 14, height: 14)
-
-            Text("\(Int(contextUsageRatio * 100))%")
-                .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                .foregroundStyle(contextColor)
+        // For recursive RAG (Deep Think), show multi-window indicator
+        if isRecursiveRAG {
+            return AnyView(
+                HStack(spacing: 3) {
+                    // Show stacked windows icon to indicate multiple context windows
+                    Image(systemName: "square.3.layers.3d")
+                        .font(.system(size: 10, weight: .semibold))
+                    if contextTokens > 0 {
+                        Text(formatTokenCount(contextTokens))
+                            .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                    }
+                    if recursiveCallCount > 0 {
+                        Text("•")
+                            .font(.system(size: 4))
+                            .opacity(0.5)
+                        Text(recursiveCallCount == 0 ? "thinking..." : "\(recursiveCallCount)× 4K")
+                            .font(.system(size: 8, weight: .medium))
+                    }
+                }
+                .foregroundStyle(.cyan)
+            )
         }
+
+        // Standard mode: show percentage gauge
+        return AnyView(
+            HStack(spacing: 4) {
+                ZStack {
+                    Circle()
+                        .stroke(Color.secondary.opacity(0.2), lineWidth: 2)
+                    Circle()
+                        .trim(from: 0, to: contextUsageRatio)
+                        .stroke(contextColor, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                }
+                .frame(width: 14, height: 14)
+
+                Text("\(Int(contextUsageRatio * 100))%")
+                    .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(contextColor)
+            }
+        )
+    }
+
+    /// Format token count with K suffix for large numbers
+    private func formatTokenCount(_ tokens: Int) -> String {
+        if tokens >= 10000 {
+            return String(format: "%.1fK", Double(tokens) / 1000.0)
+        } else if tokens >= 1000 {
+            return "\(tokens / 1000).\((tokens % 1000) / 100)K"
+        }
+        return "\(tokens)"
     }
 
     private var speedBadge: some View {
@@ -425,6 +491,30 @@ struct UnifiedMetricsBar: View {
         .padding(.vertical, 4)
         .background(Color.orange.opacity(0.12))
         .clipShape(Capsule())
+    }
+
+    // MARK: - Advanced RAG Badge (compact indicator for enhanced features)
+
+    private var advancedRAGBadge: some View {
+        HStack(spacing: 3) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 8, weight: .semibold))
+            Text(advancedRAGLabel)
+                .font(.system(size: 8, weight: .semibold))
+        }
+        .foregroundStyle(.yellow)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
+        .background(Color.yellow.opacity(0.12))
+        .clipShape(Capsule())
+    }
+
+    private var advancedRAGLabel: String {
+        var parts: [String] = []
+        if hierarchicalChunkingActive { parts.append("H") }
+        if graphExpansionActive { parts.append("G") }
+        if !queryIntent.isEmpty { parts.append(queryIntent.prefix(3).uppercased()) }
+        return parts.isEmpty ? "RAG+" : parts.joined(separator: "·")
     }
 
     // MARK: - RAG Mode Badge
@@ -559,7 +649,7 @@ struct UnifiedMetricsBar: View {
 // MARK: - Expanded Panel (Redesigned for Clarity)
 
     private var expandedDetailsPanel: some View {
-        ScrollView(.vertical, showsIndicators: false) { 
+        ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 14) { 
                 // Section 1: Query Understanding (NEW - most important for user insight)
                 if !originalQuery.isEmpty || stage == .embedding || stage == .searching {
@@ -949,10 +1039,112 @@ struct UnifiedMetricsBar: View {
                         .foregroundStyle(.secondary)
                 }
             }
+
+            // NEW: Advanced RAG Features (FullBlownUpgrade)
+            advancedRAGFeaturesSection
         }
         .padding(12)
         .background(Color.purple.opacity(0.06))
         .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    // MARK: - Advanced RAG Features (FullBlownUpgrade)
+
+    @ViewBuilder
+    private var advancedRAGFeaturesSection: some View {
+        let hasAdvancedFeatures = hierarchicalChunkingActive || graphExpansionActive || intentAwareWeightsActive
+
+        if hasAdvancedFeatures {
+            VStack(alignment: .leading, spacing: 8) {
+                Divider()
+                    .padding(.vertical, 4)
+
+                // Header for advanced features
+                HStack(spacing: 4) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.yellow)
+                    Text("Advanced RAG")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.yellow)
+                }
+
+                // Feature badges in a flow layout
+                FlowLayout(spacing: 6) {
+                    // Hierarchical Chunking badge
+                    if hierarchicalChunkingActive {
+                        advancedFeatureBadge(
+                            icon: "rectangle.3.group",
+                            title: "Hierarchical",
+                            detail: parentChunksUsed > 0 ? "\(parentChunksUsed) parent" : nil,
+                            color: .cyan,
+                            tooltip: "Parent-child indexing: precise embedding + rich context"
+                        )
+                    }
+
+                    // Parent expansion stats
+                    if siblingChunksAdded > 0 {
+                        advancedFeatureBadge(
+                            icon: "plus.rectangle.on.rectangle",
+                            title: "+\(siblingChunksAdded) siblings",
+                            detail: nil,
+                            color: .teal,
+                            tooltip: "Adjacent chunks merged for complete context"
+                        )
+                    }
+
+                    // Intent-Aware Weights
+                    if intentAwareWeightsActive && !queryIntent.isEmpty {
+                        advancedFeatureBadge(
+                            icon: "brain",
+                            title: "Intent: \(queryIntent)",
+                            detail: nil,
+                            color: .purple,
+                            tooltip: "Dynamic weights adjusted for query type"
+                        )
+                    }
+
+                    // GraphRAG-lite expansion
+                    if graphExpansionActive {
+                        advancedFeatureBadge(
+                            icon: "point.3.connected.trianglepath.dotted",
+                            title: "Graph 2-hop",
+                            detail: graphEntitiesExtracted > 0 ? "\(graphEntitiesExtracted) entities" : nil,
+                            color: .orange,
+                            tooltip: "Entity extraction + relationship search"
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private func advancedFeatureBadge(
+        icon: String,
+        title: String,
+        detail: String?,
+        color: Color,
+        tooltip: String
+    ) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: 9, weight: .semibold))
+            Text(title)
+                .font(.system(size: 9, weight: .semibold))
+            if let detail {
+                Text("•")
+                    .font(.system(size: 5))
+                    .opacity(0.6)
+                Text(detail)
+                    .font(.system(size: 8, weight: .medium))
+            }
+        }
+        .foregroundStyle(color)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(color.opacity(0.12))
+        .clipShape(Capsule())
+        .help(tooltip)
     }
 
     private var diversityDescriptionFull: String {
@@ -1009,13 +1201,20 @@ struct UnifiedMetricsBar: View {
 
                 // Context usage (visual + text)
                 VStack(alignment: .trailing, spacing: 6) {
-                    // Context bar
+                    // Context bar with smart label
                     VStack(alignment: .trailing, spacing: 4) { 
-                        Text("Context Window")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.secondary)
+                        HStack(spacing: 4) {
+                            if hierarchicalChunkingActive {
+                                Image(systemName: "rectangle.3.group")
+                                    .font(.system(size: 8))
+                                    .foregroundStyle(.cyan)
+                            }
+                            Text(hierarchicalChunkingActive ? "Smart Context" : "Context Window")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundStyle(.secondary)
+                        }
 
-                        HStack(spacing: 6) { 
+                        HStack(spacing: 6) {
                             ZStack(alignment: .leading) { 
                                 RoundedRectangle(cornerRadius: 4)
                                     .fill(Color.secondary.opacity(0.2))
@@ -1030,7 +1229,7 @@ RoundedRectangle(cornerRadius: 4)
     .foregroundStyle(contextColor)
                         }
 
-                        Text("\(contextTokens) of \(maxContextTokens) tokens")
+                        Text(contextDetailLabel)
                             .font(.system(size: 10))
                             .foregroundStyle(.secondary)
                     }

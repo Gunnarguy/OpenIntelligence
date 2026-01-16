@@ -123,6 +123,10 @@ class SemanticChunker {
         var overlap: Int = 60 // ~17% overlap - enough for continuity without redundancy
         var useTopicDetection: Bool = true
         var preserveStructure: Bool = true
+        /// Parent window size in characters for hierarchical context
+        /// This expands the chunk by ±N chars (snapped to sentence boundaries)
+        /// Reduced from 500→250 to fit more chunks in Apple FM's 4K context window
+        var parentWindowChars: Int = 250
 
         // MARK: - Content-Adaptive Presets
 
@@ -197,6 +201,8 @@ class SemanticChunker {
 
     struct EnhancedChunk {
         let content: String
+        /// Expanded context window (parent chunk) used for LLM context assembly
+        let parentContent: String?
         let metadata: ChunkMetadata
         let embedding: [Float]?
 
@@ -214,6 +220,9 @@ class SemanticChunker {
             let hasListStructure: Bool
             let startOffset: Int
             let endOffset: Int
+            /// Named entities extracted via NLTagger (persons, organizations, places, technical terms)
+            /// Used by EntityIndexService for cross-document correlation and GraphRAG-lite expansion
+            let entities: [String]
         }
     }
 
@@ -285,8 +294,14 @@ class SemanticChunker {
                             sections: sections,
                             pageNumbers: pageNumbers
                         )
+                        let parentContent = buildParentContent(
+                            for: currentPosition ..< text.endIndex,
+                            in: text,
+                            windowChars: config.parentWindowChars
+                        )
                         chunks.append(EnhancedChunk(
                             content: finalText,
+                            parentContent: parentContent,
                             metadata: metadata,
                             embedding: nil
                         ))
@@ -324,8 +339,14 @@ class SemanticChunker {
                 pageNumbers: pageNumbers
             )
 
+            let parentContent = buildParentContent(
+                for: chunkRange,
+                in: text,
+                windowChars: config.parentWindowChars
+            )
             chunks.append(EnhancedChunk(
                 content: chunkText,
+                parentContent: parentContent,
                 metadata: metadata,
                 embedding: nil  // Will be added later
             ))
@@ -476,7 +497,17 @@ class SemanticChunker {
                             sections: sections,
                             pageNumbers: pageNumbers
                         )
-                        chunks.append(EnhancedChunk(content: finalText, metadata: metadata, embedding: nil))
+                        let parentContent = buildParentContent(
+                            for: currentPosition ..< text.endIndex,
+                            in: text,
+                            windowChars: config.parentWindowChars
+                        )
+                        chunks.append(EnhancedChunk(
+                            content: finalText,
+                            parentContent: parentContent,
+                            metadata: metadata,
+                            embedding: nil
+                        ))
                     }
                 }
                 break
@@ -502,7 +533,17 @@ class SemanticChunker {
                 sections: sections,
                 pageNumbers: pageNumbers
             )
-            chunks.append(EnhancedChunk(content: chunkText, metadata: metadata, embedding: nil))
+            let parentContent = buildParentContent(
+                for: chunkRange,
+                in: text,
+                windowChars: config.parentWindowChars
+            )
+            chunks.append(EnhancedChunk(
+                content: chunkText,
+                parentContent: parentContent,
+                metadata: metadata,
+                embedding: nil
+            ))
 
             let nextPosition = advancePosition(
                 from: currentPosition,
@@ -799,6 +840,53 @@ class SemanticChunker {
         return nearestIndex
     }
 
+    /// Find nearest sentence start by scanning backwards for sentence endings.
+    private func findNearestSentenceStart(in text: String, near index: String.Index, within distance: Int) -> String.Index? {
+        let searchStart = text.index(index, offsetBy: -distance, limitedBy: text.startIndex) ?? text.startIndex
+        let searchEnd = text.index(index, offsetBy: distance, limitedBy: text.endIndex) ?? text.endIndex
+
+        guard searchStart < searchEnd else { return nil }
+
+        let searchRange = searchStart ..< searchEnd
+        let sentenceEnders = CharacterSet(charactersIn: ".!?")
+        var nearestDistance = Int.max
+        var nearestIndex: String.Index?
+
+        for i in text[searchRange].indices {
+            if sentenceEnders.contains(text[i].unicodeScalars.first!) {
+                let candidate = text.index(after: i)
+                let dist = text.distance(from: candidate, to: index)
+                if dist >= 0, dist < nearestDistance {
+                    nearestDistance = dist
+                    nearestIndex = candidate
+                }
+            }
+        }
+
+        return nearestIndex
+    }
+
+    /// Build a parent context window around a chunk range.
+    private func buildParentContent(
+        for range: Range<String.Index>,
+        in text: String,
+        windowChars: Int
+    ) -> String? {
+        guard windowChars > 0 else { return nil }
+
+        let lower = text.index(range.lowerBound, offsetBy: -windowChars, limitedBy: text.startIndex) ?? text.startIndex
+        let upper = text.index(range.upperBound, offsetBy: windowChars, limitedBy: text.endIndex) ?? text.endIndex
+
+        let start = findNearestSentenceStart(in: text, near: lower, within: 120) ?? lower
+        let end = findNearestSentenceEnd(in: text, near: upper, within: 120) ?? upper
+
+        guard start < end else { return String(text[range]) }
+        let expanded = String(text[start ..< end])
+        let precise = String(text[range])
+        if expanded.count <= precise.count { return precise }
+        return expanded
+    }
+
     /// Extract rich metadata for chunk
     private func extractMetadata(
         chunkText: String,
@@ -828,6 +916,9 @@ class SemanticChunker {
         let uniqueWords = Set(chunkText.lowercased().split(separator: " "))
         let density = Float(uniqueWords.count) / Float(max(wordCount, 1))
 
+        // Extract named entities via NLTagger (persons, organizations, places, technical nouns)
+        let entities = extractEntities(chunkText)
+
         return EnhancedChunk.ChunkMetadata(
             documentId: documentId,
             chunkIndex: chunkIndex,
@@ -841,8 +932,110 @@ class SemanticChunker {
             hasNumericData: hasNumeric,
             hasListStructure: hasList,
             startOffset: startOffset,
-            endOffset: endOffset
+            endOffset: endOffset,
+            entities: entities
         )
+    }
+
+    // MARK: - Entity Extraction (Connective Tissue for GraphRAG)
+
+    /// Extract named entities from chunk text using NLTagger.
+    ///
+    /// Uses multiple passes:
+    /// 1. **Named Entity Recognition**: PersonalName, PlaceName, OrganizationName
+    /// 2. **Technical Terms**: PascalCase identifiers (class names, APIs, frameworks)
+    /// 3. **Capitalized Nouns**: Important domain terms that aren't standard NER entities
+    ///
+    /// These entities are used by:
+    /// - `EntityIndexService` for cross-document correlation (Dict<Entity, [ChunkID]>)
+    /// - `AgenticOrchestrator.executeGraphExpansion()` for 2-hop retrieval
+    ///
+    /// - Parameter text: The chunk text to extract entities from
+    /// - Returns: Array of unique entity strings (deduplicated, sorted by first occurrence)
+    private func extractEntities(_ text: String) -> [String] {
+        var entities: [String] = []
+        var seen = Set<String>()
+
+        // Pass 1: NLTagger Named Entity Recognition
+        let nerTagger = NLTagger(tagSchemes: [.nameType])
+        nerTagger.string = text
+
+        nerTagger.enumerateTags(
+            in: text.startIndex ..< text.endIndex,
+            unit: .word,
+            scheme: .nameType,
+            options: [.omitPunctuation, .omitWhitespace, .joinNames]
+        ) { tag, range in
+            guard let tag = tag else { return true }
+
+            // Accept persons, organizations, and places
+            switch tag {
+            case .personalName, .organizationName, .placeName:
+                let entity = String(text[range]).trimmingCharacters(in: .whitespacesAndNewlines)
+                let key = entity.lowercased()
+                if entity.count >= 2, entity.count <= 50, !seen.contains(key) {
+                    seen.insert(key)
+                    entities.append(entity)
+                }
+            default:
+                break
+            }
+            return true
+        }
+
+        // Pass 2: Technical Terms - PascalCase identifiers (class names, APIs, frameworks)
+        // Pattern: Word starting with capital followed by lowercase, then another capital
+        // Examples: "URLSession", "CoreData", "SwiftUI", "NLTagger"
+        let technicalPattern = #"\b([A-Z][a-z]+(?:[A-Z][a-z0-9]*)+)\b"#
+        if let regex = try? NSRegularExpression(pattern: technicalPattern, options: []) {
+            let nsRange = NSRange(text.startIndex..., in: text)
+            let matches = regex.matches(in: text, options: [], range: nsRange)
+            for match in matches.prefix(20) { // Limit to avoid runaway in code-heavy docs
+                if let range = Range(match.range, in: text) {
+                    let term = String(text[range])
+                    let key = term.lowercased()
+                    if term.count >= 3, term.count <= 40, !seen.contains(key) {
+                        seen.insert(key)
+                        entities.append(term)
+                    }
+                }
+            }
+        }
+
+        // Pass 3: Capitalized Nouns (important domain terms not caught by NER)
+        // Only add if they look like proper nouns (start with capital, not ALL CAPS)
+        let nounTagger = NLTagger(tagSchemes: [.lexicalClass])
+        nounTagger.string = text
+
+        nounTagger.enumerateTags(
+            in: text.startIndex ..< text.endIndex,
+            unit: .word,
+            scheme: .lexicalClass,
+            options: [.omitPunctuation, .omitWhitespace]
+        ) { tag, range in
+            guard tag == .noun else { return true }
+
+            let word = String(text[range])
+            // Check if it starts with capital but isn't all caps (proper noun heuristic)
+            guard let first = word.first,
+                  first.isUppercase,
+                  word.count >= 3,
+                  word.count <= 30,
+                  word != word.uppercased() // Skip ALL CAPS
+            else { return true }
+
+            let key = word.lowercased()
+            // Skip common English words that happen to start sentences
+            let stopWords: Set<String> = ["the", "this", "that", "these", "those", "there", "then", "when", "where", "which", "what", "who", "how", "why"]
+            if !seen.contains(key), !stopWords.contains(key) {
+                seen.insert(key)
+                entities.append(word)
+            }
+            return true
+        }
+
+        // Return up to 15 entities per chunk (balance between richness and noise)
+        return Array(entities.prefix(15))
     }
 
     /// Extract top keywords using TF-IDF approximation
@@ -941,6 +1134,7 @@ class SemanticChunker {
         let keywords = extractKeywords(text, topN: 5)
         let hasNumeric = text.range(of: #"\d+"#, options: .regularExpression) != nil
         let hasList = text.contains("•") || text.range(of: #"^\d+\."#, options: .regularExpression) != nil
+        let entities = extractEntities(text)
 
         let metadata = EnhancedChunk.ChunkMetadata(
             documentId: documentId,
@@ -955,11 +1149,13 @@ class SemanticChunker {
             hasNumericData: hasNumeric,
             hasListStructure: hasList,
             startOffset: 0,
-            endOffset: text.count
+            endOffset: text.count,
+            entities: entities
         )
 
         return EnhancedChunk(
             content: text,
+            parentContent: text,
             metadata: metadata,
             embedding: nil // Will be added later by RAGService
         )

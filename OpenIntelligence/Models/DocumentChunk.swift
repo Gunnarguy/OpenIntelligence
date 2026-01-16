@@ -12,6 +12,9 @@ struct DocumentChunk: Identifiable, Codable, Sendable {
     let id: UUID
     let documentId: UUID
     var content: String
+    /// Optional expanded context window for hierarchical retrieval
+    /// Used for LLM context assembly while embeddings remain on `content`.
+    let parentContent: String?
     let embedding: [Float]
     let metadata: ChunkMetadata
 
@@ -21,10 +24,18 @@ struct DocumentChunk: Identifiable, Codable, Sendable {
         set { content = newValue }
     }
 
-    init(id: UUID = UUID(), documentId: UUID, content: String, embedding: [Float], metadata: ChunkMetadata) {
+    init(
+        id: UUID = UUID(),
+        documentId: UUID,
+        content: String,
+        parentContent: String? = nil,
+        embedding: [Float],
+        metadata: ChunkMetadata
+    ) { 
         self.id = id
         self.documentId = documentId
         self.content = content
+        self.parentContent = parentContent
         self.embedding = embedding
         self.metadata = metadata
     }
@@ -55,6 +66,12 @@ struct ChunkMetadata: Codable, Sendable {
     /// Total number of chunks in this sibling group (for context expansion decisions)
     let siblingCount: Int?
 
+    // MARK: - Entity Extraction (Jan 2026)
+
+    /// Named entities extracted via NLTagger (persons, organizations, places, technical terms)
+    /// Used by EntityIndexService for cross-document correlation and GraphRAG-lite expansion
+    let entities: [String]
+
     init(
         chunkIndex: Int,
         startPosition: Int = 0,
@@ -69,7 +86,8 @@ struct ChunkMetadata: Codable, Sendable {
         characterCount: Int = 0,
         createdAt: Date = Date(),
         siblingGroupId: String? = nil,
-        siblingCount: Int? = nil
+        siblingCount: Int? = nil,
+        entities: [String] = []
     ) {
         self.chunkIndex = chunkIndex
         self.startPosition = startPosition
@@ -85,6 +103,7 @@ struct ChunkMetadata: Codable, Sendable {
         self.createdAt = createdAt
         self.siblingGroupId = siblingGroupId
         self.siblingCount = siblingCount
+        self.entities = entities
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -102,6 +121,7 @@ struct ChunkMetadata: Codable, Sendable {
         case createdAt
         case siblingGroupId
         case siblingCount
+        case entities
     }
 
     init(from decoder: Decoder) throws {
@@ -126,6 +146,8 @@ struct ChunkMetadata: Codable, Sendable {
         // Parent Document Retrieval fields (optional for backward compatibility)
         siblingGroupId = try container.decodeIfPresent(String.self, forKey: .siblingGroupId)
         siblingCount = try container.decodeIfPresent(Int.self, forKey: .siblingCount)
+        // Entity extraction (optional for backward compatibility with old chunks)
+        entities = try container.decodeIfPresent([String].self, forKey: .entities) ?? []
     }
 
     func encode(to encoder: Encoder) throws {
@@ -147,6 +169,10 @@ struct ChunkMetadata: Codable, Sendable {
         // Parent Document Retrieval fields
         try container.encodeIfPresent(siblingGroupId, forKey: .siblingGroupId)
         try container.encodeIfPresent(siblingCount, forKey: .siblingCount)
+        // Entity extraction
+        if !entities.isEmpty {
+            try container.encode(entities, forKey: .entities)
+        }
     }
 }
 

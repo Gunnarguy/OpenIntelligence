@@ -77,6 +77,111 @@ struct RAGAuditSnapshot: Identifiable, Sendable {
     let reliabilityModeEnabled: Bool
     let allowUngroundedFallback: Bool
     let modelName: String
+
+    // Recursive RAG metrics (for Deep Think / agentic mode)
+    /// Whether this used recursive RAG (multiple small calls instead of one large call)
+    let isRecursiveRAG: Bool
+    /// Total tokens used across ALL LLM calls in recursive mode
+    let totalTokensAcrossCalls: Int
+    /// Number of individual LLM calls made
+    let llmCallCount: Int
+
+    // Default values for non-recursive mode
+    init(
+        timestamp: Date,
+        query: String,
+        containerId: UUID,
+        containerName: String,
+        embeddingProviderId: String,
+        embeddingDim: Int,
+        vectorDBKind: VectorDBKind,
+        chunkingTargetWords: Int,
+        chunkingOverlapWords: Int,
+        chunkingSource: String,
+        qualityModeName: String,
+        retrievalConfig: RetrievalConfig,
+        lenientRetrieval: Bool,
+        dynamicMin: Float,
+        topSim: Float,
+        secondSim: Float,
+        avgTop5: Float,
+        acceptanceOverride: Bool,
+        totalStoredChunks: Int,
+        candidatesCount: Int,
+        rerankedCount: Int,
+        filteredCount: Int,
+        droppedCount: Int,
+        mmrSelectedCount: Int,
+        uniqueDocCount: Int,
+        contextStrategy: String,
+        contextChars: Int,
+        contextWords: Int,
+        contextChunksUsed: Int,
+        maxContextChars: Int,
+        baseWindowTokens: Int,
+        safetyTokens: Int,
+        promptOverheadTokens: Int,
+        questionTokens: Int,
+        reservedOutputTokens: Int,
+        availableContextTokens: Int,
+        executionContext: ExecutionContext,
+        allowPrivateCloudCompute: Bool,
+        networkConnected: Bool,
+        wantsCloudContext: Bool,
+        reliabilityModeEnabled: Bool,
+        allowUngroundedFallback: Bool,
+        modelName: String,
+        isRecursiveRAG: Bool = false,
+        totalTokensAcrossCalls: Int = 0,
+        llmCallCount: Int = 1
+    ) {
+        self.timestamp = timestamp
+        self.query = query
+        self.containerId = containerId
+        self.containerName = containerName
+        self.embeddingProviderId = embeddingProviderId
+        self.embeddingDim = embeddingDim
+        self.vectorDBKind = vectorDBKind
+        self.chunkingTargetWords = chunkingTargetWords
+        self.chunkingOverlapWords = chunkingOverlapWords
+        self.chunkingSource = chunkingSource
+        self.qualityModeName = qualityModeName
+        self.retrievalConfig = retrievalConfig
+        self.lenientRetrieval = lenientRetrieval
+        self.dynamicMin = dynamicMin
+        self.topSim = topSim
+        self.secondSim = secondSim
+        self.avgTop5 = avgTop5
+        self.acceptanceOverride = acceptanceOverride
+        self.totalStoredChunks = totalStoredChunks
+        self.candidatesCount = candidatesCount
+        self.rerankedCount = rerankedCount
+        self.filteredCount = filteredCount
+        self.droppedCount = droppedCount
+        self.mmrSelectedCount = mmrSelectedCount
+        self.uniqueDocCount = uniqueDocCount
+        self.contextStrategy = contextStrategy
+        self.contextChars = contextChars
+        self.contextWords = contextWords
+        self.contextChunksUsed = contextChunksUsed
+        self.maxContextChars = maxContextChars
+        self.baseWindowTokens = baseWindowTokens
+        self.safetyTokens = safetyTokens
+        self.promptOverheadTokens = promptOverheadTokens
+        self.questionTokens = questionTokens
+        self.reservedOutputTokens = reservedOutputTokens
+        self.availableContextTokens = availableContextTokens
+        self.executionContext = executionContext
+        self.allowPrivateCloudCompute = allowPrivateCloudCompute
+        self.networkConnected = networkConnected
+        self.wantsCloudContext = wantsCloudContext
+        self.reliabilityModeEnabled = reliabilityModeEnabled
+        self.allowUngroundedFallback = allowUngroundedFallback
+        self.modelName = modelName
+        self.isRecursiveRAG = isRecursiveRAG
+        self.totalTokensAcrossCalls = totalTokensAcrossCalls
+        self.llmCallCount = llmCallCount
+    }
 }
 
 struct VectorStoreAudit: Identifiable, Sendable {
@@ -421,6 +526,11 @@ class RAGService: ObservableObject {
     @MainActor @Published var thinkingEvents: [ThinkingEvent] = []
     @MainActor @Published private(set) var lastAuditSnapshot: RAGAuditSnapshot?
     @MainActor @Published private(set) var lastVectorAudit: VectorStoreAudit?
+
+    /// Live token counter for Deep Think mode - updates in real-time as each step completes
+    @MainActor @Published private(set) var deepThinkLiveTokens: Int = 0
+    /// Live step counter for Deep Think mode - updates in real-time
+    @MainActor @Published private(set) var deepThinkLiveSteps: Int = 0
 
     /// Cached corpus vocabulary per container to avoid expensive rebuilds on each query
     @MainActor private var corpusVocabularyCache: [UUID: CorpusVocabulary] = [:]
@@ -1663,6 +1773,7 @@ class RAGService: ObservableObject {
                     DocumentChunk(
                         documentId: document.id,
                         content: chunk.text,
+                        parentContent: chunk.parentText,
                         embedding: [], // Empty for analysis
                         metadata: ChunkMetadata(
                             chunkIndex: index,
@@ -1826,6 +1937,7 @@ class RAGService: ObservableObject {
                 return DocumentChunk(
                     documentId: document.id,
                     content: chunk.text,
+                    parentContent: chunk.parentText,
                     embedding: embedding,
                     metadata: enrichedMetadata
                 )
@@ -2513,13 +2625,23 @@ class RAGService: ObservableObject {
         let orchestrator = AgenticOrchestrator(ragService: self, config: optimizedConfig)
         let startTime = Date()
 
+        // Reset live counters at start of Deep Think
+        await MainActor.run {
+            self.deepThinkLiveTokens = 0
+            self.deepThinkLiveSteps = 0
+        }
+
         do {
             let result = try await orchestrator.execute(
                 query: question,
                 initialContext: "",
                 onStep: { [weak self] step in
-                    // Stream thinking steps to UI
+                    // Stream thinking steps to UI AND update live counters
                     await MainActor.run {
+                        // Update live token/step counters for real-time UI
+                        self?.deepThinkLiveTokens += step.tokensUsed
+                        self?.deepThinkLiveSteps += 1
+
                         self?.emitThinkingEvent(
                             step.type.thinkingKind,
                             title: step.type.displayName,
@@ -2539,12 +2661,81 @@ class RAGService: ObservableObject {
                 detail: "\(result.steps.count) reasoning steps, confidence: \(String(format: "%.0f%%", result.confidence * 100))"
             )
 
+            // Set audit snapshot for UI with agentic-appropriate values
+            // Agentic mode uses multiple small calls - show TOTAL usage across all calls
+            // This makes the UI reflect the true "thinking" capacity used
+            let totalTokensUsed = result.totalTokens
+            let estimatedContextChars = totalTokensUsed * 3 // ~3 chars per token
+
+            // Count LLM calls from step types (each non-search step = 1 LLM call)
+            let llmCallCount = result.steps.filter { step in
+                switch step.type {
+                case .planning, .analyzing, .synthesizing, .refining, .reformulating:
+                    return true
+                case .searching, .expanding:
+                    return false // These are retrieval, not LLM calls
+                }
+            }.count
+
+            let agenticAudit = RAGAuditSnapshot(
+                timestamp: Date(),
+                query: question,
+                containerId: containerId,
+                containerName: "Agentic",
+                embeddingProviderId: "agentic",
+                embeddingDim: 512,
+                vectorDBKind: .persistentJSON,
+                chunkingTargetWords: 300,
+                chunkingOverlapWords: 50,
+                chunkingSource: "agentic",
+                qualityModeName: "Deep Think",
+                retrievalConfig: .default,
+                lenientRetrieval: true,
+                dynamicMin: 0.3,
+                topSim: 0.7,
+                secondSim: 0.5,
+                avgTop5: 0.5,
+                acceptanceOverride: false,
+                totalStoredChunks: result.retrievedChunks.count,
+                candidatesCount: result.retrievedChunks.count,
+                rerankedCount: result.retrievedChunks.count,
+                filteredCount: 0,
+                droppedCount: 0,
+                mmrSelectedCount: result.retrievedChunks.count,
+                uniqueDocCount: Set(result.retrievedChunks.map { $0.chunk.documentId }).count,
+                contextStrategy: "recursive_rag",
+                contextChars: estimatedContextChars, // Total chars across all calls
+                contextWords: totalTokensUsed / 2,
+                contextChunksUsed: result.retrievedChunks.count,
+                maxContextChars: 0, // Not meaningful for recursive RAG
+                baseWindowTokens: 4096, // Per-call limit (for reference)
+                safetyTokens: 200,
+                promptOverheadTokens: 100,
+                questionTokens: question.count / 4,
+                reservedOutputTokens: 800,
+                availableContextTokens: 4096, // Per-call available (for reference)
+                executionContext: .automatic,
+                allowPrivateCloudCompute: true,
+                networkConnected: NetworkMonitor.shared.isConnected,
+                wantsCloudContext: true,
+                reliabilityModeEnabled: true,
+                allowUngroundedFallback: false,
+                modelName: "Apple Foundation Model (Agentic)",
+                isRecursiveRAG: true, // This tells UI to show tokens, not percentage
+                totalTokensAcrossCalls: totalTokensUsed,
+                llmCallCount: max(1, llmCallCount)
+            )
+            await MainActor.run {
+                self.lastAuditSnapshot = agenticAudit
+            }
+
             // Build RAGResponse from agentic result - include collected chunks for UI
             return RAGResponse(
                 queryId: UUID(),
                 retrievedChunks: result.retrievedChunks,
                 generatedResponse: result.finalAnswer,
                 metadata: ResponseMetadata(
+                    timeToFirstToken: totalTime / Double(max(1, result.steps.count)), // Estimate TTFT per step
                     totalGenerationTime: totalTime,
                     tokensGenerated: result.totalTokens,
                     tokensPerSecond: Float(result.totalTokens) / Float(totalTime),
@@ -2553,7 +2744,7 @@ class RAGService: ObservableObject {
                     retrievalConfigSummary: "Agentic",
                     toolCallsMade: result.steps.filter { $0.type == .searching }.count,
                     usedAgenticMode: true, // Agentic (deep) mode was used
-                        originalQuery: question
+                    originalQuery: question
                 ),
                 confidenceScore: result.confidence
             )
@@ -3029,34 +3220,15 @@ class RAGService: ObservableObject {
                     )
                 }
 
-                // Step 2: Embed the user's query (with optional HyDE enhancement)
+                // Step 2: Embed the user's query
                 Log.section("Step 2: Query Embedding", level: .info, category: .pipeline)
                 let embeddingStartTime = Date()
 
-                // HyDE: Hypothetical Document Embeddings
-                // Generate a hypothetical answer first, then embed that for better retrieval
-                // Respect both user settings AND adaptive pipeline (thermal/battery aware)
-                let useHyDESetting = settingsStore?.enableHyDE ?? true
-                let useHyDE = useHyDESetting && adaptiveConfig.enableHyDE
-                var textToEmbed = effectiveQuery // Use rewritten query for embedding
-                var hydeUsed = false
-
-                if useHyDE, HyDEService.isAvailable, HyDEService.shouldUseHyDE(for: effectiveQuery) { 
-                    let hydeService = HyDEService()
-                    do {
-                        let hydeResult = try await hydeService.generateHyDEQuery(for: effectiveQuery)
-                        textToEmbed = hydeResult.combinedForEmbedding
-                        hydeUsed = true
-                        Log.info("[HyDE] Using hypothetical document for embedding", category: .retrieval)
-                        emitThinkingEvent(
-                            .planning,
-                            title: "HyDE expansion",
-                            detail: "Generated hypothetical answer for retrieval"
-                        )
-                    } catch {
-                        Log.warning("[HyDE] Failed, using original query: \(error.localizedDescription)", category: .retrieval)
-                    }
-                }
+                // NOTE: HyDE (Hypothetical Document Embeddings) has been disabled.
+                // HyDE asks the LLM to generate a hypothetical answer WITHOUT document context,
+                // which causes hallucinations (e.g., "serial numbers" for "button" queries).
+                // The retrieval system now uses the actual query directly, which is more reliable.
+                let textToEmbed = effectiveQuery // Use rewritten query for embedding
 
                 let queryEmbedding = try await queryEmbeddingService.generateEmbedding(for: textToEmbed)
                 let embeddingTime = Date().timeIntervalSince(embeddingStartTime)
@@ -3080,18 +3252,16 @@ class RAGService: ObservableObject {
                     metadata: [
                         "dimensions": "\(queryEmbedding.count)",
                         "provider": embeddingProviderId,
-                        "hyde": hydeUsed ? "true" : "false",
                     ],
                     duration: embeddingTime
                 )
 
                 // Show provider in thinking timeline (contextual = high accuracy badge)
                 let providerLabel = embeddingProviderId == "nl_contextual_embedding" ? "⚡ Contextual" : embeddingProviderId
-                let hydeLabel = hydeUsed ? " • HyDE" : ""
                 emitThinkingEvent(
                     .embedding,
                     title: "Embedding ready",
-                    detail: "\(providerLabel)\(hydeLabel) • \(queryEmbedding.count)D in \(String(format: "%.0f", embeddingTime * 1000)) ms"
+                    detail: "\(providerLabel) • \(queryEmbedding.count)D in \(String(format: "%.0f", embeddingTime * 1000)) ms"
                 )
 
                 // Warn if embedding dimension doesn't match the selected library's index dimension
@@ -3984,10 +4154,13 @@ class RAGService: ObservableObject {
                 // (e.g., 335→27 tokens = 8% retention loses critical procedural constraints)
                 // CRITICAL: Skip compression for vocabulary mismatch - compressor can't judge relevance
                 // when query terms don't match document vocabulary (conversational vs technical)
+                // CRITICAL: Skip compression for parent-expanded content - parent chunks are too large
+                // for compression model (exceed context window) AND compression defeats hierarchical purpose
                 let useCompressionSetting = settingsStore?.enableContextualCompression ?? true
                 let skipCompressionForProcedural = isProceduralQuery // Preserve contiguous spans
                 let skipCompressionForVocabMismatch = vocabularyMismatch // Compressor will destroy content
-                let useContextualCompression = useCompressionSetting && adaptiveConfig.enableContextualCompression && !skipCompressionForProcedural && !skipCompressionForVocabMismatch
+                let skipCompressionForParentExpansion = contextStrategy == "parent_expanded" // Chunks too large + defeats purpose
+                let useContextualCompression = useCompressionSetting && adaptiveConfig.enableContextualCompression && !skipCompressionForProcedural && !skipCompressionForVocabMismatch && !skipCompressionForParentExpansion
                 var compressionSavings = 0
 
                 if skipCompressionForProcedural {
@@ -3996,6 +4169,10 @@ class RAGService: ObservableObject {
 
                 if skipCompressionForVocabMismatch {
                     Log.info("[RAG] Skipping compression for vocabulary mismatch - compressor can't judge relevance", category: .retrieval)
+                }
+
+                if skipCompressionForParentExpansion {
+                    Log.info("[RAG] Skipping compression for parent-expanded content - chunks exceed compression model capacity", category: .retrieval)
                 }
 
                 if useContextualCompression, HyDEService.isAvailable, contextCandidates.count > 0 {
@@ -4419,62 +4596,49 @@ class RAGService: ObservableObject {
                 var genConfig = inferenceConfig
 
                 // Set explicit system prompt for RAG to ensure comprehensive, ACCURATE answers
-                // Focus on fidelity to source documents, not summarization
+                // Keep concise to maximize context budget (every 100 chars = ~70 tokens)
                 genConfig.systemPrompt = """
-                [Language: English]
-                You are a precise research assistant answering questions from the user's knowledge base. Always respond in English.
+                You are a helpful research assistant.Answer using the provided document excerpts labeled[S1], [S2], etc.
 
-                    CRITICAL SEQUENCING RULES(for procedures / workflows):
-                    1.NEVER INVERT TEMPORAL ORDER: If source says "A then B then C", you MUST output A → B → C.
-                    Common mistake: saying "dry before disinfect" when source says "disinfect then rinse then dry".
-                    2.PRESERVE PHASE BOUNDARIES: Procedures often have distinct phases(e.g., Decontamination → Prep & Pack → Sterilization → Storage).
-                    Do NOT merge phases or skip phase transitions.
-                    3.NEVER OMIT MAJOR STEPS: If source includes a major action verb(clean, disinfect, rinse, dry, sterilize, wrap, store),
-                   you MUST include it.Skipping "sterilize" in a reprocessing workflow is a critical error.
-                    4.DISTINGUISH PRECONDITIONS FROM STEPS: Things that must be true BEFORE starting(e.g., "remove tip protector")
-                are preconditions, not mid - process steps.
-
-                    ACCURACY PRINCIPLES:
-                    1.FIDELITY OVER BREVITY: Reproduce information exactly as it appears in sources.Do not summarize or paraphrase procedural steps.
-                    2.COMPLETE ENUMERATION: For procedures, include EVERY step—omissions can be dangerous.
-                    3.PRESERVE EXACT SEQUENCE: Present steps in the EXACT order from the source.If unsure of order, quote the source directly.
-                    4.DISTINGUISH SIMILAR CONCEPTS: Maintain distinctions the source makes(e.g., "button flush ports" vs "base flush areas").
-                    5.CITE PRECISELY: Use[S1], [S2], etc.When sources differ, note the difference.
-                    6.ACKNOWLEDGE GAPS: If excerpts seem incomplete, explicitly state "Note: The provided excerpts may not include all steps."
-                7.NO INVENTION: Never add steps not present in the excerpts.
-
-                    RESPONSE FORMAT:
-                    - For procedures: Use numbered lists matching the source's structure exactly
-                    - For multi - phase processes: Use section headers for each phase
-                    - Include timing / duration constraints verbatim(e.g., "≤30 minutes", "≥60 seconds")
-                    - Aim for 200 - 400 words for complex topics
-
-                If the question asks about something not covered in the excerpts, say "The provided documents don't contain information about [X]."
+                Rules:
+                    1.Base answers on the excerpts provided
+                2.Cite sources: [S1], [S2](cite at least one)
+                3.Connect user terms to related concepts in excerpts(e.g., "button" may mean switch, toggle, control)
+                4.For procedures: preserve the exact sequence and include all steps
+                5.Be thorough - provide as much relevant detail as excerpts contain
+                6.If excerpts seem unrelated, explain what they DO contain that might help
                 """
 
-                // Evidence-First mode: modify system prompt to be more cautious
+                // Evidence-First mode: use detailed cautious prompt with full procedural rules
                 if useEvidenceFirstMode {
                     genConfig.systemPrompt = """
-                    [Language: English]
-                    You are a precise research assistant in EVIDENCE - FIRST MODE due to low retrieval confidence.Always respond in English.
+                    You are a research assistant in EVIDENCE - FIRST MODE due to low retrieval confidence.
 
-                        EVIDENCE - FIRST RULES(you MUST follow these):
-                        1.ONLY state what is DIRECTLY quoted or clearly supported by the excerpts below.
-                        2.For each claim, cite the specific source[S1], [S2], etc.
-                        3.EXPLICITLY list what the excerpts do NOT contain(gaps in evidence).
-                        4.If the excerpts seem incomplete for a full procedure, say: "Note: These excerpts may not contain all steps. The sources show: [list what IS present]"
-                    5.Do NOT fill gaps with assumptions or general knowledge.
-                        6.Keep response SHORT - only supported facts, not speculation.
+                        CRITICAL: Use ONLY the provided excerpts labeled[S1], [S2], etc.
+                        Do NOT search for additional information.
 
-                        FORMAT:
+                        EVIDENCE RULES:
+                        1.ONLY state what is DIRECTLY quoted or clearly supported by excerpts
+                    2.Cite every claim with[S1], [S2], etc.
+                        3.Explicitly list what excerpts do NOT contain(gaps in evidence)
+                    4.Do NOT fill gaps with assumptions or general knowledge
+                    5.Keep response focused - only supported facts, not speculation
+
+                        FOR PROCEDURES:
+                            - NEVER INVERT TEMPORAL ORDER: If source says "A then B then C", output A → B → C
+                            - PRESERVE PHASE BOUNDARIES: Don't merge distinct phases
+                            - NEVER OMIT MAJOR STEPS: Include every action verb(clean, disinfect, rinse, etc.)
+                            - DISTINGUISH PRECONDITIONS FROM STEPS
+
+                    FORMAT:
                     ## What the sources show:
-                        [Cite only directly supported information]
+                    [Cite only directly supported information]
 
                     ## What appears to be missing:
-                        [List gaps in the evidence]
+                    [List gaps in the evidence]
 
                     ## Confidence note:
-                        [Brief statement about evidence quality]
+                    [Brief statement about evidence quality]
                     """
                     // Lower temperature for more conservative output
                     genConfig.temperature = min(genConfig.temperature, 0.2)
@@ -4562,13 +4726,9 @@ class RAGService: ObservableObject {
 
                 let requiresCitations = retrievalConfig.requireExplicitCitations
                     || qualityModeRequiresCitations
-                let promptForGeneration: String
-                if requiresCitations {
-                    promptForGeneration = historyContext + question
-                        + "\n\nAnswer directly with no preamble. Cite sources using the bracket ids like [S1], [S2]. If the context is insufficient, say so."
-                } else {
-                    promptForGeneration = historyContext + question
-                }
+                // System prompt already contains citation and format instructions
+                // Don't add conflicting instructions that cause overly brief responses
+                let promptForGeneration: String = historyContext + question
 
                 // Attempt generation with retry on context-overflow
                 var llmResponse: LLMResponse
@@ -6062,6 +6222,7 @@ class RAGService: ObservableObject {
                 id: retrieved.chunk.id,
                 documentId: retrieved.chunk.documentId,
                 content: content,
+                parentContent: nil,
                 embedding: retrieved.chunk.embedding,
                 metadata: retrieved.chunk.metadata
             )
@@ -6809,6 +6970,82 @@ extension RAGService: RAGToolHandler {
         return result
     }
 
+    /// Execute the FULL retrieval pipeline (HyDE, hybrid search, AI re-ranking, MMR)
+    /// This gives Deep Think mode the same quality retrieval as Standard mode
+    /// Used by AgenticOrchestrator for high-quality chunk retrieval with reasoning on top
+    func executeFullRetrievalPipeline(
+        query: String,
+        topK: Int = 20,
+        minSimilarity: Float = 0.08
+    ) async throws -> [RetrievedChunk] {
+        let embeddingContext = await resolveEmbeddingContext()
+        let db = await dbFor(embeddingContext.containerId)
+        let allChunks = try await db.allChunks()
+
+        // Skip if no chunks
+        guard !allChunks.isEmpty else { return [] }
+
+        // Step 1: Use original query for embedding
+        // NOTE: HyDE disabled in Deep Think - it hallucinates without document context
+        // and poisons retrieval with irrelevant content (e.g., "serial numbers" for "button" queries)
+        let textToEmbed = query
+
+        // Step 2: Generate query embedding
+        let queryEmbedding = try await embeddingContext.service.generateEmbedding(for: textToEmbed)
+
+        // Step 3: Classify query intent for adaptive weights
+        let queryEnhancer = QueryEnhancementService()
+        let queryIntent = queryEnhancer.classifyIntent(query)
+        let adjustment = queryIntent.weightAdjustment
+        let vectorWeight = max(0.1, min(0.9, 0.5 + adjustment.vectorDelta))
+        let keywordWeight = max(0.1, min(0.9, 0.5 + adjustment.keywordDelta))
+
+        // Step 4: Hybrid search (vector + BM25)
+        let hybridSearch = HybridSearchService(
+            vectorDatabase: db,
+            vectorWeight: vectorWeight,
+            keywordWeight: keywordWeight
+        )
+
+        var retrievedChunks = try await hybridSearch.search(
+            query: query,
+            embedding: queryEmbedding,
+            topK: topK * 2, // Get extra for re-ranking
+            cachedChunks: allChunks
+        )
+
+        // Step 5: AI Re-ranking with ReRanker model
+        let engine = RAGEngine.shared
+        retrievedChunks = await engine.rerank(chunks: retrievedChunks, query: query, topK: topK * 2)
+
+        // Step 6: MMR Diversification
+        let mmrLambda: Float = 0.6
+        retrievedChunks = await engine.applyMMR(
+            candidates: retrievedChunks,
+            queryEmbedding: queryEmbedding,
+            topK: topK,
+            lambda: mmrLambda
+        )
+
+        // Step 7: Filter by similarity
+        retrievedChunks = await engine.filterBySimilarity(chunks: retrievedChunks, min: minSimilarity)
+
+        // Enrich with document names
+        var enrichedChunks: [RetrievedChunk] = []
+        for (rank, retrieved) in retrievedChunks.enumerated() {
+            let docName = await documentName(for: retrieved.chunk.documentId)
+            enrichedChunks.append(RetrievedChunk(
+                chunk: retrieved.chunk,
+                similarityScore: retrieved.similarityScore,
+                rank: rank + 1,
+                sourceDocument: docName,
+                pageNumber: retrieved.chunk.metadata.pageNumber
+            ))
+        }
+
+        return enrichedChunks
+    }
+
     /// Search and return raw chunks for agentic orchestrator (not just formatted string)
     /// Uses hybrid search (vector + BM25) for better retrieval quality on technical documents.
     /// Used internally by AgenticOrchestrator to collect chunks for UnifiedMetricsBar
@@ -6834,7 +7071,7 @@ extension RAGService: RAGToolHandler {
         // Request more candidates for better coverage
         let effectiveTopK = max(topK, 15)
         var retrievedChunks = try await hybridSearch.search(
-            query: query, 
+            query: query,
             embedding: queryEmbedding,
             topK: effectiveTopK,
             cachedChunks: allChunks

@@ -9,24 +9,20 @@
 
 import Foundation
 
-final class ToolCallCounter {
+/// Actor-based counter to avoid "unsafeForcedSync called from Swift Concurrent context" warnings.
+/// Using an actor instead of DispatchQueue.sync ensures proper Swift concurrency integration.
+actor ToolCallCounter { 
     static let shared = ToolCallCounter()
-    private init() {}
 
     private var count: Int = 0
-    private let queue = DispatchQueue(label: "com.openintelligence.toolcallcounter")
 
-    func increment() {
-        queue.sync {
-            count += 1
-        }
+    func increment() { 
+        count += 1
     }
 
-    func takeAndReset() -> Int {
-        return queue.sync {
-            let c = count
-            count = 0
-            return c
-        }
+    func takeAndReset() -> Int { 
+        let c = count
+        count = 0
+        return c
     }
 }

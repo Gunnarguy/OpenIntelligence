@@ -52,13 +52,13 @@ struct DocumentPicker: UIViewControllerRepresentable {
 
         func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
             // Process ALL selected files
-            print("📚 Processing \(urls.count) selected file(s)...")
+            Log.debug("📚 Processing \(urls.count) selected file(s)...", category: .ingestion)
 
             var copiedURLs: [URL] = []
             for url in urls {
                 // Start accessing a security-scoped resource
                 guard url.startAccessingSecurityScopedResource() else {
-                    print("❌ Failed to access security-scoped resource: \(url.lastPathComponent)")
+                    Log.warning("❌ Failed to access security-scoped resource: \(url.lastPathComponent)", category: .ingestion)
                     continue
                 }
 
@@ -75,9 +75,9 @@ struct DocumentPicker: UIViewControllerRepresentable {
                     }
                     try fileManager.copyItem(at: url, to: destinationURL)
                     copiedURLs.append(destinationURL)
-                    print("✓ Queued: \(url.lastPathComponent)")
+                    Log.debug("✓ Queued: \(url.lastPathComponent)", category: .ingestion)
                 } catch {
-                    print("❌ Error copying document \(url.lastPathComponent): \(error)")
+                    Log.error("❌ Error copying document \(url.lastPathComponent): \(error)", category: .ingestion)
                 }
             }
             if !copiedURLs.isEmpty {
