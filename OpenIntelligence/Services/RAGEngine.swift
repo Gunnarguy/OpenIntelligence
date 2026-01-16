@@ -121,7 +121,7 @@ actor RAGEngine {
         }
 
         // Iteratively select chunks that maximize: λ * relevance - (1-λ) * max_similarity_to_selected
-        while selected.count<topK, !remaining.isEmpty { 
+        while selected.count<topK, !remaining.isEmpty {
             if Task.isCancelled { return selected }
 
             var bestScore: Float = -.infinity
@@ -297,7 +297,16 @@ actor RAGEngine {
             }
         }
 
-        return Array(scored.prefix(topK)).map { $0.chunk }
+        return Array(scored.prefix(topK)).map { scoredItem in
+            // Propagate the rerank score to the chunk so downstream sorting preserves re-ranking order
+            RetrievedChunk(
+                chunk: scoredItem.chunk.chunk,
+                similarityScore: scoredItem.score,
+                rank: scoredItem.chunk.rank,
+                sourceDocument: scoredItem.chunk.sourceDocument,
+                pageNumber: scoredItem.chunk.pageNumber
+            )
+        }
     }
 
     /// Filter chunks by minimum similarity threshold
@@ -354,6 +363,12 @@ actor RAGEngine {
         builder.reserveCapacity(min(maxChars, 4096))
         var used = 0
 
+        // Calculate target chars per chunk to fit at least 3 chunks
+        // This prevents the "1 giant chunk" problem where context is too narrow
+        let minChunksTarget = min(3, orderedChunks.count)
+        let headerOverhead = compact ? 30 : 80  // Approximate header + separator size
+        let targetCharsPerChunk = max(400, (maxChars - (minChunksTarget * headerOverhead)) / minChunksTarget)
+
         for (i, r) in orderedChunks.enumerated() {
 
             if Task.isCancelled { break }
@@ -364,30 +379,98 @@ actor RAGEngine {
             let content = r.chunk.parentContent ?? r.chunk.content
             let sanitizedContent = sanitizeForLanguageDetection(content)
 
+            // Calculate remaining budget
+            let remainingBudget = maxChars - builder.count
+            let chunksRemaining = orderedChunks.count - i
+
+            // Truncate content if needed to fit more chunks
+            // Priority: fit at least minChunksTarget chunks, then fill remaining space
+            let truncatedContent: String
+            if used < minChunksTarget - 1 && sanitizedContent.count > targetCharsPerChunk {
+                // Truncate to target size to leave room for more chunks
+                // Truncate at sentence boundary if possible
+                truncatedContent = truncateAtSentence(sanitizedContent, maxChars: targetCharsPerChunk)
+            } else if used >= minChunksTarget - 1 && chunksRemaining == 1 {
+                // Last chunk: use all remaining space
+                let maxForThis = remainingBudget - headerOverhead - 10
+                if sanitizedContent.count > maxForThis && maxForThis > 200 {
+                    truncatedContent = truncateAtSentence(sanitizedContent, maxChars: maxForThis)
+                } else {
+                    truncatedContent = sanitizedContent
+                }
+            } else {
+                truncatedContent = sanitizedContent
+            }
+
             let block: String
             if compact {
                 // Compact mode: minimal headers, no similarity scores, tighter separators
                 // Saves ~30-50 chars per chunk for more content in constrained budgets
                 let source = r.sourceDocument.isEmpty ? "" : URL(fileURLWithPath: r.sourceDocument).lastPathComponent
                 let sourceRef = source.isEmpty ? "" : "(\(source)) "
-                block = "[S\(i + 1)] \(sourceRef)\(sanitizedContent)" + (i != orderedChunks.count - 1 ? "\n---\n" : "")
+                block = "[S\(i + 1)] \(sourceRef)\(truncatedContent)" + (i != orderedChunks.count - 1 ? "\n---\n" : "")
             } else {
                 // Full mode: rich metadata for better citation context
                 let source = r.sourceDocument.isEmpty ? "Unknown" : r.sourceDocument
                 let page = r.pageNumber.map { " p.\($0)" } ?? ""
                 let header = "[S\(i + 1)] \(source)\(page) • sim \(String(format: "%.3f", r.similarityScore))\n"
-                block = header + sanitizedContent + (i != orderedChunks.count - 1 ? "\n\n---\n\n" : "")
+                block = header + truncatedContent + (i != orderedChunks.count - 1 ? "\n\n---\n\n" : "")
             }
 
             if builder.count + block.count <= maxChars || used == 0 {
                 builder += block
                 used += 1
+            } else if used < minChunksTarget && remainingBudget > 300 {
+                // Force-fit truncated version if we haven't hit minimum chunks yet
+                let forceTruncated = truncateAtSentence(truncatedContent, maxChars: remainingBudget - headerOverhead - 20)
+                if forceTruncated.count >= 150 {
+                    let forceBlock: String
+                    if compact {
+                        let source = r.sourceDocument.isEmpty ? "" : URL(fileURLWithPath: r.sourceDocument).lastPathComponent
+                        let sourceRef = source.isEmpty ? "" : "(\(source)) "
+                        forceBlock = "[S\(i + 1)] \(sourceRef)\(forceTruncated)" + (i != orderedChunks.count - 1 ? "\n---\n" : "")
+                    } else {
+                        let source = r.sourceDocument.isEmpty ? "Unknown" : r.sourceDocument
+                        let page = r.pageNumber.map { " p.\($0)" } ?? ""
+                        let header = "[S\(i + 1)] \(source)\(page) • sim \(String(format: "%.3f", r.similarityScore))\n"
+                        forceBlock = header + forceTruncated + (i != orderedChunks.count - 1 ? "\n\n---\n\n" : "")
+                    }
+                    builder += forceBlock
+                    used += 1
+                } else {
+                    break
+                }
             } else {
                 break
             }
         }
 
         return (builder, used)
+    }
+
+    /// Truncate text at a sentence boundary, preferring to keep complete sentences
+    private func truncateAtSentence(_ text: String, maxChars: Int) -> String {
+        guard text.count > maxChars else { return text }
+
+        let truncated = String(text.prefix(maxChars))
+
+        // Find last sentence-ending punctuation
+        let sentenceEnders: [Character] = [".", "!", "?"]
+        if let lastSentenceEnd = truncated.lastIndex(where: { sentenceEnders.contains($0) }) {
+            let endIndex = truncated.index(after: lastSentenceEnd)
+            let result = String(truncated[..<endIndex])
+            // Only use sentence boundary if we keep at least 60% of the truncated text
+            if result.count >= maxChars * 6 / 10 {
+                return result
+            }
+        }
+
+        // Fall back to word boundary
+        if let lastSpace = truncated.lastIndex(of: " ") {
+            return String(truncated[..<lastSpace]) + "…"
+        }
+
+        return truncated + "…"
     }
 
     /// Sanitizes content to help Apple Foundation Models' language detector.
@@ -506,7 +589,7 @@ actor RAGEngine {
         // Factor 3: Source diversity
         let uniqueSources = Set(chunks.map { $0.sourceDocument })
         let sourceCount = uniqueSources.count
-        if sourceCount == 1, totalDocs > 1 { 
+        if sourceCount == 1, totalDocs > 1 {
             warnings.append("Single source: Information from only one document")
         }
 
@@ -814,7 +897,11 @@ actor RAGEngine {
             for (idx, r) in chunks.enumerated() {
                 if Task.isCancelled { break }
                 if idx % 8 == 0 { await Task.yield() }
-                let docTokens = tokenizer.tokenize(text: r.chunk.content)
+
+                // Include contextual prefix for cross-encoder (Anthropic's Contextual Retrieval)
+                // This helps the re-ranker understand document context when scoring relevance
+                let docText = (r.chunk.contextualPrefix ?? "") + r.chunk.content
+                let docTokens = tokenizer.tokenize(text: docText)
                 let docIds = tokenizer.convertTokensToIds(docTokens).compactMap { $0 }
 
                 // Build sequence: [CLS] Q [SEP] D [SEP]
@@ -874,9 +961,11 @@ actor RAGEngine {
                             // Use subscript access which handles type conversion
                             let val0 = logits[0].floatValue
                             if count == 1 {
+                                // MS-MARCO models output unbounded relevance scores.
+                                // We'll use min-max normalization later to scale to [0,1].
                                 score = val0
                             } else {
-                                // Softmax: e^1 / (e^0 + e^1)
+                                // Two logits (not-relevant, relevant): softmax to get P(relevant)
                                 let val1 = logits[1].floatValue
                                 let e0 = exp(val0)
                                 let e1 = exp(val1)
@@ -892,13 +981,49 @@ actor RAGEngine {
                 }
             }
 
+            // MS-MARCO cross-encoders output unbounded relevance scores (e.g., -10 to +10).
+            // These are meant for ranking, not as probabilities.
+            // We normalize to [0,1] using min-max normalization within the batch,
+            // which preserves ranking order while matching downstream score thresholds.
             scored.sort { $0.score > $1.score }
 
-            if let top = scored.first {
-                Log.debug("[RAGEngine] AI Re-ranking complete. Top System Score: \(String(format: "%.4f", top.score))", category: .retrieval)
+            // Min-max normalize scores to [0,1] range
+            let rawScores = scored.map { $0.score }
+            let minScore = rawScores.min() ?? 0
+            let maxScore = rawScores.max() ?? 1
+            let scoreRange = maxScore - minScore
+
+            // If all scores are identical, assign uniform normalized score
+            let normalizedScored: [(chunk: RetrievedChunk, score: Float)]
+            if scoreRange < 0.0001 {
+                normalizedScored = scored.map { ($0.chunk, Float(0.5)) }
+            } else {
+                normalizedScored = scored.map { item in
+                    // Normalize to [0.1, 0.9] to avoid extreme values
+                    let normalized = 0.1 + 0.8 * (item.score - minScore) / scoreRange
+                    return (item.chunk, normalized)
+                }
             }
 
-            return scored.prefix(cappedTopK).map { $0.chunk }
+            if let top = normalizedScored.first, let bottom = normalizedScored.last {
+                let rawTop = scored.first?.score ?? 0
+                let rawBottom = scored.last?.score ?? 0
+                Log.debug("[RAGEngine] AI Re-ranking: raw \(String(format: "%.2f", rawBottom))→\(String(format: "%.2f", rawTop)), normalized \(String(format: "%.2f", bottom.score))→\(String(format: "%.2f", top.score))", category: .retrieval)
+                // Log top chunk preview for debugging retrieval quality
+                let preview = String(top.chunk.chunk.content.prefix(150)).replacingOccurrences(of: "\n", with: " ")
+                Log.debug("[RAGEngine] Top chunk preview: \(preview)...", category: .retrieval)
+            }
+
+            return normalizedScored.prefix(cappedTopK).map { scoredItem in
+                // Propagate cross-encoder score to the chunk so downstream sorting preserves re-ranking order
+                RetrievedChunk(
+                    chunk: scoredItem.chunk.chunk,
+                    similarityScore: scoredItem.score,
+                    rank: scoredItem.chunk.rank,
+                    sourceDocument: scoredItem.chunk.sourceDocument,
+                    pageNumber: scoredItem.chunk.pageNumber
+                )
+            }
         }
     #endif
 }

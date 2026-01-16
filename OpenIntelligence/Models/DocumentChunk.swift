@@ -15,6 +15,12 @@ struct DocumentChunk: Identifiable, Codable, Sendable {
     /// Optional expanded context window for hierarchical retrieval
     /// Used for LLM context assembly while embeddings remain on `content`.
     let parentContent: String?
+    /// Contextual prefix prepended to content BEFORE embedding generation.
+    /// Implements Anthropic's "Contextual Retrieval" technique (reduces retrieval failures 35-67%).
+    /// Format: "[From {filename}] [{section}] " - stored separately so original content displays cleanly.
+    /// The embedding vector captures this prefix, improving semantic matching for queries that mention
+    /// document names or topics even when the chunk content itself doesn't contain those terms.
+    let contextualPrefix: String?
     let embedding: [Float]
     let metadata: ChunkMetadata
 
@@ -29,13 +35,15 @@ struct DocumentChunk: Identifiable, Codable, Sendable {
         documentId: UUID,
         content: String,
         parentContent: String? = nil,
+        contextualPrefix: String? = nil,
         embedding: [Float],
         metadata: ChunkMetadata
-    ) { 
+    ) {
         self.id = id
         self.documentId = documentId
         self.content = content
         self.parentContent = parentContent
+        self.contextualPrefix = contextualPrefix
         self.embedding = embedding
         self.metadata = metadata
     }

@@ -27,6 +27,7 @@ struct MessageBubbleV2: View {
     @State private var showFullMetrics = false
     @State private var showReportSheet = false
     @State private var sharePayload: SharePayload? = nil
+    @State private var showReasoningTrace = false
 
     init(
         message: Binding<ChatMessage>,
@@ -35,7 +36,7 @@ struct MessageBubbleV2: View {
         onGoDeeper: (() -> Void)? = nil,
         onThumbsUp: (() -> Void)? = nil,
         onThumbsDown: (() -> Void)? = nil
-    ) { 
+    ) {
         _message = message
         self.showMetadata = showMetadata
         self.onRegenerate = onRegenerate
@@ -62,6 +63,41 @@ struct MessageBubbleV2: View {
                             font: .system(size: 15, weight: .regular),
                             foregroundColor: isUser ? .white : DSColors.primaryText
                         )
+
+                        // Reasoning trace (expandable "show your work" section)
+                        if let trace = message.metadata?.reasoningTrace, !trace.isEmpty {
+                            Divider()
+                                .padding(.vertical, 8)
+
+                            Button {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                    showReasoningTrace.toggle()
+                                }
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: showReasoningTrace ? "chevron.down" : "chevron.right")
+                                        .font(.system(size: 10, weight: .medium))
+                                    Text("💭 Reasoning Process")
+                                        .font(.system(size: 13, weight: .medium))
+                                    Text("(\(trace.count) steps)")
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(.secondary)
+                                    Spacer()
+                                }
+                                .foregroundStyle(DSColors.accent)
+                            }
+                            .buttonStyle(.plain)
+
+                            if showReasoningTrace {
+                                VStack(alignment: .leading, spacing: 10) {
+                                    ForEach(Array(trace.enumerated()), id: \.offset) { idx, step in
+                                        ReasoningStepView(step: step, index: idx)
+                                    }
+                                }
+                                .padding(.top, 8)
+                                .transition(.opacity.combined(with: .move(edge: .top)))
+                            }
+                        }
                     }
                 }
                 .padding(.horizontal, 16)
@@ -99,7 +135,7 @@ struct MessageBubbleV2: View {
 
             // Timestamp and mode indicator - detailed metrics shown in header area
             if showMetadata, !showActions {
-                HStack(spacing: 6) { 
+                HStack(spacing: 6) {
                     Text(relativeTime(message.timestamp))
                         .font(.system(size: 10))
                         .foregroundStyle(Color.secondary.opacity(0.6))
@@ -289,6 +325,45 @@ private struct BubbleShape: Shape {
         }
 
         return path
+    }
+}
+
+// MARK: - Reasoning Step View
+
+/// Displays a single step from the AI's reasoning process
+private struct ReasoningStepView: View {
+    let step: String
+    let index: Int
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            // Parse the step format: "🔍 Analyzing Evidence: content..."
+            let parts = step.components(separatedBy: ": ")
+            let label = parts.first ?? "Step \(index + 1)"
+            let content = parts.count > 1 ? parts.dropFirst().joined(separator: ": ") : step
+
+            Text(label)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(stepColor)
+
+            Text(content)
+                .font(.system(size: 13))
+                .foregroundStyle(DSColors.secondaryText)
+                .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(DSColors.surface.opacity(0.5))
+        .cornerRadius(8)
+    }
+
+    private var stepColor: Color {
+        switch index {
+        case 0: return .blue      // Analyzing
+        case 1: return .purple    // Patterns
+        default: return .green    // Synthesis/Other
+        }
     }
 }
 

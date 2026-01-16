@@ -363,14 +363,16 @@
   *Settings*: `enableContextualCompression` in SettingsStore (default: true)
 
 #### Advanced Reasoning
-- [ ] **Self-RAG**: Model decides when to retrieve, what to retrieve, and self-critiques answers
+- [x] **Self-RAG**: Model decides when to retrieve, what to retrieve, and self-critiques answers
   *Paper*: Asai et al. 2023 - "Self-RAG: Learning to Retrieve, Generate, and Critique"
-  *Benefit*: Adaptive retrieval (only retrieves when needed)
-  *Complexity*: High (requires fine-tuned model or complex prompting)
+  *Location*: [AgenticOrchestrator.swift](OpenIntelligence/Services/AgenticOrchestrator.swift)
+  *Method*: `executeSelfRAG()` - adaptive retrieval + self-critique loop
+  *Benefit*: Skips retrieval for simple queries, catches hallucinations via self-critique
 
-- [ ] **Speculative RAG**: Generate multiple candidate answers, verify each against documents
+- [x] **Speculative RAG**: Generate multiple candidate answers, verify each against documents
+  *Location*: [AgenticOrchestrator.swift](OpenIntelligence/Services/AgenticOrchestrator.swift)
+  *Method*: `executeSpeculativeRAG()` - 3 candidates with temperature variation, grounding scores
   *Benefit*: Catches hallucinations through multi-path verification
-  *Complexity*: High (3-5x compute cost)
 
 - [ ] **RAPTOR**: Hierarchical summarization tree for multi-level retrieval
   *Paper*: Sarthi et al. 2024 - "RAPTOR: Recursive Abstractive Processing for Tree-Organized Retrieval"

@@ -62,6 +62,7 @@ final class SettingsStore: ObservableObject {
         static let enableContextualCompression = "enableContextualCompression"
         static let enableParentDocumentRetrieval = "enableParentDocumentRetrieval"
         static let enableConversationMemory = "enableConversationMemory"
+        static let forceReasoningChain = "forceReasoningChain"
 
         // Appearance
         static let appAccentColorHex = "appAccentColorHex" // nil = system default
@@ -152,6 +153,10 @@ final class SettingsStore: ObservableObject {
     /// Summarizes long conversations and injects relevant context into queries.
     /// Improves follow-up questions and pronoun resolution.
     @Published var enableConversationMemory: Bool
+
+    /// Force reasoning chain even when conditions aren't met (for testing).
+    /// When enabled, Standard mode will always use 3-session chaining for deeper analysis.
+    @Published var forceReasoningChain: Bool
 
     // MARK: - Quality Mode
 
@@ -340,6 +345,8 @@ final class SettingsStore: ObservableObject {
         enableParentDocumentRetrieval = defaults.object(forKey: Keys.enableParentDocumentRetrieval) as? Bool ?? true
         // Conversation memory defaults to true - enables multi-turn context awareness
         enableConversationMemory = defaults.object(forKey: Keys.enableConversationMemory) as? Bool ?? true
+        // Force reasoning chain defaults to false - enable for testing multi-session chaining
+        forceReasoningChain = defaults.object(forKey: Keys.forceReasoningChain) as? Bool ?? false
 
         // Appearance settings
         // Accent color - nil means use system default
@@ -528,6 +535,7 @@ final class SettingsStore: ObservableObject {
         defaults.set(enableContextualCompression, forKey: Keys.enableContextualCompression)
         defaults.set(enableParentDocumentRetrieval, forKey: Keys.enableParentDocumentRetrieval)
         defaults.set(enableConversationMemory, forKey: Keys.enableConversationMemory)
+        defaults.set(forceReasoningChain, forKey: Keys.forceReasoningChain)
 
         // Appearance
         defaults.set(appAccentColorHex, forKey: Keys.appAccentColorHex)
@@ -589,9 +597,9 @@ extension SettingsStore {
 
 // MARK: - Platform Normalisation
 
-private extension SettingsStore { 
+private extension SettingsStore {
     /// Ensures persisted selections remain valid for the running platform.
-    func sanitizeModelSelectionForPlatform() { 
+    func sanitizeModelSelectionForPlatform() {
         let primaryOptions = primaryModelOptions
         let fallbackUniverse = fallbackBaseOptions
 

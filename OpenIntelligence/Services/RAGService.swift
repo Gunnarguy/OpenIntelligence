@@ -1084,6 +1084,36 @@ class RAGService: ObservableObject {
         transientConsentGrants.insert(provider)
     }
 
+    /// Public wrapper for Deep Think consent checking
+    /// Allows AgenticOrchestrator to trigger the same consent flow as Standard mode
+    func ensureConsentForDeepThink(
+        service: LLMService,
+        prompt: String,
+        context: String?,
+        sourceChunks: [DocumentChunk],
+        allowPrivateCloudCompute: Bool
+    ) async throws {
+        try await ensureCloudConsentIfNeeded(
+            service: service,
+            prompt: prompt,
+            context: context,
+            sourceChunks: sourceChunks,
+            allowPrivateCloudCompute: allowPrivateCloudCompute
+        )
+    }
+
+    /// Check if PCC is currently suppressed (exposed for Deep Think)
+    @MainActor
+    func isPCCSuppressedForDeepThink() -> Bool {
+        isPCCSuppressed()
+    }
+
+    /// Check if there's a transient consent grant for PCC (exposed for Deep Think)
+    @MainActor
+    func hasTransientPCCGrant() -> Bool {
+        transientConsentGrants.contains(.applePCC)
+    }
+
     @MainActor
     private func isPCCSuppressed(now: Date = Date()) -> Bool {
         guard let until = pccSuppressedUntil else { return false }
@@ -1875,8 +1905,16 @@ class RAGService: ObservableObject {
             }
 
             // Step 2: Generate embeddings with progress updates
+            // Implements Anthropic's Contextual Retrieval: prepend document context to chunks
+            // BEFORE embedding, so the embedding captures document-level semantics.
+            // This reduces retrieval failures by 35-67% according to Anthropic's research.
             var embeddings: [[Float]] = []
+            var contextualPrefixes: [String] = []
             let embeddingStartTime = Date()
+
+            // Build contextual prefix once (reused for all chunks in this document)
+            let docContext = buildContextualPrefix(filename: filename)
+            Log.info("[Contextual] Document prefix: '\(docContext)'", category: .ingestion)
 
             for (index, chunk) in processedChunks.enumerated() {
                 await MainActor.run {
@@ -1889,7 +1927,14 @@ class RAGService: ObservableObject {
                     )
                 }
 
-                let embedding = try await containerEmbeddingService.generateEmbedding(for: chunk.text)
+                // Build chunk-specific contextual prefix with section info
+                let sectionContext = chunk.metadata.sectionTitle.map { " [\($0)]" } ?? ""
+                let contextualPrefix = docContext + sectionContext + " "
+                contextualPrefixes.append(contextualPrefix)
+
+                // Embed with contextual prefix prepended (Anthropic's key insight)
+                let textForEmbedding = contextualPrefix + chunk.text
+                let embedding = try await containerEmbeddingService.generateEmbedding(for: textForEmbedding)
                 embeddings.append(embedding)
             }
 
@@ -1915,10 +1960,10 @@ class RAGService: ObservableObject {
                 )
             }
 
-            // Step 3: Create DocumentChunk objects with embeddings
+            // Step 3: Create DocumentChunk objects with embeddings and contextual prefixes
             let chunkingStartTime = Date()
-            let documentChunks = zip(processedChunks, embeddings).enumerated().map { index, pair in
-                let (chunk, embedding) = pair
+            let documentChunks = zip(zip(processedChunks, embeddings), contextualPrefixes).enumerated().map { index, pair in
+                let ((chunk, embedding), prefix) = pair
                 let base = chunk.metadata
                 let enrichedMetadata = ChunkMetadata(
                     chunkIndex: index,
@@ -1938,6 +1983,7 @@ class RAGService: ObservableObject {
                     documentId: document.id,
                     content: chunk.text,
                     parentContent: chunk.parentText,
+                    contextualPrefix: prefix,
                     embedding: embedding,
                     metadata: enrichedMetadata
                 )
@@ -2184,6 +2230,28 @@ class RAGService: ObservableObject {
             )
             throw error
         }
+    }
+
+    // MARK: - Contextual Retrieval Helper
+
+    /// Build contextual prefix for Anthropic's Contextual Retrieval technique.
+    /// Prepending document context to chunks BEFORE embedding improves retrieval by 35-67%.
+    /// The prefix captures document-level semantics that help the embedding model understand
+    /// what the chunk is about, even when the chunk content itself is generic.
+    ///
+    /// Example: A chunk "Long-press the Record Button" becomes embedded as
+    /// "[PLAUD_NOTE_Manual.pdf] Long-press the Record Button" - the embedding now captures
+    /// that this is about a PLAUD device, making queries like "button on this device" match better.
+    private func buildContextualPrefix(filename: String) -> String {
+        // Clean filename for embedding (remove extension, clean underscores)
+        let cleanName = filename
+            .replacingOccurrences(of: "_", with: " ")
+            .replacingOccurrences(of: "-", with: " ")
+        let baseName = (cleanName as NSString).deletingPathExtension
+
+        // Keep prefix concise - embeddings have limited context windows
+        // Format: "[Document: Filename]" - simple but effective
+        return "[\(baseName)]"
     }
 
     /// Remove a document from the knowledge base
@@ -2730,6 +2798,35 @@ class RAGService: ObservableObject {
             }
 
             // Build RAGResponse from agentic result - include collected chunks for UI
+            // Extract reasoning trace from steps for UI display (like Standard mode does)
+            let reasoningTrace: [String]? = {
+                // Filter to analysis/synthesis steps (not searching/expanding)
+                let reasoningSteps = result.steps.filter { step in
+                    switch step.type {
+                    case .analyzing, .synthesizing, .refining, .reformulating:
+                        return true
+                    case .planning, .searching, .expanding:
+                        return false // Skip retrieval steps
+                    @unknown default:
+                        return false
+                    }
+                }
+
+                guard reasoningSteps.count > 1 else { return nil }
+
+                // Format with session labels (matching Standard mode style)
+                let sessionLabels = ["🔍 Analyzing Evidence", "🧠 Finding Patterns", "💡 Refining", "✨ Synthesis"]
+                return reasoningSteps.dropLast().enumerated().map { idx, step in
+                    let label = idx < sessionLabels.count ? sessionLabels[idx] : "Session \(idx + 1)"
+                    let cleanInsight = step.output
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                        .replacingOccurrences(of: "INSIGHT:", with: "")
+                        .replacingOccurrences(of: "REASONING:", with: "")
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    return "\(label): \(cleanInsight)"
+                }
+            }()
+
             return RAGResponse(
                 queryId: UUID(),
                 retrievedChunks: result.retrievedChunks,
@@ -2744,7 +2841,8 @@ class RAGService: ObservableObject {
                     retrievalConfigSummary: "Agentic",
                     toolCallsMade: result.steps.filter { $0.type == .searching }.count,
                     usedAgenticMode: true, // Agentic (deep) mode was used
-                    originalQuery: question
+                    originalQuery: question,
+                    reasoningTrace: reasoningTrace // Now includes the thinking steps!
                 ),
                 confidenceScore: result.confidence
             )
@@ -2896,7 +2994,7 @@ class RAGService: ObservableObject {
 
         // AGENTIC MODE: Use multi-session orchestrator for Deep Think mode
         // Triggered by user selecting Deep Think mode, or via "Go Deeper" re-query
-        if useAgentic { 
+        if useAgentic {
             return try await executeAgenticQuery(
                 question: question,
                 containerId: selectedId,
@@ -3132,7 +3230,7 @@ class RAGService: ObservableObject {
                     }
 
                     // Fallback to raw chat history if memory didn't provide context
-                    if recentTurns.isEmpty { 
+                    if recentTurns.isEmpty {
                         let conversationHistory = chatHistory(for: selectedId)
                         recentTurns = conversationHistory
                             .filter { $0.role != .system }
@@ -4714,7 +4812,7 @@ class RAGService: ObservableObject {
                 }
 
                 // Fallback to simple history if memory service didn't provide context
-                if historyContext.isEmpty, !previousMessages.isEmpty { 
+                if historyContext.isEmpty, !previousMessages.isEmpty {
                     historyContext = "PREVIOUS CONVERSATION:\n" + previousMessages.map {
                         let role = $0.role == .user ? "User" : "Assistant"
                         // Truncate long history items to preserve token budget for RAG context
@@ -4736,20 +4834,135 @@ class RAGService: ObservableObject {
                 var generationChunks = includedChunks
                 var generationRetrievedChunks = includedRetrievedChunks
                 var usedOverflowRetry = false
-                emitThinkingEvent(
-                    .generation,
-                    title: "Generating answer",
-                    detail: llmService.modelName
-                )
 
-                do {
-                    llmResponse = try await generateWithFallback(
-                        prompt: promptForGeneration,
-                        context: generationContext,
-                        config: genConfig,
-                        sourceChunks: generationChunks
+                // Track reasoning trace from chained sessions (for UI display)
+                var reasoningTraceForMetadata: [String]? = nil
+
+                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                // REASONING CHAIN: Use chained sessions for complex queries
+                // This multiplies effective context: 3 × 4096 = 12K+ tokens
+                // Triggers when we have good retrieval and substantial context
+                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                let forceChain = settingsStore?.forceReasoningChain ?? false
+                let useReasoningChain: Bool = {
+                    // Only use for Apple Foundation Models (reasoning chain uses FM-specific features)
+                    guard llmService is AppleFoundationLLMService else { return false }
+
+                    // If force enabled in settings, skip other checks
+                    if forceChain {
+                        Log.info("[RAG] Reasoning chain FORCED via settings", category: .pipeline)
+                        return true
+                    }
+
+                    // Skip if evidence is weak (Evidence-First mode handles this)
+                    guard !useEvidenceFirstMode else { return false }
+
+                    // Skip trivial queries - they don't benefit from multi-session
+                    guard !isTrivial else { return false }
+
+                    // Need some retrieval quality (lowered threshold for testing)
+                    guard bestRetrievalSim >= 0.25 else { return false }
+
+                    // Need some context to benefit from chaining
+                    guard contextSize > 500 else { return false }
+
+                    // Need at least 2 chunks to distribute across sessions
+                    guard includedRetrievedChunks.count >= 2 else { return false }
+
+                    return true
+                }()
+
+                if useReasoningChain {
+                    Log.info("[RAG] ✨ REASONING CHAIN ACTIVATED (3 sessions × 4096 = 12K+ effective tokens)", category: .pipeline)
+                    Log.info("[RAG]   - bestRetrievalSim: \(bestRetrievalSim)", category: .pipeline)
+                    Log.info("[RAG]   - contextSize: \(contextSize)", category: .pipeline)
+                    Log.info("[RAG]   - chunks: \(includedRetrievedChunks.count)", category: .pipeline)
+                    emitThinkingEvent(
+                        .planning,
+                        title: "🔗 Reasoning chain",
+                        detail: "3 sessions × 4K = 12K+ effective context"
                     )
-                } catch {
+
+                    // Track reasoning trace for UI display
+                    var chainReasoningTrace: [String]? = nil
+
+                    // Execute reasoning chain with live thinking updates
+                    do {
+                        let chainResult = try await executeStandardReasoningChain(
+                            query: question,
+                            chunks: includedRetrievedChunks,
+                            onProgress: { [weak self] title, detail in
+                                // Show each reasoning phase with what it discovered
+                                self?.emitThinkingEvent(
+                                    .generation,
+                                    title: title,
+                                    detail: detail
+                                )
+                            }
+                        )
+
+                        // Store reasoning trace for metadata (separate from answer text)
+                        // Format each insight nicely for UI display
+                        if chainResult.chainInsights.count > 1 {
+                            let sessionLabels = ["🔍 Analyzing Evidence", "🧠 Finding Patterns", "✨ Synthesis"]
+                            chainReasoningTrace = chainResult.chainInsights.dropLast().enumerated().map { idx, insight in
+                                let label = idx < sessionLabels.count ? sessionLabels[idx] : "Session \(idx + 1)"
+                                let cleanInsight = insight
+                                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                                    .replacingOccurrences(of: "INSIGHT:", with: "")
+                                    .replacingOccurrences(of: "REASONING:", with: "")
+                                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                                return "\(label): \(cleanInsight)"
+                            }
+                        }
+
+                        // Build LLMResponse - answer only, reasoning trace stored separately
+                        llmResponse = LLMResponse(
+                            text: chainResult.finalAnswer,
+                            tokensGenerated: chainResult.totalTokens,
+                            timeToFirstToken: nil,
+                            totalTime: 0, // Not tracked per-session
+                            modelName: "Apple Foundation Model (Chained)",
+                            toolCallsMade: 0
+                        )
+
+                        // Store trace in a way that can be passed to metadata later
+                        // We'll use a capture variable
+                        reasoningTraceForMetadata = chainReasoningTrace
+
+                        Log.info("[RAG] Reasoning chain complete: \(chainResult.sessionCount) sessions, \(chainResult.totalTokens) tokens, confidence: \(String(format: "%.0f%%", chainResult.confidence * 100))", category: .pipeline)
+
+                    } catch {
+                        // Fall back to single-session generation if chain fails
+                        Log.warning("[RAG] Reasoning chain failed, falling back to single session: \(error.localizedDescription)", category: .pipeline)
+                        emitThinkingEvent(
+                            .warning,
+                            title: "Chain fallback",
+                            detail: "Using single session"
+                        )
+                        // Continue to normal generation below
+                        llmResponse = try await generateWithFallback(
+                            prompt: promptForGeneration,
+                            context: generationContext,
+                            config: genConfig,
+                            sourceChunks: generationChunks
+                        )
+                    }
+                } else {
+                    emitThinkingEvent(
+                        .generation,
+                        title: "Generating answer",
+                        detail: llmService.modelName
+                    )
+
+                    do {
+                        llmResponse = try await generateWithFallback(
+                            prompt: promptForGeneration,
+                            context: generationContext,
+                            config: genConfig,
+                            sourceChunks: generationChunks
+                        )
+                    } catch {
                     // Check if this is a context overflow error
                     let isOverflowError = isContextOverflowError(error)
 
@@ -4917,7 +5130,8 @@ class RAGService: ObservableObject {
                             throw error
                         }
                     #endif
-                }
+                    }
+                } // End of else (non-reasoning-chain path)
 
                 var responseText = llmResponse.text
 
@@ -5117,7 +5331,8 @@ class RAGService: ObservableObject {
                         toolCallsMade: llmResponse.toolCallsMade,
                         embeddingProvider: embeddingProviderId,
                         usedAgenticMode: false, // Single-pass mode
-                            originalQuery: question // For "Go Deeper" re-query
+                        originalQuery: question, // For "Go Deeper" re-query
+                        reasoningTrace: reasoningTraceForMetadata // Chained session insights
                     )
 
                     let response = RAGResponse(
@@ -6223,6 +6438,7 @@ class RAGService: ObservableObject {
                 documentId: retrieved.chunk.documentId,
                 content: content,
                 parentContent: nil,
+                contextualPrefix: retrieved.chunk.contextualPrefix,
                 embedding: retrieved.chunk.embedding,
                 metadata: retrieved.chunk.metadata
             )
@@ -6993,14 +7209,20 @@ extension RAGService: RAGToolHandler {
         // Step 2: Generate query embedding
         let queryEmbedding = try await embeddingContext.service.generateEmbedding(for: textToEmbed)
 
-        // Step 3: Classify query intent for adaptive weights
+        // Step 3: Classify query intent for adaptive weights AND expand query
         let queryEnhancer = QueryEnhancementService()
         let queryIntent = queryEnhancer.classifyIntent(query)
         let adjustment = queryIntent.weightAdjustment
         let vectorWeight = max(0.1, min(0.9, 0.5 + adjustment.vectorDelta))
         let keywordWeight = max(0.1, min(0.9, 0.5 + adjustment.keywordDelta))
 
-        // Step 4: Hybrid search (vector + BM25)
+        // EXPAND query with synonyms for better keyword matching
+        // e.g., "button" → "button switch toggle control key trigger"
+        let expandedQueries = queryEnhancer.expandQuery(query)
+        let expandedQueryString = expandedQueries.joined(separator: " ")
+        Log.debug("[FullRetrieval] Expanded query: \(expandedQueryString.prefix(100))...", category: .retrieval)
+
+        // Step 4: Hybrid search (vector + BM25) with EXPANDED query for keywords
         let hybridSearch = HybridSearchService(
             vectorDatabase: db,
             vectorWeight: vectorWeight,
@@ -7008,7 +7230,7 @@ extension RAGService: RAGToolHandler {
         )
 
         var retrievedChunks = try await hybridSearch.search(
-            query: query,
+            query: expandedQueryString, // Use expanded query for better keyword matching
             embedding: queryEmbedding,
             topK: topK * 2, // Get extra for re-ranking
             cachedChunks: allChunks
@@ -7049,7 +7271,7 @@ extension RAGService: RAGToolHandler {
     /// Search and return raw chunks for agentic orchestrator (not just formatted string)
     /// Uses hybrid search (vector + BM25) for better retrieval quality on technical documents.
     /// Used internally by AgenticOrchestrator to collect chunks for UnifiedMetricsBar
-    func searchDocumentsRaw(query: String, topK: Int = 10, minSimilarity: Float = 0.25) async throws -> [RetrievedChunk] { 
+    func searchDocumentsRaw(query: String, topK: Int = 10, minSimilarity: Float = 0.25) async throws -> [RetrievedChunk] {
         let embeddingContext = await resolveEmbeddingContext()
         let queryEmbedding = try await embeddingContext.service.generateEmbedding(for: query)
 

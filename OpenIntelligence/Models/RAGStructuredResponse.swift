@@ -168,4 +168,86 @@
         var warnings: [String]
     }
 
+    // MARK: - Reasoning Chain Types (Apple FM Best Practice)
+    // Per TN3193: Reasoning field FIRST lets the model think before answering
+    // See: Docs/reference/FOUNDATION_MODELS_API.md
+
+    /// Reasoned answer - model thinks through the problem before answering
+    /// The reasoning field MUST be first so the model reasons BEFORE outputting answer
+    @available(iOS 26.0, *)
+    @Generable(description: "Answer with explicit reasoning steps")
+    struct ReasonedAnswer {
+        /// MUST BE FIRST - lets the model think step-by-step before committing to answer
+        @Guide(description: "Think step-by-step: What key facts are relevant? What's the logical path to the answer?")
+        var reasoning: String
+
+        @Guide(description: "The final answer based on the reasoning above")
+        var answer: String
+
+        @Guide(description: "Confidence 0-100 in the answer")
+        var confidence: Int
+
+        @Guide(description: "Sources used: [S1], [S2], etc.")
+        var sources: [String]
+    }
+
+    /// Reasoned insight - for building understanding across chained sessions
+    /// Used when one session passes insight to the next
+    @available(iOS 26.0, *)
+    @Generable(description: "Key insight extracted from context")
+    struct ReasonedInsight {
+        /// MUST BE FIRST - reasoning before insight extraction
+        @Guide(description: "What patterns or connections do you notice in this context?")
+        var reasoning: String
+
+        @Guide(description: "The key insight in 1-2 sentences")
+        var insight: String
+
+        @Guide(description: "Key terms/concepts discovered")
+        var keyTerms: [String]
+
+        @Guide(description: "Confidence 0-100")
+        var confidence: Int
+    }
+
+    /// Reasoned synthesis - final step combining multiple insights
+    @available(iOS 26.0, *)
+    @Generable(description: "Final synthesis combining multiple insights")
+    struct ReasonedSynthesis {
+        /// MUST BE FIRST - reasoning about how insights connect
+        @Guide(description: "How do these insights connect? What's the complete picture?")
+        var reasoning: String
+
+        @Guide(description: "Comprehensive answer integrating all insights")
+        var synthesis: String
+
+        @Guide(description: "Key points, numbered")
+        var keyPoints: [String]
+
+        @Guide(description: "Overall confidence 0-100")
+        var confidence: Int
+
+        @Guide(description: "All sources used")
+        var sources: [String]
+    }
+
+    /// Chain link - represents one step in a reasoning chain
+    /// Each link has its own 4096 token budget
+    @available(iOS 26.0, *)
+    @Generable(description: "One step in a reasoning chain")
+    struct ChainLink {
+        /// MUST BE FIRST
+        @Guide(description: "What have I learned? What should I focus on next?")
+        var reasoning: String
+
+        @Guide(description: "Condensed insight to pass forward (max 2 sentences)")
+        var insight: String
+
+        @Guide(description: "Suggested focus for next step")
+        var nextFocus: String
+
+        @Guide(description: "Cumulative confidence 0-100")
+        var confidence: Int
+    }
+
 #endif

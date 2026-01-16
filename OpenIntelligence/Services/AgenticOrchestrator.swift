@@ -19,13 +19,13 @@ struct ThinkingStep: Identifiable, Sendable {
     let timestamp: Date
 
     enum StepType: String, Sendable {
-        case planning = "🎯 Planning"
-        case searching = "🔍 Searching"
-        case expanding = "🕸️ Expanding Graph"
-        case analyzing = "🧠 Analyzing"
-        case synthesizing = "✨ Synthesizing"
-        case refining = "🔧 Refining"
-        case reformulating = "🔄 Reformulating" // New: query reformulation step
+        case planning = "🎯 Planning approach"
+        case searching = "🔍 Searching documents"
+        case expanding = "🕸️ Expanding context"
+        case analyzing = "🧠 Analyzing results"
+        case synthesizing = "✨ Synthesizing answer"
+        case refining = "🔧 Refining response"
+        case reformulating = "🔄 Trying different angle"
 
         /// Display name for UI
         var displayName: String { rawValue }
@@ -115,12 +115,14 @@ final class AgenticOrchestrator: Sendable {
 
     /// Execute a retrieval-first reasoning loop
     ///
-    /// STRATEGY:
+    /// STRATEGY (Enhanced with Self-RAG and Speculative RAG):
+    /// 0. Self-RAG check: Does this query even need retrieval?
     /// 1. Initial retrieval with the ORIGINAL query (no decomposition)
     /// 2. EVALUATE results - are they good enough?
     /// 3. If yes → synthesize immediately
-    /// 4. If no → escalate: reformulate query OR decompose for multi-faceted questions
-    /// 5. Final synthesis with accumulated context
+    /// 4. If no → Speculative RAG: generate multiple candidates, verify each
+    /// 5. If still low → escalate: reformulate query OR decompose for multi-faceted questions
+    /// 6. Final synthesis with accumulated context
     func execute(
         query: String,
         initialContext: String = "",
@@ -129,6 +131,19 @@ final class AgenticOrchestrator: Sendable {
         guard let ragService = ragService else {
             throw AgenticError.serviceUnavailable
         }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // STEP 0: Self-RAG Check - Does this query need retrieval?
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        let (needsRetrieval, _) = try await decideIfRetrievalNeeded(query: query, ragService: ragService)
+
+        if !needsRetrieval {
+            Log.info("[Agentic] Self-RAG: Query can be answered without document retrieval", category: .llm)
+            // Use Self-RAG path for simple queries
+            return try await executeSelfRAG(query: query, onStep: onStep)
+        }
+
+        Log.info("[Agentic] Self-RAG: Document retrieval needed", category: .llm)
 
         var steps: [ThinkingStep] = []
         var totalTokens = 0
@@ -142,6 +157,21 @@ final class AgenticOrchestrator: Sendable {
             stepTokenLog.append((stepName, tokens, totalTokens))
             Log.debug("[Deep Think] \(stepName): +\(tokens) tokens (total: \(totalTokens))", category: .llm)
         }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // STEP 0: Announce reasoning strategy (visible "hmm" moment)
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        let planningStep = ThinkingStep(
+            id: UUID(),
+            type: .planning,
+            input: query,
+            output: "Analyzing query to determine best search strategy...",
+            tokensUsed: 0,
+            duration: 0.1,
+            timestamp: Date()
+        )
+        steps.append(planningStep)
+        await onStep?(planningStep)
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         // STEP 1: Initial Retrieval (with ORIGINAL query - no decomposition)
@@ -158,10 +188,23 @@ final class AgenticOrchestrator: Sendable {
         await onStep?(initialSearchStep)
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        // STEP 2: Evaluate Retrieval Quality
+        // STEP 2: Evaluate Retrieval Quality (visible "hmm" moment)
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         var retrievalQuality = evaluateRetrievalQuality(chunks: initialChunks, query: query)
         Log.info("[Agentic] Retrieval quality: \(retrievalQuality.description)", category: .llm)
+
+        // Emit evaluation step so user sees the reasoning
+        let evalStep = ThinkingStep(
+            id: UUID(),
+            type: .analyzing,
+            input: "Evaluating \(initialChunks.count) results",
+            output: "Confidence: \(retrievalQuality.description) (\(String(format: "%.0f%%", retrievalQuality.confidenceScore * 100)))",
+            tokensUsed: 0,
+            duration: 0.05,
+            timestamp: Date()
+        )
+        steps.append(evalStep)
+        await onStep?(evalStep)
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         // STEP 2.5: Graph Expansion (GraphRAG-lite)
@@ -190,73 +233,115 @@ final class AgenticOrchestrator: Sendable {
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         // DECISION POINT: Based on retrieval quality
+        // Use REASONING CHAIN for excellent/good to multiply effective context
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
         switch retrievalQuality {
         case .excellent:
-            // VERY HIGH CONFIDENCE: Excellent match, direct synthesis with full context
-            Log.info("[Agentic] Excellent retrieval → comprehensive synthesis", category: .llm)
+            // VERY HIGH CONFIDENCE: Use full reasoning chain for maximum quality
+            // This chains 4 sessions × 4096 tokens = 16K+ effective context
+            Log.info("[Agentic] Excellent retrieval → reasoning chain (4 sessions)", category: .llm)
 
-        let synthesisStep = try await executeComprehensiveSynthesis(
-            query: query,
-            chunks: allRetrievedChunks,
-            ragService: ragService
-        )
-        steps.append(synthesisStep)
-        logStepTokens("Synthesis (Excellent)", synthesisStep.tokensUsed)
-        await onStep?(synthesisStep)
+            // CRITICAL: Sort chunks by relevance before passing to reasoning chain
+            // Merged chunks from multiple sources may not be in order
+            let sortedChunks = allRetrievedChunks.sorted { $0.similarityScore > $1.similarityScore }
 
-        return AgenticResult(
-            finalAnswer: synthesisStep.output,
-            steps: steps,
-            totalTokens: totalTokens,
-            totalDuration: Date().timeIntervalSince(startTime),
-            confidence: retrievalQuality.confidenceScore,
-            sourcesUsed: allRetrievedChunks.count,
-            retrievedChunks: allRetrievedChunks
-        )
+            let chainResult = try await executeReasoningChain(
+                query: query,
+                chunks: sortedChunks,
+                config: .standard, // 4 sessions
+                onStep: onStep
+            )
+
+            // Convert chain steps to thinking steps
+            for (idx, insight) in chainResult.chainInsights.enumerated() {
+                let chainStep = ThinkingStep(
+                    id: UUID(),
+                    type: idx == chainResult.chainInsights.count - 1 ? .synthesizing : .analyzing,
+                    input: "Chain session \(idx + 1)",
+                    output: insight,
+                    tokensUsed: chainResult.totalTokens / chainResult.sessionCount,
+                    duration: 0.5,
+                    timestamp: Date()
+                )
+                steps.append(chainStep)
+            }
+
+            totalTokens += chainResult.totalTokens
+            logStepTokens("Reasoning Chain (4 sessions)", chainResult.totalTokens)
+
+            return AgenticResult(
+                finalAnswer: chainResult.finalAnswer,
+                steps: steps,
+                totalTokens: totalTokens,
+                totalDuration: Date().timeIntervalSince(startTime),
+                confidence: chainResult.confidence,
+                sourcesUsed: allRetrievedChunks.count,
+                retrievedChunks: allRetrievedChunks
+            )
 
         case .good:
-            // GOOD CONFIDENCE: Do one more retrieval pass with refined query for thoroughness
-            Log.info("[Agentic] Good confidence → enhancing with additional retrieval", category: .llm)
+            // GOOD CONFIDENCE: Use reasoning chain with additional retrieval
+            Log.info("[Agentic] Good confidence → reasoning chain with refinement", category: .llm)
 
-        // Try to refine the query based on what we found
-        if let refinedQuery = try? await reformulateQuery(
-            originalQuery: query,
-            retrievedContext: initialSearchStep.output,
-            ragService: ragService
-        ), refinedQuery != query {
-            let (refinedStep, refinedChunks) = try await executeSearchStepWithChunks(
-                subQuery: refinedQuery,
+            // Try to refine the query based on what we found
+            if let refinedQuery = try? await reformulateQuery(
+                originalQuery: query,
+                retrievedContext: initialSearchStep.output,
                 ragService: ragService
-            )
-            steps.append(refinedStep)
-            logStepTokens("Refined Search", refinedStep.tokensUsed)
+            ), refinedQuery != query {
+                let (refinedStep, refinedChunks) = try await executeSearchStepWithChunks(
+                    subQuery: refinedQuery,
+                    ragService: ragService
+                )
+                steps.append(refinedStep)
+                logStepTokens("Refined Search", refinedStep.tokensUsed)
 
-            // Merge unique chunks
-            for chunk in refinedChunks where !allRetrievedChunks.contains(where: { $0.chunk.id == chunk.chunk.id }) {
-                allRetrievedChunks.append(chunk)
+                // Merge unique chunks from refined search
+                for chunk in refinedChunks where !allRetrievedChunks.contains(where: { $0.chunk.id == chunk.chunk.id }) {
+                    allRetrievedChunks.append(chunk)
+                }
+                Log.debug("[Agentic] Merged to \(allRetrievedChunks.count) total chunks", category: .retrieval)
+
+                await onStep?(refinedStep)
             }
-            await onStep?(refinedStep)
-        }
 
-        // Now do comprehensive synthesis with all gathered context
-        let synthesisStep = try await executeComprehensiveSynthesis(
-            query: query, 
-            chunks: allRetrievedChunks,
-            ragService: ragService
-        )
-        steps.append(synthesisStep)
-        logStepTokens("Synthesis (Good)", synthesisStep.tokensUsed)
-        await onStep?(synthesisStep)
+            // CRITICAL: Sort chunks by relevance before passing to reasoning chain
+            // Merged chunks from multiple sources may not be in order
+            let sortedChunks = allRetrievedChunks.sorted { $0.similarityScore > $1.similarityScore }
 
-        return AgenticResult(
-            finalAnswer: synthesisStep.output,
-            steps: steps,
-            totalTokens: totalTokens,
-            totalDuration: Date().timeIntervalSince(startTime),
-            confidence: retrievalQuality.confidenceScore, 
-            sourcesUsed: allRetrievedChunks.count,
+            // Use reasoning chain for multi-session deep thinking
+            let chainResult = try await executeReasoningChain(
+                query: query,
+                chunks: sortedChunks,
+                config: .standard, // 4 sessions
+                onStep: onStep
+            )
+
+            // Add chain insights to steps
+            for (idx, insight) in chainResult.chainInsights.enumerated() {
+                let chainStep = ThinkingStep(
+                    id: UUID(),
+                    type: idx == chainResult.chainInsights.count - 1 ? .synthesizing : .analyzing,
+                    input: "Chain session \(idx + 1)",
+                    output: insight,
+                    tokensUsed: chainResult.totalTokens / chainResult.sessionCount,
+                    duration: 0.5,
+                    timestamp: Date()
+                )
+                steps.append(chainStep)
+            }
+
+            totalTokens += chainResult.totalTokens
+            logStepTokens("Reasoning Chain (Good)", chainResult.totalTokens)
+
+            return AgenticResult(
+                finalAnswer: chainResult.finalAnswer,
+                steps: steps,
+                totalTokens: totalTokens,
+                totalDuration: Date().timeIntervalSince(startTime),
+                confidence: chainResult.confidence,
+                sourcesUsed: allRetrievedChunks.count,
                 retrievedChunks: allRetrievedChunks
             )
 
@@ -354,8 +439,25 @@ final class AgenticOrchestrator: Sendable {
             )
 
         case .low:
-            // LOW CONFIDENCE: Now we try harder - decomposition or recursive search
-            Log.info("[Agentic] Low confidence → escalating to deeper retrieval", category: .llm)
+            // LOW CONFIDENCE: Use Speculative RAG for multi-path verification
+            Log.info("[Agentic] Low confidence → using Speculative RAG for verification", category: .llm)
+
+            // Speculative RAG: Generate multiple candidates, verify each against sources
+            // This catches hallucinations through multi-path verification
+            let speculativeResult = try await executeSpeculativeRAG(
+                query: query,
+                candidateCount: 3,
+                onStep: onStep
+            )
+
+            // If speculative RAG found a good answer, use it
+            if speculativeResult.confidence > 0.6 {
+                Log.info("[Agentic] Speculative RAG succeeded with \(String(format: "%.0f%%", speculativeResult.confidence * 100)) confidence", category: .llm)
+                return speculativeResult
+            }
+
+            // Speculative RAG didn't help enough - fall back to decomposition/recursive
+            Log.info("[Agentic] Speculative RAG insufficient → escalating to deeper retrieval", category: .llm)
 
             // Try decomposition if it makes sense, otherwise do recursive search
             if queryBenefitsFromDecomposition(query) {
@@ -464,11 +566,11 @@ final class AgenticOrchestrator: Sendable {
         // - <0.12 is low - might need reformulation
         //
         // IMPORTANT: Don't short-circuit on "good" - the full pipeline makes Deep Think valuable
-        if topScore > 0.45, top3Avg > 0.35 { 
+        if topScore > 0.45, top3Avg > 0.35 {
             return .excellent
-        } else if topScore > 0.30, top3Avg > 0.22 { 
+        } else if topScore > 0.30, top3Avg > 0.22 {
             return .good
-        } else if topScore > 0.15 || top5Avg > 0.12 { 
+        } else if topScore > 0.15 || top5Avg > 0.12 {
             return .moderate
         } else {
             return .low
@@ -602,19 +704,45 @@ final class AgenticOrchestrator: Sendable {
         // At 1.4 chars/token (Apple FM ratio), 2800 tokens ≈ 3920 chars
         let maxContextChars = 3500 // Conservative to avoid overflow
 
+        // Target at least 3 chunks for diverse context
+        let minChunksTarget = min(3, chunks.count)
+        let headerOverhead = 30 // Approximate header + separator size
+        let targetCharsPerChunk = max(400, (maxContextChars - (minChunksTarget * headerOverhead)) / minChunksTarget)
+
         for (index, chunk) in chunks.prefix(maxChunks).enumerated() {
             let fullText = (chunk.chunk.parentContent ?? chunk.chunk.content)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
 
+            // Calculate remaining budget
+            let remainingBudget = maxContextChars - contextBuilder.count
+
+            // Truncate if needed to fit more chunks
+            let truncatedText: String
+            if usedChunks < minChunksTarget - 1 && fullText.count > targetCharsPerChunk {
+                truncatedText = truncateAtSentence(fullText, maxChars: targetCharsPerChunk)
+            } else {
+                truncatedText = fullText
+            }
+
             // Match Standard mode's compact format: [S1], [S2], etc.
             let source = chunk.sourceDocument.isEmpty ? "" : URL(fileURLWithPath: chunk.sourceDocument).lastPathComponent
             let sourceRef = source.isEmpty ? "" : "(\(source)) "
-            let block = "[S\(index + 1)] \(sourceRef)\(fullText)" + (index < maxChunks - 1 ? "\n---\n" : "")
+            let block = "[S\(index + 1)] \(sourceRef)\(truncatedText)" + (index < maxChunks - 1 ? "\n---\n" : "")
 
-            // Respect context budget - stop when we'd exceed
+            // Respect context budget - but force-fit truncated versions for minimum chunks
             if contextBuilder.count + block.count <= maxContextChars || usedChunks == 0 {
                 contextBuilder += block
                 usedChunks += 1
+            } else if usedChunks < minChunksTarget && remainingBudget > 300 {
+                // Force-fit a truncated version
+                let forceTruncated = truncateAtSentence(truncatedText, maxChars: remainingBudget - headerOverhead - 20)
+                if forceTruncated.count >= 150 {
+                    let forceBlock = "[S\(index + 1)] \(sourceRef)\(forceTruncated)" + (index < maxChunks - 1 ? "\n---\n" : "")
+                    contextBuilder += forceBlock
+                    usedChunks += 1
+                } else {
+                    break
+                }
             } else {
                 break
             }
@@ -650,6 +778,31 @@ final class AgenticOrchestrator: Sendable {
             duration: Date().timeIntervalSince(startTime),
             timestamp: startTime
         )
+    }
+
+    /// Truncate text at a sentence boundary, preferring to keep complete sentences
+    private func truncateAtSentence(_ text: String, maxChars: Int) -> String {
+        guard text.count > maxChars else { return text }
+
+        let truncated = String(text.prefix(maxChars))
+
+        // Find last sentence-ending punctuation
+        let sentenceEnders: [Character] = [".", "!", "?"]
+        if let lastSentenceEnd = truncated.lastIndex(where: { sentenceEnders.contains($0) }) {
+            let endIndex = truncated.index(after: lastSentenceEnd)
+            let result = String(truncated[..<endIndex])
+            // Only use sentence boundary if we keep at least 60% of the truncated text
+            if result.count >= maxChars * 6 / 10 {
+                return result
+            }
+        }
+
+        // Fall back to word boundary
+        if let lastSpace = truncated.lastIndex(of: " ") {
+            return String(truncated[..<lastSpace]) + "…"
+        }
+
+        return truncated + "…"
     }
 
     /// Honest synthesis when confidence is low - acknowledges limitations
@@ -1455,6 +1608,505 @@ final class AgenticOrchestrator: Sendable {
 
         return max(0.3, min(0.95, confidence))
     }
+
+    // MARK: - Self-RAG (Adaptive Retrieval)
+
+    /// Self-RAG: Model decides when to retrieve, what to retrieve, and self-critiques answers.
+    /// Paper: Asai et al. 2023 - "Self-RAG: Learning to Retrieve, Generate, and Critique"
+    ///
+    /// Key insight: Not every query needs retrieval. Simple queries can be answered directly,
+    /// while complex queries benefit from retrieval. The model decides.
+    ///
+    /// Flow:
+    /// 1. Analyze query → decide if retrieval is needed
+    /// 2. If yes → retrieve → generate with context → self-critique
+    /// 3. If no → generate directly → self-critique
+    /// 4. If critique fails → force retrieval and regenerate
+    ///
+    /// - Parameters:
+    ///   - query: The user's question
+    ///   - onStep: Callback for streaming thinking steps
+    /// - Returns: AgenticResult with final answer
+    func executeSelfRAG(
+        query: String,
+        onStep: ((ThinkingStep) async -> Void)? = nil
+    ) async throws -> AgenticResult {
+        guard let ragService = ragService else {
+            throw AgenticError.serviceUnavailable
+        }
+
+        var steps: [ThinkingStep] = []
+        var totalTokens = 0
+        var allRetrievedChunks: [RetrievedChunk] = []
+        let startTime = Date()
+
+        Log.info("[Self-RAG] Analyzing query to decide retrieval strategy", category: .llm)
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // STEP 1: Decide if retrieval is needed
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        let (needsRetrieval, retrievalReason) = try await decideIfRetrievalNeeded(
+            query: query,
+            ragService: ragService
+        )
+
+        let decisionStep = ThinkingStep(
+            id: UUID(),
+            type: .planning,
+            input: query,
+            output: needsRetrieval
+                ? "📚 Retrieval needed: \(retrievalReason)"
+                : "💡 Direct answer possible: \(retrievalReason)",
+            tokensUsed: 50,
+            duration: 0.1,
+            timestamp: Date()
+        )
+        steps.append(decisionStep)
+        totalTokens += 50
+        await onStep?(decisionStep)
+
+        var answer: String
+
+        if needsRetrieval {
+            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            // STEP 2a: Retrieve and generate with context
+            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            Log.info("[Self-RAG] Executing retrieval-augmented generation", category: .llm)
+
+            let (searchStep, chunks) = try await executeSearchStepWithChunks(
+                subQuery: query,
+                ragService: ragService
+            )
+            steps.append(searchStep)
+            totalTokens += searchStep.tokensUsed
+            allRetrievedChunks.append(contentsOf: chunks)
+            await onStep?(searchStep)
+
+            // Generate with retrieved context
+            let synthesisStep = try await executeComprehensiveSynthesis(
+                query: query,
+                chunks: allRetrievedChunks,
+                ragService: ragService
+            )
+            steps.append(synthesisStep)
+            totalTokens += synthesisStep.tokensUsed
+            answer = synthesisStep.output
+            await onStep?(synthesisStep)
+        } else {
+            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            // STEP 2b: Generate directly without retrieval
+            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            Log.info("[Self-RAG] Generating direct answer (no retrieval)", category: .llm)
+
+            let directResponse = try await ragService.generateWithFreshSession(
+                prompt: "Answer concisely: \(query)",
+                maxTokens: 600
+            )
+
+            let directStep = ThinkingStep(
+                id: UUID(),
+                type: .synthesizing,
+                input: query,
+                output: directResponse.text,
+                tokensUsed: directResponse.tokensGenerated,
+                duration: 0.5,
+                timestamp: Date()
+            )
+            steps.append(directStep)
+            totalTokens += directResponse.tokensGenerated
+            answer = directResponse.text
+            await onStep?(directStep)
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // STEP 3: Self-Critique (hallucination check)
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        Log.info("[Self-RAG] Self-critiquing answer for quality", category: .llm)
+
+        let (isGrounded, critiqueReason) = try await selfCritiqueAnswer(
+            query: query,
+            answer: answer,
+            hadRetrieval: needsRetrieval,
+            ragService: ragService
+        )
+
+        let critiqueStep = ThinkingStep(
+            id: UUID(),
+            type: .analyzing,
+            input: "Self-critique",
+            output: isGrounded
+                ? "✅ Answer verified: \(critiqueReason)"
+                : "⚠️ Needs improvement: \(critiqueReason)",
+            tokensUsed: 50,
+            duration: 0.1,
+            timestamp: Date()
+        )
+        steps.append(critiqueStep)
+        totalTokens += 50
+        await onStep?(critiqueStep)
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // STEP 4: If critique failed and we didn't retrieve, force retrieval
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        if !isGrounded && !needsRetrieval {
+            Log.info("[Self-RAG] Critique failed → forcing retrieval", category: .llm)
+
+            let (searchStep, chunks) = try await executeSearchStepWithChunks(
+                subQuery: query,
+                ragService: ragService
+            )
+            steps.append(searchStep)
+            totalTokens += searchStep.tokensUsed
+            allRetrievedChunks.append(contentsOf: chunks)
+            await onStep?(searchStep)
+
+            // Regenerate with retrieved context
+            let retryStep = try await executeComprehensiveSynthesis(
+                query: query,
+                chunks: allRetrievedChunks,
+                ragService: ragService
+            )
+            steps.append(retryStep)
+            totalTokens += retryStep.tokensUsed
+            answer = retryStep.output
+            await onStep?(retryStep)
+        }
+
+        let confidence: Float = isGrounded ? 0.85 : 0.65
+
+        return AgenticResult(
+            finalAnswer: answer,
+            steps: steps,
+            totalTokens: totalTokens,
+            totalDuration: Date().timeIntervalSince(startTime),
+            confidence: confidence,
+            sourcesUsed: allRetrievedChunks.count,
+            retrievedChunks: allRetrievedChunks
+        )
+    }
+
+    /// Decide if the query needs document retrieval or can be answered directly
+    private func decideIfRetrievalNeeded(
+        query: String,
+        ragService: RAGService
+    ) async throws -> (needsRetrieval: Bool, reason: String) {
+        // Heuristic approach (fast, no LLM call needed)
+        let lowercased = query.lowercased()
+
+        // Queries that likely need retrieval (document-specific)
+        let retrievalIndicators = [
+            "document", "file", "pdf", "manual", "guide", "spec",
+            "what does", "how does", "according to", "based on",
+            "in the", "from the", "find", "search", "look up",
+            "where is", "which section", "page", "chapter",
+        ]
+
+        // Queries that can often be answered directly (general knowledge)
+        let directIndicators = [
+            "what is", "define", "explain", "who is", "when was",
+            "how many", "calculate", "convert", "translate",
+        ]
+
+        let hasRetrievalIndicator = retrievalIndicators.contains { lowercased.contains($0) }
+        let hasDirectIndicator = directIndicators.contains { lowercased.contains($0) }
+
+        // If query mentions documents/files → definitely retrieve
+        if hasRetrievalIndicator && !hasDirectIndicator {
+            return (true, "Query references documents or requires lookup")
+        }
+
+        // If it's a pure definition/general knowledge question → try direct first
+        if hasDirectIndicator && !hasRetrievalIndicator {
+            return (false, "General knowledge question - can try direct answer")
+        }
+
+        // Ambiguous → default to retrieval (safer for RAG app)
+        return (true, "Defaulting to retrieval for comprehensive answer")
+    }
+
+    /// Self-critique the answer for quality and grounding
+    private func selfCritiqueAnswer(
+        query: String,
+        answer: String,
+        hadRetrieval: Bool,
+        ragService: RAGService
+    ) async throws -> (isGrounded: Bool, reason: String) {
+        // Heuristic critique (fast)
+        let answerLower = answer.lowercased()
+
+        // Check for hallucination indicators
+        let uncertaintyMarkers = [
+            "i don't have", "i cannot", "i'm not able",
+            "no information", "not found", "unclear",
+            "i think", "probably", "might be", "possibly",
+        ]
+
+        let hasUncertainty = uncertaintyMarkers.contains { answerLower.contains($0) }
+
+        // Check for citation presence (if we retrieved)
+        let hasCitations = answer.contains("[S") || answer.contains("[Doc")
+
+        if hadRetrieval {
+            // With retrieval, we expect citations
+            if hasCitations && !hasUncertainty {
+                return (true, "Answer cites sources and is confident")
+            } else if hasCitations {
+                return (true, "Answer cites sources but has some uncertainty")
+            } else {
+                return (false, "Answer lacks citations despite retrieval")
+            }
+        } else {
+            // Without retrieval, just check for confidence
+            if hasUncertainty {
+                return (false, "Answer shows uncertainty - should verify with documents")
+            } else if answer.count < 50 {
+                return (false, "Answer too brief - may be incomplete")
+            } else {
+                return (true, "Answer appears confident and complete")
+            }
+        }
+    }
+
+    // MARK: - Speculative RAG (Multi-Path Verification)
+
+    /// Speculative RAG: Generate multiple candidate answers, verify each against documents.
+    /// Catches hallucinations through multi-path verification.
+    ///
+    /// Flow:
+    /// 1. Retrieve relevant documents
+    /// 2. Generate N candidate answers (with temperature variation)
+    /// 3. Score each candidate against source documents
+    /// 4. Return highest-scoring grounded answer
+    ///
+    /// - Parameters:
+    ///   - query: The user's question
+    ///   - candidateCount: Number of candidate answers to generate (default: 3)
+    ///   - onStep: Callback for streaming thinking steps
+    /// - Returns: AgenticResult with best verified answer
+    func executeSpeculativeRAG(
+        query: String,
+        candidateCount: Int = 3,
+        onStep: ((ThinkingStep) async -> Void)? = nil
+    ) async throws -> AgenticResult {
+        guard let ragService = ragService else {
+            throw AgenticError.serviceUnavailable
+        }
+
+        var steps: [ThinkingStep] = []
+        var totalTokens = 0
+        var allRetrievedChunks: [RetrievedChunk] = []
+        let startTime = Date()
+
+        Log.info("[Speculative-RAG] Starting multi-path verification with \(candidateCount) candidates", category: .llm)
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // STEP 1: Retrieve documents
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        let (searchStep, chunks) = try await executeSearchStepWithChunks(
+            subQuery: query,
+            ragService: ragService
+        )
+        steps.append(searchStep)
+        totalTokens += searchStep.tokensUsed
+        allRetrievedChunks.append(contentsOf: chunks)
+        await onStep?(searchStep)
+
+        // Build context from chunks
+        let sourceContext = chunks.prefix(5).enumerated().map { index, chunk in
+            "[S\(index + 1)] \(chunk.chunk.content.prefix(400))"
+        }.joined(separator: "\n\n")
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // STEP 2: Generate multiple candidate answers
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        Log.info("[Speculative-RAG] Generating \(candidateCount) candidate answers", category: .llm)
+
+        var candidates: [(answer: String, tokens: Int)] = []
+        let temperatures: [Float] = [0.3, 0.6, 0.8] // Vary temperature for diversity
+
+        for i in 0..<min(candidateCount, temperatures.count) {
+            let temp = temperatures[i]
+
+            let candidateStep = ThinkingStep(
+                id: UUID(),
+                type: .synthesizing,
+                input: "Candidate \(i + 1) (temp=\(temp))",
+                output: "Generating candidate answer...",
+                tokensUsed: 0,
+                duration: 0,
+                timestamp: Date()
+            )
+            await onStep?(candidateStep)
+
+            let response = try await generateCandidateAnswer(
+                query: query,
+                context: sourceContext,
+                temperature: temp,
+                ragService: ragService
+            )
+
+            candidates.append((response.text, response.tokensGenerated))
+            totalTokens += response.tokensGenerated
+
+            let resultStep = ThinkingStep(
+                id: UUID(),
+                type: .synthesizing,
+                input: "Candidate \(i + 1)",
+                output: "Generated: \(response.text.prefix(100))...",
+                tokensUsed: response.tokensGenerated,
+                duration: 0.5,
+                timestamp: Date()
+            )
+            steps.append(resultStep)
+            await onStep?(resultStep)
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // STEP 3: Score each candidate against source documents
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        Log.info("[Speculative-RAG] Scoring candidates for grounding", category: .llm)
+
+        var scoredCandidates: [(answer: String, score: Float, reason: String)] = []
+
+        for (index, candidate) in candidates.enumerated() {
+            let (score, reason) = scoreAnswerGrounding(
+                answer: candidate.answer,
+                sourceContext: sourceContext
+            )
+            scoredCandidates.append((candidate.answer, score, reason))
+
+            let scoreStep = ThinkingStep(
+                id: UUID(),
+                type: .analyzing,
+                input: "Scoring candidate \(index + 1)",
+                output: "Score: \(String(format: "%.0f%%", score * 100)) - \(reason)",
+                tokensUsed: 10,
+                duration: 0.05,
+                timestamp: Date()
+            )
+            steps.append(scoreStep)
+            totalTokens += 10
+            await onStep?(scoreStep)
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // STEP 4: Select best candidate
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        let best = scoredCandidates.max(by: { $0.score < $1.score }) ?? scoredCandidates[0]
+
+        let selectionStep = ThinkingStep(
+            id: UUID(),
+            type: .refining,
+            input: "Selecting best answer",
+            output: "Selected answer with \(String(format: "%.0f%%", best.score * 100)) grounding score: \(best.reason)",
+            tokensUsed: 5,
+            duration: 0.02,
+            timestamp: Date()
+        )
+        steps.append(selectionStep)
+        totalTokens += 5
+        await onStep?(selectionStep)
+
+        Log.info("[Speculative-RAG] Selected best candidate with score \(best.score)", category: .llm)
+
+        return AgenticResult(
+            finalAnswer: best.answer,
+            steps: steps,
+            totalTokens: totalTokens,
+            totalDuration: Date().timeIntervalSince(startTime),
+            confidence: best.score,
+            sourcesUsed: allRetrievedChunks.count,
+            retrievedChunks: allRetrievedChunks
+        )
+    }
+
+    /// Generate a candidate answer with specific temperature
+    private func generateCandidateAnswer(
+        query: String,
+        context: String,
+        temperature: Float,
+        ragService: RAGService
+    ) async throws -> LLMResponse {
+        // Note: We use generateWithFreshSession which uses default temperature
+        // In a full implementation, we'd pass temperature to the LLM config
+        // For now, we get diversity from multiple calls (LLM has inherent randomness)
+        return try await ragService.generateWithFreshSession(
+            prompt: """
+            Using ONLY the excerpts below, answer the question. Cite [S1], [S2], etc.
+
+            EXCERPTS:
+            \(context)
+
+            QUESTION: \(query)
+
+            ANSWER:
+            """,
+            maxTokens: 500
+        )
+    }
+
+    /// Score how well an answer is grounded in source documents
+    private func scoreAnswerGrounding(
+        answer: String,
+        sourceContext: String
+    ) -> (score: Float, reason: String) {
+        var score: Float = 0.5 // Base score
+
+        // Check for citations
+        let citationPattern = #"\[S\d+\]"#
+        let citationRegex = try? NSRegularExpression(pattern: citationPattern)
+        let citationCount = citationRegex?.numberOfMatches(
+            in: answer,
+            range: NSRange(answer.startIndex..., in: answer)
+        ) ?? 0
+
+        if citationCount > 0 {
+            score += 0.15 * Float(min(citationCount, 3)) // Up to +0.45 for citations
+        }
+
+        // Check for key term overlap with source
+        let answerWords = Set(answer.lowercased().split(separator: " ").map(String.init))
+        let sourceWords = Set(sourceContext.lowercased().split(separator: " ").map(String.init))
+        let overlap = answerWords.intersection(sourceWords)
+        let overlapRatio = Float(overlap.count) / Float(max(answerWords.count, 1))
+
+        if overlapRatio > 0.3 {
+            score += 0.1
+        }
+        if overlapRatio > 0.5 {
+            score += 0.1
+        }
+
+        // Check for hedging language (reduces confidence)
+        let hedgingWords = ["might", "possibly", "perhaps", "unclear", "uncertain"]
+        let hasHedging = hedgingWords.contains { answer.lowercased().contains($0) }
+        if hasHedging {
+            score -= 0.15
+        }
+
+        // Check answer length (very short = suspicious)
+        if answer.count < 50 {
+            score -= 0.1
+        } else if answer.count > 200 {
+            score += 0.05
+        }
+
+        // Build reason
+        var reasons: [String] = []
+        if citationCount > 0 {
+            reasons.append("\(citationCount) citations")
+        }
+        if overlapRatio > 0.3 {
+            reasons.append("good term overlap")
+        }
+        if hasHedging {
+            reasons.append("contains uncertainty")
+        }
+
+        let reason = reasons.isEmpty ? "baseline score" : reasons.joined(separator: ", ")
+
+        return (max(0.2, min(0.95, score)), reason)
+    }
 }
 
 // MARK: - Errors
@@ -1479,12 +2131,516 @@ enum AgenticError: LocalizedError {
     }
 }
 
+// MARK: - Reasoning Chain Architecture
+
+/// Configuration for chained reasoning sessions
+/// Each session gets its own 4096 token budget, chained together for 16K+ effective context
+struct ReasoningChainConfig: Sendable {
+    /// Number of chained sessions (each has 4096 tokens)
+    let sessionCount: Int
+
+    /// Maximum context chars per session (~2800 tokens safe for 4096 limit)
+    let maxContextPerSession: Int
+
+    /// Maximum insight chars to pass between sessions
+    let maxInsightLength: Int
+
+    /// Light config for Standard mode - faster with 3 sessions
+    /// 3 × 4096 = 12K+ effective tokens (vs single 4K)
+    nonisolated static let light = ReasoningChainConfig(
+        sessionCount: 3,        // 3 × 4096 = 12K+ effective tokens
+        maxContextPerSession: 3200,
+        maxInsightLength: 1500   // Keep full findings, not snippets
+    )
+
+    nonisolated static let standard = ReasoningChainConfig(
+        sessionCount: 4,        // 4 × 4096 = 16K+ effective tokens
+        maxContextPerSession: 3500,
+        maxInsightLength: 2000   // Keep full findings, not snippets
+    )
+
+    nonisolated static let deep = ReasoningChainConfig(
+        sessionCount: 5,        // 5 × 4096 = 20K+ effective tokens
+        maxContextPerSession: 3500,
+        maxInsightLength: 2500   // Keep full findings, not snippets
+    )
+}
+
+/// Result from a reasoning chain
+struct ReasoningChainResult: Sendable {
+    let finalAnswer: String
+    let chainInsights: [String]  // Insights from each session
+    let totalTokens: Int
+    let sessionCount: Int
+    let confidence: Float
+    let sources: [String]
+}
+
+extension AgenticOrchestrator {
+
+    // MARK: - Reasoning Chain (Session Chaining)
+
+    /// Execute a reasoning chain that multiplies effective context by chaining sessions
+    ///
+    /// ## Architecture (Per TN3193)
+    ///
+    /// Apple FM has a hard 4096 token limit per session. We outsmart this by:
+    ///
+    /// ```
+    /// Session 1 (4096 tokens): Retrieve + First Pass Analysis
+    ///    ↓ condensed insight (~500 chars)
+    /// Session 2 (4096 tokens): New retrieval + Refine understanding
+    ///    ↓ condensed insight
+    /// Session 3 (4096 tokens): Pattern recognition across insights
+    ///    ↓ condensed insight
+    /// Session 4 (4096 tokens): Final synthesis with full reasoning
+    /// ```
+    ///
+    /// **Effective context: 4 × 4096 = 16,384+ tokens** (vs single 4096)
+    ///
+    /// Each session:
+    /// - Has fresh 4096 token budget
+    /// - Receives previous insight as "priming" context
+    /// - Focuses on a specific reasoning task
+    /// - Outputs condensed insight for next session
+    ///
+    /// - Parameters:
+    ///   - query: The user's question
+    ///   - chunks: Retrieved document chunks
+    ///   - config: Chain configuration (default: 4 sessions)
+    ///   - onStep: Callback for streaming thinking steps
+    /// - Returns: ReasoningChainResult with synthesized answer
+    func executeReasoningChain(
+        query: String,
+        chunks: [RetrievedChunk],
+        config: ReasoningChainConfig = .standard,
+        onStep: ((ThinkingStep) async -> Void)? = nil
+    ) async throws -> ReasoningChainResult {
+        guard let ragService = ragService else {
+            throw AgenticError.serviceUnavailable
+        }
+
+        var chainInsights: [String] = []
+        var totalTokens = 0
+        var allSources: Set<String> = []
+        var cumulativeConfidence: Float = 0
+
+        Log.info("[ReasoningChain] Starting \(config.sessionCount)-session chain for: \(query.prefix(40))...", category: .llm)
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // CRITICAL: Use TOP-K chunks for ALL sessions, not distributed slices
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // Previous approach distributed chunks: Session 1 gets top chunks, Session 2 gets
+        // worse chunks, Session 3 gets even worse, etc. This is WRONG because:
+        // 1. Later sessions analyze irrelevant content (web interface, shipping, etc.)
+        // 2. The value of multi-session is reasoning DEPTH, not seeing MORE (worse) chunks
+        // 3. Ranked chunks exist for a reason - lower-ranked = less relevant
+        //
+        // New approach: ALL sessions see the SAME top-K most relevant chunks.
+        // Each session reasons DEEPER on the same high-quality context.
+
+        let maxChunksPerSession = 6 // Top 6 most relevant chunks
+        let topChunks = Array(chunks.prefix(maxChunksPerSession))
+
+        // Pre-build the shared context from top chunks (used by all sessions)
+        var sharedContext = ""
+        for (idx, chunk) in topChunks.enumerated() {
+            let content = chunk.chunk.parentContent ?? chunk.chunk.content
+            sharedContext += "[S\(idx + 1)] \(content)\n---\n"
+            allSources.insert(chunk.sourceDocument)
+
+            // Stay within session budget
+            if sharedContext.count > config.maxContextPerSession - 500 { break }
+        }
+
+        Log.debug("[ReasoningChain] Using top \(topChunks.count) chunks for ALL sessions (shared context: \(sharedContext.count) chars)", category: .retrieval)
+
+        for sessionIndex in 0..<config.sessionCount {
+            let sessionNum = sessionIndex + 1
+            Log.debug("[ReasoningChain] Session \(sessionNum)/\(config.sessionCount)", category: .llm)
+
+            if Task.isCancelled { break }
+
+            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            // All sessions use the SAME top-ranked context
+            // The multi-session value is reasoning depth, not chunk diversity
+            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            let sessionContext = sharedContext
+
+            // DEBUG: Log what context is actually being passed
+            Log.debug("[ReasoningChain] Session \(sessionNum) context (\(sessionContext.count) chars): \(sessionContext.prefix(500))...", category: .retrieval)
+
+            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            // Build session prompt based on position in chain
+            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+            let (prompt, systemPrompt) = buildChainPrompt(
+                sessionIndex: sessionIndex,
+                sessionCount: config.sessionCount,
+                query: query,
+                context: sessionContext,
+                previousInsights: chainInsights,
+                maxInsightLength: config.maxInsightLength
+            )
+
+            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            // Execute session with proper consent
+            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+            let response = try await ragService.generateWithProperConsent(
+                prompt: prompt,
+                context: "", // Context is embedded in prompt
+                systemPrompt: systemPrompt,
+                maxTokens: 700 // Conservative for 4096 limit
+            )
+
+            totalTokens += response.tokensGenerated
+
+            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            // Extract insight to pass to next session
+            // For FINAL session, keep FULL response (don't truncate!)
+            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+            let isFinalSession = sessionIndex == config.sessionCount - 1
+            let insight: String
+
+            if isFinalSession {
+                // For final synthesis, extract the full answer (not truncated)
+                insight = extractFinalAnswer(from: response.text)
+            } else {
+                // For intermediate sessions, extract condensed insight
+                insight = extractInsight(from: response.text, maxLength: config.maxInsightLength)
+            }
+            chainInsights.append(insight)
+
+            // Parse confidence if present
+            if let conf = parseConfidence(from: response.text) {
+                cumulativeConfidence = (cumulativeConfidence + conf) / 2
+            }
+
+            // Emit thinking step
+            let stepType: ThinkingStep.StepType = switch sessionIndex {
+            case 0: .searching
+            case config.sessionCount - 1: .synthesizing
+            default: .analyzing
+            }
+
+            let step = ThinkingStep(
+                id: UUID(),
+                type: stepType,
+                input: "Session \(sessionNum): \(sessionPromptDescription(sessionIndex, config.sessionCount))",
+                output: isFinalSession ? "Synthesizing final answer..." : insight,
+                tokensUsed: response.tokensGenerated,
+                duration: 0.5,
+                timestamp: Date()
+            )
+            await onStep?(step)
+
+            Log.debug("[ReasoningChain] Session \(sessionNum) insight: \(insight.prefix(80))...", category: .llm)
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // Final synthesis from chain
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        // The last insight IS the final answer (session N is synthesis)
+        let finalAnswer = chainInsights.last ?? "Unable to synthesize answer from reasoning chain."
+
+        Log.info("[ReasoningChain] Completed \(config.sessionCount) sessions, \(totalTokens) total tokens", category: .llm)
+
+        return ReasoningChainResult(
+            finalAnswer: finalAnswer,
+            chainInsights: chainInsights,
+            totalTokens: totalTokens,
+            sessionCount: config.sessionCount,
+            confidence: max(0.5, cumulativeConfidence),
+            sources: Array(allSources)
+        )
+    }
+
+    /// Build prompt for a specific position in the reasoning chain
+    private func buildChainPrompt(
+        sessionIndex: Int,
+        sessionCount: Int,
+        query: String,
+        context: String,
+        previousInsights: [String],
+        maxInsightLength: Int
+    ) -> (prompt: String, systemPrompt: String) {
+        let insightSummary = previousInsights.isEmpty
+            ? ""
+            : "PRIOR INSIGHTS:\n" + previousInsights.enumerated()
+                .map { "[\($0.offset + 1)] \($0.element)" }
+                .joined(separator: "\n")
+
+        switch sessionIndex {
+        case 0:
+            // SESSION 1: Initial Analysis - understand the question and context
+            let systemPrompt = "You are analyzing documents to answer a question. Extract specific details: numbers, durations, steps."
+            let prompt = """
+            QUESTION: \(query)
+
+            DOCUMENTS:
+            \(context)
+
+            TASK: Analyze these documents. What specific facts answer the question?
+            Look for exact numbers, durations, steps, or procedures.
+
+            Format: REASONING: [your analysis] → INSIGHT: [specific finding with details]
+            """
+            return (prompt, systemPrompt)
+
+        case sessionCount - 1:
+            // FINAL SESSION: Synthesis - combine all insights into complete answer
+            let systemPrompt = "You synthesize research findings into comprehensive answers. Include all specific details from prior insights."
+            let prompt = """
+            QUESTION: \(query)
+
+            YOUR RESEARCH FINDINGS (synthesize ALL of these):
+            \(insightSummary)
+
+            SUPPORTING DOCUMENTS:
+            \(context.prefix(2500))
+
+            TASK: Write a comprehensive answer combining all your research findings.
+            Include specific details, numbers, durations, and steps from each finding.
+
+            YOUR COMPREHENSIVE ANSWER:
+            """
+            return (prompt, systemPrompt)
+
+        case 1:
+            // SESSION 2: Pattern Recognition - look for connections
+            let systemPrompt = "You find patterns and specific details. Look for exact specifications."
+            let prompt = """
+            QUESTION: \(query)
+
+            \(insightSummary)
+
+            NEW CONTEXT:
+            \(context)
+
+            TASK: What additional specific details do you find?
+            Build on previous insights with new information.
+
+            Format: REASONING: [new details found] → INSIGHT: [additional specifics]
+            """
+            return (prompt, systemPrompt)
+
+        default:
+            // MIDDLE SESSIONS: Deepen understanding
+            let systemPrompt = "You deepen understanding by finding specific details others might miss."
+            let prompt = """
+            QUESTION: \(query)
+
+            \(insightSummary)
+
+            NEW CONTEXT:
+            \(context)
+
+            TASK: What new aspects or specific details do you notice?
+            Add to previous insights.
+
+            Format: REASONING: [observations] → INSIGHT: [refined understanding with specifics]
+            """
+            return (prompt, systemPrompt)
+        }
+    }
+
+    /// Extract insight from response - keep FULL content, just clean up formatting
+    /// We want ALL the details the model found, not truncated snippets!
+    private func extractInsight(from text: String, maxLength: Int) -> String {
+        var result = text.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // If there's an INSIGHT: marker, prefer that section but keep it full
+        if let insightRange = result.range(of: "INSIGHT:", options: .caseInsensitive) {
+            result = String(result[insightRange.upperBound...])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        // If there's REASONING: → INSIGHT:, skip the reasoning part
+        else if let arrowRange = result.range(of: "→") {
+            let afterArrow = String(result[arrowRange.upperBound...])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            // Remove "INSIGHT:" prefix if present
+            if afterArrow.lowercased().hasPrefix("insight:") {
+                result = String(afterArrow.dropFirst(8)).trimmingCharacters(in: .whitespacesAndNewlines)
+            } else if afterArrow.count > 100 {
+                result = afterArrow
+            }
+        }
+
+        // Remove common prefixes that aren't useful
+        let prefixesToRemove = ["REASONING:", "ANALYSIS:", "OBSERVATION:"]
+        for prefix in prefixesToRemove {
+            if result.lowercased().hasPrefix(prefix.lowercased()) {
+                result = String(result.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+
+        // Only truncate if REALLY necessary (way over budget)
+        // maxLength is now 1500-2500, so this is a safety valve not a bottleneck
+        if result.count > maxLength {
+            // Try to truncate at a sentence boundary
+            let truncated = String(result.prefix(maxLength))
+            if let lastPeriod = truncated.lastIndex(of: ".") {
+                return String(truncated[...lastPeriod])
+            }
+            return truncated + "..."
+        }
+
+        return result
+    }
+
+    /// Extract full final answer from synthesis session (no truncation!)
+    private func extractFinalAnswer(from text: String) -> String {
+        let cleanedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Look for explicit answer markers (in priority order)
+        let answerMarkers = [
+            "YOUR COMPREHENSIVE ANSWER:",
+            "YOUR ANSWER:",
+            "FINAL ANSWER:",
+            "Answer:",
+            "ANSWER:"
+        ]
+
+        for marker in answerMarkers {
+            if let answerRange = cleanedText.range(of: marker, options: .caseInsensitive) {
+                return String(cleanedText[answerRange.upperBound...])
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+
+        // Look for content after "→" (arrow used in our formatting)
+        if let arrowRange = cleanedText.range(of: "→") {
+            let afterArrow = String(cleanedText[arrowRange.upperBound...])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if afterArrow.count > 50 { // Make sure there's substantial content
+                return afterArrow
+            }
+        }
+
+        // Remove any "REASONING:" prefix and return the rest
+        if let reasoningRange = cleanedText.range(of: "REASONING:", options: .caseInsensitive) {
+            // Check if there's content before REASONING (that's the answer)
+            let beforeReasoning = String(cleanedText[..<reasoningRange.lowerBound])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if beforeReasoning.count > 50 {
+                return beforeReasoning
+            }
+        }
+
+        // Just return the full text - it IS the answer
+        return cleanedText
+    }
+
+    /// Parse confidence score from text
+    private func parseConfidence(from text: String) -> Float? {
+        // Look for patterns like "confidence: 85" or "85%"
+        let patterns = [
+            #"confidence[:\s]+(\d+)"#,
+            #"(\d+)%\s*confidence"#,
+            #"(\d+)/100"#,
+        ]
+
+        for pattern in patterns {
+            if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
+               let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+               let numRange = Range(match.range(at: 1), in: text),
+               let value = Float(text[numRange])
+            {
+                return value > 1 ? value / 100 : value
+            }
+        }
+
+        return nil
+    }
+
+    /// Description of what each session focuses on
+    private func sessionPromptDescription(_ index: Int, _ total: Int) -> String {
+        switch index {
+        case 0: return "Initial Analysis"
+        case total - 1: return "Final Synthesis"
+        case 1: return "Pattern Recognition"
+        default: return "Deepening Understanding"
+        }
+    }
+}
+
 // MARK: - RAGService Extension
 
 extension RAGService {
+
+    /// Execute a light reasoning chain for Standard mode
+    /// Uses 3 sessions × 4096 = 12K+ effective tokens (vs single 4K)
+    ///
+    /// ## When to Use
+    /// - Standard mode with good retrieval quality (top similarity > 0.5)
+    /// - Complex multi-hop questions that benefit from deeper analysis
+    /// - When context exceeds single session budget
+    ///
+    /// This is a lighter version of Deep Think's reasoning chain:
+    /// - 3 sessions instead of 4-5
+    /// - Faster execution for responsive Standard mode
+    /// - Still multiplies effective context by 3×
+    func executeStandardReasoningChain(
+        query: String,
+        chunks: [RetrievedChunk],
+        onProgress: ((String, String) async -> Void)? = nil  // (title, detail)
+    ) async throws -> ReasoningChainResult {
+        let orchestrator = AgenticOrchestrator(ragService: self, config: .fast)
+        let totalSessions = ReasoningChainConfig.light.sessionCount
+
+        // Track session number for UI
+        var sessionNum = 0
+
+        // Emit progress for UI with meaningful descriptions
+        let onStep: (ThinkingStep) async -> Void = { step in
+            sessionNum += 1
+
+            // Build a nice title showing progress
+            let phaseEmoji: String
+            let phaseName: String
+
+            switch step.type {
+            case .searching:
+                phaseEmoji = "🔍"
+                phaseName = "Analyzing evidence"
+            case .analyzing:
+                phaseEmoji = "🧠"
+                phaseName = "Finding patterns"
+            case .synthesizing:
+                phaseEmoji = "✨"
+                phaseName = "Synthesizing answer"
+            default:
+                phaseEmoji = "💭"
+                phaseName = "Reasoning"
+            }
+
+            let title = "\(phaseEmoji) \(phaseName) (\(sessionNum)/\(totalSessions))"
+
+            // Show a snippet of what the model discovered (first 80 chars of insight)
+            let insightPreview = step.output
+                .replacingOccurrences(of: "\n", with: " ")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let detail = insightPreview.isEmpty
+                ? "Processing..."
+                : String(insightPreview.prefix(80)) + (insightPreview.count > 80 ? "..." : "")
+
+            await onProgress?(title, detail)
+        }
+
+        return try await orchestrator.executeReasoningChain(
+            query: query,
+            chunks: chunks,
+            config: .light, // 3 sessions for Standard mode
+            onStep: onStep
+        )
+    }
+
     /// Generate with a fresh session (no accumulated context)
     /// Used by AgenticOrchestrator for each thinking step
-    func generateWithFreshSession(prompt: String, maxTokens: Int) async throws -> LLMResponse { 
+    func generateWithFreshSession(prompt: String, maxTokens: Int) async throws -> LLMResponse {
         #if canImport(FoundationModels)
             // Create a temporary AppleFoundationLLMService for isolated generation
             let tempService = AppleFoundationLLMService()
@@ -1524,16 +2680,66 @@ extension RAGService {
             temperature: 0.5, // Lower temperature for more focused answers
             systemPrompt: systemPrompt
         )
+        // NOTE: Tools remain ENABLED for reasoning chain sessions
+        // The model can autonomously call search_documents to gather more context as it reasons
 
-        // Allow PCC for larger contexts (Deep Think often needs more context)
-        config.allowPrivateCloudCompute = true
-        config.executionContext = .automatic
+        // Check network and PCC eligibility
+        let networkAvailable = NetworkMonitor.shared.isConnected
+        let pccSuppressed = await MainActor.run { self.isPCCSuppressedForDeepThink() }
+        let isAppleFM = llmService is AppleFoundationLLMService
 
-        // Use the main LLM service which handles consent properly
-        // This will:
-        // 1. Check/prompt for PCC consent if needed
-        // 2. Record cloud transmissions for transparency
-        // 3. Route to appropriate execution context (on-device vs PCC)
+        // Determine if PCC is eligible for this request
+        let pccEligible = isAppleFM && networkAvailable && !pccSuppressed
+
+        if pccEligible {
+            // Check current consent state
+            let consentState = await MainActor.run { cloudConsent[.applePCC] ?? .notDetermined }
+            let hasTransientGrant = await MainActor.run { self.hasTransientPCCGrant() }
+
+            // Only prompt for consent if not already granted
+            if consentState != .allowed && !hasTransientGrant {
+                // Call ensureConsentForDeepThink to trigger the consent UI prompt
+                // This matches Standard mode's behavior exactly
+                do {
+                    try await ensureConsentForDeepThink(
+                        service: llmService,
+                        prompt: prompt,
+                        context: context,
+                        sourceChunks: [], // Deep Think doesn't pass raw chunks here
+                        allowPrivateCloudCompute: true
+                    )
+                } catch {
+                    // If consent denied, fall back to on-device only
+                    if case RAGServiceError.cloudConsentDenied = error {
+                        config.allowPrivateCloudCompute = false
+                        config.executionContext = .onDeviceOnly
+                        Log.info("[DeepThink] PCC consent denied → on-device fallback", category: .pipeline)
+                    } else {
+                        throw error
+                    }
+                }
+            }
+
+            // Set PCC config based on consent outcome
+            let finalConsentState = await MainActor.run { cloudConsent[.applePCC] ?? .notDetermined }
+            let finalHasGrant = await MainActor.run { self.hasTransientPCCGrant() }
+
+            if finalConsentState == .allowed || finalHasGrant {
+                config.allowPrivateCloudCompute = true
+                config.executionContext = .automatic
+            } else {
+                config.allowPrivateCloudCompute = false
+                config.executionContext = .onDeviceOnly
+            }
+        } else {
+            // Not PCC eligible - use on-device only
+            config.allowPrivateCloudCompute = false
+            config.executionContext = .onDeviceOnly
+            if !networkAvailable {
+                Log.info("[DeepThink] Offline → on-device only", category: .pipeline)
+            }
+        }
+
         return try await llmService.generate(
             prompt: prompt,
             context: context,

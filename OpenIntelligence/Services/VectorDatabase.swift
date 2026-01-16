@@ -987,6 +987,7 @@ class MmapVectorDatabase: VectorDatabase {
                         documentId: chunk.documentId,
                         content: chunk.content,
                         parentContent: chunk.parentContent,
+                        contextualPrefix: chunk.contextualPrefix,
                         metadata: chunk.metadata
                     )
                     self.chunkMetadata.append(entry)
@@ -1090,6 +1091,7 @@ class MmapVectorDatabase: VectorDatabase {
                         documentId: entry.documentId,
                         content: entry.content,
                         parentContent: entry.parentContent,
+                        contextualPrefix: entry.contextualPrefix,
                         embedding: [], // Don't load embedding into memory
                         metadata: entry.metadata
                     )
@@ -1193,6 +1195,7 @@ class MmapVectorDatabase: VectorDatabase {
                         documentId: entry.documentId,
                         content: entry.content,
                         parentContent: entry.parentContent,
+                        contextualPrefix: entry.contextualPrefix,
                         embedding: [],
                         metadata: entry.metadata
                     )
@@ -1215,6 +1218,7 @@ class MmapVectorDatabase: VectorDatabase {
                     documentId: chunk.documentId,
                     content: chunk.content,
                     parentContent: chunk.parentContent,
+                    contextualPrefix: chunk.contextualPrefix,
                     metadata: chunk.metadata
                 )
                 if index < self.norms.count {
@@ -1266,5 +1270,7 @@ private struct MmapChunkEntry: Codable {
     let documentId: UUID
     let content: String
     let parentContent: String?
+    /// Contextual prefix used during embedding (Anthropic Contextual Retrieval)
+    let contextualPrefix: String?
     let metadata: ChunkMetadata
 }

@@ -90,6 +90,10 @@ struct InferenceConfig {
     var executionContext: ExecutionContext = .automatic
     var allowPrivateCloudCompute: Bool = true  // User-controlled PCC permission
 
+    /// Disable agentic tools for this generation (pure LLM mode)
+    /// Use this for reasoning chain sessions where we want pure reasoning, not tool calls
+    var disableTools: Bool = false
+
     /// Preset for RAG queries (factual, non-repetitive, focused)
     static var ragOptimized: InferenceConfig {
         var config = InferenceConfig()

@@ -147,7 +147,7 @@ class HybridSearchService {
     private let vectorWeight: Float
     private let keywordWeight: Float
 
-    init(vectorDatabase: VectorDatabase, vectorWeight: Float = 0.7, keywordWeight: Float = 0.3) { 
+    init(vectorDatabase: VectorDatabase, vectorWeight: Float = 0.7, keywordWeight: Float = 0.3) {
         self.vectorDatabase = vectorDatabase
         self.vectorWeight = vectorWeight
         self.keywordWeight = keywordWeight
@@ -172,7 +172,7 @@ class HybridSearchService {
     ///   - embedding: Query embedding vector
     ///   - topK: Number of top results to return
     ///   - cachedChunks: Optional pre-fetched chunks to avoid re-loading allChunks() for lexical recall
-    func search(query: String, embedding: [Float], topK: Int, cachedChunks: [DocumentChunk]? = nil) async throws -> [RetrievedChunk] { 
+    func search(query: String, embedding: [Float], topK: Int, cachedChunks: [DocumentChunk]? = nil) async throws -> [RetrievedChunk] {
         Log.debug("Hybrid search starting (vector: \(vectorWeight), keyword: \(keywordWeight))", category: .pipeline)
 
         // 1. Vector search - retrieve more candidates for better coverage
@@ -223,8 +223,12 @@ class HybridSearchService {
             keywordWeight: keywordWeight
         )
 
-        // 4. Take top K from fused results and re-rank index
-        let topResults = Array(fusedResults.prefix(topK))
+        // 4. Apply EXACT KEYWORD MATCH BOOST
+        // If query keywords appear verbatim in chunk, boost its ranking significantly
+        let boostedResults = applyKeywordMatchBoost(query: query, results: fusedResults)
+
+        // 5. Take top K from boosted results and re-rank index
+        let topResults = Array(boostedResults.prefix(topK))
 
         Log.debug(
             "Hybrid fusion: \(topResults.count) results from \(vectorResults.count) vector + \(keywordResults.count) BM25",
@@ -232,6 +236,76 @@ class HybridSearchService {
         )
 
         return reindex(topResults)
+    }
+
+    /// Boost chunks that contain EXACT matches of important query keywords
+    /// This fixes cases where "button" in query should strongly prefer chunks with "button"
+    private func applyKeywordMatchBoost(query: String, results: [RetrievedChunk]) -> [RetrievedChunk] {
+        let queryKeywords = extractImportantKeywords(from: query)
+        guard !queryKeywords.isEmpty else { return results }
+
+        // Score each result by keyword match count
+        var scoredResults: [(chunk: RetrievedChunk, boost: Int, originalRank: Int)] = []
+
+        for (idx, result) in results.enumerated() {
+            let contentLower = result.chunk.content.lowercased()
+            var matchCount = 0
+
+            for keyword in queryKeywords {
+                if contentLower.contains(keyword) {
+                    matchCount += 1
+                    // Extra boost for exact word boundary matches
+                    if contentLower.contains(" \(keyword) ") ||
+                       contentLower.contains(" \(keyword).") ||
+                       contentLower.contains(" \(keyword),") ||
+                       contentLower.hasPrefix("\(keyword) ") ||
+                       contentLower.hasSuffix(" \(keyword)") {
+                        matchCount += 1
+                    }
+                }
+            }
+
+            scoredResults.append((result, matchCount, idx))
+        }
+
+        // Sort by: keyword match count (desc), then original rank (asc)
+        scoredResults.sort {
+            if $0.boost != $1.boost {
+                return $0.boost > $1.boost  // More keyword matches = better
+            }
+            return $0.originalRank < $1.originalRank  // Preserve original order for ties
+        }
+
+        let boostedCount = scoredResults.prefix(10).filter { $0.boost > 0 }.count
+        if boostedCount > 0 {
+            Log.debug("[Hybrid] Keyword boost: \(boostedCount) chunks boosted for keywords \(queryKeywords)", category: .retrieval)
+        }
+
+        return scoredResults.map { $0.chunk }
+    }
+
+    /// Extract important keywords from query (nouns, verbs - skip stopwords)
+    private func extractImportantKeywords(from query: String) -> [String] {
+        let stopwords: Set<String> = [
+            "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
+            "have", "has", "had", "do", "does", "did", "will", "would", "could", "should",
+            "may", "might", "must", "shall", "can", "need", "dare", "ought", "used",
+            "to", "of", "in", "for", "on", "with", "at", "by", "from", "as", "into",
+            "through", "during", "before", "after", "above", "below", "between",
+            "this", "that", "these", "those", "what", "which", "who", "whom", "whose",
+            "where", "when", "why", "how", "all", "each", "every", "both", "few",
+            "more", "most", "other", "some", "such", "no", "nor", "not", "only",
+            "own", "same", "so", "than", "too", "very", "just", "also", "now",
+            "i", "me", "my", "myself", "we", "our", "ours", "ourselves", "you", "your",
+            "he", "him", "his", "she", "her", "it", "its", "they", "them", "their"
+        ]
+
+        let tokens = tokenize(query)
+        let important = tokens.filter { token in
+            token.count >= 3 && !stopwords.contains(token)
+        }
+
+        return important
     }
 
     private func shouldRunLexicalRecall(query: String, vectorCount: Int, topK: Int) -> Bool {
