@@ -538,7 +538,7 @@ struct LLMResponse {
         }
 
         // Lazy session creation - only when actually generating
-        private func ensureSession(systemPrompt: String? = nil) throws {
+        private func ensureSession(systemPrompt: String? = nil, disableTools: Bool = false) throws {
             guard session == nil else { return }
 
             guard Thread.isMainThread else {
@@ -552,9 +552,10 @@ struct LLMResponse {
 
                 // Initialize function calling tools for agentic RAG
                 // These tools enable the model to decide when to search documents vs answer directly
+                // UNLESS disableTools is set (for reasoning chain sessions)
                 var tools: [any Tool] = []
 
-                if let ragService = toolHandler as? RAGService {
+                if !disableTools, let ragService = toolHandler as? RAGService {
                     // Create tool instances with RAGService reference
                     var searchTool = SearchDocumentsTool()
                     searchTool.ragService = ragService
@@ -569,6 +570,8 @@ struct LLMResponse {
                     tools.append(summaryTool)
 
                     Log.debug("Initialized \(tools.count) tools for agentic RAG", category: .llm)
+                } else if disableTools {
+                    Log.debug("Tools disabled for this session (pure reasoning mode)", category: .llm)
                 }
 
                 // Create language model session with hybrid RAG+LLM instructions
@@ -652,7 +655,7 @@ struct LLMResponse {
             }
 
             // Ensure session is created (now guaranteed to be on main thread via @MainActor)
-            try ensureSession(systemPrompt: config.systemPrompt)
+            try ensureSession(systemPrompt: config.systemPrompt, disableTools: config.disableTools)
 
             guard let session = session else {
                 throw LLMError.modelUnavailable

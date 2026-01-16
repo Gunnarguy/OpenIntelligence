@@ -4,6 +4,7 @@ struct ThinkingStreamView: View {
     let events: [ThinkingEvent]
 
     @State private var isExpanded = false
+    @State private var hasAutoExpanded = false
     @AppStorage("thinkingViewAutoCollapse") private var autoCollapse = true
 
     private var recentEvents: [ThinkingEvent] {
@@ -14,17 +15,33 @@ struct ThinkingStreamView: View {
         events.last
     }
 
+    /// Auto-expand when we have multiple events (shows the "thinking" happening)
+    private var shouldAutoExpand: Bool {
+        events.count >= 2 && !hasAutoExpanded
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Compact header - always visible, tappable to expand
             Button(action: { withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) { isExpanded.toggle() } }) {
-                HStack(spacing: 4) {
+                HStack(spacing: 6) {
                     // Animated thinking indicator
                     ThinkingPulse()
 
                     Text("Thinking")
-                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
                         .foregroundStyle(DSColors.secondaryText)
+
+                    // Step counter badge
+                    if events.count > 1 {
+                        Text("\(events.count) steps")
+                            .font(.system(size: 9, weight: .semibold, design: .rounded))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(DSColors.accent.opacity(0.2))
+                            .foregroundStyle(DSColors.accent)
+                            .clipShape(Capsule())
+                    }
 
                     // Show latest step inline when collapsed
                     if !isExpanded, let latest = latestEvent {
@@ -32,8 +49,8 @@ struct ThinkingStreamView: View {
                             .font(.system(size: 8))
                             .foregroundStyle(DSColors.secondaryText.opacity(0.6))
                         Text(latest.title)
-                            .font(.system(size: 10, weight: .regular, design: .monospaced))
-                            .foregroundStyle(DSColors.secondaryText.opacity(0.6))
+                            .font(.system(size: 10, weight: .medium, design: .monospaced))
+                            .foregroundStyle(DSColors.accent.opacity(0.8))
                             .lineLimit(1)
                     }
 
@@ -68,6 +85,22 @@ struct ThinkingStreamView: View {
         }
         .animation(.spring(response: 0.3, dampingFraction: 0.85), value: isExpanded)
         .animation(.spring(response: 0.25, dampingFraction: 0.9), value: recentEvents)
+        // Auto-expand when we get 2+ events to show the reasoning process
+        .onChange(of: events.count) { _, newCount in
+            if newCount >= 2 && !hasAutoExpanded {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+                    isExpanded = true
+                    hasAutoExpanded = true
+                }
+            }
+        }
+        // Reset auto-expand state when events are cleared (new query)
+        .onChange(of: events.isEmpty) { _, isEmpty in
+            if isEmpty {
+                hasAutoExpanded = false
+                isExpanded = false
+            }
+        }
     }
 }
 

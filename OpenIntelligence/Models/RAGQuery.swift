@@ -51,7 +51,7 @@ struct RAGResponse: Sendable {
 }
 
 /// A document chunk retrieved for context with its similarity score
-struct RetrievedChunk: Codable, Sendable { 
+struct RetrievedChunk: Codable, Sendable {
     let chunk: DocumentChunk
     let similarityScore: Float
     let rank: Int
@@ -68,7 +68,7 @@ struct RetrievedChunk: Codable, Sendable {
 }
 
 /// Performance and execution metadata for a RAG response
-struct ResponseMetadata: Codable, Sendable { 
+struct ResponseMetadata: Codable, Sendable {
     let timeToFirstToken: TimeInterval?
     let totalGenerationTime: TimeInterval
     let tokensGenerated: Int
@@ -88,6 +88,10 @@ struct ResponseMetadata: Codable, Sendable {
     /// The original query that triggered this response (for re-query with deeper mode)
     let originalQuery: String?
 
+    /// Reasoning trace from chained sessions (shows how the AI "thought through" the problem)
+    /// Each string is one step: ["🔍 Analyzing: found X...", "🧠 Patterns: theme is Y...", etc.]
+    let reasoningTrace: [String]?
+
     init(timeToFirstToken: TimeInterval? = nil,
          totalGenerationTime: TimeInterval,
          tokensGenerated: Int,
@@ -99,7 +103,8 @@ struct ResponseMetadata: Codable, Sendable {
          toolCallsMade: Int? = nil,
          embeddingProvider: String? = nil,
          usedAgenticMode: Bool = false,
-         originalQuery: String? = nil)
+         originalQuery: String? = nil,
+         reasoningTrace: [String]? = nil)
     {
         self.timeToFirstToken = timeToFirstToken
         self.totalGenerationTime = totalGenerationTime
@@ -113,6 +118,7 @@ struct ResponseMetadata: Codable, Sendable {
         self.embeddingProvider = embeddingProvider
         self.usedAgenticMode = usedAgenticMode
         self.originalQuery = originalQuery
+        self.reasoningTrace = reasoningTrace
     }
 
     // MARK: - Computed Properties

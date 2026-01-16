@@ -35,6 +35,24 @@ struct DeveloperSettingsView: View {
                     .foregroundColor(.secondary)
             }
 
+            Section("Reasoning Chain (Experimental)") {
+                Toggle("Force Reasoning Chain", isOn: $settings.forceReasoningChain)
+                Text("Always use multi-session reasoning chain for Apple Foundation Models, regardless of retrieval quality. Chains 3-5 sessions × 4096 tokens to enable deeper thinking.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+
+                if settings.forceReasoningChain {
+                    HStack {
+                        Image(systemName: "brain.head.profile")
+                            .foregroundColor(.purple)
+                        Text("Reasoning chain active — you'll see live 'Thinking' steps during generation")
+                            .font(.caption)
+                            .foregroundColor(.purple)
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+
             // Logging Level (compact, native controls)
             Section("Console Logging Level") {
                 Picker("Logging Level", selection: $loggingLevelRaw) {
