@@ -16,7 +16,7 @@ enum ChatExecutionLocation {
 
     var icon: String {
         switch self {
-        case .unknown: return "questionmark.circle"
+        case .unknown: return "circle.dotted"  // Subtle loading indicator instead of confusing question mark
         case .onDevice: return "iphone"
         case .privateCloudCompute: return "cloud.fill"
         case .mlxLocal: return "desktopcomputer"
@@ -34,7 +34,7 @@ enum ChatExecutionLocation {
 
     var displayName: String {
         switch self {
-        case .unknown: return "Detecting..."
+        case .unknown: return "Processing"
         case .onDevice: return "On-Device"
         case .privateCloudCompute: return "Private Cloud Compute"
         case .mlxLocal: return "MLX Local"

@@ -156,7 +156,7 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var billingCard: some View {
-        VStack(alignment: .leading, spacing: 12) { 
+        VStack(alignment: .leading, spacing: 12) {
             // Header with tier badge
             HStack {
                 Image(systemName: "creditcard.fill")
@@ -176,10 +176,10 @@ struct SettingsView: View {
             Divider()
 
             // Always show a button to access subscription management
-            Button { 
+            Button {
                 planEntryPoint = .settings
                 showPlanSheet = true
-            } label: { 
+            } label: {
                 HStack {
                     Image(systemName: entitlementStore.activeTier == .free ? "arrow.up.circle" : "gearshape")
                     Text(entitlementStore.activeTier == .free ? "Upgrade Plan" : "Manage Subscription")
@@ -286,7 +286,7 @@ Text(label)
             }
 
             // Model info (not a button since there's only one option)
-            HStack { 
+            HStack {
                 Image(systemName: "brain.head.profile.fill")
                     .font(.title2)
 .foregroundStyle(
@@ -343,7 +343,7 @@ Text(label)
     @ViewBuilder
     private var privacyExecutionCard: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack { 
+            HStack {
                 Image(systemName: "lock.shield.fill")
                     .font(.title3)
                     .foregroundStyle(
@@ -484,7 +484,7 @@ Text(label)
         let deviceService = DeviceCapabilityService.shared
 
         VStack(alignment: .leading, spacing: 14) {
-            HStack { 
+            HStack {
                 Image(systemName: "doc.text.magnifyingglass")
                     .foregroundColor(.accentColor)
                 Text("Your Device")
@@ -532,26 +532,39 @@ Text(deviceService.chipName)
 
             // Context Window
             VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 8) { 
+                HStack(spacing: 8) {
                     Image(systemName: "ruler")
                         .font(.caption)
-.foregroundColor(.orange)
-Text("Context Window")
-    .font(.subheadline.weight(.medium))
+                        .foregroundColor(.orange)
+                    Text("Context Window")
+                        .font(.subheadline.weight(.medium))
                 }
 
-                Text("Apple Foundation Models use a 4,096-token context window on-device. Private Cloud Compute handles complex queries automatically.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                // Dynamic explanation based on mode
+                if settings.ragQualityMode.canonical == .deepThink {
+                    Text("Deep Think chains multiple 4K-token sessions for complex reasoning. Each step retrieves fresh context, enabling comprehensive analysis across 12K+ effective tokens.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                } else {
+                    Text("Standard mode uses a single 4,096-token context window on-device. Private Cloud Compute handles queries exceeding this limit.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
 
                 HStack(spacing: 12) {
-                    contextInfoPill(icon: deviceService.isMac ? "desktopcomputer" : (deviceService.isIPad ? "ipad" : "iphone"), label: "On-Device", value: "4K tokens")
-                    contextInfoPill(icon: "cloud", label: "PCC", value: "Complex queries")
+                    if settings.ragQualityMode.canonical == .deepThink {
+                        contextInfoPill(icon: "square.3.layers.3d", label: "Per Session", value: "4K tokens")
+                        contextInfoPill(icon: "arrow.trianglehead.2.clockwise.rotate.90", label: "Effective", value: "12K+ tokens")
+                    } else {
+                        contextInfoPill(icon: deviceService.isMac ? "desktopcomputer" : (deviceService.isIPad ? "ipad" : "iphone"), label: "On-Device", value: "4K tokens")
+                        contextInfoPill(icon: "cloud", label: "PCC", value: "Extended")
+                    }
                 }
             }
-.padding(10)
-.background(Color.orange.opacity(0.08))
-    .clipShape(RoundedRectangle(cornerRadius: 10))
+            .padding(10)
+            .background(Color.orange.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .animation(.easeInOut(duration: 0.2), value: settings.ragQualityMode)
 
             Divider()
 
@@ -903,7 +916,7 @@ Text("Context Window")
     }
 
     @ViewBuilder
-    private func liveMetricCard(icon: String, label: String, value: String, detail: String = "", color: Color) -> some View { 
+    private func liveMetricCard(icon: String, label: String, value: String, detail: String = "", color: Color) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             // Label row
             HStack(spacing: 5) {
@@ -1031,30 +1044,32 @@ Text("Context Window")
                 Text("Generation Tuning")
                     .font(.headline)
                 Spacer()
-
-                Button {
-                    withAnimation(.spring(response: 0.3)) {
-                        showAdvancedGeneration.toggle()
-                    }
-                } label: {
-                    HStack(spacing: 4) {
-                        Text(showAdvancedGeneration ? "Less" : "More")
-                            .font(.caption.weight(.medium))
-                        Image(systemName: showAdvancedGeneration ? "chevron.up" : "chevron.down")
-                            .font(.caption)
-                    }
-                    .foregroundColor(.accentColor)
-                }
             }
 
             Text("Customize how the AI responds to your questions.")
                 .font(.caption)
                 .foregroundColor(.secondary)
 
-            // System Prompt (always visible - the only user-facing tuning that makes sense)
+            // System Prompt
             VStack(alignment: .leading, spacing: 6) {
-                Label("System Prompt", systemImage: "text.quote")
-                    .font(.subheadline.weight(.medium))
+                HStack {
+                    Label("System Prompt", systemImage: "text.quote")
+                        .font(.subheadline.weight(.medium))
+                    Spacer()
+                    // Reset button inline
+                    if settings.systemPrompt != "You are a helpful assistant." {
+                        Button {
+                            withAnimation {
+                                settings.systemPrompt = "You are a helpful assistant."
+                            }
+                        } label: {
+                            Text("Reset")
+                                .font(.caption2.weight(.medium))
+                                .foregroundColor(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
 
                 TextField("You are a helpful assistant...", text: $settings.systemPrompt, axis: .vertical)
                     .textFieldStyle(.roundedBorder)
@@ -1065,43 +1080,17 @@ Text("Context Window")
                     .font(.caption2)
                     .foregroundColor(.secondary)
             }
-
-            // Advanced section (collapsible) - only reset button now
-            if showAdvancedGeneration {
-                Divider()
-
-                // Reset button
-                Button {
-                    withAnimation { 
-                        settings.systemPrompt = "You are a helpful assistant."
-                    }
-                } label: {
-                    HStack {
-                        Image(systemName: "arrow.counterclockwise")
-                        Text("Reset to Default")
-                    }
-                    .font(.caption.weight(.medium))
-                        .foregroundColor(.secondary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(Color.secondary.opacity(0.1))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                }
-                .buttonStyle(.plain)
-                .transition(.opacity.combined(with: .move(edge: .top)))
-            }
         }
         .padding()
         .background(DSColors.surface)
         .clipShape(RoundedRectangle(cornerRadius: 16))
-        .animation(.spring(response: 0.35), value: showAdvancedGeneration)
     }
 
     // MARK: - Retrieval Card
 
     @ViewBuilder
     private var retrievalCard: some View {
-        VStack(alignment: .leading, spacing: 16) { 
+        VStack(alignment: .leading, spacing: 16) {
             HStack {
                 Image(systemName: "sparkles.rectangle.stack")
                     .foregroundColor(.accentColor)
@@ -1129,27 +1118,40 @@ Text("Context Window")
 
             Divider()
 
-            // Always-on features info
+            // Mode-specific features
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.green)
+                        .foregroundColor(settings.ragQualityMode.canonical == .deepThink ? .purple : .green)
                         .font(.caption)
-                    Text("Always Enabled")
+                    Text(settings.ragQualityMode.canonical == .deepThink ? "Deep Think Features" : "Standard Features")
                         .font(.caption.weight(.medium))
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
-                    alwaysOnFeatureRow(icon: "sparkles", label: "HyDE Query Enhancement", description: "Hypothetical document for better search")
-                    alwaysOnFeatureRow(icon: "text.redaction", label: "Contextual Compression", description: "Focuses on relevant information")
-                    alwaysOnFeatureRow(icon: "doc.on.doc", label: "Parent Document Retrieval", description: "Includes surrounding context")
-                    alwaysOnFeatureRow(icon: "lightbulb", label: "Query Understanding", description: "Rewrites vague queries intelligently")
-                    alwaysOnFeatureRow(icon: "brain.head.profile", label: "Conversation Memory", description: "Remembers context across turns")
+                    // Common features for both modes
+                    featureRow(icon: "sparkles", label: "HyDE Query Enhancement", description: "Hypothetical document for better search", color: .green)
+                    featureRow(icon: "text.redaction", label: "Contextual Compression", description: "Focuses on relevant information", color: .green)
+                    featureRow(icon: "doc.on.doc", label: "Parent Document Retrieval", description: "Includes surrounding context", color: .green)
+                    featureRow(icon: "lightbulb", label: "Query Understanding", description: "Rewrites vague queries intelligently", color: .green)
+
+                    // Deep Think exclusive features
+                    if settings.ragQualityMode.canonical == .deepThink {
+                        Divider()
+                            .padding(.vertical, 4)
+                        featureRow(icon: "arrow.trianglehead.2.clockwise.rotate.90", label: "Iterative Retrieval", description: "Retrieve → assess → refine → retrieve more", color: .purple)
+                        featureRow(icon: "brain.head.profile", label: "Agentic Orchestrator", description: "Multi-session reasoning chain", color: .purple)
+                        featureRow(icon: "hammer.fill", label: "12+ Tool Functions", description: "Autonomous search & analysis tools", color: .purple)
+                        featureRow(icon: "chart.bar.xaxis", label: "Confidence Tracking", description: "Self-assessment and refinement", color: .purple)
+                    } else {
+                        featureRow(icon: "brain.head.profile", label: "Conversation Memory", description: "Remembers context across turns", color: .green)
+                    }
                 }
             }
-.padding(10)
-    .background(Color.green.opacity(0.08))
-    .clipShape(RoundedRectangle(cornerRadius: 10))
+            .padding(10)
+            .background((settings.ragQualityMode.canonical == .deepThink ? Color.purple : Color.green).opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .animation(.easeInOut(duration: 0.25), value: settings.ragQualityMode)
         }
 .padding()
     .background(DSColors.surface)
@@ -1170,7 +1172,7 @@ Text("Context Window")
             }
 
             // Text
-            VStack(alignment: .leading, spacing: 2) { 
+            VStack(alignment: .leading, spacing: 2) {
                 Text(mode.displayName)
                     .font(.subheadline.weight(.medium))
 .foregroundColor(isSelected ? .primary : .secondary)
@@ -1205,15 +1207,15 @@ Text(mode.description)
     }
 
     @ViewBuilder
-    private func alwaysOnFeatureRow(icon: String, label: String, description: String) -> some View {
-        HStack(spacing: 8) { 
+    private func featureRow(icon: String, label: String, description: String, color: Color = .green) -> some View {
+        HStack(spacing: 8) {
             Image(systemName: icon)
                 .font(.caption2)
-                .foregroundColor(.green)
-.frame(width: 16)
-VStack(alignment: .leading, spacing: 1) {
-    Text(label)
-        .font(.caption.weight(.medium))
+                .foregroundColor(color)
+                .frame(width: 16)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(label)
+                    .font(.caption.weight(.medium))
                 Text(description)
                     .font(.caption2)
                     .foregroundColor(.secondary)
@@ -1266,7 +1268,7 @@ VStack(alignment: .leading, spacing: 1) {
     private var developerCard: some View {
         NavigationLink {
             DeveloperDiagnosticsHubView(ragService: ragService)
-        } label: { 
+        } label: {
             HStack(spacing: 12) {
                 ZStack {
                     Circle()
@@ -1303,7 +1305,7 @@ Text("RAG audit, diagnostics, advanced tuning")
     private var aboutCard: some View {
         NavigationLink {
             AboutView()
-        } label: { 
+        } label: {
             HStack(spacing: 12) {
                 ZStack {
                     Circle()
@@ -1372,7 +1374,7 @@ extension Bundle {
 }
 
 #Preview {
-    NavigationStack { 
+    NavigationStack {
         SettingsView(ragService: RAGService())
             .environmentObject(SettingsStore(ragService: RAGService()))
             .environmentObject(EntitlementStore(billingService: StoreKitBillingService()))

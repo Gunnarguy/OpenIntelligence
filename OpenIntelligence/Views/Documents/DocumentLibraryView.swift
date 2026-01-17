@@ -72,7 +72,7 @@ struct DocumentLibraryView: View {
             VStack(spacing: 12) {
                 ContainerPickerStrip(
                     containerService: containerService,
-                    allowsCreation: true, 
+                    allowsCreation: true,
                     onCreateLibrary: handleNewLibraryTapped,
                     onDeleteLibrary: handleDeleteLibrary
                 )
@@ -261,14 +261,7 @@ struct DocumentLibraryView: View {
             .sheet(isPresented: $showingContainerSettings) {
                 ContainerSettingsSheet(containerService: containerService, ragService: ragService)
             }
-            .sheet(isPresented: Binding(
-                get: { ragService.lastProcessingSummary != nil },
-                set: { if !$0 { ragService.lastProcessingSummary = nil } }
-            )) {
-                if let summary = ragService.lastProcessingSummary {
-                    ProcessingSummaryView(summary: summary)
-                }
-            }
+            // ProcessingSummaryView sheet removed - IngestionQueueOverlay now handles upload status
             .sheet(isPresented: $showingSemanticSearch) {
                 SemanticSearchView(
                     ragService: ragService,

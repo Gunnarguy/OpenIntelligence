@@ -45,6 +45,17 @@ enum DeviceCapabilityTier: String, Sendable, Comparable {
         case .unsupported: return 0
         }
     }
+
+    /// Neural Engine core count
+    var neuralEngineCores: Int {
+        switch self {
+        case .baseline: return 16 // A17 Pro
+        case .enhanced: return 16 // A18/A18 Pro
+        case .advanced: return 16 // A19 (projected)
+        case .ultraAdvanced: return 16 // M-series typically 16
+        case .unsupported: return 0
+        }
+    }
 }
 
 /// Device form factor
@@ -289,7 +300,7 @@ final class DeviceCapabilityService: @unchecked Sendable {
 
     // MARK: - Detection Logic
 
-    private static func detectFullCapability() -> (DeviceCapabilityTier, String, DeviceFormFactor, String, Int) { 
+    private static func detectFullCapability() -> (DeviceCapabilityTier, String, DeviceFormFactor, String, Int) {
         var systemInfo = utsname()
         uname(&systemInfo)
         let machineMirror = Mirror(reflecting: systemInfo.machine)
@@ -456,7 +467,7 @@ final class DeviceCapabilityService: @unchecked Sendable {
         return (tier, chip)
     }
 
-    private static func detectiPhoneCapability(identifier: String) -> (DeviceCapabilityTier, String, Int) { 
+    private static func detectiPhoneCapability(identifier: String) -> (DeviceCapabilityTier, String, Int) {
         // Extract major/minor version numbers from identifier
         // Format: iPhoneXX,Y where XX is major generation
         let numbers = identifier.replacingOccurrences(of: "iPhone", with: "")
@@ -520,7 +531,7 @@ final class DeviceCapabilityService: @unchecked Sendable {
     }
 
     /// Full iPad detection returning tier, chip, form factor, AND accurate TOPS
-    private static func detectiPadCapabilityFull(identifier: String) -> (DeviceCapabilityTier, String, DeviceFormFactor, Int) { 
+    private static func detectiPadCapabilityFull(identifier: String) -> (DeviceCapabilityTier, String, DeviceFormFactor, Int) {
         let numbers = identifier.replacingOccurrences(of: "iPad", with: "")
             .split(separator: ",")
             .compactMap { Int($0) }

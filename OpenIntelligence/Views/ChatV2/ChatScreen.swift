@@ -35,6 +35,13 @@ private struct ConsolidatedMetrics {
     // Recursive RAG metrics (Deep Think mode)
     var isRecursiveRAG: Bool = false
     var recursiveCallCount: Int = 1
+
+    // Hybrid search weights (from RetrievalConfig - dynamic per query intent)
+    // Default: 40% vector / 60% lexical (favors keyword matching)
+    // Keyword queries: 25% / 75% | Conceptual queries: 55% / 45%
+    var vectorWeight: Double = 0.4
+    var lexicalWeight: Double = 0.6
+    var mmrLambda: Double = 0.6
 }
 
 // ChatV2 entry point (feature-flagged from ContentView)
@@ -148,6 +155,7 @@ struct ChatScreen: View {
                 if let metricsData = consolidatedMetricsData {
                     // For Deep Think, use live token counter during processing, final count after
                     let deepThinkTokens = isProcessing ? ragService.deepThinkLiveTokens : (ragService.lastAuditSnapshot?.totalTokensAcrossCalls ?? ragService.deepThinkLiveTokens)
+                    let audit = ragService.lastAuditSnapshot
 
                     UnifiedMetricsBar(
                         stage: stage,
@@ -171,6 +179,8 @@ struct ChatScreen: View {
                         toolCallCount: metricsData.toolCallCount,
                         modelName: metricsData.modelName,
                         requestedExecutionContext: requestedExecutionContext,
+                        vectorWeight: metricsData.vectorWeight,
+                        lexicalWeight: metricsData.lexicalWeight,
                         queryIntent: metricsData.queryIntent,
                         hierarchicalChunkingActive: metricsData.hierarchicalChunkingActive,
                         parentChunksUsed: metricsData.parentChunksUsed,
@@ -180,6 +190,35 @@ struct ChatScreen: View {
                         intentAwareWeightsActive: metricsData.intentAwareWeightsActive,
                         isRecursiveRAG: metricsData.isRecursiveRAG,
                         recursiveCallCount: metricsData.recursiveCallCount,
+                        // Full Transparency Dashboard data from audit snapshot
+                        totalStoredChunks: audit?.totalStoredChunks ?? 0,
+                        candidatesCount: audit?.candidatesCount ?? 0,
+                        rerankedCount: audit?.rerankedCount ?? 0,
+                        filteredCount: audit?.filteredCount ?? 0,
+                        droppedCount: audit?.droppedCount ?? 0,
+                        mmrSelectedCount: audit?.mmrSelectedCount ?? 0,
+                        uniqueDocCount: audit?.uniqueDocCount ?? 0,
+                        baseWindowTokens: audit?.baseWindowTokens ?? 0,
+                        safetyTokens: audit?.safetyTokens ?? 0,
+                        promptOverheadTokens: audit?.promptOverheadTokens ?? 0,
+                        questionTokens: audit?.questionTokens ?? 0,
+                        reservedOutputTokens: audit?.reservedOutputTokens ?? 0,
+                        availableContextTokens: audit?.availableContextTokens ?? 0,
+                        lenientRetrieval: audit?.lenientRetrieval ?? false,
+                        dynamicMinThreshold: audit?.dynamicMin ?? 0,
+                        topSimilarity: audit?.topSim ?? 0,
+                        secondSimilarity: audit?.secondSim ?? 0,
+                        avgTop5Similarity: audit?.avgTop5 ?? 0,
+                        acceptanceOverride: audit?.acceptanceOverride ?? false,
+                        containerName: audit?.containerName ?? "",
+                        embeddingDim: audit?.embeddingDim ?? 512,
+                        vectorDBKind: audit?.vectorDBKind.rawValue ?? "",
+                        chunkingTargetWords: audit?.chunkingTargetWords ?? 0,
+                        chunkingOverlapWords: audit?.chunkingOverlapWords ?? 0,
+                        contextStrategy: audit?.contextStrategy ?? "",
+                        embeddingElapsed: embeddingElapsedFinal ?? 0,
+                        searchElapsed: searchingElapsedFinal ?? 0,
+                        generationElapsed: generatingElapsedFinal ?? 0,
                         onTapDetails: !metricsData.isStreaming ? { showRetrievedDetails = true } : nil
                     )
                     .padding(.horizontal, 12)
@@ -189,6 +228,8 @@ struct ChatScreen: View {
                 } else if isProcessing || currentRetrievedChunks.count > 0 {
                     // Show minimal bar when processing starts (before generating)
                     let auditSnapshot = ragService.lastAuditSnapshot
+                    let minimalVectorWt = Double(auditSnapshot?.retrievalConfig.vectorWeight ?? 0.6)
+                    let minimalLexicalWt = Double(auditSnapshot?.retrievalConfig.lexicalWeight ?? 0.4)
                     UnifiedMetricsBar(
                         stage: stage,
                         execution: execution,
@@ -211,6 +252,8 @@ struct ChatScreen: View {
                         toolCallCount: 0,
                         modelName: inferredModelName,
                         requestedExecutionContext: requestedExecutionContext,
+                        vectorWeight: minimalVectorWt,
+                        lexicalWeight: minimalLexicalWt,
                         queryIntent: deriveQueryIntent(from: auditSnapshot?.retrievalConfig),
                         hierarchicalChunkingActive: auditSnapshot?.contextStrategy == "parent_expanded",
                         parentChunksUsed: 0,
@@ -220,6 +263,35 @@ struct ChatScreen: View {
                         intentAwareWeightsActive: true,
                         isRecursiveRAG: auditSnapshot?.isRecursiveRAG ?? (settings.ragQualityMode == .deepThink),
                         recursiveCallCount: auditSnapshot?.llmCallCount ?? 1,
+                        // Full Transparency Dashboard data from audit snapshot
+                        totalStoredChunks: auditSnapshot?.totalStoredChunks ?? 0,
+                        candidatesCount: auditSnapshot?.candidatesCount ?? 0,
+                        rerankedCount: auditSnapshot?.rerankedCount ?? 0,
+                        filteredCount: auditSnapshot?.filteredCount ?? 0,
+                        droppedCount: auditSnapshot?.droppedCount ?? 0,
+                        mmrSelectedCount: auditSnapshot?.mmrSelectedCount ?? 0,
+                        uniqueDocCount: auditSnapshot?.uniqueDocCount ?? 0,
+                        baseWindowTokens: auditSnapshot?.baseWindowTokens ?? 0,
+                        safetyTokens: auditSnapshot?.safetyTokens ?? 0,
+                        promptOverheadTokens: auditSnapshot?.promptOverheadTokens ?? 0,
+                        questionTokens: auditSnapshot?.questionTokens ?? 0,
+                        reservedOutputTokens: auditSnapshot?.reservedOutputTokens ?? 0,
+                        availableContextTokens: auditSnapshot?.availableContextTokens ?? 0,
+                        lenientRetrieval: auditSnapshot?.lenientRetrieval ?? false,
+                        dynamicMinThreshold: auditSnapshot?.dynamicMin ?? 0,
+                        topSimilarity: auditSnapshot?.topSim ?? 0,
+                        secondSimilarity: auditSnapshot?.secondSim ?? 0,
+                        avgTop5Similarity: auditSnapshot?.avgTop5 ?? 0,
+                        acceptanceOverride: auditSnapshot?.acceptanceOverride ?? false,
+                        containerName: auditSnapshot?.containerName ?? "",
+                        embeddingDim: auditSnapshot?.embeddingDim ?? 512,
+                        vectorDBKind: auditSnapshot?.vectorDBKind.rawValue ?? "",
+                        chunkingTargetWords: auditSnapshot?.chunkingTargetWords ?? 0,
+                        chunkingOverlapWords: auditSnapshot?.chunkingOverlapWords ?? 0,
+                        contextStrategy: auditSnapshot?.contextStrategy ?? "",
+                        embeddingElapsed: embeddingElapsedFinal ?? 0,
+                        searchElapsed: searchingElapsedFinal ?? 0,
+                        generationElapsed: generatingElapsedFinal ?? 0,
                         onTapDetails: nil
                     )
                     .padding(.horizontal, 12)
@@ -481,6 +553,12 @@ struct ChatScreen: View {
         let liveSteps = ragService.deepThinkLiveSteps
         let callCount = audit?.llmCallCount ?? (isRecursive ? liveSteps : 1)
 
+        // Extract actual search weights from RetrievalConfig (dynamic per query intent)
+        let retrievalConfig = audit?.retrievalConfig
+        let vectorWt = Double(retrievalConfig?.vectorWeight ?? 0.6)
+        let lexicalWt = Double(retrievalConfig?.lexicalWeight ?? 0.4)
+        let mmrLambdaVal = Double(retrievalConfig?.mmrLambda ?? 0.6)
+
         // Case 1: Currently streaming
         if isProcessing, stage == .generating, !streamingText.isEmpty, generationStart != nil {
             return ConsolidatedMetrics(
@@ -497,13 +575,16 @@ struct ChatScreen: View {
                 isStreaming: true,
                 hierarchicalChunkingActive: isHierarchical,
                 parentChunksUsed: isHierarchical ? (audit?.contextChunksUsed ?? 0) : 0,
-                siblingChunksAdded: 0, // Would need tracking in RAGService
-                    graphExpansionActive: settings.ragQualityMode == .deepThink,
-                graphEntitiesExtracted: 0, // Would need tracking
-                    intentAwareWeightsActive: true,
+                siblingChunksAdded: 0,
+                graphExpansionActive: settings.ragQualityMode == .deepThink,
+                graphEntitiesExtracted: 0,
+                intentAwareWeightsActive: true,
                 queryIntent: queryIntentName,
                 isRecursiveRAG: isRecursive,
-                recursiveCallCount: callCount
+                recursiveCallCount: callCount,
+                vectorWeight: vectorWt,
+                lexicalWeight: lexicalWt,
+                mmrLambda: mmrLambdaVal
             )
         }
 
@@ -529,7 +610,10 @@ struct ChatScreen: View {
                 intentAwareWeightsActive: true,
                 queryIntent: queryIntentName,
                 isRecursiveRAG: isRecursive,
-                recursiveCallCount: callCount
+                recursiveCallCount: callCount,
+                vectorWeight: vectorWt,
+                lexicalWeight: lexicalWt,
+                mmrLambda: mmrLambdaVal
             )
         }
 
@@ -734,25 +818,23 @@ struct ChatScreen: View {
     // MARK: - Active-container counts
 
     private func recalcActiveCounts() async {
-        let (activeId, defaultId, docsSnapshot) = await MainActor.run {
-            (
-                ragService.containerService.activeContainerId,
-                ragService.containerService.containers.first?.id,
-                ragService.documents
-            )
-        }
-        // Match Visualizations/Documents parity for legacy docs
-        let docsForActive = docsSnapshot.filter { doc in
-            if let cid = doc.containerId {
-                return cid == activeId
-            } else {
-                return activeId == defaultId
-            }
-        }
-        let chunksForActive = await ragService.allChunksForActiveContainer()
         await MainActor.run {
+            let activeId = ragService.containerService.activeContainerId
+            let defaultId = ragService.containerService.containers.first?.id
+
+            // Match Visualizations/Documents parity for legacy docs
+            let docsForActive = ragService.documents.filter { doc in
+                if let cid = doc.containerId {
+                    return cid == activeId
+                } else {
+                    return activeId == defaultId
+                }
+            }
+
+            // Use document.totalChunks sum - reactive since $documents is @Published
+            // This avoids async database queries that might return stale data
             self.activeDocCount = docsForActive.count
-            self.activeChunkCount = chunksForActive.count
+            self.activeChunkCount = docsForActive.reduce(0) { $0 + $1.totalChunks }
         }
     }
 
@@ -1218,7 +1300,9 @@ struct ChatScreen: View {
         // Reset and start processing
         isProcessing = true
         stage = .embedding
-        execution = .unknown
+        // For Apple Intelligence, assume on-device initially (the common case)
+        // We'll update to .privateCloudCompute if TTFT indicates PCC was used
+        execution = settings.selectedModel == .appleIntelligence ? .onDevice : .unknown
         ttft = nil
 
         // Capture values for async task (query may be clarified asynchronously)
@@ -1357,10 +1441,14 @@ struct ChatScreen: View {
                 }
 
                 // Update execution badge based on TTFT heuristic
+                // Only upgrade to PCC if TTFT indicates cloud latency (>1s)
                 if let first = response.metadata.timeToFirstToken {
                     await MainActor.run {
                         self.ttft = first
-                        self.execution = first < 1.0 ? .onDevice : .privateCloudCompute
+                        // If TTFT > 1 second, it likely went through PCC
+                        if first >= 1.0 {
+                            self.execution = .privateCloudCompute
+                        }
                         // TTFT shown in StatusPill - no toast needed
                     }
                 }

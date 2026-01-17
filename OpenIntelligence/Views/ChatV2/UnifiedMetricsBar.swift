@@ -78,10 +78,10 @@ struct UnifiedMetricsBar: View {
 
     // RAG Pipeline Intelligence (optional - shows when available)
     var retrievalMode: RetrievalMode = .hybrid
-    var mmrDiversity: Double = 0.7
+    var mmrDiversity: Double = 0.6
     var semanticChunksUsed: Bool = true
-    var vectorWeight: Double = 0.65
-    var lexicalWeight: Double = 0.35
+    var vectorWeight: Double = 0.4  // Default matches RetrievalConfig.default
+    var lexicalWeight: Double = 0.6 // Slightly favor BM25 for keyword queries
 
     // NEW: Real-time query understanding (set from RAGService thinking events)
     var originalQuery: String = ""
@@ -106,6 +106,47 @@ struct UnifiedMetricsBar: View {
     var isRecursiveRAG: Bool = false
     /// Number of LLM calls made in recursive mode
     var recursiveCallCount: Int = 0
+
+    // MARK: - Full Transparency Dashboard Data (from RAGAuditSnapshot)
+    // These provide the "watching the gears turn" granular view users want
+
+    // Pipeline Journey: Chunk Selection Funnel
+    var totalStoredChunks: Int = 0      // Total chunks in vector DB
+    var candidatesCount: Int = 0        // Initial retrieval candidates
+    var rerankedCount: Int = 0          // After reranking
+    var filteredCount: Int = 0          // After similarity filtering
+    var droppedCount: Int = 0           // Chunks dropped (low quality)
+    var mmrSelectedCount: Int = 0       // After MMR diversity selection
+    var uniqueDocCount: Int = 0         // Unique documents in final set
+
+    // Token Budget Allocation
+    var baseWindowTokens: Int = 0       // Model's base context window
+    var safetyTokens: Int = 0           // Safety margin reserved
+    var promptOverheadTokens: Int = 0   // System prompt + framing
+    var questionTokens: Int = 0         // User query tokens
+    var reservedOutputTokens: Int = 0   // Reserved for response
+    var availableContextTokens: Int = 0 // What's left for RAG context
+
+    // Confidence & Quality Metrics
+    var lenientRetrieval: Bool = false  // Using relaxed thresholds
+    var dynamicMinThreshold: Float = 0  // Computed minimum similarity
+    var topSimilarity: Float = 0        // Best match score
+    var secondSimilarity: Float = 0     // Second-best score
+    var avgTop5Similarity: Float = 0    // Average of top 5
+    var acceptanceOverride: Bool = false // Forced acceptance
+
+    // Library Context
+    var containerName: String = ""      // Active library name
+    var embeddingDim: Int = 512         // Embedding dimensions
+    var vectorDBKind: String = ""       // Vector DB type (HNSW, JSON, etc.)
+    var chunkingTargetWords: Int = 0    // Target words per chunk
+    var chunkingOverlapWords: Int = 0   // Overlap between chunks
+    var contextStrategy: String = ""    // Chunking strategy used
+
+    // Per-Stage Timing
+    var embeddingElapsed: TimeInterval = 0
+    var searchElapsed: TimeInterval = 0
+    var generationElapsed: TimeInterval = 0
 
     // Callbacks
     var onTapDetails: (() -> Void)?
@@ -190,10 +231,11 @@ struct UnifiedMetricsBar: View {
 
     private var mainCompactStrip: some View {
         VStack(spacing: 6) {
-            // Top row: Key badges with horizontal scroll for overflow
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) {
-                    // Execution location (with model name if available)
+            // Top row: Key badges - no scroll, compact layout
+            HStack(spacing: 5) {
+                // Left group: Hardware & quality badges
+                HStack(spacing: 4) {
+                    // Neural Engine badge - ALWAYS show (it's your device's hardware!)
                     executionBadge
 
                     qualityBadge
@@ -203,60 +245,71 @@ struct UnifiedMetricsBar: View {
                         advancedRAGBadge
                     }
 
-                    // Stage indicator (when actively processing)
-                    if isProcessing, stage != .idle, stage != .complete {
-                        stageBadge
-                    }
-
                     // System state indicator (thermal/battery/memory warning)
                     systemStateBadge
-
-                    Spacer(minLength: 8)
-
-                    // Right-aligned metrics
-                    HStack(spacing: 6) { 
-                        // Context gauge (always visible)
-                        contextGauge
-
-                        // Speed (during generation or after completion)
-                        if tokensGenerated > 0 || isProcessing {
-                            speedBadge
-                        }
-
-                        // Sources (when we have them)
-                        if sourceCount > 0 {
-                            sourcesBadge
-                        }
-
-                        // Expand chevron
-                        Image(systemName: showExpandedDetails ? "chevron.up" : "chevron.down")
-                            .font(.system(size: 9, weight: .semibold))
-                            .foregroundStyle(.secondary.opacity(0.7))
-                    }
                 }
-                .padding(.horizontal, 2)
+
+                Spacer(minLength: 4)
+
+                // Right group: Metrics (tighter spacing)
+                HStack(spacing: 4) {
+                    // Context gauge (always visible)
+                    contextGauge
+
+                    // Speed (during generation or after completion)
+                    if tokensGenerated > 0 || isProcessing {
+                        speedBadge
+                    }
+
+                    // Sources (when we have them)
+                    if sourceCount > 0 {
+                        sourcesBadge
+                    }
+
+                    // Expand chevron
+                    Image(systemName: showExpandedDetails ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.secondary.opacity(0.7))
+                }
             }
 
             // Bottom row: Live generation stats (only during/after generation)
             if tokensGenerated > 0 {
-                HStack(spacing: 8) {
-                    // Token count
-                    microMetric(icon: "number", value: "\(tokensGenerated)", label: "tokens")
+                HStack(spacing: 10) {
+                    // Generated tokens (LLM output)
+                    HStack(spacing: 3) {
+                        Image(systemName: "arrow.up.doc")
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(.green)
+                        Text(formatTokenCount(tokensGenerated))
+                            .font(.system(size: 11, weight: .bold, design: .monospaced))
+                            .foregroundStyle(.primary)
+                    }
 
                     // Character count
-                    microMetric(icon: "text.alignleft", value: formatCount(characterCount), label: "chars")
+                    HStack(spacing: 3) {
+                        Image(systemName: "character.cursor.ibeam")
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(.secondary)
+                        Text(formatCount(characterCount))
+                            .font(.system(size: 10, weight: .medium, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                    }
 
-                    // Elapsed time with status icon
-                    microMetric(
-                        icon: isProcessing ? "clock" : "checkmark.circle.fill",
-                        value: formatElapsed(elapsedTime),
-                        label: ""
-                    )
+                    // Elapsed time with status indicator
+                    HStack(spacing: 3) {
+                        Image(systemName: isProcessing ? "clock" : "checkmark.circle.fill")
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(isProcessing ? .orange : .green)
+                        Text(formatElapsed(elapsedTime))
+                            .font(.system(size: 10, weight: .medium, design: .monospaced))
+                            .foregroundStyle(isProcessing ? .orange : .green)
+                    }
 
                     // Sparkline (only during active streaming with history)
                     if isProcessing && speedHistory.count > 2 {
                         MiniSparkline(values: speedHistory, color: speedColor)
-                            .frame(width: 44, height: 14)
+                            .frame(width: 40, height: 12)
                     }
 
                     Spacer()
@@ -268,8 +321,8 @@ struct UnifiedMetricsBar: View {
                 }
             }
         }
-        .padding(.vertical, 8)
-        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .padding(.horizontal, 10)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(.ultraThinMaterial)
@@ -279,13 +332,16 @@ struct UnifiedMetricsBar: View {
 
     // MARK: - Badges
 
+    /// Clean execution badge showing Neural Engine or PCC with real chip specs
     private var executionBadge: some View {
-        HStack(spacing: 4) {
+        let device = DeviceCapabilityService.shared
+
+        return HStack(spacing: 4) {
             ZStack {
                 // Pulse animation during generation
                 if isProcessing && stage == .generating {
                     Circle()
-                        .fill(execution.color.opacity(0.3))
+                        .fill(executionBadgeColor.opacity(0.3))
                         .frame(width: 18, height: 18)
                         .scaleEffect(pulsePhase)
                         .opacity(Double(1.0 - pulsePhase * 0.5))
@@ -296,15 +352,30 @@ struct UnifiedMetricsBar: View {
                         }
                 }
 
-                Image(systemName: execution.icon)
+                Image(systemName: executionBadgeIcon)
                     .font(.system(size: 10, weight: .semibold))
             }
 
-            Text(executionLabel)
+            // Clean label: "Neural Engine" for on-device, "PCC" for cloud
+            Text(executionBadgeLabel)
                 .font(.system(size: 10, weight: .semibold))
 
-            // TTFT when available
-            if let t = ttft {
+            // Chip specs for on-device (e.g., "A18 Pro • 38T")
+            if execution == .onDevice || execution == .mlxLocal || (execution == .unknown && !isProcessing) {
+                Text("•")
+                    .font(.system(size: 5))
+                    .opacity(0.4)
+                Text("\(device.chipName)")
+                    .font(.system(size: 9, weight: .medium))
+                    .opacity(0.8)
+                // Show Neural Engine TOPS for visual confirmation
+                Text("\(device.npuTops)T")
+                    .font(.system(size: 8, weight: .medium, design: .monospaced))
+                    .opacity(0.6)
+            }
+
+            // TTFT when available (only during processing)
+            if isProcessing, let t = ttft {
                 Text("•")
                     .font(.system(size: 5))
                     .opacity(0.5)
@@ -312,10 +383,10 @@ struct UnifiedMetricsBar: View {
                     .font(.system(size: 9, weight: .medium, design: .monospaced))
             }
         }
-        .foregroundStyle(execution.color)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
-        .background(execution.color.opacity(0.12))
+        .foregroundStyle(executionBadgeColor)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
+        .background(executionBadgeColor.opacity(0.12))
         .clipShape(Capsule())
         .onChange(of: isProcessing) { _, newValue in
             if !newValue {
@@ -324,14 +395,27 @@ struct UnifiedMetricsBar: View {
         }
     }
 
-    private var executionLabel: String {
+    private var executionBadgeIcon: String {
         switch execution {
-        case .onDevice: return "Device"
-        case .privateCloudCompute: return "PCC"
-        case .mlxLocal: return "MLX"
-        case .unknown:
-            if let t = ttft, t < 0.5 { return "Device" }
-            return "..."
+        case .onDevice, .unknown: return "cpu"  // Neural Engine icon
+        case .privateCloudCompute: return "cloud.fill"
+        case .mlxLocal: return "desktopcomputer"
+        }
+    }
+
+    private var executionBadgeLabel: String {
+        switch execution {
+        case .onDevice, .unknown: return "Neural Engine"
+        case .privateCloudCompute: return "Private Cloud"
+        case .mlxLocal: return "MLX Local"
+        }
+    }
+
+    private var executionBadgeColor: Color {
+        switch execution {
+        case .onDevice, .unknown: return .green  // On-device is always green (private)
+        case .privateCloudCompute: return .blue
+        case .mlxLocal: return .indigo
         }
     }
 
@@ -373,46 +457,56 @@ struct UnifiedMetricsBar: View {
     }
 
     private var contextGauge: some View {
-        // For recursive RAG (Deep Think), show multi-window indicator
+        // For Deep Think: Context window is IRRELEVANT - we chain multiple sessions
+        // Just show total tokens used across all sessions
         if isRecursiveRAG {
             return AnyView(
-                HStack(spacing: 3) {
-                    // Show stacked windows icon to indicate multiple context windows
-                    Image(systemName: "square.3.layers.3d")
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.trianglehead.branch")
                         .font(.system(size: 10, weight: .semibold))
+
+                    // Show sessions count (this is what matters)
+                    if recursiveCallCount > 0 {
+                        Text("\(recursiveCallCount)×")
+                            .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    }
+
+                    // Total tokens (summed across all sessions)
                     if contextTokens > 0 {
                         Text(formatTokenCount(contextTokens))
-                            .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                    }
-                    if recursiveCallCount > 0 {
-                        Text("•")
-                            .font(.system(size: 4))
-                            .opacity(0.5)
-                        Text(recursiveCallCount == 0 ? "thinking..." : "\(recursiveCallCount)× 4K")
-                            .font(.system(size: 8, weight: .medium))
+                            .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    } else {
+                        Text("...")
+                            .font(.system(size: 9, weight: .medium))
                     }
                 }
                 .foregroundStyle(.cyan)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(Color.cyan.opacity(0.12))
+                .clipShape(Capsule())
             )
         }
 
-        // Standard mode: show percentage gauge
+        // Standard mode: show token count with context-appropriate icon
+        // Using doc.viewfinder to represent "retrieved context"
         return AnyView(
-            HStack(spacing: 4) {
-                ZStack {
-                    Circle()
-                        .stroke(Color.secondary.opacity(0.2), lineWidth: 2)
-                    Circle()
-                        .trim(from: 0, to: contextUsageRatio)
-                        .stroke(contextColor, style: StrokeStyle(lineWidth: 2, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
+            HStack(spacing: 3) {
+                Image(systemName: "doc.viewfinder")
+                    .font(.system(size: 9, weight: .semibold))
+                if contextTokens > 0 {
+                    Text(formatTokenCount(contextTokens))
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                } else {
+                    Text("—")
+                        .font(.system(size: 9, weight: .medium))
                 }
-                .frame(width: 14, height: 14)
-
-                Text("\(Int(contextUsageRatio * 100))%")
-                    .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(contextColor)
             }
+            .foregroundStyle(contextColor)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 3)
+            .background(contextColor.opacity(0.1))
+            .clipShape(Capsule())
         )
     }
 
@@ -427,38 +521,32 @@ struct UnifiedMetricsBar: View {
     }
 
     private var speedBadge: some View {
-        HStack(spacing: 3) {
+        HStack(spacing: 2) {
             Image(systemName: "bolt.fill")
                 .font(.system(size: 8, weight: .semibold))
-            Text(String(format: "%.1f", tokensPerSecond))
+            Text(String(format: "%.0f", tokensPerSecond))
                 .font(.system(size: 9, weight: .semibold, design: .monospaced))
             Text("t/s")
                 .font(.system(size: 7, weight: .medium))
                 .opacity(0.7)
         }
         .foregroundStyle(speedColor)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 5)
+        .padding(.vertical, 3)
         .background(speedColor.opacity(0.1))
         .clipShape(Capsule())
     }
 
     private var sourcesBadge: some View {
-        HStack(spacing: 3) {
-            // Quality indicator dot
-            Circle()
-                .fill(sourceQualityColor)
-                .frame(width: 5, height: 5)
-
-            Image(systemName: "doc.text.fill")
+        HStack(spacing: 2) {
+            Image(systemName: "quote.bubble.fill")
                 .font(.system(size: 8, weight: .semibold))
-
             Text("\(sourceCount)")
-                .font(.system(size: 9, weight: .semibold))
+                .font(.system(size: 9, weight: .bold))
         }
         .foregroundStyle(sourceQualityColor)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 5)
+        .padding(.vertical, 3)
         .background(sourceQualityColor.opacity(0.12))
         .clipShape(Capsule())
     }
@@ -574,34 +662,15 @@ struct UnifiedMetricsBar: View {
         let state = systemMonitor.currentState
         let thermalColor = systemStateThermalColor(state.thermalState)
 
-        // Only show if there's something notable (not all nominal)
-        if state.hasWarning || state.hasCritical || showExpandedDetails {
-            HStack(spacing: 3) {
-                // Thermal icon
-                Image(systemName: SystemStateMonitor.thermalIcon(for: state.thermalState))
-                    .font(.system(size: 8, weight: .semibold))
-
-                // Show battery if low or charging
-                if state.isCharging || state.batteryLevel < 0.25 {
-                    Text("•")
-                        .font(.system(size: 4))
-                        .opacity(0.5)
-                    Image(systemName: SystemStateMonitor.batteryIcon(level: state.batteryLevel, isCharging: state.isCharging))
-                        .font(.system(size: 8, weight: .semibold))
-                }
-
-                // Show optimization level if not full
-                if state.optimizationLevel != .full {
-                    Text(state.optimizationLevel.displayName.prefix(3))
-                        .font(.system(size: 7, weight: .bold))
-                }
-            }
-            .foregroundStyle(thermalColor)
-            .padding(.horizontal, 5)
-            .padding(.vertical, 3)
-            .background(thermalColor.opacity(0.12))
-            .clipShape(Capsule())
+        // Always show thermal indicator (it's useful info about device state)
+        HStack(spacing: 2) {
+            Image(systemName: SystemStateMonitor.thermalIcon(for: state.thermalState))
+                .font(.system(size: 9, weight: .semibold))
         }
+        .foregroundStyle(thermalColor)
+        .padding(4)
+        .background(thermalColor.opacity(0.1))
+        .clipShape(Circle())
     }
 
     private func systemStateThermalColor(_ thermal: ProcessInfo.ThermalState) -> Color {
@@ -650,37 +719,539 @@ struct UnifiedMetricsBar: View {
 
     private var expandedDetailsPanel: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 14) { 
-                // Section 1: Query Understanding (NEW - most important for user insight)
+            VStack(alignment: .leading, spacing: 14) {
+                // Section 1: Library Context (what knowledge base)
+                if !containerName.isEmpty {
+                    libraryContextSection
+                }
+
+                // Section 2: Query Understanding
                 if !originalQuery.isEmpty || stage == .embedding || stage == .searching {
                     queryUnderstandingSection
                 }
 
-                // Section 2: Where It's Running
+                // Section 3: Pipeline Journey (the funnel)
+                if candidatesCount > 0 || totalStoredChunks > 0 {
+                    pipelineJourneySection
+                }
+
+                // Section 4: Token Budget (allocation breakdown)
+                if baseWindowTokens > 0 {
+                    tokenBudgetSection
+                }
+
+                // Section 5: Where It's Running
                 whereRunningSection
 
-                // Section 3: Search Results & Quality
+                // Section 6: Search Results & Quality
                 if sourceCount > 0 || totalDocuments > 0 {
                     searchResultsSection
                 }
 
-                // Section 4: How Smart It's Being (retrieval strategy)
+                // Section 7: Confidence & Quality Metrics
+                if topSimilarity > 0 {
+                    confidenceMetricsSection
+                }
+
+                // Section 8: How Smart It's Being (retrieval strategy)
                 if sourceCount > 0 || stage == .searching || stage == .embedding {
                     searchStrategySection
                 }
 
-                // Section 5: Device Health (compact, only notable states)
+                // Section 9: Timing Breakdown
+                if embeddingElapsed > 0 || searchElapsed > 0 || generationElapsed > 0 || elapsedTime > 0 {
+                    timingBreakdownSection
+                }
+
+                // Section 10: Device Health (compact, only notable states)
                 deviceHealthSection
             }
         }
-        .frame(maxHeight: 400) // Allow scrolling for rich content
+        .frame(maxHeight: 500) // Allow more scrolling for rich content
         .padding(14)
         .background(Color(uiColor: .secondarySystemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .padding(.top, 4)
     }
 
-    // MARK: - Section: Query Understanding (NEW)
+    // MARK: - Section: Library Context (NEW)
+
+    private var libraryContextSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "books.vertical.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.teal)
+                Text("Knowledge Base")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                // Library name
+                HStack(spacing: 8) {
+                    Text(containerName)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.primary)
+
+                    Spacer()
+
+                    // Chunk stats
+                    HStack(spacing: 4) {
+                        Image(systemName: "square.stack.3d.up.fill")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.teal)
+                        Text("\(totalStoredChunks) chunks")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                // Technical specs row
+                HStack(spacing: 12) {
+                    if embeddingDim > 0 {
+                        HStack(spacing: 3) {
+                            Image(systemName: "cube.fill")
+                                .font(.system(size: 9))
+                            Text("\(embeddingDim)-dim")
+                                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        }
+                        .foregroundStyle(.secondary)
+                    }
+
+                    if !vectorDBKind.isEmpty {
+                        HStack(spacing: 3) {
+                            Image(systemName: "cylinder.fill")
+                                .font(.system(size: 9))
+                            Text(vectorDBKind)
+                                .font(.system(size: 10, weight: .medium))
+                        }
+                        .foregroundStyle(.secondary)
+                    }
+
+                    if chunkingTargetWords > 0 {
+                        HStack(spacing: 3) {
+                            Image(systemName: "text.justify.left")
+                                .font(.system(size: 9))
+                            Text("~\(chunkingTargetWords)w/chunk")
+                                .font(.system(size: 10, weight: .medium))
+                        }
+                        .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .padding(10)
+            .background(Color.teal.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+        }
+    }
+
+    // MARK: - Section: Pipeline Journey (NEW - Chunk Funnel)
+
+    private var pipelineJourneySection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.down.right.circle.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.cyan)
+                Text("Pipeline Journey")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+
+                Text("chunk selection funnel")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.tertiary)
+            }
+
+            // Visual funnel
+            VStack(spacing: 4) {
+                pipelineFunnelRow(
+                    label: "Vector Store",
+                    count: totalStoredChunks,
+                    icon: "cylinder.fill",
+                    color: .gray,
+                    widthRatio: 1.0
+                )
+
+                if candidatesCount > 0 {
+                    pipelineFunnelRow(
+                        label: "Retrieved",
+                        count: candidatesCount,
+                        icon: "magnifyingglass",
+                        color: .blue,
+                        widthRatio: min(1.0, Double(candidatesCount) / max(1, Double(totalStoredChunks)) * 20)
+                    )
+                }
+
+                if rerankedCount > 0 && rerankedCount != candidatesCount {
+                    pipelineFunnelRow(
+                        label: "Reranked",
+                        count: rerankedCount,
+                        icon: "arrow.up.arrow.down",
+                        color: .purple,
+                        widthRatio: candidatesCount > 0 ? Double(rerankedCount) / Double(candidatesCount) : 0.8
+                    )
+                }
+
+                if filteredCount > 0 {
+                    pipelineFunnelRow(
+                        label: "Quality Filtered",
+                        count: filteredCount,
+                        icon: "line.3.horizontal.decrease",
+                        color: .orange,
+                        widthRatio: candidatesCount > 0 ? Double(filteredCount) / Double(candidatesCount) : 0.6
+                    )
+                }
+
+                if mmrSelectedCount > 0 {
+                    pipelineFunnelRow(
+                        label: "MMR Diversified",
+                        count: mmrSelectedCount,
+                        icon: "shuffle",
+                        color: .green,
+                        widthRatio: candidatesCount > 0 ? Double(mmrSelectedCount) / Double(candidatesCount) : 0.4
+                    )
+                }
+
+                // Final usage
+                pipelineFunnelRow(
+                    label: "Used in Prompt",
+                    count: sourceCount,
+                    icon: "checkmark.circle.fill",
+                    color: .green,
+                    widthRatio: candidatesCount > 0 ? Double(sourceCount) / Double(candidatesCount) : 0.3,
+                    isHighlighted: true
+                )
+
+                if droppedCount > 0 {
+                    HStack(spacing: 4) {
+                        Image(systemName: "xmark.circle")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.red.opacity(0.6))
+                        Text("\(droppedCount) dropped (low similarity)")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.red.opacity(0.6))
+                    }
+                    .padding(.top, 4)
+                }
+
+                if uniqueDocCount > 0 {
+                    HStack(spacing: 4) {
+                        Image(systemName: "doc.on.doc.fill")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.secondary)
+                        Text("from \(uniqueDocCount) unique documents")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.top, 2)
+                }
+            }
+            .padding(10)
+            .background(Color.cyan.opacity(0.06))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+        }
+    }
+
+    private func pipelineFunnelRow(
+        label: String,
+        count: Int,
+        icon: String,
+        color: Color,
+        widthRatio: Double,
+        isHighlighted: Bool = false
+    ) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(color)
+                .frame(width: 14)
+
+            Text(label)
+                .font(.system(size: 10, weight: isHighlighted ? .semibold : .regular))
+                .foregroundStyle(isHighlighted ? .primary : .secondary)
+                .frame(width: 90, alignment: .leading)
+
+            GeometryReader { geo in
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(color.opacity(isHighlighted ? 1.0 : 0.6))
+                    .frame(width: max(4, geo.size.width * min(1.0, max(0.1, widthRatio))))
+            }
+            .frame(height: 6)
+
+            Text("\(count)")
+                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                .foregroundStyle(color)
+                .frame(width: 40, alignment: .trailing)
+        }
+    }
+
+    // MARK: - Section: Token Budget (NEW)
+
+    private var tokenBudgetSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: "chart.pie.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.mint)
+                Text("Token Budget")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+
+                Text("\(baseWindowTokens) window")
+                    .font(.system(size: 9, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+            }
+
+            VStack(spacing: 6) {
+                tokenBudgetRow(label: "Base Window", value: baseWindowTokens, color: .gray, isTotal: true)
+                tokenBudgetRow(label: "− Safety Margin", value: -safetyTokens, color: .red)
+                tokenBudgetRow(label: "− Prompt Overhead", value: -promptOverheadTokens, color: .orange)
+                tokenBudgetRow(label: "− Question Tokens", value: -questionTokens, color: .purple)
+                tokenBudgetRow(label: "− Reserved Output", value: -reservedOutputTokens, color: .blue)
+
+                Divider()
+
+                tokenBudgetRow(label: "= Available for Context", value: availableContextTokens, color: .green, isResult: true)
+                tokenBudgetRow(label: "  Actually Used", value: contextTokens, color: .teal, isHighlighted: true)
+            }
+            .padding(10)
+            .background(Color.mint.opacity(0.06))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+        }
+    }
+
+    private func tokenBudgetRow(
+        label: String,
+        value: Int,
+        color: Color,
+        isTotal: Bool = false,
+        isResult: Bool = false,
+        isHighlighted: Bool = false
+    ) -> some View {
+        HStack {
+            Text(label)
+                .font(.system(size: 10, weight: isResult || isHighlighted ? .semibold : .regular))
+                .foregroundStyle(isResult || isHighlighted ? .primary : .secondary)
+
+            Spacer()
+
+            Text(value >= 0 ? "\(value)" : "\(abs(value))")
+                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                .foregroundStyle(color)
+        }
+    }
+
+    // MARK: - Section: Confidence Metrics (NEW)
+
+    private var confidenceMetricsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: "gauge.with.dots.needle.33percent")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.yellow)
+                Text("Confidence & Quality")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+
+                if lenientRetrieval {
+                    HStack(spacing: 3) {
+                        Image(systemName: "hand.thumbsup.fill")
+                            .font(.system(size: 9))
+                        Text("Lenient")
+                            .font(.system(size: 9, weight: .medium))
+                    }
+                    .foregroundStyle(.orange)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(Color.orange.opacity(0.12))
+                    .clipShape(Capsule())
+                }
+            }
+
+            VStack(spacing: 8) {
+                // Similarity scores
+                HStack(spacing: 16) {
+                    VStack(alignment: .center, spacing: 2) {
+                        Text(String(format: "%.1f%%", topSimilarity * 100))
+                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                            .foregroundStyle(similarityColor(topSimilarity))
+                        Text("Top Match")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity)
+
+                    if secondSimilarity > 0 {
+                        VStack(alignment: .center, spacing: 2) {
+                            Text(String(format: "%.1f%%", secondSimilarity * 100))
+                                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                .foregroundStyle(similarityColor(secondSimilarity))
+                            Text("2nd Best")
+                                .font(.system(size: 9))
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+
+                    if avgTop5Similarity > 0 {
+                        VStack(alignment: .center, spacing: 2) {
+                            Text(String(format: "%.1f%%", avgTop5Similarity * 100))
+                                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                .foregroundStyle(similarityColor(avgTop5Similarity))
+                            Text("Avg Top 5")
+                                .font(.system(size: 9))
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                }
+
+                // Threshold info
+                if dynamicMinThreshold > 0 {
+                    HStack(spacing: 6) {
+                        Image(systemName: "line.horizontal.3.decrease")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                        Text("Dynamic threshold: \(String(format: "%.1f%%", dynamicMinThreshold * 100))")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+
+                        if acceptanceOverride {
+                            Text("• Override active")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundStyle(.orange)
+                        }
+                    }
+                }
+            }
+            .padding(10)
+            .background(Color.yellow.opacity(0.06))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+        }
+    }
+
+    private func similarityColor(_ similarity: Float) -> Color {
+        if similarity >= 0.8 { return .green }
+        if similarity >= 0.6 { return .blue }
+        if similarity >= 0.4 { return .orange }
+        return .red
+    }
+
+    // MARK: - Section: Timing Breakdown (NEW)
+
+    private var timingBreakdownSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: "clock.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.pink)
+                Text("Timing Breakdown")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+
+                let totalTime = embeddingElapsed + searchElapsed + max(generationElapsed, elapsedTime)
+                if totalTime > 0 {
+                    Text(String(format: "%.1fs total", totalTime))
+                        .font(.system(size: 9, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+
+            VStack(spacing: 6) {
+                // Visual timeline
+                let total = embeddingElapsed + searchElapsed + max(generationElapsed, elapsedTime)
+                if total > 0 {
+                    GeometryReader { geo in
+                        HStack(spacing: 1) {
+                            if embeddingElapsed > 0 {
+                                RoundedRectangle(cornerRadius: 2)
+                                    .fill(Color.blue)
+                                    .frame(width: geo.size.width * CGFloat(embeddingElapsed / total))
+                            }
+                            if searchElapsed > 0 {
+                                RoundedRectangle(cornerRadius: 2)
+                                    .fill(Color.purple)
+                                    .frame(width: geo.size.width * CGFloat(searchElapsed / total))
+                            }
+                            let genTime = max(generationElapsed, elapsedTime)
+                            if genTime > 0 {
+                                RoundedRectangle(cornerRadius: 2)
+                                    .fill(Color.green)
+                                    .frame(width: geo.size.width * CGFloat(genTime / total))
+                            }
+                        }
+                    }
+                    .frame(height: 8)
+                    .background(Color.gray.opacity(0.2), in: RoundedRectangle(cornerRadius: 2))
+                }
+
+                // Legend
+                HStack(spacing: 16) {
+                    if embeddingElapsed > 0 {
+                        HStack(spacing: 4) {
+                            Circle().fill(Color.blue).frame(width: 8, height: 8)
+                            Text("Embed: \(formatDuration(embeddingElapsed))")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    if searchElapsed > 0 {
+                        HStack(spacing: 4) {
+                            Circle().fill(Color.purple).frame(width: 8, height: 8)
+                            Text("Search: \(formatDuration(searchElapsed))")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    let genTime = max(generationElapsed, elapsedTime)
+                    if genTime > 0 {
+                        HStack(spacing: 4) {
+                            Circle().fill(Color.green).frame(width: 8, height: 8)
+                            Text("Generate: \(formatDuration(genTime))")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                // TTFT if available
+                if let ttft = ttft, ttft > 0 {
+                    HStack(spacing: 4) {
+                        Image(systemName: "bolt.fill")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.yellow)
+                        Text("Time to first token: \(formatDuration(ttft))")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .padding(10)
+            .background(Color.pink.opacity(0.06))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+        }
+    }
+
+    private func formatDuration(_ seconds: TimeInterval) -> String {
+        if seconds < 1 {
+            return String(format: "%.0fms", seconds * 1000)
+        } else {
+            return String(format: "%.1fs", seconds)
+        }
+    }
+
+    // MARK: - Section: Query Understanding
 
     private var queryUnderstandingSection: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -1202,7 +1773,7 @@ struct UnifiedMetricsBar: View {
                 // Context usage (visual + text)
                 VStack(alignment: .trailing, spacing: 6) {
                     // Context bar with smart label
-                    VStack(alignment: .trailing, spacing: 4) { 
+                    VStack(alignment: .trailing, spacing: 4) {
                         HStack(spacing: 4) {
                             if hierarchicalChunkingActive {
                                 Image(systemName: "rectangle.3.group")
@@ -1215,7 +1786,7 @@ struct UnifiedMetricsBar: View {
                         }
 
                         HStack(spacing: 6) {
-                            ZStack(alignment: .leading) { 
+                            ZStack(alignment: .leading) {
                                 RoundedRectangle(cornerRadius: 4)
                                     .fill(Color.secondary.opacity(0.2))
 .frame(width: 70, height: 8)
@@ -1252,29 +1823,30 @@ RoundedRectangle(cornerRadius: 4)
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
-    private var executionExplanationFull: String { 
+    private var executionExplanationFull: String {
+        let device = DeviceCapabilityService.shared
         switch execution {
         case .onDevice:
-            return "Running privately on your device's Neural Engine – no data leaves your phone"
+            return "\(device.chipName) Neural Engine • \(device.npuTops) TOPS"
         case .privateCloudCompute:
-            return "Using Apple's Private Cloud Compute – encrypted processing on attested Apple Silicon servers"
+            return "Private Cloud Compute • Encrypted"
         case .mlxLocal:
-            return "Running locally with MLX acceleration on Apple Silicon for fast on-device inference"
+            return "\(device.chipName) MLX • Local"
         case .unknown:
-            return "Determining optimal processing location..."
+            return "\(device.chipName) Neural Engine"
         }
     }
 
     private var privacyExplanation: String {
         switch execution {
         case .onDevice:
-            return "Your data never leaves this device"
+            return "On-device only"
         case .privateCloudCompute:
-            return "End-to-end encrypted, Apple cannot access your data"
+            return "End-to-end encrypted"
         case .mlxLocal:
-            return "Fully private, local processing only"
+            return "Local only"
         case .unknown:
-            return "Privacy-first processing"
+            return "Private"
         }
     }
 
@@ -1616,7 +2188,7 @@ RoundedRectangle(cornerRadius: 4)
     // MARK: - Legacy Compact Row: Execution + Context (kept for reference)
 
     private var executionContextRow: some View {
-        HStack(spacing: 12) { 
+        HStack(spacing: 12) {
             // Execution
             HStack(spacing: 4) {
                 Image(systemName: execution.icon)
@@ -1797,7 +2369,7 @@ RoundedRectangle(cornerRadius: 4)
     // MARK: - Compact Row: Coverage
 
     private var coverageRow: some View {
-        HStack(spacing: 12) { 
+        HStack(spacing: 12) {
             if sourceCount > 0 {
                 HStack(spacing: 3) {
                     Circle()
@@ -2420,7 +2992,7 @@ RoundedRectangle(cornerRadius: 4)
     private var routingTitle: String {
         switch execution {
         case .unknown:
-            return wantsCloud ? "Requesting PCC..." : "Selecting route..."
+            return "Apple Intelligence"
         case .onDevice:
             return "On-Device (3B model)"
         case .privateCloudCompute:
@@ -2433,9 +3005,7 @@ RoundedRectangle(cornerRadius: 4)
     private var routingExplanation: String {
         switch execution {
         case .unknown:
-            return wantsCloud
-                ? "Connecting to Private Cloud Compute...":
-                    "Determining optimal processing location."
+            return "Processing with Apple Intelligence."
         case .onDevice:
             return "Running locally on Neural Engine. No network required."
         case .privateCloudCompute:
