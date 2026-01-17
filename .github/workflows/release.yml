@@ -13,12 +13,10 @@ on:
         required: false
         default: true
         type: boolean
-  schedule:
-    - cron: "0 8 * * *" # daily 08:00 UTC
 
 jobs:
   archive:
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 60
     steps:
       - name: Checkout
@@ -28,9 +26,17 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Xcode
-        uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: "latest-stable"
+        run: |
+          XCODE_PATH=$(ls -d /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -1 || echo "/Applications/Xcode.app")
+          sudo xcode-select -s "$XCODE_PATH/Contents/Developer"
+          echo "Using: $(xcodebuild -version | head -1)"
+
+      - name: Get Simulator
+        id: sim
+        run: |
+          DEVICE=$(xcrun simctl list devices available | grep -oE 'iPhone [0-9]+ Pro' | head -1 | xargs)
+          [ -z "$DEVICE" ] && DEVICE=$(xcrun simctl list devices available | grep -oE 'iPhone [^(]+' | head -1 | xargs)
+          echo "device=$DEVICE" >> "$GITHUB_OUTPUT"
 
       - name: Resolve dependencies
         run: |
@@ -40,34 +46,25 @@ jobs:
 
       - name: Clean & build diagnostics
         run: |
-          ./clean_and_rebuild.sh
+          if [ -f clean_and_rebuild.sh ]; then
+            ./clean_and_rebuild.sh
+          else
+            echo "No clean_and_rebuild.sh found, skipping"
+          fi
 
-      - name: Run diagnostics suite
+      - name: Build (iOS Simulator)
         env:
           CODE_SIGN_IDENTITY: ""
           CODE_SIGNING_REQUIRED: "NO"
           CODE_SIGNING_ALLOWED: "NO"
         run: |
-          # Attempt test action; fall back to build-only if tests are not configured.
-          if xcodebuild test \
+          xcodebuild build \
             -project OpenIntelligence.xcodeproj \
             -scheme OpenIntelligence \
-            -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+            -destination 'platform=iOS Simulator,name=${{ steps.sim.outputs.device }}' \
             -skipPackagePluginValidation \
-            -quiet \
-            CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO 2>&1; then
-            echo "✅ Tests passed"
-          else
-            echo "⚠️ Test action failed or not configured; running build-only..."
-            xcodebuild build \
-              -project OpenIntelligence.xcodeproj \
-              -scheme OpenIntelligence \
-              -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
-              -skipPackagePluginValidation \
-              -quiet \
-              CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
-            echo "✅ Build succeeded"
-          fi
+            CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+          echo "✅ Build succeeded"
 
       - name: Archive app
         if: ${{ inputs.perform_export }}

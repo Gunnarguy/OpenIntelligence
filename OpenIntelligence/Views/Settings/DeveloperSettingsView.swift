@@ -114,8 +114,25 @@ struct DeveloperSettingsView: View {
                 Text("Tip: Disabling “Token Streaming” significantly reduces console spam during generation.")
                     .font(.footnote)
                     .foregroundColor(.secondary)
+            }            
+            // Pipeline Trace Mode
+            Section("Pipeline Trace Mode") {
+                Toggle("Enable Pipeline Trace", isOn: $settings.enablePipelineTrace)
+                Text("Shows condensed step-by-step RAG pipeline execution in console. Ideal for understanding how each quality mode (Standard/Deep Think/Maximum) processes your queries without overwhelming output.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+                
+                if settings.enablePipelineTrace {
+                    HStack {
+                        Image(systemName: "list.bullet.clipboard")
+                            .foregroundColor(.blue)
+                        Text("Pipeline trace active — run a query to see step-by-step execution")
+                            .font(.caption)
+                            .foregroundColor(.blue)
+                    }
+                    .padding(.vertical, 4)
+                }
             }
-
             // Presets
             Section("Presets") {
                 HStack {
