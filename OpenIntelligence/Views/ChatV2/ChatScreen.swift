@@ -219,6 +219,9 @@ struct ChatScreen: View {
                         embeddingElapsed: embeddingElapsedFinal ?? 0,
                         searchElapsed: searchingElapsedFinal ?? 0,
                         generationElapsed: generatingElapsedFinal ?? 0,
+                        liveConfidence: ragService.deepThinkLiveConfidence,
+                        isMaximumMode: settings.ragQualityMode.isUnlimitedMode,
+                        maximumModeSessionCount: ragService.deepThinkLiveSteps,
                         onTapDetails: !metricsData.isStreaming ? { showRetrievedDetails = true } : nil
                     )
                     .padding(.horizontal, 12)
@@ -292,6 +295,9 @@ struct ChatScreen: View {
                         embeddingElapsed: embeddingElapsedFinal ?? 0,
                         searchElapsed: searchingElapsedFinal ?? 0,
                         generationElapsed: generatingElapsedFinal ?? 0,
+                        liveConfidence: ragService.deepThinkLiveConfidence,
+                        isMaximumMode: settings.ragQualityMode.isUnlimitedMode,
+                        maximumModeSessionCount: ragService.deepThinkLiveSteps,
                         onTapDetails: nil
                     )
                     .padding(.horizontal, 12)

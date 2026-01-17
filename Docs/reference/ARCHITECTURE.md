@@ -372,6 +372,80 @@ func applyLostInMiddleReordering(_ chunks: [DocumentChunk]) -> [DocumentChunk]
 **File**: `OpenIntelligence/Models/KnowledgeContainer.swift`
 
 
+### RAPTOR-lite (Document Summaries)
+
+**Purpose**: Pre-computed document summaries for efficient overview queries
+
+**Problem Solved**: Without summaries, asking "What is this document about?" requires:
+1. Retrieving multiple detail chunks
+2. Using Maximum mode's multi-session synthesis
+3. Wasting 95% of tokens on runtime synthesis
+
+**Solution**: Generate document summaries at ingestion time, store as Level-1 chunks
+
+**Abstraction Levels** (defined in `DocumentChunk.swift`):
+
+| Level | Name | Description | Use Case |
+|-------|------|-------------|----------|
+| 0 | `detail` | Original chunks (280-400 words) | Specific facts, step-by-step |
+| 1 | `documentSummary` | Per-document summary (~150 words) | Overview queries |
+| 2 | `clusterSummary` | Topic cluster summary (future) | Cross-document themes |
+| 3 | `librarySummary` | Entire container summary (future) | Library-wide overview |
+
+**Components**:
+
+1. **DocumentSummaryService** (`Services/DocumentSummaryService.swift`)
+   - Actor-based for thread safety
+   - Generates summaries via Apple FM at ingestion
+   - Extractive fallback if LLM unavailable
+   - Stores as chunk with `abstractionLevel = .documentSummary`
+
+2. **QueryRouterService** (`Services/QueryRouterService.swift`)
+   - Classifies queries: overview / detail / cross-topic
+   - Pattern-based detection (70%+ confidence threshold)
+   - Routes to optimal abstraction level
+
+**Query Flow with RAPTOR-lite**:
+
+```text
+User Query
+    │
+    ▼
+┌─────────────────┐
+│ Query Router    │  ← Classify: overview/detail/cross-topic
+│ Service         │
+└────────┬────────┘
+         │
+    ┌────┴────┐
+    │         │
+    ▼         ▼
+Overview    Detail
+Query       Query
+    │         │
+    ▼         ▼
+Search L1   Search L0
+Summaries   Chunks
+    │         │
+    └────┬────┘
+         │
+         ▼
+  Hybrid Search + Rerank
+         │
+         ▼
+    LLM Generation
+```
+
+**Token Savings by Query Type**:
+
+| Query Type | Without RAPTOR-lite | With RAPTOR-lite | Savings |
+|------------|---------------------|------------------|---------|
+| Overview   | Maximum mode (10+ sessions) | Single L1 lookup | ~95% |
+| Detail     | Standard retrieval | Standard retrieval | 0% |
+| Cross-topic | Maximum mode | L1 + L0 combined | ~50-70% |
+
+**File**: `OpenIntelligence/Services/DocumentSummaryService.swift`, `QueryRouterService.swift`
+
+
 ### LLMService
 
 **Purpose**: Protocol abstraction for text generation
@@ -1060,10 +1134,11 @@ All advanced features are fully compatible with Apple's FoundationModels framewo
 | Feature | Status | Complexity |
 |---------|--------|------------|
 | HyDE (Hypothetical Doc Embeddings) | 🔜 Roadmap | Medium |
-| RAPTOR (Hierarchical Summaries) | 🔜 Roadmap | High |
+| RAPTOR-lite (Document Summaries) | ✅ Implemented | Medium |
+| Query Routing | ✅ Implemented | Low |
 | Self-RAG | 🔜 Roadmap | High |
-| Speculative RAG | 🔜 Roadmap | High |
-| Parent Document Retrieval | 🔜 Roadmap | Medium |
+| Speculative RAG | ✅ Implemented | High |
+| Parent Document Retrieval | ✅ Implemented | Medium |
 | Learned Fusion Weights | 🔜 Roadmap | High |
 
 See [ROADMAP.md](../../ROADMAP.md) Phase 2.5 for full "God Mode RAG" feature list.

@@ -63,6 +63,10 @@ final class SettingsStore: ObservableObject {
         static let enableParentDocumentRetrieval = "enableParentDocumentRetrieval"
         static let enableConversationMemory = "enableConversationMemory"
         static let forceReasoningChain = "forceReasoningChain"
+        
+        // RAPTOR-lite (Document Summaries + Query Routing)
+        static let enableDocumentSummaries = "enableDocumentSummaries"
+        static let enableQueryRouting = "enableQueryRouting"
 
         // Appearance
         static let appAccentColorHex = "appAccentColorHex" // nil = system default
@@ -157,6 +161,18 @@ final class SettingsStore: ObservableObject {
     /// Force reasoning chain even when conditions aren't met (for testing).
     /// When enabled, Standard mode will always use 3-session chaining for deeper analysis.
     @Published var forceReasoningChain: Bool
+
+    // MARK: - RAPTOR-lite (Document Summaries)
+
+    /// Enable automatic document summary generation at ingestion time.
+    /// Creates L1 summary chunks for efficient overview queries.
+    /// Reduces token usage by ~95% for "what is this about?" type questions.
+    @Published var enableDocumentSummaries: Bool
+
+    /// Enable query routing to automatically detect query types.
+    /// Routes overview queries to summaries, detail queries to chunks.
+    /// Works with enableDocumentSummaries for maximum efficiency.
+    @Published var enableQueryRouting: Bool
 
     // MARK: - Quality Mode
 
@@ -347,6 +363,11 @@ final class SettingsStore: ObservableObject {
         enableConversationMemory = defaults.object(forKey: Keys.enableConversationMemory) as? Bool ?? true
         // Force reasoning chain defaults to false - enable for testing multi-session chaining
         forceReasoningChain = defaults.object(forKey: Keys.forceReasoningChain) as? Bool ?? false
+        
+        // RAPTOR-lite: Document summaries default to true - massive token savings for overview queries
+        enableDocumentSummaries = defaults.object(forKey: Keys.enableDocumentSummaries) as? Bool ?? true
+        // RAPTOR-lite: Query routing default to true - auto-detect query types
+        enableQueryRouting = defaults.object(forKey: Keys.enableQueryRouting) as? Bool ?? true
 
         // Appearance settings
         // Accent color - nil means use system default
@@ -536,6 +557,10 @@ final class SettingsStore: ObservableObject {
         defaults.set(enableParentDocumentRetrieval, forKey: Keys.enableParentDocumentRetrieval)
         defaults.set(enableConversationMemory, forKey: Keys.enableConversationMemory)
         defaults.set(forceReasoningChain, forKey: Keys.forceReasoningChain)
+        
+        // RAPTOR-lite
+        defaults.set(enableDocumentSummaries, forKey: Keys.enableDocumentSummaries)
+        defaults.set(enableQueryRouting, forKey: Keys.enableQueryRouting)
 
         // Appearance
         defaults.set(appAccentColorHex, forKey: Keys.appAccentColorHex)

@@ -234,6 +234,8 @@ class RAGService: ObservableObject {
     let containerService: ContainerService
     private let vectorRouter: VectorStoreRouter
     private let intelligenceCenter = LibraryIntelligenceCenter()
+    private let documentSummaryService: DocumentSummaryService
+    private let queryRouter = QueryRouterService()
     private weak var entitlementStore: EntitlementStore?
     private var cancellables = Set<AnyCancellable>()
     @MainActor private weak var settingsStore: SettingsStore?
@@ -531,6 +533,8 @@ class RAGService: ObservableObject {
     @MainActor @Published private(set) var deepThinkLiveTokens: Int = 0
     /// Live step counter for Deep Think mode - updates in real-time
     @MainActor @Published private(set) var deepThinkLiveSteps: Int = 0
+    /// Live confidence meter for Maximum mode - updates as reasoning progresses toward 98%
+    @MainActor @Published private(set) var deepThinkLiveConfidence: Float = 0
 
     /// Cached corpus vocabulary per container to avoid expensive rebuilds on each query
     @MainActor private var corpusVocabularyCache: [UUID: CorpusVocabulary] = [:]
@@ -638,6 +642,10 @@ class RAGService: ObservableObject {
         entitlementStore: EntitlementStore? = nil
     ) {
         self.documentProcessor = documentProcessor ?? DocumentProcessor()
+        
+        // Initialize document summary service for RAPTOR-lite
+        self.documentSummaryService = DocumentSummaryService()
+        
         if let embeddingService {
             self.embeddingService = embeddingService
             embeddingServiceWasInjected = true
@@ -738,6 +746,11 @@ class RAGService: ObservableObject {
             self.cloudConsent = self.loadPersistedConsentStates()
         }
         loadDocumentsFromDisk()
+        
+        // Connect document summary service to self for LLM access
+        Task {
+            await self.documentSummaryService.setRAGService(self)
+        }
 
         // Observe container switches to save/restore transcripts
         observeContainerChanges()
@@ -2013,6 +2026,60 @@ class RAGService: ObservableObject {
                 ]
             )
 
+            // Step 4.5: Generate document summary (RAPTOR-lite)
+            // Creates a level-1 summary chunk for efficient overview queries
+            // Controlled by settings.enableDocumentSummaries
+            let summariesEnabled = await MainActor.run { self.settingsStore?.enableDocumentSummaries ?? true }
+            
+            if summariesEnabled {
+                await MainActor.run {
+                    updateIngestionItem(
+                        id: trackingId,
+                        filename: filename,
+                        stage: .storing,
+                        detail: "Generating summary..."
+                    )
+                }
+                
+                do {
+                    let summaryChunk = try await documentSummaryService.generateDocumentSummary(
+                        documentId: document.id,
+                        documentName: filename,
+                        chunks: documentChunks,
+                        embeddingService: containerEmbeddingService
+                    )
+                    
+                    // Store the summary chunk alongside detail chunks
+                    try await db.storeBatch(chunks: [summaryChunk])
+                    
+                    TelemetryCenter.emit(
+                        .ingestion,
+                        title: "Document summary generated",
+                        metadata: [
+                            "file": filename,
+                            "summaryWords": "\(summaryChunk.metadata.wordCount)",
+                            "abstractionLevel": "L1",
+                        ]
+                    )
+                    
+                    Log.info("[RAGService] RAPTOR-lite: Generated L1 summary for '\(filename)'", category: .ingestion)
+                } catch {
+                    // Summary generation is optional - log but don't fail ingestion
+                    Log.warning("[RAGService] Summary generation failed for '\(filename)': \(error)", category: .ingestion)
+                    TelemetryCenter.emit(
+                        .ingestion,
+                        severity: .warning,
+                        title: "Summary generation skipped",
+                        metadata: [
+                            "file": filename,
+                            "error": error.localizedDescription,
+                        ]
+                    )
+                }
+            } else {
+                Log.debug("[RAGService] Document summaries disabled in settings, skipping", category: .ingestion)
+            }
+
             // Step 5: Generate content tags using Apple's content tagging model (iOS 26+)
             await MainActor.run {
                 updateIngestionItem(
@@ -2667,36 +2734,53 @@ class RAGService: ObservableObject {
     private func executeAgenticQuery(
         question: String,
         containerId: UUID,
-        config: InferenceConfig?
+        config: InferenceConfig?,
+        qualityMode: RAGQualityMode
     ) async throws -> RAGResponse {
+        // Check if user selected Maximum (unlimited) mode
+        let isUnlimitedMode = qualityMode.isUnlimitedMode
+        let modeLabel = isUnlimitedMode ? "MAXIMUM REASONING MODE" : "AGENTIC REASONING MODE"
+
         Log.box(
-            "AGENTIC REASONING MODE",
+            modeLabel,
             level: .info,
             category: .pipeline,
             content: [
                 "📝 Query: \(question)",
                 "🧠 Multi-session orchestration active",
-                "⚡ Bypassing 4K single-session limit",
+                isUnlimitedMode ? "🔥 Unlimited reasoning until 98% confident" : "⚡ Bypassing 4K single-session limit",
             ]
         )
 
-        // Detect device capabilities and optimize config
+        // Use unlimited config for Maximum mode, otherwise device-optimized
         let deviceService = DeviceCapabilityService.shared
-        let optimizedConfig = deviceService.optimizedAgenticConfig()
+        let optimizedConfig: AgenticConfig
+        if isUnlimitedMode {
+            optimizedConfig = qualityMode.agenticConfig // .unlimited config
+            Log.info("[Pipeline] Using MAXIMUM mode (unlimited reasoning, 98% confidence threshold)", category: .pipeline)
+        } else {
+            optimizedConfig = deviceService.optimizedAgenticConfig()
+        }
+
+        let modeTitle = isUnlimitedMode ? "Maximum Mode" : "Deep Think Mode"
+        let modeDetail = isUnlimitedMode
+            ? "Unlimited reasoning until 98% confident (up to \(optimizedConfig.maxSteps) steps)"
+            : "Starting multi-step reasoning (\(deviceService.tier.displayName) mode, up to \(optimizedConfig.maxSteps) steps)"
 
         emitThinkingEvent(
             .planning,
-            title: "Deep Think Mode",
-            detail: "Starting multi-step reasoning (\(deviceService.tier.displayName) mode, up to \(optimizedConfig.maxSteps) steps)"
+            title: modeTitle,
+            detail: modeDetail
         )
 
         let orchestrator = AgenticOrchestrator(ragService: self, config: optimizedConfig)
         let startTime = Date()
 
-        // Reset live counters at start of Deep Think
+        // Reset live counters at start of Deep Think / Maximum
         await MainActor.run {
             self.deepThinkLiveTokens = 0
             self.deepThinkLiveSteps = 0
+            self.deepThinkLiveConfidence = 0
         }
 
         do {
@@ -2710,10 +2794,23 @@ class RAGService: ObservableObject {
                         self?.deepThinkLiveTokens += step.tokensUsed
                         self?.deepThinkLiveSteps += 1
 
+                        // Update live confidence for Maximum mode
+                        if let confidence = step.confidence {
+                            self?.deepThinkLiveConfidence = confidence
+                        }
+
+                        // Include confidence in detail if available
+                        let detail: String
+                        if let confidence = step.confidence {
+                            detail = "Confidence: \(Int(confidence * 100))% • Tokens: \(step.tokensUsed)"
+                        } else {
+                            detail = "Tokens: \(step.tokensUsed), Duration: \(String(format: "%.1f", step.duration))s"
+                        }
+
                         self?.emitThinkingEvent(
                             step.type.thinkingKind,
                             title: step.type.displayName,
-                            detail: "Tokens: \(step.tokensUsed), Duration: \(String(format: "%.1f", step.duration))s"
+                            detail: detail
                         )
                     }
                 }
@@ -2969,6 +3066,8 @@ class RAGService: ObservableObject {
 
         if forceAgentic {
             Log.info("[Pipeline] Query FORCED to agentic mode by user request", category: .pipeline)
+        } else if qualityMode.isUnlimitedMode {
+            Log.info("[Pipeline] Using Maximum mode (user selected)", category: .pipeline)
         } else if useAgentic {
             Log.info("[Pipeline] Using Deep Think mode (user selected)", category: .pipeline)
         } else {
@@ -2998,7 +3097,8 @@ class RAGService: ObservableObject {
             return try await executeAgenticQuery(
                 question: question,
                 containerId: selectedId,
-                config: config
+                config: config,
+                qualityMode: qualityMode
             )
         }
 
@@ -3392,6 +3492,41 @@ class RAGService: ObservableObject {
                 let adjustedVectorWeight = max(0.1, min(0.9, retrievalConfig.vectorWeight + adjustment.vectorDelta))
                 let adjustedKeywordWeight = max(0.1, min(0.9, retrievalConfig.lexicalWeight + adjustment.keywordDelta))
 
+                // Step 2.5: Query Classification for RAPTOR-lite (summary-first retrieval)
+                // Determines whether to search document summaries (L1) or detail chunks (L0)
+                // Controlled by settings.enableQueryRouting
+                let queryRoutingEnabled = settingsStore?.enableQueryRouting ?? true
+                let queryClassification = await queryRouter.classifyQuery(effectiveQuery)
+                let searchLevels = await queryRouter.abstractionLevelsToSearch(for: queryClassification)
+                
+                if queryRoutingEnabled {
+                    Log.info(
+                        "[RAPTOR-lite] Query type: \(queryClassification.queryType.rawValue) " +
+                        "(confidence: \(String(format: "%.0f", queryClassification.confidence * 100))%) " +
+                        "→ search \(searchLevels.map { $0.description }.joined(separator: ", "))",
+                        category: .retrieval
+                    )
+                }
+                
+                // Filter cached chunks by abstraction level if we have summaries AND routing is enabled
+                var filteredCachedChunks: [DocumentChunk]? = cachedAllChunks
+                if queryRoutingEnabled, let allChunks = cachedAllChunks {
+                    let hasSummaries = allChunks.contains { $0.metadata.abstractionLevel == .documentSummary }
+                    if hasSummaries && queryClassification.queryType == .overview && queryClassification.confidence >= 0.5 {
+                        // For overview queries, prioritize summary chunks
+                        filteredCachedChunks = allChunks.filter { searchLevels.contains($0.metadata.abstractionLevel) }
+                        Log.info(
+                            "[RAPTOR-lite] Filtered to \(filteredCachedChunks?.count ?? 0) chunks (from \(allChunks.count)) for overview query",
+                            category: .retrieval
+                        )
+                        emitThinkingEvent(
+                            .planning,
+                            title: "Using document summaries",
+                            detail: "Overview query → searching L1 summaries first"
+                        )
+                    }
+                }
+
                 if useIterative {
                     // Multi-pass iterative retrieval with self-correction
                     Log.section(
@@ -3422,7 +3557,7 @@ class RAGService: ObservableObject {
                         vectorDatabase: vdb,
                         config: iterativeConfig,
                         topK: effectiveTopK,
-                        cachedChunks: cachedAllChunks
+                        cachedChunks: filteredCachedChunks
                     )
 
                     retrievedChunks = iterativeResult.allChunks
@@ -3472,11 +3607,12 @@ class RAGService: ObservableObject {
                     )
                     // Use expanded queries for keyword search (original for vector)
                     // Pass cached chunks to avoid redundant allChunks() call in lexical recall
+                    // For RAPTOR-lite: filteredCachedChunks may be limited to summaries for overview queries
                     retrievedChunks = try await hybridSearch.search(
                         query: expandedQueries.joined(separator: " "), // Combine expansions
                         embedding: queryEmbedding,
                         topK: effectiveTopK * 3, // Retrieve 3x for better coverage on large docs
-                            cachedChunks: cachedAllChunks
+                            cachedChunks: filteredCachedChunks
                     )
                 }
 
@@ -7200,6 +7336,23 @@ extension RAGService: RAGToolHandler {
 
         // Skip if no chunks
         guard !allChunks.isEmpty else { return [] }
+        
+        // RAPTOR-lite: Query routing for summary-first retrieval
+        // Only filter chunks if query routing is enabled AND we have summaries
+        let queryRoutingEnabled = await MainActor.run { self.settingsStore?.enableQueryRouting ?? true }
+        var effectiveChunks = allChunks
+        
+        if queryRoutingEnabled {
+            let queryClassification = await queryRouter.classifyQuery(query)
+            let hasSummaries = allChunks.contains { $0.metadata.abstractionLevel == .documentSummary }
+            
+            if hasSummaries && queryClassification.queryType == .overview && queryClassification.confidence >= 0.5 {
+                // For overview queries in agentic mode, use summaries first
+                let searchLevels = await queryRouter.abstractionLevelsToSearch(for: queryClassification)
+                effectiveChunks = allChunks.filter { searchLevels.contains($0.metadata.abstractionLevel) }
+                Log.info("[RAPTOR-lite] Agentic retrieval using \(effectiveChunks.count) summary chunks for overview query", category: .retrieval)
+            }
+        }
 
         // Step 1: Use original query for embedding
         // NOTE: HyDE disabled in Deep Think - it hallucinates without document context
@@ -7233,7 +7386,7 @@ extension RAGService: RAGToolHandler {
             query: expandedQueryString, // Use expanded query for better keyword matching
             embedding: queryEmbedding,
             topK: topK * 2, // Get extra for re-ranking
-            cachedChunks: allChunks
+            cachedChunks: effectiveChunks // Use RAPTOR-lite filtered chunks
         )
 
         // Step 5: AI Re-ranking with ReRanker model
@@ -7287,8 +7440,24 @@ extension RAGService: RAGToolHandler {
 
         // Index BM25 with available chunks (for lexical recall)
         let allChunks = try await db.allChunks()
+        
+        // RAPTOR-lite: Query routing for summary-first retrieval
+        let queryRoutingEnabled = await MainActor.run { self.settingsStore?.enableQueryRouting ?? true }
+        var effectiveChunks = allChunks
+        
+        if queryRoutingEnabled {
+            let queryClassification = await queryRouter.classifyQuery(query)
+            let hasSummaries = allChunks.contains { $0.metadata.abstractionLevel == .documentSummary }
+            
+            if hasSummaries && queryClassification.queryType == .overview && queryClassification.confidence >= 0.5 {
+                let searchLevels = await queryRouter.abstractionLevelsToSearch(for: queryClassification)
+                effectiveChunks = allChunks.filter { searchLevels.contains($0.metadata.abstractionLevel) }
+                Log.info("[RAPTOR-lite] Raw search using \(effectiveChunks.count) summary chunks", category: .retrieval)
+            }
+        }
+        
         let bm25Scorer = BM25Scorer()
-        bm25Scorer.indexDocuments(allChunks)
+        bm25Scorer.indexDocuments(effectiveChunks)
 
         // Request more candidates for better coverage
         let effectiveTopK = max(topK, 15)
@@ -7296,7 +7465,7 @@ extension RAGService: RAGToolHandler {
             query: query,
             embedding: queryEmbedding,
             topK: effectiveTopK,
-            cachedChunks: allChunks
+            cachedChunks: effectiveChunks
         )
 
         let engine = RAGEngine.shared
