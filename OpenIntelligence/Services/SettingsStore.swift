@@ -63,7 +63,7 @@ final class SettingsStore: ObservableObject {
         static let enableParentDocumentRetrieval = "enableParentDocumentRetrieval"
         static let enableConversationMemory = "enableConversationMemory"
         static let forceReasoningChain = "forceReasoningChain"
-        
+
         // RAPTOR-lite (Document Summaries + Query Routing)
         static let enableDocumentSummaries = "enableDocumentSummaries"
         static let enableQueryRouting = "enableQueryRouting"
@@ -363,7 +363,7 @@ final class SettingsStore: ObservableObject {
         enableConversationMemory = defaults.object(forKey: Keys.enableConversationMemory) as? Bool ?? true
         // Force reasoning chain defaults to false - enable for testing multi-session chaining
         forceReasoningChain = defaults.object(forKey: Keys.forceReasoningChain) as? Bool ?? false
-        
+
         // RAPTOR-lite: Document summaries default to true - massive token savings for overview queries
         enableDocumentSummaries = defaults.object(forKey: Keys.enableDocumentSummaries) as? Bool ?? true
         // RAPTOR-lite: Query routing default to true - auto-detect query types
@@ -557,7 +557,7 @@ final class SettingsStore: ObservableObject {
         defaults.set(enableParentDocumentRetrieval, forKey: Keys.enableParentDocumentRetrieval)
         defaults.set(enableConversationMemory, forKey: Keys.enableConversationMemory)
         defaults.set(forceReasoningChain, forKey: Keys.forceReasoningChain)
-        
+
         // RAPTOR-lite
         defaults.set(enableDocumentSummaries, forKey: Keys.enableDocumentSummaries)
         defaults.set(enableQueryRouting, forKey: Keys.enableQueryRouting)

@@ -34,18 +34,18 @@ struct DeveloperSettingsView: View {
                     .font(.footnote)
                     .foregroundColor(.secondary)
             }
-            
+
             Section("RAPTOR-lite (Smart Summaries)") {
                 Toggle("Auto-generate document summaries", isOn: $settings.enableDocumentSummaries)
                 Text("Creates ~150-word summaries at ingestion for efficient overview queries. Saves ~95% tokens on \"what is this about?\" questions.")
                     .font(.footnote)
                     .foregroundColor(.secondary)
-                
+
                 Toggle("Query routing", isOn: $settings.enableQueryRouting)
                 Text("Auto-detects query type (overview/detail/cross-topic) and routes to optimal retrieval strategy.")
                     .font(.footnote)
                     .foregroundColor(.secondary)
-                
+
                 if settings.enableDocumentSummaries && settings.enableQueryRouting {
                     HStack {
                         Image(systemName: "bolt.fill")

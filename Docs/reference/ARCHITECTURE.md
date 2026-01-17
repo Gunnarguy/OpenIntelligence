@@ -170,12 +170,12 @@ User Query Input
 
 **Chunking Presets** (Jan 2026 - Optimized):
 
-| Preset | Target Size | Overlap | Use Case |
-|--------|-------------|---------|----------|
-| `technicalReference` | 280 words | 50 words (~18%) | PDFs, manuals, spec sheets |
-| `narrative` | 400 words | 70 words (~17%) | Prose, articles, books |
-| `code` | 250 words | 40 words (~16%) | Source code, scripts |
-| Default | 350 words | 60 words (~17%) | General documents |
+| Preset               | Target Size | Overlap         | Use Case                   |
+| -------------------- | ----------- | --------------- | -------------------------- |
+| `technicalReference` | 280 words   | 50 words (~18%) | PDFs, manuals, spec sheets |
+| `narrative`          | 400 words   | 70 words (~17%) | Prose, articles, books     |
+| `code`               | 250 words   | 40 words (~16%) | Source code, scripts       |
+| Default              | 350 words   | 60 words (~17%) | General documents          |
 
 **File**: `OpenIntelligence/Services/DocumentProcessor.swift`
 
@@ -183,15 +183,16 @@ User Query Input
 
 **Current Implementation** (Jan 2026):
 
-| Capability | API Used | Status |
-|------------|----------|--------|
-| OCR Text Recognition | `VNRecognizeTextRequest` | ✅ Implemented |
-| Multi-language OCR | Recognition languages config | ✅ 10 languages |
-| Accurate Mode | `.recognitionLevel = .accurate` | ✅ Enabled |
-| Language Correction | `.usesLanguageCorrection = true` | ✅ Enabled |
+| Capability           | API Used                         | Status          |
+| -------------------- | -------------------------------- | --------------- |
+| OCR Text Recognition | `VNRecognizeTextRequest`         | ✅ Implemented  |
+| Multi-language OCR   | Recognition languages config     | ✅ 10 languages |
+| Accurate Mode        | `.recognitionLevel = .accurate`  | ✅ Enabled      |
+| Language Correction  | `.usesLanguageCorrection = true` | ✅ Enabled      |
 
 **OCR Pipeline**:
-```swift
+
+````swift
 **Implementation Status** (Jan 2026 - Visual Document Understanding):
 
 | Capability | API Used | Status | Location |
@@ -219,9 +220,10 @@ let sortedObservations = observations.sorted { obs1, obs2 in
 }
 // Then apply column detection for multi-column layouts
 let columnText = extractTextWithColumnAwareness(from: sortedObservations)
-```
+````
 
 **Multi-Column Detection**:
+
 ```swift
 // Detect significant gaps (>15% page width) as column boundaries
 let significantGapThreshold: CGFloat = 0.15
@@ -230,6 +232,7 @@ let columnBoundaries = gaps.filter { $0.gap > significantGapThreshold }
 ```
 
 **Image Understanding Flow** (Implemented):
+
 ```
 PDF Page → extractImagesFromPDFPage() → ClassifyImageRequest → Image tags
                                       ↓
@@ -241,14 +244,13 @@ PDF Page → extractImagesFromPDFPage() → ClassifyImageRequest → Image tags
 ```
 
 **Files**:
+
 - `OpenIntelligence/Services/DocumentProcessor.swift` - Layout-aware OCR, PDF image extraction
 - `OpenIntelligence/Services/ImageUnderstandingService.swift` - Image classification and description
-
 
 ### EmbeddingService
 
 **Purpose**: Generate semantic vector representations of text
-
 
 **Key Features**:
 
@@ -258,9 +260,7 @@ PDF Page → extractImagesFromPDFPage() → ClassifyImageRequest → Image tags
 - Validates dimensions, NaN values, and magnitudes
 - Always available on-device (no network required)
 
-
 **File**: `OpenIntelligence/Services/EmbeddingService.swift`
-
 
 ### VectorDatabase
 
@@ -278,9 +278,7 @@ PDF Page → extractImagesFromPDFPage() → ClassifyImageRequest → Image tags
 - Fast in-memory search
 - Protocol allows swapping implementations (e.g., VecturaKit for persistence)
 
-
 **File**: `OpenIntelligence/Services/VectorDatabase.swift`
-
 
 ### HybridSearchService
 
@@ -295,13 +293,12 @@ PDF Page → extractImagesFromPDFPage() → ClassifyImageRequest → Image tags
 
 **Default Weights** (Jan 2026):
 
-| Weight | Value | Rationale |
-|--------|-------|-----------|
-| Vector | 0.4 | Semantic similarity |
-| Keyword (BM25) | 0.6 | Better for specific terms, codes, model numbers |
+| Weight         | Value | Rationale                                       |
+| -------------- | ----- | ----------------------------------------------- |
+| Vector         | 0.4   | Semantic similarity                             |
+| Keyword (BM25) | 0.6   | Better for specific terms, codes, model numbers |
 
 **File**: `OpenIntelligence/Services/HybridSearchService.swift`
-
 
 ### QueryEnhancementService
 
@@ -326,7 +323,6 @@ enum QueryIntent {
 
 **File**: `OpenIntelligence/Services/QueryEnhancementService.swift`
 
-
 ### RAGEngine
 
 **Purpose**: Background actor for compute-intensive retrieval operations
@@ -341,6 +337,7 @@ enum QueryIntent {
 **Lost-in-Middle Algorithm** (Liu et al. 2023):
 
 LLMs attend better to the beginning and end of context. After reordering:
+
 - Position 0: Best chunk
 - Position N-1: Second-best chunk
 - Middle positions: Interleaved remaining chunks
@@ -352,31 +349,30 @@ func applyLostInMiddleReordering(_ chunks: [DocumentChunk]) -> [DocumentChunk]
 
 **File**: `OpenIntelligence/Services/RAGEngine.swift`
 
-
 ### RetrievalConfig (in KnowledgeContainer)
 
 **Purpose**: Per-container retrieval tuning parameters
 
 **Presets** (Jan 2026):
 
-| Preset | minSimilarity | vectorWeight | keywordWeight | Use Case |
-|--------|---------------|--------------|---------------|----------|
-| `default` | 0.28 | 0.4 | 0.6 | General documents |
-| `balanced` | 0.35 | 0.5 | 0.5 | Mixed content |
-| `technicalManual` | 0.22 | 0.3 | 0.7 | PDFs, spec sheets, manuals |
-| `narrative` | 0.32 | 0.6 | 0.4 | Prose, articles |
-| `code` | 0.30 | 0.35 | 0.65 | Source code |
+| Preset            | minSimilarity | vectorWeight | keywordWeight | Use Case                   |
+| ----------------- | ------------- | ------------ | ------------- | -------------------------- |
+| `default`         | 0.28          | 0.4          | 0.6           | General documents          |
+| `balanced`        | 0.35          | 0.5          | 0.5           | Mixed content              |
+| `technicalManual` | 0.22          | 0.3          | 0.7           | PDFs, spec sheets, manuals |
+| `narrative`       | 0.32          | 0.6          | 0.4           | Prose, articles            |
+| `code`            | 0.30          | 0.35         | 0.65          | Source code                |
 
 **Auto-Tuning**: `RetrievalConfig.recommended(forDocumentTypes:)` analyzes ingested content and selects optimal preset.
 
 **File**: `OpenIntelligence/Models/KnowledgeContainer.swift`
-
 
 ### RAPTOR-lite (Document Summaries)
 
 **Purpose**: Pre-computed document summaries for efficient overview queries
 
 **Problem Solved**: Without summaries, asking "What is this document about?" requires:
+
 1. Retrieving multiple detail chunks
 2. Using Maximum mode's multi-session synthesis
 3. Wasting 95% of tokens on runtime synthesis
@@ -385,12 +381,12 @@ func applyLostInMiddleReordering(_ chunks: [DocumentChunk]) -> [DocumentChunk]
 
 **Abstraction Levels** (defined in `DocumentChunk.swift`):
 
-| Level | Name | Description | Use Case |
-|-------|------|-------------|----------|
-| 0 | `detail` | Original chunks (280-400 words) | Specific facts, step-by-step |
-| 1 | `documentSummary` | Per-document summary (~150 words) | Overview queries |
-| 2 | `clusterSummary` | Topic cluster summary (future) | Cross-document themes |
-| 3 | `librarySummary` | Entire container summary (future) | Library-wide overview |
+| Level | Name              | Description                       | Use Case                     |
+| ----- | ----------------- | --------------------------------- | ---------------------------- |
+| 0     | `detail`          | Original chunks (280-400 words)   | Specific facts, step-by-step |
+| 1     | `documentSummary` | Per-document summary (~150 words) | Overview queries             |
+| 2     | `clusterSummary`  | Topic cluster summary (future)    | Cross-document themes        |
+| 3     | `librarySummary`  | Entire container summary (future) | Library-wide overview        |
 
 **Components**:
 
@@ -437,14 +433,13 @@ Summaries   Chunks
 
 **Token Savings by Query Type**:
 
-| Query Type | Without RAPTOR-lite | With RAPTOR-lite | Savings |
-|------------|---------------------|------------------|---------|
-| Overview   | Maximum mode (10+ sessions) | Single L1 lookup | ~95% |
-| Detail     | Standard retrieval | Standard retrieval | 0% |
-| Cross-topic | Maximum mode | L1 + L0 combined | ~50-70% |
+| Query Type  | Without RAPTOR-lite         | With RAPTOR-lite   | Savings |
+| ----------- | --------------------------- | ------------------ | ------- |
+| Overview    | Maximum mode (10+ sessions) | Single L1 lookup   | ~95%    |
+| Detail      | Standard retrieval          | Standard retrieval | 0%      |
+| Cross-topic | Maximum mode                | L1 + L0 combined   | ~50-70% |
 
 **File**: `OpenIntelligence/Services/DocumentSummaryService.swift`, `QueryRouterService.swift`
-
 
 ### LLMService
 
@@ -486,11 +481,11 @@ Apple's 4,096-token limit per session requires intelligent multi-pass retrieval.
 
 **Available Tools** (defined in `LLMService.swift`):
 
-| Tool | Purpose | Arguments |
-|------|---------|-----------|
-| `SearchDocumentsTool` | Semantic search across containers | `query: String`, `limit: Int?` |
-| `ListDocumentsTool` | Enumerate documents in container | `containerName: String?` |
-| `GetDocumentSummaryTool` | Retrieve document metadata | `documentID: UUID` |
+| Tool                     | Purpose                           | Arguments                      |
+| ------------------------ | --------------------------------- | ------------------------------ |
+| `SearchDocumentsTool`    | Semantic search across containers | `query: String`, `limit: Int?` |
+| `ListDocumentsTool`      | Enumerate documents in container  | `containerName: String?`       |
+| `GetDocumentSummaryTool` | Retrieve document metadata        | `documentID: UUID`             |
 
 **Multi-Session Chaining Pattern** (per [TN3193](https://developer.apple.com/documentation/technotes/tn3193-using-the-context-window-efficiently)):
 
@@ -519,15 +514,16 @@ for try await event in session.streamResponse(to: userQuery) {
 
 **Context Budget Strategy**:
 
-| Component | Token Allocation |
-|-----------|------------------|
-| System prompt | ~200 tokens |
-| Tool definitions | ~300 tokens |
+| Component         | Token Allocation             |
+| ----------------- | ---------------------------- |
+| System prompt     | ~200 tokens                  |
+| Tool definitions  | ~300 tokens                  |
 | Retrieved context | ~2,500 tokens (~5,000 chars) |
-| Response buffer | ~1,000 tokens |
-| **Total** | **4,096 tokens** |
+| Response buffer   | ~1,000 tokens                |
+| **Total**         | **4,096 tokens**             |
 
 **Trade-offs**:
+
 - **Pre-stuffed context**: Single pass, lower latency, but context may not be optimal
 - **Pure agentic**: Model searches dynamically, multiple passes, better accuracy for complex queries
 
@@ -602,7 +598,7 @@ OpenIntelligence implements state-of-the-art RAG techniques from 2024-2026 resea
 
 **Problem Solved**: When users ask "What oil does my car take?", the question vocabulary doesn't match the answer ("SAE 0W-20 synthetic oil"). Embedding the question directly retrieves suboptimal chunks.
 
-**Solution**: Generate a hypothetical answer first, then embed *that* for retrieval.
+**Solution**: Generate a hypothetical answer first, then embed _that_ for retrieval.
 
 ```text
 User Query: "What oil does my car take?"
@@ -615,15 +611,16 @@ Embed hypothetical → Search → Retrieve actual matching chunks
 
 **Implementation** (`HyDEService.swift`):
 
-| Component | Details |
-|-----------|---------|
-| LLM Backend | Apple Foundation Models (on-device) |
-| Trigger Heuristic | `shouldUseHyDE(for:)` detects factual queries |
-| Latency Cost | ~200-400ms extra for generation |
-| Recall Improvement | 15-25% on technical/factual queries |
-| Setting | `SettingsStore.enableHyDE` (default: `true`) |
+| Component          | Details                                       |
+| ------------------ | --------------------------------------------- |
+| LLM Backend        | Apple Foundation Models (on-device)           |
+| Trigger Heuristic  | `shouldUseHyDE(for:)` detects factual queries |
+| Latency Cost       | ~200-400ms extra for generation               |
+| Recall Improvement | 15-25% on technical/factual queries           |
+| Setting            | `SettingsStore.enableHyDE` (default: `true`)  |
 
 **API References**:
+
 - [LanguageModelSession](https://developer.apple.com/documentation/foundationmodels/languagemodelsession)
 - Uses Apple's on-device model for low-latency generation
 
@@ -651,13 +648,13 @@ Compressed (60 words):
 
 **Implementation** (`ContextualCompressionService.swift`):
 
-| Component | Details |
-|-----------|---------|
-| Compression Ratio | ~40% (aggressive), ~60% (conservative) |
-| Token Savings | 40-60% per chunk on average |
-| Latency Cost | ~100-200ms per chunk |
-| Drop Irrelevant | Chunks returning "NO_RELEVANT_CONTENT" are excluded |
-| Setting | `SettingsStore.enableContextualCompression` (default: `true`) |
+| Component         | Details                                                       |
+| ----------------- | ------------------------------------------------------------- |
+| Compression Ratio | ~40% (aggressive), ~60% (conservative)                        |
+| Token Savings     | 40-60% per chunk on average                                   |
+| Latency Cost      | ~100-200ms per chunk                                          |
+| Drop Irrelevant   | Chunks returning "NO_RELEVANT_CONTENT" are excluded           |
+| Setting           | `SettingsStore.enableContextualCompression` (default: `true`) |
 
 **Answer Grounding Verification**:
 
@@ -692,24 +689,24 @@ Turn 3: "And its towing capacity?"  ← "its" = Telluride
 
 **Implementation** (`ConversationMemoryService.swift`):
 
-| Component | Details |
-|-----------|---------|
-| Memory Storage | Per-container JSON persistence |
-| Recent Turns | Last 3 turns kept verbatim |
-| Summarization | LLM-powered background summarization of older turns |
-| Entity Tracking | Extracts people, places, products mentioned |
-| Topic Tracking | Identifies recurring themes |
+| Component       | Details                                             |
+| --------------- | --------------------------------------------------- |
+| Memory Storage  | Per-container JSON persistence                      |
+| Recent Turns    | Last 3 turns kept verbatim                          |
+| Summarization   | LLM-powered background summarization of older turns |
+| Entity Tracking | Extracts people, places, products mentioned         |
+| Topic Tracking  | Identifies recurring themes                         |
 
 **Dynamic Optimizations**:
 
-| Feature | Description |
-|---------|-------------|
-| Query-Adaptive Budget | Simple queries: 500 chars, follow-ups: 3000 chars |
-| Semantic Relevance Scoring | Jaccard + entity matching ranks turns by relevance to current query |
-| Importance-Weighted Summarization | High-info turns preserved longer, low-value summarized first |
-| Recency Boost | Recent turns scored higher with 1-hour decay |
-| Debounced Persistence | 2-second delay prevents disk thrashing |
-| Non-Blocking | Fire-and-forget turn recording, background summarization |
+| Feature                           | Description                                                         |
+| --------------------------------- | ------------------------------------------------------------------- |
+| Query-Adaptive Budget             | Simple queries: 500 chars, follow-ups: 3000 chars                   |
+| Semantic Relevance Scoring        | Jaccard + entity matching ranks turns by relevance to current query |
+| Importance-Weighted Summarization | High-info turns preserved longer, low-value summarized first        |
+| Recency Boost                     | Recent turns scored higher with 1-hour decay                        |
+| Debounced Persistence             | 2-second delay prevents disk thrashing                              |
+| Non-Blocking                      | Fire-and-forget turn recording, background summarization            |
 
 **Setting**: `SettingsStore.enableConversationMemory` (default: `true`)
 
@@ -748,12 +745,12 @@ Turn 3: "And its towing capacity?"  ← "its" = Telluride
 
 **Hardware-Aware Configuration** (`DeviceCapabilityService.swift`):
 
-| Device Tier | Max Steps | Max Tokens | Use Case |
-|-------------|-----------|------------|----------|
-| A17 Pro (iPhone 15 Pro) | 4 | 16,000 | Basic agentic |
-| A18 (iPhone 16) | 6 | 24,000 | Standard agentic |
-| A19 (iPhone 17) | 8 | 32,000 | Enhanced agentic |
-| M-series (iPad Pro) | 10 | 48,000 | Full power |
+| Device Tier             | Max Steps | Max Tokens | Use Case         |
+| ----------------------- | --------- | ---------- | ---------------- |
+| A17 Pro (iPhone 15 Pro) | 4         | 16,000     | Basic agentic    |
+| A18 (iPhone 16)         | 6         | 24,000     | Standard agentic |
+| A19 (iPhone 17)         | 8         | 32,000     | Enhanced agentic |
+| M-series (iPad Pro)     | 10        | 48,000     | Full power       |
 
 ### SystemStateMonitor
 
@@ -762,6 +759,7 @@ Turn 3: "And its towing capacity?"  ← "its" = Telluride
 **File**: `OpenIntelligence/Services/SystemStateMonitor.swift`
 
 **Captured Metrics**:
+
 - **Thermal State**: ProcessInfo.ThermalState (Nominal/Fair/Serious/Critical)
 - **Battery**: Level (0-100%), charging state, Low Power Mode
 - **Memory**: Available bytes, pressure level (Nominal/Warning/Critical)
@@ -769,6 +767,7 @@ Turn 3: "And its towing capacity?"  ← "its" = Telluride
 - **Pipeline**: Current PipelineOptimizationLevel from AdaptivePipelineOptimizer
 
 **Architecture**:
+
 ```swift
 @MainActor
 final class SystemStateMonitor: ObservableObject {
@@ -785,6 +784,7 @@ final class SystemStateMonitor: ObservableObject {
 ```
 
 **UI Exposure**:
+
 - **UnifiedMetricsBar**: Compact badge (thermal/battery when notable) + expanded System State card
 - **SettingsView**: Live System Monitor section with 2-column grid
 
@@ -810,12 +810,14 @@ final class SystemStateMonitor: ObservableObject {
 **Solution**: Let the LLM autonomously decide when to search and when to answer using a simple token protocol.
 
 **Protocol**:
+
 ```text
 [SEARCH: specific query] → System executes RAG search, adds results to context
 [ANSWER]                 → LLM provides final response
 ```
 
 **Flow Example**:
+
 ```text
 User: "What's the relationship between CoreData and SwiftData?"
 
@@ -834,13 +836,13 @@ CoreData and SwiftData share the underlying persistent store format..."
 
 **Implementation** (`AgenticOrchestrator.executeRecursiveResearch()`):
 
-| Component | Details |
-|-----------|---------|
-| Max Iterations | 7 (configurable) |
-| Context Accumulation | Rolling context window with 8K char limit |
-| Automatic Trimming | Old context truncated when budget exceeded |
-| Forced Synthesis | After max iterations, synthesize with available info |
-| Confidence Estimation | Heuristic based on hedging language detection |
+| Component             | Details                                              |
+| --------------------- | ---------------------------------------------------- |
+| Max Iterations        | 7 (configurable)                                     |
+| Context Accumulation  | Rolling context window with 8K char limit            |
+| Automatic Trimming    | Old context truncated when budget exceeded           |
+| Forced Synthesis      | After max iterations, synthesize with available info |
+| Confidence Estimation | Heuristic based on hedging language detection        |
 
 **File**: `OpenIntelligence/Services/AgenticOrchestrator.swift`
 
@@ -856,11 +858,11 @@ CoreData and SwiftData share the underlying persistent store format..."
 
 **Extraction Passes**:
 
-| Pass | Method | Examples |
-|------|--------|----------|
-| Named Entities | `NLTagger(.nameType)` | "Apple", "Tim Cook", "Cupertino" |
-| Technical Terms | PascalCase regex | "URLSession", "CoreData", "SwiftUI" |
-| Capitalized Nouns | Lexical class filtering | "Engine", "Manual", "Safety" |
+| Pass              | Method                  | Examples                            |
+| ----------------- | ----------------------- | ----------------------------------- |
+| Named Entities    | `NLTagger(.nameType)`   | "Apple", "Tim Cook", "Cupertino"    |
+| Technical Terms   | PascalCase regex        | "URLSession", "CoreData", "SwiftUI" |
+| Capitalized Nouns | Lexical class filtering | "Engine", "Manual", "Safety"        |
 
 **Implementation** (`SemanticChunker.extractEntities()`):
 
@@ -895,6 +897,7 @@ private func extractEntities(_ text: String) -> [String] {
 **Solution**: Inverted index maintained in memory and persisted to disk.
 
 **Data Structure**:
+
 ```swift
 actor EntityIndexService {
     // Forward index: entity → chunks that contain it
@@ -910,13 +913,13 @@ actor EntityIndexService {
 
 **Key Operations**:
 
-| Method | Purpose | Complexity |
-|--------|---------|------------|
-| `indexChunk(_:)` | Add chunk's entities to index | O(e) where e = entities |
-| `chunksForEntity(_:)` | Find all chunks with entity | O(1) |
-| `chunksForEntities(_:)` | Union search across entities | O(e) |
-| `sharedEntities(among:)` | Find common entities in chunks | O(c·e) |
-| `removeDocument(_:)` | Delete all entries for document | O(c·e) |
+| Method                   | Purpose                         | Complexity              |
+| ------------------------ | ------------------------------- | ----------------------- |
+| `indexChunk(_:)`         | Add chunk's entities to index   | O(e) where e = entities |
+| `chunksForEntity(_:)`    | Find all chunks with entity     | O(1)                    |
+| `chunksForEntities(_:)`  | Union search across entities    | O(e)                    |
+| `sharedEntities(among:)` | Find common entities in chunks  | O(c·e)                  |
+| `removeDocument(_:)`     | Delete all entries for document | O(c·e)                  |
 
 **GraphRAG Integration**: `AgenticOrchestrator.executeGraphExpansion()` uses `chunksForEntities()` for 2-hop expansion without additional vector search.
 
@@ -935,6 +938,7 @@ actor EntityIndexService {
 **Solution**: Memory-mapped files let the OS page vectors in/out on demand.
 
 **Architecture**:
+
 ```text
 ┌─────────────────────────────────────────────────────────────┐
 │ embeddings.bin (mmap'd)                                     │
@@ -956,16 +960,17 @@ actor EntityIndexService {
 
 **Performance Characteristics**:
 
-| Metric | In-Memory DB | mmap DB |
-|--------|--------------|---------|
-| Resident Memory (10K chunks) | ~20 MB | ~2 KB |
-| Cold Start | Instant | ~100ms (metadata load) |
-| Search Latency | ~2ms | ~5ms |
-| Best For | Small corpora (<1K) | Large corpora (>5K) |
+| Metric                       | In-Memory DB        | mmap DB                |
+| ---------------------------- | ------------------- | ---------------------- |
+| Resident Memory (10K chunks) | ~20 MB              | ~2 KB                  |
+| Cold Start                   | Instant             | ~100ms (metadata load) |
+| Search Latency               | ~2ms                | ~5ms                   |
+| Best For                     | Small corpora (<1K) | Large corpora (>5K)    |
 
 **Hardware Acceleration**: Search uses `vDSP_dotpr` for BLAS-accelerated dot products.
 
 **Implementation** (`MmapVectorDatabase`):
+
 ```swift
 // Memory-map embeddings file
 mappedEmbeddings = try Data(contentsOf: embeddingsURL, options: .alwaysMapped)
@@ -1011,6 +1016,7 @@ func sendMessage() async {
 ```
 
 **Cancellation Points**:
+
 1. After query submission
 2. After embedding generation
 3. After hybrid search
@@ -1026,16 +1032,17 @@ func sendMessage() async {
 
 All advanced features are fully compatible with Apple's FoundationModels framework:
 
-| Feature | iOS Version | Apple API | Privacy |
-|---------|-------------|-----------|---------|
-| HyDE | iOS 26+ | `LanguageModelSession.respond(to:)` | On-device |
-| Contextual Compression | iOS 26+ | `LanguageModelSession.respond(to:)` | On-device |
-| Agentic Orchestration | iOS 26+ | `LanguageModelSession` + `Tool` protocol | On-device + PCC |
-| Cross-Encoder Reranking | iOS 17+ | Core ML (`ReRankerModel.mlpackage`) | On-device |
-| Lost-in-Middle | Any | Pure Swift algorithm | On-device |
-| Query Intent Classification | iOS 17+ | `NLTagger` + heuristics | On-device |
+| Feature                     | iOS Version | Apple API                                | Privacy         |
+| --------------------------- | ----------- | ---------------------------------------- | --------------- |
+| HyDE                        | iOS 26+     | `LanguageModelSession.respond(to:)`      | On-device       |
+| Contextual Compression      | iOS 26+     | `LanguageModelSession.respond(to:)`      | On-device       |
+| Agentic Orchestration       | iOS 26+     | `LanguageModelSession` + `Tool` protocol | On-device + PCC |
+| Cross-Encoder Reranking     | iOS 17+     | Core ML (`ReRankerModel.mlpackage`)      | On-device       |
+| Lost-in-Middle              | Any         | Pure Swift algorithm                     | On-device       |
+| Query Intent Classification | iOS 17+     | `NLTagger` + heuristics                  | On-device       |
 
 **References**:
+
 - [TN3193: Managing the on-device foundation model's context window](https://developer.apple.com/documentation/technotes/tn3193-managing-the-on-device-foundation-model-s-context-window)
 - [Expanding generation with tool calling](https://developer.apple.com/documentation/foundationmodels/expanding-generation-with-tool-calling)
 - [LanguageModelSession](https://developer.apple.com/documentation/foundationmodels/languagemodelsession)
@@ -1096,13 +1103,13 @@ All advanced features are fully compatible with Apple's FoundationModels framewo
 
 ## Performance Targets
 
-| Operation | Target | Current Status |
-|-----------|--------|----------------|
-| Document parsing | <1s/page | ✅ Achieved |
-| Embedding generation | <100ms/chunk | ✅ Achieved |
-| Vector search (1K chunks) | <50ms | ✅ Achieved |
-| LLM generation (Apple FM) | 15-25 tok/s | ✅ Achieved |
-| End-to-end query | <5s | ✅ Achieved |
+| Operation                 | Target       | Current Status |
+| ------------------------- | ------------ | -------------- |
+| Document parsing          | <1s/page     | ✅ Achieved    |
+| Embedding generation      | <100ms/chunk | ✅ Achieved    |
+| Vector search (1K chunks) | <50ms        | ✅ Achieved    |
+| LLM generation (Apple FM) | 15-25 tok/s  | ✅ Achieved    |
+| End-to-end query          | <5s          | ✅ Achieved    |
 
 ## Privacy Architecture
 
@@ -1118,28 +1125,28 @@ All advanced features are fully compatible with Apple's FoundationModels framewo
 
 ### What We Have (Best Practices Implemented)
 
-| Feature | Status | Implementation |
-|---------|--------|----------------|
-| Hybrid Search (Vector + BM25) | ✅ | `HybridSearchService` with RRF fusion |
-| Cross-Encoder Reranking | ✅ | `ReRankerModel.mlpackage` in `RAGEngine` |
-| MMR Diversification | ✅ | λ=0.6 in `RAGEngine.rerankWithMMR()` |
-| Query Expansion | ✅ | `QueryEnhancementService.expandQuery()` |
-| Query Intent Classification | ✅ | `QueryIntent` enum with dynamic weights |
-| Content-Adaptive Chunking | ✅ | `ChunkingConfig.recommended(for:)` |
-| Lost-in-Middle Mitigation | ✅ | `applyLostInMiddleReordering()` |
-| Auto-Tuning | ✅ | `RetrievalConfig.recommended(forDocumentTypes:)` |
+| Feature                       | Status | Implementation                                   |
+| ----------------------------- | ------ | ------------------------------------------------ |
+| Hybrid Search (Vector + BM25) | ✅     | `HybridSearchService` with RRF fusion            |
+| Cross-Encoder Reranking       | ✅     | `ReRankerModel.mlpackage` in `RAGEngine`         |
+| MMR Diversification           | ✅     | λ=0.6 in `RAGEngine.rerankWithMMR()`             |
+| Query Expansion               | ✅     | `QueryEnhancementService.expandQuery()`          |
+| Query Intent Classification   | ✅     | `QueryIntent` enum with dynamic weights          |
+| Content-Adaptive Chunking     | ✅     | `ChunkingConfig.recommended(for:)`               |
+| Lost-in-Middle Mitigation     | ✅     | `applyLostInMiddleReordering()`                  |
+| Auto-Tuning                   | ✅     | `RetrievalConfig.recommended(forDocumentTypes:)` |
 
 ### What Would Push to 10/10
 
-| Feature | Status | Complexity |
-|---------|--------|------------|
-| HyDE (Hypothetical Doc Embeddings) | 🔜 Roadmap | Medium |
-| RAPTOR-lite (Document Summaries) | ✅ Implemented | Medium |
-| Query Routing | ✅ Implemented | Low |
-| Self-RAG | 🔜 Roadmap | High |
-| Speculative RAG | ✅ Implemented | High |
-| Parent Document Retrieval | ✅ Implemented | Medium |
-| Learned Fusion Weights | 🔜 Roadmap | High |
+| Feature                            | Status         | Complexity |
+| ---------------------------------- | -------------- | ---------- |
+| HyDE (Hypothetical Doc Embeddings) | 🔜 Roadmap     | Medium     |
+| RAPTOR-lite (Document Summaries)   | ✅ Implemented | Medium     |
+| Query Routing                      | ✅ Implemented | Low        |
+| Self-RAG                           | 🔜 Roadmap     | High       |
+| Speculative RAG                    | ✅ Implemented | High       |
+| Parent Document Retrieval          | ✅ Implemented | Medium     |
+| Learned Fusion Weights             | 🔜 Roadmap     | High       |
 
 See [ROADMAP.md](../../ROADMAP.md) Phase 2.5 for full "God Mode RAG" feature list.
 
@@ -1152,17 +1159,20 @@ The retrieval pipeline has been enhanced with three major intelligence upgrades:
 **Philosophy**: Trust the embeddings. Only intervene for genuine ambiguity.
 
 **When it activates**:
+
 - Pronouns without referents ("What does it do?" → needs context)
 - Follow-up questions ("What else?" → needs prior topic)
 - Very short queries with conversation context
 
 **When it stays out of the way**:
+
 - Clear, specific queries → pass through unchanged
 - No conversation context → no pronoun resolution needed
 
 **File**: `Services/QueryRewriterService.swift`
 
 **Features**:
+
 - Ambiguity detection (pronouns, follow-ups, short queries)
 - LLM-powered clarification with conversation context
 - Simple fallback pronoun substitution
@@ -1185,6 +1195,7 @@ Expanded query: "button record hold toggle mode switch"
 **File**: `Services/QueryEnhancementService.swift` with `CorpusVocabulary`
 
 **Features**:
+
 - Builds co-occurrence maps from chunk metadata keywords
 - Extracts multi-word phrases (e.g., "Record Button", "Note Recording Mode")
 - Preserves original query while adding domain-specific terms
@@ -1207,6 +1218,7 @@ Iteration 3: Refine query + retrieve → Assess confidence (0.75) → Sufficient
 **File**: `Services/IterativeRetrievalService.swift`
 
 **Features**:
+
 - Configurable via `RAGQualityMode` (enabled in Thorough mode)
 - Confidence assessment based on: chunk count, similarity scores, source diversity
 - LLM-powered query refinement between iterations
@@ -1216,12 +1228,12 @@ Iteration 3: Refine query + retrieve → Assess confidence (0.75) → Sufficient
 
 These features are controlled by the `RAGQualityMode` setting:
 
-| Feature | Fast | Balanced | Thorough |
-|---------|------|----------|----------|
-| Query Rewriting | ❌ | ✅ | ✅ |
-| Corpus Expansion | ✅ | ✅ | ✅ |
-| Iterative Retrieval | ❌ | ❌ | ✅ |
-| Max Iterations | 1 | 2 | 4 |
+| Feature             | Fast | Balanced | Thorough |
+| ------------------- | ---- | -------- | -------- |
+| Query Rewriting     | ❌   | ✅       | ✅       |
+| Corpus Expansion    | ✅   | ✅       | ✅       |
+| Iterative Retrieval | ❌   | ❌       | ✅       |
+| Max Iterations      | 1    | 2        | 4        |
 
 ### Settings Integration
 
@@ -1311,43 +1323,46 @@ Vendor/                          # Third-party dependencies (LocalLLMClient)
 ### Model Selection & Quantization
 
 **Recommended Model Sizes**:
+
 - iPhone 15 Pro (8GB): 2–3B parameter models
 - iPhone 16 Pro Max (8GB+): 3–7B parameter models
 
 **Quantization Strategy**:
 
-| Quantization | Size (3B) | Quality | Speed | Recommendation |
-|--------------|-----------|---------|-------|----------------|
-| Q4_K_M | ~2.0 GB | Excellent | Fast | ✅ Recommended |
-| Q5_K_M | ~2.4 GB | Better | Moderate | Good for Pro Max |
-| Q8_0 | ~3.2 GB | Near-fp16 | Slower | Avoid on mobile |
+| Quantization | Size (3B) | Quality   | Speed    | Recommendation   |
+| ------------ | --------- | --------- | -------- | ---------------- |
+| Q4_K_M       | ~2.0 GB   | Excellent | Fast     | ✅ Recommended   |
+| Q5_K_M       | ~2.4 GB   | Better    | Moderate | Good for Pro Max |
+| Q8_0         | ~3.2 GB   | Near-fp16 | Slower   | Avoid on mobile  |
 
 **Starter Models**:
+
 - Qwen2.5-3B-Instruct-Q4_K_M (1.9 GB)
 - Gemma-2-2B-It-Q4_K_M (1.6 GB)
 - Llama-3.2-1B-Instruct-Q4_K_M (730 MB)
 
 ### Context Window Management
 
-| Model | Max Context | Recommended Mobile |
-|-------|-------------|-------------------|
-| Qwen2.5-3B | 32,768 | 8,192–16,384 |
-| Gemma-2-2B | 8,192 | 4,096–8,192 |
-| Llama-3.2-1B | 131,072 | 8,192 |
+| Model        | Max Context | Recommended Mobile |
+| ------------ | ----------- | ------------------ |
+| Qwen2.5-3B   | 32,768      | 8,192–16,384       |
+| Gemma-2-2B   | 8,192       | 4,096–8,192        |
+| Llama-3.2-1B | 131,072     | 8,192              |
 
 **RAG Context Strategy**:
+
 - Target ~3,000 tokens (5–8 chunks @ 280-350 words)
 - SemanticChunker overlap (~17% / 60 words) maintains coherence
 - HybridSearchService MMR prevents redundant context
 
 ### Memory Footprint (Q4_K_M 3B)
 
-| Component | Size |
-|-----------|------|
-| Model weights | ~2.0 GB |
-| KV cache (8K context) | ~500 MB |
-| OS + app overhead | ~1.0 GB |
-| **Total** | **~3.5 GB** |
+| Component             | Size        |
+| --------------------- | ----------- |
+| Model weights         | ~2.0 GB     |
+| KV cache (8K context) | ~500 MB     |
+| OS + app overhead     | ~1.0 GB     |
+| **Total**             | **~3.5 GB** |
 
 ### Performance Targets
 
@@ -1357,11 +1372,11 @@ Vendor/                          # Third-party dependencies (LocalLLMClient)
 
 ### Troubleshooting
 
-| Issue | Solution |
-|-------|----------|
-| Slow inference (<5 TPS) | Use Q4_K_M; wait for device to cool |
-| Out-of-memory crash | Use smaller model; reduce context |
-| High battery drain | Add cancellation checks; limit generation length |
+| Issue                   | Solution                                         |
+| ----------------------- | ------------------------------------------------ |
+| Slow inference (<5 TPS) | Use Q4_K_M; wait for device to cool              |
+| Out-of-memory crash     | Use smaller model; reduce context                |
+| High battery drain      | Add cancellation checks; limit generation length |
 
 ---
 
@@ -1370,40 +1385,46 @@ Vendor/                          # Third-party dependencies (LocalLLMClient)
 ### ChatView Optimizations
 
 **Message Pagination**:
+
 ```swift
 @State private var visibleMessageCount: Int = 50
 private let maxMessagesInMemory = 200
 ```
+
 - Reduces SwiftUI complexity from O(n) to O(50)
 - 90% faster rendering for 500+ messages
 
 **Automatic Cleanup**:
+
 - Keeps most recent 200 messages
 - Automatic pruning after each send
 
 **Chunked Streaming**:
+
 - Stream in 10-char chunks (not char-by-char)
 - 10x fewer UI updates during response
 
 ### Vector Database Optimizations
 
 **Pre-computed Embedding Norms**:
+
 - Cache norms during storage
 - 50% faster vector search (no sqrt() in hot loop)
 
 **LRU Search Cache**:
+
 - Cache last 20 search results
 - Instant returns for repeated/similar queries
 - Auto-expiration after 5 minutes
 
 ### Performance Metrics
 
-| Scenario | Before | After |
-|----------|--------|-------|
-| 500 messages | 30-40 FPS | 60 FPS |
-| Memory (1hr) | 150-200 MB | 50-70 MB |
-| Vector search (1K chunks) | 80-120ms | 40-60ms |
-| Repeated query | 80-120ms | 0-5ms |
+| Scenario                  | Before     | After    |
+| ------------------------- | ---------- | -------- |
+| 500 messages              | 30-40 FPS  | 60 FPS   |
+| Memory (1hr)              | 150-200 MB | 50-70 MB |
+| Vector search (1K chunks) | 80-120ms   | 40-60ms  |
+| Repeated query            | 80-120ms   | 0-5ms    |
 
 ### Tunable Parameters
 

@@ -18,9 +18,9 @@ import NaturalLanguage
 /// Service for generating document-level summaries using Apple Intelligence.
 /// Part of RAPTOR-lite implementation for efficient overview queries.
 actor DocumentSummaryService {
-    
+
     // MARK: - Configuration
-    
+
     struct SummaryConfig: Sendable {
         /// Target word count for summaries
         let targetWords: Int
@@ -30,14 +30,14 @@ actor DocumentSummaryService {
         let extractEntities: Bool
         /// Whether to include key topics
         let extractTopics: Bool
-        
+
         static let `default` = SummaryConfig(
             targetWords: 150,
             maxInputChars: 8000,  // ~2000 tokens, leaves room for output
             extractEntities: true,
             extractTopics: true
         )
-        
+
         static let compact = SummaryConfig(
             targetWords: 80,
             maxInputChars: 4000,
@@ -45,25 +45,25 @@ actor DocumentSummaryService {
             extractTopics: true
         )
     }
-    
+
     // MARK: - Dependencies
-    
+
     private weak var ragService: RAGService?
     private let config: SummaryConfig
-    
+
     // MARK: - Initialization
-    
+
     init(ragService: RAGService? = nil, config: SummaryConfig = .default) {
         self.ragService = ragService
         self.config = config
     }
-    
+
     func setRAGService(_ service: RAGService) {
         self.ragService = service
     }
-    
+
     // MARK: - Summary Generation
-    
+
     /// Generates a summary for a document from its chunks.
     /// Returns a DocumentChunk with abstractionLevel = .documentSummary
     func generateDocumentSummary(
@@ -72,29 +72,29 @@ actor DocumentSummaryService {
         chunks: [DocumentChunk],
         embeddingService: EmbeddingService
     ) async throws -> DocumentChunk {
-        
+
         Log.info("[DocumentSummary] Generating summary for '\(documentName)' (\(chunks.count) chunks)", category: .pipeline)
-        
+
         // 1. Build representative text from chunks
         let representativeText = buildRepresentativeText(from: chunks)
-        
+
         // 2. Generate summary via LLM
         let summaryText = try await generateSummaryViaLLM(
             documentName: documentName,
             representativeText: representativeText
         )
-        
+
         // 3. Generate embedding for the summary
         let summaryEmbedding = try await embeddingService.generateEmbedding(
             for: "[Document Summary: \(documentName)] \(summaryText)"
         )
-        
+
         // 4. Extract entities from summary
         let entities = extractEntitiesFromSummary(summaryText)
-        
+
         // 5. Extract keywords before MainActor.run (since extractKeywords is actor-isolated)
         let keywords = extractKeywords(from: summaryText)
-        
+
         // 6. Build metadata and chunk on MainActor (Swift 6 isolation requirement)
         let summaryChunk = await MainActor.run {
             let metadata = ChunkMetadata(
@@ -115,7 +115,7 @@ actor DocumentSummaryService {
                 entities: entities,
                 abstractionLevel: .documentSummary
             )
-            
+
             // Create summary chunk
             return DocumentChunk(
                 id: UUID(),
@@ -127,81 +127,81 @@ actor DocumentSummaryService {
                 metadata: metadata
             )
         }
-        
+
         Log.info("[DocumentSummary] Generated \(summaryText.split(separator: " ").count)-word summary", category: .pipeline)
-        
+
         return summaryChunk
     }
-    
+
     // MARK: - Private Helpers
-    
+
     /// Builds representative text from chunks for summarization.
     /// Prioritizes first chunks, section headers, and high-density chunks.
     private func buildRepresentativeText(from chunks: [DocumentChunk]) -> String {
         var selectedText: [String] = []
         var charCount = 0
-        
+
         // Strategy: Take first 2 chunks (intro), last chunk (conclusion),
         // and fill middle with highest semantic density chunks
-        
-        let sortedByDensity = chunks.sorted { 
-            ($0.metadata.semanticDensity ?? 0) > ($1.metadata.semanticDensity ?? 0) 
+
+        let sortedByDensity = chunks.sorted {
+            ($0.metadata.semanticDensity ?? 0) > ($1.metadata.semanticDensity ?? 0)
         }
-        
+
         // First chunk (intro)
         if let first = chunks.first {
             selectedText.append(first.content)
             charCount += first.content.count
         }
-        
+
         // High-density chunks from middle
         for chunk in sortedByDensity {
             guard charCount < config.maxInputChars else { break }
-            
+
             // Skip if already added (first/last)
             if chunk.id == chunks.first?.id || chunk.id == chunks.last?.id {
                 continue
             }
-            
+
             selectedText.append(chunk.content)
             charCount += chunk.content.count
         }
-        
+
         // Last chunk (conclusion) if different from first
         if chunks.count > 1, let last = chunks.last {
             if charCount + last.content.count <= config.maxInputChars {
                 selectedText.append(last.content)
             }
         }
-        
+
         return selectedText.joined(separator: "\n\n")
     }
-    
+
     /// Generates summary text using Apple Intelligence
     private func generateSummaryViaLLM(
         documentName: String,
         representativeText: String
     ) async throws -> String {
-        
+
         guard let ragService = ragService else {
             // Fallback: extractive summary (first 150 words)
             Log.warning("[DocumentSummary] No RAGService available, using extractive fallback", category: .pipeline)
             return extractiveFallback(from: representativeText)
         }
-        
+
         let prompt = """
         Summarize this document in approximately \(config.targetWords) words.
         Focus on: main topics, key information, and document purpose.
         Be concise and informative.
-        
+
         Document: \(documentName)
-        
+
         Content:
         \(representativeText.prefix(config.maxInputChars))
-        
+
         Summary:
         """
-        
+
         do {
             // Use the LLM service directly for summary generation
             // Access llmService and build config on MainActor since RAGService is @MainActor isolated
@@ -211,59 +211,59 @@ actor DocumentSummaryService {
                 config.maxTokens = 300
                 return (ragService.llmService, config)
             }
-            
+
             // The system prompt is embedded in the prompt for summary generation
             let fullPrompt = "You are a document summarization assistant. Generate concise, informative summaries.\n\n" + prompt
-            
+
             let response = try await llmService.generate(
                 prompt: fullPrompt,
                 context: nil,
                 config: inferenceConfig
             )
-            
+
             return response.text.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
-            
+
         } catch {
             Log.error("[DocumentSummary] LLM summary failed: \(error), using extractive fallback", category: .pipeline)
             return extractiveFallback(from: representativeText)
         }
     }
-    
+
     /// Extractive fallback when LLM is unavailable
     private func extractiveFallback(from text: String) -> String {
         let words = text.split(separator: " ")
         let targetWords = min(config.targetWords, words.count)
         return words.prefix(targetWords).joined(separator: " ") + "..."
     }
-    
+
     /// Extract keywords from summary text
     private func extractKeywords(from text: String) -> [String] {
         let words = text.lowercased()
             .components(separatedBy: .alphanumerics.inverted)
             .filter { $0.count > 4 }
-        
+
         // Simple frequency-based extraction
         var frequency: [String: Int] = [:]
         for word in words {
             frequency[word, default: 0] += 1
         }
-        
+
         return frequency
             .sorted { $0.value > $1.value }
             .prefix(10)
             .map { $0.key }
     }
-    
+
     /// Extract entities from summary using NLTagger
     private func extractEntitiesFromSummary(_ text: String) -> [String] {
         guard config.extractEntities else { return [] }
-        
+
         var entities: [String] = []
         let tagger = NLTagger(tagSchemes: [.nameType])
         tagger.string = text
-        
+
         let options: NLTagger.Options = [.omitWhitespace, .omitPunctuation]
-        
+
         tagger.enumerateTags(in: text.startIndex..<text.endIndex, unit: .word, scheme: .nameType, options: options) { tag, range in
             if let tag = tag, [.personalName, .organizationName, .placeName].contains(tag) {
                 let entity = String(text[range])
@@ -273,7 +273,7 @@ actor DocumentSummaryService {
             }
             return true
         }
-        
+
         return Array(entities.prefix(15))
     }
 }
@@ -285,7 +285,7 @@ extension DocumentChunk {
     var isDocumentSummary: Bool {
         metadata.abstractionLevel == .documentSummary
     }
-    
+
     /// Whether this chunk is any kind of summary (level > 0)
     var isSummaryChunk: Bool {
         metadata.abstractionLevel.rawValue > 0

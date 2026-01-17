@@ -642,10 +642,10 @@ class RAGService: ObservableObject {
         entitlementStore: EntitlementStore? = nil
     ) {
         self.documentProcessor = documentProcessor ?? DocumentProcessor()
-        
+
         // Initialize document summary service for RAPTOR-lite
         self.documentSummaryService = DocumentSummaryService()
-        
+
         if let embeddingService {
             self.embeddingService = embeddingService
             embeddingServiceWasInjected = true
@@ -746,7 +746,7 @@ class RAGService: ObservableObject {
             self.cloudConsent = self.loadPersistedConsentStates()
         }
         loadDocumentsFromDisk()
-        
+
         // Connect document summary service to self for LLM access
         Task {
             await self.documentSummaryService.setRAGService(self)
@@ -2030,7 +2030,7 @@ class RAGService: ObservableObject {
             // Creates a level-1 summary chunk for efficient overview queries
             // Controlled by settings.enableDocumentSummaries
             let summariesEnabled = await MainActor.run { self.settingsStore?.enableDocumentSummaries ?? true }
-            
+
             if summariesEnabled {
                 await MainActor.run {
                     updateIngestionItem(
@@ -2040,7 +2040,7 @@ class RAGService: ObservableObject {
                         detail: "Generating summary..."
                     )
                 }
-                
+
                 do {
                     let summaryChunk = try await documentSummaryService.generateDocumentSummary(
                         documentId: document.id,
@@ -2048,10 +2048,10 @@ class RAGService: ObservableObject {
                         chunks: documentChunks,
                         embeddingService: containerEmbeddingService
                     )
-                    
+
                     // Store the summary chunk alongside detail chunks
                     try await db.storeBatch(chunks: [summaryChunk])
-                    
+
                     TelemetryCenter.emit(
                         .ingestion,
                         title: "Document summary generated",
@@ -2061,7 +2061,7 @@ class RAGService: ObservableObject {
                             "abstractionLevel": "L1",
                         ]
                     )
-                    
+
                     Log.info("[RAGService] RAPTOR-lite: Generated L1 summary for '\(filename)'", category: .ingestion)
                 } catch {
                     // Summary generation is optional - log but don't fail ingestion
@@ -3498,7 +3498,7 @@ class RAGService: ObservableObject {
                 let queryRoutingEnabled = settingsStore?.enableQueryRouting ?? true
                 let queryClassification = await queryRouter.classifyQuery(effectiveQuery)
                 let searchLevels = await queryRouter.abstractionLevelsToSearch(for: queryClassification)
-                
+
                 if queryRoutingEnabled {
                     Log.info(
                         "[RAPTOR-lite] Query type: \(queryClassification.queryType.rawValue) " +
@@ -3507,7 +3507,7 @@ class RAGService: ObservableObject {
                         category: .retrieval
                     )
                 }
-                
+
                 // Filter cached chunks by abstraction level if we have summaries AND routing is enabled
                 var filteredCachedChunks: [DocumentChunk]? = cachedAllChunks
                 if queryRoutingEnabled, let allChunks = cachedAllChunks {
@@ -7336,16 +7336,16 @@ extension RAGService: RAGToolHandler {
 
         // Skip if no chunks
         guard !allChunks.isEmpty else { return [] }
-        
+
         // RAPTOR-lite: Query routing for summary-first retrieval
         // Only filter chunks if query routing is enabled AND we have summaries
         let queryRoutingEnabled = await MainActor.run { self.settingsStore?.enableQueryRouting ?? true }
         var effectiveChunks = allChunks
-        
+
         if queryRoutingEnabled {
             let queryClassification = await queryRouter.classifyQuery(query)
             let hasSummaries = allChunks.contains { $0.metadata.abstractionLevel == .documentSummary }
-            
+
             if hasSummaries && queryClassification.queryType == .overview && queryClassification.confidence >= 0.5 {
                 // For overview queries in agentic mode, use summaries first
                 let searchLevels = await queryRouter.abstractionLevelsToSearch(for: queryClassification)
@@ -7440,22 +7440,22 @@ extension RAGService: RAGToolHandler {
 
         // Index BM25 with available chunks (for lexical recall)
         let allChunks = try await db.allChunks()
-        
+
         // RAPTOR-lite: Query routing for summary-first retrieval
         let queryRoutingEnabled = await MainActor.run { self.settingsStore?.enableQueryRouting ?? true }
         var effectiveChunks = allChunks
-        
+
         if queryRoutingEnabled {
             let queryClassification = await queryRouter.classifyQuery(query)
             let hasSummaries = allChunks.contains { $0.metadata.abstractionLevel == .documentSummary }
-            
+
             if hasSummaries && queryClassification.queryType == .overview && queryClassification.confidence >= 0.5 {
                 let searchLevels = await queryRouter.abstractionLevelsToSearch(for: queryClassification)
                 effectiveChunks = allChunks.filter { searchLevels.contains($0.metadata.abstractionLevel) }
                 Log.info("[RAPTOR-lite] Raw search using \(effectiveChunks.count) summary chunks", category: .retrieval)
             }
         }
-        
+
         let bm25Scorer = BM25Scorer()
         bm25Scorer.indexDocuments(effectiveChunks)
 

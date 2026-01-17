@@ -255,8 +255,8 @@ _Silicon-native vector operations using Apple Accelerate framework_
       _Features_: vDSP_dotpr for dot products, cblas_snrm2 for L2 norms, vDSP_mmul for batch matrix ops
 - [x] **Flat File Storage**: Contiguous float arrays for max Neural Engine throughput
       _Status_: flatEmbeddings array stores all vectors sequentially for vDSP_mmul compatibility
-- [x] **Optimized Dot Product**: Hardware-accelerated via vDSP_dotpr (Neural Engine preferred)
-      _Status_: Both RAGEngine and HybridSearchService use Accelerate-powered similarity
+- [x] **Optimized Dot Product**: Hardware-accelerated via vDSP*dotpr (Neural Engine preferred)
+      \_Status*: Both RAGEngine and HybridSearchService use Accelerate-powered similarity
 - [x] **Pre-Computed Norms**: O(1) cosine similarity via cached L2 norms
       _Status_: embeddingNorms array populated at insert time, avoids re-computing sqrt(sum(x^2))
 - [x] **Device-Adaptive Batch Thresholds**: DeviceCapabilityService optimizes batch sizes per chip
@@ -264,8 +264,8 @@ _Silicon-native vector operations using Apple Accelerate framework_
       _Features_: vectorBatchSize, embeddingBatchSize, batchMatrixMultiplyThreshold tuned per device tier
 - [x] **mmap Zero-Copy Vector Storage**: Memory-mapped embedding files for minimal RAM usage
       _Location_: [VectorDatabase.swift](OpenIntelligence/Services/VectorDatabase.swift) `MmapVectorDatabase`
-      _Features_: `Data(contentsOf:, options: .alwaysMapped)` for zero-copy access, cblas_sgemv search
-      _Performance_: ~2KB resident memory vs ~20MB for in-memory (10K chunks @ 512-dim)
+      _Features_: `Data(contentsOf:, options: .alwaysMapped)` for zero-copy access, cblas*sgemv search
+      \_Performance*: ~2KB resident memory vs ~20MB for in-memory (10K chunks @ 512-dim)
       _Architecture_: Separate embeddings.bin (mmap'd) + metadata.json + norms.bin files
 
 ### Phase 3: Cross-Encoder Re-Ranking (High) ✅ COMPLETE
@@ -467,8 +467,8 @@ _Full Vision framework integration for layout-aware document processing_
 
 - [x] **Image Classification**: Use ClassifyImageRequest to tag images
       _API_: `ClassifyImageRequest()` → [ClassificationObservation] with identifiers and confidence
-      _Benefit_: "This PDF contains: diagrams (0.85), technical_drawings (0.72), charts (0.68)"
-      _Location_: [ImageUnderstandingService.swift](OpenIntelligence/Services/ImageUnderstandingService.swift)
+      _Benefit_: "This PDF contains: diagrams (0.85), technical*drawings (0.72), charts (0.68)"
+      \_Location*: [ImageUnderstandingService.swift](OpenIntelligence/Services/ImageUnderstandingService.swift)
       _Status_: Implemented - iOS 18+ modern API with legacy fallback; ImageContentType enum for high-level categorization
 
 - [x] **Image-to-Text Description**: Generate text descriptions of images via Apple Intelligence

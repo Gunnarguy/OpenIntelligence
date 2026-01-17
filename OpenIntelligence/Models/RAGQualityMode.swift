@@ -149,14 +149,14 @@ enum RAGQualityMode: String, Identifiable, Sendable {
     var isUnlimitedMode: Bool {
         canonical == .maximum
     }
-    
+
     /// Whether this mode benefits from RAPTOR-lite summaries
     /// Standard mode benefits most from summary-first retrieval for overview queries
     /// Deep Think/Maximum use summaries as starting points but still do deep retrieval
     var benefitsFromSummaries: Bool {
         true // All modes benefit - summaries provide faster initial context
     }
-    
+
     /// Whether to suggest using summaries for overview queries in this mode
     var preferSummariesForOverview: Bool {
         switch canonical {
