@@ -57,17 +57,17 @@ struct DocumentChunk: Identifiable, Codable, Sendable {
 enum ChunkAbstractionLevel: Int, Codable, Sendable, CaseIterable {
     /// Level 0: Original document chunks (280-400 words, semantic boundaries)
     case detail = 0
-    
+
     /// Level 1: Document-level summary (1 per document, ~200 words)
     /// Created at ingestion by DocumentSummaryService via Apple FM
     case documentSummary = 1
-    
+
     /// Level 2: Topic cluster summary (future - groups related documents)
     case clusterSummary = 2
-    
+
     /// Level 3: Library-wide summary (future - entire knowledge base overview)
     case librarySummary = 3
-    
+
     /// Human-readable description for logging
     var description: String {
         switch self {
@@ -77,7 +77,7 @@ enum ChunkAbstractionLevel: Int, Codable, Sendable, CaseIterable {
         case .librarySummary: return "Library Summary (L3)"
         }
     }
-    
+
     /// Whether this level represents summarized content (L1+)
     var isSummary: Bool { rawValue > 0 }
 }
