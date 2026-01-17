@@ -94,6 +94,95 @@ nonisolated enum LoggingConfiguration {
         case telemetry // Telemetry events
         case ui // UI updates
         case billing // StoreKit and entitlement flows
+        case pipelineTrace // Smart pipeline trace (condensed mode awareness)
+    }
+    
+    // MARK: - Pipeline Trace Mode
+    
+    /// Backing store for pipeline trace mode
+    private static var _pipelineTraceEnabled: Bool = false
+    
+    /// Enable condensed pipeline trace logging (shows mode-aware steps without overwhelming output)
+    static var pipelineTraceEnabled: Bool {
+        get {
+            stateLock.lock()
+            defer { stateLock.unlock() }
+            return _pipelineTraceEnabled
+        }
+        set {
+            stateLock.lock()
+            _pipelineTraceEnabled = newValue
+            stateLock.unlock()
+        }
+    }
+    
+    /// Log a pipeline trace step with timing (only when trace mode is enabled)
+    /// - Parameters:
+    ///   - step: Step number/name (e.g., "1", "1.5", "RAPTOR")
+    ///   - title: Brief title of the step
+    ///   - details: Key-value pairs for important metrics (condensed)
+    ///   - duration: Optional duration in seconds
+    static func pipelineStep(
+        _ step: String,
+        title: String,
+        details: [(String, String)] = [],
+        duration: TimeInterval? = nil
+    ) {
+        guard pipelineTraceEnabled else { return }
+        
+        let timeStr = duration.map { String(format: "%.0fms", $0 * 1000) } ?? ""
+        let detailStr = details.map { "\($0.0): \($0.1)" }.joined(separator: " │ ")
+        
+        let stepBox = "[\(step)]".padding(toLength: 8, withPad: " ", startingAt: 0)
+        let titlePad = title.padding(toLength: 28, withPad: " ", startingAt: 0)
+        let timePad = timeStr.padding(toLength: 8, withPad: " ", startingAt: 0)
+        
+        print("🔹 \(stepBox) \(titlePad) \(timePad) │ \(detailStr)")
+    }
+    
+    /// Log pipeline mode header (quality mode, RAPTOR-lite status)
+    static func pipelineHeader(
+        mode: String,
+        raptorSummaries: Bool,
+        raptorRouting: Bool,
+        queryType: String? = nil
+    ) {
+        guard pipelineTraceEnabled else { return }
+        
+        let separator = String(repeating: "═", count: 70)
+        print("\n\(separator)")
+        print("🚀 PIPELINE TRACE: \(mode.uppercased()) MODE")
+        
+        let summaryStatus = raptorSummaries ? "✅ ON" : "❌ OFF"
+        let routingStatus = raptorRouting ? "✅ ON" : "❌ OFF"
+        print("   RAPTOR-lite: Summaries=\(summaryStatus) │ QueryRouting=\(routingStatus)")
+        
+        if let qType = queryType {
+            print("   Query Type: \(qType)")
+        }
+        print(separator)
+    }
+    
+    /// Log pipeline completion summary
+    static func pipelineComplete(
+        totalDuration: TimeInterval,
+        chunksRetrieved: Int,
+        tokensUsed: Int? = nil,
+        confidence: Double? = nil
+    ) {
+        guard pipelineTraceEnabled else { return }
+        
+        var summary = "Retrieved \(chunksRetrieved) chunks"
+        if let tokens = tokensUsed {
+            summary += " │ \(tokens) tokens"
+        }
+        if let conf = confidence {
+            summary += " │ confidence: \(String(format: "%.0f%%", conf * 100))"
+        }
+        
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print("✅ PIPELINE COMPLETE: \(String(format: "%.0fms", totalDuration * 1000)) │ \(summary)")
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
     }
 
     /// Check if logging is enabled for a given level

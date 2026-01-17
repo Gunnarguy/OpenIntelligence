@@ -2740,6 +2740,21 @@ class RAGService: ObservableObject {
         // Check if user selected Maximum (unlimited) mode
         let isUnlimitedMode = qualityMode.isUnlimitedMode
         let modeLabel = isUnlimitedMode ? "MAXIMUM REASONING MODE" : "AGENTIC REASONING MODE"
+        
+        // Pipeline Trace: Agentic mode header
+        let raptorSummariesEnabled = await MainActor.run { settingsStore?.enableDocumentSummaries ?? true }
+        let raptorRoutingEnabled = await MainActor.run { settingsStore?.enableQueryRouting ?? true }
+        Log.pipelineHeader(
+            mode: isUnlimitedMode ? "Maximum" : "Deep Think",
+            raptorSummaries: raptorSummariesEnabled,
+            raptorRouting: raptorRoutingEnabled
+        )
+        
+        // Pipeline Trace: Agentic orchestration step
+        Log.pipelineStep("A", title: "Agentic Orchestration", details: [
+            ("type", isUnlimitedMode ? "unlimited" : "multi-session"),
+            ("confTarget", isUnlimitedMode ? "98%" : "75%")
+        ])
 
         Log.box(
             modeLabel,
@@ -2819,6 +2834,14 @@ class RAGService: ObservableObject {
             let totalTime = Date().timeIntervalSince(startTime)
 
             Log.info("[Agentic] Complete: \(result.steps.count) steps, \(result.totalTokens) tokens, \(String(format: "%.1f", totalTime))s", category: .pipeline)
+            
+            // Pipeline Trace: Agentic completion
+            Log.pipelineComplete(
+                totalDuration: totalTime,
+                chunksRetrieved: result.steps.count, // Steps as "chunks" for agentic
+                tokensUsed: result.totalTokens,
+                confidence: result.confidence
+            )
 
             emitThinkingEvent(
                 .generation,
@@ -3073,6 +3096,16 @@ class RAGService: ObservableObject {
         } else {
             Log.info("[Pipeline] Using Standard mode", category: .pipeline)
         }
+        
+        // Pipeline Trace: Emit header with mode and RAPTOR-lite status
+        let raptorSummariesEnabled = await MainActor.run { settingsStore?.enableDocumentSummaries ?? true }
+        let raptorRoutingEnabled = await MainActor.run { settingsStore?.enableQueryRouting ?? true }
+        let modeDisplayName = qualityMode.displayName
+        Log.pipelineHeader(
+            mode: modeDisplayName,
+            raptorSummaries: raptorSummariesEnabled,
+            raptorRouting: raptorRoutingEnabled
+        )
 
         // Get adaptive pipeline config based on current device state (thermal, battery, memory)
         // This dynamically adjusts feature usage to prevent thermal throttling and save battery
@@ -3259,6 +3292,12 @@ class RAGService: ObservableObject {
                 // Step 0: Build or retrieve cached Corpus Vocabulary (for context-aware understanding)
                 Log.section("Step 0: Corpus Analysis", level: .info, category: .pipeline)
                 let corpusStartTime = Date()
+                
+                // Pipeline Trace: Step 0
+                Log.pipelineStep("0", title: "Corpus Analysis", details: [
+                    ("chunks", "\(totalStored)"),
+                    ("container", selectedName)
+                ])
 
                 // Use cached vocabulary if available to avoid expensive rebuilds
                 let corpusVocabulary: CorpusVocabulary = await MainActor.run {
@@ -3301,6 +3340,11 @@ class RAGService: ObservableObject {
                 if useQueryRewriting {
                     Log.section("Step 1: Query Understanding", level: .info, category: .pipeline)
                     let rewriteStartTime = Date()
+                    
+                    // Pipeline Trace: Step 1
+                    Log.pipelineStep("1", title: "Query Understanding", details: [
+                        ("rewriting", "enabled")
+                    ])
                     let documentNames = await snapshotDocuments().map { $0.filename }
                     let queryRewriter = QueryRewriterService(
                         corpusVocabulary: finalCorpusVocabulary,
@@ -3421,6 +3465,12 @@ class RAGService: ObservableObject {
                 // Step 2: Embed the user's query
                 Log.section("Step 2: Query Embedding", level: .info, category: .pipeline)
                 let embeddingStartTime = Date()
+                
+                // Pipeline Trace: Step 2
+                Log.pipelineStep("2", title: "Query Embedding", details: [
+                    ("provider", embeddingProviderId),
+                    ("dim", "\(selectedDim)")
+                ])
 
                 // NOTE: HyDE (Hypothetical Document Embeddings) has been disabled.
                 // HyDE asks the LLM to generate a hypothetical answer WITHOUT document context,
@@ -3497,6 +3547,14 @@ class RAGService: ObservableObject {
                 // Controlled by settings.enableQueryRouting
                 let queryRoutingEnabled = settingsStore?.enableQueryRouting ?? true
                 let queryClassification = await queryRouter.classifyQuery(effectiveQuery)
+                
+                // Pipeline Trace: Step 2.5 (RAPTOR-lite)
+                if queryRoutingEnabled {
+                    Log.pipelineStep("2.5", title: "RAPTOR-lite Query Routing", details: [
+                        ("type", queryClassification.queryType.rawValue),
+                        ("confidence", String(format: "%.0f%%", queryClassification.confidence * 100))
+                    ])
+                }
                 let searchLevels = await queryRouter.abstractionLevelsToSearch(for: queryClassification)
 
                 if queryRoutingEnabled {
@@ -3534,6 +3592,12 @@ class RAGService: ObservableObject {
                         level: .info,
                         category: .pipeline
                     )
+                    
+                    // Pipeline Trace: Step 3 (Iterative)
+                    Log.pipelineStep("3", title: "Iterative Retrieval", details: [
+                        ("maxPasses", "\(iterativeConfig.maxIterations)"),
+                        ("targetConf", String(format: "%.0f%%", iterativeConfig.confidenceThreshold * 100))
+                    ])
                     emitThinkingEvent(
                         .retrieval,
                         title: "Multi-pass retrieval",
@@ -3594,6 +3658,13 @@ class RAGService: ObservableObject {
                     Log.section(
                         "Step 3: Hybrid Search (Vector + BM25)", level: .info, category: .pipeline
                     )
+                    
+                    // Pipeline Trace: Step 3 (Single-pass)
+                    Log.pipelineStep("3", title: "Hybrid Search", details: [
+                        ("vector", String(format: "%.0f%%", adjustedVectorWeight * 100)),
+                        ("BM25", String(format: "%.0f%%", adjustedKeywordWeight * 100)),
+                        ("topK", "\(effectiveTopK * 3)")
+                    ])
 
                     Log.debug(
                         "[RAGService] Query intent: \(queryIntent.rawValue) → weights adjusted to vector=\(String(format: "%.2f", adjustedVectorWeight)), keyword=\(String(format: "%.2f", adjustedKeywordWeight))",
@@ -3760,6 +3831,12 @@ class RAGService: ObservableObject {
 
                 // Step 4: Re-rank results with multiple signals
                 Log.section("Step 4: Multi-Signal Re-ranking", level: .info, category: .pipeline)
+                
+                // Pipeline Trace: Step 4
+                Log.pipelineStep("4", title: "Multi-Signal Reranking", details: [
+                    ("candidates", "\(chunksWithSources.count)")
+                ])
+                
                 let engine = RAGEngine.shared
                 let rerankStartTime = Date()
                 var rerankedChunks = await engine.rerank(
@@ -4138,6 +4215,12 @@ class RAGService: ObservableObject {
                 // Step 4.5: Apply MMR for diversity using container's retrieval config
                 Log.section("Step 4.5: MMR Diversification", level: .info, category: .pipeline)
                 let mmrStartTime = Date()
+                
+                // Pipeline Trace: Step 4.5
+                Log.pipelineStep("4.5", title: "MMR Diversification", details: [
+                    ("candidates", "\(filteredChunks.count)"),
+                    ("targetK", "\(effectiveTopK)")
+                ])
 
                 // Procedural query override: favor relevance over diversity for step-by-step content
                 // Consecutive chunks from same document are valuable context, not redundant
@@ -4650,6 +4733,14 @@ class RAGService: ObservableObject {
                 recoveryRetrievedChunks = includedRetrievedChunks
 
                 Log.section("Step 5: Context Assembly Complete", level: .info, category: .pipeline)
+                
+                // Pipeline Trace: Step 5
+                Log.pipelineStep("5", title: "Context Assembly", details: [
+                    ("chunks", "\(actualChunksUsed)"),
+                    ("words", "\(contextWords)"),
+                    ("chars", "\(contextSize)")
+                ])
+                
                 Log.info(
                     "✓ Final context: \(contextSize) chars, \(contextWords) words from \(actualChunksUsed) chunks",
                     category: .pipeline
@@ -4820,6 +4911,13 @@ class RAGService: ObservableObject {
 
                 // Step 6: Generate response using LLM with augmented context
                 Log.section("Step 6: LLM Generation", level: .info, category: .pipeline)
+                
+                // Pipeline Trace: Step 6
+                let llmModelName = _llmService?.modelIdentifier ?? "unknown"
+                Log.pipelineStep("6", title: "LLM Generation", details: [
+                    ("model", llmModelName),
+                    ("context", "\(contextWords)w")
+                ])
 
                 // Apply thermal cooldown before heavy LLM generation if device is under pressure
                 // This prevents throttling and improves generation quality on hot devices
@@ -5395,6 +5493,11 @@ class RAGService: ObservableObject {
 
                     // Step 7: Calculate confidence score and quality warnings
                     Log.section("Step 7: Quality Assessment", level: .info, category: .pipeline)
+                    
+                    // Pipeline Trace: Step 7
+                    Log.pipelineStep("7", title: "Quality Assessment", details: [
+                        ("sources", "\(generationRetrievedChunks.count)")
+                    ])
                     let totalDocsCount = await snapshotDocumentsCount()
                     let (confidenceScore, qualityWarnings) = await engine.assessResponseQuality(
                         chunks: generationRetrievedChunks,
@@ -5423,6 +5526,14 @@ class RAGService: ObservableObject {
 
                     // Step 8: Package results
                     let pipelineTotalTime = Date().timeIntervalSince(pipelineStartTime)
+                    
+                    // Pipeline Trace: Completion summary
+                    Log.pipelineComplete(
+                        totalDuration: pipelineTotalTime,
+                        chunksRetrieved: generationRetrievedChunks.count,
+                        tokensUsed: nil,
+                        confidence: Double(confidenceScore)
+                    )
 
                     Log.box(
                         "ENHANCED PIPELINE COMPLETE ✓",
@@ -5563,6 +5674,13 @@ class RAGService: ObservableObject {
                 )
 
                 Log.section("Direct LLM Generation (No RAG)", level: .info, category: .pipeline)
+                
+                // Pipeline Trace: No documents - direct LLM
+                Log.pipelineStep("D", title: "Direct LLM (No Docs)", details: [
+                    ("reason", "empty library"),
+                    ("container", selectedName)
+                ])
+                
                 let generationStartTime = Date()
 
                 emitThinkingEvent(

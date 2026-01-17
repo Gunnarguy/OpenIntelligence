@@ -67,6 +67,9 @@ final class SettingsStore: ObservableObject {
         // RAPTOR-lite (Document Summaries + Query Routing)
         static let enableDocumentSummaries = "enableDocumentSummaries"
         static let enableQueryRouting = "enableQueryRouting"
+        
+        // Developer / Debug
+        static let enablePipelineTrace = "enablePipelineTrace"
 
         // Appearance
         static let appAccentColorHex = "appAccentColorHex" // nil = system default
@@ -173,6 +176,17 @@ final class SettingsStore: ObservableObject {
     /// Routes overview queries to summaries, detail queries to chunks.
     /// Works with enableDocumentSummaries for maximum efficiency.
     @Published var enableQueryRouting: Bool
+    
+    // MARK: - Developer / Debug
+    
+    /// Enable condensed pipeline trace logging in console.
+    /// Shows step-by-step RAG pipeline execution with timing for each quality mode.
+    /// Useful for understanding what each mode does without overwhelming output.
+    @Published var enablePipelineTrace: Bool {
+        didSet {
+            Log.pipelineTraceEnabled = enablePipelineTrace
+        }
+    }
 
     // MARK: - Quality Mode
 
@@ -368,6 +382,9 @@ final class SettingsStore: ObservableObject {
         enableDocumentSummaries = defaults.object(forKey: Keys.enableDocumentSummaries) as? Bool ?? true
         // RAPTOR-lite: Query routing default to true - auto-detect query types
         enableQueryRouting = defaults.object(forKey: Keys.enableQueryRouting) as? Bool ?? true
+        
+        // Developer: Pipeline trace defaults to false - enable to see step-by-step RAG execution
+        enablePipelineTrace = defaults.object(forKey: Keys.enablePipelineTrace) as? Bool ?? false
 
         // Appearance settings
         // Accent color - nil means use system default
@@ -384,6 +401,9 @@ final class SettingsStore: ObservableObject {
         }
         lenientRetrievalMode = false
         defaults.set(false, forKey: Keys.lenient)
+        
+        // Sync pipeline trace setting to Log (must be after all stored properties initialized)
+        Log.pipelineTraceEnabled = enablePipelineTrace
 
         // Auto-upgrade from On-Device Analysis to Apple Intelligence if device is capable
         if selectedModel == .onDeviceAnalysis,
@@ -561,6 +581,9 @@ final class SettingsStore: ObservableObject {
         // RAPTOR-lite
         defaults.set(enableDocumentSummaries, forKey: Keys.enableDocumentSummaries)
         defaults.set(enableQueryRouting, forKey: Keys.enableQueryRouting)
+        
+        // Developer / Debug
+        defaults.set(enablePipelineTrace, forKey: Keys.enablePipelineTrace)
 
         // Appearance
         defaults.set(appAccentColorHex, forKey: Keys.appAccentColorHex)
