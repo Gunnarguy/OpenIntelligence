@@ -49,6 +49,39 @@ struct DocumentChunk: Identifiable, Codable, Sendable {
     }
 }
 
+// MARK: - Chunk Abstraction Levels (RAPTOR-lite)
+
+/// Hierarchy level for chunk abstraction (RAPTOR-lite implementation).
+/// Level 0 = raw detail chunks, higher levels = progressively summarized content.
+/// This enables efficient query routing: overview queries search summaries first.
+enum ChunkAbstractionLevel: Int, Codable, Sendable, CaseIterable {
+    /// Level 0: Original document chunks (280-400 words, semantic boundaries)
+    case detail = 0
+    
+    /// Level 1: Document-level summary (1 per document, ~200 words)
+    /// Created at ingestion by DocumentSummaryService via Apple FM
+    case documentSummary = 1
+    
+    /// Level 2: Topic cluster summary (future - groups related documents)
+    case clusterSummary = 2
+    
+    /// Level 3: Library-wide summary (future - entire knowledge base overview)
+    case librarySummary = 3
+    
+    /// Human-readable description for logging
+    var description: String {
+        switch self {
+        case .detail: return "Detail (L0)"
+        case .documentSummary: return "Document Summary (L1)"
+        case .clusterSummary: return "Cluster Summary (L2)"
+        case .librarySummary: return "Library Summary (L3)"
+        }
+    }
+    
+    /// Whether this level represents summarized content (L1+)
+    var isSummary: Bool { rawValue > 0 }
+}
+
 /// Metadata for tracking chunk provenance and semantics
 struct ChunkMetadata: Codable, Sendable {
     let chunkIndex: Int
@@ -80,6 +113,12 @@ struct ChunkMetadata: Codable, Sendable {
     /// Used by EntityIndexService for cross-document correlation and GraphRAG-lite expansion
     let entities: [String]
 
+    // MARK: - Abstraction Level (RAPTOR-lite, Jun 2025)
+
+    /// Hierarchy level for this chunk (0=detail, 1=docSummary, 2=cluster, 3=library)
+    /// Default is .detail for backward compatibility with existing chunks
+    let abstractionLevel: ChunkAbstractionLevel
+
     init(
         chunkIndex: Int,
         startPosition: Int = 0,
@@ -95,7 +134,8 @@ struct ChunkMetadata: Codable, Sendable {
         createdAt: Date = Date(),
         siblingGroupId: String? = nil,
         siblingCount: Int? = nil,
-        entities: [String] = []
+        entities: [String] = [],
+        abstractionLevel: ChunkAbstractionLevel = .detail
     ) {
         self.chunkIndex = chunkIndex
         self.startPosition = startPosition
@@ -112,6 +152,7 @@ struct ChunkMetadata: Codable, Sendable {
         self.siblingGroupId = siblingGroupId
         self.siblingCount = siblingCount
         self.entities = entities
+        self.abstractionLevel = abstractionLevel
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -130,6 +171,7 @@ struct ChunkMetadata: Codable, Sendable {
         case siblingGroupId
         case siblingCount
         case entities
+        case abstractionLevel
     }
 
     init(from decoder: Decoder) throws {
@@ -156,6 +198,8 @@ struct ChunkMetadata: Codable, Sendable {
         siblingCount = try container.decodeIfPresent(Int.self, forKey: .siblingCount)
         // Entity extraction (optional for backward compatibility with old chunks)
         entities = try container.decodeIfPresent([String].self, forKey: .entities) ?? []
+        // Abstraction level (defaults to .detail for old chunks without this field)
+        abstractionLevel = try container.decodeIfPresent(ChunkAbstractionLevel.self, forKey: .abstractionLevel) ?? .detail
     }
 
     func encode(to encoder: Encoder) throws {
@@ -180,6 +224,10 @@ struct ChunkMetadata: Codable, Sendable {
         // Entity extraction
         if !entities.isEmpty {
             try container.encode(entities, forKey: .entities)
+        }
+        // Abstraction level (only encode if not .detail to save space)
+        if abstractionLevel != .detail {
+            try container.encode(abstractionLevel, forKey: .abstractionLevel)
         }
     }
 }

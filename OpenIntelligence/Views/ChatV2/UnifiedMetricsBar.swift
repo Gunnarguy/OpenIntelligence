@@ -148,6 +148,11 @@ struct UnifiedMetricsBar: View {
     var searchElapsed: TimeInterval = 0
     var generationElapsed: TimeInterval = 0
 
+    // Maximum Mode: Live confidence meter (0-1, shows progress toward 98% threshold)
+    var liveConfidence: Float = 0
+    var isMaximumMode: Bool = false
+    var maximumModeSessionCount: Int = 0
+
     // Callbacks
     var onTapDetails: (() -> Void)?
 
@@ -239,6 +244,11 @@ struct UnifiedMetricsBar: View {
                     executionBadge
 
                     qualityBadge
+
+                    // Live confidence meter for Maximum mode
+                    if isMaximumMode && isProcessing {
+                        confidenceMeterBadge
+                    }
 
                     // Advanced RAG indicator (when enhanced features active)
                     if hierarchicalChunkingActive || graphExpansionActive {
@@ -650,8 +660,66 @@ struct UnifiedMetricsBar: View {
         switch qualityMode.canonical {
         case .standard: return .blue
         case .deepThink: return .purple
+        case .maximum: return .orange
         default: return .blue
         }
+    }
+
+    // MARK: - Confidence Meter Badge (Maximum Mode)
+
+    /// Live confidence meter showing progress toward 98% threshold
+    /// Displays as an animated circular gauge with percentage
+    private var confidenceMeterBadge: some View {
+        let confidencePercent = Int(liveConfidence * 100)
+        let threshold = 98
+        let progress = min(liveConfidence / 0.98, 1.0) // Progress toward 98%
+
+        return HStack(spacing: 3) {
+            // Circular progress indicator
+            ZStack {
+                Circle()
+                    .stroke(Color.orange.opacity(0.2), lineWidth: 2)
+                    .frame(width: 14, height: 14)
+
+                Circle()
+                    .trim(from: 0, to: CGFloat(progress))
+                    .stroke(
+                        confidenceColor,
+                        style: StrokeStyle(lineWidth: 2, lineCap: .round)
+                    )
+                    .frame(width: 14, height: 14)
+                    .rotationEffect(.degrees(-90))
+                    .animation(.easeInOut(duration: 0.3), value: liveConfidence)
+            }
+
+            // Percentage text
+            Text("\(confidencePercent)%")
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .foregroundStyle(confidenceColor)
+
+            // Target indicator
+            if confidencePercent >= threshold {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.green)
+            }
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(confidenceColor.opacity(0.1))
+        .clipShape(Capsule())
+        .overlay(
+            Capsule()
+                .stroke(confidenceColor.opacity(0.3), lineWidth: 0.5)
+        )
+    }
+
+    /// Color for confidence meter based on progress
+    private var confidenceColor: Color {
+        if liveConfidence >= 0.98 { return .green }
+        if liveConfidence >= 0.80 { return .yellow }
+        if liveConfidence >= 0.50 { return .orange }
+        return .red
     }
 
     // MARK: - System State Badge

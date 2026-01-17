@@ -1086,6 +1086,32 @@ Text(deviceService.chipName)
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
+    // MARK: - Retrieval Card Helpers
+
+    private var modeAccentColor: Color {
+        switch settings.ragQualityMode.canonical {
+        case .maximum: return .orange
+        case .deepThink: return .purple
+        default: return .green
+        }
+    }
+
+    private var modeHeaderIcon: String {
+        switch settings.ragQualityMode.canonical {
+        case .maximum: return "flame.fill"
+        case .deepThink: return "brain.head.profile.fill"
+        default: return "checkmark.circle.fill"
+        }
+    }
+
+    private var modeHeaderTitle: String {
+        switch settings.ragQualityMode.canonical {
+        case .maximum: return "Maximum Features"
+        case .deepThink: return "Deep Think Features"
+        default: return "Standard Features"
+        }
+    }
+
     // MARK: - Retrieval Card
 
     @ViewBuilder
@@ -1121,35 +1147,55 @@ Text(deviceService.chipName)
             // Mode-specific features
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(settings.ragQualityMode.canonical == .deepThink ? .purple : .green)
+                    Image(systemName: modeHeaderIcon)
+                        .foregroundColor(modeAccentColor)
                         .font(.caption)
-                    Text(settings.ragQualityMode.canonical == .deepThink ? "Deep Think Features" : "Standard Features")
+                    Text(modeHeaderTitle)
                         .font(.caption.weight(.medium))
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
-                    // Common features for both modes
+                    // Common features for all modes
                     featureRow(icon: "sparkles", label: "HyDE Query Enhancement", description: "Hypothetical document for better search", color: .green)
                     featureRow(icon: "text.redaction", label: "Contextual Compression", description: "Focuses on relevant information", color: .green)
                     featureRow(icon: "doc.on.doc", label: "Parent Document Retrieval", description: "Includes surrounding context", color: .green)
                     featureRow(icon: "lightbulb", label: "Query Understanding", description: "Rewrites vague queries intelligently", color: .green)
 
-                    // Deep Think exclusive features
-                    if settings.ragQualityMode.canonical == .deepThink {
+                    // Deep Think and Maximum shared features
+                    if settings.ragQualityMode.usesAgenticOrchestrator {
                         Divider()
                             .padding(.vertical, 4)
                         featureRow(icon: "arrow.trianglehead.2.clockwise.rotate.90", label: "Iterative Retrieval", description: "Retrieve → assess → refine → retrieve more", color: .purple)
                         featureRow(icon: "brain.head.profile", label: "Agentic Orchestrator", description: "Multi-session reasoning chain", color: .purple)
                         featureRow(icon: "hammer.fill", label: "12+ Tool Functions", description: "Autonomous search & analysis tools", color: .purple)
                         featureRow(icon: "chart.bar.xaxis", label: "Confidence Tracking", description: "Self-assessment and refinement", color: .purple)
-                    } else {
+                    }
+
+                    // Maximum-exclusive features
+                    if settings.ragQualityMode.isUnlimitedMode {
+                        Divider()
+                            .padding(.vertical, 4)
+                        featureRow(icon: "infinity", label: "Unlimited Reasoning", description: "Keeps reasoning until 98% confident", color: .orange)
+                        featureRow(icon: "arrow.trianglehead.branch", label: "20+ Reasoning Sessions", description: "Deep multi-stage analysis", color: .orange)
+                        featureRow(icon: "cpu", label: "500K Token Budget", description: "Massive context for complex tasks", color: .orange)
+
+                        // Warning for Maximum mode
+                        HStack(spacing: 6) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.orange)
+                                .font(.caption)
+                            Text("Can take several minutes. Use for complex research tasks.")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.top, 4)
+                    } else if !settings.ragQualityMode.usesAgenticOrchestrator {
                         featureRow(icon: "brain.head.profile", label: "Conversation Memory", description: "Remembers context across turns", color: .green)
                     }
                 }
             }
             .padding(10)
-            .background((settings.ragQualityMode.canonical == .deepThink ? Color.purple : Color.green).opacity(0.08))
+            .background(modeAccentColor.opacity(0.08))
             .clipShape(RoundedRectangle(cornerRadius: 10))
             .animation(.easeInOut(duration: 0.25), value: settings.ragQualityMode)
         }

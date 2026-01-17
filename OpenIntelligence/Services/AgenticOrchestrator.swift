@@ -17,6 +17,8 @@ struct ThinkingStep: Identifiable, Sendable {
     let tokensUsed: Int
     let duration: TimeInterval
     let timestamp: Date
+    /// Live confidence level (0-1) for Maximum mode progress tracking
+    var confidence: Float? = nil
 
     enum StepType: String, Sendable {
         case planning = "🎯 Planning approach"
@@ -44,10 +46,10 @@ struct ThinkingStep: Identifiable, Sendable {
 
 /// Configuration for the agentic loop
 struct AgenticConfig: Sendable {
-    /// Maximum thinking steps before forcing synthesis
+    /// Maximum thinking steps before forcing synthesis (use Int.max for "unlimited")
     let maxSteps: Int
 
-    /// Maximum total tokens across all steps
+    /// Maximum total tokens across all steps (use Int.max for "unlimited")
     let maxTotalTokens: Int
 
     /// Whether to stream intermediate results
@@ -58,6 +60,11 @@ struct AgenticConfig: Sendable {
 
     /// Similarity threshold below which we escalate to deeper retrieval
     let escalationThreshold: Float
+
+    /// Whether this is an "unlimited" configuration (keep going until confident)
+    var isUnlimited: Bool {
+        maxSteps >= 50 // Practical "unlimited" - 50+ steps is extreme
+    }
 
     nonisolated static let defaultConfig = AgenticConfig(
         maxSteps: 5,
@@ -81,6 +88,17 @@ struct AgenticConfig: Sendable {
         streamIntermediateResults: true,
         confidenceThreshold: 0.95,
         escalationThreshold: 0.45 // Higher bar = more likely to escalate
+    )
+
+    /// Unlimited Deep Think - keeps reasoning until 98% confident or thermal limit
+    /// Since Neural Engine uses disk-backed weights (not RAM), we can go much deeper
+    /// Only thermal throttling and user patience are the real limits
+    nonisolated static let unlimited = AgenticConfig(
+        maxSteps: 100, // Effectively unlimited - thermal will stop us first
+        maxTotalTokens: 500_000, // ~125K words of reasoning capacity
+        streamIntermediateResults: true,
+        confidenceThreshold: 0.98, // Only stop when VERY confident
+        escalationThreshold: 0.50 // Aggressive escalation - always try harder
     )
 }
 
@@ -111,6 +129,23 @@ final class AgenticOrchestrator: Sendable {
     init(ragService: RAGService, config: AgenticConfig = .defaultConfig) {
         self.ragService = ragService
         self.config = config
+    }
+
+    /// Get the appropriate ReasoningChainConfig based on AgenticConfig
+    /// Uses unlimited reasoning chain when AgenticConfig.isUnlimited is true
+    private var reasoningChainConfig: ReasoningChainConfig {
+        if config.isUnlimited {
+            Log.info("[Agentic] Using UNLIMITED reasoning chain (20+ sessions until 98% confident)", category: .llm)
+            return .unlimited
+        }
+        // Map maxSteps to appropriate chain config
+        if config.maxSteps >= 8 {
+            return .deep
+        } else if config.maxSteps >= 5 {
+            return .standard
+        } else {
+            return .light
+        }
     }
 
     /// Execute a retrieval-first reasoning loop
@@ -246,10 +281,13 @@ final class AgenticOrchestrator: Sendable {
             // Merged chunks from multiple sources may not be in order
             let sortedChunks = allRetrievedChunks.sorted { $0.similarityScore > $1.similarityScore }
 
+            let chainConfig = reasoningChainConfig
+            Log.info("[Agentic] Using \(chainConfig.sessionCount)-session reasoning chain", category: .llm)
+
             let chainResult = try await executeReasoningChain(
                 query: query,
                 chunks: sortedChunks,
-                config: .standard, // 4 sessions
+                config: chainConfig,
                 onStep: onStep
             )
 
@@ -311,10 +349,13 @@ final class AgenticOrchestrator: Sendable {
             let sortedChunks = allRetrievedChunks.sorted { $0.similarityScore > $1.similarityScore }
 
             // Use reasoning chain for multi-session deep thinking
+            let chainConfig = reasoningChainConfig
+            Log.info("[Agentic] Using \(chainConfig.sessionCount)-session reasoning chain", category: .llm)
+
             let chainResult = try await executeReasoningChain(
                 query: query,
                 chunks: sortedChunks,
-                config: .standard, // 4 sessions
+                config: chainConfig,
                 onStep: onStep
             )
 
@@ -450,14 +491,22 @@ final class AgenticOrchestrator: Sendable {
                 onStep: onStep
             )
 
-            // If speculative RAG found a good answer, use it
-            if speculativeResult.confidence > 0.6 {
-                Log.info("[Agentic] Speculative RAG succeeded with \(String(format: "%.0f%%", speculativeResult.confidence * 100)) confidence", category: .llm)
+            // Only accept Speculative RAG if it meets the config's confidence threshold
+            // Previously used 0.6 which was too low - answers were "grounded" but incomplete
+            // Now we use the config threshold (e.g., 0.95 for thorough, 0.98 for unlimited)
+            let acceptanceThreshold = max(config.confidenceThreshold - 0.1, 0.75)
+
+            // Also check for query complexity - "what does X do" questions need exhaustive answers
+            let isExhaustiveQuery = queryRequiresExhaustiveAnswer(query)
+            let effectiveThreshold = isExhaustiveQuery ? max(acceptanceThreshold, 0.90) : acceptanceThreshold
+
+            if speculativeResult.confidence >= effectiveThreshold {
+                Log.info("[Agentic] Speculative RAG succeeded with \(String(format: "%.0f%%", speculativeResult.confidence * 100)) confidence (threshold: \(String(format: "%.0f%%", effectiveThreshold * 100)))", category: .llm)
                 return speculativeResult
             }
 
-            // Speculative RAG didn't help enough - fall back to decomposition/recursive
-            Log.info("[Agentic] Speculative RAG insufficient → escalating to deeper retrieval", category: .llm)
+            // Speculative RAG didn't meet threshold - fall back to deeper retrieval
+            Log.info("[Agentic] Speculative RAG \(String(format: "%.0f%%", speculativeResult.confidence * 100)) < threshold \(String(format: "%.0f%%", effectiveThreshold * 100)) → escalating to deeper retrieval", category: .llm)
 
             // Try decomposition if it makes sense, otherwise do recursive search
             if queryBenefitsFromDecomposition(query) {
@@ -593,6 +642,45 @@ final class AgenticOrchestrator: Sendable {
         ]
 
         for pattern in multiFacetedPatterns {
+            if pattern.contains(".*") {
+                if lowercased.range(of: pattern, options: .regularExpression) != nil {
+                    return true
+                }
+            } else if lowercased.contains(pattern) {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    /// Check if a query requires an exhaustive/comprehensive answer
+    /// These are "what does X do" or "tell me everything about X" type questions
+    /// where we need to find ALL relevant info, not just the first confident match
+    private func queryRequiresExhaustiveAnswer(_ query: String) -> Bool {
+        let lowercased = query.lowercased()
+
+        // Patterns that indicate user wants a complete/comprehensive answer
+        let exhaustivePatterns = [
+            "what does .* do",
+            "what happens when",
+            "what can .* do",
+            "tell me about",
+            "explain .* to me",
+            "how does .* work",
+            "what are all",
+            "list all",
+            "everything about",
+            "all the features",
+            "all the functions",
+            "capabilities of",
+            "what is .* capable of",
+            "describe .*",
+            "full explanation",
+            "complete overview",
+        ]
+
+        for pattern in exhaustivePatterns {
             if pattern.contains(".*") {
                 if lowercased.range(of: pattern, options: .regularExpression) != nil {
                     return true
@@ -2164,6 +2252,14 @@ struct ReasoningChainConfig: Sendable {
         maxContextPerSession: 3500,
         maxInsightLength: 2500   // Keep full findings, not snippets
     )
+
+    /// Unlimited config - starts with 10 sessions but can expand dynamically
+    /// Since Neural Engine is disk-backed, memory isn't the limit - thermal is
+    nonisolated static let unlimited = ReasoningChainConfig(
+        sessionCount: 20,       // 20 × 4096 = 80K+ effective tokens (can expand)
+        maxContextPerSession: 3500,
+        maxInsightLength: 3000   // Preserve maximum detail between sessions
+    )
 }
 
 /// Result from a reasoning chain
@@ -2225,6 +2321,11 @@ extension AgenticOrchestrator {
         var allSources: Set<String> = []
         var cumulativeConfidence: Float = 0
 
+        // Unlimited mode: use AgenticConfig's confidence threshold for early termination
+        let isUnlimitedMode = config.sessionCount >= 20
+        let confidenceThreshold: Float = isUnlimitedMode ? self.config.confidenceThreshold : 0.98
+        var actualSessionCount = 0
+
         Log.info("[ReasoningChain] Starting \(config.sessionCount)-session chain for: \(query.prefix(40))...", category: .llm)
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -2239,7 +2340,9 @@ extension AgenticOrchestrator {
         // New approach: ALL sessions see the SAME top-K most relevant chunks.
         // Each session reasons DEEPER on the same high-quality context.
 
-        let maxChunksPerSession = 6 // Top 6 most relevant chunks
+        // For unlimited mode, use smaller context to leave room for accumulated insights
+        let maxChunksPerSession = isUnlimitedMode ? 4 : 6
+        let contextBudget = isUnlimitedMode ? 2500 : (config.maxContextPerSession - 500)
         let topChunks = Array(chunks.prefix(maxChunksPerSession))
 
         // Pre-build the shared context from top chunks (used by all sessions)
@@ -2249,17 +2352,36 @@ extension AgenticOrchestrator {
             sharedContext += "[S\(idx + 1)] \(content)\n---\n"
             allSources.insert(chunk.sourceDocument)
 
-            // Stay within session budget
-            if sharedContext.count > config.maxContextPerSession - 500 { break }
+            // Stay within session budget (tighter for unlimited mode)
+            if sharedContext.count > contextBudget { break }
         }
 
         Log.debug("[ReasoningChain] Using top \(topChunks.count) chunks for ALL sessions (shared context: \(sharedContext.count) chars)", category: .retrieval)
 
+        if isUnlimitedMode {
+            Log.info("[ReasoningChain] UNLIMITED MODE: Will keep reasoning until \(Int(confidenceThreshold * 100))% confident or \(config.sessionCount) sessions max", category: .llm)
+        }
+
         for sessionIndex in 0..<config.sessionCount {
             let sessionNum = sessionIndex + 1
-            Log.debug("[ReasoningChain] Session \(sessionNum)/\(config.sessionCount)", category: .llm)
+            actualSessionCount = sessionNum
+
+            if isUnlimitedMode {
+                Log.debug("[ReasoningChain] Session \(sessionNum) (unlimited mode, confidence: \(Int(cumulativeConfidence * 100))%)", category: .llm)
+            } else {
+                Log.debug("[ReasoningChain] Session \(sessionNum)/\(config.sessionCount)", category: .llm)
+            }
 
             if Task.isCancelled { break }
+
+            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            // Unlimited mode: Check if we've reached confidence threshold
+            // Require at least 3 sessions to build up meaningful reasoning
+            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            if isUnlimitedMode && sessionIndex >= 3 && cumulativeConfidence >= confidenceThreshold {
+                Log.info("[ReasoningChain] Unlimited mode: Stopping at \(Int(cumulativeConfidence * 100))% confidence (threshold: \(Int(confidenceThreshold * 100))%)", category: .llm)
+                break
+            }
 
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
             // All sessions use the SAME top-ranked context
@@ -2272,15 +2394,33 @@ extension AgenticOrchestrator {
 
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
             // Build session prompt based on position in chain
+            // For unlimited mode, dynamically determine if this should be the "final" session
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            let effectiveSessionCount = isUnlimitedMode ? max(config.sessionCount, sessionNum + 3) : config.sessionCount
+
+            // For unlimited mode, use sliding window of recent insights to prevent context overflow
+            // Keep only the last 3 insights (each ~500 chars) to stay well under 4096 token limit
+            let insightsForPrompt: [String]
+            if isUnlimitedMode && chainInsights.count > 3 {
+                // Condense older insights into a brief summary + keep recent 2
+                let oldInsightsCount = chainInsights.count - 2
+                let condensedOld = "Previously discovered (\(oldInsightsCount) sessions): " +
+                    chainInsights.prefix(oldInsightsCount)
+                        .map { String($0.prefix(100)) }
+                        .joined(separator: " | ")
+                insightsForPrompt = [String(condensedOld.prefix(500))] + Array(chainInsights.suffix(2))
+                Log.debug("[ReasoningChain] Unlimited mode: condensed \(chainInsights.count) insights to \(insightsForPrompt.count) for prompt", category: .llm)
+            } else {
+                insightsForPrompt = chainInsights
+            }
 
             let (prompt, systemPrompt) = buildChainPrompt(
                 sessionIndex: sessionIndex,
-                sessionCount: config.sessionCount,
+                sessionCount: effectiveSessionCount,
                 query: query,
                 context: sessionContext,
-                previousInsights: chainInsights,
-                maxInsightLength: config.maxInsightLength
+                previousInsights: insightsForPrompt,
+                maxInsightLength: isUnlimitedMode ? 600 : config.maxInsightLength  // Shorter for unlimited
             )
 
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -2311,12 +2451,70 @@ extension AgenticOrchestrator {
                 // For intermediate sessions, extract condensed insight
                 insight = extractInsight(from: response.text, maxLength: config.maxInsightLength)
             }
-            chainInsights.append(insight)
 
-            // Parse confidence if present
+            // Parse confidence if present, or estimate based on response quality
+            // Do this BEFORE appending insight so we can compare with previous insights
             if let conf = parseConfidence(from: response.text) {
                 cumulativeConfidence = (cumulativeConfidence + conf) / 2
+            } else if isUnlimitedMode {
+                // Heuristic confidence for unlimited mode:
+                // We need to reach 98% to exit early, so scale appropriately
+
+                // 1. Session contribution (up to 40%) - more sessions = more exploration
+                let sessionContribution = min(0.04 * Float(sessionNum), 0.4)
+
+                // 2. Length contribution (up to 25%) - longer insights = more substance
+                let lengthContribution = min(Float(insight.count) / 2000.0, 0.25)
+
+                // 3. Citation bonus (up to 15%) - grounded in sources
+                let hasCitations = insight.contains("[S") || insight.contains("S1") || insight.contains("S2")
+                let citationBonus: Float = hasCitations ? 0.15 : 0
+
+                // 4. Repetition detection (up to 40%) - if repeating, we've exhausted the topic
+                // Compare current insight with PREVIOUS insights (before appending)
+                // Increased from 30% to 40% and lowered threshold to catch verbose repetition
+                var repetitionBonus: Float = 0
+                if chainInsights.count >= 2 {
+                    // Use more words for comparison (80 instead of 40) to catch broader patterns
+                    let currentWords = Set(insight.lowercased().split(separator: " ").filter { $0.count > 3 }.prefix(80))
+                    var similarityCount = 0
+                    var maxOverlapRatio: Float = 0
+
+                    // Check last 3 previous insights (not including current)
+                    for prevInsight in chainInsights.suffix(3) {
+                        let prevWords = Set(prevInsight.lowercased().split(separator: " ").filter { $0.count > 3 }.prefix(80))
+                        let overlap = currentWords.intersection(prevWords).count
+                        let overlapRatio = Float(overlap) / Float(max(currentWords.count, 1))
+                        maxOverlapRatio = max(maxOverlapRatio, overlapRatio)
+
+                        // Lowered threshold from 50% to 35% to catch verbose repetition
+                        if overlapRatio > 0.35 {
+                            similarityCount += 1
+                        }
+                    }
+
+                    // Scale repetition bonus based on how many matches AND max overlap
+                    if similarityCount >= 2 || maxOverlapRatio > 0.6 {
+                        repetitionBonus = 0.40  // Strong repetition - topic exhausted
+                        Log.info("[ReasoningChain] Strong repetition detected (\(similarityCount)/3 similar, max overlap: \(Int(maxOverlapRatio * 100))%) - topic exhausted", category: .llm)
+                    } else if similarityCount >= 1 || maxOverlapRatio > 0.40 {
+                        repetitionBonus = 0.25  // Moderate repetition
+                        Log.info("[ReasoningChain] Moderate repetition detected (overlap: \(Int(maxOverlapRatio * 100))%)", category: .llm)
+                    }
+                }
+
+                // 5. Exhaustion bonus (up to 20%) - if we're deep in sessions, boost confidence
+                // Increased to help reach 98% faster when truly exploring
+                let exhaustionBonus: Float = sessionNum >= 10 ? 0.20 : (sessionNum >= 7 ? 0.15 : (sessionNum >= 5 ? 0.10 : (sessionNum >= 3 ? 0.05 : 0)))
+
+                let estimatedConfidence = sessionContribution + lengthContribution + citationBonus + repetitionBonus + exhaustionBonus
+                cumulativeConfidence = max(cumulativeConfidence, min(estimatedConfidence, 0.99))
+
+                Log.info("[ReasoningChain] Confidence: \(Int(cumulativeConfidence * 100))% (session: \(Int(sessionContribution * 100))%, length: \(Int(lengthContribution * 100))%, citations: \(Int(citationBonus * 100))%, repetition: \(Int(repetitionBonus * 100))%, exhaustion: \(Int(exhaustionBonus * 100))%)", category: .llm)
             }
+
+            // Append insight AFTER confidence check (so we compare with previous insights)
+            chainInsights.append(insight)
 
             // Emit thinking step
             let stepType: ThinkingStep.StepType = switch sessionIndex {
@@ -2332,7 +2530,8 @@ extension AgenticOrchestrator {
                 output: isFinalSession ? "Synthesizing final answer..." : insight,
                 tokensUsed: response.tokensGenerated,
                 duration: 0.5,
-                timestamp: Date()
+                timestamp: Date(),
+                confidence: isUnlimitedMode ? cumulativeConfidence : nil
             )
             await onStep?(step)
 
@@ -2346,13 +2545,17 @@ extension AgenticOrchestrator {
         // The last insight IS the final answer (session N is synthesis)
         let finalAnswer = chainInsights.last ?? "Unable to synthesize answer from reasoning chain."
 
-        Log.info("[ReasoningChain] Completed \(config.sessionCount) sessions, \(totalTokens) total tokens", category: .llm)
+        if isUnlimitedMode {
+            Log.info("[ReasoningChain] UNLIMITED MODE completed: \(actualSessionCount) sessions, \(totalTokens) tokens, \(Int(cumulativeConfidence * 100))% confidence", category: .llm)
+        } else {
+            Log.info("[ReasoningChain] Completed \(actualSessionCount) sessions, \(totalTokens) total tokens", category: .llm)
+        }
 
         return ReasoningChainResult(
             finalAnswer: finalAnswer,
             chainInsights: chainInsights,
             totalTokens: totalTokens,
-            sessionCount: config.sessionCount,
+            sessionCount: actualSessionCount,
             confidence: max(0.5, cumulativeConfidence),
             sources: Array(allSources)
         )
