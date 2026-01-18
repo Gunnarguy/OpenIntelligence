@@ -2427,11 +2427,14 @@ extension AgenticOrchestrator {
             // Execute session with proper consent
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+            // Maximum mode gets higher token limits for more detailed reasoning
+            let sessionMaxTokens = isUnlimitedMode ? 1200 : 700
+
             let response = try await ragService.generateWithProperConsent(
                 prompt: prompt,
                 context: "", // Context is embedded in prompt
                 systemPrompt: systemPrompt,
-                maxTokens: 700 // Conservative for 4096 limit
+                maxTokens: sessionMaxTokens
             )
 
             totalTokens += response.tokensGenerated
@@ -2542,8 +2545,66 @@ extension AgenticOrchestrator {
         // Final synthesis from chain
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-        // The last insight IS the final answer (session N is synthesis)
-        let finalAnswer = chainInsights.last ?? "Unable to synthesize answer from reasoning chain."
+        // For UNLIMITED MODE: Run a dedicated exhaustive synthesis pass
+        // This ensures we get a comprehensive answer, not just the last insight
+        let finalAnswer: String
+        if isUnlimitedMode, chainInsights.count >= 3 {
+            Log.info("[ReasoningChain] Running exhaustive synthesis for Maximum mode...", category: .llm)
+
+            // Build comprehensive synthesis prompt with ALL insights
+            let allInsightsSummary = chainInsights.enumerated()
+                .map { "[\($0.offset + 1)] \($0.element)" }
+                .joined(separator: "\n\n")
+
+            let exhaustivePrompt = """
+            QUESTION: \(query)
+
+            You have completed \(actualSessionCount) research sessions and gathered the following insights:
+
+            \(allInsightsSummary)
+
+            SUPPORTING DOCUMENTS:
+            \(sharedContext)
+
+            YOUR TASK: Write an EXHAUSTIVE, COMPREHENSIVE answer that:
+            1. Synthesizes ALL insights from your research
+            2. Includes EVERY specific detail, number, step, procedure, responsibility, or requirement found
+            3. Organizes information logically with clear sections/bullet points
+            4. Does NOT summarize or abbreviate - include the FULL detail
+            5. Uses the maximum length needed to be complete
+            6. Cites sources where relevant
+
+            Be thorough. Be detailed. Be exhaustive. The user wants EVERYTHING you found.
+
+            YOUR COMPREHENSIVE ANSWER:
+            """
+
+            let exhaustiveSystemPrompt = """
+            You are a meticulous research assistant completing a comprehensive analysis.
+            Your job is to provide the MOST COMPLETE answer possible.
+            Do not summarize or shorten - include every relevant detail, step, responsibility, requirement, and specification you discovered.
+            Use bullet points, numbered lists, and clear sections to organize information.
+            Length is good - comprehensiveness is the goal.
+            """
+
+            do {
+                let synthesisResponse = try await ragService.generateWithProperConsent(
+                    prompt: exhaustivePrompt,
+                    context: "",
+                    systemPrompt: exhaustiveSystemPrompt,
+                    maxTokens: 2000 // Allow much longer responses for Maximum mode
+                )
+                finalAnswer = synthesisResponse.text.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+                totalTokens += synthesisResponse.tokensGenerated
+                Log.info("[ReasoningChain] Exhaustive synthesis: +\(synthesisResponse.tokensGenerated) tokens", category: .llm)
+            } catch {
+                Log.warning("[ReasoningChain] Exhaustive synthesis failed, using last insight: \(error)", category: .llm)
+                finalAnswer = chainInsights.last ?? "Unable to synthesize answer from reasoning chain."
+            }
+        } else {
+            // Standard mode: The last insight IS the final answer (session N is synthesis)
+            finalAnswer = chainInsights.last ?? "Unable to synthesize answer from reasoning chain."
+        }
 
         if isUnlimitedMode {
             Log.info("[ReasoningChain] UNLIMITED MODE completed: \(actualSessionCount) sessions, \(totalTokens) tokens, \(Int(cumulativeConfidence * 100))% confidence", category: .llm)
@@ -2595,18 +2656,29 @@ extension AgenticOrchestrator {
 
         case sessionCount - 1:
             // FINAL SESSION: Synthesis - combine all insights into complete answer
-            let systemPrompt = "You synthesize research findings into comprehensive answers. Include all specific details from prior insights."
+            let systemPrompt = """
+            You synthesize research findings into exhaustive, comprehensive answers.
+            Include ALL specific details from prior insights.
+            Use bullet points and organized sections.
+            Be thorough - include every responsibility, step, requirement, or specification found.
+            """
             let prompt = """
             QUESTION: \(query)
 
-            YOUR RESEARCH FINDINGS (synthesize ALL of these):
+            YOUR RESEARCH FINDINGS(synthesize ALL of these - do not omit any detail):
             \(insightSummary)
 
             SUPPORTING DOCUMENTS:
-            \(context.prefix(2500))
+            \(context.prefix(3000))
 
-            TASK: Write a comprehensive answer combining all your research findings.
-            Include specific details, numbers, durations, and steps from each finding.
+            TASK: Write an EXHAUSTIVE answer that includes:
+                - Every responsibility, duty, or task mentioned
+                - All specific numbers, dates, durations, and deadlines
+                - Complete step - by - step procedures(all steps, in order)
+                - All requirements, qualifications, or criteria
+                - Any exceptions, notes, or special cases
+
+            Use bullet points and clear sections.Do NOT summarize - include the FULL detail.
 
             YOUR COMPREHENSIVE ANSWER:
             """

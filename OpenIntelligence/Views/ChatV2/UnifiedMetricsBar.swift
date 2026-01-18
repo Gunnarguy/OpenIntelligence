@@ -1838,50 +1838,104 @@ struct UnifiedMetricsBar: View {
 
                 Spacer()
 
-                // Context usage (visual + text)
-                VStack(alignment: .trailing, spacing: 6) {
-                    // Context bar with smart label
-                    VStack(alignment: .trailing, spacing: 4) {
-                        HStack(spacing: 4) {
-                            if hierarchicalChunkingActive {
-                                Image(systemName: "rectangle.3.group")
+                // Context usage (visual + text) - BUT NOT for Deep Think/Maximum which uses tokens
+                if isRecursiveRAG {
+                    // Deep Think / Maximum mode: Show tokens and sessions instead
+                    VStack(alignment: .trailing, spacing: 6) {
+                        VStack(alignment: .trailing, spacing: 4) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "arrow.trianglehead.branch")
                                     .font(.system(size: 8))
                                     .foregroundStyle(.cyan)
+                                Text("Multi-Session")
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundStyle(.secondary)
                             }
-                            Text(hierarchicalChunkingActive ? "Smart Context" : "Context Window")
-                                .font(.system(size: 10, weight: .medium))
+
+                            HStack(spacing: 6) {
+                                // Sessions count
+                                if recursiveCallCount > 0 {
+                                    HStack(spacing: 2) {
+                                        Text("\(recursiveCallCount)")
+                                            .font(.system(size: 14, weight: .bold, design: .monospaced))
+                                            .foregroundStyle(.cyan)
+                                        Text("sessions")
+                                            .font(.system(size: 10))
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
+
+                            // Total tokens
+                            if contextTokens > 0 {
+                                HStack(spacing: 2) {
+                                    Text(formatTokenCount(contextTokens))
+                                        .font(.system(size: 12, weight: .bold, design: .monospaced))
+                                        .foregroundStyle(.cyan)
+                                    Text("tokens")
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+
+                        // Response time
+                        if let t = ttft {
+                            HStack(spacing: 4) {
+                                Image(systemName: "clock.fill")
+                                    .font(.system(size: 10))
+                                Text("First token in \(String(format: "%.0fms", t * 1000))")
+                                    .font(.system(size: 11, weight: .medium))
+                            }
+                            .foregroundStyle(t < 0.5 ? .green : (t < 1.5 ? .blue : .orange))
+                        }
+                    }
+                } else {
+                    // Standard mode: Show context window usage
+                    VStack(alignment: .trailing, spacing: 6) {
+                        // Context bar with smart label
+                        VStack(alignment: .trailing, spacing: 4) {
+                            HStack(spacing: 4) {
+                                if hierarchicalChunkingActive {
+                                    Image(systemName: "rectangle.3.group")
+                                        .font(.system(size: 8))
+                                        .foregroundStyle(.cyan)
+                                }
+                                Text(hierarchicalChunkingActive ? "Smart Context" : "Context Window")
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            HStack(spacing: 6) {
+                                ZStack(alignment: .leading) {
+                                    RoundedRectangle(cornerRadius: 4)
+                                        .fill(Color.secondary.opacity(0.2))
+                                        .frame(width: 70, height: 8)
+                                    RoundedRectangle(cornerRadius: 4)
+                                        .fill(contextColor)
+                                        .frame(width: 70 * contextUsageRatio, height: 8)
+                                }
+
+                                Text("\(Int(contextUsageRatio * 100))%")
+                                    .font(.system(size: 12, weight: .bold, design: .monospaced))
+                                    .foregroundStyle(contextColor)
+                            }
+
+                            Text(contextDetailLabel)
+                                .font(.system(size: 10))
                                 .foregroundStyle(.secondary)
                         }
 
-                        HStack(spacing: 6) {
-                            ZStack(alignment: .leading) {
-                                RoundedRectangle(cornerRadius: 4)
-                                    .fill(Color.secondary.opacity(0.2))
-.frame(width: 70, height: 8)
-RoundedRectangle(cornerRadius: 4)
-    .fill(contextColor)
-.frame(width: 70 * contextUsageRatio, height: 8)
+                        // Response time
+                        if let t = ttft {
+                            HStack(spacing: 4) {
+                                Image(systemName: "clock.fill")
+                                    .font(.system(size: 10))
+                                Text("First token in \(String(format: "%.0fms", t * 1000))")
+                                    .font(.system(size: 11, weight: .medium))
                             }
-
-                            Text("\(Int(contextUsageRatio * 100))%")
-.font(.system(size: 12, weight: .bold, design: .monospaced))
-    .foregroundStyle(contextColor)
+                            .foregroundStyle(t < 0.5 ? .green : (t < 1.5 ? .blue : .orange))
                         }
-
-                        Text(contextDetailLabel)
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
-                    }
-
-                    // Response time
-                    if let t = ttft {
-                        HStack(spacing: 4) {
-                            Image(systemName: "clock.fill")
-                                .font(.system(size: 10))
-                            Text("First token in \(String(format: "%.0fms", t * 1000))")
-                                .font(.system(size: 11, weight: .medium))
-                        }
-.foregroundStyle(t < 0.5 ? .green : (t < 1.5 ? .blue : .orange))
                     }
                 }
             }
