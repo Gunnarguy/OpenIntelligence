@@ -10,38 +10,43 @@ This document provides quick reference for all advanced RAG (Retrieval-Augmented
 
 ## Quick Reference Table
 
-| Technique | File | Setting | Default | Impact |
-|-----------|------|---------|---------|--------|
-| HyDE | `HyDEService.swift` | `enableHyDE` | ON | +15-25% recall |
-| Parent Document Retrieval | `ParentDocumentService.swift` | `enableParentDocumentRetrieval` | ON | Multi-paragraph coherence |
-| Contextual Compression | `ContextualCompressionService.swift` | `enableContextualCompression` | ON | -40-60% tokens |
-| Agentic Orchestration | `AgenticOrchestrator.swift` | `.agentic` quality mode | Manual | 16K-48K context |
-| Lost-in-Middle | `RAGEngine.swift` | Always on | ON | Better LLM attention |
-| Cross-Encoder Rerank | `RAGEngine.swift` | Always on | ON | Improved ranking |
-| Query Rewriting | `QueryRewriterService.swift` | `enableQueryRewriting` | ON | Clarifies ambiguity |
-| Iterative Retrieval | `IterativeRetrievalService.swift` | `enableIterativeRetrieval` | OFF | Multi-pass refinement |
-| **Adaptive Pipeline** | `AdaptivePipelineOptimizer.swift` | Automatic | ON | Thermal/battery aware |
+| Technique                 | File                                 | Setting                         | Default | Impact                    |
+| ------------------------- | ------------------------------------ | ------------------------------- | ------- | ------------------------- |
+| HyDE                      | `HyDEService.swift`                  | `enableHyDE`                    | ON      | +15-25% recall            |
+| Parent Document Retrieval | `ParentDocumentService.swift`        | `enableParentDocumentRetrieval` | ON      | Multi-paragraph coherence |
+| Contextual Compression    | `ContextualCompressionService.swift` | `enableContextualCompression`   | ON      | -40-60% tokens            |
+| Agentic Orchestration     | `AgenticOrchestrator.swift`          | `.agentic` quality mode         | Manual  | 16K-48K context           |
+| Lost-in-Middle            | `RAGEngine.swift`                    | Always on                       | ON      | Better LLM attention      |
+| Cross-Encoder Rerank      | `RAGEngine.swift`                    | Always on                       | ON      | Improved ranking          |
+| Query Rewriting           | `QueryRewriterService.swift`         | `enableQueryRewriting`          | ON      | Clarifies ambiguity       |
+| Iterative Retrieval       | `IterativeRetrievalService.swift`    | `enableIterativeRetrieval`      | OFF     | Multi-pass refinement     |
+| **Adaptive Pipeline**     | `AdaptivePipelineOptimizer.swift`    | Automatic                       | ON      | Thermal/battery aware     |
 
 ---
 
 ## 1. HyDE (Hypothetical Document Embeddings)
 
 ### What It Does
+
 Generates a hypothetical answer to the query BEFORE embedding, then embeds that hypothetical document for retrieval instead of the raw question.
 
 ### Why It Matters
+
 Questions and answers often don't share vocabulary:
+
 - Query: "What oil does my car take?"
 - Answer: "SAE 0W-20 synthetic oil, 5.3 quarts capacity"
 
 By generating a hypothetical answer first, we bridge this vocabulary gap.
 
 ### Flow
+
 ```
 User Query → LLM generates hypothetical answer → Embed hypothetical → Search
 ```
 
 ### Code Location
+
 ```swift
 // OpenIntelligence/Services/HyDEService.swift
 
@@ -52,6 +57,7 @@ let result = try await hydeService.generateHyDEQuery(for: "What oil does my car 
 ```
 
 ### Configuration
+
 ```swift
 // SettingsStore.swift
 @Published var enableHyDE: Bool  // Default: true
@@ -62,6 +68,7 @@ static func shouldUseHyDE(for query: String) -> Bool
 ```
 
 ### Performance
+
 - Latency: +200-400ms (LLM generation)
 - Recall improvement: 15-25% on factual/technical queries
 - Best for: Manuals, spec sheets, technical documentation
@@ -71,20 +78,25 @@ static func shouldUseHyDE(for query: String) -> Bool
 ## 2. Parent Document Retrieval
 
 ### What It Does
+
 When a chunk matches a query, expands the result to include surrounding sibling chunks from the same section or page, providing coherent multi-paragraph context.
 
 ### Why It Matters
+
 RAG typically retrieves individual chunks (200-400 words). But answers often span multiple chunks:
+
 - The matched chunk might be mid-sentence
 - Context from previous/next chunks improves coherence
 - Multi-paragraph answers read more naturally
 
 ### Flow
+
 ```
 Retrieved Chunks → Find siblings (same page/section) → Expand context → Compress (optional)
 ```
 
 ### Code Location
+
 ```swift
 // OpenIntelligence/Services/ParentDocumentService.swift
 
@@ -99,6 +111,7 @@ let result = await service.expandWithSiblings(
 ```
 
 ### Configuration
+
 ```swift
 // SettingsStore.swift
 @Published var enableParentDocumentRetrieval: Bool  // Default: true
@@ -109,13 +122,16 @@ Config.thorough  // 3 siblings per side, 3000 tokens, cross-page OK
 ```
 
 ### Sibling Grouping
+
 Chunks are grouped as siblings based on:
+
 1. **Explicit `siblingGroupId`** - Set during ingestion
 2. **Same page number** - PDF documents
 3. **Same section title** - Markdown/structured docs
 4. **Adjacent chunk indices** - Fallback for unstructured text
 
 ### Performance
+
 - Token expansion: +20-50% (offset by contextual compression)
 - Latency: <10ms (in-memory lookup)
 - Best for: Multi-paragraph technical explanations
@@ -125,20 +141,25 @@ Chunks are grouped as siblings based on:
 ## 3. Contextual Compression
 
 ### What It Does
+
 Extracts only query-relevant sentences from each retrieved chunk, discarding irrelevant content.
 
 ### Why It Matters
+
 A 400-word chunk might only have 2 relevant sentences. Sending all 400 words:
+
 - Wastes precious tokens (4K limit)
 - Dilutes LLM attention
 - May introduce confusion
 
 ### Flow
+
 ```
 Retrieved Chunks → LLM filters each → Keep only relevant sentences → Assemble context
 ```
 
 ### Code Location
+
 ```swift
 // OpenIntelligence/Services/ContextualCompressionService.swift
 
@@ -148,6 +169,7 @@ let results = try await service.compressChunks(chunks, forQuery: query)
 ```
 
 ### Configuration
+
 ```swift
 // SettingsStore.swift
 @Published var enableContextualCompression: Bool  // Default: true
@@ -158,6 +180,7 @@ Config.conservative // 60% retention (safer)
 ```
 
 ### Performance
+
 - Token savings: 40-60% average
 - Latency: +100-200ms per chunk
 - Drops entirely irrelevant chunks automatically
@@ -167,9 +190,11 @@ Config.conservative // 60% retention (safer)
 ## 4. Answer Grounding Verification
 
 ### What It Does
+
 After generating an answer, verifies that claims are supported by retrieved context. Detects hallucinations.
 
 ### Status Levels
+
 ```swift
 enum GroundingStatus {
     case grounded          // ✅ Answer fully supported
@@ -181,6 +206,7 @@ enum GroundingStatus {
 ```
 
 ### Code Location
+
 ```swift
 // OpenIntelligence/Services/ContextualCompressionService.swift
 
@@ -193,6 +219,7 @@ let verification = try await service.verifyAnswerGrounding(
 ```
 
 ### Use Cases
+
 - Display confidence indicators in UI
 - Trigger re-retrieval on low confidence
 - Flag potentially hallucinated responses
@@ -202,9 +229,11 @@ let verification = try await service.verifyAnswerGrounding(
 ## 5. Multi-Session Agentic Orchestration
 
 ### What It Does
+
 Chains multiple 4K-token sessions together to handle complex queries requiring extensive reasoning.
 
 ### Pipeline Steps
+
 ```
 1. PLANNING    → Break query into sub-questions
 2. SEARCHING   → Use RAG tools to retrieve relevant chunks
@@ -215,14 +244,15 @@ Chains multiple 4K-token sessions together to handle complex queries requiring e
 
 ### Hardware-Aware Configuration
 
-| Device | Chip | Max Steps | Max Tokens |
-|--------|------|-----------|------------|
-| iPhone 15 Pro | A17 Pro | 4 | 16,000 |
-| iPhone 16 | A18 | 6 | 24,000 |
-| iPhone 17 | A19 | 8 | 32,000 |
-| iPad Pro M-series | M1-M4 | 10 | 48,000 |
+| Device            | Chip    | Max Steps | Max Tokens |
+| ----------------- | ------- | --------- | ---------- |
+| iPhone 15 Pro     | A17 Pro | 4         | 16,000     |
+| iPhone 16         | A18     | 6         | 24,000     |
+| iPhone 17         | A19     | 8         | 32,000     |
+| iPad Pro M-series | M1-M4   | 10        | 48,000     |
 
 ### Code Location
+
 ```swift
 // OpenIntelligence/Services/AgenticOrchestrator.swift
 
@@ -236,6 +266,7 @@ let response = try await orchestrator.process(query: userQuery, ragService: ragS
 ```
 
 ### Device Detection
+
 ```swift
 // OpenIntelligence/Services/DeviceCapabilityService.swift
 
@@ -248,15 +279,18 @@ let config = DeviceCapabilityService.optimizedAgenticConfig()
 ## 6. Query Task Management
 
 ### What It Does
+
 Handles back-to-back queries without memory leaks or freezing using cancel-and-replace pattern.
 
 ### Problem Solved
+
 ```
 User sends Query A → Processing starts
 User sends Query B → Query A continues in background → Memory accumulates
 ```
 
 ### Solution
+
 ```swift
 // OpenIntelligence/Views/ChatV2/ChatScreen.swift
 
@@ -280,6 +314,7 @@ func sendMessage() async {
 ```
 
 ### Cancellation Points (6 total)
+
 1. After query submission
 2. After embedding generation
 3. After hybrid search
@@ -292,18 +327,22 @@ func sendMessage() async {
 ## 7. Lost-in-Middle Mitigation
 
 ### What It Does
+
 Reorders context chunks so the most relevant are at the START and END of the context window.
 
 ### Why It Matters
+
 LLMs have attention patterns that favor the beginning and end of context (Liu et al. 2023). Middle content gets less attention.
 
 ### Algorithm
+
 ```
 Input:  [1st, 2nd, 3rd, 4th, 5th, 6th]  (by relevance)
 Output: [1st, 3rd, 5th, 6th, 4th, 2nd]  (interleaved)
 ```
 
 ### Code Location
+
 ```swift
 // OpenIntelligence/Services/RAGEngine.swift
 
@@ -311,6 +350,7 @@ func applyLostInMiddleReordering(_ chunks: [DocumentChunk]) -> [DocumentChunk]
 ```
 
 ### Always Enabled
+
 This optimization has no downside and is always applied.
 
 ---
@@ -318,19 +358,23 @@ This optimization has no downside and is always applied.
 ## 8. Cross-Encoder Reranking
 
 ### What It Does
+
 Uses a neural model to score query-chunk relevance pairs, improving on initial vector similarity scores.
 
 ### Flow
+
 ```
 Hybrid Search (Vector + BM25) → RRF Fusion → Cross-Encoder Rerank → Final ranking
 ```
 
 ### Model
+
 - `ReRankerModel.mlpackage` (bundled Core ML model)
 - Based on TinyBERT/ms-marco architecture
 - Falls back to heuristic scoring if model unavailable
 
 ### Code Location
+
 ```swift
 // OpenIntelligence/Services/RAGEngine.swift
 
@@ -345,17 +389,18 @@ let reranked = await engine.rerankWithCrossEncoder(
 
 ## Apple API References
 
-| API | Framework | iOS Version | Purpose |
-|-----|-----------|-------------|---------|
-| `LanguageModelSession` | FoundationModels | 26+ | LLM generation |
-| `Tool` protocol | FoundationModels | 26+ | Agentic tool calling |
-| `@Generable` macro | FoundationModels | 26+ | Structured output |
-| `Transcript` | FoundationModels | 26+ | Session persistence |
-| `prewarm(promptPrefix:)` | FoundationModels | 26+ | Latency optimization |
-| `NLEmbedding` | NaturalLanguage | 13+ | Word/sentence vectors |
-| `NLContextualEmbedding` | NaturalLanguage | 17+ | BERT-like embeddings |
+| API                      | Framework        | iOS Version | Purpose               |
+| ------------------------ | ---------------- | ----------- | --------------------- |
+| `LanguageModelSession`   | FoundationModels | 26+         | LLM generation        |
+| `Tool` protocol          | FoundationModels | 26+         | Agentic tool calling  |
+| `@Generable` macro       | FoundationModels | 26+         | Structured output     |
+| `Transcript`             | FoundationModels | 26+         | Session persistence   |
+| `prewarm(promptPrefix:)` | FoundationModels | 26+         | Latency optimization  |
+| `NLEmbedding`            | NaturalLanguage  | 13+         | Word/sentence vectors |
+| `NLContextualEmbedding`  | NaturalLanguage  | 17+         | BERT-like embeddings  |
 
 ### Key Documentation Links
+
 - [TN3193: Context Window Management](https://developer.apple.com/documentation/technotes/tn3193-managing-the-on-device-foundation-model-s-context-window)
 - [LanguageModelSession](https://developer.apple.com/documentation/foundationmodels/languagemodelsession)
 - [Tool Protocol](https://developer.apple.com/documentation/foundationmodels/tool)
@@ -384,26 +429,26 @@ All advanced RAG settings in `SettingsStore.swift`:
 
 ## Performance Impact Summary
 
-| Technique | Latency Cost | Token Impact | Quality Impact |
-|-----------|--------------|--------------|----------------|
-| HyDE | +200-400ms | Neutral | +15-25% recall |
-| Contextual Compression | +100-200ms/chunk | -40-60% | Improved focus |
-| Agentic Orchestration | +2-10s | +12K-44K total | Complex reasoning |
-| Lost-in-Middle | ~0ms | Neutral | Better attention |
-| Cross-Encoder Rerank | +50-100ms | Neutral | Better ranking |
-| Query Rewriting | +100-200ms | Neutral | Clearer intent |
+| Technique              | Latency Cost     | Token Impact   | Quality Impact    |
+| ---------------------- | ---------------- | -------------- | ----------------- |
+| HyDE                   | +200-400ms       | Neutral        | +15-25% recall    |
+| Contextual Compression | +100-200ms/chunk | -40-60%        | Improved focus    |
+| Agentic Orchestration  | +2-10s           | +12K-44K total | Complex reasoning |
+| Lost-in-Middle         | ~0ms             | Neutral        | Better attention  |
+| Cross-Encoder Rerank   | +50-100ms        | Neutral        | Better ranking    |
+| Query Rewriting        | +100-200ms       | Neutral        | Clearer intent    |
 
 ---
 
 ## Troubleshooting
 
-| Issue | Cause | Solution |
-|-------|-------|----------|
+| Issue               | Cause                         | Solution                           |
+| ------------------- | ----------------------------- | ---------------------------------- |
 | HyDE not triggering | Query not detected as factual | Check `shouldUseHyDE()` heuristics |
-| High latency | All features enabled | Disable compression for speed |
-| Memory growth | Query tasks not cancelled | Check `currentQueryTask` pattern |
-| Poor retrieval | Wrong quality mode | Try `.deepThink` or `.maximum` |
-| Hallucinations | Ungrounded responses | Enable grounding verification |
+| High latency        | All features enabled          | Disable compression for speed      |
+| Memory growth       | Query tasks not cancelled     | Check `currentQueryTask` pattern   |
+| Poor retrieval      | Wrong quality mode            | Try `.deepThink` or `.maximum`     |
+| Hallucinations      | Ungrounded responses          | Enable grounding verification      |
 
 ---
 
@@ -433,10 +478,13 @@ Views/ChatV2/
 ## 10. Adaptive Pipeline Optimization
 
 ### What It Does
+
 Monitors device state (thermal, battery, memory) in real-time and dynamically adjusts which RAG features are enabled for each query. Prevents thermal throttling on sustained use and extends battery life.
 
 ### Why It Matters
+
 Full RAG pipeline (HyDE + Compression + Parent Doc + 25 chunks) is computationally expensive:
+
 - Can cause thermal throttling on iPhone after 5-10 queries
 - Drains battery rapidly during research sessions
 - May trigger memory warnings on older devices
@@ -445,12 +493,12 @@ The adaptive optimizer provides automatic graceful degradation.
 
 ### Optimization Levels
 
-| Level | Thermal State | Features Disabled | TopK Cap |
-|-------|--------------|-------------------|----------|
-| `.full` | Nominal | None | 50 |
-| `.balanced` | Fair | Parent Doc | 30 |
-| `.efficient` | Serious | HyDE, Compression | 20 |
-| `.minimal` | Critical | All advanced | 10 |
+| Level        | Thermal State | Features Disabled | TopK Cap |
+| ------------ | ------------- | ----------------- | -------- |
+| `.full`      | Nominal       | None              | 50       |
+| `.balanced`  | Fair          | Parent Doc        | 30       |
+| `.efficient` | Serious       | HyDE, Compression | 20       |
+| `.minimal`   | Critical      | All advanced      | 10       |
 
 ### Device State Monitoring
 
@@ -509,12 +557,12 @@ await AdaptivePipelineOptimizer.shared.applyCooldown()
 
 iPad models receive special treatment:
 
-| Form Factor | Thermal Headroom | Default Level |
-|-------------|------------------|---------------|
-| iPhone | Standard | Based on state |
-| iPad mini | Limited | Balanced |
-| iPad Air | Good | Full |
-| iPad Pro | Excellent | Full (extended) |
+| Form Factor | Thermal Headroom | Default Level   |
+| ----------- | ---------------- | --------------- |
+| iPhone      | Standard         | Based on state  |
+| iPad mini   | Limited          | Balanced        |
+| iPad Air    | Good             | Full            |
+| iPad Pro    | Excellent        | Full (extended) |
 
 ### Configuration
 
