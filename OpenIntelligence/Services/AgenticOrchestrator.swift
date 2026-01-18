@@ -94,8 +94,8 @@ struct AgenticConfig: Sendable {
     /// Since Neural Engine uses disk-backed weights (not RAM), we can go much deeper
     /// Only thermal throttling and user patience are the real limits
     nonisolated static let unlimited = AgenticConfig(
-        maxSteps: 100, // Effectively unlimited - thermal will stop us first
-        maxTotalTokens: 500_000, // ~125K words of reasoning capacity
+        maxSteps: 50, // Realistically 5-15 minutes - thermal will stop us first
+            maxTotalTokens: 200_000, // 50 sessions × 4K = 200K+ effective tokens
         streamIntermediateResults: true,
         confidenceThreshold: 0.98, // Only stop when VERY confident
         escalationThreshold: 0.50 // Aggressive escalation - always try harder
@@ -135,7 +135,7 @@ final class AgenticOrchestrator: Sendable {
     /// Uses unlimited reasoning chain when AgenticConfig.isUnlimited is true
     private var reasoningChainConfig: ReasoningChainConfig {
         if config.isUnlimited {
-            Log.info("[Agentic] Using UNLIMITED reasoning chain (20+ sessions until 98% confident)", category: .llm)
+            Log.info("[Agentic] Using UNLIMITED reasoning chain (up to 50 sessions until 98% confident)", category: .llm)
             return .unlimited
         }
         // Map maxSteps to appropriate chain config
@@ -2253,10 +2253,11 @@ struct ReasoningChainConfig: Sendable {
         maxInsightLength: 2500   // Keep full findings, not snippets
     )
 
-    /// Unlimited config - starts with 10 sessions but can expand dynamically
-    /// Since Neural Engine is disk-backed, memory isn't the limit - thermal is
+    /// Unlimited config - Maximum mode: up to 50 sessions until 98% confident
+    /// Since Neural Engine is disk-backed, memory isn't the limit - thermal/user patience is
+    /// 50 sessions × 4K = 200K+ effective tokens (realistically takes 5-15 minutes)
     nonisolated static let unlimited = ReasoningChainConfig(
-        sessionCount: 20,       // 20 × 4096 = 80K+ effective tokens (can expand)
+        sessionCount: 50, // 50 × 4096 = 200K+ effective tokens
         maxContextPerSession: 3500,
         maxInsightLength: 3000   // Preserve maximum detail between sessions
     )
@@ -2376,9 +2377,9 @@ extension AgenticOrchestrator {
 
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
             // Unlimited mode: Check if we've reached confidence threshold
-            // Require at least 3 sessions to build up meaningful reasoning
+            // Require at least 8 sessions to build up meaningful reasoning depth
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            if isUnlimitedMode && sessionIndex >= 3 && cumulativeConfidence >= confidenceThreshold {
+            if isUnlimitedMode, sessionIndex >= 8, cumulativeConfidence >= confidenceThreshold { 
                 Log.info("[ReasoningChain] Unlimited mode: Stopping at \(Int(cumulativeConfidence * 100))% confidence (threshold: \(Int(confidenceThreshold * 100))%)", category: .llm)
                 break
             }
@@ -2460,58 +2461,69 @@ extension AgenticOrchestrator {
             if let conf = parseConfidence(from: response.text) {
                 cumulativeConfidence = (cumulativeConfidence + conf) / 2
             } else if isUnlimitedMode {
-                // Heuristic confidence for unlimited mode:
-                // We need to reach 98% to exit early, so scale appropriately
+                // Heuristic confidence for Maximum mode:
+                // Designed to require 8-15+ sessions before hitting 98%
+                // Each component is conservative to ensure deep exploration
 
-                // 1. Session contribution (up to 40%) - more sessions = more exploration
-                let sessionContribution = min(0.04 * Float(sessionNum), 0.4)
+                // 1. Session contribution (up to 48%) - more sessions = more exploration
+                // At 8 sessions: 24%, at 12 sessions: 36%, at 16 sessions: 48% (cap)
+                let sessionContribution = min(0.03 * Float(sessionNum), 0.48)
 
-                // 2. Length contribution (up to 25%) - longer insights = more substance
-                let lengthContribution = min(Float(insight.count) / 2000.0, 0.25)
+                // 2. Length contribution (up to 15%) - longer insights = more substance
+                // Requires 3000+ chars for full bonus (conservative)
+                let lengthContribution = min(Float(insight.count) / 3000.0, 0.15)
 
-                // 3. Citation bonus (up to 15%) - grounded in sources
+                // 3. Citation bonus (up to 10%) - grounded in sources
                 let hasCitations = insight.contains("[S") || insight.contains("S1") || insight.contains("S2")
-                let citationBonus: Float = hasCitations ? 0.15 : 0
+                let citationBonus: Float = hasCitations ? 0.10 : 0
 
-                // 4. Repetition detection (up to 40%) - if repeating, we've exhausted the topic
+                // 4. Repetition detection (up to 25%) - if repeating, we've exhausted the topic
                 // Compare current insight with PREVIOUS insights (before appending)
-                // Increased from 30% to 40% and lowered threshold to catch verbose repetition
+                // More conservative thresholds for Maximum mode
                 var repetitionBonus: Float = 0
-                if chainInsights.count >= 2 {
-                    // Use more words for comparison (80 instead of 40) to catch broader patterns
+                if chainInsights.count >= 4 { // Require 4+ insights before checking repetition
                     let currentWords = Set(insight.lowercased().split(separator: " ").filter { $0.count > 3 }.prefix(80))
                     var similarityCount = 0
                     var maxOverlapRatio: Float = 0
 
-                    // Check last 3 previous insights (not including current)
-                    for prevInsight in chainInsights.suffix(3) {
+                    // Check last 4 previous insights (not including current)
+                    for prevInsight in chainInsights.suffix(4) {
+
                         let prevWords = Set(prevInsight.lowercased().split(separator: " ").filter { $0.count > 3 }.prefix(80))
                         let overlap = currentWords.intersection(prevWords).count
                         let overlapRatio = Float(overlap) / Float(max(currentWords.count, 1))
                         maxOverlapRatio = max(maxOverlapRatio, overlapRatio)
 
-                        // Lowered threshold from 50% to 35% to catch verbose repetition
-                        if overlapRatio > 0.35 {
+                        // Require 50% overlap to count as similar (was 35%)
+                        if overlapRatio > 0.50 { 
                             similarityCount += 1
                         }
                     }
 
-                    // Scale repetition bonus based on how many matches AND max overlap
-                    if similarityCount >= 2 || maxOverlapRatio > 0.6 {
-                        repetitionBonus = 0.40  // Strong repetition - topic exhausted
-                        Log.info("[ReasoningChain] Strong repetition detected (\(similarityCount)/3 similar, max overlap: \(Int(maxOverlapRatio * 100))%) - topic exhausted", category: .llm)
-                    } else if similarityCount >= 1 || maxOverlapRatio > 0.40 {
-                        repetitionBonus = 0.25  // Moderate repetition
+                    // Scale repetition bonus - require strong evidence of exhaustion
+                    if similarityCount >= 3 || maxOverlapRatio > 0.75 {
+                        repetitionBonus = 0.25 // Strong repetition - topic exhausted
+                        Log.info("[ReasoningChain] Strong repetition detected (\(similarityCount)/4 similar, max overlap: \(Int(maxOverlapRatio * 100))%) - topic exhausted", category: .llm)
+
+                        // IMMEDIATE TERMINATION: Force confidence to 99% to trigger stop
+                        // This prevents infinite loops when the model gets stuck repeating
+                        cumulativeConfidence = 0.99
+                        Log.info("[ReasoningChain] Forcing early termination due to severe repetition", category: .llm)
+                    } else if similarityCount >= 2 || maxOverlapRatio > 0.60 {
+                        repetitionBonus = 0.15 // Moderate repetition
                         Log.info("[ReasoningChain] Moderate repetition detected (overlap: \(Int(maxOverlapRatio * 100))%)", category: .llm)
                     }
                 }
 
-                // 5. Exhaustion bonus (up to 20%) - if we're deep in sessions, boost confidence
-                // Increased to help reach 98% faster when truly exploring
-                let exhaustionBonus: Float = sessionNum >= 10 ? 0.20 : (sessionNum >= 7 ? 0.15 : (sessionNum >= 5 ? 0.10 : (sessionNum >= 3 ? 0.05 : 0)))
+                // 5. Exhaustion bonus (up to 15%) - if we're deep in sessions, boost confidence
+                // Only kicks in after 10+ sessions (conservative for Maximum mode)
+                let exhaustionBonus: Float = sessionNum >= 15 ? 0.15 : (sessionNum >= 12 ? 0.10 : (sessionNum >= 10 ? 0.05 : 0))
 
-                let estimatedConfidence = sessionContribution + lengthContribution + citationBonus + repetitionBonus + exhaustionBonus
-                cumulativeConfidence = max(cumulativeConfidence, min(estimatedConfidence, 0.99))
+                // Only calculate confidence normally if we haven't forced termination
+                if cumulativeConfidence<0.99 { 
+                    let estimatedConfidence = sessionContribution + lengthContribution + citationBonus + repetitionBonus + exhaustionBonus
+                    cumulativeConfidence = max(cumulativeConfidence, min(estimatedConfidence, 0.99))
+                }
 
                 Log.info("[ReasoningChain] Confidence: \(Int(cumulativeConfidence * 100))% (session: \(Int(sessionContribution * 100))%, length: \(Int(lengthContribution * 100))%, citations: \(Int(citationBonus * 100))%, repetition: \(Int(repetitionBonus * 100))%, exhaustion: \(Int(exhaustionBonus * 100))%)", category: .llm)
             }

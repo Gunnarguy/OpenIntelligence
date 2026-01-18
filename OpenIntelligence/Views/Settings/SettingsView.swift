@@ -542,11 +542,11 @@ Text(deviceService.chipName)
 
                 // Dynamic explanation based on mode
                 if settings.ragQualityMode.canonical == .maximum {
-                    Text("Maximum mode chains up to 100 reasoning sessions (500K token budget). Each session retrieves fresh context and tools assess confidence until 98% threshold.")
+                    Text("Maximum mode chains up to 50 reasoning sessions on your best-matched content. Each session reasons deeper on the same high-quality context until 98% confident.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 } else if settings.ragQualityMode.canonical == .deepThink {
-                    Text("Deep Think chains 4-8 reasoning sessions for complex questions. Each step retrieves fresh context, enabling comprehensive analysis across 32K+ effective tokens.")
+                    Text("Deep Think chains 4-8 reasoning sessions on your best-matched content. Each step reasons deeper, with cumulative insights building across sessions.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 } else {
@@ -558,7 +558,7 @@ Text(deviceService.chipName)
                 HStack(spacing: 12) {
                     if settings.ragQualityMode.canonical == .maximum {
                         contextInfoPill(icon: "square.3.layers.3d", label: "Per Session", value: "4K tokens")
-                        contextInfoPill(icon: "flame.fill", label: "Total Budget", value: "500K tokens")
+                        contextInfoPill(icon: "flame.fill", label: "Total Budget", value: "200K+ tokens")
                     } else if settings.ragQualityMode.canonical == .deepThink {
                         contextInfoPill(icon: "square.3.layers.3d", label: "Per Session", value: "4K tokens")
                         contextInfoPill(icon: "arrow.trianglehead.2.clockwise.rotate.90", label: "Effective", value: "32K+ tokens")
@@ -1182,9 +1182,9 @@ Text(deviceService.chipName)
                     if settings.ragQualityMode.isUnlimitedMode {
                         Divider()
                             .padding(.vertical, 4)
-                        featureRow(icon: "infinity", label: "Unlimited Reasoning", description: "Up to 100 sessions until 98% confident", color: .orange)
+                        featureRow(icon: "infinity", label: "Unlimited Reasoning", description: "Up to 50 sessions until 98% confident", color: .orange)
                         featureRow(icon: "wand.and.stars", label: "Exhaustive Synthesis", description: "Final pass synthesizes all session insights", color: .orange)
-                        featureRow(icon: "cpu", label: "500K Token Budget", description: "~125K words of reasoning capacity", color: .orange)
+                        featureRow(icon: "cpu", label: "200K+ Token Budget", description: "50 sessions × 4K = deep exploration", color: .orange)
 
                         // Warning for Maximum mode
                         HStack(spacing: 6) {
