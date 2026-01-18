@@ -541,8 +541,12 @@ Text(deviceService.chipName)
                 }
 
                 // Dynamic explanation based on mode
-                if settings.ragQualityMode.canonical == .deepThink {
-                    Text("Deep Think chains multiple 4K-token sessions for complex reasoning. Each step retrieves fresh context, enabling comprehensive analysis across 12K+ effective tokens.")
+                if settings.ragQualityMode.canonical == .maximum {
+                    Text("Maximum mode chains up to 100 reasoning sessions (500K token budget). Each session retrieves fresh context and tools assess confidence until 98% threshold.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                } else if settings.ragQualityMode.canonical == .deepThink {
+                    Text("Deep Think chains 4-8 reasoning sessions for complex questions. Each step retrieves fresh context, enabling comprehensive analysis across 32K+ effective tokens.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 } else {
@@ -552,9 +556,12 @@ Text(deviceService.chipName)
                 }
 
                 HStack(spacing: 12) {
-                    if settings.ragQualityMode.canonical == .deepThink {
+                    if settings.ragQualityMode.canonical == .maximum {
                         contextInfoPill(icon: "square.3.layers.3d", label: "Per Session", value: "4K tokens")
-                        contextInfoPill(icon: "arrow.trianglehead.2.clockwise.rotate.90", label: "Effective", value: "12K+ tokens")
+                        contextInfoPill(icon: "flame.fill", label: "Total Budget", value: "500K tokens")
+                    } else if settings.ragQualityMode.canonical == .deepThink {
+                        contextInfoPill(icon: "square.3.layers.3d", label: "Per Session", value: "4K tokens")
+                        contextInfoPill(icon: "arrow.trianglehead.2.clockwise.rotate.90", label: "Effective", value: "32K+ tokens")
                     } else {
                         contextInfoPill(icon: deviceService.isMac ? "desktopcomputer" : (deviceService.isIPad ? "ipad" : "iphone"), label: "On-Device", value: "4K tokens")
                         contextInfoPill(icon: "cloud", label: "PCC", value: "Extended")
@@ -1156,28 +1163,28 @@ Text(deviceService.chipName)
 
                 VStack(alignment: .leading, spacing: 6) {
                     // Common features for all modes
-                    featureRow(icon: "sparkles", label: "HyDE Query Enhancement", description: "Hypothetical document for better search", color: .green)
-                    featureRow(icon: "text.redaction", label: "Contextual Compression", description: "Focuses on relevant information", color: .green)
-                    featureRow(icon: "doc.on.doc", label: "Parent Document Retrieval", description: "Includes surrounding context", color: .green)
-                    featureRow(icon: "lightbulb", label: "Query Understanding", description: "Rewrites vague queries intelligently", color: .green)
+                    featureRow(icon: "sparkles", label: "HyDE Query Enhancement", description: "Generates hypothetical answer to improve embedding similarity", color: .green)
+                    featureRow(icon: "text.redaction", label: "Contextual Compression", description: "LLM extracts only query-relevant sentences", color: .green)
+                    featureRow(icon: "doc.on.doc", label: "Parent Document Retrieval", description: "Fetches surrounding chunks for full context", color: .green)
+                    featureRow(icon: "lightbulb", label: "Query Understanding", description: "Resolves pronouns & clarifies ambiguous queries", color: .green)
 
                     // Deep Think and Maximum shared features
                     if settings.ragQualityMode.usesAgenticOrchestrator {
                         Divider()
                             .padding(.vertical, 4)
                         featureRow(icon: "arrow.trianglehead.2.clockwise.rotate.90", label: "Iterative Retrieval", description: "Retrieve → assess → refine → retrieve more", color: .purple)
-                        featureRow(icon: "brain.head.profile", label: "Agentic Orchestrator", description: "Multi-session reasoning chain", color: .purple)
-                        featureRow(icon: "hammer.fill", label: "12+ Tool Functions", description: "Autonomous search & analysis tools", color: .purple)
-                        featureRow(icon: "chart.bar.xaxis", label: "Confidence Tracking", description: "Self-assessment and refinement", color: .purple)
+                        featureRow(icon: "brain.head.profile", label: "Agentic Orchestrator", description: "4-8 reasoning sessions (95% confidence)", color: .purple)
+                        featureRow(icon: "hammer.fill", label: "12+ Tool Functions", description: "SearchDocs, GetFullDocument, ExpandContext, etc.", color: .purple)
+                        featureRow(icon: "chart.bar.xaxis", label: "Confidence Tracking", description: "Stops when confident, escalates if uncertain", color: .purple)
                     }
 
                     // Maximum-exclusive features
                     if settings.ragQualityMode.isUnlimitedMode {
                         Divider()
                             .padding(.vertical, 4)
-                        featureRow(icon: "infinity", label: "Unlimited Reasoning", description: "Keeps reasoning until 98% confident", color: .orange)
-                        featureRow(icon: "arrow.trianglehead.branch", label: "20+ Reasoning Sessions", description: "Deep multi-stage analysis", color: .orange)
-                        featureRow(icon: "cpu", label: "500K Token Budget", description: "Massive context for complex tasks", color: .orange)
+                        featureRow(icon: "infinity", label: "Unlimited Reasoning", description: "Up to 100 sessions until 98% confident", color: .orange)
+                        featureRow(icon: "wand.and.stars", label: "Exhaustive Synthesis", description: "Final pass synthesizes all session insights", color: .orange)
+                        featureRow(icon: "cpu", label: "500K Token Budget", description: "~125K words of reasoning capacity", color: .orange)
 
                         // Warning for Maximum mode
                         HStack(spacing: 6) {
