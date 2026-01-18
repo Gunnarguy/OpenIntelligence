@@ -2588,7 +2588,7 @@ extension AgenticOrchestrator {
             TASK: Write a COMPREHENSIVE answer using ALL findings above.
 
             REQUIREMENTS:
-                • Include EVERY detail, number, step, and specification
+            • Include EVERY detail, number, step, and specification
                 • Use headers, bullets, and numbered lists
                 • Be thorough - expand on each point fully
                 • Do NOT summarize - elaborate everything
