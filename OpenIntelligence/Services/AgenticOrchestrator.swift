@@ -2579,30 +2579,22 @@ extension AgenticOrchestrator {
             // Compact prompt that fits within context window
             // Apple FM: 4096 total tokens (input + output)
             // Reserve ~2000 tokens for output, leaving ~2000 for input
-            let sessionCountStr = "\(actualSessionCount)"
-            let exhaustivePrompt = """
-            QUESTION: \(query)
+            // Using string concatenation to avoid formatter corruption of interpolations
+            var exhaustivePrompt = "QUESTION: " + query + "\n\n"
+            exhaustivePrompt += "RESEARCH FINDINGS (" + String(actualSessionCount) + " sessions):\n"
+            exhaustivePrompt += insightsSummary + "\n\n"
+            exhaustivePrompt += "TASK: Write a COMPREHENSIVE answer using ALL findings above.\n\n"
+            exhaustivePrompt += "REQUIREMENTS:\n"
+            exhaustivePrompt += "- Include EVERY detail, number, step, and specification\n"
+            exhaustivePrompt += "- Use headers, bullets, and numbered lists\n"
+            exhaustivePrompt += "- Be thorough - expand on each point fully\n"
+            exhaustivePrompt += "- Do NOT summarize - elaborate everything\n"
+            exhaustivePrompt += "- Target 500+ words\n\n"
+            exhaustivePrompt += "ANSWER:"
 
-            RESEARCH FINDINGS (\(sessionCountStr) sessions):
-            \(insightsSummary)
-
-            TASK: Write a COMPREHENSIVE answer using ALL findings above.
-
-            REQUIREMENTS:
-            - Include EVERY detail, number, step, and specification
-            - Use headers, bullets, and numbered lists
-            - Be thorough - expand on each point fully
-            - Do NOT summarize - elaborate everything
-            - Target 500+ words
-
-            ANSWER:
-            """
-
-            let exhaustiveSystemPrompt = """
-            You are an expert analyst.Produce a detailed, structured response.
-                Include all specifics: part numbers, steps, procedures, requirements.
-                Use markdown formatting.Be comprehensive, not brief.
-            """
+            var exhaustiveSystemPrompt = "You are an expert analyst. Produce a detailed, structured response. "
+            exhaustiveSystemPrompt += "Include all specifics: part numbers, steps, procedures, requirements. "
+            exhaustiveSystemPrompt += "Use markdown formatting. Be comprehensive, not brief."
 
             do {
                 let synthesisResponse = try await ragService.generateWithProperConsent(
