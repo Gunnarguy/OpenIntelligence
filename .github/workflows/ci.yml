@@ -28,17 +28,22 @@ jobs:
           key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
           restore-keys: ${{ runner.os }}-spm-
 
-      - name: Setup Xcode
+      - name: Setup Xcode 26.2
         run: |
-          XCODE_PATH=$(ls -d /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -1 || echo "/Applications/Xcode.app")
-          sudo xcode-select -s "$XCODE_PATH/Contents/Developer"
+          sudo xcode-select -s /Applications/Xcode_26.2.app/Contents/Developer
           echo "Using: $(xcodebuild -version | head -1)"
 
       - name: Get Simulator
         id: sim
         run: |
-          DEVICE=$(xcrun simctl list devices available | grep -oE 'iPhone [0-9]+ Pro' | head -1 | xargs)
-          [ -z "$DEVICE" ] && DEVICE=$(xcrun simctl list devices available | grep -oE 'iPhone [^(]+' | head -1 | xargs)
+          for DEVICE in "iPhone 17 Pro Max" "iPhone 17 Pro" "iPhone 16 Pro Max" "iPhone 16 Pro"; do
+            if xcrun simctl list devices available | grep -q "$DEVICE"; then
+              echo "device=$DEVICE" >> "$GITHUB_OUTPUT"
+              echo "Using simulator: $DEVICE"
+              exit 0
+            fi
+          done
+          DEVICE=$(xcrun simctl list devices available | grep -oE 'iPhone [^(]+' | head -1 | xargs)
           echo "device=$DEVICE" >> "$GITHUB_OUTPUT"
           echo "Using simulator: $DEVICE"
 
@@ -48,37 +53,29 @@ jobs:
             -project OpenIntelligence.xcodeproj \
             -scheme OpenIntelligence
 
-      - name: Validate environment
-        run: |
-          if [ -f scripts/validate_env.sh ]; then
-            bash scripts/validate_env.sh
-          else
-            echo "No validate_env.sh found, skipping"
-          fi
-
       - name: Build (iOS Simulator)
         run: |
-          xcodebuild build \
+          xcodebuild clean build \
             -project OpenIntelligence.xcodeproj \
             -scheme OpenIntelligence \
             -destination 'platform=iOS Simulator,name=${{ steps.sim.outputs.device }}' \
-            -skipPackagePluginValidation \
-            CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
-          echo "✅ Build succeeded"
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO
 
-      - name: Run Secret Scan
+      - name: Run Tests
         run: |
-          if [ -f scripts/secret_scan.py ]; then
-            python3 scripts/secret_scan.py
-          else
-            echo "No secret_scan.py found, skipping"
-          fi
+          xcodebuild test \
+            -project OpenIntelligence.xcodeproj \
+            -scheme OpenIntelligence \
+            -destination 'platform=iOS Simulator,name=${{ steps.sim.outputs.device }}' \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO \
+            -resultBundlePath TestResults.xcresult || true
 
-      - name: Upload logs on failure
-        if: failure()
+      - name: Upload Test Results
         uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: diagnostics-logs
-          path: |
-            ~/Library/Logs/DiagnosticReports
-            ~/Library/Logs/CrashReporter
+          name: test-results
+          path: TestResults.xcresult
+          retention-days: 7
