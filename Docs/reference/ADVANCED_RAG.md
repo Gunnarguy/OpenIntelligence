@@ -377,7 +377,7 @@ All advanced RAG settings in `SettingsStore.swift`:
 @Published var enableContextualCompression: Bool // Default: true
 
 // Quality Mode
-@Published var ragQualityMode: RAGQualityMode    // .fast, .balanced, .thorough, .agentic
+@Published var ragQualityMode: RAGQualityMode    // .standard, .deepThink, .maximum
 ```
 
 ---
@@ -402,7 +402,7 @@ All advanced RAG settings in `SettingsStore.swift`:
 | HyDE not triggering | Query not detected as factual | Check `shouldUseHyDE()` heuristics |
 | High latency | All features enabled | Disable compression for speed |
 | Memory growth | Query tasks not cancelled | Check `currentQueryTask` pattern |
-| Poor retrieval | Wrong quality mode | Try `.thorough` or `.agentic` |
+| Poor retrieval | Wrong quality mode | Try `.deepThink` or `.maximum` |
 | Hallucinations | Ungrounded responses | Enable grounding verification |
 
 ---

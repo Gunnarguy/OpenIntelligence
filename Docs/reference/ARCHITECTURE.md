@@ -1073,7 +1073,7 @@ All advanced features are fully compatible with Apple's FoundationModels framewo
 - Temperature and max tokens configuration
 - Top-K retrieval depth setting
 - Embedding provider selection
-- Quality Mode picker (Fast/Balanced/Thorough)
+- Quality Mode picker (Standard / Deep Think / Maximum)
 
 ### ModelManagerView
 
@@ -1219,7 +1219,7 @@ Iteration 3: Refine query + retrieve → Assess confidence (0.75) → Sufficient
 
 **Features**:
 
-- Configurable via `RAGQualityMode` (enabled in Thorough mode)
+- Configurable via `RAGQualityMode` (enabled in Deep Think and Maximum modes)
 - Confidence assessment based on: chunk count, similarity scores, source diversity
 - LLM-powered query refinement between iterations
 - Automatic deduplication across iterations
@@ -1228,12 +1228,14 @@ Iteration 3: Refine query + retrieve → Assess confidence (0.75) → Sufficient
 
 These features are controlled by the `RAGQualityMode` setting:
 
-| Feature             | Fast | Balanced | Thorough |
-| ------------------- | ---- | -------- | -------- |
-| Query Rewriting     | ❌   | ✅       | ✅       |
-| Corpus Expansion    | ✅   | ✅       | ✅       |
-| Iterative Retrieval | ❌   | ❌       | ✅       |
-| Max Iterations      | 1    | 2        | 4        |
+| Feature                  | Standard | Deep Think | Maximum |
+| ------------------------ | -------- | ---------- | ------- |
+| Query Rewriting          | ✅       | ✅         | ✅      |
+| Corpus Expansion         | ✅       | ✅         | ✅      |
+| Iterative Retrieval      | ✅       | ✅         | ✅      |
+| Agentic Orchestration    | ❌       | ✅ (4-8)   | ✅ (∞)  |
+| Exhaustive Synthesis     | ❌       | ❌         | ✅      |
+| Confidence Target        | 85%      | 95%        | 98%     |
 
 ### Settings Integration
 
