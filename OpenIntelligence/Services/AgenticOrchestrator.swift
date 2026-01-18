@@ -2551,40 +2551,56 @@ extension AgenticOrchestrator {
         if isUnlimitedMode, chainInsights.count >= 3 {
             Log.info("[ReasoningChain] Running exhaustive synthesis for Maximum mode...", category: .llm)
 
-            // Build comprehensive synthesis prompt with ALL insights
-            let allInsightsSummary = chainInsights.enumerated()
-                .map { "[\($0.offset + 1)] \($0.element)" }
-                .joined(separator: "\n\n")
+            // Condense insights to fit within Apple FM's 4096 token context window
+            // Keep only the most recent/comprehensive insights, truncate if needed
+            let maxInsightChars = 1500 // ~375 tokens for insights
+            var condensedInsights: [String] = []
+            var totalChars = 0
 
+            // Take insights from end (most refined) to beginning
+            for insight in chainInsights.reversed() {
+                let trimmed = insight.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+                if totalChars + trimmed.count <= maxInsightChars {
+                    condensedInsights.insert(trimmed, at: 0)
+                    totalChars += trimmed.count
+                } else if condensedInsights.isEmpty {
+                    // At least include a truncated version of the last insight
+                    condensedInsights.append(String(trimmed.prefix(maxInsightChars)))
+                    break
+                } else {
+                    break
+                }
+            }
+
+            let insightsSummary = condensedInsights.enumerated()
+                .map { "[\($0.offset + 1)] \($0.element)" }
+.joined(separator: "\n")
+
+            // Compact prompt that fits within context window
+            // Apple FM: 4096 total tokens (input + output)
+            // Reserve ~2000 tokens for output, leaving ~2000 for input
             let exhaustivePrompt = """
             QUESTION: \(query)
 
-            You have completed \(actualSessionCount) research sessions and gathered the following insights:
+            RESEARCH FINDINGS(\actualSessionCount sessions):
+                \insightsSummary
 
-            \(allInsightsSummary)
+            TASK: Write a COMPREHENSIVE answer using ALL findings above.
 
-            SUPPORTING DOCUMENTS:
-            \(sharedContext)
+            REQUIREMENTS:
+                • Include EVERY detail, number, step, and specification
+                • Use headers, bullets, and numbered lists
+                • Be thorough - expand on each point fully
+                • Do NOT summarize - elaborate everything
+                • Target 500+ words
 
-            YOUR TASK: Write an EXHAUSTIVE, COMPREHENSIVE answer that:
-            1. Synthesizes ALL insights from your research
-            2. Includes EVERY specific detail, number, step, procedure, responsibility, or requirement found
-            3. Organizes information logically with clear sections/bullet points
-            4. Does NOT summarize or abbreviate - include the FULL detail
-            5. Uses the maximum length needed to be complete
-            6. Cites sources where relevant
-
-            Be thorough. Be detailed. Be exhaustive. The user wants EVERYTHING you found.
-
-            YOUR COMPREHENSIVE ANSWER:
+            ANSWER:
             """
 
             let exhaustiveSystemPrompt = """
-            You are a meticulous research assistant completing a comprehensive analysis.
-            Your job is to provide the MOST COMPLETE answer possible.
-            Do not summarize or shorten - include every relevant detail, step, responsibility, requirement, and specification you discovered.
-            Use bullet points, numbered lists, and clear sections to organize information.
-            Length is good - comprehensiveness is the goal.
+            You are an expert analyst.Produce a detailed, structured response.
+                Include all specifics: part numbers, steps, procedures, requirements.
+                Use markdown formatting.Be comprehensive, not brief.
             """
 
             do {
@@ -2592,7 +2608,7 @@ extension AgenticOrchestrator {
                     prompt: exhaustivePrompt,
                     context: "",
                     systemPrompt: exhaustiveSystemPrompt,
-                    maxTokens: 2000 // Allow much longer responses for Maximum mode
+                    maxTokens: 2000 // Leave room within 4096 context window
                 )
                 finalAnswer = synthesisResponse.text.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
                 totalTokens += synthesisResponse.tokensGenerated

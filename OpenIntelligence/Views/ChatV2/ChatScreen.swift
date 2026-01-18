@@ -1952,6 +1952,7 @@ struct QualityModeQuickPicker: View {
         switch selectedMode.canonical {
         case .standard: return .blue
         case .deepThink: return .purple
+        case .maximum: return .orange
         default: return .blue
         }
     }

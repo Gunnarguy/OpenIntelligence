@@ -85,6 +85,9 @@ struct ResponseMetadata: Codable, Sendable {
     /// via the "Go Deeper" button if they want agentic processing.
     let usedAgenticMode: Bool
 
+    /// The quality mode used: "Standard", "Deep Think", or "Maximum"
+    let qualityModeName: String?
+
     /// The original query that triggered this response (for re-query with deeper mode)
     let originalQuery: String?
 
@@ -103,6 +106,7 @@ struct ResponseMetadata: Codable, Sendable {
          toolCallsMade: Int? = nil,
          embeddingProvider: String? = nil,
          usedAgenticMode: Bool = false,
+         qualityModeName: String? = nil,
          originalQuery: String? = nil,
          reasoningTrace: [String]? = nil)
     {
@@ -117,6 +121,7 @@ struct ResponseMetadata: Codable, Sendable {
         self.toolCallsMade = toolCallsMade
         self.embeddingProvider = embeddingProvider
         self.usedAgenticMode = usedAgenticMode
+        self.qualityModeName = qualityModeName
         self.originalQuery = originalQuery
         self.reasoningTrace = reasoningTrace
     }
