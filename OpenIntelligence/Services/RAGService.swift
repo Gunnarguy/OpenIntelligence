@@ -3470,21 +3470,43 @@ class RAGService: ObservableObject {
                 // Pipeline Trace: Step 2
                 Log.pipelineStep("2", title: "Query Embedding", details: [
                     ("provider", embeddingProviderId),
-                    ("dim", "\(selectedDim)")
+                    ("dim", "\(selectedDim)"),
+                    ("HyDE", (settingsStore?.enableHyDE ?? true) && HyDEService.isAvailable ? "enabled" : "off")
                 ])
 
-                // NOTE: HyDE (Hypothetical Document Embeddings) has been disabled.
-                // HyDE asks the LLM to generate a hypothetical answer WITHOUT document context,
-                // which causes hallucinations (e.g., "serial numbers" for "button" queries).
-                // The retrieval system now uses the actual query directly, which is more reliable.
-                let textToEmbed = effectiveQuery // Use rewritten query for embedding
+                // HyDE (Hypothetical Document Embeddings) - Gao et al. 2022
+                // Generates a hypothetical answer for better retrieval when question vocab differs from answer vocab
+                // Only used for factual queries where this vocabulary gap is significant
+                let useHyDE = (settingsStore?.enableHyDE ?? true) && HyDEService.isAvailable && HyDEService.shouldUseHyDE(for: effectiveQuery)
+                var hydeText: String?
+
+                if useHyDE {
+                    let hydeService = HyDEService()
+                    do {
+                        let hydeResult = try await hydeService.generateHyDEQuery(for: effectiveQuery)
+                        hydeText = hydeResult.hypotheticalDocument
+                        Log.info("[HyDE] Generated hypothetical doc: \"\(hydeText?.prefix(80) ?? "")...\"", category: .retrieval)
+                        emitThinkingEvent(
+                            .planning,
+                            title: "HyDE active",
+                            detail: "Generated hypothetical doc for better semantic matching"
+                        )
+                    } catch {
+                        Log.warning("[HyDE] Failed to generate hypothetical doc: \(error.localizedDescription)", category: .retrieval)
+                        // Fall back to regular query embedding
+                    }
+                }
+
+                // Use HyDE text if available, otherwise use the rewritten query
+                let textToEmbed = hydeText ?? effectiveQuery
 
                 let queryEmbedding = try await queryEmbeddingService.generateEmbedding(for: textToEmbed)
                 let embeddingTime = Date().timeIntervalSince(embeddingStartTime)
 
                 let embeddingMagnitude = sqrt(queryEmbedding.map { $0 * $0 }.reduce(0, +))
+                let hydeStatus = hydeText != nil ? " [HyDE]" : ""
                 Log.info(
-                    "✓ Generated \(queryEmbedding.count)-dimensional embedding",
+                    "✓ Generated \(queryEmbedding.count)-dimensional embedding\(hydeStatus)",
                     category: .embedding
                 )
                 Log.debug(

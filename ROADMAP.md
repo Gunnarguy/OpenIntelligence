@@ -205,9 +205,9 @@ _These FoundationModels framework features have been fully integrated:_
       _Location_: [DocumentProcessor.swift](OpenIntelligence/Services/DocumentProcessor.swift#L340)
       _Status_: Implemented - PDF extraction tracks page ranges, passed to SemanticChunker for accurate citations
 
-- [x] **CoreML Sentence Embeddings**: WordPiece tokenization implemented
+- [x] **CoreML Sentence Embeddings**: Production-ready with all-MiniLM-L6-v2
       _Location_: [CoreMLSentenceEmbeddingProvider.swift](OpenIntelligence/Services/Embeddings/CoreMLSentenceEmbeddingProvider.swift)
-      _Status_: Scaffold complete - tokenizer protocol, WordPiece implementation, CoreML inference pipeline ready
+      _Status_: Fully integrated - 384-dim sentence embeddings via Neural Engine, outperforms legacy NLEmbedding word-level averaging
 
 ### Medium Priority
 

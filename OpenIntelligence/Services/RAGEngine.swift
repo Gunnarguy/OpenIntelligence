@@ -798,9 +798,10 @@ actor RAGEngine {
     // Tokenizer used for BM25 scoring
     private func tokenize(_ text: String) -> [String] {
         let tokenizer = NLTokenizer(unit: .word)
-        tokenizer.string = text.lowercased()
-        return tokenizer.tokens(for: text.startIndex ..< text.endIndex).compactMap { range in
-            let token = String(text[range]).trimmingCharacters(in: .punctuationCharacters)
+        let normalized = text.lowercased()
+        tokenizer.string = normalized
+        return tokenizer.tokens(for: normalized.startIndex ..< normalized.endIndex).compactMap { range in
+            let token = String(normalized[range]).trimmingCharacters(in: .punctuationCharacters)
             return token.isEmpty ? nil : token
         }
     }
