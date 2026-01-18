@@ -1228,14 +1228,14 @@ Iteration 3: Refine query + retrieve → Assess confidence (0.75) → Sufficient
 
 These features are controlled by the `RAGQualityMode` setting:
 
-| Feature                  | Standard | Deep Think | Maximum |
-| ------------------------ | -------- | ---------- | ------- |
-| Query Rewriting          | ✅       | ✅         | ✅      |
-| Corpus Expansion         | ✅       | ✅         | ✅      |
-| Iterative Retrieval      | ✅       | ✅         | ✅      |
-| Agentic Orchestration    | ❌       | ✅ (4-8)   | ✅ (∞)  |
-| Exhaustive Synthesis     | ❌       | ❌         | ✅      |
-| Confidence Target        | 85%      | 95%        | 98%     |
+| Feature               | Standard | Deep Think | Maximum |
+| --------------------- | -------- | ---------- | ------- |
+| Query Rewriting       | ✅       | ✅         | ✅      |
+| Corpus Expansion      | ✅       | ✅         | ✅      |
+| Iterative Retrieval   | ✅       | ✅         | ✅      |
+| Agentic Orchestration | ❌       | ✅ (4-8)   | ✅ (∞)  |
+| Exhaustive Synthesis  | ❌       | ❌         | ✅      |
+| Confidence Target     | 85%      | 95%        | 98%     |
 
 ### Settings Integration
 
