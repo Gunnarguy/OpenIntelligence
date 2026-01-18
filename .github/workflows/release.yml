@@ -1,41 +1,45 @@
-name: Release (Archive & Export)
+name: Create Release
 
 on:
-  workflow_dispatch:
-    inputs:
-      perform_export:
-        description: "Perform archive + export (requires App Store signing assets on runner)"
-        required: false
-        default: false
-        type: boolean
-      upload_artifacts:
-        description: "Upload .ipa/.xcarchive artifacts"
-        required: false
-        default: true
-        type: boolean
+  push:
+    tags:
+      - "v*.*.*"
 
 jobs:
-  archive:
+  create-release:
     runs-on: macos-15
-    timeout-minutes: 60
+
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
         with:
           submodules: recursive
           fetch-depth: 0
 
-      - name: Setup Xcode
+      - name: Cache SwiftPM
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Developer/Xcode/DerivedData/SwiftPackageManager
+            ~/Library/Caches/org.swift.swiftpm
+          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: ${{ runner.os }}-spm-
+
+      - name: Setup Xcode 26.2
         run: |
-          XCODE_PATH=$(ls -d /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -1 || echo "/Applications/Xcode.app")
-          sudo xcode-select -s "$XCODE_PATH/Contents/Developer"
+          sudo xcode-select -s /Applications/Xcode_26.2.app/Contents/Developer
           echo "Using: $(xcodebuild -version | head -1)"
 
       - name: Get Simulator
         id: sim
         run: |
-          DEVICE=$(xcrun simctl list devices available | grep -oE 'iPhone [0-9]+ Pro' | head -1 | xargs)
-          [ -z "$DEVICE" ] && DEVICE=$(xcrun simctl list devices available | grep -oE 'iPhone [^(]+' | head -1 | xargs)
+          for DEVICE in "iPhone 17 Pro Max" "iPhone 17 Pro" "iPhone 16 Pro Max" "iPhone 16 Pro"; do
+            if xcrun simctl list devices available | grep -q "$DEVICE"; then
+              echo "device=$DEVICE" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+          DEVICE=$(xcrun simctl list devices available | grep -oE 'iPhone [^(]+' | head -1 | xargs)
           echo "device=$DEVICE" >> "$GITHUB_OUTPUT"
 
       - name: Resolve dependencies
@@ -44,53 +48,34 @@ jobs:
             -project OpenIntelligence.xcodeproj \
             -scheme OpenIntelligence
 
-      - name: Clean & build diagnostics
+      - name: Build for Release
         run: |
-          if [ -f clean_and_rebuild.sh ]; then
-            ./clean_and_rebuild.sh
-          else
-            echo "No clean_and_rebuild.sh found, skipping"
-          fi
-
-      - name: Build (iOS Simulator)
-        env:
-          CODE_SIGN_IDENTITY: ""
-          CODE_SIGNING_REQUIRED: "NO"
-          CODE_SIGNING_ALLOWED: "NO"
-        run: |
-          xcodebuild build \
+          xcodebuild \
             -project OpenIntelligence.xcodeproj \
             -scheme OpenIntelligence \
             -destination 'platform=iOS Simulator,name=${{ steps.sim.outputs.device }}' \
-            -skipPackagePluginValidation \
-            CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
-          echo "✅ Build succeeded"
+            -configuration Release \
+            -derivedDataPath build/ \
+            CODE_SIGNING_ALLOWED=NO \
+            clean build
 
-      - name: Archive app
-        if: ${{ inputs.perform_export }}
-        env:
-          CODE_SIGN_IDENTITY: ""
-          CODE_SIGNING_REQUIRED: "NO"
-          CODE_SIGNING_ALLOWED: "NO"
-        run: |
-          xcodebuild archive \
-            -project OpenIntelligence.xcodeproj \
-            -scheme OpenIntelligence \
-            -destination 'generic/platform=iOS' \
-            -archivePath build/OpenIntelligence.xcarchive \
-            CODE_SIGN_STYLE=Manual
-
-      - name: Export IPA
-        if: ${{ inputs.perform_export }}
-        run: |
-          xcodebuild -exportArchive \
-            -archivePath build/OpenIntelligence.xcarchive \
-            -exportPath build/export \
-            -exportOptionsPlist Docs/reference/exportOptions.plist
-
-      - name: Upload artifacts
-        if: ${{ inputs.perform_export && inputs.upload_artifacts }}
-        uses: actions/upload-artifact@v4
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
         with:
-          name: OpenIntelligence-ipa
-          path: build/export
+          generate_release_notes: true
+          body: |
+            ## What's Changed
+            - Auto-generated release from tag ${{ github.ref_name }}
+
+            ## Installation
+            1. Clone the repository
+            2. Open in Xcode 26+
+            3. Build and run on your device
+            4. Configure your API keys in Settings
+
+            ## Requirements
+            - iOS 26.0+
+            - Xcode 26+
+            - Valid API keys for enabled services
+          draft: false
+          prerelease: false
