@@ -143,13 +143,14 @@ struct MessageBubbleV2: View {
                     // Mode indicator for assistant messages
                     if !isUser, let meta = message.metadata {
                         if meta.usedAgenticMode {
+                            let isMaximum = meta.qualityModeName == "Maximum"
                             HStack(spacing: 2) {
-                                Image(systemName: "brain")
+                                Image(systemName: isMaximum ? "flame.fill" : "brain")
                                     .font(.system(size: 8, weight: .medium))
-                                Text("Deep")
+                                Text(isMaximum ? "Max" : "Deep")
                                     .font(.system(size: 9, weight: .medium))
                             }
-                            .foregroundStyle(.purple.opacity(0.7))
+.foregroundStyle(isMaximum ? .orange.opacity(0.8) : .purple.opacity(0.7))
                         } else if meta.canGoDeeper {
                             HStack(spacing: 2) {
                                 Image(systemName: "bolt")

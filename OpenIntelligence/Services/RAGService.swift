@@ -2876,7 +2876,7 @@ class RAGService: ObservableObject {
                 chunkingTargetWords: 300,
                 chunkingOverlapWords: 50,
                 chunkingSource: "agentic",
-                qualityModeName: "Deep Think",
+                qualityModeName: isUnlimitedMode ? "Maximum" : "Deep Think",
                 retrievalConfig: .default,
                 lenientRetrieval: true,
                 dynamicMin: 0.3,
@@ -2961,6 +2961,7 @@ class RAGService: ObservableObject {
                     retrievalConfigSummary: "Agentic",
                     toolCallsMade: result.steps.filter { $0.type == .searching }.count,
                     usedAgenticMode: true, // Agentic (deep) mode was used
+                    qualityModeName: isUnlimitedMode ? "Maximum" : "Deep Think",
                     originalQuery: question,
                     reasoningTrace: reasoningTrace // Now includes the thinking steps!
                 ),
