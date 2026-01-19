@@ -425,24 +425,41 @@ Works cited
     var sampleCount: Int { samples.count }
 
     /// Writes curated samples to disk and ingests them into the active RAG pipeline.
-    func importSamples(into ragService: RAGService) async throws {
-        let urls = try writeSamplesToTemporaryDirectory()
-        for url in urls {
-            try await ragService.addDocument(at: url)
-            try? FileManager.default.removeItem(at: url)
+    /// Uses `.onboarding` context to prevent self-tuning rebuilds during initial setup.
+    func importSamples(
+        into ragService: RAGService,
+        onProgress: ((Int, Int, String) -> Void)? = nil
+    ) async throws {
+        let urls = try writeSamplesToDocumentsDirectory()
+        for (index, url) in urls.enumerated() {
+            let filename = url.deletingPathExtension().lastPathComponent
+            onProgress?(index + 1, urls.count, filename)
+            try await ragService.addDocument(at: url, context: .onboarding)
+            // DON'T delete - keep files so self-tuning rebuild can find them
         }
     }
 
-    /// Persists each sample document in a temp directory and returns the file URLs.
-    private func writeSamplesToTemporaryDirectory() throws -> [URL] {
-        let tempDir = FileManager.default.temporaryDirectory
+    /// Persists each sample document in the app's Documents directory (permanent storage).
+    /// Using Documents directory ensures files persist for self-tuning rebuilds.
+    /// Files use stable names (no UUID suffix) to prevent duplicate imports.
+    private func writeSamplesToDocumentsDirectory() throws -> [URL] {
+        let documentsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+        let samplesDir = documentsDir.appendingPathComponent("SampleDocuments", isDirectory: true)
+
+        // Create samples directory if needed
+        try FileManager.default.createDirectory(at: samplesDir, withIntermediateDirectories: true)
+
         var urls: [URL] = []
         for sample in samples {
             let filename = sample.filename.replacingOccurrences(of: " ", with: "-")
-            let fileURL = tempDir
-                .appendingPathComponent(filename + "-" + UUID().uuidString)
+            let fileURL = samplesDir
+                .appendingPathComponent(filename)
                 .appendingPathExtension(sample.extension)
-            try sample.body.write(to: fileURL, atomically: true, encoding: .utf8)
+
+            // Only write if file doesn't already exist (prevents duplicate ingestion)
+            if !FileManager.default.fileExists(atPath: fileURL.path) { 
+                try sample.body.write(to: fileURL, atomically: true, encoding: .utf8)
+            }
             urls.append(fileURL)
         }
         return urls

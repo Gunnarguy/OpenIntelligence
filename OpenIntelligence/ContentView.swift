@@ -84,7 +84,8 @@ struct ContentView: View {
                 OnboardingChecklistLauncher(
                     completedSteps: onboardingStore.completedStepCount,
                     totalSteps: onboardingStore.totalStepCount,
-                    action: onboardingStore.refreshChecklistVisibilityIfNeeded
+                    action: onboardingStore.refreshChecklistVisibilityIfNeeded,
+                    onDismissPermanently: onboardingStore.skipPermanently
                 )
                 .padding(.trailing, 24)
                 .padding(.bottom, 28)
@@ -92,6 +93,7 @@ struct ContentView: View {
             }
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.82), value: onboardingStore.isChecklistVisible)
+.animation(.spring(response: 0.35, dampingFraction: 0.82), value: onboardingStore.hasDismissedPermanently)
         .environmentObject(onboardingStore)
         .environmentObject(entitlementStore)
         // `DocumentLibraryView` (and other tabs) relies on SettingsStore via @EnvironmentObject.
