@@ -11,6 +11,7 @@
   - Clusters documents by topic similarity
   - Runs parallel chains per cluster (3-way parallelism)
   - Synthesizes all cluster insights into comprehensive answer
+  - Full reasoning trace preserved (40+ session insights visible in UI)
   - For 17 documents: 5 clusters × 8 sessions × 4096 = 160K+ effective tokens
 - **RAPTOR-lite Document Summaries**: Auto-generates ~150-word document summaries at ingestion via Apple FM, stored as L1 chunks for efficient overview queries
 - **Query Router Service**: Classifies queries as overview/detail/cross-topic and routes to optimal retrieval strategy (summaries vs chunks)
