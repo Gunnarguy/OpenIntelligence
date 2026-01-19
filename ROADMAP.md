@@ -1,12 +1,17 @@
 # OpenIntelligence Roadmap
 
-**Last Updated**: January 17, 2026
+**Last Updated**: January 18, 2026
 **Version**: 1.6.0
 **Status**: Production (App Store Ready)
 **RAG Maturity Score**: 9.8/10 (Entity Extraction + Recursive Research + mmap Storage + RAPTOR-lite + Query Routing)
 
 ### Recent Improvements (January 2026 - Powerhouse RAG Upgrade)
 
+- **Multi-Chain Maximum Mode**: Parallel reasoning chains across document clusters - breaks the 4096 token ceiling
+  - Clusters documents by topic similarity
+  - Runs parallel chains per cluster (3-way parallelism)
+  - Synthesizes all cluster insights into comprehensive answer
+  - For 17 documents: 5 clusters × 8 sessions × 4096 = 160K+ effective tokens
 - **RAPTOR-lite Document Summaries**: Auto-generates ~150-word document summaries at ingestion via Apple FM, stored as L1 chunks for efficient overview queries
 - **Query Router Service**: Classifies queries as overview/detail/cross-topic and routes to optimal retrieval strategy (summaries vs chunks)
 - **Abstraction Levels**: ChunkMetadata now includes `abstractionLevel` field (L0=detail, L1=docSummary, L2=cluster, L3=library)
@@ -343,6 +348,9 @@ _Unified search across all knowledge containers_
       _Status_: Implemented - `ChunkingConfig.recommended(for:)` with PDF/code/narrative presets
 - [x] **Multi-Session Chaining**: Agentic RAG chains multiple 4096-token sessions for complex queries
       _Location_: [AgenticOrchestrator.swift](OpenIntelligence/Services/AgenticOrchestrator.swift)
+- [x] **Multi-Chain Maximum Mode**: Parallel reasoning chains across document clusters
+      _Location_: [AgenticOrchestrator.swift](OpenIntelligence/Services/AgenticOrchestrator.swift)
+      _Status_: Implemented - `executeMultiChainReasoning()` with 5 clusters × 8 sessions × 3 parallel
       _Status_: Implemented - Multi-step planning→searching→analyzing→synthesizing→refining with session cleanup
       _Hardware_: Device-aware config via DeviceCapabilityService (A17→16K, A18→24K, A19→32K, M-series→48K)
 - [x] **Query Planning Agent**: Multi-step reasoning over large document sets
