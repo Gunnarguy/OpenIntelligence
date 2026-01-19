@@ -74,6 +74,8 @@ Documentation.docc/**/build/
 *.swp
 *.swo
 *.orig
+afw.txt
+t.txt
 
 # User-specific environment/config
 .vscode/
