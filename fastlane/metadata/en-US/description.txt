@@ -1,52 +1,53 @@
-OpenIntelligence turns your documents into a personal knowledge base you can actually talk to.
+OpenIntelligence is a research-grade RAG (Retrieval-Augmented Generation) engine built for privacy. Your documents stay on your device. Answers come with citations. Everything runs locally by default with optional Private Cloud Compute—zero retention, full transparency.
 
-Drop in PDFs, notes, code, or research papers. Ask questions in plain language. Get answers that cite exactly where the information came from — with page numbers and passages you can verify.
+WHY IT'S DIFFERENT
 
-This isn't a chatbot that makes things up. It's a retrieval-augmented generation (RAG) system that grounds every answer in your actual documents.
+Most AI apps send your data to the cloud. OpenIntelligence implements 12 peer-reviewed retrieval techniques on-device, giving you research-lab accuracy without sacrificing privacy.
 
-▸ WHAT MAKES IT DIFFERENT
+THE 12 RAG FEATURES
 
-Most AI apps send your data to the cloud. OpenIntelligence processes everything on your iPhone using Apple Intelligence — the same technology that powers system-wide AI features in iOS 26.
+1. Hybrid Search — Combines BM25 keyword matching with vector similarity, fused via Reciprocal Rank Fusion (RRF) for best-of-both retrieval.
 
-Your documents stay on your device. When Apple's on-device model needs more power, it seamlessly extends to Private Cloud Compute — Apple Silicon servers with cryptographic guarantees of zero data retention. No OpenAI. No third-party servers. No fine print.
+2. Cross-Encoder Reranking — Neural reranker scores query-document pairs for precision that basic vector search can't match.
 
-▸ THE PIPELINE
+3. MMR Diversification — Maximal Marginal Relevance ensures diverse results, not just the most similar ones.
 
-Behind a simple chat interface is a production-grade retrieval system:
+4. HyDE — Hypothetical Document Embeddings generate an ideal answer first, then search for real documents that match it. 15-25% recall improvement.
 
-• Semantic chunking preserves document structure and meaning
-• NLEmbedding converts text into 512-dimensional vectors
-• Hybrid search combines keyword matching (BM25) with semantic similarity
-• Reciprocal Rank Fusion merges ranking signals for better results
-• Cross-encoder reranking prioritizes the most relevant passages
-• Maximal Marginal Relevance removes redundancy from context
+5. Parent Document Retrieval — Expands matched chunks to include surrounding context from the same section or page.
 
-This is the same architecture used by enterprise knowledge systems — running entirely on your phone.
+6. Contextual Compression — LLM-filters irrelevant sentences from retrieved chunks, saving 40-60% of tokens while improving answer quality.
 
-▸ ORGANIZE BY PROJECT
+7. RAPTOR-lite — Multi-level abstraction hierarchy (L0 raw chunks to L1 summaries) for both detailed and high-level retrieval.
 
-Create separate knowledge containers for different projects. Your work research stays isolated from personal notes. Each container maintains its own vector index for fast, focused retrieval.
+8. Query Routing — Automatically classifies queries and routes to the optimal retrieval strategy.
 
-▸ SUPPORTED FORMATS
+9. Agentic RAG — 12+ Tool functions let the LLM autonomously search, summarize, and analyze your library across multiple reasoning steps.
 
-• Documents: PDF, TXT, Markdown, RTF
-• Images: PNG, JPEG, HEIC (Vision OCR extracts text automatically)
-• Code: Swift, Python, JavaScript, TypeScript, Go, Rust, and 20+ languages
-• Data: JSON, YAML, CSV
+10. Self-RAG — The model critiques its own retrieval decisions and re-searches when confidence is low.
 
-▸ PRIVACY BY DESIGN
+11. Lost-in-Middle Mitigation — Reorders context to place the most relevant chunks at the beginning and end, where models pay more attention.
 
-• All document processing happens on-device
-• No cloud sync unless you explicitly enable Private Cloud Compute
-• Full transmission log shows what was sent and when
-• No analytics, no tracking, no data collection
+12. Fine-Tuned Embeddings — CoreML Sentence Transformer (384-dim) optimized for semantic similarity, with NLEmbedding fallback.
 
-▸ REQUIREMENTS
+KEY FEATURES
 
-• iOS 26.0 or later
-• Apple Intelligence enabled
-• iPhone 15 Pro or newer recommended for best performance
+- Document intake: PDFKit parsing + Vision OCR; paragraph-aware chunking with 17% smart overlap.
+- Flexible models: Apple Intelligence, local GGUF (Llama 3, Mistral), OpenAI, Anthropic—pick what fits.
+- Cited answers: Every response links back to the original source text. Tap to verify.
+- Execution badges: See exactly where processing happened—On-Device, PCC, or API.
+- Power controls: Top-K tuning, container isolation, quality modes (Standard/Deep Think/Maximum).
+- Siri and Shortcuts: App Intents for quick queries and automations.
+- Observability: Real-time telemetry, TTFT timers, and 3D vector space visualization.
 
-▸ PRO FEATURES
+PRIVACY
 
-Free users can store 5 documents in 1 container. Pro unlocks 1000 documents across 5 containers — enough for serious research, legal discovery, or building a personal knowledge base that grows with you.
+- Your documents never leave your device unless you explicitly allow cloud calls.
+- Private Cloud Compute runs on Apple Silicon servers with zero retention.
+- API calls require consent and are transparently logged.
+- No third-party analytics. All telemetry stays on-device.
+
+IN-APP PURCHASES
+
+- Pro subscription unlocks unlimited documents, all 12 RAG features, and premium models.
+- Lifetime option available for one-time purchase.
