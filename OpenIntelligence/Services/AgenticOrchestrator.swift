@@ -313,18 +313,21 @@ final class AgenticOrchestrator: Sendable {
                     onStep: onStep
                 )
 
-                // Convert cluster insights to thinking steps
+                // Convert cluster insights to thinking steps - include ALL session insights
                 for clusterInsight in multiChainResult.clusterInsights {
-                    let clusterStep = ThinkingStep(
-                        id: UUID(),
-                        type: .analyzing,
-                        input: clusterInsight.clusterName,
-                        output: String(clusterInsight.insight.prefix(500)) + "...",
-                        tokensUsed: clusterInsight.tokensUsed,
-                        duration: multiChainResult.totalDuration / Double(multiChainResult.clusterInsights.count),
-                        timestamp: Date()
-                    )
-                    steps.append(clusterStep)
+                    // Add individual session insights (the detailed reasoning)
+                    for (sessionIdx, sessionInsight) in clusterInsight.chainInsights.enumerated() {
+                        let sessionStep = ThinkingStep(
+                            id: UUID(), 
+                            type: sessionIdx == clusterInsight.chainInsights.count - 1 ? .synthesizing : .analyzing,
+                            input: "[\(clusterInsight.clusterName)] Session \(sessionIdx + 1)",
+                            output: sessionInsight,
+                            tokensUsed: clusterInsight.tokensUsed / max(1, clusterInsight.sessionsRun),
+                            duration: multiChainResult.totalDuration / Double(multiChainResult.totalSessions),
+                            timestamp: Date()
+                        )
+                        steps.append(sessionStep)
+                    }
                 }
 
                 totalTokens += multiChainResult.totalTokens
@@ -2387,6 +2390,7 @@ struct MultiChainResult: Sendable {
         let clusterName: String
         let documents: [String]
         let insight: String
+        let chainInsights: [String] // Individual session insights for reasoning trace
         let tokensUsed: Int
         let sessionsRun: Int
     }
@@ -3088,6 +3092,7 @@ extension AgenticOrchestrator {
             clusterName: clusterName,
             documents: docNames,
             insight: chainResult.finalAnswer,
+            chainInsights: chainResult.chainInsights, // Preserve session-level insights
             tokensUsed: chainResult.totalTokens,
             sessionsRun: chainResult.sessionCount
         )
