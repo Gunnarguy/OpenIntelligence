@@ -1540,7 +1540,8 @@ class RAGService: ObservableObject {
         stage: IngestionStage,
         detail: String,
         progress: Double? = nil,
-        errorMessage: String? = nil
+        errorMessage: String? = nil,
+        metricsUpdate: ((inout PipelineMetrics) -> Void)? = nil
     ) {
         processingStatus = "\(filename) • \(detail)"
         guard let id, let index = ingestionItems.firstIndex(where: { $0.id == id }) else { return }
@@ -1553,9 +1554,15 @@ class RAGService: ObservableObject {
         }
         if stage.isTerminal {
             item.finishedAt = Date()
+            if let startedAt = item.startedAt {
+                item.metrics.totalTimeMs = Int(Date().timeIntervalSince(startedAt) * 1000)
+            }
         }
         if let errorMessage {
             item.errorMessage = errorMessage
+        }
+        if let metricsUpdate {
+            metricsUpdate(&item.metrics)
         }
         ingestionItems[index] = item
     }
@@ -1767,6 +1774,16 @@ class RAGService: ObservableObject {
             let totalChars = processedChunks.reduce(0) { $0 + $1.metadata.characterCount }
             let totalWords = processedChunks.reduce(0) { $0 + $1.metadata.wordCount }
 
+            // Calculate chunk word stats
+            let chunkWordCounts = processedChunks.map { $0.metadata.wordCount }
+            let avgChunkWords = chunkWordCounts.isEmpty ? 0 : chunkWordCounts.reduce(0, +) / chunkWordCounts.count
+            let minChunkWords = chunkWordCounts.min() ?? 0
+            let maxChunkWords = chunkWordCounts.max() ?? 0
+
+            // Get file metadata
+            let fileAttrs = try? FileManager.default.attributesOfItem(atPath: url.path)
+            let fileSizeMB = Double((fileAttrs?[.size] as? Int64) ?? 0) / 1_048_576.0
+
             TelemetryCenter.emit(
                 .ingestion,
                 title: "Extraction complete",
@@ -1783,8 +1800,19 @@ class RAGService: ObservableObject {
                     id: trackingId,
                     filename: filename,
                     stage: .chunking,
-                    detail: "Chunking (\(processedChunks.count) chunks, \(totalWords) words)"
-                )
+                    detail: "\(processedChunks.count) chunks • \(totalWords) words • avg \(avgChunkWords)w/chunk"
+                ) { metrics in
+                    metrics.fileSizeMB = fileSizeMB
+                    metrics.totalCharacters = totalChars
+                    metrics.totalWords = totalWords
+                    metrics.pageCount = document.processingMetadata?.pagesProcessed ?? 0
+                    metrics.ocrPagesCount = document.processingMetadata?.ocrPagesCount ?? 0
+                    metrics.chunkCount = processedChunks.count
+                    metrics.avgChunkWords = avgChunkWords
+                    metrics.minChunkWords = minChunkWords
+                    metrics.maxChunkWords = maxChunkWords
+                    metrics.extractionTimeMs = Int(extractionTime * 1000)
+                }
             }
 
             // Small delay to show the chunking message
@@ -1795,13 +1823,16 @@ class RAGService: ObservableObject {
                let autoContainer = container,
                autoContainer.autoAdaptDimension
             {
+                let analysisStartTime = Date()
                 await MainActor.run {
                     updateIngestionItem(
                         id: trackingId,
                         filename: filename,
                         stage: .analyzing,
-                        detail: "Analyzing content"
-                    )
+                        detail: "Profiling corpus vocabulary and complexity..."
+                    ) { metrics in
+                        metrics.isAutoAdaptive = true
+                    }
                 }
 
                 // Get ALL existing chunks in this container for comprehensive analysis
@@ -1839,6 +1870,32 @@ class RAGService: ObservableObject {
                     documents: allDocumentsForAnalysis,
                     chunks: combinedChunks
                 )
+
+                let analysisTime = Date().timeIntervalSince(analysisStartTime)
+
+                // Update metrics with analysis results
+                let detectedLangs = report.corpus.languageHypotheses.sorted { $0.value > $1.value }.prefix(3).map { $0.key.rawValue }
+                await MainActor.run {
+                    updateIngestionItem(
+                        id: trackingId,
+                        filename: filename,
+                        stage: .analyzing,
+                        detail: "Vocab richness \(String(format: "%.0f%%", report.corpus.vocabularyRichness * 100)) • Tech density \(String(format: "%.0f%%", report.corpus.technicalDensity * 100))"
+                    ) { metrics in
+                        metrics.vocabularyRichness = report.corpus.vocabularyRichness
+                        metrics.technicalDensity = report.corpus.technicalDensity
+                        metrics.semanticComplexity = report.corpus.semanticComplexity
+                        metrics.multilingualScore = report.corpus.multilingualScore
+                        metrics.hasCode = report.corpus.hasCode
+                        metrics.hasMath = report.corpus.hasMath
+                        metrics.detectedLanguages = detectedLangs
+                        metrics.chunkingStrategy = report.chunking.strategy.rawValue
+                        metrics.targetWordWindow = report.chunking.targetWordWindow
+                        metrics.overlapWords = report.chunking.overlapWords
+                        metrics.analysisTimeMs = Int(analysisTime * 1000)
+                    }
+                }
+
 
                 await MainActor.run {
                     self.containerIntelligence[activeContainerId] = report
@@ -1925,19 +1982,29 @@ class RAGService: ObservableObject {
             var contextualPrefixes: [String] = []
             let embeddingStartTime = Date()
 
+            // Get embedding dimension from provider
+            let embeddingDim = container?.embeddingDim ?? 384
+            let embeddingProviderName = providerId.replacingOccurrences(of: "_", with: " ").capitalized
+
             // Build contextual prefix once (reused for all chunks in this document)
             let docContext = buildContextualPrefix(filename: filename)
             Log.info("[Contextual] Document prefix: '\(docContext)'", category: .ingestion)
 
             for (index, chunk) in processedChunks.enumerated() {
+                let progressPct = Double(index + 1) / Double(max(1, processedChunks.count))
                 await MainActor.run {
                     updateIngestionItem(
                         id: trackingId,
                         filename: filename,
                         stage: .embedding,
-                        detail: "Embedding (\(index + 1)/\(processedChunks.count))",
-                        progress: Double(index + 1) / Double(max(1, processedChunks.count))
-                    )
+                        detail: "Vectorizing chunk \(index + 1)/\(processedChunks.count) → \(embeddingDim)D",
+                        progress: progressPct
+                    ) { metrics in
+                        metrics.embeddingDimension = embeddingDim
+                        metrics.embeddingProvider = embeddingProviderName
+                        metrics.embeddingsGenerated = index + 1
+                        metrics.embeddingBatchProgress = progressPct
+                    }
                 }
 
                 // Build chunk-specific contextual prefix with section info
@@ -1952,6 +2019,21 @@ class RAGService: ObservableObject {
             }
 
             let embeddingTime = Date().timeIntervalSince(embeddingStartTime)
+
+            // Update with final embedding stats
+            await MainActor.run {
+                updateIngestionItem(
+                    id: trackingId,
+                    filename: filename,
+                    stage: .indexing,
+                    detail: "Building vector + BM25 indexes...",
+                    progress: 1.0
+                ) { metrics in
+                    metrics.embeddingTimeMs = Int(embeddingTime * 1000)
+                    metrics.embeddingsGenerated = embeddings.count
+                }
+            }
+
             TelemetryCenter.emit(
                 .embedding,
                 title: "Embeddings generated",
@@ -1969,7 +2051,7 @@ class RAGService: ObservableObject {
                     id: trackingId,
                     filename: filename,
                     stage: .storing,
-                    detail: "Storing"
+                    detail: "Persisting \(processedChunks.count) chunks to vector database..."
                 )
             }
 
@@ -2127,23 +2209,14 @@ class RAGService: ObservableObject {
             let minChunkSize = chunkSizes.min() ?? 0
             let maxChunkSize = chunkSizes.max() ?? 0
 
-            // Get file size
-            let fileSize =
-                try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int64
-            let fileSizeMB: Double
+            // Format file size string from existing fileSizeMB
             let fileSizeStr: String
-            if let size = fileSize {
-                fileSizeMB = Double(size) / (1024.0 * 1024.0)
-                if size < 1024 {
-                    fileSizeStr = "\(size) B"
-                } else if size < 1024 * 1024 {
-                    fileSizeStr = String(format: "%.2f KB", Double(size) / 1024.0)
-                } else {
-                    fileSizeStr = String(format: "%.2f MB", fileSizeMB)
-                }
+            if fileSizeMB < 0.001 {
+                fileSizeStr = String(format: "%.0f B", fileSizeMB * 1_048_576)
+            } else if fileSizeMB < 1.0 {
+                fileSizeStr = String(format: "%.2f KB", fileSizeMB * 1024.0)
             } else {
-                fileSizeMB = 0
-                fileSizeStr = "Unknown"
+                fileSizeStr = String(format: "%.2f MB", fileSizeMB)
             }
 
             // Update document with embedding time and complete metadata
@@ -2399,14 +2472,42 @@ class RAGService: ObservableObject {
             }
         }
 
+        // Get the reason for rebuild (from container's pending directive or generic)
+        let rebuildReason = await MainActor.run {
+            containerService.activeContainer?.chunkingDirective.map {
+                "\($0.strategy.capitalized) strategy, \($0.targetWordWindow)w window"
+            } ?? "Configuration changed"
+        }
+
         TelemetryCenter.emit(
             .ingestion,
-            title: "Re-embedding requested",
+            title: "Library rebuild started",
             metadata: [
                 "container": targetContainerId.uuidString,
                 "documents": "\(documentsToRebuild.count)",
+                "reason": rebuildReason,
             ]
         )
+
+        // Create ingestion items for all documents in the rebuild batch
+        let rebuildItems = documentsToRebuild.map { doc in
+            var metrics = PipelineMetrics()
+            metrics.isRebuild = true
+            metrics.rebuildReason = rebuildReason
+            metrics.isAutoAdaptive = true
+            return IngestionItem(
+                id: UUID(),
+                url: doc.fileURL,
+                stage: .queued,
+                detail: "Queued for rebuild",
+                metrics: metrics
+            )
+        }
+
+        await MainActor.run {
+            // Add all rebuild items to the queue so they're visible
+            ingestionItems.append(contentsOf: rebuildItems)
+        }
 
         defer {
             Task { @MainActor [weak self] in
@@ -2416,26 +2517,59 @@ class RAGService: ObservableObject {
                 if originalContainerId != targetContainerId {
                     self.containerService.setActive(originalContainerId)
                 }
+                // Prune completed items after a delay
+                self.pruneCompletedIngestionItems(delay: 5.0)
             }
         }
 
         for (index, document) in documentsToRebuild.enumerated() {
             if Task.isCancelled { break }
 
+            let trackingId = rebuildItems[index].id
+
             await MainActor.run {
-                self.processingStatus = "Re-embedding \(document.filename) (\(index + 1)/\(documentsToRebuild.count))"
+                self.processingStatus = "Rebuilding \(document.filename) (\(index + 1)/\(documentsToRebuild.count))"
                 self.isProcessing = true
                 progressHandler?(ReembedProgress(
                     completed: index,
                     total: documentsToRebuild.count,
                     currentFilename: document.filename
                 ))
+
+                // Mark as reindexing in the queue
+                updateIngestionItem(
+                    id: trackingId,
+                    filename: document.filename,
+                    stage: .reindexing,
+                    detail: "Removing old index..."
+                ) { metrics in
+                    metrics.isRebuild = true
+                    metrics.rebuildReason = rebuildReason
+                }
             }
 
             try await removeDocument(document)
+
+            await MainActor.run {
+                updateIngestionItem(
+                    id: trackingId,
+                    filename: document.filename,
+                    stage: .reindexing,
+                    detail: "Re-processing with new config..."
+                )
+            }
+
+            // Re-add with autoRebuild context (prevents recursive self-tuning)
             try await addDocument(at: document.fileURL, context: .autoRebuild)
 
             await MainActor.run {
+                updateIngestionItem(
+                    id: trackingId,
+                    filename: document.filename,
+                    stage: .complete,
+                    detail: "Rebuilt",
+                    progress: 1.0
+                )
                 // Keep overlay visible between documents
                 self.isProcessing = true
             }
@@ -2448,6 +2582,15 @@ class RAGService: ObservableObject {
                 currentFilename: ""
             ))
         }
+
+        TelemetryCenter.emit(
+            .ingestion,
+            title: "Library rebuild complete",
+            metadata: [
+                "container": targetContainerId.uuidString,
+                "documents": "\(documentsToRebuild.count)",
+            ]
+        )
     }
 
     // MARK: - Self-Tuning

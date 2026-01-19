@@ -55,6 +55,7 @@ scripts/                         # CI/CD helpers (secret_scan, preflight_check)
 ```
 
 ### Don't Touch Zones
+
 - `Vendor/` — Vendored llama.cpp/MLX binaries. Never modify.
 - `*.xcodeproj/` — Xcode manages this. Don't hand-edit.
 - `PRICING_STRATEGY.md` — Business-sensitive, gitignored from public.
@@ -79,7 +80,7 @@ All major components are protocols—implementations swap via DI:
 
 - `LLMService`: 7 implementations (`AppleFoundationLLMService`, `OpenAILLMService`, `LlamaCPPiOSLLMService`, `MLXLLMService`, `LocalOpenAIServerLLMService`, `OnDeviceAnalysisService`, etc.)
 - `VectorDatabase`: `PersistentVectorDatabase` (JSON), `InMemoryVectorDatabase`, `VecturaVectorDatabase` (HNSW)
-- `EmbeddingService`: `NLEmbedding` (512-dim)
+- `EmbeddingService`: `CoreMLSentenceEmbeddingProvider` (384-dim, bundled model)
 
 ### Container Isolation
 
@@ -112,28 +113,31 @@ await recordTransmission(CloudTransmissionRecord(...))
 
 ## Build & Test Commands
 
-| Task              | Command                                                                  |
-| ----------------- | ------------------------------------------------------------------------ |
-| **Build**         | `xcodebuild -scheme OpenIntelligence -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build` |
-| **Clean Build**   | `./clean_and_rebuild.sh` — clears DerivedData; fixes stale UI           |
-| **Smoke Test**    | Follow `Docs/reference/RELEASE.md` § Smoke Test Checklist               |
-| **Unit Tests**    | `xcodebuild test -scheme OpenIntelligence -destination 'platform=iOS Simulator,name=iPhone 16 Pro'` |
-| **Lint**          | `swiftlint` (auto-runs on save in VS Code)                              |
+| Task            | Command                                                                                              |
+| --------------- | ---------------------------------------------------------------------------------------------------- |
+| **Build**       | `xcodebuild -scheme OpenIntelligence -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build` |
+| **Clean Build** | `./clean_and_rebuild.sh` — clears DerivedData; fixes stale UI                                        |
+| **Smoke Test**  | Follow `Docs/reference/RELEASE.md` § Smoke Test Checklist                                            |
+| **Unit Tests**  | `xcodebuild test -scheme OpenIntelligence -destination 'platform=iOS Simulator,name=iPhone 17 Pro'`  |
+| **Lint**        | `swiftlint` (auto-runs on save in VS Code)                                                           |
 
 ### Common Agent Tasks
 
 **"Add a new LLM provider"**
+
 1. Create `Services/MyNewLLMService.swift` conforming to `LLMService` protocol
 2. Add case to `LLMModelType` enum in `Models/LLMModelType.swift`
 3. Register in `RAGService.buildLLMFallbackChain()`
 4. Add UI toggle in `Views/Settings/`
 
 **"Add a new setting"**
+
 1. Add `@AppStorage` property to `Services/SettingsStore.swift`
 2. Add UI control in appropriate `Views/Settings/` screen
 3. Access via `@EnvironmentObject var settings: SettingsStore` in views
 
 **"Fix a retrieval bug"**
+
 1. Check `Services/HybridSearchService.swift` for search logic
 2. Check `Services/RAGEngine.swift` for ranking (MMR, RRF)
 3. Check `Services/VectorStoreRouter.swift` for DB routing
@@ -192,7 +196,7 @@ let failing = FailingLLMService()  // For fallback chain tests
 ## Common Pitfalls
 
 1. **Stale UI after Settings changes** → Run `./clean_and_rebuild.sh`
-2. **Vector dimension mismatch** → Check `container.embeddingDim` matches `EmbeddingService` output (512 for `NLEmbedding`)
+2. **Vector dimension mismatch** → Check `container.embeddingDim` matches `EmbeddingService` output (384 for `CoreMLSentenceEmbedding`)
 3. **Simulator-only testing** → `AppleFoundationLLMService.isAvailable` returns `false` on Simulator; test fallback path
 4. **Blocking main thread** → Move heavy compute to `RAGEngine` actor
 
@@ -233,11 +237,11 @@ Use these canned prompts **inside Agent Mode** when asked to regenerate document
 - **ARCHITECTURE.md Deep Scan**: Document high-level goal, data flow, tech stack, key components, and design patterns observed.
 - **ROADMAP.md Audit**: List completed features, technical debt, and three future steps. Single file only.
 - **Directory Standards Add-on**: Append section:
-	- `/App`: Entry points and configuration
-	- `/Features`: By domain (Views, ViewModels, Models per feature)
-	- `/Core`: Shared utilities, networking, extensions
-	- `/UI`: Reusable design-system components
-	- `/Pipelines`: CI/CD YAMLs and build scripts
+  - `/App`: Entry points and configuration
+  - `/Features`: By domain (Views, ViewModels, Models per feature)
+  - `/Core`: Shared utilities, networking, extensions
+  - `/UI`: Reusable design-system components
+  - `/Pipelines`: CI/CD YAMLs and build scripts
 
 ---
 

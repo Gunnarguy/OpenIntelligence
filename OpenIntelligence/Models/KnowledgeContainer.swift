@@ -113,8 +113,8 @@ struct KnowledgeContainer: Identifiable, Codable, Equatable, Sendable {
         colorHex: String = "#4F46E5",
         createdAt: Date = Date(),
         description: String? = nil,
-        embeddingProviderId: String = "nl_embedding",
-        embeddingDim: Int = 512,
+        embeddingProviderId: String = "coreml_sentence_embedding", // Silver bullet: CoreML 384-dim
+            embeddingDim: Int = 384, // Matches actual CoreMLSentenceEmbeddingProvider output
         vectorDBKind: VectorDBKind = .persistentJSON,
         autoAdaptDimension: Bool = false,
         chunkingDirective: ChunkingDirective? = nil,
