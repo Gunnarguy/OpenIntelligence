@@ -54,7 +54,7 @@ platform :ios do
   desc "Validate app metadata and screenshots"
   lane :validate do
     deliver(
-      validate_only: true,
+      verify_only: true,
       skip_screenshots: true,
       skip_binary_upload: true
     )

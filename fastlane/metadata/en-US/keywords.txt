@@ -1,1 +1,1 @@
-AI,documents,PDF,search,RAG,citations,private,offline,Apple Intelligence,notes
+ai,private,rag,documents,search,chat,apple,on-device,llm,ocr,pdf,research,retrieval,embeddings
