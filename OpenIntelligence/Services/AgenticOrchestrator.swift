@@ -318,7 +318,7 @@ final class AgenticOrchestrator: Sendable {
                     // Add individual session insights (the detailed reasoning)
                     for (sessionIdx, sessionInsight) in clusterInsight.chainInsights.enumerated() {
                         let sessionStep = ThinkingStep(
-                            id: UUID(), 
+                            id: UUID(),
                             type: sessionIdx == clusterInsight.chainInsights.count - 1 ? .synthesizing : .analyzing,
                             input: "[\(clusterInsight.clusterName)] Session \(sessionIdx + 1)",
                             output: sessionInsight,
@@ -2842,7 +2842,7 @@ extension AgenticOrchestrator {
         config: MultiChainConfig = .maximum,
         onStep: ((ThinkingStep) async -> Void)? = nil
     ) async throws -> MultiChainResult {
-        guard let ragService = ragService else {
+        guard ragService != nil else { 
             throw AgenticError.serviceUnavailable
         }
 
@@ -3052,7 +3052,7 @@ extension AgenticOrchestrator {
         sessionsPerCluster: Int,
         onStep: ((ThinkingStep) async -> Void)?
     ) async throws -> MultiChainResult.ClusterInsight {
-        guard let ragService = ragService else {
+        guard ragService != nil else { 
             throw AgenticError.serviceUnavailable
         }
 
