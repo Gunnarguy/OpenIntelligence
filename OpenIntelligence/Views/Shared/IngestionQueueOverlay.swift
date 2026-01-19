@@ -2,6 +2,8 @@ import SwiftUI
 
 struct IngestionQueueOverlay: View {
     let items: [IngestionItem]
+    @State private var isMinimized = false
+    @State private var isDismissed = false
 
     private var sortedItems: [IngestionItem] {
         items.sorted { lhs, rhs in
@@ -60,38 +62,45 @@ struct IngestionQueueOverlay: View {
     }
 
     var body: some View {
-        guard !items.isEmpty else { return AnyView(EmptyView()) }
+        guard !items.isEmpty, !isDismissed else { return AnyView(EmptyView()) }
 
         let visibleItems = Array(sortedItems.prefix(5))
         let hiddenCount = max(0, items.count - visibleItems.count)
 
+        // Reset dismissed state when items clear (so next batch shows)
+        if items.isEmpty, isDismissed {
+            // Will reset on next appear
+        }
+
         return AnyView(
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: isMinimized ? 0 : 12) { 
                 headerView
 
-                // Totals summary card (only show when we have metrics data)
-                if totalMetrics.hasData {
-                    TotalsSummaryCard(
-                        metrics: totalMetrics,
-                        completedCount: completedCount,
-                        totalCount: items.count
-                    )
-                }
-
-                VStack(spacing: 10) {
-                    ForEach(visibleItems) { item in
-                        IngestionQueueRow(item: item)
+                if !isMinimized { 
+                    // Totals summary card (only show when we have metrics data)
+                    if totalMetrics.hasData {
+                        TotalsSummaryCard(
+                            metrics: totalMetrics,
+                            completedCount: completedCount,
+                            totalCount: items.count
+                        )
                     }
-                }
 
-                if hiddenCount > 0 {
-                    Text("+\(hiddenCount) more in queue")
-                        .font(.caption)
-                        .foregroundStyle(DSColors.secondaryText)
+                    VStack(spacing: 10) {
+                        ForEach(visibleItems) { item in
+                            IngestionQueueRow(item: item)
+                        }
+                    }
+
+                    if hiddenCount > 0 {
+                        Text("+\(hiddenCount) more in queue")
+                            .font(.caption)
+                            .foregroundStyle(DSColors.secondaryText)
+                    }
                 }
             }
             .padding(14)
-            .frame(maxWidth: 360, alignment: .leading)
+.frame(maxWidth: isMinimized ? nil : 360, alignment: .leading)
             .background(.ultraThinMaterial)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay(
@@ -101,6 +110,14 @@ struct IngestionQueueOverlay: View {
             .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 6)
             .transition(.move(edge: .bottom).combined(with: .opacity))
             .animation(.spring(response: 0.3, dampingFraction: 0.85), value: items.count)
+.animation(.spring(response: 0.25), value: isMinimized)
+    .onChange(of: items.isEmpty) { _, isEmpty in
+        if isEmpty {
+            // Reset for next batch
+            isDismissed = false
+            isMinimized = false
+        }
+    }
         )
     }
 
@@ -115,12 +132,38 @@ struct IngestionQueueOverlay: View {
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(DSColors.primaryText)
 
-                Text(statusLine)
-                    .font(.caption)
-                    .foregroundStyle(DSColors.secondaryText)
+                if !isMinimized { 
+                    Text(statusLine)
+                        .font(.caption)
+                        .foregroundStyle(DSColors.secondaryText)
+                }
             }
 
             Spacer()
+
+            // Minimize/expand button
+            Button {
+                withAnimation { isMinimized.toggle() }
+            } label: {
+                Image(systemName: isMinimized ? "chevron.up" : "chevron.down")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(DSColors.secondaryText)
+                    .frame(width: 24, height: 24)
+            }
+            .buttonStyle(.plain)
+
+            // Dismiss button
+            Button {
+                withAnimation { isDismissed = true }
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(DSColors.secondaryText)
+                    .frame(width: 20, height: 20)
+                    .background(DSColors.secondaryText.opacity(0.1))
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
         }
     }
 

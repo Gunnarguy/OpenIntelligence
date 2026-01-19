@@ -2446,12 +2446,14 @@ extension AgenticOrchestrator {
     ///   - chunks: Retrieved document chunks
     ///   - config: Chain configuration (default: 4 sessions)
     ///   - onStep: Callback for streaming thinking steps
+    ///   - forceConfidenceReporting: When true, always include confidence in steps (for multi-chain mode)
     /// - Returns: ReasoningChainResult with synthesized answer
     func executeReasoningChain(
         query: String,
         chunks: [RetrievedChunk],
         config: ReasoningChainConfig = .standard,
-        onStep: ((ThinkingStep) async -> Void)? = nil
+        onStep: ((ThinkingStep) async -> Void)? = nil,
+        forceConfidenceReporting: Bool = false
     ) async throws -> ReasoningChainResult {
         guard let ragService = ragService else {
             throw AgenticError.serviceUnavailable
@@ -2462,12 +2464,13 @@ extension AgenticOrchestrator {
         var allSources: Set<String> = []
         var cumulativeConfidence: Float = 0
 
-        // Unlimited mode: use AgenticConfig's confidence threshold for early termination
+        // Unlimited mode OR forced by multi-chain: always report confidence
         let isUnlimitedMode = config.sessionCount >= 20
+        let shouldReportConfidence = isUnlimitedMode || forceConfidenceReporting
         let confidenceThreshold: Float = isUnlimitedMode ? self.config.confidenceThreshold : 0.98
         var actualSessionCount = 0
 
-        Log.info("[ReasoningChain] Starting \(config.sessionCount)-session chain for: \(query.prefix(40))...", category: .llm)
+        Log.info("[ReasoningChain] Starting \(config.sessionCount)-session chain for: \(query.prefix(40))... (confidence reporting: \(shouldReportConfidence))", category: .llm)
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         // CRITICAL: Use TOP-K chunks for ALL sessions, not distributed slices
@@ -2717,7 +2720,7 @@ extension AgenticOrchestrator {
                 tokensUsed: response.tokensGenerated,
                 duration: 0.5,
                 timestamp: Date(),
-                confidence: isUnlimitedMode ? cumulativeConfidence : nil
+                confidence: shouldReportConfidence ? cumulativeConfidence : nil
             )
             await onStep?(step)
 
@@ -3065,7 +3068,7 @@ extension AgenticOrchestrator {
             maxInsightLength: 2000
         )
 
-        // Run the reasoning chain for this cluster
+        // Run the reasoning chain for this cluster - force confidence reporting for Maximum mode
         let chainResult = try await executeReasoningChain(
             query: query,
             chunks: chunks,
@@ -3083,7 +3086,8 @@ extension AgenticOrchestrator {
                     confidence: step.confidence
                 )
                 await onStep?(taggedStep)
-            }
+            },
+            forceConfidenceReporting: true // Multi-chain = Maximum mode, always report confidence
         )
 
         let docNames = Array(Set(chunks.map { $0.sourceDocument }))

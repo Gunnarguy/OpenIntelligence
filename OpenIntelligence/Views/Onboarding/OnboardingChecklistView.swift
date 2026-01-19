@@ -2,6 +2,7 @@ import SwiftUI
 
 /// Full-screen onboarding splash shown on first launch.
 /// Clean, benefit-focused design that guides users to value quickly.
+/// Sample documents import in background after dismissal - no blocking UI.
 struct OnboardingChecklistView: View {
     @EnvironmentObject private var onboardingStore: OnboardingStateStore
     @EnvironmentObject private var entitlementStore: EntitlementStore
@@ -9,8 +10,6 @@ struct OnboardingChecklistView: View {
     let onOpenSettings: () -> Void
     let onOpenChat: () -> Void
 
-    @State private var isImportingSamples = false
-    @State private var errorMessage: String?
     @State private var currentPage = 0
 
     private let totalPages = 3
@@ -20,11 +19,17 @@ struct OnboardingChecklistView: View {
             SplashBackdrop()
 
             VStack(spacing: 0) {
-                // Skip button
+                // Skip button - permanent skip on final page
                 HStack {
                     Spacer()
                     Button {
-                        onboardingStore.dismissChecklist()
+                        if currentPage == totalPages - 1 {
+                            // On final page, skip permanently
+                            onboardingStore.skipPermanently()
+                            onOpenChat()
+                        } else { 
+                            onboardingStore.dismissChecklist()
+                        }
                     } label: {
                         Text("Skip")
                             .font(.body.weight(.medium))
@@ -78,19 +83,13 @@ struct OnboardingChecklistView: View {
 .buttonStyle(.plain)
     .padding(.horizontal, 32)
                     } else {
-                        // Final page - primary CTA
+                        // Final page - primary CTA (non-blocking, goes straight to chat)
                         Button {
                             startWithSamples()
                         } label: {
-                            HStack(spacing: 8) {
-                                if isImportingSamples {
-                                    ProgressView()
-                                        .tint(.black)
-                                        .scaleEffect(0.8)
-                                } else {
-                                    Image(systemName: "arrow.right.circle.fill")
-                                }
-                                Text(isImportingSamples ? "Setting up..." : "Get Started")
+                            HStack(spacing: 8) { 
+                                Image(systemName: "arrow.right.circle.fill")
+                                Text("Get Started")
                                     .font(.headline)
                             }
 .foregroundColor(.black)
@@ -99,11 +98,10 @@ struct OnboardingChecklistView: View {
     .background(Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                         }
 .buttonStyle(.plain)
-    .disabled(isImportingSamples)
-    .padding(.horizontal, 32)
+.padding(.horizontal, 32)
 
-Button {
-    onboardingStore.dismissChecklist()
+                        Button { 
+                            onboardingStore.skipPermanently()
                             onOpenChat()
                         } label: { 
                             Text("I'll add my own documents")
@@ -268,13 +266,6 @@ Button {
 .padding(.horizontal, 32)
     .padding(.top, 8)
 
-            if let errorMessage {
-                Text(errorMessage)
-                    .font(.footnote)
-                    .foregroundColor(.orange)
-                    .padding(.horizontal, 32)
-            }
-
             Spacer()
             Spacer()
         }
@@ -282,20 +273,26 @@ Button {
 
     // MARK: - Actions
 
-    private func startWithSamples() { 
-        guard !isImportingSamples else { return }
-        isImportingSamples = true
-        errorMessage = nil
+    /// Track whether we've already triggered sample import to prevent duplicates
+    @State private var hasSentImportRequest = false
 
-        Task {
-            defer { isImportingSamples = false }
+    private func startWithSamples() { 
+        guard !hasSentImportRequest else { return }
+        hasSentImportRequest = true
+
+        // Immediately dismiss and go to chat - don't block user
+        onboardingStore.dismissChecklist()
+        onOpenChat()
+
+        // Import samples in background (non-blocking)
+        Task.detached(priority: .background) { [ragService, onboardingStore] in
             do {
-                try await SampleDocumentManager.shared.importSamples(into: ragService)
-                onboardingStore.markSamplesImported()
-                onboardingStore.dismissChecklist()
-                onOpenChat()
+                try await SampleDocumentManager.shared.importSamples(into: ragService, onProgress: nil)
+                await MainActor.run {
+                    onboardingStore.markSamplesImported()
+                }
             } catch {
-                errorMessage = "Couldn't set up samples. Tap to try again."
+                Log.error("Background sample import failed: \(error)", category: .initialization)
             }
         }
     }

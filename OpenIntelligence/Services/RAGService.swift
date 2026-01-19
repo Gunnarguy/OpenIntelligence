@@ -212,12 +212,13 @@ struct ReembedProgress: Sendable {
 enum IngestionContext: Sendable {
     case userInitiated
     case autoRebuild
+    case onboarding // Initial sample import - skip self-tuning
 
     var allowsSelfTuningScheduling: Bool {
         switch self {
         case .userInitiated:
             return true
-        case .autoRebuild:
+        case .autoRebuild, .onboarding:
             return false
         }
     }
@@ -2526,6 +2527,23 @@ class RAGService: ObservableObject {
             if Task.isCancelled { break }
 
             let trackingId = rebuildItems[index].id
+
+            // Guard: Skip documents whose source files no longer exist (e.g. temp sample files)
+            guard FileManager.default.fileExists(atPath: document.fileURL.path) else {
+                Log.warning(
+                    "[RAGService] Skipping rebuild for '\(document.filename)' - source file no longer exists at \(document.fileURL.path)"
+                )
+                await MainActor.run {
+                    updateIngestionItem(
+                        id: trackingId,
+                        filename: document.filename,
+                        stage: .complete,
+                        detail: "Skipped (source file missing)",
+                        progress: 1.0
+                    )
+                }
+                continue
+            }
 
             await MainActor.run {
                 self.processingStatus = "Rebuilding \(document.filename) (\(index + 1)/\(documentsToRebuild.count))"

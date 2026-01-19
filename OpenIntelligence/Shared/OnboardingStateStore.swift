@@ -9,12 +9,14 @@ final class OnboardingStateStore: ObservableObject {
         static let hasAskedFirstQuery = "onboarding.hasAskedFirstQuery"
         static let hasAcknowledgedModel = "onboarding.hasAcknowledgedModel"
         static let hasCompleted = "onboarding.hasCompleted"
+        static let hasDismissedPermanently = "onboarding.hasDismissedPermanently"
     }
 
     @Published private(set) var hasImportedSamples: Bool
     @Published private(set) var hasAskedFirstQuery: Bool
     @Published private(set) var hasAcknowledgedModelSelection: Bool
     @Published var isChecklistVisible: Bool
+    @Published private(set) var hasDismissedPermanently: Bool
 
     private let defaults: UserDefaults
 
@@ -23,8 +25,9 @@ final class OnboardingStateStore: ObservableObject {
         self.hasImportedSamples = defaults.bool(forKey: Keys.hasImportedSamples)
         self.hasAskedFirstQuery = defaults.bool(forKey: Keys.hasAskedFirstQuery)
         self.hasAcknowledgedModelSelection = defaults.bool(forKey: Keys.hasAcknowledgedModel)
+        self.hasDismissedPermanently = defaults.bool(forKey: Keys.hasDismissedPermanently)
         let completed = defaults.bool(forKey: Keys.hasCompleted)
-        self.isChecklistVisible = !completed
+        self.isChecklistVisible = !completed && !defaults.bool(forKey: Keys.hasDismissedPermanently)
     }
 
     var hasCompletedOnboarding: Bool {
@@ -41,8 +44,15 @@ final class OnboardingStateStore: ObservableObject {
     /// Total number of onboarding steps currently tracked.
     let totalStepCount: Int = 3
 
-    /// Indicates whether any onboarding tasks remain unfinished.
-    var hasOutstandingSteps: Bool { !hasCompletedOnboarding }
+    /// Indicates whether any onboarding tasks remain unfinished and user hasn't dismissed permanently.
+    var hasOutstandingSteps: Bool { !hasCompletedOnboarding && !hasDismissedPermanently }
+
+    /// Permanently dismisses the onboarding checklist - won't show launcher anymore.
+    func skipPermanently() {
+        hasDismissedPermanently = true
+        defaults.set(true, forKey: Keys.hasDismissedPermanently)
+        isChecklistVisible = false
+    }
 
     func markSamplesImported() {
         guard !hasImportedSamples else { return }
