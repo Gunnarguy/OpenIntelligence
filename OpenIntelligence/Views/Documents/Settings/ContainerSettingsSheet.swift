@@ -178,8 +178,16 @@ struct ContainerSettingsSheet: View {
                     if validDims.contains(c.embeddingDim) { 
                         dim = c.embeddingDim
                     } else {
-                        dim = validDims.first ?? 512
-                        Log.warning("[ContainerSettings] Container dimension \(c.embeddingDim) invalid for provider \(c.embeddingProviderId), using \(dim)", category: .embedding)
+                        dim = validDims.first ?? 384
+                        Log.warning("[ContainerSettings] Container dimension \(c.embeddingDim) invalid for provider \(c.embeddingProviderId), auto-correcting to \(dim)", category: .embedding)
+
+                        // Auto-save the corrected dimension to prevent repeated mismatches
+                        Task { @MainActor in
+                            var updated = c
+                            updated.embeddingDim = dim
+                            containerService.updateContainer(updated)
+                            Log.info("[ContainerSettings] Auto-saved corrected dimension \(dim) for container '\(c.name)'", category: .embedding)
+                        }
                     }
                     dbKind = c.vectorDBKind
                     retrievalConfig = c.retrievalConfig

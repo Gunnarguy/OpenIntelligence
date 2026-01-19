@@ -126,6 +126,20 @@ final class AgenticOrchestrator: Sendable {
     private weak var ragService: RAGService?
     private let config: AgenticConfig
 
+    /// Common stop words to exclude from repetition detection
+    /// These inflate overlap ratios without indicating actual semantic repetition
+    private static let commonStopWords: Set<String> = [
+        "the", "and", "for", "that", "this", "with", "from", "have", "has", "had",
+        "are", "was", "were", "been", "being", "which", "their", "there", "they",
+        "will", "would", "could", "should", "about", "into", "through", "during",
+        "before", "after", "above", "below", "between", "under", "over", "such",
+        "than", "then", "these", "those", "some", "more", "most", "other", "only",
+        "also", "just", "first", "last", "very", "much", "many", "each", "every",
+        "both", "either", "neither", "while", "where", "when", "what", "who", "how",
+        "video", "games", "gaming", "study", "research", "found", "shows", "based",
+        "according", "evidence", "results", "effects", "impact", "review", "analysis",
+    ]
+
     init(ragService: RAGService, config: AgenticConfig = .defaultConfig) {
         self.ragService = ragService
         self.config = config
@@ -2466,8 +2480,10 @@ extension AgenticOrchestrator {
                 // Each component is conservative to ensure deep exploration
 
                 // 1. Session contribution (up to 48%) - more sessions = more exploration
-                // At 8 sessions: 24%, at 12 sessions: 36%, at 16 sessions: 48% (cap)
-                let sessionContribution = min(0.03 * Float(sessionNum), 0.48)
+                // MAXIMUM MODE: Slower build (0.02/session vs 0.03) to encourage deeper exploration
+                // At 8 sessions: 16%, at 15 sessions: 30%, at 20 sessions: 40%, at 24: 48% (cap)
+                let sessionContributionRate: Float = isUnlimitedMode ? 0.02 : 0.03
+                let sessionContribution = min(sessionContributionRate * Float(sessionNum), 0.48)
 
                 // 2. Length contribution (up to 15%) - longer insights = more substance
                 // Requires 3000+ chars for full bonus (conservative)
@@ -2479,38 +2495,67 @@ extension AgenticOrchestrator {
 
                 // 4. Repetition detection (up to 25%) - if repeating, we've exhausted the topic
                 // Compare current insight with PREVIOUS insights (before appending)
-                // More conservative thresholds for Maximum mode
+                // MAXIMUM MODE: Much higher thresholds - designed for deep exploration with many documents
                 var repetitionBonus: Float = 0
-                if chainInsights.count >= 4 { // Require 4+ insights before checking repetition
-                    let currentWords = Set(insight.lowercased().split(separator: " ").filter { $0.count > 3 }.prefix(80))
+
+                // Require more sessions before checking repetition in Maximum mode
+                let minSessionsForRepetitionCheck = isUnlimitedMode ? 8 : 4
+
+                if chainInsights.count >= minSessionsForRepetitionCheck {
+                    // Use more unique words (min 4 chars, take more words for better sampling)
+                    let currentWords = Set(insight.lowercased().split(separator: " ")
+                        .filter { $0.count > 4 && !Self.commonStopWords.contains(String($0)) }
+                        .prefix(100))
                     var similarityCount = 0
                     var maxOverlapRatio: Float = 0
+                    var consecutiveSimilar = 0
+                    var lastWasSimilar = false
 
                     // Check last 4 previous insights (not including current)
                     for prevInsight in chainInsights.suffix(4) {
-
-                        let prevWords = Set(prevInsight.lowercased().split(separator: " ").filter { $0.count > 3 }.prefix(80))
+                        let prevWords = Set(prevInsight.lowercased().split(separator: " ")
+                            .filter { $0.count > 4 && !Self.commonStopWords.contains(String($0)) }
+                            .prefix(100))
                         let overlap = currentWords.intersection(prevWords).count
                         let overlapRatio = Float(overlap) / Float(max(currentWords.count, 1))
                         maxOverlapRatio = max(maxOverlapRatio, overlapRatio)
 
-                        // Require 50% overlap to count as similar (was 35%)
-                        if overlapRatio > 0.50 { 
+                        // Higher threshold for Maximum mode (65% vs 50%)
+                        let similarityThreshold: Float = isUnlimitedMode ? 0.65 : 0.50
+                        if overlapRatio > similarityThreshold { 
                             similarityCount += 1
+                            if lastWasSimilar { consecutiveSimilar += 1 }
+                            lastWasSimilar = true
+                        } else {
+                            lastWasSimilar = false
                         }
                     }
 
-                    // Scale repetition bonus - require strong evidence of exhaustion
-                    if similarityCount >= 3 || maxOverlapRatio > 0.75 {
+                    // MAXIMUM MODE: Require 3 consecutive similar OR 90%+ overlap before forcing termination
+                    // Standard mode: 3+ similar OR 75%+ overlap
+                    let forceTerminationThreshold: Float = isUnlimitedMode ? 0.90 : 0.75
+                    let forceTerminationCount = isUnlimitedMode ? 3 : 3
+                    let requireConsecutive = isUnlimitedMode // Maximum mode requires consecutive hits
+
+                    let shouldForceTerminate = requireConsecutive
+                        ? (consecutiveSimilar >= forceTerminationCount || maxOverlapRatio > forceTerminationThreshold)
+                        : (similarityCount >= forceTerminationCount || maxOverlapRatio > forceTerminationThreshold)
+
+                    if shouldForceTerminate { 
                         repetitionBonus = 0.25 // Strong repetition - topic exhausted
-                        Log.info("[ReasoningChain] Strong repetition detected (\(similarityCount)/4 similar, max overlap: \(Int(maxOverlapRatio * 100))%) - topic exhausted", category: .llm)
+                        Log.info("[ReasoningChain] Strong repetition detected (\(similarityCount)/4 similar, consecutive: \(consecutiveSimilar), max overlap: \(Int(maxOverlapRatio * 100))%) - topic exhausted", category: .llm)
 
                         // IMMEDIATE TERMINATION: Force confidence to 99% to trigger stop
-                        // This prevents infinite loops when the model gets stuck repeating
-                        cumulativeConfidence = 0.99
-                        Log.info("[ReasoningChain] Forcing early termination due to severe repetition", category: .llm)
+                        // But ONLY if we've done substantial exploration
+                        let minSessionsBeforeForceStop = isUnlimitedMode ? 15 : 6
+                        if sessionNum >= minSessionsBeforeForceStop {
+                            cumulativeConfidence = 0.99
+                            Log.info("[ReasoningChain] Forcing early termination due to severe repetition (after \(sessionNum) sessions)", category: .llm)
+                        } else {
+                            Log.info("[ReasoningChain] Repetition detected but continuing (session \(sessionNum) < \(minSessionsBeforeForceStop) minimum)", category: .llm)
+                        }
                     } else if similarityCount >= 2 || maxOverlapRatio > 0.60 {
-                        repetitionBonus = 0.15 // Moderate repetition
+                        repetitionBonus = isUnlimitedMode ? 0.05 : 0.15 // Lower bonus in Maximum mode
                         Log.info("[ReasoningChain] Moderate repetition detected (overlap: \(Int(maxOverlapRatio * 100))%)", category: .llm)
                     }
                 }
@@ -2561,15 +2606,16 @@ extension AgenticOrchestrator {
         // This ensures we get a comprehensive answer, not just the last insight
         let finalAnswer: String
         if isUnlimitedMode, chainInsights.count >= 3 {
-            Log.info("[ReasoningChain] Running exhaustive synthesis for Maximum mode...", category: .llm)
+            Log.info("[ReasoningChain] Running exhaustive synthesis for Maximum mode (\(chainInsights.count) insights)...", category: .llm)
 
-            // Condense insights to fit within Apple FM's 4096 token context window
-            // Keep only the most recent/comprehensive insights, truncate if needed
-            let maxInsightChars = 1500 // ~375 tokens for insights
+            // CRITICAL: Apple FM API enforces 4096 token limit for BOTH on-device AND PCC
+            // (TN3193: The 65K server capacity is NOT exposed via FoundationModels framework)
+            // Budget: ~1500 tokens for insights, ~500 for prompt overhead, ~2000 for output
+            let maxInsightChars = 5000 // ~1250 tokens for insights (conservative)
             var condensedInsights: [String] = []
             var totalChars = 0
 
-            // Take insights from end (most refined) to beginning
+            // Take insights from end (most refined) to beginning, but include more
             for insight in chainInsights.reversed() {
                 let trimmed = insight.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
                 if totalChars + trimmed.count <= maxInsightChars {
@@ -2584,40 +2630,49 @@ extension AgenticOrchestrator {
                 }
             }
 
+            Log.info("[ReasoningChain] Synthesis will use \(condensedInsights.count)/\(chainInsights.count) insights (\(totalChars) chars)", category: .llm)
+
             let insightsSummary = condensedInsights.enumerated()
                 .map { "[\($0.offset + 1)] \($0.element)" }
-                .joined(separator: "\n")
+.joined(separator: "\n\n")
 
-            // Compact prompt that fits within context window
-            // Apple FM: 4096 total tokens (input + output)
-            // Reserve ~2000 tokens for output, leaving ~2000 for input
-            // Using string concatenation to avoid formatter corruption of interpolations
+            // PCC can handle much larger prompts (65K context)
+            // Structure the prompt for comprehensive synthesis
             var exhaustivePrompt = "QUESTION: " + query + "\n\n"
-            exhaustivePrompt += "RESEARCH FINDINGS (" + String(actualSessionCount) + " sessions):\n"
+            exhaustivePrompt += "RESEARCH FINDINGS (" + String(actualSessionCount) + " deep-dive sessions):\n"
             exhaustivePrompt += insightsSummary + "\n\n"
-            exhaustivePrompt += "TASK: Write a COMPREHENSIVE answer using ALL findings above.\n\n"
+            exhaustivePrompt += "TASK: Synthesize a COMPREHENSIVE, SCHOLARLY answer integrating ALL findings.\n\n"
             exhaustivePrompt += "REQUIREMENTS:\n"
-            exhaustivePrompt += "- Include EVERY detail, number, step, and specification\n"
-            exhaustivePrompt += "- Use headers, bullets, and numbered lists\n"
-            exhaustivePrompt += "- Be thorough - expand on each point fully\n"
-            exhaustivePrompt += "- Do NOT summarize - elaborate everything\n"
-            exhaustivePrompt += "- Target 500+ words\n\n"
-            exhaustivePrompt += "ANSWER:"
+            exhaustivePrompt += "- Include EVERY detail, statistic, finding, and methodology mentioned\n"
+            exhaustivePrompt += "- Use headers (##) to organize by major themes\n"
+            exhaustivePrompt += "- Include bullet points for key findings within each section\n"
+            exhaustivePrompt += "- Cite specific studies, authors, or sources when mentioned\n"
+            exhaustivePrompt += "- Discuss implications, limitations, and future directions if relevant\n"
+            exhaustivePrompt += "- Be EXHAUSTIVE - this is Maximum mode, the user wants depth\n"
+            exhaustivePrompt += "- Target 800-1200 words minimum\n\n"
+            exhaustivePrompt += "COMPREHENSIVE ANSWER:"
 
-            var exhaustiveSystemPrompt = "You are an expert analyst. Produce a detailed, structured response. "
-            exhaustiveSystemPrompt += "Include all specifics: part numbers, steps, procedures, requirements. "
-            exhaustiveSystemPrompt += "Use markdown formatting. Be comprehensive, not brief."
+            var exhaustiveSystemPrompt = "You are a research synthesis expert. Your task is to produce an exhaustive, "
+            exhaustiveSystemPrompt += "publication-quality summary. Include all specifics: study names, sample sizes, "
+            exhaustiveSystemPrompt += "effect sizes, methodologies, limitations, and conclusions. "
+            exhaustiveSystemPrompt += "Use markdown formatting with headers and bullets. Be thorough and scholarly."
+
+            // Apple FM API: 4096 token limit applies to BOTH on-device and PCC
+            // The 65K server capacity is internal to Apple, not exposed to developers (TN3193)
+            // Budget: Total 4096 = ~1500 prompt + ~1500 insights + ~1000 buffer → leaves ~1000-1500 for output
+            let synthesisMaxTokens = 1500 // Realistic within 4096 total budget
 
             do {
+                Log.info("[ReasoningChain] Exhaustive synthesis: requesting up to \(synthesisMaxTokens) tokens (4096 total limit)", category: .llm)
                 let synthesisResponse = try await ragService.generateWithProperConsent(
                     prompt: exhaustivePrompt,
                     context: "",
                     systemPrompt: exhaustiveSystemPrompt,
-                    maxTokens: 2000 // Leave room within 4096 context window
+                    maxTokens: synthesisMaxTokens
                 )
                 finalAnswer = synthesisResponse.text.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
                 totalTokens += synthesisResponse.tokensGenerated
-                Log.info("[ReasoningChain] Exhaustive synthesis: +\(synthesisResponse.tokensGenerated) tokens", category: .llm)
+                Log.info("[ReasoningChain] Exhaustive synthesis: generated \(synthesisResponse.tokensGenerated) tokens (\(finalAnswer.count) chars)", category: .llm)
             } catch {
                 Log.warning("[ReasoningChain] Exhaustive synthesis failed, using last insight: \(error)", category: .llm)
                 finalAnswer = chainInsights.last ?? "Unable to synthesize answer from reasoning chain."

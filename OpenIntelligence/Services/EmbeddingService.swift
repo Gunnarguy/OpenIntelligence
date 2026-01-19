@@ -371,9 +371,29 @@ class EmbeddingService {
         }
 
         if dimensionAdjustmentCount > 100 {
-            assertionFailure(
-                "Embedding dimension auto-adjustment fired \(dimensionAdjustmentCount)x for provider \(providerIdentifier)."
-            )
+            // Log error instead of crashing - this can happen with legacy containers
+            // that have mismatched embeddingDim settings. User should rebuild the library.
+            if dimensionAdjustmentCount == 101 {
+                // Only log once at the threshold to avoid spam
+                Log.error(
+                    """
+                    Embedding dimension mismatch detected 100+ times for provider \(providerIdentifier). \
+                    Target: \(targetDimension), Actual: \(actualDimension). \
+                    Consider rebuilding the library with matching dimensions.
+                    """,
+                    category: .embedding
+                )
+                TelemetryCenter.emit(
+                    .system,
+                    severity: .error,
+                    title: "Embedding dimension mismatch - rebuild recommended",
+                    metadata: [
+                        "provider": providerIdentifier,
+                        "target": "\(targetDimension)",
+                        "actual": "\(actualDimension)",
+                    ]
+                )
+            }
         }
     }
 }

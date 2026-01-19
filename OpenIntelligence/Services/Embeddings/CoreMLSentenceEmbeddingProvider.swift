@@ -13,7 +13,9 @@ import Tokenizers
 final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
     // MARK: - Properties
 
-    let dimension: Int
+    /// Native output dimension of the bundled MiniLM-L6-v2 model.
+    /// This is FIXED - the model always outputs 384 dimensions regardless of configuration.
+    let dimension: Int = 384
     private let maxSequenceLength: Int
 
     #if canImport(CoreML)
@@ -27,8 +29,8 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
 
     // MARK: - Init
 
-    init(dimension: Int = 384, maxSequenceLength: Int = 512) {
-        self.dimension = dimension
+    init(maxSequenceLength: Int = 512) {
+        // dimension is fixed at 384 (MiniLM-L6-v2 output)
         self.maxSequenceLength = maxSequenceLength
         clsId = 101
         sepId = 102
