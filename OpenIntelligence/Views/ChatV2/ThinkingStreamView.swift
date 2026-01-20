@@ -1,117 +1,297 @@
 import SwiftUI
 
+/// Raw console-style view showing exactly what the RAG pipeline is doing.
+/// No abstractions - just the literal log of operations as they happen.
 struct ThinkingStreamView: View {
     let events: [ThinkingEvent]
 
-    @State private var isExpanded = false
+    @State private var isExpanded = true  // Default expanded to show the action
     @State private var hasAutoExpanded = false
     @AppStorage("thinkingViewAutoCollapse") private var autoCollapse = true
-
-    private var recentEvents: [ThinkingEvent] {
-        Array(events.suffix(5))
-    }
 
     private var latestEvent: ThinkingEvent? {
         events.last
     }
 
-    /// Auto-expand when we have multiple events (shows the "thinking" happening)
-    private var shouldAutoExpand: Bool {
-        events.count >= 2 && !hasAutoExpanded
+    /// Elapsed time since first event
+    private var pipelineElapsed: TimeInterval? {
+        guard let first = events.first, let last = events.last else { return nil }
+        return last.timestamp.timeIntervalSince(first.timestamp)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Compact header - always visible, tappable to expand
+            // Header - shows latest action, tappable to expand/collapse
             Button(action: { withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) { isExpanded.toggle() } }) {
-                HStack(spacing: 6) {
-                    // Animated thinking indicator
-                    ThinkingPulse()
-
-                    Text("Thinking")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundStyle(DSColors.secondaryText)
-
-                    // Step counter badge
-                    if events.count > 1 {
-                        Text("\(events.count) steps")
-                            .font(.system(size: 9, weight: .semibold, design: .rounded))
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(DSColors.accent.opacity(0.2))
-                            .foregroundStyle(DSColors.accent)
-                            .clipShape(Capsule())
-                    }
-
-                    // Show latest step inline when collapsed
-                    if !isExpanded, let latest = latestEvent {
-                        Text("•")
-                            .font(.system(size: 8))
-                            .foregroundStyle(DSColors.secondaryText.opacity(0.6))
-                        Text(latest.title)
-                            .font(.system(size: 10, weight: .medium, design: .monospaced))
-                            .foregroundStyle(DSColors.accent.opacity(0.8))
-                            .lineLimit(1)
-                    }
-
-                    Spacer()
-
-                    // Expand/collapse chevron
-                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 8, weight: .semibold))
-                        .foregroundStyle(DSColors.secondaryText.opacity(0.6))
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(DSColors.surface.opacity(0.8))
-                .clipShape(Capsule())
+                headerView
             }
             .buttonStyle(.plain)
 
-            // Expanded detail view
+            // Expanded: Full console log of all events
             if isExpanded {
-                VStack(alignment: .leading, spacing: 2) {
-                    ForEach(recentEvents) { event in
-                        CompactThinkingRow(event: event)
-                            .transition(.opacity.combined(with: .scale(scale: 0.95)))
-                    }
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
-                .background(DSColors.surface.opacity(0.6))
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .padding(.top, 4)
+                consoleLogView
+                    .transition(.asymmetric(
+                        insertion: .push(from: .top).combined(with: .opacity),
+                        removal: .opacity
+                    ))
             }
         }
         .animation(.spring(response: 0.3, dampingFraction: 0.85), value: isExpanded)
-        .animation(.spring(response: 0.25, dampingFraction: 0.9), value: recentEvents)
-        // Auto-expand when we get 2+ events to show the reasoning process
+        .animation(.easeInOut(duration: 0.15), value: events.count)
+        // Auto-expand when events start coming in
         .onChange(of: events.count) { _, newCount in
-            if newCount >= 2 && !hasAutoExpanded {
+            if newCount >= 1 && !hasAutoExpanded {
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
                     isExpanded = true
                     hasAutoExpanded = true
                 }
             }
         }
-        // Reset auto-expand state when events are cleared (new query)
         .onChange(of: events.isEmpty) { _, isEmpty in
             if isEmpty {
                 hasAutoExpanded = false
-                isExpanded = false
             }
+        }
+    }
+
+    // MARK: - Header (compact summary when collapsed)
+
+    private var headerView: some View {
+        HStack(spacing: 6) {
+            // Pulsing dot when active
+            ThinkingPulse()
+
+            // Latest operation (what's happening RIGHT NOW)
+            if let latest = latestEvent {
+                Text(latest.title)
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(colorFor(latest.kind))
+                    .lineLimit(1)
+
+                if let detail = latest.detail, !detail.isEmpty {
+                    Text("·")
+                        .font(.system(size: 8))
+                        .foregroundStyle(DSColors.secondaryText.opacity(0.5))
+                    Text(detail)
+                        .font(.system(size: 9, weight: .medium, design: .monospaced))
+                        .foregroundStyle(DSColors.secondaryText.opacity(0.8))
+                        .lineLimit(1)
+                }
+            } else {
+                Text("Initializing...")
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .foregroundStyle(DSColors.secondaryText)
+            }
+
+            Spacer(minLength: 4)
+
+            // Event count + elapsed
+            if events.count > 0 {
+                HStack(spacing: 3) {
+                    Text("\(events.count)")
+                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                        .foregroundStyle(DSColors.accent)
+
+                    if let elapsed = pipelineElapsed, elapsed > 0.1 {
+                        Text("·")
+                            .font(.system(size: 6))
+                            .foregroundStyle(DSColors.secondaryText.opacity(0.4))
+                        Text(formatElapsed(elapsed))
+                            .font(.system(size: 8, weight: .medium, design: .monospaced))
+                            .foregroundStyle(DSColors.secondaryText.opacity(0.7))
+                    }
+                }
+            }
+
+            // Expand/collapse
+            Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                .font(.system(size: 8, weight: .semibold))
+                .foregroundStyle(DSColors.secondaryText.opacity(0.5))
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(DSColors.surface.opacity(0.85))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    // MARK: - Console Log View (the raw pipeline output)
+
+    private var consoleLogView: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.vertical, showsIndicators: true) {
+                VStack(alignment: .leading, spacing: 0) {
+                    // Each event as a log line
+                    ForEach(events) { event in
+                        ConsoleLogRow(event: event, isLatest: event.id == latestEvent?.id)
+                            .id(event.id)
+                    }
+                }
+            }
+            .frame(maxHeight: 120)  // Fixed max height - scrollable within
+            .onChange(of: events.count) { _, _ in
+                // Auto-scroll to latest event
+                if let latest = latestEvent {
+                    withAnimation(.easeOut(duration: 0.15)) {
+                        proxy.scrollTo(latest.id, anchor: .bottom)
+                    }
+                }
+            }
+        }
+        .padding(.vertical, 3)
+        .padding(.horizontal, 4)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(Color.black.opacity(0.85))  // Console-like dark background
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(DSColors.accent.opacity(0.2), lineWidth: 0.5)
+        )
+        .padding(.top, 2)
+    }
+
+    private func formatElapsed(_ elapsed: TimeInterval) -> String {
+        if elapsed < 1 {
+            return String(format: "%.0fms", elapsed * 1000)
+        } else if elapsed < 60 {
+            return String(format: "%.1fs", elapsed)
+        } else {
+            let mins = Int(elapsed) / 60
+            let secs = Int(elapsed) % 60
+            return "\(mins)m\(secs)s"
+        }
+    }
+
+    private func colorFor(_ kind: ThinkingEvent.Kind) -> Color {
+        switch kind.color {
+        case "purple": return .purple
+        case "blue": return .blue
+        case "green": return .green
+        case "orange": return .orange
+        case "teal": return .teal
+        case "cyan": return .cyan
+        case "yellow": return .yellow
+        case "pink": return .pink
+        case "red": return .red
+        case "indigo": return .indigo
+        default: return DSColors.secondaryText
         }
     }
 }
 
-// Animated pulsing dot to indicate active thinking
+// MARK: - Console Log Row (single line in the log)
+
+private struct ConsoleLogRow: View {
+    let event: ThinkingEvent
+    let isLatest: Bool
+
+    private var tint: Color {
+        switch event.kind.color {
+        case "purple": return .purple
+        case "blue": return .blue
+        case "green": return .green
+        case "orange": return .orange
+        case "teal": return .teal
+        case "cyan": return .cyan
+        case "yellow": return .yellow
+        case "pink": return .pink
+        case "red": return .red
+        case "indigo": return .indigo
+        default: return .gray
+        }
+    }
+
+    private var timestamp: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "mm:ss"  // Just minutes:seconds
+        return formatter.string(from: event.timestamp)
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 4) {
+            // Timestamp (compact)
+            Text(timestamp)
+                .font(.system(size: 7, weight: .medium, design: .monospaced))
+                .foregroundStyle(Color.gray.opacity(0.5))
+                .frame(width: 28, alignment: .leading)
+
+            // Kind indicator (short colored tag)
+            Text(shortKindLabel)
+                .font(.system(size: 6, weight: .bold, design: .monospaced))
+                .foregroundStyle(tint)
+                .frame(width: 36, alignment: .leading)
+
+            // Title (the main message)
+            Text(event.title)
+                .font(.system(size: 7, weight: .medium, design: .monospaced))
+                .foregroundStyle(isLatest ? Color.white : Color.white.opacity(0.8))
+                .lineLimit(1)
+
+            // Detail (additional info)
+            if let detail = event.detail, !detail.isEmpty {
+                Text("→")
+                    .font(.system(size: 6))
+                    .foregroundStyle(Color.gray.opacity(0.4))
+                Text(detail)
+                    .font(.system(size: 7, weight: .regular, design: .monospaced))
+                    .foregroundStyle(tint.opacity(0.85))
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 0)
+
+            // Latest indicator (tiny dot)
+            if isLatest {
+                Circle()
+                    .fill(tint)
+                    .frame(width: 3, height: 3)
+            }
+        }
+        .padding(.vertical, 1)
+        .padding(.horizontal, 2)
+        .background(isLatest ? tint.opacity(0.08) : Color.clear)
+    }
+
+    /// Short label for the kind (saves horizontal space)
+    private var shortKindLabel: String {
+        switch event.kind {
+        case .planning: return "PLAN"
+        case .embedding: return "EMBED"
+        case .retrieval: return "RETR"
+        case .rerank: return "RANK"
+        case .gating: return "GATE"
+        case .context: return "CTX"
+        case .generation: return "GEN"
+        case .fallback: return "FALL"
+        case .warning: return "WARN"
+        case .hyde: return "HYDE"
+        case .queryRewrite: return "QRWR"
+        case .bm25: return "BM25"
+        case .vectorSearch: return "VEC"
+        case .rrf: return "RRF"
+        case .mmr: return "MMR"
+        case .parentDoc: return "PDOC"
+        case .compression: return "COMP"
+        case .lostInMiddle: return "LIM"
+        case .grounding: return "GRND"
+        case .selfRag: return "SRAG"
+        case .iterative: return "ITER"
+        case .agentic: return "AGNT"
+        case .toolCall: return "TOOL"
+        case .factBank: return "FACT"
+        }
+    }
+}
+
+// MARK: - Thinking Pulse (animated dot)
+
 private struct ThinkingPulse: View {
     @State private var isPulsing = false
 
     var body: some View {
         Circle()
             .fill(DSColors.accent)
-            .frame(width: 6, height: 6)
+            .frame(width: 5, height: 5)
             .scaleEffect(isPulsing ? 1.3 : 1.0)
             .opacity(isPulsing ? 0.6 : 1.0)
             .animation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true), value: isPulsing)
@@ -119,68 +299,23 @@ private struct ThinkingPulse: View {
     }
 }
 
-// Ultra-compact row for expanded view
-private struct CompactThinkingRow: View {
-    let event: ThinkingEvent
+// MARK: - Preview
 
-    private var tint: Color {
-        switch event.kind {
-        case .planning: return DSColors.secondaryText
-        case .embedding: return .purple
-        case .retrieval: return .green
-        case .rerank: return .blue
-        case .gating: return .teal
-        case .context: return DSColors.accent
-        case .generation: return .orange
-        case .fallback: return .pink
-        case .warning: return .red
-        }
-    }
-
-    var body: some View {
-        HStack(spacing: 4) {
-            Circle()
-                .fill(tint)
-                .frame(width: 4, height: 4)
-
-            Text(event.title)
-                .font(.system(size: 9, weight: .medium, design: .monospaced))
-                .foregroundStyle(DSColors.primaryText)
-
-            if let detail = event.detail, !detail.isEmpty {
-                Text("–")
-                    .font(.system(size: 9))
-                    .foregroundStyle(DSColors.secondaryText.opacity(0.6))
-                Text(detail)
-                    .font(.system(size: 9, design: .monospaced))
-                    .foregroundStyle(DSColors.secondaryText.opacity(0.6))
-                    .lineLimit(1)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(.vertical, 2)
-    }
-}
-
-#Preview("Collapsed") {
+#Preview("Console Log") {
     let sample: [ThinkingEvent] = [
-        ThinkingEvent(kind: .planning, title: "Scoping query", detail: "Top 3 • Research"),
-        ThinkingEvent(kind: .embedding, title: "Embedding", detail: "⚡ Contextual • 512D in 32 ms"),
-        ThinkingEvent(kind: .retrieval, title: "Searching", detail: "6 chunks"),
-    ]
-    return ThinkingStreamView(events: sample)
-        .padding()
-        .background(DSColors.background)
-}
-
-#Preview("Expanded") {
-    let sample: [ThinkingEvent] = [
-        ThinkingEvent(kind: .planning, title: "Scoping query", detail: "Top 3 • Research Library"),
-        ThinkingEvent(kind: .embedding, title: "Embedding ready", detail: "⚡ Contextual • 512D in 32 ms"),
-        ThinkingEvent(kind: .retrieval, title: "Hybrid retrieval", detail: "6 candidates • Roadmap.pdf"),
-        ThinkingEvent(kind: .gating, title: "Confidence gate", detail: "min 0.52 • top 0.67"),
-        ThinkingEvent(kind: .generation, title: "Answer composed", detail: "428 tokens in 2.1s"),
+        ThinkingEvent(kind: .planning, title: "Analyzing query intent", detail: "factual • technical"),
+        ThinkingEvent(kind: .hyde, title: "Generating hypothetical document", detail: "128 tokens"),
+        ThinkingEvent(kind: .embedding, title: "Encoding query + HyDE", detail: "384D in 28ms"),
+        ThinkingEvent(kind: .bm25, title: "BM25 keyword search", detail: "42 matches in 847 chunks"),
+        ThinkingEvent(kind: .vectorSearch, title: "Vector similarity search", detail: "top 20 candidates"),
+        ThinkingEvent(kind: .rrf, title: "Reciprocal Rank Fusion", detail: "merged 62 → 25 chunks"),
+        ThinkingEvent(kind: .rerank, title: "Cross-encoder reranking", detail: "TinyBERT scoring 25 pairs"),
+        ThinkingEvent(kind: .mmr, title: "MMR diversity selection", detail: "λ=0.6 selecting 8 diverse"),
+        ThinkingEvent(kind: .parentDoc, title: "Parent document expansion", detail: "+4 sibling chunks"),
+        ThinkingEvent(kind: .compression, title: "Context compression", detail: "1,247 → 680 tokens"),
+        ThinkingEvent(kind: .lostInMiddle, title: "Attention reordering", detail: "best at edges"),
+        ThinkingEvent(kind: .gating, title: "Confidence gating", detail: "min=0.52 top=0.78 PASS"),
+        ThinkingEvent(kind: .generation, title: "Streaming response", detail: "38 t/s • Neural Engine"),
     ]
     return VStack {
         ThinkingStreamView(events: sample)

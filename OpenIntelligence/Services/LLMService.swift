@@ -595,7 +595,9 @@ struct LLMResponse {
                 currentSystemPrompt = systemPrompt
 
                 // Check if we have a pending transcript to restore
-                if let savedTranscript = pendingTranscript {
+                // CRITICAL: Don't restore transcript if tools are disabled - the transcript
+                // may contain tool references that would cause warnings/errors
+                if let savedTranscript = pendingTranscript, !disableTools {
                     // Create session with transcript for conversation continuity
                     // The transcript contains previous prompts, responses, and tool calls
                     // Note: Instructions come from the transcript, not passed separately
@@ -614,13 +616,17 @@ struct LLMResponse {
                         category: .llm
                     )
                 } else {
-                    // Fresh session with no prior context
+                    // Fresh session - either no transcript or tools disabled (pure reasoning mode)
+                    if disableTools && pendingTranscript != nil {
+                        Log.debug("Discarding transcript for tools-disabled session (pure reasoning)", category: .llm)
+                        pendingTranscript = nil
+                    }
                     session = LanguageModelSession(
                         model: model,
                         tools: tools,
                         instructions: Instructions(instructionsText)
                     )
-                    Log.info("Apple Foundation Model session initialized (Agentic RAG)", category: .llm)
+                    Log.info("Apple Foundation Model session initialized\(disableTools ? " (pure reasoning)" : " (Agentic RAG)")", category: .llm)
                 }
 
             case let .unavailable(reason):
@@ -1093,6 +1099,105 @@ struct LLMResponse {
 
 #endif
 
+// MARK: - Screenshot Mode Mock LLM
+
+/// Mock LLM service for taking screenshots in the Simulator.
+/// Returns realistic-looking demo responses so the UI looks functional.
+/// Activated via --screenshot launch argument.
+class ScreenshotMockLLMService: LLMService {
+    var toolHandler: RAGToolHandler?
+
+    var isAvailable: Bool { true }
+    var modelName: String { "Apple Intelligence" } // Display as if real
+
+    /// Check if screenshot mode is enabled via launch arguments
+    static var isScreenshotMode: Bool {
+        #if DEBUG
+        return CommandLine.arguments.contains("--screenshot")
+            || CommandLine.arguments.contains("screenshot")
+        #else
+        return false
+        #endif
+    }
+
+    private let demoResponses: [String: String] = [
+        "pricing": """
+            Based on your pricing brief, OpenIntelligence offers a clear value ladder:
+
+            **Free Tier**: 5 documents, 1 library, full privacy dashboard
+            **Pro ($5.99/mo or $49.99/yr)**: Unlimited docs, 5 libraries, priority ingestion
+            **Lifetime ($59.99)**: All Pro features forever
+
+            The messaging pillars emphasize privacy-first design (data stays on-device or Apple PCC), fast retrieval through hybrid search, and simple pricing with one upgrade path.
+            """,
+        "architecture": """
+            The RAG implementation uses several key components:
+
+            1. **DocumentProcessor**: Semantic chunking with 350-word targets and 17% overlap
+            2. **EmbeddingService**: 384-dimensional vectors via CoreML
+            3. **HybridSearch**: Combines vector similarity with BM25 for better recall
+            4. **MMR Diversification**: Ensures varied, relevant results
+
+            Performance targets include <100ms per chunk embedding and sub-second query responses.
+            """,
+        "default": """
+            I found relevant information in your documents. Here's what I discovered:
+
+            Your knowledge base contains detailed documentation about the system architecture, pricing strategy, and technical implementation. The hybrid search approach combines semantic understanding with keyword matching for comprehensive retrieval.
+
+            Would you like me to dive deeper into any specific aspect?
+            """
+    ]
+
+    init() {
+        Log.info("📸 ScreenshotMockLLMService initialized for demo mode", category: .llm)
+    }
+
+    func generate(prompt: String, context: String?, config: InferenceConfig) async throws -> LLMResponse {
+        let startTime = Date()
+
+        // Determine which demo response to use based on query content
+        let lowercasePrompt = prompt.lowercased()
+        let responseKey: String
+        if lowercasePrompt.contains("pricing") || lowercasePrompt.contains("price") || lowercasePrompt.contains("cost") {
+            responseKey = "pricing"
+        } else if lowercasePrompt.contains("architecture") || lowercasePrompt.contains("technical") || lowercasePrompt.contains("rag") {
+            responseKey = "architecture"
+        } else {
+            responseKey = "default"
+        }
+
+        let responseText = demoResponses[responseKey] ?? demoResponses["default"]!
+
+        // Simulate realistic streaming with slight delays
+        let words = responseText.split(separator: " ")
+        var streamedText = ""
+
+        for (index, word) in words.enumerated() {
+            streamedText += (index == 0 ? "" : " ") + word
+            LLMStreamingContext.emit(text: streamedText, isFinal: false)
+
+            // Vary delay to look natural (faster for common words)
+            let delay = Double.random(in: 0.02...0.06)
+            try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+        }
+
+        LLMStreamingContext.emit(text: responseText, isFinal: true)
+
+        let totalTime = Date().timeIntervalSince(startTime)
+        let tokensGenerated = words.count + 10 // Approximate token count
+
+        return LLMResponse(
+            text: responseText,
+            tokensGenerated: tokensGenerated,
+            timeToFirstToken: 0.15,
+            totalTime: totalTime,
+            modelName: modelName,
+            toolCallsMade: 0
+        )
+    }
+}
+
 // MARK: - Apple Intelligence Unavailable Stub
 
 /// Stub service that always throws - used when Apple Intelligence is unavailable
@@ -1110,9 +1215,9 @@ class AppleFoundationLLMServiceUnavailable: LLMService {
     func generate(prompt _: String, context _: String?, config _: InferenceConfig) async throws -> LLMResponse {
         #if targetEnvironment(simulator)
             throw LLMError.generationFailed(
-                "Apple Intelligence requires a physical device with A17 Pro chip or later. " +
-                    "The iOS Simulator cannot run Apple Intelligence models. " +
-                    "Please deploy to a compatible iPhone or iPad."
+                "Apple Intelligence requires a physical device with Apple Silicon: " +
+                    "iPhone (A17 Pro+), iPad (M1+), or Mac (M1+). " +
+                    "The iOS Simulator cannot run Foundation Models."
             )
         #else
             throw LLMError.generationFailed(

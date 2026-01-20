@@ -720,17 +720,28 @@ class RAGService: ObservableObject {
                     }
                 #endif
             } else {
+                // No LLM available - check for screenshot mode first
+                #if targetEnvironment(simulator)
+                if ScreenshotMockLLMService.isScreenshotMode {
+                    Log.info("📸 Screenshot mode: Using mock LLM for demo", category: .initialization)
+                    resolvedService = ScreenshotMockLLMService()
+                } else {
+                    Log.error(
+                        "No configured LLM available; Apple Intelligence is REQUIRED",
+                        category: .initialization
+                    )
+                    lastError = "⚠️ Running in Simulator: Apple Intelligence requires Apple Silicon (A17 Pro+ iPhone, M1+ iPad/Mac)."
+                    resolvedService = AppleFoundationLLMServiceUnavailable()
+                }
+                #else
                 Log.error(
                     "No configured LLM available; Apple Intelligence is REQUIRED",
                     category: .initialization
                 )
-                #if targetEnvironment(simulator)
-                    lastError = "⚠️ Running in Simulator: Apple Intelligence requires a physical device with A17 Pro chip or later. Please run on a compatible iPhone."
-                #else
-                    lastError = "⚠️ Apple Intelligence is required but unavailable. Enable it in Settings → Apple Intelligence & Siri."
-                #endif
+                lastError = "⚠️ Apple Intelligence is required but unavailable. Enable it in Settings → Apple Intelligence & Siri."
                 // Still need a service instance to avoid nil crashes, but it will always throw
                 resolvedService = AppleFoundationLLMServiceUnavailable()
+                #endif
             }
 
             _llmService = resolvedService
@@ -1527,6 +1538,15 @@ class RAGService: ObservableObject {
                 self.kickPendingReembedIfNeeded()
             }
         }
+    }
+
+    /// Clear any pending reembed operations (used after onboarding to prevent unnecessary rebuilds)
+    @MainActor
+    func clearPendingReembeds() {
+        pendingReembedContainerIds.removeAll()
+        pendingReembedTask?.cancel()
+        pendingReembedTask = nil
+        Log.info("[RAGService] Cleared pending reembed queue", category: .ingestion)
     }
 
     @MainActor
@@ -3614,13 +3634,11 @@ class RAGService: ObservableObject {
                     duration: expansionTime
                 )
 
-                if let firstVariant = expandedQueries.first {
-                    let preview = expandedQueries.dropFirst().first
-                        .map { " • \($0)" } ?? ""
+                if !expandedQueries.isEmpty {
                     emitThinkingEvent(
-                        .planning,
-                        title: "Expanded query",
-                        detail: firstVariant + preview
+                        .queryRewrite,
+                        title: "Query expansion",
+                        detail: "\(expandedQueries.count) variants generated"
                     )
                 }
 
@@ -3648,9 +3666,9 @@ class RAGService: ObservableObject {
                         hydeText = hydeResult.hypotheticalDocument
                         Log.info("[HyDE] Generated hypothetical doc: \"\(hydeText?.prefix(80) ?? "")...\"", category: .retrieval)
                         emitThinkingEvent(
-                            .planning,
-                            title: "HyDE active",
-                            detail: "Generated hypothetical doc for better semantic matching"
+                            .hyde,
+                            title: "HyDE generation",
+                            detail: "Hypothetical doc for vocabulary bridging"
                         )
                     } catch {
                         Log.warning("[HyDE] Failed to generate hypothetical doc: \(error.localizedDescription)", category: .retrieval)
@@ -3980,16 +3998,22 @@ class RAGService: ObservableObject {
                     duration: retrievalTime
                 )
 
-                let sourcePreview = chunksWithSources.prefix(3)
-                    .map { $0.sourceDocument }
-                    .filter { !$0.isEmpty }
-                let retrievalDetail: String
-                if sourcePreview.isEmpty {
-                    retrievalDetail = "\(chunksWithSources.count) candidates in \(String(format: "%.0f", retrievalTime * 1000)) ms"
-                } else {
-                    retrievalDetail = "\(chunksWithSources.count) candidates • \(sourcePreview.joined(separator: ", "))"
-                }
-                emitThinkingEvent(.retrieval, title: "Hybrid retrieval", detail: retrievalDetail)
+                // Emit detailed technique events for full transparency
+                emitThinkingEvent(
+                    .vectorSearch,
+                    title: "Vector search",
+                    detail: "Semantic similarity • \(Int(adjustedVectorWeight * 100))% weight"
+                )
+                emitThinkingEvent(
+                    .bm25,
+                    title: "BM25 search",
+                    detail: "Keyword matching • \(Int(adjustedKeywordWeight * 100))% weight"
+                )
+                emitThinkingEvent(
+                    .rrf,
+                    title: "RRF fusion",
+                    detail: "\(chunksWithSources.count) candidates merged"
+                )
 
                 Log.info(
                     "✓ Retrieved \(chunksWithSources.count) chunks with hybrid fusion",
@@ -4041,6 +4065,11 @@ class RAGService: ObservableObject {
                         "candidates": "\(rerankedChunks.count)",
                     ],
                     duration: rerankTime
+                )
+                emitThinkingEvent(
+                    .rerank,
+                    title: "Cross-encoder rerank",
+                    detail: "\(rerankedChunks.count) candidates scored"
                 )
 
                 let cascadeTopSim = rerankedChunks.first?.similarityScore ?? 0
@@ -4448,9 +4477,9 @@ class RAGService: ObservableObject {
                 )
 
                 emitThinkingEvent(
-                    .rerank,
-                    title: "Context diversified",
-                    detail: "\(diverseChunks.count) chunks • \(uniqueDocCount) docs"
+                    .mmr,
+                    title: "MMR diversity",
+                    detail: "λ=\(String(format: "%.1f", mmrLambda)) • \(diverseChunks.count) selected"
                 )
 
                 if diverseChunks.isEmpty {
@@ -4905,6 +4934,16 @@ class RAGService: ObservableObject {
                     compact: useCompactMode,
                     useLostInMiddleMitigation: useLostInMiddleMitigation
                 )
+
+                // Emit lost-in-middle event if it was applied
+                if useLostInMiddleMitigation && orderedCandidates.count >= 4 {
+                    emitThinkingEvent(
+                        .lostInMiddle,
+                        title: "Position reorder",
+                        detail: "Attention-optimal placement"
+                    )
+                }
+
                 Log.info(
                     "   ✓ Using \(actualChunksUsed)/\(contextCandidates.count) chunks (\(context.count) chars)\(useCompactMode ? " [compact]" : "") • \(contextStrategy)",
                     category: .pipeline

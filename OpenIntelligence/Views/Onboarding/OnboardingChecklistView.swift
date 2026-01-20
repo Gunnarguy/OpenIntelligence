@@ -27,7 +27,7 @@ struct OnboardingChecklistView: View {
                             // On final page, skip permanently
                             onboardingStore.skipPermanently()
                             onOpenChat()
-                        } else { 
+                        } else {
                             onboardingStore.dismissChecklist()
                         }
                     } label: {
@@ -37,10 +37,12 @@ struct OnboardingChecklistView: View {
                             .padding(.horizontal, 16)
                             .padding(.vertical, 8)
                     }
-.buttonStyle(.plain)
+                    .buttonStyle(.plain)
+                    .opacity(isProcessing ? 0 : 1)
+                    .disabled(isProcessing)
                 }
-.padding(.top, 16)
-    .padding(.trailing, 8)
+                .padding(.top, 16)
+                .padding(.trailing, 8)
 
                 Spacer()
 
@@ -50,8 +52,10 @@ struct OnboardingChecklistView: View {
                     featuresPage.tag(1)
                     getStartedPage.tag(2)
                 }
-.tabViewStyle(.page(indexDisplayMode: .never))
-    .animation(.easeInOut(duration: 0.3), value: currentPage)
+                .tabViewStyle(.page(indexDisplayMode: .never))
+                .animation(.easeInOut(duration: 0.3), value: currentPage)
+                .opacity(isProcessing ? 0.3 : 1)
+                .blur(radius: isProcessing ? 8 : 0)
 
                 Spacer()
 
@@ -67,6 +71,7 @@ struct OnboardingChecklistView: View {
                                 .animation(.spring(response: 0.3), value: currentPage)
                         }
                     }
+                    .opacity(isProcessing ? 0 : 1)
 
                     // Navigation buttons
                     if currentPage < totalPages - 1 {
@@ -77,45 +82,208 @@ struct OnboardingChecklistView: View {
                                 .font(.headline)
                                 .foregroundColor(.black)
                                 .frame(maxWidth: .infinity)
-.padding(.vertical, 16)
-    .background(Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                .padding(.vertical, 16)
+                                .background(Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                         }
-.buttonStyle(.plain)
-    .padding(.horizontal, 32)
+                        .buttonStyle(.plain)
+                        .padding(.horizontal, 32)
                     } else {
-                        // Final page - primary CTA (non-blocking, goes straight to chat)
+                        // Final page - primary CTA
                         Button {
                             startWithSamples()
                         } label: {
-                            HStack(spacing: 8) { 
+                            HStack(spacing: 8) {
                                 Image(systemName: "arrow.right.circle.fill")
                                 Text("Get Started")
                                     .font(.headline)
                             }
-.foregroundColor(.black)
-    .frame(maxWidth: .infinity)
-    .padding(.vertical, 16)
-    .background(Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .foregroundColor(.black)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                         }
-.buttonStyle(.plain)
-.padding(.horizontal, 32)
+                        .buttonStyle(.plain)
+                        .padding(.horizontal, 32)
+                        .disabled(isProcessing)
+                        .opacity(isProcessing ? 0 : 1)
 
-                        Button { 
+                        Button {
                             onboardingStore.skipPermanently()
                             onOpenChat()
-                        } label: { 
+                        } label: {
                             Text("I'll add my own documents")
                                 .font(.subheadline.weight(.medium))
                                 .foregroundColor(.white.opacity(0.8))
                         }
                         .buttonStyle(.plain)
-.padding(.top, 4)
+                        .padding(.top, 4)
+                        .disabled(isProcessing)
+                        .opacity(isProcessing ? 0 : 1)
                     }
                 }
-.padding(.bottom, 48)
+                .padding(.bottom, 48)
+            }
+
+            // Processing overlay
+            if isProcessing {
+                processingOverlay
+                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
             }
         }
         .accessibilityElement(children: .contain)
+    }
+
+    // MARK: - Processing Overlay
+
+    private var processingOverlay: some View {
+        VStack(spacing: 24) {
+            // Header with pulsing icon
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(Color.accentColor.opacity(0.2))
+                        .frame(width: 56, height: 56)
+                        .scaleEffect(pulseAnimation ? 1.1 : 1.0)
+                        .animation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true), value: pulseAnimation)
+
+                    Image(systemName: "arrow.down.doc.fill")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [.accentColor, .purple],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Setting up your library")
+                        .font(.headline)
+                        .foregroundColor(.white)
+
+                    Text(overallStatus)
+                        .font(.subheadline)
+                        .foregroundColor(.white.opacity(0.7))
+                }
+
+                Spacer()
+            }
+            .padding(.horizontal, 4)
+
+            // Real-time ingestion queue
+            if !ragService.ingestionItems.isEmpty {
+                VStack(spacing: 8) {
+                    ForEach(ragService.ingestionItems.prefix(5)) { item in
+                        OnboardingIngestionRow(item: item)
+                    }
+
+                    if ragService.ingestionItems.count > 5 {
+                        Text("+\(ragService.ingestionItems.count - 5) more...")
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.5))
+                    }
+                }
+            } else {
+                // Fallback when queue is empty but still processing
+                HStack(spacing: 12) {
+                    ProgressView()
+                        .tint(.white)
+
+                    Text(processingStatus)
+                        .font(.subheadline)
+                        .foregroundColor(.white.opacity(0.7))
+
+                    Spacer()
+                }
+                .padding(.vertical, 8)
+            }
+
+            // Overall progress bar
+            VStack(spacing: 6) {
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule()
+                            .fill(Color.white.opacity(0.15))
+                            .frame(height: 8)
+
+                        Capsule()
+                            .fill(
+                                LinearGradient(
+                                    colors: [.accentColor, .purple],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .frame(width: max(0, geo.size.width * overallProgress), height: 8)
+                            .animation(.easeInOut(duration: 0.3), value: overallProgress)
+                    }
+                }
+                .frame(height: 8)
+
+                HStack {
+                    Text("\(completedItemsCount)/\(totalItemsCount) documents")
+                        .font(.caption)
+                        .foregroundColor(.white.opacity(0.6))
+
+                    Spacer()
+
+                    Text("\(Int(overallProgress * 100))%")
+                        .font(.caption.monospacedDigit())
+                        .foregroundColor(.white.opacity(0.6))
+                }
+            }
+        }
+        .padding(24)
+        .frame(maxWidth: 400)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                )
+        )
+        .padding(.horizontal, 24)
+        .onAppear { pulseAnimation = true }
+    }
+
+    // MARK: - Ingestion Computed Properties
+
+    @State private var pulseAnimation = false
+
+    private var totalItemsCount: Int {
+        max(ragService.ingestionItems.count, 1)
+    }
+
+    private var completedItemsCount: Int {
+        ragService.ingestionItems.filter { $0.stage == .complete }.count
+    }
+
+    private var overallProgress: Double {
+        let items = ragService.ingestionItems
+        guard !items.isEmpty else { return processingProgress }
+
+        let totalProgress = items.reduce(0.0) { sum, item in
+            sum + (item.progress ?? (item.stage == .complete ? 1.0 : 0.0))
+        }
+        return totalProgress / Double(items.count)
+    }
+
+    private var overallStatus: String {
+        let items = ragService.ingestionItems
+        let active = items.filter { !$0.stage.isTerminal }
+        let completed = items.filter { $0.stage == .complete }
+        let failed = items.filter { $0.stage == .failed }
+
+        if failed.count > 0 {
+            return "\(completed.count) done, \(failed.count) failed"
+        } else if active.isEmpty && !items.isEmpty {
+            return "All documents processed!"
+        } else if let current = active.first {
+            return current.stage.displayName
+        }
+        return processingStatus
     }
 
     // MARK: - Welcome Page
@@ -276,23 +444,55 @@ struct OnboardingChecklistView: View {
     /// Track whether we've already triggered sample import to prevent duplicates
     @State private var hasSentImportRequest = false
 
-    private func startWithSamples() { 
+    /// Show loading overlay while processing documents
+    @State private var isProcessing = false
+
+    /// Current processing status message
+    @State private var processingStatus = "Preparing documents..."
+
+    /// Processing progress (0.0 to 1.0)
+    @State private var processingProgress: Double = 0.0
+
+    private func startWithSamples() {
         guard !hasSentImportRequest else { return }
         hasSentImportRequest = true
 
-        // Immediately dismiss and go to chat - don't block user
-        onboardingStore.dismissChecklist()
-        onOpenChat()
+        // Show processing overlay
+        withAnimation(.easeInOut(duration: 0.3)) {
+            isProcessing = true
+        }
 
-        // Import samples in background (non-blocking)
-        Task.detached(priority: .background) { [ragService, onboardingStore] in
+        // Import samples and wait for completion before navigating
+        Task { @MainActor in
             do {
-                try await SampleDocumentManager.shared.importSamples(into: ragService, onProgress: nil)
-                await MainActor.run {
-                    onboardingStore.markSamplesImported()
+                try await SampleDocumentManager.shared.importSamples(into: ragService) { current, total, filename in
+                    // Update progress on main thread
+                    Task { @MainActor in
+                        processingStatus = "Processing \(filename)..."
+                        processingProgress = Double(current) / Double(total)
+                    }
                 }
+
+                // Mark as imported
+                onboardingStore.markSamplesImported()
+
+                // Brief pause to show completion
+                processingStatus = "Ready!"
+                processingProgress = 1.0
+                try? await Task.sleep(for: .milliseconds(400))
+
+                // Now navigate to chat
+                onboardingStore.dismissChecklist()
+                onOpenChat()
+
             } catch {
-                Log.error("Background sample import failed: \(error)", category: .initialization)
+                Log.error("Sample import failed: \(error)", category: .initialization)
+                processingStatus = "Import failed"
+
+                // Still navigate after brief delay on error
+                try? await Task.sleep(for: .seconds(1))
+                onboardingStore.dismissChecklist()
+                onOpenChat()
             }
         }
     }
@@ -387,5 +587,99 @@ private struct SplashBackdrop: View {
 
             Color.black.opacity(0.35).ignoresSafeArea()
         }
+    }
+}
+
+// MARK: - Onboarding Ingestion Row
+
+/// Compact row for showing document processing status during onboarding
+private struct OnboardingIngestionRow: View {
+    let item: IngestionItem
+
+    private var stageIcon: String {
+        switch item.stage {
+        case .queued: return "clock"
+        case .loading: return "arrow.down.circle"
+        case .transcribing: return "waveform"
+        case .extracting: return "doc.text.magnifyingglass"
+        case .chunking: return "rectangle.split.3x1"
+        case .analyzing: return "brain"
+        case .embedding: return "point.3.connected.trianglepath.dotted"
+        case .storing: return "externaldrive"
+        case .adapting: return "gearshape.2"
+        case .reindexing: return "arrow.triangle.2.circlepath"
+        case .indexing: return "magnifyingglass"
+        case .complete: return "checkmark.circle.fill"
+        case .failed: return "xmark.circle.fill"
+        }
+    }
+
+    private var stageColor: Color {
+        switch item.stage {
+        case .complete: return .green
+        case .failed: return .red
+        case .queued: return .white.opacity(0.5)
+        default: return .accentColor
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            // Stage icon with animation
+            ZStack {
+                if !item.stage.isTerminal {
+                    Circle()
+                        .fill(stageColor.opacity(0.2))
+                        .frame(width: 28, height: 28)
+                        .scaleEffect(1.2)
+                        .opacity(0.5)
+                        .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: item.stage)
+                }
+
+                Image(systemName: stageIcon)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(stageColor)
+                    .frame(width: 28, height: 28)
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(item.filename)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.white)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+
+                Text(item.stage.displayName)
+                    .font(.caption2)
+                    .foregroundColor(.white.opacity(0.6))
+            }
+
+            Spacer()
+
+            // Mini progress indicator or checkmark
+            if item.stage == .complete {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(.green)
+            } else if item.stage == .failed {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 10))
+                    .foregroundColor(.red)
+            } else if let progress = item.progress {
+                Text("\(Int(progress * 100))%")
+                    .font(.caption2.monospacedDigit())
+                    .foregroundColor(.white.opacity(0.6))
+            } else {
+                ProgressView()
+                    .scaleEffect(0.6)
+                    .tint(.white.opacity(0.6))
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.white.opacity(0.08))
+        )
     }
 }

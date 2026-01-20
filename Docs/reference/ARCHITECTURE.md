@@ -1,6 +1,6 @@
 # OpenIntelligence Technical Architecture
 
-**Version**: 2.1
+**Version**: 2.2
 **Date**: January 2026
 **Status**: Production-Ready
 
@@ -9,6 +9,8 @@
 OpenIntelligence is a native iOS 26 application implementing a complete Retrieval-Augmented Generation (RAG) pipeline. The architecture leverages Apple Intelligence (Foundation Models + Private Cloud Compute) while maintaining a protocol-based design.
 
 **Simple Concept:** Users upload documents, ask questions, get AI-powered answers using information from their documents.
+
+**Latest (v2.2)**: Multi-Query Search with LLM-generated query variations and semantic intent validation for universal retrieval coverage.
 
 ### Key Architectural Principles
 
@@ -1131,6 +1133,8 @@ All advanced features are fully compatible with Apple's FoundationModels framewo
 | Cross-Encoder Reranking       | ✅     | `ReRankerModel.mlpackage` in `RAGEngine`         |
 | MMR Diversification           | ✅     | λ=0.6 in `RAGEngine.rerankWithMMR()`             |
 | Query Expansion               | ✅     | `QueryEnhancementService.expandQuery()`          |
+| Multi-Query Search            | ✅     | `AgenticOrchestrator.executeMultiQuerySearch()`  |
+| Semantic Intent Validation    | ✅     | `AgenticOrchestrator.validateSemanticIntent()`   |
 | Query Intent Classification   | ✅     | `QueryIntent` enum with dynamic weights          |
 | Content-Adaptive Chunking     | ✅     | `ChunkingConfig.recommended(for:)`               |
 | Lost-in-Middle Mitigation     | ✅     | `applyLostInMiddleReordering()`                  |
@@ -1289,18 +1293,21 @@ for i in 0..<chunks.count {
 - Yao et al., "ReAct: Synergizing Reasoning and Acting in Language Models" (2023)
 - Shinn et al., "Reflexion: Language Agents with Verbal Reinforcement Learning" (2023)
 
-**Implementation**: [`AgenticOrchestrator.swift`](../../OpenIntelligence/Services/AgenticOrchestrator.swift) (3038 lines)
+**Implementation**: [`AgenticOrchestrator.swift`](../../OpenIntelligence/Services/AgenticOrchestrator.swift) (~5000 lines)
 
+- **Multi-Query Search**: LLM generates 4-5 search variations for universal coverage
+- **Semantic Validation**: Verifies retrieved chunks actually answer the question
 - **Tool Library**: 12+ `@Tool` functions (search, reformulate, expand, synthesize)
 - **Reasoning Chains**: 4-50 sessions depending on mode (Standard: 4, Deep Think: 8, Maximum: 50)
+- **Retrieval Miss Detection**: Falls back to recursive research if answer says "cannot find"
 - **Quality Evaluation**: Confidence scoring after each step, escalation if < threshold
 - **Token Budget**: 16K (standard) to 200K (maximum mode)
 
 **Modes**:
 
 - **Standard**: 5 steps, 85% confidence, 16K tokens
-- **Deep Think**: 8 steps, 95% confidence, 32K tokens
-- **Maximum**: 50 steps, 98% confidence, 200K tokens (thermal-limited)
+- **Deep Think**: Multi-query + 8 steps, 95% confidence, 32K tokens
+- **Maximum**: Multi-query + 50 steps, 98% confidence, 200K tokens (thermal-limited)
 
 #### 11. Self-RAG (Adaptive Retrieval)
 
@@ -1400,6 +1407,52 @@ Expanded query: "button record hold toggle mode switch"
 - Extracts multi-word phrases (e.g., "Record Button", "Note Recording Mode")
 - Preserves original query while adding domain-specific terms
 
+### 2.5 Multi-Query Search (Universal Semantic Coverage)
+
+**Purpose**: Guarantee retrieval of relevant content regardless of vocabulary mismatch between query and documents.
+
+**Problem Solved**: User asks "What oil does this car take?" but documents use "motor oil viscosity specification 5W-30". Single-query retrieval grabs "oil pressure warnings" because both contain "oil" — wrong semantic intent.
+
+**Solution**: LLM generates 4-5 diverse search queries, search with ALL of them, fuse results via RRF:
+
+```text
+User Query: "What oil does this car take?"
+
+LLM-Generated Search Queries:
+1. "What oil does this car take?" (original)
+2. "engine oil specification viscosity grade"
+3. "motor oil type 5W-30 0W-20"
+4. "lubricant requirements recommendation"
+
+→ Search with each query
+→ RRF fusion across all results
+→ Semantic validation: "Does this content answer the question?"
+→ If validation fails: downgrade quality rating, try harder
+```
+
+**File**: `Services/AgenticOrchestrator.swift` (`generateSearchQueries()`, `executeMultiQuerySearch()`)
+
+**Key Methods**:
+
+| Method                           | Purpose                                            |
+| -------------------------------- | -------------------------------------------------- |
+| `generateSearchQueries()`        | LLM generates 4-5 diverse query variations         |
+| `executeMultiQuerySearch()`      | Searches with all queries, RRF fusion              |
+| `validateSemanticIntent()`       | Verifies retrieved chunks actually answer question |
+| `answerIndicatesRetrievalMiss()` | Detects "cannot find" patterns in response         |
+
+**Flow in Deep Think / Maximum Mode**:
+
+```text
+1. Generate search query variations (LLM-powered)
+2. Multi-query search with RRF fusion
+3. Semantic intent validation
+4. If validation fails → downgrade quality → trigger fallbacks
+5. If answer says "cannot find" → recursive research with [SEARCH: query]
+```
+
+**Why It's Universal**: Works for ANY content type because the LLM understands the user's intent and generates domain-appropriate search terms — medical, legal, technical, automotive, etc.
+
 ### 3. Iterative Retrieval
 
 **Purpose**: Retrieve, assess, refine, and retrieve more until confident
@@ -1432,6 +1485,8 @@ These features are controlled by the `RAGQualityMode` setting:
 | --------------------- | -------- | ---------- | ------- |
 | Query Rewriting       | ✅       | ✅         | ✅      |
 | Corpus Expansion      | ✅       | ✅         | ✅      |
+| Multi-Query Search    | ❌       | ✅         | ✅      |
+| Semantic Validation   | ❌       | ✅         | ✅      |
 | Iterative Retrieval   | ✅       | ✅         | ✅      |
 | Agentic Orchestration | ❌       | ✅ (4-8)   | ✅ (∞)  |
 | Exhaustive Synthesis  | ❌       | ❌         | ✅      |

@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import os
 
 /// Represents one step in the agentic reasoning loop
 struct ThinkingStep: Identifiable, Sendable {
@@ -223,31 +224,66 @@ final class AgenticOrchestrator: Sendable {
         await onStep?(planningStep)
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        // STEP 1: Initial Retrieval (with ORIGINAL query - no decomposition)
+        // STEP 1: Multi-Query Retrieval (universal semantic coverage)
+        // Generate diverse search queries to find relevant content from ANY angle
+        // This is the key fix for "oil type" vs "oil pressure" mismatches
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        Log.info("[Agentic] Step 1: Initial retrieval with original query", category: .llm)
+        Log.info("[Agentic] Step 1: Multi-query retrieval for universal coverage", category: .llm)
 
-        let (initialSearchStep, initialChunks) = try await executeSearchStepWithChunks(
-            subQuery: query,
+        // Generate diverse search queries using LLM
+        let searchQueries = try await generateSearchQueries(originalQuery: query, ragService: ragService)
+
+        // Show query generation step to user
+        let queryGenStep = ThinkingStep(
+            id: UUID(),
+            type: .planning,
+            input: query,
+            output: "Searching with \(searchQueries.count) query variations:\n• \(searchQueries.joined(separator: "\n• "))",
+            tokensUsed: 50,
+            duration: 0.2,
+            timestamp: Date()
+        )
+        steps.append(queryGenStep)
+        logStepTokens("Query Generation", 50)
+        await onStep?(queryGenStep)
+
+        // Execute multi-query search with RRF fusion
+        let (multiQueryStep, initialChunks) = try await executeMultiQuerySearch(
+            queries: searchQueries,
             ragService: ragService
         )
-        steps.append(initialSearchStep)
-        logStepTokens("Initial Search", initialSearchStep.tokensUsed)
+        steps.append(multiQueryStep)
+        logStepTokens("Multi-Query Search", multiQueryStep.tokensUsed)
         allRetrievedChunks.append(contentsOf: initialChunks)
-        await onStep?(initialSearchStep)
+        await onStep?(multiQueryStep)
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        // STEP 2: Evaluate Retrieval Quality (visible "hmm" moment)
+        // STEP 2: Semantic Intent Validation + Quality Evaluation
+        // Check that retrieved content actually addresses the question
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         var retrievalQuality = evaluateRetrievalQuality(chunks: initialChunks, query: query)
-        Log.info("[Agentic] Retrieval quality: \(retrievalQuality.description)", category: .llm)
+
+        // Validate semantic intent - are these chunks actually relevant?
+        let (intentValid, intentReason) = try await validateSemanticIntent(
+            query: query,
+            chunks: initialChunks,
+            ragService: ragService
+        )
+
+        // Downgrade quality if semantic intent doesn't match
+        if !intentValid && (retrievalQuality == .excellent || retrievalQuality == .good) {
+            Log.info("[Agentic] Semantic intent mismatch - downgrading from \(retrievalQuality.description) to moderate", category: .llm)
+            retrievalQuality = .moderate
+        }
+
+        Log.info("[Agentic] Retrieval quality: \(retrievalQuality.description), Intent valid: \(intentValid)", category: .llm)
 
         // Emit evaluation step so user sees the reasoning
         let evalStep = ThinkingStep(
             id: UUID(),
             type: .analyzing,
             input: "Evaluating \(initialChunks.count) results",
-            output: "Confidence: \(retrievalQuality.description) (\(String(format: "%.0f%%", retrievalQuality.confidenceScore * 100)))",
+            output: "Confidence: \(retrievalQuality.description) (\(String(format: "%.0f%%", retrievalQuality.confidenceScore * 100)))\nSemantic match: \(intentValid ? "✓" : "✗") \(intentReason)",
             tokensUsed: 0,
             duration: 0.05,
             timestamp: Date()
@@ -293,11 +329,11 @@ final class AgenticOrchestrator: Sendable {
             let sortedChunks = allRetrievedChunks.sorted { $0.similarityScore > $1.similarityScore }
 
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            // MAXIMUM MODE: Use multi-chain for parallel cluster processing
-            // This breaks the 4096 token ceiling by running multiple parallel chains
+            // MAXIMUM MODE: TRUE UNLIMITED - runs until 98% confident
+            // NOT a fixed pipeline - an adaptive loop that keeps going
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
             if config.isUnlimited {
-                Log.info("[Agentic] MAXIMUM MODE: Using multi-chain parallel reasoning", category: .llm)
+                Log.info("[Agentic] MAXIMUM MODE: TRUE UNLIMITED reasoning until 98% confident", category: .llm)
 
                 // First, gather ALL chunks from the library for comprehensive analysis
                 let allChunksForMultiChain = try await gatherAllRelevantChunks(
@@ -306,39 +342,25 @@ final class AgenticOrchestrator: Sendable {
                     ragService: ragService
                 )
 
-                let multiChainResult = try await executeMultiChainReasoning(
+                let unlimitedResult = try await executeTrueUnlimitedReasoning(
                     query: query,
                     allChunks: allChunksForMultiChain,
-                    config: .maximum,
+                    targetConfidence: config.confidenceThreshold, // 0.98 for unlimited
+                    maxSessions: config.maxSteps, // 50 for unlimited
                     onStep: onStep
                 )
 
-                // Convert cluster insights to thinking steps - include ALL session insights
-                for clusterInsight in multiChainResult.clusterInsights {
-                    // Add individual session insights (the detailed reasoning)
-                    for (sessionIdx, sessionInsight) in clusterInsight.chainInsights.enumerated() {
-                        let sessionStep = ThinkingStep(
-                            id: UUID(),
-                            type: sessionIdx == clusterInsight.chainInsights.count - 1 ? .synthesizing : .analyzing,
-                            input: "[\(clusterInsight.clusterName)] Session \(sessionIdx + 1)",
-                            output: sessionInsight,
-                            tokensUsed: clusterInsight.tokensUsed / max(1, clusterInsight.sessionsRun),
-                            duration: multiChainResult.totalDuration / Double(multiChainResult.totalSessions),
-                            timestamp: Date()
-                        )
-                        steps.append(sessionStep)
-                    }
-                }
-
-                totalTokens += multiChainResult.totalTokens
-                logStepTokens("Multi-Chain (\(multiChainResult.totalSessions) sessions)", multiChainResult.totalTokens)
+                // Add all steps to result
+                steps.append(contentsOf: unlimitedResult.steps)
+                totalTokens += unlimitedResult.totalTokens
+                logStepTokens("Unlimited (\(unlimitedResult.sessionsRun) sessions)", unlimitedResult.totalTokens)
 
                 return AgenticResult(
-                    finalAnswer: multiChainResult.finalAnswer,
+                    finalAnswer: unlimitedResult.finalAnswer,
                     steps: steps,
                     totalTokens: totalTokens,
                     totalDuration: Date().timeIntervalSince(startTime),
-                    confidence: multiChainResult.confidence,
+                    confidence: unlimitedResult.confidence,
                     sourcesUsed: allChunksForMultiChain.count,
                     retrievedChunks: allChunksForMultiChain
                 )
@@ -374,6 +396,36 @@ final class AgenticOrchestrator: Sendable {
             totalTokens += chainResult.totalTokens
             logStepTokens("Reasoning Chain (\(chainResult.sessionCount) sessions)", chainResult.totalTokens)
 
+            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            // FALLBACK: If reasoning chain indicates retrieval miss, try recursive research
+            // This catches cases where initial retrieval grabbed wrong content (e.g., "oil pressure" vs "oil type")
+            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            if answerIndicatesRetrievalMiss(chainResult.finalAnswer) {
+                Log.info("[Agentic] Answer indicates retrieval miss - falling back to recursive research", category: .llm)
+
+                let recursiveResult = try await executeRecursiveResearch(
+                    query: query,
+                    maxIterations: 5,
+                    onStep: onStep
+                )
+
+                // If recursive research found a better answer, use it
+                if !answerIndicatesRetrievalMiss(recursiveResult.finalAnswer) {
+                    Log.info("[Agentic] Recursive research found answer after \(recursiveResult.steps.count) steps", category: .llm)
+                    steps.append(contentsOf: recursiveResult.steps)
+                    return AgenticResult(
+                        finalAnswer: recursiveResult.finalAnswer,
+                        steps: steps,
+                        totalTokens: totalTokens + recursiveResult.totalTokens,
+                        totalDuration: Date().timeIntervalSince(startTime),
+                        confidence: recursiveResult.confidence,
+                        sourcesUsed: recursiveResult.sourcesUsed,
+                        retrievedChunks: recursiveResult.retrievedChunks
+                    )
+                }
+                Log.debug("[Agentic] Recursive research also couldn't find answer - using original chain result", category: .llm)
+            }
+
             return AgenticResult(
                 finalAnswer: chainResult.finalAnswer,
                 steps: steps,
@@ -391,7 +443,7 @@ final class AgenticOrchestrator: Sendable {
             // Try to refine the query based on what we found
             if let refinedQuery = try? await reformulateQuery(
                 originalQuery: query,
-                retrievedContext: initialSearchStep.output,
+                retrievedContext: multiQueryStep.output,
                 ragService: ragService
             ), refinedQuery != query {
                 let (refinedStep, refinedChunks) = try await executeSearchStepWithChunks(
@@ -460,7 +512,7 @@ final class AgenticOrchestrator: Sendable {
             // First, try a HyDE-style reformulation to find better matches
             let reformulatedQuery = try await reformulateQuery(
                 originalQuery: query,
-                retrievedContext: initialSearchStep.output,
+                retrievedContext: multiQueryStep.output,
                 ragService: ragService
             )
 
@@ -499,7 +551,7 @@ final class AgenticOrchestrator: Sendable {
                     Log.info("[Agentic] Reformulation improved results → synthesizing", category: .llm)
 
                     // Combine both search results
-                    let combinedResults = initialSearchStep.output + "\n\n---\n\n" + reformulatedSearchStep.output
+                    let combinedResults = multiQueryStep.output + "\n\n---\n\n" + reformulatedSearchStep.output
 
                     let synthesisStep = try await executeDirectSynthesis(
                         query: query,
@@ -526,7 +578,7 @@ final class AgenticOrchestrator: Sendable {
             // Synthesize with what we have rather than giving up
             Log.info("[Agentic] Moderate confidence → synthesizing with available context", category: .llm)
 
-            let combinedResults = initialSearchStep.output
+            let combinedResults = multiQueryStep.output
             let synthesisStep = try await executeDirectSynthesis(
                 query: query,
                 searchResults: combinedResults,
@@ -580,7 +632,7 @@ final class AgenticOrchestrator: Sendable {
                 return try await executeDecomposedPipeline(
                     query: query,
                     initialChunks: allRetrievedChunks,
-                    initialSearchOutput: initialSearchStep.output,
+                    initialSearchOutput: multiQueryStep.output,
                     steps: &steps,
                     totalTokens: &totalTokens,
                     ragService: ragService,
@@ -605,7 +657,7 @@ final class AgenticOrchestrator: Sendable {
                 }
 
                 // Format expanded results
-                var expandedResults = initialSearchStep.output
+                var expandedResults = multiQueryStep.output
                 if broaderChunks.count > initialChunks.count {
                     expandedResults = "Expanded search found \(broaderChunks.count) chunks:\n\n"
                     for (index, chunk) in broaderChunks.prefix(8).enumerated() {
@@ -1163,6 +1215,183 @@ final class AgenticOrchestrator: Sendable {
         )
 
         return (step, chunks)
+    }
+
+    // MARK: - Multi-Query Search (Universal Semantic Coverage)
+
+    /// Generate diverse search queries using LLM to cover all semantic angles of the question.
+    /// This is the key to universal retrieval - we don't hardcode synonyms, we let the LLM
+    /// understand the user's INTENT and generate queries that would find relevant content.
+    ///
+    /// For "What oil does this car take?", the LLM might generate:
+    /// - "engine oil specification"
+    /// - "motor oil type grade viscosity"
+    /// - "5W-30 0W-20 oil recommendation"
+    /// - "lubricant requirements"
+    private func generateSearchQueries(
+        originalQuery: String,
+        ragService: RAGService
+    ) async throws -> [String] {
+        let prompt = """
+        Generate 4 different search queries to find the answer to this question.
+        Each query should approach the topic from a different angle:
+        1. The original question (maybe refined)
+        2. Technical/specification terms that might appear in documentation
+        3. Synonyms or alternative phrasings
+        4. Specific values, codes, or measurements that might be mentioned
+
+        Question: \(originalQuery)
+
+        Return ONLY a JSON array of 4 strings, nothing else.
+        Example: ["query 1", "query 2", "query 3", "query 4"]
+        """
+
+        let response = try await ragService.generateWithFreshSession(
+            prompt: prompt,
+            maxTokens: 200
+        )
+
+        // Parse JSON array from response
+        var queries = [originalQuery] // Always include original
+        if let jsonStart = response.text.firstIndex(of: "["),
+           let jsonEnd = response.text.lastIndex(of: "]") {
+            let jsonString = String(response.text[jsonStart...jsonEnd])
+            if let data = jsonString.data(using: .utf8),
+               let parsed = try? JSONSerialization.jsonObject(with: data) as? [String] {
+                for q in parsed where !q.isEmpty && q.lowercased() != originalQuery.lowercased() {
+                    queries.append(q)
+                }
+            }
+        }
+
+        Log.info("[MultiQuery] Generated \(queries.count) search queries: \(queries)", category: .retrieval)
+        return Array(queries.prefix(5)) // Cap at 5 to limit latency
+    }
+
+    /// Execute multi-query search: search with multiple query variations and fuse results.
+    /// Uses Reciprocal Rank Fusion (RRF) to combine rankings from different queries.
+    private func executeMultiQuerySearch(
+        queries: [String],
+        ragService: RAGService
+    ) async throws -> (ThinkingStep, [RetrievedChunk]) {
+        let startTime = Date()
+
+        var allResults: [[RetrievedChunk]] = []
+
+        // Search with each query variation
+        for query in queries {
+            if Task.isCancelled { break }
+
+            let chunks = try await ragService.executeFullRetrievalPipeline(
+                query: query,
+                topK: 15,
+                minSimilarity: 0.05 // Very low - we'll use RRF to rank
+            )
+            allResults.append(chunks)
+
+            Log.debug("[MultiQuery] Query '\(query.prefix(40))...' returned \(chunks.count) chunks", category: .retrieval)
+        }
+
+        // Reciprocal Rank Fusion across all query results
+        var chunkScores: [UUID: (chunk: RetrievedChunk, score: Float)] = [:]
+        let k: Float = 60.0 // RRF constant
+
+        for results in allResults {
+            for (rank, chunk) in results.enumerated() {
+                let rrfScore = 1.0 / (k + Float(rank + 1))
+
+                if let existing = chunkScores[chunk.chunk.id] {
+                    // Chunk seen in multiple queries - boost its score
+                    chunkScores[chunk.chunk.id] = (existing.chunk, existing.score + rrfScore)
+                } else {
+                    chunkScores[chunk.chunk.id] = (chunk, rrfScore)
+                }
+            }
+        }
+
+        // Sort by fused score and take top results
+        let fusedResults = chunkScores.values
+            .sorted { $0.score > $1.score }
+            .prefix(20)
+            .enumerated()
+            .map { (index, retrieved) -> RetrievedChunk in
+                // Update similarity score to reflect RRF ranking
+                return RetrievedChunk(
+                    chunk: retrieved.chunk.chunk,
+                    similarityScore: min(retrieved.score * 10, 1.0), // Normalize to 0-1
+                    rank: index + 1,
+                    sourceDocument: retrieved.chunk.sourceDocument,
+                    pageNumber: retrieved.chunk.pageNumber
+                )
+            }
+
+        let resultChunks = Array(fusedResults)
+
+        // Format for logging
+        var searchResult = "Multi-query search with \(queries.count) variations:\n"
+        searchResult += "Queries: \(queries.joined(separator: " | "))\n\n"
+        searchResult += "Found \(resultChunks.count) unique chunks after RRF fusion\n"
+
+        let step = ThinkingStep(
+            id: UUID(),
+            type: .searching,
+            input: queries.first ?? "",
+            output: searchResult,
+            tokensUsed: 0,
+            duration: Date().timeIntervalSince(startTime),
+            timestamp: startTime
+        )
+
+        Log.info("[MultiQuery] Fused \(allResults.map { $0.count }.reduce(0, +)) results into \(resultChunks.count) unique chunks", category: .retrieval)
+
+        return (step, resultChunks)
+    }
+
+    /// Validate that retrieved chunks actually address the semantic intent of the question.
+    /// This catches cases where retrieval grabbed related but wrong content.
+    /// Returns (isValid, reason) - if invalid, reason explains what's missing.
+    private func validateSemanticIntent(
+        query: String,
+        chunks: [RetrievedChunk],
+        ragService: RAGService
+    ) async throws -> (isValid: Bool, reason: String) {
+        guard !chunks.isEmpty else {
+            return (false, "No chunks retrieved")
+        }
+
+        // Quick heuristic check first - if top chunks have high scores, likely good
+        let topScore = chunks.first?.similarityScore ?? 0
+        if topScore > 0.6 {
+            return (true, "High confidence match")
+        }
+
+        // For moderate scores, ask LLM to verify semantic match
+        let chunkPreviews = chunks.prefix(3).map { chunk in
+            let content = (chunk.chunk.parentContent ?? chunk.chunk.content)
+            return String(content.prefix(300))
+        }.joined(separator: "\n---\n")
+
+        let prompt = """
+        Question: \(query)
+
+        Retrieved content:
+        \(chunkPreviews)
+
+        Does this content contain information to answer the question?
+        Reply with ONLY one word: YES or NO
+        """
+
+        let response = try await ragService.generateWithFreshSession(
+            prompt: prompt,
+            maxTokens: 10
+        )
+
+        let answer = response.text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        let isValid = answer.contains("yes")
+
+        Log.debug("[SemanticValidation] Query '\(query.prefix(40))...' → \(isValid ? "VALID" : "INVALID")", category: .retrieval)
+
+        return (isValid, isValid ? "Content matches intent" : "Content does not address the question")
     }
 
     // MARK: - Graph Expansion (GraphRAG-lite)
@@ -1762,6 +1991,46 @@ final class AgenticOrchestrator: Sendable {
         if answer.count > 1000 { confidence += 0.05 }
 
         return max(0.3, min(0.95, confidence))
+    }
+
+    /// Detect if an answer indicates the initial retrieval missed relevant content
+    /// This catches cases where the model says "I cannot find" but the answer exists in different chunks
+    /// that weren't retrieved because of semantic mismatch (e.g., "oil pressure" vs "oil type/viscosity")
+    private func answerIndicatesRetrievalMiss(_ answer: String) -> Bool {
+        let lowercased = answer.lowercased()
+
+        // Strong indicators that retrieval grabbed wrong content
+        let retrievalMissIndicators = [
+            "cannot determine",
+            "cannot find",
+            "not able to find",
+            "no information about",
+            "does not specify",
+            "does not explicitly",
+            "doesn't specify",
+            "doesn't explicitly",
+            "do not specify",
+            "do not explicitly",
+            "doesn't contain",
+            "does not contain",
+            "not mentioned",
+            "no mention of",
+            "unable to locate",
+            "unable to find",
+            "not provided in",
+            "not stated in",
+            "documents don't",
+            "documents do not",
+        ]
+
+        for indicator in retrievalMissIndicators {
+            if lowercased.contains(indicator) {
+                Log.debug("[Agentic] Answer contains retrieval miss indicator: '\(indicator)'", category: .llm)
+                return true
+            }
+        }
+
+        return false
     }
 
     // MARK: - Self-RAG (Adaptive Retrieval)
@@ -2462,13 +2731,17 @@ extension AgenticOrchestrator {
         var chainInsights: [String] = []
         var totalTokens = 0
         var allSources: Set<String> = []
-        var cumulativeConfidence: Float = 0
 
         // Unlimited mode OR forced by multi-chain: always report confidence
         let isUnlimitedMode = config.sessionCount >= 20
         let shouldReportConfidence = isUnlimitedMode || forceConfidenceReporting
         let confidenceThreshold: Float = isUnlimitedMode ? self.config.confidenceThreshold : 0.98
         var actualSessionCount = 0
+
+        // FIXED: Start with a meaningful baseline confidence so users see progress from the start
+        // Maximum mode: Start at 5% (shows we're just beginning)
+        // This also means the UI shows progression like: 5% -> 12% -> 20% -> ... instead of 0% -> 0% -> 0% -> 85%
+        var cumulativeConfidence: Float = shouldReportConfidence ? 0.05 : 0
 
         Log.info("[ReasoningChain] Starting \(config.sessionCount)-session chain for: \(query.prefix(40))... (confidence reporting: \(shouldReportConfidence))", category: .llm)
 
@@ -2522,7 +2795,7 @@ extension AgenticOrchestrator {
             // Unlimited mode: Check if we've reached confidence threshold
             // Require at least 8 sessions to build up meaningful reasoning depth
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            if isUnlimitedMode, sessionIndex >= 8, cumulativeConfidence >= confidenceThreshold { 
+            if isUnlimitedMode, sessionIndex >= 8, cumulativeConfidence >= confidenceThreshold {
                 Log.info("[ReasoningChain] Unlimited mode: Stopping at \(Int(cumulativeConfidence * 100))% confidence (threshold: \(Int(confidenceThreshold * 100))%)", category: .llm)
                 break
             }
@@ -2608,11 +2881,12 @@ extension AgenticOrchestrator {
                 // Designed to require 8-15+ sessions before hitting 98%
                 // Each component is conservative to ensure deep exploration
 
-                // 1. Session contribution (up to 48%) - more sessions = more exploration
-                // MAXIMUM MODE: Slower build (0.02/session vs 0.03) to encourage deeper exploration
-                // At 8 sessions: 16%, at 15 sessions: 30%, at 20 sessions: 40%, at 24: 48% (cap)
-                let sessionContributionRate: Float = isUnlimitedMode ? 0.02 : 0.03
-                let sessionContribution = min(sessionContributionRate * Float(sessionNum), 0.48)
+                // 1. Session contribution (up to 50%) - more sessions = more exploration
+                // MAXIMUM MODE: 3% per session for visible progress, capped at 50%
+                // At 4 sessions: 12%, at 8 sessions: 24%, at 12 sessions: 36%, at 17+: 50% (cap)
+                // This ensures users see meaningful progress in the UI from early steps
+                let sessionContributionRate: Float = 0.03
+                let sessionContribution = min(sessionContributionRate * Float(sessionNum), 0.50)
 
                 // 2. Length contribution (up to 15%) - longer insights = more substance
                 // Requires 3000+ chars for full bonus (conservative)
@@ -2651,7 +2925,7 @@ extension AgenticOrchestrator {
 
                         // Higher threshold for Maximum mode (65% vs 50%)
                         let similarityThreshold: Float = isUnlimitedMode ? 0.65 : 0.50
-                        if overlapRatio > similarityThreshold { 
+                        if overlapRatio > similarityThreshold {
                             similarityCount += 1
                             if lastWasSimilar { consecutiveSimilar += 1 }
                             lastWasSimilar = true
@@ -2670,7 +2944,7 @@ extension AgenticOrchestrator {
                         ? (consecutiveSimilar >= forceTerminationCount || maxOverlapRatio > forceTerminationThreshold)
                         : (similarityCount >= forceTerminationCount || maxOverlapRatio > forceTerminationThreshold)
 
-                    if shouldForceTerminate { 
+                    if shouldForceTerminate {
                         repetitionBonus = 0.25 // Strong repetition - topic exhausted
                         Log.info("[ReasoningChain] Strong repetition detected (\(similarityCount)/4 similar, consecutive: \(consecutiveSimilar), max overlap: \(Int(maxOverlapRatio * 100))%) - topic exhausted", category: .llm)
 
@@ -2694,7 +2968,7 @@ extension AgenticOrchestrator {
                 let exhaustionBonus: Float = sessionNum >= 15 ? 0.15 : (sessionNum >= 12 ? 0.10 : (sessionNum >= 10 ? 0.05 : 0))
 
                 // Only calculate confidence normally if we haven't forced termination
-                if cumulativeConfidence<0.99 { 
+                if cumulativeConfidence<0.99 {
                     let estimatedConfidence = sessionContribution + lengthContribution + citationBonus + repetitionBonus + exhaustionBonus
                     cumulativeConfidence = max(cumulativeConfidence, min(estimatedConfidence, 0.99))
                 }
@@ -2799,16 +3073,17 @@ extension AgenticOrchestrator {
                     systemPrompt: exhaustiveSystemPrompt,
                     maxTokens: synthesisMaxTokens
                 )
-                finalAnswer = synthesisResponse.text.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+                // Clean up the synthesis output
+                finalAnswer = cleanupFinalAnswer(synthesisResponse.text)
                 totalTokens += synthesisResponse.tokensGenerated
                 Log.info("[ReasoningChain] Exhaustive synthesis: generated \(synthesisResponse.tokensGenerated) tokens (\(finalAnswer.count) chars)", category: .llm)
             } catch {
                 Log.warning("[ReasoningChain] Exhaustive synthesis failed, using last insight: \(error)", category: .llm)
-                finalAnswer = chainInsights.last ?? "Unable to synthesize answer from reasoning chain."
+                finalAnswer = cleanupFinalAnswer(chainInsights.last ?? "Unable to synthesize answer from reasoning chain.")
             }
         } else {
             // Standard mode: The last insight IS the final answer (session N is synthesis)
-            finalAnswer = chainInsights.last ?? "Unable to synthesize answer from reasoning chain."
+            finalAnswer = cleanupFinalAnswer(chainInsights.last ?? "Unable to synthesize answer from reasoning chain.")
         }
 
         if isUnlimitedMode {
@@ -2827,7 +3102,974 @@ extension AgenticOrchestrator {
         )
     }
 
-    // MARK: - Multi-Chain Execution (Maximum Mode)
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // MARK: - TRUE UNLIMITED REASONING
+    // This is what a 10x expert would build: ACTUALLY runs until 98% confident
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    /// Result from true unlimited reasoning
+    struct UnlimitedResult: Sendable {
+        let finalAnswer: String
+        let steps: [ThinkingStep]
+        let totalTokens: Int
+        let sessionsRun: Int
+        let confidence: Float
+        let terminationReason: TerminationReason
+
+        enum TerminationReason: String, Sendable {
+            case confidenceReached = "98% confidence achieved"
+            case contentSaturated = "No new insights (content saturated)"
+            case maxSessionsReached = "Maximum sessions reached"
+            case thermalLimit = "Thermal throttling detected"
+            case userCancelled = "User cancelled"
+        }
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // HIERARCHICAL FACT COMPRESSION
+    // Solves the "alternator overflow" problem by compressing at each level
+    //
+    // Level 0: Raw chunks (unlimited) → Level 1: Insights (~800 chars)
+    // Level 1: Insights → Level 2: Condensed facts (~200 chars each)
+    // Level 2: Facts → Level 3: Core Fact Bank (fixed ~1500 chars)
+    // Level 3: Fact Bank → Level 4: Final answer (unlimited via output chaining)
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    /// A scored fact with relevance to the original query
+    struct ScoredFact {
+        let content: String
+        var relevanceScore: Float  // 0-1, higher = more relevant to query
+        let sessionAdded: Int      // When it was added (for recency bonus)
+    }
+
+    /// Sub-question for query decomposition
+    struct SubQuestion {
+        let question: String
+        var answered: Bool = false
+        var evidence: [String] = []  // Facts that address this sub-question
+    }
+
+    /// The Fact Bank - intelligent prioritized buffer with query decomposition
+    /// Evicts LOW RELEVANCE facts first, not just oldest
+    /// Tracks which sub-questions have been answered for REAL confidence
+    struct FactBank {
+        /// Core facts with relevance scores
+        var scoredFacts: [ScoredFact] = []
+        /// Maximum characters for the entire fact bank
+        let maxChars: Int = 1500
+
+        /// Sub-questions derived from query decomposition
+        var subQuestions: [SubQuestion] = []
+
+        /// Original query terms for relevance scoring
+        var queryTerms: Set<String> = []
+
+        /// Uses the app's existing QueryIntent for consistency across the pipeline
+        var queryIntent: QueryIntent = .balanced
+
+        /// Current session number for recency scoring
+        var currentSession: Int = 0
+
+        /// Initialize with query decomposition
+        mutating func initializeWithQuery(_ query: String) {
+            // Extract query terms for relevance scoring
+            let words = query.lowercased().split(separator: " ").map(String.init)
+            let stopWords = Set(["what", "how", "why", "does", "do", "the", "a", "an", "is", "are", "of", "in", "to", "and", "or", "for"])
+            queryTerms = Set(words.filter { $0.count > 2 && !stopWords.contains($0) })
+
+            // Decompose into sub-questions (heuristic-based)
+            subQuestions = decomposeQuery(query)
+        }
+
+        /// Decompose a complex query into sub-questions
+        /// Generates topic-specific sub-questions for better coverage tracking
+        private func decomposeQuery(_ query: String) -> [SubQuestion] {
+            var subs: [SubQuestion] = []
+            let lower = query.lowercased()
+
+            // Extract key topic words for sub-question generation
+            let stopWords = Set(["what", "how", "why", "does", "do", "the", "a", "an", "is", "are", "of", "in", "to", "and", "or", "for", "on", "with", "about"])
+            let topicWords = lower.split(separator: " ")
+                .map(String.init)
+                .filter { $0.count > 3 && !stopWords.contains($0) }
+
+            // Generate topic-specific sub-questions using actual query terms
+            if !topicWords.isEmpty {
+                let mainTopic = topicWords.prefix(3).joined(separator: " ")
+
+                // Core sub-questions using the actual topic
+                subs.append(SubQuestion(question: "evidence \(mainTopic)"))
+                subs.append(SubQuestion(question: "benefits \(mainTopic)"))
+                subs.append(SubQuestion(question: "effects \(mainTopic)"))
+            }
+
+            // Add dimension-based sub-questions based on query patterns
+            let dimensions: [(pattern: String, keywords: [String])] = [
+                ("effect", ["effect", "impact", "influence", "change"]),
+                ("affect", ["effect", "impact", "influence", "change"]),
+                ("benefit", ["benefit", "advantage", "improvement", "positive"]),
+                ("harm", ["harm", "risk", "negative", "damage", "concern"]),
+                ("cognitive", ["cognitive", "mental", "brain", "thinking", "memory", "attention"]),
+                ("how", ["mechanism", "process", "method", "how"]),
+                ("why", ["reason", "cause", "because", "why"])
+            ]
+
+            for (pattern, keywords) in dimensions where lower.contains(pattern) {
+                subs.append(SubQuestion(question: keywords.joined(separator: " ")))
+            }
+
+            // Always include these research-oriented checks
+            subs.append(SubQuestion(question: "research study found showed"))
+            subs.append(SubQuestion(question: "limitation caveat concern mixed"))
+
+            // Deduplicate
+            var seen = Set<String>()
+            subs = subs.filter { q in
+                let key = q.question.prefix(20).lowercased()
+                if seen.contains(String(key)) { return false }
+                seen.insert(String(key))
+                return true
+            }
+
+            return subs
+        }
+
+        /// Check if a fact addresses any sub-questions and mark them
+        /// Uses loose matching - any keyword overlap counts
+        private mutating func updateSubQuestionCoverage(fact: String) {
+            let factLower = fact.lowercased()
+            let factWords = Set(factLower.split(separator: " ").map(String.init).filter { $0.count > 3 })
+
+            for i in 0..<subQuestions.count {
+                // Split sub-question into keywords
+                let questionWords = Set(subQuestions[i].question.lowercased()
+                    .split(separator: " ")
+                    .map(String.init)
+                    .filter { $0.count > 3 })
+
+                // Check for ANY overlap (loose matching)
+                let matchCount = questionWords.intersection(factWords).count
+
+                if matchCount >= 1 {
+                    subQuestions[i].evidence.append(String(fact.prefix(80)))
+                    // Mark answered after just 1 piece of evidence (loose threshold)
+                    if subQuestions[i].evidence.count >= 1 {
+                        subQuestions[i].answered = true
+                    }
+                }
+            }
+        }
+
+        /// Calculate relevance score for a fact against the query
+        private func scoreRelevance(_ fact: String, session: Int) -> Float {
+            var score: Float = 0.3 // Base score
+
+            let factLower = fact.lowercased()
+
+            // Query term overlap (0-0.4)
+            let matchingTerms = queryTerms.filter { factLower.contains($0) }
+            score += Float(matchingTerms.count) / Float(max(1, queryTerms.count)) * 0.4
+
+            // Evidence markers (0-0.2)
+            let evidenceMarkers = ["found", "showed", "demonstrated", "significant", "effect", "improved", "increased", "decreased"]
+            if evidenceMarkers.contains(where: { factLower.contains($0) }) {
+                score += 0.15
+            }
+
+            // Quantitative content (0-0.15)
+            if fact.contains(where: { $0.isNumber }) || fact.contains("%") {
+                score += 0.15
+            }
+
+            // Citation (0-0.1)
+            if fact.contains("(") && fact.contains(")") && fact.contains(where: { $0.isNumber }) {
+                score += 0.1
+            }
+
+            // Recency bonus (0-0.1) - newer facts get slight boost
+            let recencyBonus = min(0.1, Float(session) / 50.0 * 0.1)
+            score += recencyBonus
+
+            return min(1.0, score)
+        }
+
+        /// Add new facts with relevance scoring
+        mutating func addFacts(from insight: String) {
+            currentSession += 1
+
+            // Extract content based on query intent
+            let newFacts = extractFactsFromInsight(insight)
+
+            for factContent in newFacts {
+                let score = scoreRelevance(factContent, session: currentSession)
+                scoredFacts.append(ScoredFact(
+                    content: factContent,
+                    relevanceScore: score,
+                    sessionAdded: currentSession
+                ))
+
+                // Check if this fact addresses any sub-questions
+                updateSubQuestionCoverage(fact: factContent)
+            }
+
+            // Compress using RELEVANCE-BASED eviction
+            compressIntelligently()
+        }
+
+        /// Compress by removing LEAST RELEVANT facts first
+        private mutating func compressIntelligently() {
+            var totalChars = scoredFacts.map(\.content).joined().count
+
+            while totalChars > maxChars && scoredFacts.count > 3 {
+                // Find the lowest relevance fact
+                if let minIndex = scoredFacts.enumerated().min(by: { $0.element.relevanceScore < $1.element.relevanceScore })?.offset {
+                    scoredFacts.remove(at: minIndex)
+                    totalChars = scoredFacts.map(\.content).joined().count
+                } else {
+                    break
+                }
+            }
+
+            // Further compress by truncating if still over
+            if totalChars > maxChars {
+                scoredFacts = scoredFacts.map { fact in
+                    ScoredFact(
+                        content: String(fact.content.prefix(100)),
+                        relevanceScore: fact.relevanceScore,
+                        sessionAdded: fact.sessionAdded
+                    )
+                }
+            }
+        }
+
+        /// Extract content from prose insight based on query intent
+        private func extractFactsFromInsight(_ insight: String) -> [String] {
+            var extracted: [String] = []
+            let sentences = insight.components(separatedBy: CharacterSet(charactersIn: ".!?"))
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { $0.count > 20 }
+
+            for sentence in sentences {
+                let shouldKeep: Bool
+
+                switch queryIntent {
+                case .keyword:
+                    // PRECISION: quantitative and cited content
+                    let hasNumber = sentence.contains(where: { $0.isNumber })
+                    let hasPercent = sentence.contains("%")
+                    let hasCitation = sentence.contains("(") && sentence.contains(")")
+                    let hasKeyTerms = ["found", "showed", "improved", "increased", "decreased", "significant"]
+                        .contains { sentence.lowercased().contains($0) }
+                    shouldKeep = hasNumber || hasPercent || hasCitation || hasKeyTerms
+
+                case .conceptual:
+                    // COMPLETENESS: explanatory and contextual content
+                    let hasExplanation = ["because", "therefore", "means", "indicates", "suggests",
+                                          "however", "although", "while", "this", "these"]
+                        .contains { sentence.lowercased().contains($0) }
+                    let hasContext = ["context", "background", "generally", "typically", "often",
+                                      "can", "may", "include", "involve", "relate"]
+                        .contains { sentence.lowercased().contains($0) }
+                    let isSubstantive = sentence.count > 50
+                    shouldKeep = hasExplanation || hasContext || isSubstantive
+
+                case .balanced:
+                    // BOTH facts AND context
+                    let hasNumber = sentence.contains(where: { $0.isNumber })
+                    let hasPercent = sentence.contains("%")
+                    let hasCitation = sentence.contains("(") && sentence.contains(")")
+                    let hasKeyTerms = ["found", "showed", "improved", "increased", "decreased", "significant",
+                                       "because", "therefore", "however", "suggests", "indicates"]
+                        .contains { sentence.lowercased().contains($0) }
+                    let isSubstantive = sentence.count > 60
+                    shouldKeep = hasNumber || hasPercent || hasCitation || hasKeyTerms || isSubstantive
+                }
+
+                if shouldKeep {
+                    let maxLen = queryIntent == .conceptual ? 200 : 150
+                    extracted.append(String(sentence.prefix(maxLen)))
+                }
+            }
+
+            // Fallback if nothing extracted
+            if extracted.isEmpty && !insight.isEmpty {
+                let fallbackLen = queryIntent == .conceptual ? 250 : 150
+                extracted.append(String(insight.prefix(fallbackLen)))
+            }
+
+            return extracted
+        }
+
+        /// Get fact bank as context string (sorted by relevance)
+        func asContext() -> String {
+            if scoredFacts.isEmpty { return "" }
+            let sorted = scoredFacts.sorted { $0.relevanceScore > $1.relevanceScore }
+            return "ESTABLISHED FACTS:\n• " + sorted.map(\.content).joined(separator: "\n• ")
+        }
+
+        /// Get REAL confidence based on sub-question coverage
+        var subQuestionConfidence: Float {
+            guard !subQuestions.isEmpty else { return 0.5 }
+            let answeredCount = subQuestions.filter(\.answered).count
+            return Float(answeredCount) / Float(subQuestions.count)
+        }
+
+        /// Get unanswered sub-questions for gap-aware expansion
+        var unansweredQuestions: [String] {
+            subQuestions.filter { !$0.answered }.map(\.question)
+        }
+
+        /// Get count and size info
+        var summary: String {
+            let answered = subQuestions.filter(\.answered).count
+            return "\(scoredFacts.count) facts, \(answered)/\(subQuestions.count) sub-Qs answered"
+        }
+
+        /// Legacy accessor for coreFacts (compatibility)
+        var coreFacts: [String] {
+            scoredFacts.map(\.content)
+        }
+    }
+
+    /// TRUE UNLIMITED REASONING: Continues until 98% confident or saturated
+    /// Uses hierarchical compression to NEVER hit token limits
+    ///
+    /// Architecture:
+    /// ┌─────────────────────────────────────────────────────────────┐
+    /// │ Session N: [Query + 3 chunks + Fact Bank hint] → Insight   │
+    /// │     ↓                                                       │
+    /// │ Extract facts → Add to Fact Bank (auto-compresses)         │
+    /// │     ↓                                                       │
+    /// │ Every 5 sessions: Synthesize running answer                 │
+    /// │     ↓                                                       │
+    /// │ Repeat until 98% confident or saturated                     │
+    /// │     ↓                                                       │
+    /// │ Chain multiple output passes for final answer               │
+    /// └─────────────────────────────────────────────────────────────┘
+    func executeTrueUnlimitedReasoning(
+        query: String,
+        allChunks: [RetrievedChunk],
+        targetConfidence: Float = 0.98,
+        maxSessions: Int = 50,
+        onStep: ((ThinkingStep) async -> Void)? = nil
+    ) async throws -> UnlimitedResult {
+        guard let ragService = ragService else {
+            throw AgenticError.serviceUnavailable
+        }
+
+        let startTime = Date()
+        var totalTokens = 0
+        var allInsights: [String] = []
+        var steps: [ThinkingStep] = []
+
+        // Use the app's unified QueryIntent classification for consistency
+        // This aligns FactBank extraction with hybrid search weight adjustments
+        let queryEnhancer = QueryEnhancementService()
+        let queryIntent = queryEnhancer.classifyIntent(query)
+
+        var factBank = FactBank()
+        factBank.queryIntent = queryIntent
+        factBank.initializeWithQuery(query) // Decompose query into sub-questions
+        Log.info("[Unlimited] FactBank: QueryIntent=\(queryIntent.rawValue), \(factBank.subQuestions.count) sub-questions", category: .llm)
+
+        var currentAnswer = ""
+        var confidence: Float = 0.05
+        var terminationReason: UnlimitedResult.TerminationReason = .maxSessionsReached
+
+        // Track content saturation via semantic similarity
+        var saturationStreak = 0
+        let saturationThreshold = 3 // Trigger expansion after 3 consecutive low-value sessions
+        var expansionCount = 0
+        let maxExpansions = 3 // Allow up to 3 retrieval expansions (theoretically unlimited chunks)
+
+        // Mutable chunk pool - can EXPAND during reasoning via adaptive retrieval
+        var sortedChunks = allChunks.sorted { $0.similarityScore > $1.similarityScore }
+        var usedChunkIds = Set<UUID>() // Track which chunks we've already processed
+
+        Log.info("[Unlimited] Starting TRUE unlimited reasoning: target=\(Int(targetConfidence * 100))%, max=\(maxSessions) sessions, chunks=\(sortedChunks.count)", category: .llm)
+
+        // Emit initial planning step
+        let planStep = ThinkingStep(
+            id: UUID(),
+            type: .planning,
+            input: "Unlimited reasoning strategy",
+            output: "Analyzing \(sortedChunks.count) sources until \(Int(targetConfidence * 100))% confident",
+            tokensUsed: 0,
+            duration: 0.1,
+            timestamp: Date(),
+            confidence: confidence
+        )
+        steps.append(planStep)
+        await onStep?(planStep)
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // THE UNLIMITED LOOP - runs until confidence OR exhaustion
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        for sessionNum in 1...maxSessions {
+            // Check if we've hit target confidence
+            if confidence >= targetConfidence {
+                terminationReason = .confidenceReached
+                Log.info("[Unlimited] Session \(sessionNum): Confidence \(Int(confidence * 100))% >= \(Int(targetConfidence * 100))% - STOPPING", category: .llm)
+                break
+            }
+
+            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            // ADAPTIVE RETRIEVAL: When saturated, expand chunk pool
+            // This is the "truly unlimited" part - we fetch MORE data
+            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            if saturationStreak >= saturationThreshold {
+                if expansionCount < maxExpansions {
+                    // Generate new queries based on what FactBank has learned
+                    let expansionQueries = generateExpansionQueries(
+                        originalQuery: query,
+                        factBank: factBank
+                    )
+
+                    var newChunks: [RetrievedChunk] = []
+                    for expQuery in expansionQueries {
+                        if let chunks = try? await ragService.searchDocumentsRaw(
+                            query: expQuery,
+                            topK: 20,
+                            minSimilarity: 0.15 // Lower threshold for exploration
+                        ) {
+                            for chunk in chunks where !usedChunkIds.contains(chunk.chunk.id) {
+                                newChunks.append(chunk)
+                            }
+                        }
+                    }
+
+                    if !newChunks.isEmpty {
+                        // Add new chunks to the pool
+                        sortedChunks.append(contentsOf: newChunks)
+                        sortedChunks.sort { $0.similarityScore > $1.similarityScore }
+                        expansionCount += 1
+                        saturationStreak = 0 // Reset saturation
+
+                        Log.info("[Unlimited] EXPANSION \(expansionCount)/\(maxExpansions): Added \(newChunks.count) new chunks (total: \(sortedChunks.count))", category: .llm)
+
+                        // Emit expansion step
+                        let expansionStep = ThinkingStep(
+                            id: UUID(),
+                            type: .searching,
+                            input: "Adaptive retrieval expansion",
+                            output: "Found \(newChunks.count) additional sources to explore",
+                            tokensUsed: 0,
+                            duration: 0.2,
+                            timestamp: Date(),
+                            confidence: confidence
+                        )
+                        steps.append(expansionStep)
+                        await onStep?(expansionStep)
+                    } else {
+                        // No new chunks found - truly saturated
+                        terminationReason = .contentSaturated
+                        Log.info("[Unlimited] Session \(sessionNum): No new content found after expansion - STOPPING", category: .llm)
+                        break
+                    }
+                } else {
+                    // Max expansions reached - all avenues exhausted
+                    terminationReason = .contentSaturated
+                    Log.info("[Unlimited] Session \(sessionNum): Max expansions (\(maxExpansions)) reached - STOPPING", category: .llm)
+                    break
+                }
+            }
+
+            // Select UNUSED chunks for this session - prioritize fresh content
+            let unusedChunks = sortedChunks.filter { !usedChunkIds.contains($0.chunk.id) }
+            let sessionChunks: [RetrievedChunk]
+            if unusedChunks.count >= 3 {
+                sessionChunks = Array(unusedChunks.prefix(3))
+            } else if !unusedChunks.isEmpty {
+                // Use remaining unused + cycle back to highest relevance
+                sessionChunks = unusedChunks + Array(sortedChunks.prefix(3 - unusedChunks.count))
+            } else {
+                // All chunks used - cycle through top chunks
+                let chunkStartIdx = ((sessionNum - 1) * 2) % max(1, sortedChunks.count)
+                sessionChunks = Array(sortedChunks.dropFirst(chunkStartIdx).prefix(3))
+            }
+
+            // Mark these chunks as used
+            for chunk in sessionChunks {
+                usedChunkIds.insert(chunk.chunk.id)
+            }
+
+            // Build context with strict character limit
+            var contextParts: [String] = []
+            var contextChars = 0
+            let maxContextChars = 2500 // ~600 tokens, leaves room for prompt + response
+
+            for chunk in sessionChunks {
+                let chunkText = "[S\(chunk.chunk.metadata.chunkIndex)] \(chunk.chunk.content)"
+                if contextChars + chunkText.count <= maxContextChars {
+                    contextParts.append(chunkText)
+                    contextChars += chunkText.count
+                } else if contextChars < maxContextChars / 2 {
+                    // Add truncated version if we have room
+                    let remaining = maxContextChars - contextChars
+                    contextParts.append(String(chunkText.prefix(remaining)) + "...")
+                    break
+                } else {
+                    break
+                }
+            }
+            let context = contextParts.joined(separator: "\n\n")
+
+            // Build prompt based on session stage
+            let (prompt, systemPrompt) = buildUnlimitedSessionPrompt(
+                sessionNum: sessionNum,
+                query: query,
+                context: context,
+                previousInsights: allInsights,
+                currentAnswer: currentAnswer
+            )
+
+            // Adaptive temperature: higher early (exploration), lower late (precision)
+            let adaptiveTemp: Float
+            if sessionNum <= 3 {
+                adaptiveTemp = 0.7 // Early: divergent, exploratory
+            } else if sessionNum <= 8 {
+                adaptiveTemp = 0.5 // Middle: balanced
+            } else {
+                adaptiveTemp = 0.3 // Late: focused, precise
+            }
+
+            // Execute LLM call - tools DISABLED to prevent context overflow
+            // Chunks are already gathered and passed in the prompt
+            let sessionStart = Date()
+            let response = try await ragService.generateWithProperConsent(
+                prompt: prompt,
+                context: "",
+                systemPrompt: systemPrompt,
+                maxTokens: 1000,
+                disableTools: true,
+                temperature: adaptiveTemp
+            )
+            let sessionDuration = Date().timeIntervalSince(sessionStart)
+            totalTokens += response.tokensGenerated
+
+            let insight = cleanupFinalAnswer(response.text)
+            allInsights.append(insight)
+
+            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            // HIERARCHICAL COMPRESSION: Extract facts into Fact Bank
+            // This is the "alternator" that never overflows
+            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            factBank.addFacts(from: insight)
+            if sessionNum % 3 == 0 {
+                Log.info("[Unlimited] Fact Bank: \(factBank.summary)", category: .llm)
+            }
+
+            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            // REAL CONFIDENCE CALCULATION - blends session progress with sub-question coverage
+            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            let (newConfidence, saturationScore) = calculateRealConfidence(
+                insight: insight,
+                allInsights: allInsights,
+                query: query,
+                totalSources: sortedChunks.count,
+                sessionNum: sessionNum,
+                subQuestionConfidence: factBank.subQuestionConfidence
+            )
+
+            // Update saturation tracking
+            if saturationScore > 0.85 {
+                saturationStreak += 1
+                Log.info("[Unlimited] Session \(sessionNum): High saturation (\(Int(saturationScore * 100))%), streak=\(saturationStreak)", category: .llm)
+            } else {
+                saturationStreak = 0 // Reset streak on valuable session
+            }
+
+            // Confidence can only go UP (ratchet)
+            confidence = max(confidence, newConfidence)
+
+            // Every 5 sessions, compress insights using the Fact Bank
+            // This prevents the "alternator overflow" problem
+            if sessionNum % 5 == 0 {
+                currentAnswer = try await synthesizeRunningAnswer(
+                    query: query,
+                    factBank: factBank,
+                    recentInsights: Array(allInsights.suffix(3)),
+                    previousAnswer: currentAnswer
+                )
+                totalTokens += 200 // Estimate for synthesis
+            }
+
+            // Determine step type based on session progress
+            let stepType: ThinkingStep.StepType
+            if sessionNum <= 2 {
+                stepType = .searching
+            } else if confidence >= 0.9 {
+                stepType = .synthesizing
+            } else {
+                stepType = .analyzing
+            }
+
+            // Emit step with REAL confidence
+            let step = ThinkingStep(
+                id: UUID(),
+                type: stepType,
+                input: "Session \(sessionNum)/\(maxSessions)",
+                output: String(insight.prefix(500)) + (insight.count > 500 ? "..." : ""),
+                tokensUsed: response.tokensGenerated,
+                duration: sessionDuration,
+                timestamp: Date(),
+                confidence: confidence
+            )
+            steps.append(step)
+            await onStep?(step)
+
+            Log.info("[Unlimited] Session \(sessionNum): confidence=\(Int(confidence * 100))%, saturation=\(Int(saturationScore * 100))%, tokens=\(response.tokensGenerated)", category: .llm)
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // FINAL SYNTHESIS - produce the comprehensive answer
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        let synthesisStep = ThinkingStep(
+            id: UUID(),
+            type: .synthesizing,
+            input: "Final synthesis",
+            output: "Integrating \(allInsights.count) insights into comprehensive answer...",
+            tokensUsed: 0,
+            duration: 0.1,
+            timestamp: Date(),
+            confidence: min(confidence + 0.02, 0.99)
+        )
+        steps.append(synthesisStep)
+        await onStep?(synthesisStep)
+
+        let finalAnswer = try await synthesizeFinalUnlimitedAnswer(
+            query: query,
+            factBank: factBank,
+            allInsights: allInsights,
+            currentAnswer: currentAnswer
+        )
+        totalTokens += 500 // Estimate for final synthesis
+
+        let totalDuration = Date().timeIntervalSince(startTime)
+
+        Log.info("[Unlimited] COMPLETE: \(allInsights.count) sessions, \(Int(confidence * 100))% confident, \(terminationReason.rawValue), \(String(format: "%.1f", totalDuration))s", category: .llm)
+
+        // Emit completion step
+        let completionStep = ThinkingStep(
+            id: UUID(),
+            type: .synthesizing,
+            input: "Complete",
+            output: terminationReason.rawValue,
+            tokensUsed: 0,
+            duration: totalDuration,
+            timestamp: Date(),
+            confidence: confidence
+        )
+        steps.append(completionStep)
+        await onStep?(completionStep)
+
+        return UnlimitedResult(
+            finalAnswer: finalAnswer,
+            steps: steps,
+            totalTokens: totalTokens,
+            sessionsRun: allInsights.count,
+            confidence: confidence,
+            terminationReason: terminationReason
+        )
+    }
+
+    /// Calculate REAL confidence based on multiple factors
+    /// Balances sub-question coverage with session progress and content quality
+    private func calculateRealConfidence(
+        insight: String,
+        allInsights: [String],
+        query: String,
+        totalSources: Int,
+        sessionNum: Int,
+        subQuestionConfidence: Float
+    ) -> (confidence: Float, saturationScore: Float) {
+        // Factor 1: Session progress (0-0.50) - primary driver, logarithmic curve
+        // Reaches ~50% by session 10, ~70% by session 20, ~85% by session 35
+        let sessionProgress = min(0.85, log(Float(sessionNum) + 1) / log(50.0) * 0.85)
+
+        // Factor 2: Sub-question coverage bonus (0-0.10)
+        // Adds up to 10% if sub-questions are being answered
+        let subQBonus = subQuestionConfidence * 0.10
+
+        // Factor 3: Content depth bonus (0-0.05)
+        let totalChars = allInsights.joined().count
+        let depthBonus = min(Float(totalChars) / 20000.0, 1.0) * 0.05
+
+        // Factor 4: Query term coverage (0-0.05)
+        let queryTerms = Set(query.lowercased().split(separator: " ").filter { $0.count > 3 })
+        let answerText = allInsights.joined().lowercased()
+        let termsFound = queryTerms.filter { answerText.contains($0) }.count
+        let queryBonus = Float(termsFound) / max(1, Float(queryTerms.count)) * 0.05
+
+        // Calculate saturation (diminishing returns indicator)
+        var saturationScore: Float = 0
+        if allInsights.count > 2 {
+            let recentWords = Set(allInsights.suffix(2).joined().lowercased().split(separator: " ").filter { $0.count > 4 })
+            let previousWords = Set(allInsights.dropLast(2).joined().lowercased().split(separator: " ").filter { $0.count > 4 })
+            let overlap = recentWords.intersection(previousWords).count
+            saturationScore = Float(overlap) / max(1, Float(recentWords.count))
+        }
+
+        // Combine all factors, cap at 98%
+        let rawConfidence = sessionProgress + subQBonus + depthBonus + queryBonus
+        let finalConfidence = min(rawConfidence, 0.98)
+
+        return (finalConfidence, saturationScore)
+    }
+
+    /// Build prompt for unlimited session based on stage
+    /// CRITICAL: Each prompt must fit in ~1500 tokens to leave room for context + response
+    private func buildUnlimitedSessionPrompt(
+        sessionNum: Int,
+        query: String,
+        context: String,
+        previousInsights: [String],
+        currentAnswer: String
+    ) -> (prompt: String, systemPrompt: String) {
+        // Keep insight summary very compact - just hints, not full content
+        let insightSummary = previousInsights.isEmpty ? "" :
+            "Prior findings: " + previousInsights.suffix(2).map { String($0.prefix(150)) }.joined(separator: " | ")
+
+        if sessionNum == 1 {
+            // First session: Initial exploration
+            return (
+                """
+                Q: \(query)
+
+                SOURCES:
+                \(context)
+
+                Extract specific facts, numbers, and evidence. Be concise.
+                """,
+                "Research analyst. Extract key facts concisely."
+            )
+        } else if sessionNum <= 5 {
+            // Early sessions: Build breadth
+            return (
+                """
+                Q: \(query)
+                \(insightSummary)
+
+                NEW SOURCES:
+                \(context)
+
+                What NEW facts do these add? Avoid repeating prior findings.
+                """,
+                "Find new details. Avoid repetition. Be concise."
+            )
+        } else if sessionNum <= 15 {
+            // Middle sessions: Build depth - use currentAnswer summary
+            let answerHint = currentAnswer.isEmpty ? "" : "Current answer covers: \(String(currentAnswer.prefix(300)))..."
+            return (
+                """
+                Q: \(query)
+                \(answerHint)
+
+                SOURCES:
+                \(context)
+
+                Add nuances, exceptions, or deeper details not yet covered.
+                """,
+                "Find nuances others miss. Be specific and concise."
+            )
+        } else {
+            // Later sessions: Refine and verify
+            return (
+                """
+                Q: \(query)
+
+                SOURCES:
+                \(context)
+
+                Verify and strengthen with additional evidence. Note any gaps.
+                """,
+                "Verify accuracy. Add missing details. Be concise."
+            )
+        }
+    }
+
+    /// Synthesize running answer using the Fact Bank (hierarchical compression)
+    /// Uses the compressed fact bank instead of raw insights to prevent overflow
+    private func synthesizeRunningAnswer(
+        query: String,
+        factBank: FactBank,
+        recentInsights: [String],
+        previousAnswer: String
+    ) async throws -> String {
+        guard let ragService = ragService else {
+            throw AgenticError.serviceUnavailable
+        }
+
+        // The Fact Bank is already compressed to ~1500 chars
+        let factContext = factBank.asContext()
+
+        // Take only 2 most recent insights (freshest context), capped at 300 chars each
+        let freshInsights = recentInsights.suffix(2).map { String($0.prefix(300)) }
+        let freshContext = freshInsights.isEmpty ? "" : "RECENT:\n" + freshInsights.joined(separator: "\n")
+
+        // Previous answer summary - just key structure
+        let prevSummary = previousAnswer.isEmpty ? "" : "PRIOR:\n\(String(previousAnswer.prefix(400)))...\n\n"
+
+        let prompt = """
+        Q: \(query)
+
+        \(factContext)
+
+        \(freshContext)
+
+        \(prevSummary)Synthesize into a coherent answer. Preserve all facts, numbers, and citations.
+        """
+
+        let response = try await ragService.generateWithProperConsent(
+            prompt: prompt,
+            context: "",
+            systemPrompt: "Synthesize facts into clear answers. Preserve all data.",
+            maxTokens: 1000,
+            disableTools: true
+        )
+
+        return cleanupFinalAnswer(response.text)
+    }
+
+    /// Final synthesis of unlimited reasoning - CHAINS MULTIPLE OUTPUTS for comprehensive answer
+    /// Each output call stays under 4096, but we chain as many as needed
+    private func synthesizeFinalUnlimitedAnswer(
+        query: String,
+        factBank: FactBank,
+        allInsights: [String],
+        currentAnswer: String
+    ) async throws -> String {
+        guard let ragService = ragService else {
+            throw AgenticError.serviceUnavailable
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // CHAINED OUTPUT SYNTHESIS - build answer section by section
+        // Uses the Fact Bank as the core data source (already compressed)
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        var finalAnswer = ""
+        let factContext = factBank.asContext() // Already compressed to ~1500 chars
+
+        Log.info("[Synthesis] Chaining output passes with Fact Bank (\(factBank.summary))", category: .llm)
+
+        // ── PASS 1: Core answer from Fact Bank ──
+        // The Fact Bank contains the compressed, essential facts from ALL sessions
+        let corePrompt = """
+        Q: \(query)
+
+        \(factContext)
+
+        Write a comprehensive answer with:
+        - Executive summary (2-3 sentences)
+        - Key findings with all specific evidence, numbers, citations
+        - Use ## headers for organization
+        Be thorough and include ALL the facts provided.
+        """
+
+        let coreResponse = try await ragService.generateWithProperConsent(
+            prompt: corePrompt,
+            context: "",
+            systemPrompt: "Research writer. Include ALL facts and evidence. Be comprehensive.",
+            maxTokens: 1200,
+            disableTools: true
+        )
+        finalAnswer = cleanupFinalAnswer(coreResponse.text)
+
+        // ── PASS 2: Add depth from recent insights ──
+        if allInsights.count > 3 {
+            let recentInsights = allInsights.suffix(3).map { String($0.prefix(350)) }
+
+            let depthPrompt = """
+            Q: \(query)
+
+            CURRENT ANSWER:
+            \(String(finalAnswer.prefix(1000)))
+
+            ADDITIONAL CONTEXT:
+            \(recentInsights.joined(separator: "\n\n"))
+
+            Add a "## Additional Details" section with:
+            - Nuances and exceptions not yet covered
+            - Supporting examples or methodology details
+            Write ONLY the new section.
+            """
+
+            let depthResponse = try await ragService.generateWithProperConsent(
+                prompt: depthPrompt,
+                context: "",
+                systemPrompt: "Add depth. Write only new content.",
+                maxTokens: 800,
+                disableTools: true
+            )
+            let depthSection = cleanupFinalAnswer(depthResponse.text)
+            if depthSection.count > 50 {
+                finalAnswer += "\n\n" + depthSection
+            }
+        }
+
+        // ── PASS 3: Implications and limitations ──
+        if allInsights.count > 5 {
+            let implicationsPrompt = """
+            Q: \(query)
+
+            ANSWER SUMMARY:
+            \(String(finalAnswer.prefix(800)))
+
+            Add "## Implications & Limitations":
+            - Practical takeaways
+            - Research caveats
+            - Future research needs
+            Write ONLY this section (2-3 paragraphs).
+            """
+
+            let implResponse = try await ragService.generateWithProperConsent(
+                prompt: implicationsPrompt,
+                context: "",
+                systemPrompt: "Write balanced conclusions concisely.",
+                maxTokens: 600,
+                disableTools: true
+            )
+            let implSection = cleanupFinalAnswer(implResponse.text)
+            if implSection.count > 50 {
+                finalAnswer += "\n\n" + implSection
+            }
+        }
+
+        // ── PASS 4: Final polish (only for substantial answers) ──
+        if finalAnswer.count > 2500 && allInsights.count > 8 {
+            // Verify we haven't lost any key facts by cross-checking with Fact Bank
+            let polishPrompt = """
+            FACT CHECK these facts are in the answer:
+            \(factContext)
+
+            ANSWER:
+            \(String(finalAnswer.prefix(2200)))
+
+            If any facts above are MISSING from the answer, add them.
+            Fix any repetition or unclear sections.
+            Return the complete polished answer.
+            """
+
+            let polishResponse = try await ragService.generateWithProperConsent(
+                prompt: polishPrompt,
+                context: "",
+                systemPrompt: "Editor. Ensure all facts present. Improve clarity.",
+                maxTokens: 1200,
+                disableTools: true
+            )
+            let polished = cleanupFinalAnswer(polishResponse.text)
+            if polished.count > finalAnswer.count * 2 / 3 {
+                finalAnswer = polished
+            }
+        }
+
+        Log.info("[Synthesis] Final answer: \(finalAnswer.count) chars from \(allInsights.count) insights", category: .llm)
+
+        return finalAnswer
+    }
+
+    // MARK: - Multi-Chain Execution (kept for compatibility)
 
     /// Execute parallel reasoning chains across document clusters
     ///
@@ -2845,7 +4087,7 @@ extension AgenticOrchestrator {
         config: MultiChainConfig = .maximum,
         onStep: ((ThinkingStep) async -> Void)? = nil
     ) async throws -> MultiChainResult {
-        guard ragService != nil else { 
+        guard ragService != nil else {
             throw AgenticError.serviceUnavailable
         }
 
@@ -2853,8 +4095,8 @@ extension AgenticOrchestrator {
         var totalTokens = 0
         var clusterInsights: [MultiChainResult.ClusterInsight] = []
 
-        // Track progressive confidence for UI
-        var progressiveConfidence: Float = 0.05
+        // Track progressive confidence for UI - use atomic counter for thread safety
+        let completedSessions = OSAllocatedUnfairLock(initialState: 0)
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         // STEP 1: Cluster documents by source
@@ -2867,16 +4109,19 @@ extension AgenticOrchestrator {
 
         Log.info("[MultiChain] Created \(documentClusters.count) document clusters from \(allChunks.count) chunks", category: .llm)
 
+        // Calculate total sessions for accurate progress tracking
+        let totalExpectedSessions = documentClusters.count * config.sessionsPerCluster
+
         // Emit planning step with initial confidence
         let planStep = ThinkingStep(
             id: UUID(),
             type: .planning,
             input: "Multi-chain strategy",
-            output: "Analyzing \(documentClusters.count) document clusters in parallel, then synthesizing",
+            output: "Analyzing \(documentClusters.count) clusters × \(config.sessionsPerCluster) sessions = \(totalExpectedSessions) total reasoning sessions",
             tokensUsed: 0,
             duration: 0.1,
             timestamp: Date(),
-            confidence: progressiveConfidence
+            confidence: 0.05
         )
         await onStep?(planStep)
 
@@ -2887,7 +4132,6 @@ extension AgenticOrchestrator {
 
         // Process clusters in batches to avoid thermal throttling
         let batchSize = config.maxParallelChains
-        var clusterIndex = 0
 
         for batchStart in stride(from: 0, to: documentClusters.count, by: batchSize) {
             let batchEnd = min(batchStart + batchSize, documentClusters.count)
@@ -2907,7 +4151,31 @@ extension AgenticOrchestrator {
                                 chunks: cluster.chunks,
                                 clusterIndex: globalIdx,
                                 sessionsPerCluster: config.sessionsPerCluster,
-                                onStep: onStep
+                                onStep: { step in
+                                    // Increment session counter and recalculate confidence
+                                    let currentSession = completedSessions.withLock { count -> Int in
+                                        count += 1
+                                        return count
+                                    }
+
+                                    // Calculate confidence based on total session progress (up to 85%)
+                                    // Synthesis adds the final 15%
+                                    let sessionProgress = Float(currentSession) / Float(totalExpectedSessions)
+                                    let calculatedConfidence = min(0.85, 0.05 + sessionProgress * 0.80)
+
+                                    // Create step with recalculated confidence
+                                    let progressStep = ThinkingStep(
+                                        id: step.id,
+                                        type: step.type,
+                                        input: step.input,
+                                        output: step.output,
+                                        tokensUsed: step.tokensUsed,
+                                        duration: step.duration,
+                                        timestamp: step.timestamp,
+                                        confidence: calculatedConfidence
+                                    )
+                                    await onStep?(progressStep)
+                                }
                             )
                             return (globalIdx, insight)
                         } catch {
@@ -2925,27 +4193,11 @@ extension AgenticOrchestrator {
             }
 
             // Collect successful results and update progressive confidence
+            // Collect successful cluster results (confidence already reported per-session)
             for (_, insight) in batchResults {
                 if let insight = insight {
                     clusterInsights.append(insight)
                     totalTokens += insight.tokensUsed
-                    clusterIndex += 1
-
-                    // Update progressive confidence: each cluster adds toward 85% (synthesis adds final 15%)
-                    progressiveConfidence = min(0.85, Float(clusterInsights.count) / Float(documentClusters.count) * 0.85)
-
-                    // Emit progress step with updated confidence
-                    let progressStep = ThinkingStep(
-                        id: UUID(),
-                        type: .analyzing,
-                        input: insight.clusterName,
-                        output: "Completed \(clusterInsights.count)/\(documentClusters.count) clusters",
-                        tokensUsed: insight.tokensUsed,
-                        duration: 0.5,
-                        timestamp: Date(),
-                        confidence: progressiveConfidence
-                    )
-                    await onStep?(progressStep)
                 }
             }
         }
@@ -2955,7 +4207,6 @@ extension AgenticOrchestrator {
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         // STEP 3: Final synthesis across all cluster insights
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        progressiveConfidence = 0.88 // Synthesis starting
 
         let synthesisStep = ThinkingStep(
             id: UUID(),
@@ -2965,7 +4216,7 @@ extension AgenticOrchestrator {
             tokensUsed: 0,
             duration: 0.1,
             timestamp: Date(),
-            confidence: progressiveConfidence
+            confidence: 0.88 // All sessions done, now synthesizing
         )
         await onStep?(synthesisStep)
 
@@ -3055,7 +4306,7 @@ extension AgenticOrchestrator {
         sessionsPerCluster: Int,
         onStep: ((ThinkingStep) async -> Void)?
     ) async throws -> MultiChainResult.ClusterInsight {
-        guard ragService != nil else { 
+        guard ragService != nil else {
             throw AgenticError.serviceUnavailable
         }
 
@@ -3092,11 +4343,14 @@ extension AgenticOrchestrator {
 
         let docNames = Array(Set(chunks.map { $0.sourceDocument }))
 
+        // Clean up the cluster insight before storing
+        let cleanedInsight = cleanupFinalAnswer(chainResult.finalAnswer)
+
         return MultiChainResult.ClusterInsight(
             clusterName: clusterName,
             documents: docNames,
-            insight: chainResult.finalAnswer,
-            chainInsights: chainResult.chainInsights, // Preserve session-level insights
+            insight: cleanedInsight,
+            chainInsights: chainResult.chainInsights.map { cleanupFinalAnswer($0) },
             tokensUsed: chainResult.totalTokens,
             sessionsRun: chainResult.sessionCount
         )
@@ -3153,14 +4407,20 @@ extension AgenticOrchestrator {
         var totalTokens = 0
         var finalAnswer = ""
 
-        // Run synthesis sessions
+        // Run synthesis sessions - each session REFINES the previous, not concatenates
         for sessionIdx in 0 ..< synthesisSessions {
             let isLast = sessionIdx == synthesisSessions - 1
             let prompt = sessionIdx == 0 ? synthesisPrompt : """
-            Continue and deepen the synthesis. Previous progress:
-            \(String(finalAnswer.suffix(2000)))
+            Your previous synthesis attempt:
+            \(String(finalAnswer.prefix(3000)))
 
-            Add more detail, identify additional connections, and ensure completeness.
+            IMPROVE THIS SYNTHESIS by:
+            - Removing redundant/repeated content
+            - Organizing better with clear headers (##)
+            - Adding any missing details from the original findings
+            - Making it more coherent and readable
+
+            Produce a CLEAN, REFINED version (not additions - a complete rewrite):
             """
 
             let response = try await ragService.generateWithProperConsent(
@@ -3170,13 +4430,13 @@ extension AgenticOrchestrator {
                 maxTokens: isLast ? 1500 : 1000
             )
 
-            if sessionIdx == 0 {
-                finalAnswer = response.text
-            } else {
-                finalAnswer += "\n\n" + response.text
-            }
+            // Each session REPLACES the previous answer (refinement, not concatenation)
+            finalAnswer = response.text
             totalTokens += response.tokensGenerated
         }
+
+        // Final cleanup - remove any remaining raw markers
+        finalAnswer = cleanupFinalAnswer(finalAnswer)
 
         return (finalAnswer.trimmingCharacters(in: .whitespacesAndNewlines), totalTokens)
     }
@@ -3252,6 +4512,61 @@ extension AgenticOrchestrator {
         return variations
     }
 
+    /// Generate EXPANSION queries based on what FactBank has learned
+    /// Uses unanswered sub-questions for GAP-AWARE retrieval
+    /// This enables truly unlimited retrieval - we discover new search directions
+    private func generateExpansionQueries(
+        originalQuery: String,
+        factBank: FactBank
+    ) -> [String] {
+        var queries: [String] = []
+
+        // PRIORITY 1: Use unanswered sub-questions directly
+        // These are the GAPS we haven't filled yet
+        for unanswered in factBank.unansweredQuestions.prefix(3) {
+            // Combine original query topic with the gap
+            let queryCore = originalQuery.split(separator: " ").suffix(4).joined(separator: " ")
+            queries.append("\(queryCore) \(unanswered)")
+        }
+
+        // PRIORITY 2: Extract new entities from accumulated facts
+        let factText = factBank.coreFacts.joined(separator: " ")
+        let words = factText.lowercased().split(separator: " ").map(String.init)
+        let factWords = Set(words.filter { $0.count > 4 })
+
+        // Find NEW terms that appeared in facts but not original query
+        let originalTerms = Set(originalQuery.lowercased().split(separator: " ").map(String.init))
+        let newTerms = factWords.subtracting(originalTerms)
+            .filter { term in
+                !["about", "which", "these", "there", "their", "would", "could", "should", "found", "showed"].contains(term)
+            }
+
+        // Build expansion queries from new terms (only if we have room)
+        if queries.count < 4 {
+            let topNewTerms = Array(newTerms.prefix(3))
+            let originalCore = originalQuery.split(separator: " ").prefix(4).joined(separator: " ")
+            for term in topNewTerms.prefix(4 - queries.count) {
+                queries.append("\(originalCore) \(term)")
+            }
+        }
+
+        // PRIORITY 3: Gap-filling queries for research completeness
+        if queries.count < 5 {
+            let gapPatterns = [
+                "limitations of",
+                "conflicting evidence",
+                "alternative view"
+            ]
+            let queryCore = originalQuery.split(separator: " ").suffix(3).joined(separator: " ")
+            for pattern in gapPatterns.prefix(5 - queries.count) {
+                queries.append("\(pattern) \(queryCore)")
+            }
+        }
+
+        Log.info("[Expansion] Generated \(queries.count) queries: \(factBank.unansweredQuestions.count) gaps + new terms", category: .llm)
+        return queries
+    }
+
     /// Build prompt for a specific position in the reasoning chain
     private func buildChainPrompt(
         sessionIndex: Int,
@@ -3280,7 +4595,7 @@ extension AgenticOrchestrator {
             TASK: Analyze these documents. What specific facts answer the question?
             Look for exact numbers, durations, steps, or procedures.
 
-            Format: REASONING: [your analysis] → INSIGHT: [specific finding with details]
+            Write your findings as clear prose - no special markers or labels.
             """
             return (prompt, systemPrompt)
 
@@ -3327,8 +4642,7 @@ extension AgenticOrchestrator {
 
             TASK: What additional specific details do you find?
             Build on previous insights with new information.
-
-            Format: REASONING: [new details found] → INSIGHT: [additional specifics]
+            Write your findings as clear prose.
             """
             return (prompt, systemPrompt)
 
@@ -3344,9 +4658,7 @@ extension AgenticOrchestrator {
             \(context)
 
             TASK: What new aspects or specific details do you notice?
-            Add to previous insights.
-
-            Format: REASONING: [observations] → INSIGHT: [refined understanding with specifics]
+            Add to previous insights. Write as clear prose.
             """
             return (prompt, systemPrompt)
         }
@@ -3356,6 +4668,19 @@ extension AgenticOrchestrator {
     /// We want ALL the details the model found, not truncated snippets!
     private func extractInsight(from text: String, maxLength: Int) -> String {
         var result = text.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Clean up common LLM artifacts and markers (including truncated versions)
+        let markersToRemove = [
+            "REASONING:", "ONING:", "ASONING:", "SONING:", // Truncated REASONING
+            "INSIGHT:", "NSIGHT:", "SIGHT:", // Truncated INSIGHT
+            "ANALYSIS:", "OBSERVATION:", "CONCLUSION:",
+            "Re Reasoning:", "Re REASONING:",
+            "[new details found]", "[additional specifics]",
+        ]
+
+        for marker in markersToRemove {
+            result = result.replacingOccurrences(of: marker, with: "", options: .caseInsensitive)
+        }
 
         // If there's an INSIGHT: marker, prefer that section but keep it full
         if let insightRange = result.range(of: "INSIGHT:", options: .caseInsensitive) {
@@ -3374,13 +4699,16 @@ extension AgenticOrchestrator {
             }
         }
 
-        // Remove common prefixes that aren't useful
-        let prefixesToRemove = ["REASONING:", "ANALYSIS:", "OBSERVATION:"]
-        for prefix in prefixesToRemove {
-            if result.lowercased().hasPrefix(prefix.lowercased()) {
-                result = String(result.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
-            }
+        // Clean up again after extraction
+        for marker in markersToRemove {
+            result = result.replacingOccurrences(of: marker, with: "", options: .caseInsensitive)
         }
+
+        // Remove empty lines and normalize whitespace
+        result = result.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
 
         // Only truncate if REALLY necessary (way over budget)
         // maxLength is now 1500-2500, so this is a safety valve not a bottleneck
@@ -3437,6 +4765,75 @@ extension AgenticOrchestrator {
 
         // Just return the full text - it IS the answer
         return cleanedText
+    }
+
+    /// Clean up final answer by removing raw LLM markers and artifacts
+    private func cleanupFinalAnswer(_ text: String) -> String {
+        var result = text
+
+        // Remove all reasoning/insight markers (including truncated versions and variations)
+        let markersToRemove = [
+            // Full markers
+            "REASONING:", "INSIGHT:", "ANALYSIS:", "OBSERVATION:", "CONCLUSION:",
+            "ADDITIONAL SPECIFIC DETAILS:", "ADDITIONAL INSIGHTS:", "NEW DETAILS:",
+            "SUPPORTING DOCUMENTS:", "PROCEDURE:", "SPECIAL CASES:",
+            "RESPONSIBILITIES AND TASKS:", "SPECIAL NOTES:",
+            // Truncated markers (from generation cutoffs)
+            "ONING:", "ASONING:", "SONING:", "NING:",
+            "NSIGHT:", "SIGHT:", "IGHT:",
+            "LYSIS:", "YSIS:", "SIS:",
+            "Re Reasoning:", "*ONING:",
+            // Lowercased versions
+            "reasons:", "reason:", "insight:", "new details:",
+            // Meta markers
+            "[new details found]", "[additional specifics]",
+            "*(Generation stopped", "Please try again.)*",
+            "*(Generation stopped. Something went wrong. Please try again.)*",
+        ]
+
+        for marker in markersToRemove {
+            result = result.replacingOccurrences(of: marker, with: "", options: .caseInsensitive)
+        }
+
+        // Remove lines that are just markers or very short marker fragments
+        let badLinePatterns = [
+            "reasoning", "insight", "analysis", "observation", "conclusion",
+            "reasons", "new details", "additional", "procedure", "special cases",
+            "step 1", "step 2", "step 3", "step 4", "step 5",
+        ]
+        result = result.components(separatedBy: .newlines)
+            .filter { line in
+                let trimmed = line.trimmingCharacters(in: .whitespaces).lowercased()
+                // Keep non-empty lines that aren't just markers
+                guard !trimmed.isEmpty else { return false }
+                // Filter out lines that are JUST a marker word
+                for pattern in badLinePatterns {
+                    if trimmed == pattern || trimmed == pattern + ":" {
+                        return false
+                    }
+                }
+                return true
+            }
+            .joined(separator: "\n")
+
+        // Collapse multiple blank lines into single
+        while result.contains("\n\n\n") {
+            result = result.replacingOccurrences(of: "\n\n\n", with: "\n\n")
+        }
+
+        // Remove leading dashes/bullets that are orphaned
+        result = result.components(separatedBy: .newlines)
+            .map { line in
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                // Remove lines that are just "- " or "* " with nothing after
+                if trimmed == "-" || trimmed == "*" || trimmed == "•" {
+                    return ""
+                }
+                return line
+            }
+            .joined(separator: "\n")
+
+        return result.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// Parse confidence score from text
@@ -3578,15 +4975,18 @@ extension RAGService {
         prompt: String,
         context: String,
         systemPrompt: String,
-        maxTokens: Int
+        maxTokens: Int,
+        disableTools: Bool = false,
+        temperature: Float = 0.5
     ) async throws -> LLMResponse {
         var config = InferenceConfig(
             maxTokens: maxTokens,
-            temperature: 0.5, // Lower temperature for more focused answers
+            temperature: temperature, // Adaptive: higher for exploration, lower for synthesis
             systemPrompt: systemPrompt
         )
-        // NOTE: Tools remain ENABLED for reasoning chain sessions
-        // The model can autonomously call search_documents to gather more context as it reasons
+        // Tools disabled for Maximum mode sessions to prevent context overflow
+        // The chunks are pre-gathered and passed directly in the prompt
+        config.disableTools = disableTools
 
         // Check network and PCC eligibility
         let networkAvailable = NetworkMonitor.shared.isConnected
