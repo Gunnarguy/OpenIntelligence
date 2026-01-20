@@ -23,7 +23,7 @@ struct SettingsView: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(spacing: 16) {
+            VStack(spacing: 16) {
                 // Hero & Core Experience
                 heroCard
                 modelSelectionCard
@@ -897,6 +897,9 @@ Text(deviceService.chipName)
                     if settings.ragQualityMode.usesAgenticOrchestrator {
                         Divider()
                             .padding(.vertical, 4)
+                        featureRow(icon: "magnifyingglass.circle.fill", label: "Multi-Query Search", description: "LLM generates 4-5 search variations for universal coverage", color: .purple)
+                        featureRow(icon: "arrow.triangle.merge", label: "RRF Fusion", description: "Merges results from all query variations intelligently", color: .purple)
+                        featureRow(icon: "checkmark.seal.fill", label: "Semantic Validation", description: "Verifies retrieved content actually answers your question", color: .purple)
                         featureRow(icon: "arrow.trianglehead.2.clockwise.rotate.90", label: "Iterative Retrieval", description: "Retrieve → assess → refine → retrieve more", color: .purple)
                         featureRow(icon: "brain.head.profile", label: "Agentic Orchestrator", description: "4-8 reasoning sessions (95% confidence)", color: .purple)
                         featureRow(icon: "hammer.fill", label: "12+ Tool Functions", description: "SearchDocs, GetFullDocument, ExpandContext, etc.", color: .purple)

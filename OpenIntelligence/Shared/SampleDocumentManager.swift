@@ -437,6 +437,10 @@ Works cited
             try await ragService.addDocument(at: url, context: .onboarding)
             // DON'T delete - keep files so self-tuning rebuild can find them
         }
+
+        // Clear any pending reembed operations that may have been queued during import
+        // This prevents the annoying "reindexing" phase that appears right after onboarding
+        ragService.clearPendingReembeds()
     }
 
     /// Persists each sample document in the app's Documents directory (permanent storage).
@@ -457,7 +461,7 @@ Works cited
                 .appendingPathExtension(sample.extension)
 
             // Only write if file doesn't already exist (prevents duplicate ingestion)
-            if !FileManager.default.fileExists(atPath: fileURL.path) { 
+            if !FileManager.default.fileExists(atPath: fileURL.path) {
                 try sample.body.write(to: fileURL, atomically: true, encoding: .utf8)
             }
             urls.append(fileURL)

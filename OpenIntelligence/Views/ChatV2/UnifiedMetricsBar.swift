@@ -232,112 +232,457 @@ struct UnifiedMetricsBar: View {
         .animation(.easeInOut(duration: 0.2), value: stage)
     }
 
-    // MARK: - Main Compact Strip
+    // MARK: - Main Compact Strip (Two-Row Layout)
 
     private var mainCompactStrip: some View {
-        VStack(spacing: 6) {
-            // Top row: Key badges - no scroll, compact layout
+        VStack(spacing: 4) {
+            // Row 1: All the key metrics in one dense row
             HStack(spacing: 5) {
-                // Left group: Hardware & quality badges
-                HStack(spacing: 4) {
-                    // Neural Engine badge - ALWAYS show (it's your device's hardware!)
-                    executionBadge
+                // Quality mode (icon only for space)
+                qualityModeIcon
 
-                    qualityBadge
+                // Confidence (circular + %)
+                if isProcessing || sourceCount > 0 {
+                    compactConfidenceBadge
+                }
 
-                    // Live confidence meter for Maximum mode
-                    if isMaximumMode && isProcessing {
-                        confidenceMeterBadge
-                    }
+                // Sessions (for Maximum/Deep Think)
+                if isRecursiveRAG && recursiveCallCount > 0 {
+                    sessionCountBadge
+                }
 
-                    // Advanced RAG indicator (when enhanced features active)
-                    if hierarchicalChunkingActive || graphExpansionActive {
-                        advancedRAGBadge
-                    }
+                // Context tokens
+                if contextTokens > 0 {
+                    compactContextBadge
+                }
 
-                    // System state indicator (thermal/battery/memory warning)
+                // Speed
+                if tokensGenerated > 0 || isProcessing {
+                    compactSpeedBadge
+                }
+
+                // Output tokens
+                if tokensGenerated > 0 {
+                    compactOutputBadge
+                }
+
+                // Sources
+                if sourceCount > 0 {
+                    compactSourcesBadge
+                }
+
+                // Tools
+                if toolCallCount > 0 {
+                    compactToolsBadge
+                }
+
+                // Elapsed
+                if tokensGenerated > 0 {
+                    compactElapsedBadge
+                }
+
+                Spacer(minLength: 0)
+
+                // Thermal (only if bad)
+                let currentThermal = systemMonitor.currentState.thermalState
+                if currentThermal == .serious || currentThermal == .critical {
                     systemStateBadge
                 }
 
-                Spacer(minLength: 4)
-
-                // Right group: Metrics (tighter spacing)
-                HStack(spacing: 4) {
-                    // Context gauge (always visible)
-                    contextGauge
-
-                    // Speed (during generation or after completion)
-                    if tokensGenerated > 0 || isProcessing {
-                        speedBadge
-                    }
-
-                    // Sources (when we have them)
-                    if sourceCount > 0 {
-                        sourcesBadge
-                    }
-
-                    // Expand chevron
-                    Image(systemName: showExpandedDetails ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(.secondary.opacity(0.7))
-                }
+                // Chevron
+                Image(systemName: showExpandedDetails ? "chevron.up" : "chevron.down")
+                    .font(.system(size: 8, weight: .semibold))
+                    .foregroundStyle(.secondary.opacity(0.6))
             }
 
-            // Bottom row: Live generation stats (only during/after generation)
-            if tokensGenerated > 0 {
-                HStack(spacing: 10) {
-                    // Generated tokens (LLM output)
-                    HStack(spacing: 3) {
-                        Image(systemName: "arrow.up.doc")
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundStyle(.green)
-                        Text(formatTokenCount(tokensGenerated))
-                            .font(.system(size: 11, weight: .bold, design: .monospaced))
-                            .foregroundStyle(.primary)
-                    }
-
-                    // Character count
-                    HStack(spacing: 3) {
-                        Image(systemName: "character.cursor.ibeam")
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundStyle(.secondary)
-                        Text(formatCount(characterCount))
-                            .font(.system(size: 10, weight: .medium, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                    }
-
-                    // Elapsed time with status indicator
-                    HStack(spacing: 3) {
-                        Image(systemName: isProcessing ? "clock" : "checkmark.circle.fill")
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundStyle(isProcessing ? .orange : .green)
-                        Text(formatElapsed(elapsedTime))
-                            .font(.system(size: 10, weight: .medium, design: .monospaced))
-                            .foregroundStyle(isProcessing ? .orange : .green)
-                    }
-
-                    // Sparkline (only during active streaming with history)
-                    if isProcessing && speedHistory.count > 2 {
-                        MiniSparkline(values: speedHistory, color: speedColor)
-                            .frame(width: 40, height: 12)
-                    }
-
-                    Spacer()
-
-                    // Tool calls (if any)
-                    if toolCallCount > 0 {
-                        toolCallBadge
-                    }
-                }
+            // Row 2: Sparkline (the visual star)
+            if speedHistory.count > 1 {
+                MiniSparkline(values: speedHistory, color: speedColor)
+                    .frame(height: 18)
             }
         }
         .padding(.vertical, 6)
-        .padding(.horizontal, 10)
+        .padding(.horizontal, 8)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(.ultraThinMaterial)
         )
         .contentShape(Rectangle())
+    }
+
+    // MARK: - Compact Badges (no verbose labels, just data)
+
+    private var qualityModeIcon: some View {
+        Image(systemName: qualityMode.icon)
+            .font(.system(size: 10, weight: .bold))
+            .foregroundStyle(qualityModeColor)
+            .padding(4)
+            .background(qualityModeColor.opacity(0.15))
+            .clipShape(Circle())
+    }
+
+    private var compactConfidenceBadge: some View {
+        let confidence = computedConfidence
+        let pct = Int(confidence * 100)
+        let color = confidenceColorFor(confidence)
+
+        return HStack(spacing: 2) {
+            // Mini circular progress
+            ZStack {
+                Circle()
+                    .stroke(color.opacity(0.2), lineWidth: 2)
+                    .frame(width: 12, height: 12)
+                Circle()
+                    .trim(from: 0, to: CGFloat(confidence))
+                    .stroke(color, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                    .frame(width: 12, height: 12)
+                    .rotationEffect(.degrees(-90))
+            }
+            Text("\(pct)%")
+                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                .foregroundStyle(color)
+        }
+    }
+
+    private var sessionCountBadge: some View {
+        HStack(spacing: 2) {
+            Image(systemName: "arrow.trianglehead.branch")
+                .font(.system(size: 8, weight: .semibold))
+            Text("\(recursiveCallCount)")
+                .font(.system(size: 9, weight: .bold, design: .monospaced))
+        }
+        .foregroundStyle(.cyan)
+        .padding(.horizontal, 4)
+        .padding(.vertical, 2)
+        .background(Color.cyan.opacity(0.12))
+        .clipShape(Capsule())
+    }
+
+    private var compactContextBadge: some View {
+        HStack(spacing: 2) {
+            Image(systemName: "doc.viewfinder")
+                .font(.system(size: 8, weight: .semibold))
+            Text(formatTokenCount(contextTokens))
+                .font(.system(size: 9, weight: .bold, design: .monospaced))
+        }
+        .foregroundStyle(contextColor)
+        .padding(.horizontal, 4)
+        .padding(.vertical, 2)
+        .background(contextColor.opacity(0.1))
+        .clipShape(Capsule())
+    }
+
+    private var compactSpeedBadge: some View {
+        HStack(spacing: 1) {
+            Image(systemName: "gauge.with.needle.fill")
+                .font(.system(size: 8, weight: .semibold))
+            Text(String(format: "%.0f", tokensPerSecond))
+                .font(.system(size: 9, weight: .bold, design: .monospaced))
+            Text("t/s")
+                .font(.system(size: 7, weight: .medium))
+                .opacity(0.7)
+        }
+        .foregroundStyle(speedColor)
+        .padding(.horizontal, 4)
+        .padding(.vertical, 2)
+        .background(speedColor.opacity(0.1))
+        .clipShape(Capsule())
+    }
+
+    private var compactOutputBadge: some View {
+        HStack(spacing: 2) {
+            Image(systemName: "text.bubble.fill")
+                .font(.system(size: 8, weight: .semibold))
+            Text(formatTokenCount(tokensGenerated))
+                .font(.system(size: 9, weight: .bold, design: .monospaced))
+        }
+        .foregroundStyle(.green)
+        .padding(.horizontal, 4)
+        .padding(.vertical, 2)
+        .background(Color.green.opacity(0.1))
+        .clipShape(Capsule())
+    }
+
+    private var compactSourcesBadge: some View {
+        HStack(spacing: 2) {
+            Image(systemName: "doc.text.fill")
+                .font(.system(size: 8, weight: .semibold))
+            Text("\(sourceCount)")
+                .font(.system(size: 9, weight: .bold, design: .monospaced))
+        }
+        .foregroundStyle(sourceQualityColor)
+        .padding(.horizontal, 4)
+        .padding(.vertical, 2)
+        .background(sourceQualityColor.opacity(0.1))
+        .clipShape(Capsule())
+    }
+
+    private var compactToolsBadge: some View {
+        HStack(spacing: 2) {
+            Image(systemName: "function")
+                .font(.system(size: 8, weight: .semibold))
+            Text("\(toolCallCount)")
+                .font(.system(size: 9, weight: .bold, design: .monospaced))
+        }
+        .foregroundStyle(.purple)
+        .padding(.horizontal, 4)
+        .padding(.vertical, 2)
+        .background(Color.purple.opacity(0.1))
+        .clipShape(Capsule())
+    }
+
+    private var compactElapsedBadge: some View {
+        HStack(spacing: 2) {
+            Image(systemName: isProcessing ? "timer" : "checkmark.circle.fill")
+                .font(.system(size: 8, weight: .medium))
+            Text(formatElapsed(elapsedTime))
+                .font(.system(size: 9, weight: .medium, design: .monospaced))
+        }
+        .foregroundStyle(isProcessing ? .orange : .green)
+    }
+
+    // MARK: - Descriptive Quality Badge (kept for expanded view)
+
+    private var qualityBadgeDescriptive: some View {
+        HStack(spacing: 4) {
+            Image(systemName: qualityMode.icon)
+                .font(.system(size: 10, weight: .semibold))
+            Text(qualityModeLabel)
+                .font(.system(size: 10, weight: .semibold))
+        }
+        .foregroundStyle(qualityModeColor)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(qualityModeColor.opacity(0.12))
+        .clipShape(Capsule())
+    }
+
+    private var qualityModeLabel: String {
+        switch qualityMode.canonical {
+        case .standard: return "Standard"
+        case .deepThink: return "Deep Think"
+        case .maximum: return "Maximum"
+        default: return "Standard"
+        }
+    }
+
+    // MARK: - Descriptive Advanced RAG Badge
+
+    private var advancedRAGBadgeDescriptive: some View {
+        HStack(spacing: 3) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 9, weight: .semibold))
+            Text(advancedRAGLabelDescriptive)
+                .font(.system(size: 9, weight: .semibold))
+        }
+        .foregroundStyle(.yellow)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(Color.yellow.opacity(0.12))
+        .clipShape(Capsule())
+    }
+
+    private var advancedRAGLabelDescriptive: String {
+        var parts: [String] = []
+        if hierarchicalChunkingActive { parts.append("Hierarchical") }
+        if graphExpansionActive { parts.append("Graph") }
+        if parts.isEmpty { return "Enhanced" }
+        return parts.joined(separator: " + ")
+    }
+
+    // MARK: - Elapsed Time Badge
+
+    private var elapsedTimeBadge: some View {
+        HStack(spacing: 3) {
+            Image(systemName: isProcessing ? "timer" : "checkmark.circle.fill")
+                .font(.system(size: 9, weight: .medium))
+            Text(formatElapsed(elapsedTime))
+                .font(.system(size: 10, weight: .medium, design: .monospaced))
+            if !isProcessing {
+                Text("done")
+                    .font(.system(size: 8, weight: .medium))
+                    .opacity(0.7)
+            }
+        }
+        .foregroundStyle(isProcessing ? .orange : .green)
+    }
+
+    // MARK: - Descriptive Context Gauge
+
+    private var contextGaugeDescriptive: some View {
+        // For Deep Think: Context window is IRRELEVANT - we chain multiple sessions
+        if isRecursiveRAG {
+            return AnyView(
+                HStack(spacing: 3) {
+                    Image(systemName: "arrow.trianglehead.branch")
+                        .font(.system(size: 9, weight: .semibold))
+                    if recursiveCallCount > 0 {
+                        Text("\(recursiveCallCount) sessions")
+                            .font(.system(size: 10, weight: .semibold))
+                    }
+                    if contextTokens > 0 {
+                        Text("• \(formatTokenCount(contextTokens)) tokens")
+                            .font(.system(size: 9, weight: .medium))
+                            .opacity(0.8)
+                    }
+                }
+                .foregroundStyle(.cyan)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(Color.cyan.opacity(0.12))
+                .clipShape(Capsule())
+            )
+        }
+
+        // Standard mode: show context with label
+        return AnyView(
+            HStack(spacing: 3) {
+                Image(systemName: "doc.viewfinder")
+                    .font(.system(size: 9, weight: .semibold))
+                Text("Context:")
+                    .font(.system(size: 9, weight: .medium))
+                    .opacity(0.7)
+                Text(formatTokenCount(contextTokens))
+                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                Text("tokens")
+                    .font(.system(size: 8, weight: .medium))
+                    .opacity(0.6)
+            }
+            .foregroundStyle(contextColor)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(contextColor.opacity(0.1))
+            .clipShape(Capsule())
+        )
+    }
+
+    // MARK: - Descriptive Speed Badge
+
+    private var speedBadgeDescriptive: some View {
+        HStack(spacing: 3) {
+            Image(systemName: "gauge.with.needle.fill")
+                .font(.system(size: 9, weight: .semibold))
+            Text("Speed:")
+                .font(.system(size: 9, weight: .medium))
+                .opacity(0.7)
+            Text(String(format: "%.0f", tokensPerSecond))
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
+            Text("t/s")
+                .font(.system(size: 8, weight: .medium))
+                .opacity(0.6)
+        }
+        .foregroundStyle(speedColor)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(speedColor.opacity(0.1))
+        .clipShape(Capsule())
+    }
+
+    // MARK: - Descriptive Output Tokens Badge
+
+    private var outputTokensBadgeDescriptive: some View {
+        HStack(spacing: 3) {
+            Image(systemName: "text.bubble.fill")
+                .font(.system(size: 9, weight: .semibold))
+            Text("Output:")
+                .font(.system(size: 9, weight: .medium))
+                .opacity(0.7)
+            Text(formatTokenCount(tokensGenerated))
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
+            Text("tokens")
+                .font(.system(size: 8, weight: .medium))
+                .opacity(0.6)
+        }
+        .foregroundStyle(.green)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(Color.green.opacity(0.1))
+        .clipShape(Capsule())
+    }
+
+    // MARK: - Descriptive Sources Badge
+
+    private var sourcesBadgeDescriptive: some View {
+        HStack(spacing: 3) {
+            Image(systemName: "doc.text.fill")
+                .font(.system(size: 9, weight: .semibold))
+            Text("\(sourceCount)")
+                .font(.system(size: 10, weight: .bold))
+            Text(sourceCount == 1 ? "source" : "sources")
+                .font(.system(size: 9, weight: .medium))
+                .opacity(0.7)
+            // Show quality indicator
+            if let score = averageSourceScore {
+                Text("•")
+                    .font(.system(size: 5))
+                    .opacity(0.5)
+                Text(sourceQualityLabel(score))
+                    .font(.system(size: 8, weight: .semibold))
+            }
+        }
+        .foregroundStyle(sourceQualityColor)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(sourceQualityColor.opacity(0.12))
+        .clipShape(Capsule())
+    }
+
+    private func sourceQualityLabel(_ score: Float) -> String {
+        if score > 0.7 { return "excellent" }
+        if score > 0.5 { return "good" }
+        if score > 0.3 { return "fair" }
+        return "weak"
+    }
+
+    // MARK: - Descriptive Tool Call Badge
+
+    private var toolCallBadgeDescriptive: some View {
+        HStack(spacing: 3) {
+            Image(systemName: "function")
+                .font(.system(size: 9, weight: .semibold))
+            Text("\(toolCallCount)")
+                .font(.system(size: 10, weight: .bold))
+            Text(toolCallCount == 1 ? "tool call" : "tool calls")
+                .font(.system(size: 9, weight: .medium))
+                .opacity(0.7)
+        }
+        .foregroundStyle(.purple)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(Color.purple.opacity(0.12))
+        .clipShape(Capsule())
+    }
+
+    // MARK: - Output Tokens Badge (LLM response size)
+
+    private var outputTokensBadge: some View {
+        HStack(spacing: 1) {
+            Image(systemName: "text.bubble.fill")
+                .font(.system(size: 7, weight: .semibold))
+            Text(formatTokenCount(tokensGenerated))
+                .font(.system(size: 8, weight: .bold, design: .monospaced))
+        }
+        .foregroundStyle(.green)
+        .padding(.horizontal, 4)
+        .padding(.vertical, 2)
+        .background(Color.green.opacity(0.1))
+        .clipShape(Capsule())
+    }
+
+    // MARK: - Character Count Badge
+
+    private var characterCountBadge: some View {
+        HStack(spacing: 2) {
+            Image(systemName: "textformat.size")
+                .font(.system(size: 8, weight: .semibold))
+            Text(formatCount(characterCount))
+                .font(.system(size: 10, weight: .medium, design: .monospaced))
+        }
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 5)
+        .padding(.vertical, 3)
+        .background(Color.secondary.opacity(0.1))
+        .clipShape(Capsule())
     }
 
     // MARK: - Badges
@@ -415,9 +760,9 @@ struct UnifiedMetricsBar: View {
 
     private var executionBadgeLabel: String {
         switch execution {
-        case .onDevice, .unknown: return "Neural Engine"
-        case .privateCloudCompute: return "Private Cloud"
-        case .mlxLocal: return "MLX Local"
+        case .onDevice, .unknown: return "NE"
+        case .privateCloudCompute: return "PC"
+        case .mlxLocal: return "MLX"
         }
     }
 
@@ -471,28 +816,28 @@ struct UnifiedMetricsBar: View {
         // Just show total tokens used across all sessions
         if isRecursiveRAG {
             return AnyView(
-                HStack(spacing: 4) {
+                HStack(spacing: 2) {
                     Image(systemName: "arrow.trianglehead.branch")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.system(size: 7, weight: .semibold))
 
                     // Show sessions count (this is what matters)
                     if recursiveCallCount > 0 {
                         Text("\(recursiveCallCount)×")
-                            .font(.system(size: 10, weight: .bold, design: .monospaced))
+                            .font(.system(size: 8, weight: .bold, design: .monospaced))
                     }
 
                     // Total tokens (summed across all sessions)
                     if contextTokens > 0 {
                         Text(formatTokenCount(contextTokens))
-                            .font(.system(size: 10, weight: .bold, design: .monospaced))
+                            .font(.system(size: 8, weight: .bold, design: .monospaced))
                     } else {
                         Text("...")
-                            .font(.system(size: 9, weight: .medium))
+                            .font(.system(size: 7, weight: .medium))
                     }
                 }
                 .foregroundStyle(.cyan)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 2)
                 .background(Color.cyan.opacity(0.12))
                 .clipShape(Capsule())
             )
@@ -501,20 +846,20 @@ struct UnifiedMetricsBar: View {
         // Standard mode: show token count with context-appropriate icon
         // Using doc.viewfinder to represent "retrieved context"
         return AnyView(
-            HStack(spacing: 3) {
+            HStack(spacing: 2) {
                 Image(systemName: "doc.viewfinder")
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(.system(size: 7, weight: .semibold))
                 if contextTokens > 0 {
                     Text(formatTokenCount(contextTokens))
-                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .font(.system(size: 8, weight: .bold, design: .monospaced))
                 } else {
                     Text("—")
-                        .font(.system(size: 9, weight: .medium))
+                        .font(.system(size: 7, weight: .medium))
                 }
             }
             .foregroundStyle(contextColor)
-            .padding(.horizontal, 5)
-            .padding(.vertical, 3)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 2)
             .background(contextColor.opacity(0.1))
             .clipShape(Capsule())
         )
@@ -531,32 +876,32 @@ struct UnifiedMetricsBar: View {
     }
 
     private var speedBadge: some View {
-        HStack(spacing: 2) {
-            Image(systemName: "bolt.fill")
-                .font(.system(size: 8, weight: .semibold))
+        HStack(spacing: 1) {
+            Image(systemName: "gauge.with.needle.fill")
+                .font(.system(size: 6, weight: .semibold))
             Text(String(format: "%.0f", tokensPerSecond))
-                .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                .font(.system(size: 8, weight: .semibold, design: .monospaced))
             Text("t/s")
-                .font(.system(size: 7, weight: .medium))
+                .font(.system(size: 6, weight: .medium))
                 .opacity(0.7)
         }
         .foregroundStyle(speedColor)
-        .padding(.horizontal, 5)
-        .padding(.vertical, 3)
+        .padding(.horizontal, 4)
+        .padding(.vertical, 2)
         .background(speedColor.opacity(0.1))
         .clipShape(Capsule())
     }
 
     private var sourcesBadge: some View {
-        HStack(spacing: 2) {
-            Image(systemName: "quote.bubble.fill")
-                .font(.system(size: 8, weight: .semibold))
+        HStack(spacing: 1) {
+            Image(systemName: "doc.text.fill")
+                .font(.system(size: 6, weight: .semibold))
             Text("\(sourceCount)")
-                .font(.system(size: 9, weight: .bold))
+                .font(.system(size: 8, weight: .bold))
         }
         .foregroundStyle(sourceQualityColor)
-        .padding(.horizontal, 5)
-        .padding(.vertical, 3)
+        .padding(.horizontal, 4)
+        .padding(.vertical, 2)
         .background(sourceQualityColor.opacity(0.12))
         .clipShape(Capsule())
     }
@@ -594,15 +939,15 @@ struct UnifiedMetricsBar: View {
     // MARK: - Advanced RAG Badge (compact indicator for enhanced features)
 
     private var advancedRAGBadge: some View {
-        HStack(spacing: 3) {
+        HStack(spacing: 1) {
             Image(systemName: "sparkles")
-                .font(.system(size: 8, weight: .semibold))
+                .font(.system(size: 6, weight: .semibold))
             Text(advancedRAGLabel)
-                .font(.system(size: 8, weight: .semibold))
+                .font(.system(size: 7, weight: .semibold))
         }
         .foregroundStyle(.yellow)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 4)
+        .padding(.vertical, 2)
         .background(Color.yellow.opacity(0.12))
         .clipShape(Capsule())
     }
@@ -649,9 +994,9 @@ struct UnifiedMetricsBar: View {
     private var qualityBadge: some View {
         // Show quality mode icon with appropriate color
         Image(systemName: qualityMode.icon)
-            .font(.system(size: 9, weight: .semibold))
+            .font(.system(size: 8, weight: .semibold))
 .foregroundStyle(qualityModeColor.opacity(0.8))
-            .padding(4)
+            .padding(3)
 .background(qualityModeColor.opacity(0.08))
             .clipShape(Circle())
     }
@@ -665,60 +1010,101 @@ struct UnifiedMetricsBar: View {
         }
     }
 
-    // MARK: - Confidence Meter Badge (Maximum Mode)
+    // MARK: - Universal Confidence Badge (All Modes)
 
-    /// Live confidence meter showing progress toward 98% threshold
-    /// Displays as an animated circular gauge with percentage
-    private var confidenceMeterBadge: some View {
-        let confidencePercent = Int(liveConfidence * 100)
-        let threshold = 98
-        let progress = min(liveConfidence / 0.98, 1.0) // Progress toward 98%
+    /// Computed confidence based on quality mode:
+    /// - Standard: Retrieval quality (topSimilarity scaled, instant)
+    /// - Deep Think: Session progress + retrieval quality (builds over 3 sessions)
+    /// - Maximum: Live agentic confidence (builds toward 98%)
+    private var computedConfidence: Float {
+        if isMaximumMode {
+            // Maximum mode: Use live confidence from agentic orchestrator
+            return liveConfidence
+        } else if isRecursiveRAG {
+            // Deep Think: Session progress (each of 3 sessions = ~33%) + retrieval boost
+            let sessionProgress = min(Float(recursiveCallCount) / 3.0, 1.0) * 0.7
+            let retrievalBoost = min(topSimilarity, 1.0) * 0.3
+            return min(sessionProgress + retrievalBoost, 1.0)
+        } else {
+            // Standard mode: Pure retrieval quality
+            // topSimilarity 0.7+ = excellent (90%+), 0.5 = good (70%), 0.3 = weak (40%)
+            if topSimilarity > 0 {
+                // Scale: 0.3 → 40%, 0.5 → 70%, 0.7 → 90%, 0.85+ → 98%
+                let scaled = (topSimilarity - 0.2) / 0.65  // 0.2-0.85 → 0-1
+                return min(max(scaled, 0.1), 0.98)
+            } else if sourceCount > 0 {
+                // Fallback: use average source score if available
+                if let avg = averageSourceScore {
+                    return min(max((avg - 0.2) / 0.6, 0.1), 0.98)
+                }
+                return 0.5  // Sources found but no score
+            }
+            return 0.0
+        }
+    }
+
+    /// Universal confidence badge that adapts to quality mode
+    private var universalConfidenceBadge: some View {
+        let confidence = computedConfidence
+        let confidencePercent = Int(confidence * 100)
+        let badgeColor = confidenceColorFor(confidence)
+
+        // Different thresholds per mode
+        let targetReached: Bool = {
+            if isMaximumMode { return confidence >= 0.98 }
+            if isRecursiveRAG { return confidence >= 0.85 }
+            return confidence >= 0.70  // Standard: 70%+ is solid
+        }()
 
         return HStack(spacing: 3) {
             // Circular progress indicator
             ZStack {
                 Circle()
-                    .stroke(Color.orange.opacity(0.2), lineWidth: 2)
+                    .stroke(badgeColor.opacity(0.2), lineWidth: 2)
                     .frame(width: 14, height: 14)
 
                 Circle()
-                    .trim(from: 0, to: CGFloat(progress))
+                    .trim(from: 0, to: CGFloat(confidence))
                     .stroke(
-                        confidenceColor,
+                        badgeColor,
                         style: StrokeStyle(lineWidth: 2, lineCap: .round)
                     )
                     .frame(width: 14, height: 14)
                     .rotationEffect(.degrees(-90))
-                    .animation(.easeInOut(duration: 0.3), value: liveConfidence)
+                    .animation(.easeInOut(duration: 0.3), value: confidence)
             }
 
-            // Percentage text
+            // Confidence label + percentage
+            Text("Confidence:")
+                .font(.system(size: 9, weight: .medium))
+                .opacity(0.7)
             Text("\(confidencePercent)%")
                 .font(.system(size: 10, weight: .bold, design: .monospaced))
-                .foregroundStyle(confidenceColor)
+                .foregroundStyle(badgeColor)
 
-            // Target indicator
-            if confidencePercent >= threshold {
+            // Target indicator (mode-appropriate)
+            if targetReached {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 9))
                     .foregroundStyle(.green)
             }
         }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 3)
-        .background(confidenceColor.opacity(0.1))
+        .foregroundStyle(badgeColor)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(badgeColor.opacity(0.1))
         .clipShape(Capsule())
         .overlay(
             Capsule()
-                .stroke(confidenceColor.opacity(0.3), lineWidth: 0.5)
+                .stroke(badgeColor.opacity(0.3), lineWidth: 0.5)
         )
     }
 
-    /// Color for confidence meter based on progress
-    private var confidenceColor: Color {
-        if liveConfidence >= 0.98 { return .green }
-        if liveConfidence >= 0.80 { return .yellow }
-        if liveConfidence >= 0.50 { return .orange }
+    /// Color for confidence based on value (mode-agnostic)
+    private func confidenceColorFor(_ confidence: Float) -> Color {
+        if confidence >= 0.85 { return .green }
+        if confidence >= 0.65 { return .yellow }
+        if confidence >= 0.40 { return .orange }
         return .red
     }
 
@@ -752,15 +1138,15 @@ struct UnifiedMetricsBar: View {
     }
 
     private var toolCallBadge: some View {
-        HStack(spacing: 3) {
-            Image(systemName: "wrench.and.screwdriver")
-                .font(.system(size: 8, weight: .semibold))
+        HStack(spacing: 1) {
+            Image(systemName: "function")
+                .font(.system(size: 6, weight: .semibold))
             Text("\(toolCallCount)")
-                .font(.system(size: 9, weight: .semibold))
+                .font(.system(size: 8, weight: .semibold))
         }
         .foregroundStyle(.purple)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 4)
+        .padding(.vertical, 2)
         .background(Color.purple.opacity(0.12))
         .clipShape(Capsule())
     }
@@ -2153,13 +2539,6 @@ struct UnifiedMetricsBar: View {
         .padding(12)
         .background(Color.blue.opacity(0.06))
         .clipShape(RoundedRectangle(cornerRadius: 10))
-    }
-
-    private func sourceQualityLabel(_ score: Float) -> String {
-        if score > 0.7 { return "Excellent" }
-        if score > 0.5 { return "Good" }
-        if score > 0.3 { return "Fair" }
-        return "Low"
     }
 
     // MARK: - Section: Device Health

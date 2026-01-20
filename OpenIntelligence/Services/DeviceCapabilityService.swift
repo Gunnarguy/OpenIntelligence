@@ -323,12 +323,11 @@ final class DeviceCapabilityService: @unchecked Sendable {
                 }
             }
 
-            // Also detect the HOST Mac's capabilities for accurate performance estimation
+            // Detect the HOST Mac's capabilities for accurate performance estimation
             // The simulator runs on your Mac, so we can use Mac-level performance
             let hostMac = detectHostMacCapability()
             return (hostMac.tier, "Simulator on \(hostMac.chip)", .mac, "Simulator:HostMac", hostMac.tops)
-        #endif
-
+        #else
         // iPhone detection
         if identifier.hasPrefix("iPhone") {
             let (tier, chip, tops) = detectiPhoneCapability(identifier: identifier)
@@ -356,6 +355,7 @@ final class DeviceCapabilityService: @unchecked Sendable {
 
         // Fallback for unknown devices
         return (.unsupported, "Unknown", .unknown, identifier, 0)
+        #endif
     }
 
     /// Detect host Mac capabilities using sysctl for accurate chip identification

@@ -50,8 +50,8 @@ enum RAGQualityMode: String, Identifiable, Sendable {
     var description: String {
         switch canonical {
         case .standard: return "Comprehensive search with HyDE, compression & citations"
-        case .deepThink: return "Multi-step reasoning for complex questions"
-        case .maximum: return "Unlimited reasoning until 98% confident"
+        case .deepThink: return "Multi-query retrieval + multi-step reasoning"
+        case .maximum: return "Multi-query + unlimited reasoning until 98% confident"
         default: return "Comprehensive search"
         }
     }

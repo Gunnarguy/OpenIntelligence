@@ -146,8 +146,8 @@ struct KnowledgeContainer: Identifiable, Codable, Equatable, Sendable {
 
     // MARK: - Factory Methods
 
-    /// Create a high-accuracy container using NLContextualEmbedding (iOS 17+)
-    /// Uses BERT-like contextual embeddings for 15-25% better semantic accuracy
+    /// Create a high-accuracy container using CoreML Sentence Embedding
+    /// Uses semantic embeddings optimized for retrieval
     /// Best for: research, medical, legal, or any high-stakes documents
     static func highAccuracy(
         name: String,
@@ -159,9 +159,9 @@ struct KnowledgeContainer: Identifiable, Codable, Equatable, Sendable {
             name: name,
             icon: icon,
             colorHex: colorHex,
-            description: description ?? "High-accuracy container with contextual embeddings",
-            embeddingProviderId: "nl_contextual_embedding",
-            embeddingDim: 512, // NLContextualEmbedding outputs 512-dim
+            description: description ?? "High-accuracy container with semantic embeddings",
+            embeddingProviderId: "coreml_sentence_embedding",
+            embeddingDim: 384, // CoreMLSentenceEmbedding outputs 384-dim
             vectorDBKind: .persistentJSON,
             autoAdaptDimension: true,
             retrievalConfig: .highAccuracy

@@ -120,7 +120,44 @@ final class ContainerService: ObservableObject {
         guard FileManager.default.fileExists(atPath: url.path) else { return [] }
         do {
             let data = try Data(contentsOf: url)
-            let decoded = try JSONDecoder().decode([KnowledgeContainer].self, from: data)
+            var decoded = try JSONDecoder().decode([KnowledgeContainer].self, from: data)
+
+            // MIGRATION: Fix containers with incorrect embedding dimensions or unsupported providers
+            // nl_contextual_embedding is not a supported provider - it falls back to CoreML at runtime
+            // which causes dimension mismatch rebuilds after document import
+            let validDimensions: Set<Int> = [384, 512, 1024]
+            var needsSave = false
+
+            for (idx, container) in decoded.enumerated() {
+                var fixed = container
+                var didFix = false
+
+                // Fix unsupported provider: nl_contextual_embedding → coreml_sentence_embedding
+                if container.embeddingProviderId == "nl_contextual_embedding" {
+                    Log.warning("[ContainerService] Migrating container '\(container.name)' from unsupported nl_contextual_embedding to coreml_sentence_embedding", category: .initialization)
+                    fixed.embeddingProviderId = "coreml_sentence_embedding"
+                    fixed.embeddingDim = 384
+                    didFix = true
+                }
+
+                // Fix invalid dimensions (only if not already fixed above)
+                if !didFix, !validDimensions.contains(container.embeddingDim) {
+                    Log.warning("[ContainerService] Migrating container '\(container.name)' from invalid embeddingDim \(container.embeddingDim) to 384", category: .initialization)
+                    fixed.embeddingDim = 384
+                    didFix = true
+                }
+
+                if didFix {
+                    decoded[idx] = fixed
+                    needsSave = true
+                }
+            }
+
+            if needsSave {
+                saveContainers(decoded)
+                Log.info("[ContainerService] Migration complete - saved corrected containers", category: .initialization)
+            }
+
             return decoded
         } catch {
             Log.error("[ContainerService] Failed to load containers: \(error.localizedDescription)", category: .initialization)

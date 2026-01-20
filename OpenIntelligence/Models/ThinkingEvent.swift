@@ -5,6 +5,7 @@ import Foundation
 /// RAG pipeline is progressing (embedding, retrieval, gating, etc.).
 struct ThinkingEvent: Identifiable, Sendable, Equatable {
     enum Kind: String, CaseIterable, Sendable {
+        // Core pipeline stages
         case planning
         case embedding
         case retrieval
@@ -14,6 +15,23 @@ struct ThinkingEvent: Identifiable, Sendable, Equatable {
         case generation
         case fallback
         case warning
+
+        // Advanced RAG techniques (transparency layer)
+        case hyde           // Hypothetical Document Embeddings
+        case queryRewrite   // Query reformulation/expansion
+        case bm25           // Keyword search (Okapi BM25)
+        case vectorSearch   // Semantic/neural search
+        case rrf            // Reciprocal Rank Fusion
+        case mmr            // Maximal Marginal Relevance (diversity)
+        case parentDoc      // Parent Document Retrieval (sibling expansion)
+        case compression    // Contextual Compression
+        case lostInMiddle   // Lost-in-Middle reordering
+        case grounding      // Answer grounding verification
+        case selfRag        // Self-RAG reflection/critique
+        case iterative      // Iterative retrieval refinement
+        case agentic        // Agentic orchestration step
+        case toolCall       // Function/tool invocation
+        case factBank       // FactBank update (Maximum mode)
 
         /// Maps each kind to a system icon for quick visual scanning.
         var systemIconName: String {
@@ -27,6 +45,68 @@ struct ThinkingEvent: Identifiable, Sendable, Equatable {
             case .generation: return "sparkles"
             case .fallback: return "arrow.uturn.backward"
             case .warning: return "exclamationmark.triangle"
+            // Advanced techniques
+            case .hyde: return "doc.text.magnifyingglass"
+            case .queryRewrite: return "pencil.and.outline"
+            case .bm25: return "textformat.abc"
+            case .vectorSearch: return "cube.transparent"
+            case .rrf: return "arrow.triangle.merge"
+            case .mmr: return "square.3.layers.3d"
+            case .parentDoc: return "doc.on.doc"
+            case .compression: return "arrow.down.right.and.arrow.up.left"
+            case .lostInMiddle: return "arrow.up.arrow.down"
+            case .grounding: return "checkmark.seal"
+            case .selfRag: return "arrow.2.circlepath"
+            case .iterative: return "repeat"
+            case .agentic: return "brain"
+            case .toolCall: return "function"
+            case .factBank: return "tray.full"
+            }
+        }
+
+        /// Human-readable technique name
+        var displayName: String {
+            switch self {
+            case .planning: return "Planning"
+            case .embedding: return "Embedding"
+            case .retrieval: return "Retrieval"
+            case .rerank: return "Re-ranking"
+            case .gating: return "Confidence Gate"
+            case .context: return "Context Assembly"
+            case .generation: return "Generation"
+            case .fallback: return "Fallback"
+            case .warning: return "Warning"
+            case .hyde: return "HyDE"
+            case .queryRewrite: return "Query Rewrite"
+            case .bm25: return "BM25 (Keyword)"
+            case .vectorSearch: return "Vector Search"
+            case .rrf: return "RRF Fusion"
+            case .mmr: return "MMR Diversity"
+            case .parentDoc: return "Parent Doc Expansion"
+            case .compression: return "Compression"
+            case .lostInMiddle: return "Position Reorder"
+            case .grounding: return "Grounding Check"
+            case .selfRag: return "Self-RAG"
+            case .iterative: return "Iterative Retrieval"
+            case .agentic: return "Agentic Step"
+            case .toolCall: return "Tool Call"
+            case .factBank: return "FactBank"
+            }
+        }
+
+        /// Color for the technique category
+        var color: String {
+            switch self {
+            case .planning, .agentic: return "purple"
+            case .embedding, .hyde, .vectorSearch: return "blue"
+            case .retrieval, .bm25, .queryRewrite: return "green"
+            case .rerank, .rrf, .mmr: return "orange"
+            case .gating, .grounding, .selfRag: return "teal"
+            case .context, .parentDoc, .compression, .lostInMiddle: return "cyan"
+            case .generation: return "yellow"
+            case .fallback, .iterative: return "pink"
+            case .warning: return "red"
+            case .toolCall, .factBank: return "indigo"
             }
         }
     }
