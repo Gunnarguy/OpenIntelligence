@@ -68,7 +68,7 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
 
         // Load Tokenizer
         if let url = Bundle.main.url(forResource: "embedding_vocab", withExtension: "json") {
-            do { 
+            do {
                 let vocabData = try Data(contentsOf: url)
                 let vocabDict = try JSONDecoder().decode([String: Int].self, from: vocabData)
                 tokenizer = BertTokenizer(
@@ -78,7 +78,7 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
                     doLowerCase: true
                 )
                 Log.info("[CoreMLSentenceEmbeddingProvider] Loaded tokenizer", category: .embedding)
-            } catch { 
+            } catch {
                 Log.error("[CoreMLSentenceEmbeddingProvider] Failed to load tokenizer: \(error)", category: .embedding)
             }
         } else {
@@ -181,7 +181,7 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
         #endif
     }
 
-    func embedBatch(texts: [String]) async throws -> [[Float]] { 
+    func embedBatch(texts: [String]) async throws -> [[Float]] {
         var results: [[Float]] = []
         results.reserveCapacity(texts.count)
         for text in texts {
@@ -196,8 +196,15 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
         let tokens = tokenizer.tokenize(text: text)
         var tokenIds = tokenizer.convertTokensToIds(tokens).compactMap { $0 }
 
+        // QUALITY CHECK: Log when input is truncated (embedding won't represent full chunk)
         if tokenIds.count > maxSequenceLength - 2 {
+            let originalCount = tokenIds.count
             tokenIds = Array(tokenIds.prefix(maxSequenceLength - 2))
+            Log.warning(
+                "[CoreMLSentenceEmbedding] Input truncated from \(originalCount) to \(maxSequenceLength - 2) tokens. " +
+                "Consider smaller chunk sizes for better embedding quality.",
+                category: .embedding
+            )
         }
 
         var inputIds: [Int] = [clsId]
