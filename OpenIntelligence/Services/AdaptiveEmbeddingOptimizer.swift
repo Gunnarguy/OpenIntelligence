@@ -669,7 +669,7 @@ actor LibraryIntelligenceCenter {
         var score384 = 0.0
         let score512 = 0.3
         var score512Contextual = 0.0 // NLContextualEmbedding (high-accuracy 512D)
-        var score768 = 0.0
+        // NOTE: 768D removed - our CoreML model (MiniLM-L6-v2) only outputs 384D
         var score1024 = 0.0
         var reasoning: [String] = []
 
@@ -678,7 +678,8 @@ actor LibraryIntelligenceCenter {
             reasoning.append("Compact corpus → prioritize throughput over dimensionality.")
         }
         if vocabularyRichness > 0.5 {
-            score768 += 0.2
+            // Rich vocab: boost contextual and 1024D options (384 CoreML is still fast and good)
+            score384 += 0.15  // CoreML 384D handles rich vocab well
             score1024 += 0.3
             score512Contextual += 0.25 // Rich vocab benefits from contextual embeddings
             reasoning.append("Rich vocabulary benefits from additional capacity.")
@@ -687,45 +688,45 @@ actor LibraryIntelligenceCenter {
             reasoning.append("Limited vocabulary suits smaller spaces.")
         }
         if multilingualScore > 0.5 {
-            score768 += 0.3
+            score384 += 0.2  // MiniLM handles multilingual reasonably
             score1024 += 0.2
             score512Contextual += 0.2 // Contextual handles multilingual well
             reasoning.append("Multilingual corpus needs broader manifolds.")
         }
         if technicalDensity > 0.4 {
-            score768 += 0.3
+            score384 += 0.2  // Technical content works with 384D
             score1024 += 0.1
             score512Contextual += 0.3 // Technical content benefits from BERT-like context
             reasoning.append("Technical jargon rewards precision vectors.")
         }
         if semanticComplexity > 0.6 {
-            score768 += 0.2
+            score384 += 0.15
             score1024 += 0.3
             score512Contextual += 0.35 // Complex semantics = contextual embeddings excel
             reasoning.append("Long complex sentences call for expressive embeddings.")
         }
         if hasCode {
-            score768 += 0.2
+            score384 += 0.15
             score512Contextual += 0.2 // Contextual understands code structure
             reasoning.append("Code found → prefer models tuned for structured tokens.")
         }
         if hasMath {
-            score768 += 0.1
+            score384 += 0.1
             score1024 += 0.1
             reasoning.append("Math symbols push for higher fidelity.")
         }
         if totalWords > 50000 {
-            score768 += 0.2
+            score384 += 0.15  // Large corpus still works with 384D
             score1024 += 0.3
             score512Contextual += 0.15 // Large corpus can benefit from accuracy
             reasoning.append("Large corpus justifies research-grade dimensions.")
         }
 
+        // NOTE: 768D option removed - CoreML MiniLM-L6-v2 only outputs 384D
         let scores = [
             (384, score384, "coreml_sentence_embedding"),
             (512, score512, "nl_embedding"),
             (512, score512Contextual, "nl_contextual_embedding"),
-            (768, score768, "coreml_sentence_embedding"),
             (1024, score1024, "apple_fm_embed"),
         ]
         let winner = scores.max(by: { $0.1 < $1.1 }) ?? (384, 0.3, "coreml_sentence_embedding")

@@ -161,7 +161,7 @@ struct ChatScreen: View {
                         stage: stage,
                         execution: metricsData.execution,
                         isProcessing: isProcessing,
-                        qualityMode: settings.ragQualityMode,
+                        qualityMode: effectiveQualityMode,
                         isLLMActivelyGenerating: ragService.isLLMResponding,
                         contextTokens: metricsData.isRecursiveRAG ? deepThinkTokens : actualContextTokensUsed,
                         maxContextTokens: maxContextTokensForUI,
@@ -220,7 +220,7 @@ struct ChatScreen: View {
                         searchElapsed: searchingElapsedFinal ?? 0,
                         generationElapsed: generatingElapsedFinal ?? 0,
                         liveConfidence: ragService.deepThinkLiveConfidence,
-                        isMaximumMode: settings.ragQualityMode.isUnlimitedMode,
+                        isMaximumMode: effectiveQualityMode.isUnlimitedMode,
                         maximumModeSessionCount: ragService.deepThinkLiveSteps,
                         onTapDetails: !metricsData.isStreaming ? { showRetrievedDetails = true } : nil
                     )
@@ -237,7 +237,7 @@ struct ChatScreen: View {
                         stage: stage,
                         execution: execution,
                         isProcessing: isProcessing,
-                        qualityMode: settings.ragQualityMode,
+                        qualityMode: effectiveQualityMode,
                         isLLMActivelyGenerating: ragService.isLLMResponding,
                         contextTokens: auditSnapshot?.isRecursiveRAG == true ? (auditSnapshot?.totalTokensAcrossCalls ?? actualContextTokensUsed) : actualContextTokensUsed,
                         maxContextTokens: maxContextTokensForUI,
@@ -261,10 +261,10 @@ struct ChatScreen: View {
                         hierarchicalChunkingActive: auditSnapshot?.contextStrategy == "parent_expanded",
                         parentChunksUsed: 0,
                         siblingChunksAdded: 0,
-                        graphExpansionActive: settings.ragQualityMode == .deepThink,
+                        graphExpansionActive: effectiveQualityMode == .deepThink,
                         graphEntitiesExtracted: 0,
                         intentAwareWeightsActive: true,
-                        isRecursiveRAG: auditSnapshot?.isRecursiveRAG ?? (settings.ragQualityMode == .deepThink),
+                        isRecursiveRAG: auditSnapshot?.isRecursiveRAG ?? (effectiveQualityMode == .deepThink),
                         recursiveCallCount: auditSnapshot?.llmCallCount ?? 1,
                         // Full Transparency Dashboard data from audit snapshot
                         totalStoredChunks: auditSnapshot?.totalStoredChunks ?? 0,
@@ -296,7 +296,7 @@ struct ChatScreen: View {
                         searchElapsed: searchingElapsedFinal ?? 0,
                         generationElapsed: generatingElapsedFinal ?? 0,
                         liveConfidence: ragService.deepThinkLiveConfidence,
-                        isMaximumMode: settings.ragQualityMode.isUnlimitedMode,
+                        isMaximumMode: effectiveQualityMode.isUnlimitedMode,
                         maximumModeSessionCount: ragService.deepThinkLiveSteps,
                         onTapDetails: nil
                     )
@@ -390,6 +390,10 @@ struct ChatScreen: View {
         }
         // Recalculate counts when active container changes
         .task(id: ragService.containerService.activeContainerId) {
+            // Don't load persisted history in screenshot demo mode - let seedFullDemoContent() handle it
+            #if DEBUG
+            if didSeedScreenshotDemo { return }
+            #endif
             let activeId = ragService.containerService.activeContainerId
             messages = ragService.chatHistory(for: activeId)
             await recalcActiveCounts()
@@ -494,9 +498,19 @@ struct ChatScreen: View {
 #endif
         }
 .onAppear {
+    // Seed screenshot demo FIRST before loading persisted history
+    seedScreenshotDemoIfNeeded()
+
+    // Only load persisted history if not in screenshot demo mode
+    #if DEBUG
+    if !didSeedScreenshotDemo {
+        let activeId = ragService.containerService.activeContainerId
+        messages = ragService.chatHistory(for: activeId)
+    }
+    #else
     let activeId = ragService.containerService.activeContainerId
     messages = ragService.chatHistory(for: activeId)
-    seedScreenshotDemoIfNeeded()
+    #endif
 }
     }
 
@@ -517,6 +531,12 @@ struct ChatScreen: View {
 
     /// Infer model name from settings when metadata isn't available yet
     private var inferredModelName: String {
+        // Screenshot demo always shows "Apple Intelligence"
+        #if DEBUG
+        if didSeedScreenshotDemo {
+            return "Apple Intelligence"
+        }
+        #endif
         // Use settings EnvironmentObject
         switch settings.selectedModel {
         case .appleIntelligence:
@@ -524,6 +544,16 @@ struct ChatScreen: View {
         case .onDeviceAnalysis:
             return "On-Device Analysis"
         }
+    }
+
+    /// Quality mode - returns Deep Think during screenshot demo for consistent visuals
+    private var effectiveQualityMode: RAGQualityMode {
+        #if DEBUG
+        if didSeedScreenshotDemo {
+            return .deepThink
+        }
+        #endif
+        return settings.ragQualityMode
     }
 
     /// Average score of retrieved sources for quality indicator
@@ -554,7 +584,7 @@ struct ChatScreen: View {
         let isHierarchical = audit?.contextStrategy == "parent_expanded"
         let queryIntentName = deriveQueryIntent(from: audit?.retrievalConfig)
         // Deep Think mode is recursive even if audit snapshot isn't ready yet
-        let isRecursive = audit?.isRecursiveRAG ?? (settings.ragQualityMode == .deepThink)
+        let isRecursive = audit?.isRecursiveRAG ?? (effectiveQualityMode == .deepThink)
         // Use live counters during processing, final count after completion
         let liveSteps = ragService.deepThinkLiveSteps
         let callCount = audit?.llmCallCount ?? (isRecursive ? liveSteps : 1)
@@ -582,7 +612,7 @@ struct ChatScreen: View {
                 hierarchicalChunkingActive: isHierarchical,
                 parentChunksUsed: isHierarchical ? (audit?.contextChunksUsed ?? 0) : 0,
                 siblingChunksAdded: 0,
-                graphExpansionActive: settings.ragQualityMode == .deepThink,
+                graphExpansionActive: effectiveQualityMode == .deepThink,
                 graphEntitiesExtracted: 0,
                 intentAwareWeightsActive: true,
                 queryIntent: queryIntentName,
@@ -611,7 +641,7 @@ struct ChatScreen: View {
                 hierarchicalChunkingActive: isHierarchical,
                 parentChunksUsed: isHierarchical ? (audit?.contextChunksUsed ?? 0) : 0,
                 siblingChunksAdded: 0,
-                graphExpansionActive: settings.ragQualityMode == .deepThink,
+                graphExpansionActive: effectiveQualityMode == .deepThink,
                 graphEntitiesExtracted: 0,
                 intentAwareWeightsActive: true,
                 queryIntent: queryIntentName,
@@ -706,18 +736,31 @@ struct ChatScreen: View {
             let wantsSources = LaunchArguments.has("--screenshot-chat-sources") || LaunchArguments.has("screenshot-chat-sources")
             let wantsDetails = LaunchArguments.has("--screenshot-chat-details") || LaunchArguments.has("screenshot-chat-details")
             let wantsConsent = LaunchArguments.has("--screenshot-cloud-consent") || LaunchArguments.has("screenshot-cloud-consent")
+            let wantsThinking = LaunchArguments.has("--screenshot-chat-thinking") || LaunchArguments.has("screenshot-chat-thinking")
+            let wantsFullDemo = LaunchArguments.has("--screenshot-chat-full") || LaunchArguments.has("screenshot-chat-full")
 
-            guard wantsHero || wantsDemo || wantsSources || wantsDetails || wantsConsent else { return }
+            guard wantsHero || wantsDemo || wantsSources || wantsDetails || wantsConsent || wantsThinking || wantsFullDemo else { return }
             didSeedScreenshotDemo = true
 
-            // Reset state
+            // IMPORTANT: Clear ALL state first to override any persisted chat history
+            messages = []
             streamingText = ""
             currentRetrievedChunks = []
             currentMetadata = nil
             showRetrievedDetails = false
             activeCloudConsent = nil
+            thinkingEvents = []
 
-            // 1) Cloud consent modal (if requested)
+            // Mark onboarding complete so starter prompts don't appear
+            onboardingStore.markAskedFirstQuery()
+
+            // 1) Full demo first (highest priority - includes everything beautiful)
+            if wantsFullDemo {
+                seedFullDemoContent()
+                return
+            }
+
+            // 2) Cloud consent modal (if requested)
             if wantsConsent {
                 activeCloudConsent = CloudTransmissionRecord(
                     provider: .applePCC,
@@ -818,7 +861,136 @@ struct ChatScreen: View {
                     showRetrievedDetails = true
                 }
             }
+
+            // 5) Thinking events timeline (Deep Think / Maximum mode showcase)
+            if wantsThinking {
+                thinkingEvents = [
+                    ThinkingEvent(kind: .planning, title: "Query analysis", detail: "Identified: pricing summary request"),
+                    ThinkingEvent(kind: .queryRewrite, title: "Multi-query expansion", detail: "Generated 4 search variations"),
+                    ThinkingEvent(kind: .vectorSearch, title: "Semantic search", detail: "384-dim embeddings • cosine similarity"),
+                    ThinkingEvent(kind: .bm25, title: "Keyword search", detail: "BM25 scoring • k1=1.2, b=0.75"),
+                    ThinkingEvent(kind: .rrf, title: "RRF fusion", detail: "Merged rankings • k=60"),
+                    ThinkingEvent(kind: .mmr, title: "MMR diversification", detail: "λ=0.6 • reduced redundancy"),
+                    ThinkingEvent(kind: .rerank, title: "Re-ranking", detail: "Cross-encoder • top 5 → 3"),
+                    ThinkingEvent(kind: .context, title: "Context ready", detail: "3 chunks • 847 words"),
+                    ThinkingEvent(kind: .generation, title: "Generating response", detail: "Apple Intelligence • on-device"),
+                ]
+            }
         #endif
+    }
+
+    /// Seeds a comprehensive full demo for App Store screenshots
+    /// Includes: polished conversation, thinking timeline, sources, metadata
+    private func seedFullDemoContent() {
+        // Thinking events - show the RAG pipeline in action
+        thinkingEvents = [
+            ThinkingEvent(kind: .planning, title: "Query analysis", detail: "Identified: pricing + privacy request"),
+            ThinkingEvent(kind: .queryRewrite, title: "Multi-query expansion", detail: "Generated 4 search variations"),
+            ThinkingEvent(kind: .vectorSearch, title: "Semantic search", detail: "384-dim embeddings • cosine similarity"),
+            ThinkingEvent(kind: .bm25, title: "Keyword search", detail: "BM25 scoring • k1=1.2, b=0.75"),
+            ThinkingEvent(kind: .rrf, title: "RRF fusion", detail: "Merged rankings • k=60"),
+            ThinkingEvent(kind: .mmr, title: "MMR diversification", detail: "λ=0.6 • reduced redundancy"),
+            ThinkingEvent(kind: .rerank, title: "Re-ranking", detail: "Cross-encoder • top 5 → 3"),
+            ThinkingEvent(kind: .context, title: "Context ready", detail: "3 chunks • 847 words"),
+            ThinkingEvent(kind: .generation, title: "Generating response", detail: "Apple Intelligence"),
+        ]
+
+        // Demo conversation with polished response
+        let demoMetadata = ResponseMetadata(
+            timeToFirstToken: 0.28,
+            totalGenerationTime: 2.4,
+            tokensGenerated: 156,
+            tokensPerSecond: 65,
+            modelUsed: "Apple Intelligence",
+            retrievalTime: 0.18,
+            retrievalConfigSummary: "Balanced",
+            gatingDecision: "allowed",
+            toolCallsMade: 0,
+            embeddingProvider: "coreml_sentence_embedding",
+            usedAgenticMode: true,
+            qualityModeName: "Deep Think",
+            reasoningTrace: [
+                "🔍 Analyzing query intent: pricing + privacy information requested",
+                "📚 Retrieved 3 highly relevant chunks from pricing brief",
+                "🧠 Synthesizing multi-source response with citations"
+            ]
+        )
+
+        messages = [
+            ChatMessage(role: .user, content: "What are the key pricing tiers and privacy features?"),
+            ChatMessage(
+                role: .assistant,
+                content: """
+                Based on your documents, here's a comprehensive overview:
+
+                ## Pricing Tiers
+                • **Free**: 5 documents, 1 library, full privacy dashboard
+                • **Pro** ($5.99/mo or $49.99/yr): Unlimited docs, 5 libraries, priority ingestion
+                • **Lifetime** ($59.99): All Pro features forever, 10 libraries
+
+                ## Privacy Architecture
+                All processing happens **on-device by default**. When additional compute is needed, Apple's Private Cloud Compute ensures your data never leaves Apple's secure enclaves.
+
+                The hybrid search combines semantic understanding with keyword matching for accurate, grounded responses. [S1] [S2]
+                """,
+                metadata: demoMetadata,
+                retrievedChunks: nil
+            )
+        ]
+
+        // Source chunks for the sources tray
+        let docId = UUID()
+        func makeChunk(rank: Int, title: String, page: Int, snippet: String, score: Float) -> RetrievedChunk {
+            let meta = ChunkMetadata(
+                chunkIndex: rank,
+                pageNumber: page,
+                sectionTitle: title,
+                keywords: ["privacy", "pricing", "retrieval"],
+                hasNumericData: true,
+                hasListStructure: true,
+                wordCount: snippet.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count,
+                characterCount: snippet.count
+            )
+            let chunk = DocumentChunk(
+                documentId: docId,
+                content: snippet,
+                embedding: [0, 0, 0, 0],
+                metadata: meta
+            )
+            return RetrievedChunk(
+                chunk: chunk,
+                similarityScore: score,
+                rank: rank,
+                sourceDocument: "Sample Pricing Brief.md",
+                pageNumber: page
+            )
+        }
+
+        currentRetrievedChunks = [
+            makeChunk(
+                rank: 1,
+                title: "Value Ladder",
+                page: 1,
+                snippet: "Free: 5 docs, 1 library. Pro ($5.99/mo): Unlimited docs, 5 libraries. Lifetime ($59.99): All Pro features forever.",
+                score: 0.92
+            ),
+            makeChunk(
+                rank: 2,
+                title: "Privacy Architecture",
+                page: 1,
+                snippet: "Privacy-first: Data stays on-device or Apple PCC. No third-party cloud. Secure enclave processing.",
+                score: 0.88
+            ),
+            makeChunk(
+                rank: 3,
+                title: "Hybrid Search",
+                page: 2,
+                snippet: "Combines semantic embeddings with BM25 keyword matching. MMR ensures diverse, non-redundant results.",
+                score: 0.84
+            ),
+        ]
+
+        currentMetadata = demoMetadata
     }
 
     // MARK: - Active-container counts
