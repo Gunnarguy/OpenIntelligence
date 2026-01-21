@@ -2005,7 +2005,7 @@ class RAGService: ObservableObject {
 
             // Get embedding dimension from provider
             let embeddingDim = container?.embeddingDim ?? 384
-            let embeddingProviderName = providerId.replacingOccurrences(of: "_", with: " ").capitalized
+            let embeddingProviderName = Self.shortProviderName(for: providerId)
 
             // Build contextual prefix once (reused for all chunks in this document)
             let docContext = buildContextualPrefix(filename: filename)
@@ -2995,19 +2995,43 @@ class RAGService: ObservableObject {
                             self?.deepThinkLiveConfidence = confidence
                         }
 
-                        // Include confidence in detail if available
-                        let detail: String
-                        if let confidence = step.confidence {
-                            detail = "Confidence: \(Int(confidence * 100))% • Tokens: \(step.tokensUsed)"
+                        // Check if this is a detailed sub-step (0 tokens = pipeline internals)
+                        // For detailed steps, the output contains "Title: Detail" format
+                        if step.tokensUsed == 0 && step.output.contains(": ") {
+                            // This is a detailed pipeline event - parse and show the actual title/detail
+                            let parts = step.output.split(separator: ":", maxSplits: 1)
+                            let title = String(parts.first ?? "Processing")
+                            let detail = parts.count > 1 ? String(parts[1]).trimmingCharacters(in: .whitespaces) : ""
+                            self?.emitThinkingEvent(
+                                step.type.thinkingKind,
+                                title: title,
+                                detail: detail
+                            )
+                        } else if step.input.hasPrefix("Session ") {
+                            // This is a reasoning session from Maximum mode - show session details
+                            let sessionInfo = step.input // e.g., "Session 5/25"
+                            let confidence = step.confidence ?? 0
+                            let saturation = step.tokensUsed > 300 ? "deep" : "scanning"
+                            self?.emitThinkingEvent(
+                                step.type.thinkingKind,
+                                title: sessionInfo,
+                                detail: "\(Int(confidence * 100))% confident • \(step.tokensUsed) tokens • \(saturation)"
+                            )
                         } else {
-                            detail = "Tokens: \(step.tokensUsed), Duration: \(String(format: "%.1f", step.duration))s"
-                        }
+                            // Regular reasoning step - use standard format
+                            let detail: String
+                            if let confidence = step.confidence {
+                                detail = "Confidence: \(Int(confidence * 100))% • Tokens: \(step.tokensUsed)"
+                            } else {
+                                detail = "Tokens: \(step.tokensUsed), Duration: \(String(format: "%.1f", step.duration))s"
+                            }
 
-                        self?.emitThinkingEvent(
-                            step.type.thinkingKind,
-                            title: step.type.displayName,
-                            detail: detail
-                        )
+                            self?.emitThinkingEvent(
+                                step.type.thinkingKind,
+                                title: step.type.displayName,
+                                detail: detail
+                            )
+                        }
                     }
                 }
             )
@@ -5145,21 +5169,22 @@ class RAGService: ObservableObject {
                 // Set explicit system prompt for RAG to ensure comprehensive, ACCURATE answers
                 // Keep concise to maximize context budget (every 100 chars = ~70 tokens)
                 genConfig.systemPrompt = """
-                You are a helpful research assistant.Answer using the provided document excerpts labeled[S1], [S2], etc.
+                You are an expert research analyst. Answer using the provided document excerpts labeled [S1], [S2], etc.
 
                 Rules:
-                    1.Base answers on the excerpts provided
-                2.Cite sources: [S1], [S2](cite at least one)
-                3.Connect user terms to related concepts in excerpts(e.g., "button" may mean switch, toggle, control)
-                4.For procedures: preserve the exact sequence and include all steps
-                5.Be thorough - provide as much relevant detail as excerpts contain
-                6.If excerpts seem unrelated, explain what they DO contain that might help
+                1. Base answers on the excerpts provided
+                2. Cite sources: [S1], [S2] (cite at least one)
+                3. Connect user terms to related concepts in excerpts (e.g., "button" may mean switch, toggle, control)
+                4. For procedures: preserve the exact sequence and include all steps
+                5. Be thorough - provide as much relevant detail as excerpts contain
+                6. If the question is vague, INTERPRET it based on document topics and provide relevant findings
+                7. NEVER say "I don't have information" or "documents don't contain" - always provide what IS there
                 """
 
                 // Evidence-First mode: use detailed cautious prompt with full procedural rules
                 if useEvidenceFirstMode {
                     genConfig.systemPrompt = """
-                    You are a research assistant in EVIDENCE - FIRST MODE due to low retrieval confidence.
+                    You are an expert research analyst in EVIDENCE-FIRST MODE due to low retrieval confidence.
 
                         CRITICAL: Use ONLY the provided excerpts labeled[S1], [S2], etc.
                         Do NOT search for additional information.
@@ -6564,6 +6589,33 @@ class RAGService: ObservableObject {
         }
     }
 
+    // MARK: - Provider Display Names
+
+    /// Maps embedding provider IDs to concise, SWE-accurate display names.
+    /// These shorthand names maintain technical precision while fitting in pill UI elements.
+    static func shortProviderName(for providerId: String) -> String {
+        switch providerId.lowercased() {
+        case "coreml_sentence_embedding", "coreml_sentence":
+            return "CoreML"  // MiniLM-L6-v2 sentence transformer
+        case "nl_embedding", "nlembedding":
+            return "NL"  // NaturalLanguage.framework
+        case "apple_foundation", "apple_fm":
+            return "FM"  // Foundation Models (Apple Intelligence)
+        case "openai_embedding", "openai":
+            return "OpenAI"  // text-embedding-3-small/large
+        case "nl_contextual", "contextual":
+            return "NLCtx"  // NLContextualEmbedding
+        default:
+            // Fallback: first word capitalized, or abbreviate long names
+            let parts = providerId.split(separator: "_")
+            if parts.count >= 2 {
+                // Take first letters of each word for long providers
+                return parts.prefix(2).map { $0.prefix(4).capitalized }.joined()
+            }
+            return String(providerId.prefix(8)).capitalized
+        }
+    }
+
     /// Returns a configured service for the given settings key, if available.
     /// Simplified: only Apple Intelligence and On-Device Analysis are supported.
     private static func instantiateService(
@@ -6725,12 +6777,24 @@ class RAGService: ObservableObject {
         containerName: String,
         response: RAGResponse
     ) async -> RAGResponse {
+        // Clean up the response text (remove verbose markdown that can't render)
+        let cleanedResponse = cleanupResponseText(response.generatedResponse)
+        var finalResponse = response
+        finalResponse = RAGResponse(
+            queryId: response.queryId,
+            retrievedChunks: response.retrievedChunks,
+            generatedResponse: cleanedResponse,
+            metadata: response.metadata,
+            confidenceScore: response.confidenceScore,
+            qualityWarnings: response.qualityWarnings
+        )
+
         await MainActor.run {
             self.recordRetrievalHistory(
                 query: query,
                 containerId: containerId,
                 containerName: containerName,
-                chunks: response.retrievedChunks
+                chunks: finalResponse.retrievedChunks
             )
         }
 
@@ -6742,14 +6806,64 @@ class RAGService: ObservableObject {
             Task.detached(priority: .utility) {
                 await ConversationMemoryService.shared.addTurn(
                     userQuery: query,
-                    assistantResponse: response.generatedResponse,
+                    assistantResponse: finalResponse.generatedResponse,
                     for: containerId
                 )
             }
         }
 
-        await logQueryStats(query: query, response: response)
-        return response
+        await logQueryStats(query: query, response: finalResponse)
+        return finalResponse
+    }
+
+    /// Clean up response text by removing verbose markdown that can't be rendered
+    private nonisolated func cleanupResponseText(_ text: String) -> String {
+        var result = text
+
+        // Strip markdown headers (##, ###, etc.) - convert to plain text
+        result = result.components(separatedBy: .newlines)
+            .map { line in
+                var cleaned = line
+                // Remove markdown headers - convert "## Title" to "Title"
+                if let headerMatch = cleaned.range(of: #"^#{1,6}\s+"#, options: .regularExpression) {
+                    cleaned = String(cleaned[headerMatch.upperBound...])
+                }
+                return cleaned
+            }
+            .joined(separator: "\n")
+
+        // Convert bullet points and numbered lists to cleaner format
+        // NOTE: Preserve inline formatting like **bold** and *italic* - only strip list bullets
+        result = result.components(separatedBy: .newlines)
+            .map { line in
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                // Convert "- text" to just the text (dash bullets)
+                if trimmed.hasPrefix("- ") && trimmed.count > 2 {
+                    return String(trimmed.dropFirst(2))
+                }
+                // Convert "• text" to just the text (unicode bullets)
+                if trimmed.hasPrefix("• ") && trimmed.count > 2 {
+                    return String(trimmed.dropFirst(2))
+                }
+                // Only strip "* text" if it's clearly a bullet (no closing * for italic)
+                // List bullet: "* some text" vs Italic: "*emphasized*"
+                if trimmed.hasPrefix("* ") && trimmed.count > 2 && !trimmed.dropFirst(2).contains("*") {
+                    return String(trimmed.dropFirst(2))
+                }
+                // Convert numbered lists "1. text" or "1) text" to just text
+                if let numMatch = trimmed.range(of: #"^\d+[.)]\s+"#, options: .regularExpression) {
+                    return String(trimmed[numMatch.upperBound...])
+                }
+                return line
+            }
+            .joined(separator: "\n")
+
+        // Collapse multiple blank lines into single
+        while result.contains("\n\n\n") {
+            result = result.replacingOccurrences(of: "\n\n\n", with: "\n\n")
+        }
+
+        return result.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private nonisolated func wordCount(of text: String) -> Int {
@@ -7655,13 +7769,19 @@ extension RAGService: RAGToolHandler {
         return result
     }
 
+    /// Callback type for emitting detailed thinking events during retrieval
+    /// Used by AgenticOrchestrator to stream verbose pipeline events to ThinkingView
+    typealias DetailedThinkingCallback = @Sendable (ThinkingEvent.Kind, String, String) async -> Void
+
     /// Execute the FULL retrieval pipeline (HyDE, hybrid search, AI re-ranking, MMR)
     /// This gives Deep Think mode the same quality retrieval as Standard mode
     /// Used by AgenticOrchestrator for high-quality chunk retrieval with reasoning on top
+    /// - Parameter onDetailedEvent: Optional callback for verbose thinking events (for Deep Think/Maximum)
     func executeFullRetrievalPipeline(
         query: String,
         topK: Int = 20,
-        minSimilarity: Float = 0.08
+        minSimilarity: Float = 0.08,
+        onDetailedEvent: DetailedThinkingCallback? = nil
     ) async throws -> [RetrievedChunk] {
         let embeddingContext = await resolveEmbeddingContext()
         let db = await dbFor(embeddingContext.containerId)
@@ -7669,6 +7789,9 @@ extension RAGService: RAGToolHandler {
 
         // Skip if no chunks
         guard !allChunks.isEmpty else { return [] }
+
+        // Emit: Starting retrieval pipeline
+        await onDetailedEvent?(.planning, "Query analysis", "Analyzing: \"\(query.prefix(50))...\"")
 
         // RAPTOR-lite: Query routing for summary-first retrieval
         // Only filter chunks if query routing is enabled AND we have summaries
@@ -7684,6 +7807,7 @@ extension RAGService: RAGToolHandler {
                 let searchLevels = await queryRouter.abstractionLevelsToSearch(for: queryClassification)
                 effectiveChunks = allChunks.filter { searchLevels.contains($0.metadata.abstractionLevel) }
                 Log.info("[RAPTOR-lite] Agentic retrieval using \(effectiveChunks.count) summary chunks for overview query", category: .retrieval)
+                await onDetailedEvent?(.retrieval, "RAPTOR-lite routing", "Using \(effectiveChunks.count) summary chunks")
             }
         }
 
@@ -7693,7 +7817,9 @@ extension RAGService: RAGToolHandler {
         let textToEmbed = query
 
         // Step 2: Generate query embedding
+        await onDetailedEvent?(.embedding, "Encoding query", "384-dim neural embedding")
         let queryEmbedding = try await embeddingContext.service.generateEmbedding(for: textToEmbed)
+        await onDetailedEvent?(.vectorSearch, "Vector ready", "Query encoded for semantic search")
 
         // Step 3: Classify query intent for adaptive weights AND expand query
         let queryEnhancer = QueryEnhancementService()
@@ -7702,13 +7828,22 @@ extension RAGService: RAGToolHandler {
         let vectorWeight = max(0.1, min(0.9, 0.5 + adjustment.vectorDelta))
         let keywordWeight = max(0.1, min(0.9, 0.5 + adjustment.keywordDelta))
 
+        // Emit: Query expansion
+        await onDetailedEvent?(.queryRewrite, "Query expansion", "Intent: \(queryIntent.rawValue) → Vector \(Int(vectorWeight * 100))% / Keyword \(Int(keywordWeight * 100))%")
+
         // EXPAND query with synonyms for better keyword matching
         // e.g., "button" → "button switch toggle control key trigger"
         let expandedQueries = queryEnhancer.expandQuery(query)
         let expandedQueryString = expandedQueries.joined(separator: " ")
         Log.debug("[FullRetrieval] Expanded query: \(expandedQueryString.prefix(100))...", category: .retrieval)
 
+        if expandedQueries.count > 1 {
+            await onDetailedEvent?(.queryRewrite, "Synonym expansion", "+\(expandedQueries.count - 1) terms added")
+        }
+
         // Step 4: Hybrid search (vector + BM25) with EXPANDED query for keywords
+        await onDetailedEvent?(.retrieval, "Hybrid search", "Vector + BM25 on \(effectiveChunks.count) chunks")
+
         let hybridSearch = HybridSearchService(
             vectorDatabase: db,
             vectorWeight: vectorWeight,
@@ -7722,11 +7857,19 @@ extension RAGService: RAGToolHandler {
             cachedChunks: effectiveChunks // Use RAPTOR-lite filtered chunks
         )
 
+        await onDetailedEvent?(.rrf, "RRF fusion", "\(retrievedChunks.count) candidates from hybrid search")
+
         // Step 5: AI Re-ranking with ReRanker model
+        await onDetailedEvent?(.rerank, "AI re-ranking", "Scoring \(retrievedChunks.count) chunks with neural model")
+
         let engine = RAGEngine.shared
         retrievedChunks = await engine.rerank(chunks: retrievedChunks, query: query, topK: topK * 2)
 
+        await onDetailedEvent?(.rerank, "Re-ranking complete", "Top scores: \(retrievedChunks.prefix(3).map { String(format: "%.0f%%", $0.similarityScore * 100) }.joined(separator: ", "))")
+
         // Step 6: MMR Diversification
+        await onDetailedEvent?(.mmr, "MMR diversification", "Optimizing for coverage (λ=0.6)")
+
         let mmrLambda: Float = 0.6
         retrievedChunks = await engine.applyMMR(
             candidates: retrievedChunks,
@@ -7735,8 +7878,15 @@ extension RAGService: RAGToolHandler {
             lambda: mmrLambda
         )
 
+        await onDetailedEvent?(.mmr, "Diversity optimized", "\(retrievedChunks.count) chunks after MMR")
+
         // Step 7: Filter by similarity
+        let preFilterCount = retrievedChunks.count
         retrievedChunks = await engine.filterBySimilarity(chunks: retrievedChunks, min: minSimilarity)
+
+        if preFilterCount > retrievedChunks.count {
+            await onDetailedEvent?(.context, "Quality filter", "Kept \(retrievedChunks.count)/\(preFilterCount) (≥\(Int(minSimilarity * 100))% threshold)")
+        }
 
         // Enrich with document names
         var enrichedChunks: [RetrievedChunk] = []
@@ -7750,6 +7900,9 @@ extension RAGService: RAGToolHandler {
                 pageNumber: retrieved.chunk.metadata.pageNumber
             ))
         }
+
+        // Final retrieval summary
+        await onDetailedEvent?(.retrieval, "Retrieval complete", "\(enrichedChunks.count) chunks ready for synthesis")
 
         return enrichedChunks
     }

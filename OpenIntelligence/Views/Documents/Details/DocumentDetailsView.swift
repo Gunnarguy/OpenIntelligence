@@ -31,15 +31,15 @@ struct DocumentDetailsView: View {
     private var embeddingProviderDescription: String {
         switch embeddingProviderId {
         case "nl_contextual_embedding":
-            return "BERT-based, high-accuracy semantic search"
+            return "BERT-based, 512-dim contextual embeddings"
         case "nl_embedding", nil:
-            return "Word2Vec-based, 512 dimensions"
+            return "Word2Vec word-level averaging, 512-dim"
         case "coreml_sentence_embedding":
-            return "Sentence-level, cross-lingual"
+            return "all-MiniLM-L6-v2, 384-dim sentence vectors"
         case "apple_fm_embed":
-            return "Foundation Model embeddings"
+            return "Foundation Model embeddings (1024-dim)"
         default:
-            return "512 dimensions"
+            return "384-dim sentence embeddings"
         }
     }
 
@@ -188,8 +188,8 @@ struct DocumentDetailsView: View {
                 VectorMetricRow(
                     icon: "square.stack.3d.up.fill",
                     label: "Vector Dimensions",
-                    value: "512-dim",
-                    detail: "Cosine similarity search"
+                    value: currentDimensionLabel,
+                    detail: "Cosine similarity + dot-product search"
                 )
 
                 VectorMetricRow(
@@ -257,7 +257,7 @@ struct DocumentDetailsView: View {
 
     @ViewBuilder
     private func chunkingStrategyCard(_ metadata: ProcessingMetadata) -> some View {
-        DocumentDetailCardView(icon: "scissors", title: "Chunking Strategy", caption: "Semantic boundary detection") { 
+        DocumentDetailCardView(icon: "scissors", title: "Chunking Strategy", caption: "Semantic boundary detection") {
             VStack(spacing: 8) {
                 ChunkMetricRow(
                     icon: "cube.box",
@@ -310,7 +310,7 @@ struct DocumentDetailsView: View {
 
     @ViewBuilder
     private func performanceMetricsCard(_ metadata: ProcessingMetadata) -> some View {
-        DocumentDetailCardView(icon: "speedometer", title: "Performance Metrics", caption: "Silicon-native pipeline timing") { 
+        DocumentDetailCardView(icon: "speedometer", title: "Performance Metrics", caption: "Silicon-native pipeline timing") {
             VStack(spacing: 8) {
                 PerformanceRow(
                     icon: "doc.text.magnifyingglass",
@@ -405,21 +405,31 @@ struct DocumentDetailsView: View {
 
     @ViewBuilder
     private var technicalDetailsCard: some View {
-        DocumentDetailCardView(icon: "info.circle", title: "Technical Details", caption: "System information") {
+        DocumentDetailCardView(icon: "info.circle", title: "Technical Details", caption: "Pipeline configuration") {
             VStack(spacing: 8) {
                 TechnicalRow(label: "Document ID", value: document.id.uuidString.prefix(8) + "...")
                 TechnicalRow(label: "Added", value: document.addedAt.formatted(date: .abbreviated, time: .standard))
                 TechnicalRow(label: "File Type", value: document.contentType.rawValue)
-                TechnicalRow(label: "Vector Database", value: "In-Memory (Persistent)")
-                TechnicalRow(label: "Search Algorithm", value: "Cosine Similarity (k-NN)")
+                TechnicalRow(label: "Vector Storage", value: "Persistent JSON")
+                TechnicalRow(label: "Search", value: "Hybrid (Cosine + BM25 → RRF)")
+                TechnicalRow(label: "Embedding", value: embeddingProviderDisplayName)
             }
         }
     }
 
     // MARK: - Helper Functions
 
+    /// Embedding dimension - always 384 (MiniLM-L6-v2 is the only supported provider)
+    private let embeddingDimension: Int = 384
+
+    /// Dimension label
+    private var currentDimensionLabel: String {
+        "384-dim"
+    }
+
     private var estimatedMemoryUsage: String {
-        let bytesPerChunk = (512 * 4) + 500
+        // Float32 per dimension (384) + ~500 bytes metadata per chunk
+        let bytesPerChunk = (384 * 4) + 500
         let totalBytes = bytesPerChunk * document.totalChunks
         return formatBytes(totalBytes)
     }
@@ -791,7 +801,7 @@ private struct ContentTagPill: View {
 
 /// A layout that arranges views horizontally, wrapping to next line when needed
 /// Shared across the app for keyword tags, badges, etc.
-struct FlowLayout: Layout { 
+struct FlowLayout: Layout {
     var spacing: CGFloat = 8
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {

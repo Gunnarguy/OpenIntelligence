@@ -39,19 +39,19 @@ extension ContainerSettingsSheet {
 
     @ViewBuilder
     var chunkingSection: some View {
-        Section(header: Text("Text chunking — how documents are split")) {
-            Text("Controls how documents are divided into searchable pieces. Smaller chunks = more precise matches, larger = more context per result.")
+        Section(header: Text("Semantic chunking — topic-aware splitting")) {
+            Text("Documents are split using embedding-based boundary detection (Late Chunking). Topic shifts are detected via cosine similarity drops between adjacent sentences, producing semantically coherent chunks.")
                 .font(.caption)
                 .foregroundColor(.secondary)
 
-            Toggle("Auto Intelligence (adaptive chunking + embeddings)", isOn: $autoAdaptDimension)
+            Toggle("Auto Intelligence (corpus-adaptive tuning)", isOn: $autoAdaptDimension)
 
             if let lastSelfTuneSummary {
                 Text("Last auto-tune: \(lastSelfTuneSummary)")
                     .font(.caption2)
                     .foregroundColor(.secondary)
             } else {
-                Text("When enabled, the library profiles your corpus and auto-tunes chunking/embeddings for accuracy.")
+                Text("LibraryIntelligenceCenter profiles your corpus (vocabulary richness, code density, structure ratio) and auto-selects optimal chunk windows.")
                     .font(.caption2)
                     .foregroundColor(.secondary)
             }
@@ -147,11 +147,11 @@ extension ContainerSettingsSheet {
     private var chunkingStrategyDescription: String {
         switch chunkingStrategy {
         case "densePrecision":
-            return "Smaller, tighter chunks for code, math, or technical content where precision matters."
+            return "150-200 word chunks for code, formulas, or dense technical content. Higher precision, more granular retrieval."
         case "elastic":
-            return "Flexible sizing that adapts to natural document structure like paragraphs and sections."
+            return "Dynamically sizes chunks to paragraph/section boundaries. Uses NLTokenizer sentence detection + embedding similarity."
         default:
-            return "Standard chunking balanced between precision and context. Good for most documents."
+            return "280-400 word target with 17% overlap. Balances semantic coherence with retrieval granularity."
         }
     }
 
@@ -644,8 +644,8 @@ extension ContainerSettingsSheet {
 
     @ViewBuilder
     var retrievalTuningSection: some View {
-        Section(header: Text("Retrieval tuning — how search results are ranked")) {
-            Text("Fine-tune how the search engine balances semantic meaning vs keyword matching, and how strictly it filters results. No presets—just direct controls.")
+        Section(header: Text("Hybrid retrieval — vector + BM25 fusion")) {
+            Text("Fine-tune HybridSearchService's Reciprocal Rank Fusion (RRF). Adjust vector/lexical weights, MMR λ for diversity, and minimum similarity thresholds.")
                 .font(.caption)
                 .foregroundColor(.secondary)
 
@@ -659,7 +659,7 @@ extension ContainerSettingsSheet {
                 // Min similarity threshold
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        Text("Minimum Similarity")
+                        Text("Minimum Cosine Similarity")
                             .font(.subheadline.weight(.semibold))
                         Spacer()
                         Text("\(Int(retrievalConfig.minSimilarity * 100))%")
@@ -669,7 +669,7 @@ extension ContainerSettingsSheet {
 
                     Slider(value: $retrievalConfig.minSimilarity, in: 0.15 ... 0.70, step: 0.05)
 
-                    Text("Chunks below this similarity score are filtered out. Higher = stricter, fewer results.")
+                    Text("Pre-filter threshold: chunks with sim < this are discarded before RRF. Higher = stricter, fewer candidates.")
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }
@@ -678,7 +678,7 @@ extension ContainerSettingsSheet {
                 // Vector vs Lexical weight
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        Text("Semantic vs Keyword")
+                        Text("Vector / BM25 Weight")
                             .font(.subheadline.weight(.semibold))
                         Spacer()
                         Text("\(Int(retrievalConfig.vectorWeight * 100))% / \(Int(retrievalConfig.lexicalWeight * 100))%")
@@ -691,7 +691,7 @@ extension ContainerSettingsSheet {
                             retrievalConfig.lexicalWeight = 1.0 - newValue
                         }
 
-                    Text("Left = more keyword matching (BM25), Right = more semantic embedding similarity.")
+                    Text("RRF fusion weight: Left = favor BM25 term-frequency, Right = favor cosine embedding similarity.")
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }
@@ -700,7 +700,7 @@ extension ContainerSettingsSheet {
                 // MMR Lambda
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        Text("Result Diversity (MMR λ)")
+                        Text("MMR λ (Diversity)")
                             .font(.subheadline.weight(.semibold))
                         Spacer()
                         Text(String(format: "%.2f", retrievalConfig.mmrLambda))
@@ -710,7 +710,7 @@ extension ContainerSettingsSheet {
 
                     Slider(value: $retrievalConfig.mmrLambda, in: 0.3 ... 0.95, step: 0.05)
 
-                    Text("Higher = favor most relevant results, Lower = favor diverse results from different parts of documents.")
+                    Text("Maximal Marginal Relevance: λ−1 = pure relevance, λ→0 = penalize redundancy. Balances quality vs coverage.")
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }
@@ -746,7 +746,7 @@ extension ContainerSettingsSheet {
     @ViewBuilder
     var accuracyDefaultsSection: some View {
         Section(header: Text("Balanced defaults")) {
-            Text("Apply the most reliable configuration for this library. This favors contextual embeddings, persistent storage, and auto-tuned chunking.")
+            Text("Apply the recommended configuration: CoreML sentence embeddings (all-MiniLM-L6-v2), persistent JSON storage, and auto-tuned semantic chunking.")
                 .font(.caption)
                 .foregroundColor(.secondary)
 
@@ -755,15 +755,15 @@ extension ContainerSettingsSheet {
             }
             .buttonStyle(.borderedProminent)
 
-            Text("You can still customize any setting below. Saving will trigger a re-embed if needed.")
+            Text("You can still customize any setting below. Saving will trigger a re-embed if the embedding model or dimension changes.")
                 .font(.caption2)
                 .foregroundColor(.secondary)
         }
     }
 
     private func applyAccuracyDefaults() {
-        providerId = "nl_contextual_embedding"
-        dim = 512
+        providerId = "coreml_sentence_embedding"
+        dim = 384
         dbKind = .persistentJSON
         autoAdaptDimension = true
     }
@@ -799,8 +799,8 @@ extension ContainerSettingsSheet {
 
     @ViewBuilder
     var embeddingProviderSection: some View {
-        Section(header: Text("Embedding model — how text becomes numbers")) {
-            Text("Pick the translator that turns sentences into vectors. Each option stays on-device unless noted.")
+        Section(header: Text("Embedding model — sentence → vector transformation")) {
+            Text("Select the neural encoder that maps text to dense vectors. Currently using bundled MiniLM-L6-v2 (384D). All inference runs on-device via Neural Engine.")
                 .font(.caption)
                 .foregroundColor(.secondary)
 
@@ -900,14 +900,14 @@ extension ContainerSettingsSheet {
 
     @ViewBuilder
     var embeddingResolutionSection: some View {
-        Section(header: Text("Embedding resolution")) {
+        Section(header: Text("Vector dimension")) {
             embeddingResolutionContent
         }
     }
 
     @ViewBuilder
     private var embeddingResolutionContent: some View {
-        Text("Higher dimensions capture more nuance but increase storage and indexing time.")
+        Text("Dimension is fixed by the embedding model (384D for MiniLM-L6-v2). Higher dims = richer semantics, more storage (4 bytes × dim per chunk).")
             .font(.caption)
             .foregroundColor(.secondary)
 
@@ -1090,7 +1090,7 @@ struct ChunkingPreview: View {
 
                 HStack(spacing: -overlapWidth) {
                     ForEach(0 ..< 3, id: \.self) { index in
-                        VStack(spacing: 2) { 
+                        VStack(spacing: 2) {
                             RoundedRectangle(cornerRadius: 4)
                                 .fill(chunkColor(for: index))
 .frame(width: chunkWidth, height: 20)

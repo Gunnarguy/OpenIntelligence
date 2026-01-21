@@ -1426,15 +1426,15 @@ struct EmbeddingInfoSheet: View {
     private var embeddingMethodDescription: String {
         switch settings.defaultEmbeddingProvider {
         case "coreml_sentence_embedding":
-            return "We use Core ML sentence embeddings optimized for Apple Silicon. Hardware-accelerated 384D vectors capture full semantic meaning for accurate search."
+            return "all-MiniLM-L6-v2 sentence-transformer via Core ML. Mean-pooled 384D vectors with Neural Engine acceleration for semantic similarity."
         case "nl_contextual_embedding":
-            return "We use NLContextualEmbedding (BERT-based) to turn every chunk into a high-accuracy semantic fingerprint that captures deep context and meaning."
+            return "NLContextualEmbedding (BERT-based) produces 512D context-aware vectors. 'Bank' near 'river' ≠ 'bank' near 'money'."
         case "nl_embedding":
-            return "We use NLEmbedding to turn every chunk into a 512-number fingerprint that captures topic, tone, and context."
+            return "NLEmbedding word vectors (512D) averaged per chunk. Fast but loses word order and context nuance."
         case "apple_fm_embed":
-            return "We use Apple Foundation Model embeddings for state-of-the-art semantic understanding."
+            return "Apple Foundation Model embeddings (1024D) for state-of-the-art semantic understanding via Private Cloud Compute."
         default:
-            return "We use Core ML sentence embeddings optimized for Apple Silicon. Hardware-accelerated 384D vectors capture full semantic meaning for accurate search."
+            return "all-MiniLM-L6-v2 sentence-transformer via Core ML. Mean-pooled 384D vectors with Neural Engine acceleration for semantic similarity."
         }
     }
 

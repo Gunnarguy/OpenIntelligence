@@ -92,16 +92,25 @@ struct SemanticSearchView: View {
         Group {
             // Show active embedding provider
             if let container = containerService.activeContainer {
+                let isCoreML = container.embeddingProviderId == "coreml_sentence_embedding"
                 let isContextual = container.embeddingProviderId == "nl_contextual_embedding"
                 HStack(spacing: 8) {
-                    Image(systemName: isContextual ? "sparkles" : "brain.head.profile")
-                        .foregroundColor(isContextual ? .purple : .blue)
-                    Text(isContextual ? "Using High-Accuracy Embeddings" : "Using Standard Embeddings")
+                    Image(systemName: isCoreML ? "cpu.fill" : (isContextual ? "sparkles" : "brain.head.profile"))
+                        .foregroundColor(isCoreML ? .orange : (isContextual ? .purple : .blue))
+                    Text(isCoreML ? "MiniLM-L6-v2 (384D)" : (isContextual ? "Contextual (512D)" : "NLEmbedding (512D)"))
                         .font(.caption)
                         .foregroundColor(.secondary)
                     Spacer()
-                    if isContextual {
-                        Text("⚡ Contextual")
+                    if isCoreML {
+                        Text("ANE")
+                            .font(.caption2)
+                            .fontWeight(.medium)
+                            .foregroundColor(.orange)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Capsule().fill(Color.orange.opacity(0.15)))
+                    } else if isContextual {
+                        Text("Contextual")
                             .font(.caption2)
                             .fontWeight(.medium)
                             .foregroundColor(.purple)
@@ -116,7 +125,7 @@ struct SemanticSearchView: View {
             if isSearching {
                 StatusBanner(
                     icon: "hourglass", color: Color.secondary,
-                    message: "Running cosine search across \(scopedDocuments.count) document(s)..."
+                    message: "Running hybrid search (vector + BM25) across \(scopedDocuments.count) document(s)..."
                 )
             } else if let message = errorMessage {
                 StatusBanner(

@@ -1,8 +1,8 @@
 # OpenIntelligence Roadmap
 
-**Last Updated**: January 18, 2026
-**Version**: 1.6.0
-**Status**: Production (App Store Ready)
+**Last Updated**: January 20, 2026
+**Version**: 1.0.0 (Build 4)
+**Status**: Production (App Store Submitted)
 **RAG Maturity Score**: 9.8/10 (Entity Extraction + Recursive Research + mmap Storage + RAPTOR-lite + Query Routing)
 
 ### Recent Improvements (January 2026 - Powerhouse RAG Upgrade)
@@ -648,6 +648,10 @@ _Move items here when actively working on them._
 | UnifiedMetricsBar Type Fixes                 | ✅ Done | Agent | Fixed MemoryPressure→MemoryPressureLevel; removed duplicate executionExplanation property                                                                                                          |
 | Cross-Encoder Re-Ranker Audit                | ✅ Done | Agent | Confirmed ReRankerModel.mlpackage bundled, BertTokenizer working, rerankWithCrossEncoder() functional                                                                                              |
 | Conversation Memory Service                  | ✅ Done | Agent | ConversationMemoryService with LLM summarization, entity tracking, per-container persistence, RAGService integration, Settings UI toggle                                                           |
+| Container Dimension Migration                | ✅ Done | Agent | Auto-fixes containers with invalid embedding dimensions (784→384) or unsupported providers (nl_contextual→coreml) at load time                                                                     |
+| Maximum Mode Confidence Fix                  | ✅ Done | Agent | Fixed 0% confidence display by starting at 5% baseline; progress now shows 5%→12%→20%→... instead of 0%→0%→85%                                                                                     |
+| Ingestion Queue UI Enhancements              | ✅ Done | Agent | Shorthand provider labels (CoreML, NL, FM); 4-row granular metrics; semantic boundary display; entity extraction visualization; timing waterfall; throughput calculations                          |
+| App Store Build 4                            | ✅ Done | Agent | Incremented build to 4, archived and exported IPA for Transporter upload                                                                                                                           |
 
 ---
 

@@ -9,13 +9,13 @@ struct AboutView: View {
     private var embeddingDisplayName: String {
         switch settings.defaultEmbeddingProvider {
         case "nl_contextual_embedding":
-            return "Contextual (High Accuracy)"
+            return "NLContextual (512D)"
         case "nl_embedding":
-            return "NLEmbedding (512-dim)"
+            return "NLEmbedding (512D)"
         case "coreml_sentence_embedding":
-            return "CoreML Sentence"
+            return "MiniLM-L6-v2 (384D)"
         case "apple_fm_embed":
-            return "Apple FM Embed"
+            return "Apple FM (1024D)"
         default:
             return settings.defaultEmbeddingProvider
         }
@@ -84,9 +84,9 @@ struct AboutView: View {
                     SurfaceCard {
                         SectionHeader(icon: "gearshape.2.fill", title: "Technology")
                         VStack(alignment: .leading, spacing: 8) {
-                            LabeledContent("RAG Pipeline", value: "Semantic search + LLM")
+                            LabeledContent("RAG Pipeline", value: "Hybrid (Vector + BM25 → RRF)")
                             LabeledContent("Embeddings", value: embeddingDisplayName)
-                            LabeledContent("Vector Store", value: "In-memory cosine similarity")
+                            LabeledContent("Vector Store", value: "Persistent JSON (exact k-NN)")
                             LabeledContent("Minimum iOS", value: "18.0")
                             LabeledContent("Optimized for", value: "iOS 26.0+")
                         }

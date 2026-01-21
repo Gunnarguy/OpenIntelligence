@@ -1,7 +1,7 @@
 # Release & Operations Guide
 
-**Last Updated**: December 2025
-**Status**: Production Ready
+**Last Updated**: January 2026
+**Status**: Production (App Store Submitted - Build 4)
 
 This is the consolidated guide for releasing OpenIntelligence to the App Store. It combines release checklists, smoke testing, StoreKit configuration, and App Store Connect setup.
 
@@ -22,6 +22,7 @@ This is the consolidated guide for releasing OpenIntelligence to the App Store. 
 ## 1. Pre-Release Checklist
 
 ### Code Quality
+
 - [ ] All tests pass (`⌘U` in Xcode)
 - [ ] No compiler warnings
 - [ ] SwiftLint passes: `swiftlint`
@@ -29,18 +30,21 @@ This is the consolidated guide for releasing OpenIntelligence to the App Store. 
 - [ ] No `// TODO:` or `// FIXME:` in release code
 
 ### Privacy & Compliance
+
 - [ ] `PRIVACY.md` matches app behavior
 - [ ] Cloud consent flow works correctly
 - [ ] OpenAI settings hidden in production builds
 - [ ] No user data logged in release builds
 
 ### StoreKit
+
 - [ ] Products load correctly
 - [ ] Purchase flows complete
 - [ ] Restore purchases works
 - [ ] Quota enforcement blocks at limits
 
 ### Performance
+
 - [ ] 10-page PDF ingestion < 30 seconds
 - [ ] Query response < 5 seconds
 - [ ] Memory usage < 500MB during normal operation
@@ -63,6 +67,7 @@ open OpenIntelligence.xcodeproj  # ⌘R
 ```
 
 ### Test 1: Onboarding (3 min)
+
 1. Launch app → Onboarding checklist appears
 2. **Step 1**: Tap "Import Now" → Sample docs imported
 3. **Step 2**: Open Settings → Select model → Step complete
@@ -70,37 +75,42 @@ open OpenIntelligence.xcodeproj  # ⌘R
 5. Quit & relaunch → Onboarding does NOT reappear
 
 ### Test 2: Document Ingestion (2 min)
+
 1. Documents tab → "+" → Select `Docs/TestDocuments/sample_technical.md`
 2. Verify: Processing overlay → Progress updates → Document appears in list
 
 ### Test 3: RAG Query (2 min)
+
 1. Chat tab → Type "What is this document about?"
 2. Verify: Streaming response → Inference badge shows (📱/☁️/🔑)
 
 ### Test 4: Model Switching (2 min)
+
 1. Settings → Change Primary Model
 2. Return to Chat → Ask question
 3. Verify: Response uses new model
 
 ### Test 5: Container Isolation (1 min)
+
 1. Documents → Create "Test Container 2"
 2. Verify: New container is empty
 3. Import doc → Query only finds new container's content
 
 ### Performance Benchmarks
 
-| Operation | Target |
-|-----------|--------|
-| Document ingestion (sample_technical.md) | <3s |
-| Query embedding | <200ms |
-| Hybrid search (100 chunks) | <100ms |
-| LLM TTFT (on-device) | <1s |
+| Operation                                | Target |
+| ---------------------------------------- | ------ |
+| Document ingestion (sample_technical.md) | <3s    |
+| Query embedding                          | <200ms |
+| Hybrid search (100 chunks)               | <100ms |
+| LLM TTFT (on-device)                     | <1s    |
 
 ---
 
 ## 3. Version Bump
 
 ### Semantic Versioning
+
 - **MAJOR**: Breaking changes
 - **MINOR**: New features (backwards compatible)
 - **PATCH**: Bug fixes
@@ -112,11 +122,16 @@ open OpenIntelligence.xcodeproj  # ⌘R
    - `CFBundleVersion`: Increment each submission
 
 2. **CHANGELOG.md**:
+
 ```markdown
 ## [X.Y.Z] - YYYY-MM-DD
+
 ### Added
+
 - Feature description
+
 ### Fixed
+
 - Bug fix description
 ```
 
@@ -127,6 +142,7 @@ open OpenIntelligence.xcodeproj  # ⌘R
 ### Two Modes (Best Practice)
 
 **🔧 Development (Local StoreKit)** — Use 99% of the time
+
 - **What it is**: The `.storekit` file simulates purchases locally
 - **Pros**: Instant, no network, no sandbox accounts needed
 - **Your Apple ID appears but NO CHARGES EVER HAPPEN**
@@ -134,6 +150,7 @@ open OpenIntelligence.xcodeproj  # ⌘R
 - **Reset purchases**: Debug menu (in-app) → StoreKit → Clear Transactions
 
 **☁️ Pre-Submission Sandbox** — Use once before App Store upload
+
 - **What it is**: Tests real StoreKit servers with fake accounts
 - **When**: Final smoke test before submission only
 - **Setup**: See "Switch to Sandbox" below
@@ -148,11 +165,13 @@ This repo uses **two schemes** so local StoreKit testing never leaks into “rea
   - Use this for **local simulation** (especially on Simulator) with instant purchases.
 
 **When you tap Purchase in `OpenIntelligence-StoreKitTesting`:**
+
 - ✅ Shows your real Apple ID (`gunnarguy@me.com`)
 - ✅ This is NORMAL and SAFE — you will NOT be charged
 - ✅ Simulates purchases instantly without network calls
 
 **When you tap Purchase in `OpenIntelligence` on a device:**
+
 - ✅ Talks to Apple’s StoreKit servers
 - ✅ Purchases complete using a Sandbox tester (no charges)
 - ⚠️ Requires correct App Store Connect setup + Sandbox sign-in
@@ -170,21 +189,23 @@ This repo uses **two schemes** so local StoreKit testing never leaks into “rea
 
 ### Product Catalog
 
-| Product ID | Type | Price | Notes |
-|------------|------|-------|-------|
-| `starter_monthly` | Subscription | $2.99/mo | 3-day trial |
-| `starter_annual` | Subscription | $24.99/yr | 7-day trial |
-| `pro_monthly` | Subscription | $8.99/mo | 7-day trial |
-| `pro_annual` | Subscription | $89.99/yr | Family Sharing |
-| `lifetime_cohort` | Non-consumable | $59.99 | Limited availability (lifetime unlock) |
-| `doc_pack_addon` | Consumable | $4.99 | +25 documents |
+| Product ID        | Type           | Price     | Notes                                  |
+| ----------------- | -------------- | --------- | -------------------------------------- |
+| `starter_monthly` | Subscription   | $2.99/mo  | 3-day trial                            |
+| `starter_annual`  | Subscription   | $24.99/yr | 7-day trial                            |
+| `pro_monthly`     | Subscription   | $8.99/mo  | 7-day trial                            |
+| `pro_annual`      | Subscription   | $89.99/yr | Family Sharing                         |
+| `lifetime_cohort` | Non-consumable | $59.99    | Limited availability (lifetime unlock) |
+| `doc_pack_addon`  | Consumable     | $4.99     | +25 documents                          |
 
 ### Validate Catalog
+
 ```bash
 swift scripts/verify_storekit_products.swift
 ```
 
 ### Reset Purchases
+
 Debug → StoreKit → Clear Transactions
 
 ---
@@ -206,11 +227,13 @@ xcodebuild -exportArchive \
 ```
 
 ### Pre-Submission Checks
+
 - [ ] Archive builds without errors
 - [ ] App thinning report shows acceptable sizes
 - [ ] No missing entitlements warnings
 
 ### Automation
+
 ```bash
 ./scripts/preflight_check.sh    # Validates build
 ./scripts/package_submission.sh # Creates .ipa + symbols
@@ -226,6 +249,7 @@ xcodebuild -exportArchive \
 > Auto-renewable subscriptions are created from the **Subscriptions** page (and require a **Subscription Group**).
 
 #### Quick prerequisites (if options are missing)
+
 - Ensure the **Paid Applications / Agreements, Tax, and Banking** setup is completed for the account.
 - Ensure you’re inside the correct app: **My Apps → OpenIntelligence**.
 - Use **Monetization → In-App Purchases and Subscriptions** and then select the correct sub-section:
@@ -237,6 +261,7 @@ xcodebuild -exportArchive \
 **Subscription Group**: `OpenIntelligence Plans`
 
 For each product:
+
 1. App Store Connect → My Apps → OpenIntelligence → **Monetization** → **Subscriptions**
 2. Create the subscription group (once): `OpenIntelligence Plans`
 3. Inside the group, click "+" to add each subscription
@@ -256,16 +281,17 @@ For each product:
 
 ### Price Tier Mapping
 
-| SKU | Apple Tier | Display Price |
-|-----|------------|---------------|
-| `starter_monthly` | S3 | $2.99 |
-| `starter_annual` | S15 | $24.99 |
-| `pro_monthly` | S9 | $8.99 |
-| `pro_annual` | S69 | $89.99 |
-| `lifetime_cohort` | Tier TBD | $59.99 |
-| `doc_pack_addon` | Tier 5 | $4.99 |
+| SKU               | Apple Tier | Display Price |
+| ----------------- | ---------- | ------------- |
+| `starter_monthly` | S3         | $2.99         |
+| `starter_annual`  | S15        | $24.99        |
+| `pro_monthly`     | S9         | $8.99         |
+| `pro_annual`      | S69        | $89.99        |
+| `lifetime_cohort` | Tier TBD   | $59.99        |
+| `doc_pack_addon`  | Tier 5     | $4.99         |
 
 ### App Store Metadata
+
 - [ ] Screenshots (all device sizes)
 - [ ] App description and keywords
 - [ ] Privacy policy URL
@@ -277,31 +303,34 @@ For each product:
 ## 7. Post-Release Monitoring
 
 ### Monitor
+
 - [ ] App Store Connect rejection feedback
 - [ ] Crash reports (Xcode Organizer)
 - [ ] User reviews
 - [ ] Memory/CPU analytics
 
 ### Rollback Plan
+
 1. Expedited review request for hotfix
 2. Or: Remove current version from sale
 3. Document in `CHANGELOG.md`
 
 ### Success Metrics
 
-| Metric | Target |
-|--------|--------|
-| Download → Trial | ≥10% |
-| Trial → Paid | ≥45% |
-| Monthly Churn (Starter) | ≤9% |
-| Monthly Churn (Pro) | ≤6% |
-| Refund Rate | <4% |
+| Metric                  | Target |
+| ----------------------- | ------ |
+| Download → Trial        | ≥10%   |
+| Trial → Paid            | ≥45%   |
+| Monthly Churn (Starter) | ≤9%    |
+| Monthly Churn (Pro)     | ≤6%    |
+| Refund Rate             | <4%    |
 
 ---
 
 ## Quick Reference
 
 ### Test Setup
+
 ```bash
 # Add test target to Xcode
 # File → New → Target → iOS Unit Testing Bundle → "OpenIntelligenceTests"
@@ -312,6 +341,7 @@ xcodebuild test -scheme OpenIntelligence -destination 'platform=iOS Simulator,na
 ```
 
 ### GGUF Local Model Setup
+
 1. Xcode → File → Add Packages → Add Local → `Vendor/LocalLLMClient`
 2. Link to target: `LocalLLMClient`, `LocalLLMClientLlama`
 3. Build for device (not Simulator)
@@ -320,10 +350,10 @@ xcodebuild test -scheme OpenIntelligence -destination 'platform=iOS Simulator,na
 
 ### Troubleshooting
 
-| Issue | Solution |
-|-------|----------|
+| Issue                          | Solution                          |
+| ------------------------------ | --------------------------------- |
 | Apple Intelligence unavailable | Use "On-Device Analysis" fallback |
-| Documents not importing | Check file picker permissions |
-| Streaming not working | Verify LLM service selection |
-| StoreKit sheet not appearing | Verify .storekit file in scheme |
-| GGUF out of memory | Use smaller model (2-3B Q4_K_M) |
+| Documents not importing        | Check file picker permissions     |
+| Streaming not working          | Verify LLM service selection      |
+| StoreKit sheet not appearing   | Verify .storekit file in scheme   |
+| GGUF out of memory             | Use smaller model (2-3B Q4_K_M)   |

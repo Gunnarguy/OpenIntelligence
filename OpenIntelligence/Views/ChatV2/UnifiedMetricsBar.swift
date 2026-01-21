@@ -1014,17 +1014,17 @@ struct UnifiedMetricsBar: View {
 
     /// Computed confidence based on quality mode:
     /// - Standard: Retrieval quality (topSimilarity scaled, instant)
-    /// - Deep Think: Session progress + retrieval quality (builds over 3 sessions)
+    /// - Deep Think: Live confidence from reasoning chain (builds toward 85%)
     /// - Maximum: Live agentic confidence (builds toward 98%)
     private var computedConfidence: Float {
         if isMaximumMode {
             // Maximum mode: Use live confidence from agentic orchestrator
             return liveConfidence
         } else if isRecursiveRAG {
-            // Deep Think: Session progress (each of 3 sessions = ~33%) + retrieval boost
-            let sessionProgress = min(Float(recursiveCallCount) / 3.0, 1.0) * 0.7
-            let retrievalBoost = min(topSimilarity, 1.0) * 0.3
-            return min(sessionProgress + retrievalBoost, 1.0)
+            // Deep Think: ALWAYS use live confidence from reasoning chain
+            // This ensures header matches chat log (23% → 31% → etc.)
+            // Start at 10% before first session completes (matches reasoning chain initial value)
+            return liveConfidence > 0 ? liveConfidence : 0.10
         } else {
             // Standard mode: Pure retrieval quality
             // topSimilarity 0.7+ = excellent (90%+), 0.5 = good (70%), 0.3 = weak (40%)

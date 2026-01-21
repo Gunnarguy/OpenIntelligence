@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-01-20 (Build 4)
+
+### Added
+
+- **Container Dimension Migration**: Auto-fixes containers with invalid embedding dimensions (784→384) or unsupported providers (nl_contextual→coreml) at load time.
+- **Ingestion Queue Granular UI**: Maximum transparency ingestion overlay with 4-row metrics display:
+  - Real-time semantic boundary detection (sections, topic boundaries, embedding gradients)
+  - Entity extraction visualization with top entities preview
+  - Throughput calculations (words/sec, chunks/sec, vectors/sec)
+  - Timing waterfall with per-stage progress bars
+- **Shorthand Provider Labels**: Compact provider names for UI pills (CoreML, NL, FM, OpenAI, NLCtx).
+- **Shorthand Chunking Strategy Labels**: Abbreviated strategy names (Semantic, Sent, Para, etc.).
+
+### Fixed
+
+- **Maximum Mode 0% Confidence**: Confidence now starts at 5% baseline, showing meaningful progress (5%→12%→20%→...) instead of (0%→0%→0%→85%).
+- **Export Options Plist**: Fixed App Store submission with correct export options.
+
 ## [1.0.0] - 2026-01-09 (Build 3)
 
 ### Added
