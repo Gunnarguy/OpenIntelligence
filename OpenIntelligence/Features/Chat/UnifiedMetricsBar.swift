@@ -1540,7 +1540,7 @@ struct UnifiedMetricsBar: View {
         }
     }
 
-// MARK: - Expanded Panel (Redesigned for Clarity)
+// MARK: - Expanded Panel (Streamlined for This Query)
 
     private var expandedDetailsPanel: some View {
         ScrollView(.vertical, showsIndicators: false) {
@@ -1550,49 +1550,41 @@ struct UnifiedMetricsBar: View {
                     libraryContextSection
                 }
 
-                // Section 2: Query Understanding
+                // Section 2: Query Understanding (how we interpreted the question)
                 if !originalQuery.isEmpty || stage == .embedding || stage == .searching {
                     queryUnderstandingSection
                 }
 
-                // Section 3: Pipeline Journey (the funnel)
+                // Section 3: Mode-Specific Reasoning (what THIS mode did)
+                modeSpecificReasoningSection
+
+                // Section 4: Pipeline Journey (the actual funnel for THIS query)
                 if candidatesCount > 0 || totalStoredChunks > 0 {
                     pipelineJourneySection
                 }
 
-                // Section 4: Token Budget (allocation breakdown)
+                // Section 5: Quality Signals (how good was the retrieval)
+                if topSimilarity > 0 || averageSourceScore != nil {
+                    qualitySignalsSection
+                }
+
+                // Section 6: Token Budget (how context was allocated)
                 if baseWindowTokens > 0 {
                     tokenBudgetSection
                 }
 
-                // Section 5: Where It's Running
-                whereRunningSection
-
-                // Section 6: Search Results & Quality
-                if sourceCount > 0 || totalDocuments > 0 {
-                    searchResultsSection
+                // Section 7: Where It Ran (only post-generation)
+                if !isProcessing {
+                    whereRunningSection
                 }
 
-                // Section 7: Confidence & Quality Metrics
-                if topSimilarity > 0 {
-                    confidenceMetricsSection
+                // Section 8: Agentic Tools (only if tools were used - this IS dynamic per query)
+                if toolCallCount > 0 && !isProcessing {
+                    agenticToolsSection
                 }
-
-                // Section 8: How Smart It's Being (retrieval strategy)
-                if sourceCount > 0 || stage == .searching || stage == .embedding {
-                    searchStrategySection
-                }
-
-                // Section 9: Timing Breakdown
-                if embeddingElapsed > 0 || searchElapsed > 0 || generationElapsed > 0 || elapsedTime > 0 {
-                    timingBreakdownSection
-                }
-
-                // Section 10: Device Health (compact, only notable states)
-                deviceHealthSection
             }
         }
-        .frame(maxHeight: 500) // Allow more scrolling for rich content
+        .frame(maxHeight: 450) // Slightly more room for new sections
         .padding(14)
         .background(Color(uiColor: .secondarySystemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -2066,6 +2058,318 @@ struct UnifiedMetricsBar: View {
             .background(Color.pink.opacity(0.06))
             .clipShape(RoundedRectangle(cornerRadius: 8))
         }
+    }
+
+    // MARK: - Section: Mode-Specific Reasoning
+
+    @ViewBuilder
+    private var modeSpecificReasoningSection: some View {
+        if isMaximumMode {
+            maximumModeReasoningSection
+        } else if isRecursiveRAG {
+            deepThinkReasoningSection
+        } else {
+            standardModeReasoningSection
+        }
+    }
+
+    private var standardModeReasoningSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: "bolt.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.blue)
+                Text("Standard Retrieval")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+
+                Text("single-pass")
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(.blue)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(Color.blue.opacity(0.12))
+                    .clipShape(Capsule())
+            }
+
+            // What techniques were used
+            VStack(alignment: .leading, spacing: 8) {
+                // Hybrid search weights
+                HStack(spacing: 16) {
+                    HStack(spacing: 4) {
+                        Circle().fill(Color.blue).frame(width: 8, height: 8)
+                        Text("Semantic: \(Int(vectorWeight * 100))%")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    HStack(spacing: 4) {
+                        Circle().fill(Color.orange).frame(width: 8, height: 8)
+                        Text("Keyword: \(Int(lexicalWeight * 100))%")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                }
+                .foregroundStyle(.secondary)
+
+                // Active techniques
+                HStack(spacing: 8) {
+                    if hydeEnabled {
+                        techniquePill(icon: "wand.and.stars", text: "HyDE", color: .purple)
+                    }
+                    if hierarchicalChunkingActive {
+                        techniquePill(icon: "doc.on.doc", text: "Parent Expansion", color: .teal)
+                    }
+                    if siblingChunksAdded > 0 {
+                        techniquePill(icon: "arrow.left.arrow.right", text: "+\(siblingChunksAdded) siblings", color: .cyan)
+                    }
+                    if lenientRetrieval {
+                        techniquePill(icon: "hand.thumbsup", text: "Lenient", color: .orange)
+                    }
+                }
+            }
+        }
+        .padding(12)
+        .background(Color.blue.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    private var deepThinkReasoningSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: "brain.head.profile.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.purple)
+                Text("Deep Think Reasoning")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+
+                Text("multi-session")
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(.purple)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(Color.purple.opacity(0.12))
+                    .clipShape(Capsule())
+            }
+
+            // Session info
+            HStack(spacing: 20) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(recursiveCallCount)")
+                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                        .foregroundStyle(.purple)
+                    Text("reasoning sessions")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+
+                if liveConfidence > 0 || !isProcessing {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(Int(liveConfidence * 100))%")
+                            .font(.system(size: 24, weight: .bold, design: .rounded))
+                            .foregroundStyle(liveConfidence >= 0.85 ? .green : .purple)
+                        Text("final confidence")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Spacer()
+
+                if contextTokens > 0 {
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(formatTokenCount(contextTokens))
+                            .font(.system(size: 18, weight: .bold, design: .monospaced))
+                            .foregroundStyle(.purple)
+                        Text("total tokens")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            // Techniques used
+            HStack(spacing: 8) {
+                techniquePill(icon: "arrow.triangle.branch", text: "Multi-Query", color: .purple)
+                if graphExpansionActive {
+                    techniquePill(icon: "point.3.connected.trianglepath.dotted", text: "Graph Expansion", color: .indigo)
+                }
+                if graphEntitiesExtracted > 0 {
+                    techniquePill(icon: "tag.fill", text: "\(graphEntitiesExtracted) entities", color: .teal)
+                }
+            }
+        }
+        .padding(12)
+        .background(Color.purple.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    private var maximumModeReasoningSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: "flame.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.orange)
+                Text("Maximum Reasoning")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+
+                Text("unlimited")
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(.orange)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(Color.orange.opacity(0.12))
+                    .clipShape(Capsule())
+            }
+
+            // Session info - bigger numbers for Maximum
+            HStack(spacing: 20) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(maximumModeSessionCount)")
+                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                        .foregroundStyle(.orange)
+                    Text("reasoning sessions")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+
+                // Confidence with progress to 98%
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 4) {
+                        Text("\(Int(liveConfidence * 100))%")
+                            .font(.system(size: 24, weight: .bold, design: .rounded))
+                            .foregroundStyle(liveConfidence >= 0.98 ? .green : .orange)
+                        Text("/ 98%")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(.secondary)
+                    }
+                    Text(liveConfidence >= 0.98 ? "target reached!" : "confidence target")
+                        .font(.system(size: 10))
+                        .foregroundStyle(liveConfidence >= 0.98 ? .green : .secondary)
+                }
+
+                Spacer()
+
+                if contextTokens > 0 {
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(formatTokenCount(contextTokens))
+                            .font(.system(size: 18, weight: .bold, design: .monospaced))
+                            .foregroundStyle(.orange)
+                        Text("total tokens")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            // Maximum mode techniques
+            HStack(spacing: 8) {
+                techniquePill(icon: "arrow.triangle.branch", text: "Multi-Query", color: .orange)
+                techniquePill(icon: "repeat", text: "Iterative Refinement", color: .yellow)
+                if graphExpansionActive {
+                    techniquePill(icon: "point.3.connected.trianglepath.dotted", text: "Graph", color: .indigo)
+                }
+            }
+        }
+        .padding(12)
+        .background(
+            LinearGradient(colors: [.orange.opacity(0.08), .yellow.opacity(0.04)], startPoint: .topLeading, endPoint: .bottomTrailing)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    private func techniquePill(icon: String, text: String, color: Color) -> some View {
+        HStack(spacing: 3) {
+            Image(systemName: icon)
+                .font(.system(size: 8))
+            Text(text)
+                .font(.system(size: 9, weight: .medium))
+        }
+        .foregroundStyle(color)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(color.opacity(0.12))
+        .clipShape(Capsule())
+    }
+
+    // MARK: - Section: Quality Signals
+
+    private var qualitySignalsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: "checkmark.seal.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.green)
+                Text("Retrieval Quality")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(spacing: 16) {
+                // Top match score
+                if topSimilarity > 0 {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 4) {
+                            Text("\(Int(topSimilarity * 100))%")
+                                .font(.system(size: 20, weight: .bold, design: .rounded))
+                                .foregroundStyle(matchScoreColor(topSimilarity))
+                            Image(systemName: "star.fill")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.yellow)
+                        }
+                        Text("best match")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                // Second best (gap indicates confidence)
+                if secondSimilarity > 0 {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(Int(secondSimilarity * 100))%")
+                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                            .foregroundStyle(matchScoreColor(secondSimilarity))
+                        Text("2nd best")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                // Average of top results
+                if avgTop5Similarity > 0 {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(Int(avgTop5Similarity * 100))%")
+                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                            .foregroundStyle(matchScoreColor(avgTop5Similarity))
+                        Text("avg top 5")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Spacer()
+
+                // MMR diversity used
+                if mmrDiversity > 0 {
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text("λ=\(String(format: "%.1f", mmrDiversity))")
+                            .font(.system(size: 14, weight: .bold, design: .monospaced))
+                            .foregroundStyle(.teal)
+                        Text("diversity")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+        .padding(12)
+        .background(Color.green.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
     private func formatDuration(_ seconds: TimeInterval) -> String {
@@ -2724,6 +3028,35 @@ struct UnifiedMetricsBar: View {
         }
     }
 
+    // MARK: - Section: Agentic Tools Used
+
+    private var agenticToolsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "wrench.and.screwdriver.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.purple)
+                Text("Agentic Tools")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+
+                Text("\(toolCallCount) invoked")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.purple)
+            }
+
+            Text("The AI autonomously searched your documents and retrieved additional context to answer this query.")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(12)
+        .background(Color.purple.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
     // MARK: - Section: How Smart It's Being
 
     private var howSmartSection: some View {
@@ -2974,22 +3307,14 @@ struct UnifiedMetricsBar: View {
                 }
             }
 
-            // Warnings (if any)
-            if pccActive || cloudFallbackActive || state.isConstrained {
+            // Warnings (only if constrained - removed cloud status chips as they're not useful)
+            if state.isConstrained {
                 HStack(spacing: 8) {
-                    if pccActive {
-                        warningChip(icon: "cloud.fill", text: "Using Apple's secure cloud", color: .blue)
-                    }
-                    if cloudFallbackActive {
-                        warningChip(icon: "iphone", text: "Cloud unavailable, using device", color: .orange)
-                    }
-                    if state.isConstrained {
-                        warningChip(
-                            icon: "exclamationmark.triangle.fill",
-                            text: "Performance reduced: \(constraintReason(state))",
-                            color: .orange
-                        )
-                    }
+                    warningChip(
+                        icon: "exclamationmark.triangle.fill",
+                        text: "Performance reduced: \(constraintReason(state))",
+                        color: .orange
+                    )
                 }
             }
         }

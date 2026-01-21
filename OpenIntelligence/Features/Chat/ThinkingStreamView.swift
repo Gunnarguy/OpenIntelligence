@@ -6,6 +6,7 @@ struct ThinkingStreamView: View {
     let events: [ThinkingEvent]
 
     @State private var isExpanded = true  // Default expanded to show the action
+    @State private var isFullHeight = false  // Secondary expand for full history view
     @State private var hasAutoExpanded = false
     @AppStorage("thinkingViewAutoCollapse") private var autoCollapse = true
 
@@ -117,24 +118,47 @@ struct ThinkingStreamView: View {
     // MARK: - Console Log View (the raw pipeline output)
 
     private var consoleLogView: some View {
-        ScrollViewReader { proxy in
-            ScrollView(.vertical, showsIndicators: true) {
-                VStack(alignment: .leading, spacing: 0) {
-                    // Each event as a log line
-                    ForEach(events) { event in
-                        ConsoleLogRow(event: event, isLatest: event.id == latestEvent?.id)
-                            .id(event.id)
+        VStack(spacing: 0) {
+            ScrollViewReader { proxy in
+                ScrollView(.vertical, showsIndicators: true) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        // Each event as a log line
+                        ForEach(events) { event in
+                            ConsoleLogRow(event: event, isLatest: event.id == latestEvent?.id)
+                                .id(event.id)
+                        }
+                    }
+                }
+                .frame(maxHeight: isFullHeight ? 350 : 120)  // Compact by default, expandable
+                .onChange(of: events.count) { _, _ in
+                    // Auto-scroll to latest event
+                    if let latest = latestEvent {
+                        withAnimation(.easeOut(duration: 0.15)) {
+                            proxy.scrollTo(latest.id, anchor: .bottom)
+                        }
                     }
                 }
             }
-            .frame(maxHeight: 120)  // Fixed max height - scrollable within
-            .onChange(of: events.count) { _, _ in
-                // Auto-scroll to latest event
-                if let latest = latestEvent {
-                    withAnimation(.easeOut(duration: 0.15)) {
-                        proxy.scrollTo(latest.id, anchor: .bottom)
+
+            // Expand/collapse button for full history
+            if events.count > 8 {
+                Button(action: {
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                        isFullHeight.toggle()
                     }
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: isFullHeight ? "arrow.up.left.and.arrow.down.right" : "arrow.down.right.and.arrow.up.left")
+                            .font(.system(size: 7, weight: .medium))
+                        Text(isFullHeight ? "Compact" : "Full History (\(events.count))")
+                            .font(.system(size: 7, weight: .medium, design: .monospaced))
+                    }
+                    .foregroundStyle(DSColors.accent.opacity(0.7))
+                    .padding(.vertical, 3)
+                    .frame(maxWidth: .infinity)
+                    .background(Color.white.opacity(0.03))
                 }
+                .buttonStyle(.plain)
             }
         }
         .padding(.vertical, 3)
@@ -257,25 +281,25 @@ private struct ConsoleLogRow: View {
         switch event.kind {
         case .planning: return "PLAN"
         case .embedding: return "EMBED"
-        case .retrieval: return "RETRIV"
+        case .retrieval: return "RETRIEV"
         case .rerank: return "RERANK"
         case .gating: return "GATE"
         case .context: return "CONTXT"
-        case .generation: return "GENER"
-        case .fallback: return "FALLBK"
+        case .generation: return "GENER8"
+        case .fallback: return "FALLBACK"
         case .warning: return "WARN"
         case .hyde: return "HYDE"
-        case .queryRewrite: return "QREWR"
+        case .queryRewrite: return "QRYRWR"
         case .bm25: return "BM25"
         case .vectorSearch: return "VECTOR"
         case .rrf: return "RRF"
         case .mmr: return "MMR"
         case .parentDoc: return "PARENT"
-        case .compression: return "COMPR"
+        case .compression: return "COMPRESS"
         case .lostInMiddle: return "REORDR"
         case .grounding: return "GROUND"
-        case .selfRag: return "SELFRAG"
-        case .iterative: return "ITERAT"
+        case .selfRag: return "SELF-RAG"
+        case .iterative: return "ITERATE"
         case .agentic: return "AGENTIC"
         case .toolCall: return "TOOL"
         case .factBank: return "FACTS"
