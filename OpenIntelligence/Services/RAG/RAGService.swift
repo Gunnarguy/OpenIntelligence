@@ -2986,9 +2986,24 @@ class RAGService: ObservableObject {
                 onStep: { [weak self] step in
                     // Stream thinking steps to UI AND update live counters
                     await MainActor.run {
-                        // Update live token/step counters for real-time UI
+                        // Update live token counter for real-time UI
                         self?.deepThinkLiveTokens += step.tokensUsed
-                        self?.deepThinkLiveSteps += 1
+
+                        // Only count actual LLM reasoning sessions, NOT pipeline events
+                        // Pipeline events have tokensUsed == 0 (they're just status updates)
+                        // Retrieval steps (.searching, .expanding) don't count as reasoning sessions
+                        let isLLMReasoningSession: Bool = {
+                            switch step.type {
+                            case .planning, .analyzing, .synthesizing, .refining, .reformulating:
+                                return step.tokensUsed > 0  // Must have actual tokens to count
+                            case .searching, .expanding:
+                                return false  // Retrieval, not reasoning
+                            }
+                        }()
+
+                        if isLLMReasoningSession {
+                            self?.deepThinkLiveSteps += 1
+                        }
 
                         // Update live confidence for Maximum mode
                         if let confidence = step.confidence {
@@ -2996,9 +3011,24 @@ class RAGService: ObservableObject {
                         }
 
                         // Check if this is a detailed sub-step (0 tokens = pipeline internals)
-                        // For detailed steps, the output contains "Title: Detail" format
-                        if step.tokensUsed == 0 && step.output.contains(": ") {
-                            // This is a detailed pipeline event - parse and show the actual title/detail
+                        // Detailed steps from makeDetailedEventForwarder use format: "KIND|Title: Detail"
+                        // This preserves the original ThinkingEvent.Kind (e.g., .vectorSearch, .bm25, .mmr)
+                        if step.tokensUsed == 0 && step.output.contains("|") {
+                            // Parse the encoded format: "kindRawValue|Title: Detail"
+                            let pipeIndex = step.output.firstIndex(of: "|")!
+                            let kindRaw = String(step.output[..<pipeIndex])
+                            let rest = String(step.output[step.output.index(after: pipeIndex)...])
+
+                            // Parse title and detail from "Title: Detail" format
+                            let parts = rest.split(separator: ":", maxSplits: 1)
+                            let title = String(parts.first ?? "Processing")
+                            let detail = parts.count > 1 ? String(parts[1]).trimmingCharacters(in: .whitespaces) : ""
+
+                            // Recover the original ThinkingEvent.Kind for proper UI display
+                            let eventKind = ThinkingEvent.Kind(rawValue: kindRaw) ?? step.type.thinkingKind
+                            self?.emitThinkingEvent(eventKind, title: title, detail: detail)
+                        } else if step.tokensUsed == 0 && step.output.contains(": ") {
+                            // Legacy format without kind encoding (fallback)
                             let parts = step.output.split(separator: ":", maxSplits: 1)
                             let title = String(parts.first ?? "Processing")
                             let detail = parts.count > 1 ? String(parts[1]).trimmingCharacters(in: .whitespaces) : ""

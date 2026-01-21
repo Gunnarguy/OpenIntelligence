@@ -181,6 +181,8 @@ struct ChatScreen: View {
                         requestedExecutionContext: requestedExecutionContext,
                         vectorWeight: metricsData.vectorWeight,
                         lexicalWeight: metricsData.lexicalWeight,
+                        // Query understanding
+                        originalQuery: messages.last(where: { $0.role == .user })?.content ?? "",
                         queryIntent: metricsData.queryIntent,
                         hierarchicalChunkingActive: metricsData.hierarchicalChunkingActive,
                         parentChunksUsed: metricsData.parentChunksUsed,
@@ -257,6 +259,7 @@ struct ChatScreen: View {
                         requestedExecutionContext: requestedExecutionContext,
                         vectorWeight: minimalVectorWt,
                         lexicalWeight: minimalLexicalWt,
+                        originalQuery: messages.last(where: { $0.role == .user })?.content ?? "",
                         queryIntent: deriveQueryIntent(from: auditSnapshot?.retrievalConfig),
                         hierarchicalChunkingActive: auditSnapshot?.contextStrategy == "parent_expanded",
                         parentChunksUsed: 0,

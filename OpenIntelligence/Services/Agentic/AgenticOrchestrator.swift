@@ -195,11 +195,15 @@ final class AgenticOrchestrator: Sendable {
         return { @Sendable kind, title, detail in
             // Create a lightweight ThinkingStep for detailed pipeline events
             // These are verbose sub-steps that show retrieval internals
+            // IMPORTANT: Encode the original ThinkingEvent.Kind in the output so we can
+            // recover it in RAGService.onStep. Format: "KIND|Title: Detail"
+            // This preserves specific kinds like .vectorSearch, .bm25, .mmr which would
+            // otherwise be lost when mapped through the coarse ThinkingStep.StepType
             let detailStep = ThinkingStep(
                 id: UUID(),
                 type: kind.toStepType,
                 input: "",
-                output: "\(title): \(detail)",
+                output: "\(kind.rawValue)|\(title): \(detail)",
                 tokensUsed: 0, // No tokens for pipeline events
                 duration: 0,
                 timestamp: Date()
