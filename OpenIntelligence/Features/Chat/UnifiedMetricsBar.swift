@@ -256,8 +256,10 @@ struct UnifiedMetricsBar: View {
                     modeProgressIndicator
                 }
 
-                // 4. CONTEXT - Input tokens
-                if contextTokens > 0 {
+                // 4. CONTEXT - Input tokens (only for Standard mode)
+                // Deep Think/Maximum use contextTokens for total agentic tokens, which is redundant
+                // with tokensGenerated - so we hide this badge for those modes
+                if contextTokens > 0 && !isRecursiveRAG && !isMaximumMode {
                     premiumContextBadge
                 }
 
@@ -342,43 +344,21 @@ struct UnifiedMetricsBar: View {
 
     private var deepThinkDetailRow: some View {
         HStack(spacing: 8) {
-            // Reasoning chain visualization
-            HStack(spacing: 3) {
-                ForEach(0..<3, id: \.self) { index in
-                    let isComplete = index < recursiveCallCount
-                    let isCurrent = index == recursiveCallCount - 1 && isProcessing
-
-                    Circle()
-                        .fill(isComplete ? Color.cyan : Color.cyan.opacity(0.2))
-                        .frame(width: 8, height: 8)
-                        .overlay(
-                            Circle()
-                                .stroke(Color.cyan.opacity(0.5), lineWidth: 1)
-                        )
-                        .scaleEffect(isCurrent ? 1.3 : 1.0)
-                        .animation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true), value: isCurrent)
-
-                    if index < 2 {
-                        Rectangle()
-                            .fill(isComplete && index < recursiveCallCount - 1 ? Color.cyan : Color.cyan.opacity(0.2))
-                            .frame(width: 12, height: 2)
-                    }
-                }
+            // Sources badge
+            if sourceCount > 0 {
+                premiumSourcesBadge
             }
 
-            Text("→ 85%")
-                .font(.system(size: 8, weight: .semibold, design: .monospaced))
-                .foregroundStyle(.cyan.opacity(0.7))
+            // Speed sparkline (purple for Deep Think)
+            if speedHistory.count > 1 {
+                MiniSparkline(values: speedHistory, color: .purple)
+                    .frame(height: 20)
+            }
 
             Spacer()
 
-            if speedHistory.count > 1 {
-                MiniSparkline(values: speedHistory, color: .cyan)
-                    .frame(width: 60, height: 18)
-            }
-
-            if sourceCount > 0 {
-                premiumSourcesBadge
+            if toolCallCount > 0 {
+                premiumToolsBadge
             }
         }
     }
@@ -416,18 +396,6 @@ struct UnifiedMetricsBar: View {
             }
             .frame(maxWidth: 100)
 
-            // Session counter
-            HStack(spacing: 2) {
-                Image(systemName: "bolt.fill")
-                    .font(.system(size: 7, weight: .bold))
-                Text("\(maximumModeSessionCount)")
-                    .font(.system(size: 9, weight: .bold, design: .monospaced))
-                Text("sessions")
-                    .font(.system(size: 7, weight: .medium))
-                    .opacity(0.7)
-            }
-            .foregroundStyle(.orange)
-
             Spacer()
 
             if speedHistory.count > 1 {
@@ -444,28 +412,30 @@ struct UnifiedMetricsBar: View {
     // MARK: - Premium Badge: Quality Mode (The Brain)
 
     private var premiumQualityBadge: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 3) {
             // Animated brain icon
             ZStack {
                 if isProcessing {
                     Circle()
                         .fill(qualityModeColor.opacity(0.2))
-                        .frame(width: 22, height: 22)
+                        .frame(width: 18, height: 18)
                         .scaleEffect(1.0 + sin(pulsePhase) * 0.15)
                         .animation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true), value: pulsePhase)
                         .onAppear { pulsePhase = .pi * 2 }
                 }
                 Image(systemName: qualityMode.icon)
-                    .font(.system(size: 11, weight: .bold))
+                    .font(.system(size: 9, weight: .bold))
                     .foregroundStyle(qualityModeColor)
             }
 
             Text(qualityModeLabel)
-                .font(.system(size: 10, weight: .bold))
+                .font(.system(size: 9, weight: .bold))
                 .foregroundStyle(qualityModeColor)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
         .background(
             Capsule()
                 .fill(qualityModeColor.opacity(0.12))
@@ -474,6 +444,7 @@ struct UnifiedMetricsBar: View {
                         .stroke(qualityModeColor.opacity(0.25), lineWidth: 0.5)
                 )
         )
+        .fixedSize()
     }
 
     // MARK: - Premium Badge: Retrieval Quality (Match Score)
@@ -501,75 +472,69 @@ struct UnifiedMetricsBar: View {
         let matchPct = Int(matchScore * 100)
         let matchColor = matchScoreColor(matchScore)
 
-        return HStack(spacing: 3) {
+        return HStack(spacing: 2) {
             // Circular match indicator
             ZStack {
                 Circle()
-                    .stroke(matchColor.opacity(0.25), lineWidth: 2)
-                    .frame(width: 14, height: 14)
+                    .stroke(matchColor.opacity(0.25), lineWidth: 1.5)
+                    .frame(width: 12, height: 12)
                 Circle()
                     .trim(from: 0, to: CGFloat(matchScore))
-                    .stroke(matchColor, style: StrokeStyle(lineWidth: 2, lineCap: .round))
-                    .frame(width: 14, height: 14)
+                    .stroke(matchColor, style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
+                    .frame(width: 12, height: 12)
                     .rotationEffect(.degrees(-90))
             }
 
             Text("\(matchPct)%")
-                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .font(.system(size: 8, weight: .bold, design: .monospaced))
                 .foregroundStyle(matchColor)
-
-            Text("match")
-                .font(.system(size: 7, weight: .medium))
-                .foregroundStyle(matchColor.opacity(0.7))
         }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 5)
+        .padding(.vertical, 3)
         .background(
             Capsule()
                 .fill(matchColor.opacity(0.1))
         )
+        .fixedSize()
     }
 
     private var deepThinkConfidenceBadge: some View {
         let confidence = liveConfidence > 0 ? liveConfidence : 0.10
         let pct = Int(confidence * 100)
         let targetReached = confidence >= 0.85
-        let color: Color = targetReached ? .green : .cyan
+        let color: Color = targetReached ? .green : .purple
 
-        return HStack(spacing: 3) {
+        return HStack(spacing: 2) {
             // Circular confidence indicator
             ZStack {
                 Circle()
-                    .stroke(color.opacity(0.25), lineWidth: 2)
-                    .frame(width: 14, height: 14)
+                    .stroke(color.opacity(0.25), lineWidth: 1.5)
+                    .frame(width: 12, height: 12)
                 Circle()
-                    .trim(from: 0, to: CGFloat(min(confidence / 0.85, 1.0)))  // Scale to 85% target
-                    .stroke(color, style: StrokeStyle(lineWidth: 2, lineCap: .round))
-                    .frame(width: 14, height: 14)
+                    .trim(from: 0, to: CGFloat(min(confidence / 0.85, 1.0)))
+                    .stroke(color, style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
+                    .frame(width: 12, height: 12)
                     .rotationEffect(.degrees(-90))
                     .animation(.easeInOut(duration: 0.3), value: confidence)
             }
 
             Text("\(pct)%")
-                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .font(.system(size: 8, weight: .bold, design: .monospaced))
                 .foregroundStyle(color)
 
             if targetReached {
                 Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 8))
+                    .font(.system(size: 7))
                     .foregroundStyle(.green)
-            } else {
-                Text("conf")
-                    .font(.system(size: 7, weight: .medium))
-                    .foregroundStyle(color.opacity(0.7))
             }
         }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 5)
+        .padding(.vertical, 3)
         .background(
             Capsule()
                 .fill(color.opacity(0.1))
         )
+        .fixedSize()
     }
 
     private var maximumConfidenceBadge: some View {
@@ -578,49 +543,40 @@ struct UnifiedMetricsBar: View {
         let targetReached = confidence >= 0.98
         let color: Color = targetReached ? .green : .orange
 
-        return HStack(spacing: 3) {
-            // Circular confidence indicator with glow when close
+        return HStack(spacing: 2) {
+            // Circular confidence indicator
             ZStack {
-                if confidence >= 0.90 && !targetReached {
-                    Circle()
-                        .fill(color.opacity(0.2))
-                        .frame(width: 18, height: 18)
-                        .blur(radius: 2)
-                }
                 Circle()
-                    .stroke(color.opacity(0.25), lineWidth: 2)
-                    .frame(width: 14, height: 14)
+                    .stroke(color.opacity(0.25), lineWidth: 1.5)
+                    .frame(width: 12, height: 12)
                 Circle()
                     .trim(from: 0, to: CGFloat(min(confidence / 0.98, 1.0)))
                     .stroke(
                         LinearGradient(colors: [.orange, .yellow], startPoint: .leading, endPoint: .trailing),
-                        style: StrokeStyle(lineWidth: 2, lineCap: .round)
+                        style: StrokeStyle(lineWidth: 1.5, lineCap: .round)
                     )
-                    .frame(width: 14, height: 14)
+                    .frame(width: 12, height: 12)
                     .rotationEffect(.degrees(-90))
                     .animation(.easeInOut(duration: 0.3), value: confidence)
             }
 
             Text("\(pct)%")
-                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .font(.system(size: 8, weight: .bold, design: .monospaced))
                 .foregroundStyle(color)
 
             if targetReached {
                 Image(systemName: "star.fill")
-                    .font(.system(size: 8))
+                    .font(.system(size: 7))
                     .foregroundStyle(.yellow)
-            } else {
-                Text("conf")
-                    .font(.system(size: 7, weight: .medium))
-                    .foregroundStyle(color.opacity(0.7))
             }
         }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 5)
+        .padding(.vertical, 3)
         .background(
             Capsule()
                 .fill(color.opacity(0.1))
         )
+        .fixedSize()
     }
 
     // MARK: - Mode Progress Indicator (Sessions/Depth)
@@ -629,76 +585,39 @@ struct UnifiedMetricsBar: View {
     private var modeProgressIndicator: some View {
         if isMaximumMode {
             // Maximum: Unlimited sessions indicator
-            HStack(spacing: 2) {
+            HStack(spacing: 1) {
                 Image(systemName: "infinity")
-                    .font(.system(size: 9, weight: .bold))
+                    .font(.system(size: 7, weight: .bold))
                 if maximumModeSessionCount > 0 {
                     Text("×\(maximumModeSessionCount)")
-                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                        .font(.system(size: 8, weight: .bold, design: .monospaced))
                 }
             }
             .foregroundStyle(.orange)
-            .padding(.horizontal, 5)
+            .padding(.horizontal, 4)
             .padding(.vertical, 3)
             .background(
                 Capsule()
                     .fill(Color.orange.opacity(0.12))
             )
+            .fixedSize()
         } else if isRecursiveRAG {
-            // Deep Think: 3-session indicator
-            HStack(spacing: 2) {
+            // Deep Think: session count (no max - it goes until confident)
+            HStack(spacing: 1) {
                 Image(systemName: "brain.head.profile")
-                    .font(.system(size: 9, weight: .semibold))
-                Text("\(recursiveCallCount)/3")
-                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .font(.system(size: 7, weight: .semibold))
+                Text("×\(recursiveCallCount)")
+                    .font(.system(size: 8, weight: .bold, design: .monospaced))
             }
-            .foregroundStyle(.cyan)
-            .padding(.horizontal, 5)
+            .foregroundStyle(.purple)
+            .padding(.horizontal, 4)
             .padding(.vertical, 3)
             .background(
                 Capsule()
-                    .fill(Color.cyan.opacity(0.12))
+                    .fill(Color.purple.opacity(0.12))
             )
+            .fixedSize()
         }
-    }
-
-    /// Shows how well the retrieval matched - uses actual similarity scores, not confidence
-    private var premiumRetrievalBadge: some View {
-        let matchScore = computedMatchScore
-        let matchPct = Int(matchScore * 100)
-        let matchColor = matchScoreColor(matchScore)
-
-        return HStack(spacing: 3) {
-            // Circular match indicator
-            ZStack {
-                Circle()
-                    .stroke(matchColor.opacity(0.25), lineWidth: 2)
-                    .frame(width: 14, height: 14)
-                Circle()
-                    .trim(from: 0, to: CGFloat(matchScore))
-                    .stroke(
-                        matchColor,
-                        style: StrokeStyle(lineWidth: 2, lineCap: .round)
-                    )
-                    .frame(width: 14, height: 14)
-                    .rotationEffect(.degrees(-90))
-            }
-
-            Text("\(matchPct)%")
-                .font(.system(size: 10, weight: .bold, design: .monospaced))
-                .foregroundStyle(matchColor)
-
-            // Micro label
-            Text("match")
-                .font(.system(size: 7, weight: .medium))
-                .foregroundStyle(matchColor.opacity(0.7))
-        }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 4)
-        .background(
-            Capsule()
-                .fill(matchColor.opacity(0.1))
-        )
     }
 
     /// Computed match score from retrieval similarity (not confidence)
@@ -724,77 +643,102 @@ struct UnifiedMetricsBar: View {
     // MARK: - Premium Badge: Sessions (Reasoning Depth)
 
     private var premiumSessionsBadge: some View {
-        HStack(spacing: 3) {
+        HStack(spacing: 2) {
             Image(systemName: "brain.head.profile")
-                .font(.system(size: 9, weight: .semibold))
+                .font(.system(size: 7, weight: .semibold))
             Text("×\(recursiveCallCount)")
-                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .font(.system(size: 8, weight: .bold, design: .monospaced))
         }
-        .foregroundStyle(.cyan)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 4)
+        .foregroundStyle(.purple)
+        .padding(.horizontal, 5)
+        .padding(.vertical, 3)
         .background(
             Capsule()
-                .fill(Color.cyan.opacity(0.12))
+                .fill(Color.purple.opacity(0.12))
                 .overlay(
                     Capsule()
-                        .stroke(Color.cyan.opacity(0.3), lineWidth: 0.5)
+                        .stroke(Color.purple.opacity(0.3), lineWidth: 0.5)
                 )
         )
+        .lineLimit(1)
+        .fixedSize()
     }
 
     // MARK: - Premium Badge: Context (Input Tokens)
 
     private var premiumContextBadge: some View {
-        HStack(spacing: 3) {
+        HStack(spacing: 2) {
             Image(systemName: "arrow.down.doc.fill")
-                .font(.system(size: 9, weight: .semibold))
+                .font(.system(size: 7, weight: .semibold))
             Text(formatTokenCount(contextTokens))
-                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .font(.system(size: 8, weight: .bold, design: .monospaced))
         }
         .foregroundStyle(contextColor)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 5)
+        .padding(.vertical, 3)
         .background(
             Capsule()
                 .fill(contextColor.opacity(0.1))
         )
+        .lineLimit(1)
+        .fixedSize()
     }
 
-    // MARK: - Premium Badge: Generation (Speed + Output)
+    // MARK: - Premium Badge: Generation (Speed + Output + Words)
 
     private var premiumGenerationBadge: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 4) {
             // Speed metric
-            HStack(spacing: 2) {
+            HStack(spacing: 1) {
                 Image(systemName: "bolt.fill")
-                    .font(.system(size: 8, weight: .bold))
+                    .font(.system(size: 7, weight: .bold))
                 Text(String(format: "%.0f", tokensPerSecond))
-                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    .font(.system(size: 8, weight: .bold, design: .monospaced))
                 Text("t/s")
-                    .font(.system(size: 7, weight: .medium))
+                    .font(.system(size: 6, weight: .medium))
                     .opacity(0.7)
             }
             .foregroundStyle(speedColor)
+            .lineLimit(1)
+            .fixedSize()
 
-            // Divider
+            // Divider + Output tokens
             if tokensGenerated > 0 {
                 Rectangle()
                     .fill(.secondary.opacity(0.3))
-                    .frame(width: 1, height: 12)
+                    .frame(width: 1, height: 10)
 
-                // Output count
-                HStack(spacing: 2) {
+                // Output token count
+                HStack(spacing: 1) {
                     Image(systemName: "text.bubble.fill")
-                        .font(.system(size: 8, weight: .semibold))
+                        .font(.system(size: 7, weight: .semibold))
                     Text(formatTokenCount(tokensGenerated))
-                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .font(.system(size: 8, weight: .bold, design: .monospaced))
                 }
                 .foregroundStyle(.green)
+                .lineLimit(1)
+                .fixedSize()
+            }
+
+            // Cumulative word count (the big number!)
+            if characterCount > 0 {
+                Rectangle()
+                    .fill(.secondary.opacity(0.3))
+                    .frame(width: 1, height: 10)
+
+                HStack(spacing: 1) {
+                    Image(systemName: "character.cursor.ibeam")
+                        .font(.system(size: 7, weight: .semibold))
+                    Text(formatLargeCount(characterCount))
+                        .font(.system(size: 8, weight: .bold, design: .monospaced))
+                }
+                .foregroundStyle(.purple)
+                .lineLimit(1)
+                .fixedSize()
             }
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
         .background(
             Capsule()
                 .fill(.green.opacity(0.08))
@@ -808,41 +752,40 @@ struct UnifiedMetricsBar: View {
     // MARK: - Premium Badge: Time
 
     private var premiumTimeBadge: some View {
-        HStack(spacing: 3) {
+        HStack(spacing: 2) {
             Image(systemName: isProcessing ? "hourglass" : "checkmark.circle.fill")
-                .font(.system(size: 9, weight: .medium))
+                .font(.system(size: 7, weight: .medium))
                 .symbolEffect(.pulse, isActive: isProcessing)
             Text(formatElapsed(elapsedTime))
-                .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                .font(.system(size: 8, weight: .semibold, design: .monospaced))
         }
         .foregroundStyle(isProcessing ? .orange : .green)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 5)
+        .padding(.vertical, 3)
         .background(
             Capsule()
                 .fill((isProcessing ? Color.orange : Color.green).opacity(0.1))
         )
+        .fixedSize()
     }
 
     // MARK: - Premium Badge: Sources (Row 2)
 
     private var premiumSourcesBadge: some View {
-        HStack(spacing: 2) {
+        HStack(spacing: 1) {
             Image(systemName: "doc.text.magnifyingglass")
-                .font(.system(size: 8, weight: .semibold))
+                .font(.system(size: 7, weight: .semibold))
             Text("\(sourceCount)")
-                .font(.system(size: 9, weight: .bold, design: .monospaced))
-            Text("docs")
-                .font(.system(size: 7, weight: .medium))
-                .opacity(0.7)
+                .font(.system(size: 8, weight: .bold, design: .monospaced))
         }
         .foregroundStyle(sourceQualityColor)
-        .padding(.horizontal, 5)
+        .padding(.horizontal, 4)
         .padding(.vertical, 3)
         .background(
             Capsule()
                 .fill(sourceQualityColor.opacity(0.1))
         )
+        .fixedSize()
     }
 
     // MARK: - Premium Badge: Tools (Row 2)
@@ -948,10 +891,10 @@ struct UnifiedMetricsBar: View {
                             .opacity(0.8)
                     }
                 }
-                .foregroundStyle(.cyan)
+                .foregroundStyle(.purple)
                 .padding(.horizontal, 6)
                 .padding(.vertical, 3)
-                .background(Color.cyan.opacity(0.12))
+                .background(Color.purple.opacity(0.12))
                 .clipShape(Capsule())
             )
         }
@@ -1257,10 +1200,10 @@ struct UnifiedMetricsBar: View {
                             .font(.system(size: 7, weight: .medium))
                     }
                 }
-                .foregroundStyle(.cyan)
+                .foregroundStyle(.purple)
                 .padding(.horizontal, 4)
                 .padding(.vertical, 2)
-                .background(Color.cyan.opacity(0.12))
+                .background(Color.purple.opacity(0.12))
                 .clipShape(Capsule())
             )
         }
@@ -1295,6 +1238,18 @@ struct UnifiedMetricsBar: View {
             return "\(tokens / 1000).\((tokens % 1000) / 100)K"
         }
         return "\(tokens)"
+    }
+
+    /// Format large counts (characters/words) with K suffix - shows big numbers like 40.2K
+    private func formatLargeCount(_ count: Int) -> String {
+        if count >= 100000 {
+            return String(format: "%.0fK", Double(count) / 1000.0)
+        } else if count >= 10000 {
+            return String(format: "%.1fK", Double(count) / 1000.0)
+        } else if count >= 1000 {
+            return String(format: "%.1fK", Double(count) / 1000.0)
+        }
+        return "\(count)"
     }
 
     private var speedBadge: some View {
@@ -1425,12 +1380,12 @@ struct UnifiedMetricsBar: View {
 
     /// Mode-specific theme colors:
     /// - Standard: Blue (fast, efficient, single-pass)
-    /// - Deep Think: Cyan (analytical, multi-session reasoning)
+    /// - Deep Think: Purple (analytical, multi-session reasoning)
     /// - Maximum: Orange/Gold (premium, unlimited, thorough)
     private var qualityModeColor: Color {
         switch qualityMode.canonical {
         case .standard: return .blue
-        case .deepThink: return .cyan
+        case .deepThink: return .purple
         case .maximum: return .orange
         default: return .blue
         }
@@ -2636,12 +2591,14 @@ struct UnifiedMetricsBar: View {
                 // Context usage (visual + text) - BUT NOT for Deep Think/Maximum which uses tokens
                 if isRecursiveRAG {
                     // Deep Think / Maximum mode: Show tokens and sessions instead
+                    // Use mode-appropriate color (purple for Deep Think, orange for Maximum)
+                    let modeColor: Color = isMaximumMode ? .orange : .purple
                     VStack(alignment: .trailing, spacing: 6) {
                         VStack(alignment: .trailing, spacing: 4) {
                             HStack(spacing: 4) {
                                 Image(systemName: "arrow.trianglehead.branch")
                                     .font(.system(size: 8))
-                                    .foregroundStyle(.cyan)
+                                    .foregroundStyle(modeColor)
                                 Text("Multi-Session")
                                     .font(.system(size: 10, weight: .medium))
                                     .foregroundStyle(.secondary)
@@ -2653,7 +2610,7 @@ struct UnifiedMetricsBar: View {
                                     HStack(spacing: 2) {
                                         Text("\(recursiveCallCount)")
                                             .font(.system(size: 14, weight: .bold, design: .monospaced))
-                                            .foregroundStyle(.cyan)
+                                            .foregroundStyle(modeColor)
                                         Text("sessions")
                                             .font(.system(size: 10))
                                             .foregroundStyle(.secondary)
@@ -2666,7 +2623,7 @@ struct UnifiedMetricsBar: View {
                                 HStack(spacing: 2) {
                                     Text(formatTokenCount(contextTokens))
                                         .font(.system(size: 12, weight: .bold, design: .monospaced))
-                                        .foregroundStyle(.cyan)
+                                        .foregroundStyle(modeColor)
                                     Text("tokens")
                                         .font(.system(size: 10))
                                         .foregroundStyle(.secondary)
