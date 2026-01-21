@@ -22,41 +22,61 @@
 
 ```
 OpenIntelligence/
-├── OpenIntelligenceApp.swift    # App entry point
-├── ContentView.swift            # Root view (tab bar)
-├── Models/                      # Data types (ChatMessage, KnowledgeContainer, etc.)
-├── Services/                    # ALL business logic lives here
-│   ├── RAGService.swift         # 🔑 Main orchestrator (@MainActor, ~4000 LOC)
-│   ├── RAGEngine.swift          # Background actor (MMR, BM25, RRF)
-│   ├── LLMService.swift         # Protocol + 7 implementations
-│   ├── VectorStoreRouter.swift  # Per-container DB routing
-│   ├── SettingsStore.swift      # Centralized preferences
-│   └── ...                      # Other services (chunking, search, etc.)
-├── Views/                       # SwiftUI views organized by feature
-│   ├── ChatV2/                  # Main chat interface
-│   ├── Settings/                # Settings screens
-│   ├── Documents/               # Document management
-│   ├── Billing/                 # StoreKit/subscription UI
-│   └── ...
-├── Shared/                      # Cross-cutting utilities (DesignSystem, QuotaPolicy)
-├── StoreKit/                    # StoreKit 2 integration
-└── Utilities/                   # Keychain, MarkdownRenderer
+├── App/                           # App entry point & configuration
+│   ├── OpenIntelligenceApp.swift  # @main entry
+│   └── ContentView.swift          # Root view (tab bar)
+│
+├── Core/                          # Shared domain logic
+│   ├── Models/                    # Data types (ChatMessage, KnowledgeContainer, etc.)
+│   ├── Protocols/                 # Extracted protocols
+│   └── Extensions/                # Swift extensions
+│
+├── Features/                      # Feature modules (Views organized by domain)
+│   ├── Chat/                      # Main chat interface
+│   ├── Documents/                 # Document library & management
+│   ├── Settings/                  # Settings screens
+│   ├── Billing/                   # StoreKit/subscription UI
+│   ├── Onboarding/                # First-run experience
+│   ├── Diagnostics/               # Debug views
+│   └── Telemetry/                 # Visualization & analytics views
+│
+├── Services/                      # ALL business logic (organized by domain)
+│   ├── RAG/                       # Core RAG pipeline (RAGService, RAGEngine, HybridSearch)
+│   ├── LLM/                       # LLM integrations (LLMService protocol + implementations)
+│   ├── Embedding/                 # Embedding providers (CoreML, NL, AppleFM)
+│   ├── VectorStore/               # Vector databases (protocol + implementations)
+│   ├── Query/                     # Query processing (HyDE, compression, routing)
+│   ├── Document/                  # Document processing (chunking, entity extraction)
+│   ├── Agentic/                   # Agentic orchestration (tools, intents, memory)
+│   ├── Billing/                   # StoreKit billing service
+│   └── Infrastructure/            # Cross-cutting (logging, device, settings, telemetry)
+│
+├── UI/                            # Reusable UI components
+│   ├── DesignSystem/              # Theme, colors, typography
+│   └── Components/                # Shared SwiftUI components
+│
+├── Resources/                     # Static resources
+│   ├── Assets/                    # Image assets, colors
+│   ├── MLModels/                  # CoreML models (.mlpackage)
+│   └── StoreKit/                  # StoreKit configuration
+│
+└── swift-transformers/            # Git submodule (HuggingFace tokenizers)
 
 Docs/
 ├── reference/
-│   ├── ARCHITECTURE.md          # Full technical reference (READ THIS)
-│   ├── RELEASE.md               # Release checklist, smoke tests, StoreKit testing
-│   └── PRICING_STRATEGY.md      # Business docs (don't modify)
-└── TestDocuments/               # Test fixtures for DocumentProcessor
+│   ├── ARCHITECTURE.md            # Full technical reference (READ THIS)
+│   ├── RELEASE.md                 # Release checklist, smoke tests
+│   └── PRICING_STRATEGY.md        # Business docs (don't modify)
+└── TestDocuments/                 # Test fixtures for DocumentProcessor
 
-OpenIntelligenceTests/           # Unit tests + TestDoubles.swift for mocks
-Vendor/LocalLLMClient/           # llama.cpp + MLX (DON'T TOUCH - vendored dependency)
-scripts/                         # CI/CD helpers (secret_scan, preflight_check)
+OpenIntelligenceTests/             # Unit tests + TestDoubles.swift for mocks
+scripts/                           # CI/CD helpers (secret_scan, preflight_check)
+fastlane/                          # App Store deployment automation
 ```
 
 ### Don't Touch Zones
 
-- `Vendor/` — Vendored llama.cpp/MLX binaries. Never modify.
+- `swift-transformers/` — Git submodule. Never modify directly.
 - `*.xcodeproj/` — Xcode manages this. Don't hand-edit.
 - `PRICING_STRATEGY.md` — Business-sensitive, gitignored from public.
 
@@ -125,22 +145,22 @@ await recordTransmission(CloudTransmissionRecord(...))
 
 **"Add a new LLM provider"**
 
-1. Create `Services/MyNewLLMService.swift` conforming to `LLMService` protocol
-2. Add case to `LLMModelType` enum in `Models/LLMModelType.swift`
+1. Create `Services/LLM/MyNewLLMService.swift` conforming to `LLMService` protocol
+2. Add case to `LLMModelType` enum in `Core/Models/LLMModelType.swift`
 3. Register in `RAGService.buildLLMFallbackChain()`
-4. Add UI toggle in `Views/Settings/`
+4. Add UI toggle in `Features/Settings/`
 
 **"Add a new setting"**
 
-1. Add `@AppStorage` property to `Services/SettingsStore.swift`
-2. Add UI control in appropriate `Views/Settings/` screen
+1. Add `@AppStorage` property to `Services/Infrastructure/SettingsStore.swift`
+2. Add UI control in appropriate `Features/Settings/` screen
 3. Access via `@EnvironmentObject var settings: SettingsStore` in views
 
 **"Fix a retrieval bug"**
 
-1. Check `Services/HybridSearchService.swift` for search logic
-2. Check `Services/RAGEngine.swift` for ranking (MMR, RRF)
-3. Check `Services/VectorStoreRouter.swift` for DB routing
+1. Check `Services/RAG/HybridSearchService.swift` for search logic
+2. Check `Services/RAG/RAGEngine.swift` for ranking (MMR, RRF)
+3. Check `Services/VectorStore/VectorStoreRouter.swift` for DB routing
 4. Run `HybridSearchServiceTests` to verify
 
 ## Coding Conventions
@@ -182,16 +202,16 @@ let failing = FailingLLMService()  // For fallback chain tests
 
 ## Key Files
 
-| File                                  | Purpose                                   |
-| ------------------------------------- | ----------------------------------------- |
-| `Services/RAGService.swift`           | Main orchestrator (~4000 LOC)             |
-| `Services/RAGEngine.swift`            | Background actor for MMR/BM25/RRF         |
-| `Services/LLMService.swift`           | Protocol + all LLM implementations        |
-| `Services/VectorStoreRouter.swift`    | Per-container vector DB routing           |
-| `Services/SettingsStore.swift`        | Centralized preferences (debounced)       |
-| `Services/LoggingConfiguration.swift` | Log levels and categories                 |
-| `Models/KnowledgeContainer.swift`     | Container schema (embedding dim, DB kind) |
-| `Docs/reference/ARCHITECTURE.md`      | Full technical reference                  |
+| File                                                 | Purpose                                   |
+| ---------------------------------------------------- | ----------------------------------------- |
+| `Services/RAG/RAGService.swift`                      | Main orchestrator (~4000 LOC)             |
+| `Services/RAG/RAGEngine.swift`                       | Background actor for MMR/BM25/RRF         |
+| `Services/LLM/LLMService.swift`                      | Protocol + all LLM implementations        |
+| `Services/VectorStore/VectorStoreRouter.swift`       | Per-container vector DB routing           |
+| `Services/Infrastructure/SettingsStore.swift`        | Centralized preferences (debounced)       |
+| `Services/Infrastructure/LoggingConfiguration.swift` | Log levels and categories                 |
+| `Core/Models/KnowledgeContainer.swift`               | Container schema (embedding dim, DB kind) |
+| `Docs/reference/ARCHITECTURE.md`                     | Full technical reference                  |
 
 ## Common Pitfalls
 

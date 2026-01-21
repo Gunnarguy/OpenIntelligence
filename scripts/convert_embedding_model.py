@@ -38,7 +38,7 @@ from transformers import (
 # Paths
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent
-OUTPUT_DIR = REPO_ROOT / "OpenIntelligence" / "Models" / "Resources"
+OUTPUT_DIR = REPO_ROOT / "OpenIntelligence" / "Resources" / "MLModels"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # Shared config
