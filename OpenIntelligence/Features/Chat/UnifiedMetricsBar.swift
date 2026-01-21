@@ -2357,13 +2357,6 @@ struct UnifiedMetricsBar: View {
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
-    private func matchScoreColor(_ score: Float) -> Color {
-        if score > 0.7 { return .green }
-        if score > 0.5 { return .blue }
-        if score > 0.3 { return .orange }
-        return .red
-    }
-
     // MARK: - Section: Search Strategy
 
     private var searchStrategySection: some View {
