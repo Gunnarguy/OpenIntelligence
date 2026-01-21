@@ -351,7 +351,8 @@ final class AgenticOrchestrator: Sendable {
             let (expansionStep, expandedChunks) = try await executeGraphExpansion(
                 query: query,
                 initialChunks: initialChunks,
-                ragService: ragService
+                ragService: ragService,
+                onDetailedEvent: detailedForwarder
             )
 
             if !expansionStep.output.isEmpty {
@@ -389,10 +390,12 @@ final class AgenticOrchestrator: Sendable {
                 Log.info("[Agentic] MAXIMUM MODE: TRUE UNLIMITED reasoning until 98% confident", category: .llm)
 
                 // First, gather ALL chunks from the library for comprehensive analysis
+                // Pass detailedForwarder for full pipeline visibility in console
                 let allChunksForMultiChain = try await gatherAllRelevantChunks(
                     query: query,
                     initialChunks: sortedChunks,
-                    ragService: ragService
+                    ragService: ragService,
+                    onDetailedEvent: detailedForwarder
                 )
 
                 let unlimitedResult = try await executeTrueUnlimitedReasoning(
@@ -698,11 +701,14 @@ final class AgenticOrchestrator: Sendable {
                 // Single-topic query - try harder with multiple reformulations
                 Log.info("[Agentic] Single-topic, low confidence → trying alternative search strategies", category: .llm)
 
-                // Try a broader search with lower threshold
-                let broaderChunks = try await ragService.searchDocumentsRaw(
+                await detailedForwarder?(.retrieval, "Fallback search", "Broadening with lower threshold")
+
+                // Try a broader search with lower threshold - use full pipeline for event visibility
+                let broaderChunks = try await ragService.executeFullRetrievalPipeline(
                     query: query,
                     topK: 20,
-                    minSimilarity: 0.08 // Much lower threshold
+                    minSimilarity: 0.08, // Much lower threshold
+                    onDetailedEvent: detailedForwarder
                 )
 
                 if !broaderChunks.isEmpty {
@@ -1353,19 +1359,20 @@ final class AgenticOrchestrator: Sendable {
 
         var allResults: [[RetrievedChunk]] = []
 
-        // Search with each query variation - show FULL pipeline for first query only
+        // Search with each query variation - show FULL pipeline for ALL queries
+        // This gives Deep Think/Maximum the same granular console output as Standard mode
         for (index, query) in queries.enumerated() {
             if Task.isCancelled { break }
 
             await onDetailedEvent?(.retrieval, "Query \(index + 1)/\(queries.count)", "\"\(query.prefix(40))...\"")
 
-            // Show full pipeline details for first query, summary for rest
-            let showDetails = index == 0
+            // Show full pipeline details for ALL queries (not just first)
+            // Deep Think users want to see VECTOR, BM25, RRF, MMR, RERANK for each search
             let chunks = try await ragService.executeFullRetrievalPipeline(
                 query: query,
                 topK: 15,
                 minSimilarity: 0.05, // Very low - we'll use RRF to rank
-                onDetailedEvent: showDetails ? onDetailedEvent : nil
+                onDetailedEvent: onDetailedEvent  // Always forward events
             )
             allResults.append(chunks)
 
@@ -1482,7 +1489,8 @@ final class AgenticOrchestrator: Sendable {
     private func executeGraphExpansion(
         query: String,
         initialChunks: [RetrievedChunk],
-        ragService: RAGService
+        ragService: RAGService,
+        onDetailedEvent: (@Sendable (ThinkingEvent.Kind, String, String) async -> Void)? = nil
     ) async throws -> (ThinkingStep, [RetrievedChunk]) {
         let startTime = Date()
         guard !initialChunks.isEmpty else {
@@ -1499,6 +1507,8 @@ final class AgenticOrchestrator: Sendable {
                 []
             )
         }
+
+        await onDetailedEvent?(.agentic, "Graph expansion", "Extracting entities for hop search")
 
         let contextText = initialChunks
             .map { $0.chunk.parentContent ?? $0.chunk.content }
@@ -1530,19 +1540,27 @@ final class AgenticOrchestrator: Sendable {
             entities = heuristicEntityFallback(from: contextText, excluding: query)
         }
 
+        await onDetailedEvent?(.parentDoc, "Entity hop", "Searching \(entities.count) entities: \(entities.prefix(3).joined(separator: ", "))")
+
         var expandedChunks: [RetrievedChunk] = []
 
-        for entity in entities {
+        for (idx, entity) in entities.enumerated() {
             if Task.isCancelled { break }
-            let hopChunks = try await ragService.searchDocumentsRaw(
+            await onDetailedEvent?(.parentDoc, "Hop \(idx + 1)/\(entities.count)", "\"\(entity)\"")
+
+            // Use full pipeline for entity hop searches (shows VECTOR, BM25, RRF, MMR)
+            let hopChunks = try await ragService.executeFullRetrievalPipeline(
                 query: entity,
                 topK: 4,
-                minSimilarity: 0.2
+                minSimilarity: 0.2,
+                onDetailedEvent: onDetailedEvent
             )
             for chunk in hopChunks where !expandedChunks.contains(where: { $0.chunk.id == chunk.chunk.id }) {
                 expandedChunks.append(chunk)
             }
         }
+
+        await onDetailedEvent?(.parentDoc, "Graph complete", "+\(expandedChunks.count) chunks from entity hops")
 
         let output = entities.isEmpty
             ? "No graph entities identified"
@@ -3575,6 +3593,9 @@ extension AgenticOrchestrator {
         var allInsights: [String] = []
         var steps: [ThinkingStep] = []
 
+        // Create detailed event forwarder for console output (Maximum mode gets full pipeline visibility)
+        let detailedForwarder = makeDetailedEventForwarder(onStep: onStep)
+
         // Use the app's unified QueryIntent classification for consistency
         // This aligns FactBank extraction with hybrid search weight adjustments
         let queryEnhancer = QueryEnhancementService()
@@ -3639,12 +3660,18 @@ extension AgenticOrchestrator {
                         factBank: factBank
                     )
 
+                    await detailedForwarder?(.iterative, "Adaptive expansion", "Generating \(expansionQueries.count) new search queries")
+
                     var newChunks: [RetrievedChunk] = []
-                    for expQuery in expansionQueries {
-                        if let chunks = try? await ragService.searchDocumentsRaw(
+                    for (idx, expQuery) in expansionQueries.enumerated() {
+                        await detailedForwarder?(.retrieval, "Expansion \(idx + 1)/\(expansionQueries.count)", "\"\(expQuery.prefix(40))...\"")
+
+                        // Use full retrieval pipeline with event forwarding for Maximum mode visibility
+                        if let chunks = try? await ragService.executeFullRetrievalPipeline(
                             query: expQuery,
                             topK: 20,
-                            minSimilarity: 0.15 // Lower threshold for exploration
+                            minSimilarity: 0.15, // Lower threshold for exploration
+                            onDetailedEvent: detailedForwarder
                         ) {
                             for chunk in chunks where !usedChunkIds.contains(chunk.chunk.id) {
                                 newChunks.append(chunk)
@@ -3660,6 +3687,8 @@ extension AgenticOrchestrator {
                         saturationStreak = 0 // Reset saturation
 
                         Log.info("[Unlimited] EXPANSION \(expansionCount)/\(maxExpansions): Added \(newChunks.count) new chunks (total: \(sortedChunks.count))", category: .llm)
+
+                        await detailedForwarder?(.iterative, "Expansion complete", "+\(newChunks.count) chunks (pool: \(sortedChunks.count))")
 
                         // Emit expansion step
                         let expansionStep = ThinkingStep(
@@ -4598,18 +4627,23 @@ extension AgenticOrchestrator {
     private func gatherAllRelevantChunks(
         query: String,
         initialChunks: [RetrievedChunk],
-        ragService: RAGService
+        ragService: RAGService,
+        onDetailedEvent: (@Sendable (ThinkingEvent.Kind, String, String) async -> Void)? = nil
     ) async throws -> [RetrievedChunk] {
         Log.info("[MultiChain] Gathering comprehensive chunks for multi-chain analysis", category: .retrieval)
+
+        await onDetailedEvent?(.agentic, "Maximum mode", "Gathering comprehensive evidence")
 
         // Start with initial chunks
         var allChunks = initialChunks
 
         // Get broader retrieval - up to 50 chunks for comprehensive coverage
-        let broadChunks = try await ragService.searchDocumentsRaw(
+        await onDetailedEvent?(.retrieval, "Broad search", "Expanding to 50 top chunks")
+        let broadChunks = try await ragService.executeFullRetrievalPipeline(
             query: query,
             topK: 50,
-            minSimilarity: 0.20 // Lower threshold to catch more relevant content
+            minSimilarity: 0.20, // Lower threshold to catch more relevant content
+            onDetailedEvent: onDetailedEvent
         )
 
         // Merge unique chunks
@@ -4619,13 +4653,17 @@ extension AgenticOrchestrator {
             }
         }
 
+        await onDetailedEvent?(.retrieval, "After broad search", "\(allChunks.count) unique chunks")
+
         // Also try some query variations to catch different aspects
         let queryVariations = generateQueryVariations(query: query)
-        for variation in queryVariations.prefix(3) { // Limit to 3 variations
-            let variantChunks = try await ragService.searchDocumentsRaw(
+        for (idx, variation) in queryVariations.prefix(3).enumerated() { // Limit to 3 variations
+            await onDetailedEvent?(.retrieval, "Variation \(idx + 1)/3", "\"\(variation.prefix(30))...\"")
+            let variantChunks = try await ragService.executeFullRetrievalPipeline(
                 query: variation,
                 topK: 20,
-                minSimilarity: 0.25
+                minSimilarity: 0.25,
+                onDetailedEvent: onDetailedEvent
             )
             for chunk in variantChunks {
                 if !allChunks.contains(where: { $0.chunk.id == chunk.chunk.id }) {
@@ -4633,6 +4671,8 @@ extension AgenticOrchestrator {
                 }
             }
         }
+
+        await onDetailedEvent?(.retrieval, "Gathering complete", "\(allChunks.count) chunks for analysis")
 
         Log.info("[MultiChain] Gathered \(allChunks.count) total chunks for multi-chain processing", category: .retrieval)
         return allChunks

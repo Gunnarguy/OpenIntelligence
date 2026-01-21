@@ -2797,7 +2797,8 @@ class RAGService: ObservableObject {
         return ChunkAutoAction(directive: directive, reason: reasonBits.joined(separator: " • "))
     }
 
-    private static let thinkingEventLimit = 24
+    // Increased from 24 to 150 for Maximum mode which can generate 100+ pipeline events
+    private static let thinkingEventLimit = 150
 
     private func scheduleSelfTuningRebuild(for containerId: UUID, reasons: [String]) {
         Task.detached(priority: .utility) { [weak self] in
