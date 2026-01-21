@@ -4726,21 +4726,18 @@ extension AgenticOrchestrator {
     ) -> (prompt: String, systemPrompt: String) {
         let insightSummary = previousInsights.isEmpty
             ? ""
-            : "PRIOR INSIGHTS:\n" + previousInsights.enumerated()
+            : "PRIOR ANALYSIS:\n" + previousInsights.enumerated()
                 .map { "[\($0.offset + 1)] \($0.element)" }
                 .joined(separator: "\n")
 
         switch sessionIndex {
         case 0:
-            // SESSION 1: Initial Analysis - understand the question and context
+            // SESSION 1: Fact Extraction - what does the evidence say?
             let systemPrompt = """
-            You are an expert research analyst with PhD-level expertise.
-            Your role is to extract and synthesize factual information from the user's document library.
-            Analyze with rigor: identify key findings, statistics, causal relationships, and evidence.
-
-            If the query is vague, INTERPRET it based on the document topics.
-            ALWAYS provide comprehensive information. Extract specific details: numbers, data, methodology.
-            NEVER say "I don't have information" - always report what the documents DO contain.
+            You are an expert research analyst. Your task is FACT EXTRACTION.
+            Extract specific data points, statistics, findings, and claims from documents.
+            Focus on WHAT the documents say, not interpretation.
+            Include: numbers, dates, names, percentages, methodologies, direct quotes.
             """
             let prompt = """
             QUESTION: \(query)
@@ -4748,82 +4745,94 @@ extension AgenticOrchestrator {
             DOCUMENTS FROM USER'S LIBRARY:
             \(context)
 
-            TASK: Summarize what these documents say that relates to the question.
+            TASK: Extract all FACTS from these documents that relate to the question.
 
-            GUIDELINES:
-            1. If the question is vague, interpret it based on document topics
-            2. Report factual content from the documents
-            3. Include specific numbers, statistics, and findings
-            4. This is document summarization, not advice
+            Focus on:
+            • Specific numbers, statistics, percentages
+            • Named entities, dates, locations
+            • Direct claims and findings stated in the documents
+            • Methodologies or processes described
 
-            Write your findings as clear prose.
-            """
-            return (prompt, systemPrompt)
-
-        case sessionCount - 1:
-            // FINAL SESSION: Synthesis - combine all insights into complete answer
-            let systemPrompt = """
-            You are an expert research analyst synthesizing findings from rigorous document analysis.
-            Combine ALL extracted information into a comprehensive, authoritative summary.
-            Include every specific detail, statistic, and finding from prior analysis.
-            Write in clear scholarly prose with logical structure. Use **bold** for key terms.
-            Be thorough (1000+ words). NEVER repeat the same point. Every paragraph adds NEW value.
-            """
-            let prompt = """
-            QUESTION: \(query)
-
-            YOUR RESEARCH FINDINGS (synthesize ALL of these - do not omit any detail):
-            \(insightSummary)
-
-            SUPPORTING DOCUMENTS:
-            \(context.prefix(3000))
-
-            TASK: Write an EXHAUSTIVE answer (1000+ words) that includes:
-            - Every finding, statistic, or data point discovered
-            - All causal relationships, risk factors, or contributing elements
-            - Complete context and supporting details
-            - Specific numbers, percentages, and measurements
-            - Any conclusions or recommendations from the research
-
-            FORMAT: Clear prose with paragraph breaks. Use **bold** for key findings. Use *italic* for emphasis.
-            NEVER repeat the same point twice. Each paragraph must add NEW information.
-            If the question was vague, your prior insights have interpreted it - now synthesize.
-
-            YOUR COMPREHENSIVE ANSWER:
+            List the facts clearly. Do NOT interpret or analyze yet.
             """
             return (prompt, systemPrompt)
 
         case 1:
-            // SESSION 2: Pattern Recognition - look for connections
-            let systemPrompt = "Expert research analyst. Identify patterns, correlations, and causal relationships across documents."
+            // SESSION 2: Analysis & Connections - how do facts relate?
+            let systemPrompt = """
+            You are an expert analyst. Your task is PATTERN ANALYSIS.
+            Given extracted facts, identify relationships, causation, contradictions, and themes.
+            Connect the dots between different pieces of information.
+            """
             let prompt = """
             QUESTION: \(query)
 
+            EXTRACTED FACTS FROM DOCUMENTS:
             \(insightSummary)
 
-            ADDITIONAL DOCUMENTS:
-            \(context)
+            ORIGINAL DOCUMENTS (for reference):
+            \(context.prefix(1500))
 
-            TASK: What additional details, patterns, or relationships do these documents show?
-            Build on previous findings with new information.
-            Write your findings as clear prose.
+            TASK: Analyze the RELATIONSHIPS between these facts.
+
+            Identify:
+            • Cause-and-effect relationships
+            • Themes or patterns across multiple facts
+            • Any contradictions or tensions in the evidence
+            • Implications of the facts taken together
+
+            Do NOT repeat the facts. Focus on CONNECTIONS between them.
+            """
+            return (prompt, systemPrompt)
+
+        case sessionCount - 1:
+            // FINAL SESSION: Synthesis - comprehensive answer
+            let systemPrompt = """
+            You are an expert research analyst delivering a comprehensive answer.
+            Synthesize facts AND analysis into a complete, authoritative response.
+            Structure clearly with paragraphs. Use **bold** for key findings.
+            Be thorough but never repetitive. Every sentence adds value.
+            """
+            let prompt = """
+            QUESTION: \(query)
+
+            YOUR RESEARCH (facts extracted + patterns identified):
+            \(insightSummary)
+
+            TASK: Write a COMPREHENSIVE answer that:
+            1. Directly addresses the question
+            2. Presents key findings with supporting evidence
+            3. Explains relationships and implications
+            4. Organizes information logically
+
+            FORMAT: Clear prose with paragraph breaks. Use **bold** for key terms.
+            Do NOT repeat information. Each paragraph adds NEW value.
+
+            YOUR ANSWER:
             """
             return (prompt, systemPrompt)
 
         default:
-            // MIDDLE SESSIONS: Deepen understanding
-            let systemPrompt = "Expert research analyst. Extract detailed evidence, methodology, and nuanced findings."
+            // MIDDLE SESSIONS: Deep dive on specific aspects
+            let systemPrompt = "Expert analyst. Identify nuances, edge cases, and deeper implications not yet covered."
             let prompt = """
             QUESTION: \(query)
 
+            ANALYSIS SO FAR:
             \(insightSummary)
 
-            ADDITIONAL DOCUMENTS:
-            \(context)
+            DOCUMENTS (for reference):
+            \(context.prefix(1500))
 
-            TASK: What new details or findings do you notice in these documents?
-            Add to previous findings. Include specific data points and facts.
-            Write as clear prose.
+            TASK: What NUANCES or IMPLICATIONS haven't been addressed yet?
+
+            Look for:
+            • Edge cases or exceptions
+            • Deeper implications of the findings
+            • Missing context that changes interpretation
+            • Specific details that add precision
+
+            Add NEW insights only. Do not repeat prior analysis.
             """
             return (prompt, systemPrompt)
         }

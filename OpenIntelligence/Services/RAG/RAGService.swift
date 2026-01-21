@@ -5313,9 +5313,10 @@ class RAGService: ObservableObject {
                 var reasoningTraceForMetadata: [String]? = nil
 
                 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                // REASONING CHAIN: Use chained sessions for complex queries
-                // This multiplies effective context: 3 × 4096 = 12K+ tokens
-                // Triggers when we have good retrieval and substantial context
+                // REASONING CHAIN: Reserved for Deep Think and Maximum modes
+                // Standard mode uses single-session generation for speed
+                // Deep Think: 3 sessions (Fact → Analysis → Synthesis)
+                // Maximum: 8-20+ sessions until 98% confident
                 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                 let forceChain = settingsStore?.forceReasoningChain ?? false
                 let useReasoningChain: Bool = {
@@ -5328,13 +5329,19 @@ class RAGService: ObservableObject {
                         return true
                     }
 
+                    // CRITICAL: Standard mode does NOT use reasoning chain
+                    // Users must select Deep Think or Maximum for multi-session reasoning
+                    guard qualityMode.usesAgenticOrchestrator else {
+                        return false
+                    }
+
                     // Skip if evidence is weak (Evidence-First mode handles this)
                     guard !useEvidenceFirstMode else { return false }
 
                     // Skip trivial queries - they don't benefit from multi-session
                     guard !isTrivial else { return false }
 
-                    // Need some retrieval quality (lowered threshold for testing)
+                    // Need some retrieval quality
                     guard bestRetrievalSim >= 0.25 else { return false }
 
                     // Need some context to benefit from chaining
