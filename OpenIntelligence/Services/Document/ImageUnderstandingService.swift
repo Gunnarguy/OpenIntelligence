@@ -28,6 +28,9 @@ struct AnalyzedImage: Sendable {
     let description: String? // AI-generated description
     let associatedCaption: String? // Nearby text identified as caption
     let contentType: ImageContentType
+    let extractedText: String? // OCR'd text from within the image (labels, annotations)
+    let precedingContext: String? // Text that appears before this image
+    let followingContext: String? // Text that appears after this image
 }
 
 /// Classification result from Vision framework
@@ -176,6 +179,118 @@ class ImageUnderstandingService {
         }
     }
 
+    // MARK: - Image OCR (Extract Text from Diagrams/Flowcharts)
+
+    /// Extract text from within an image using Vision OCR
+    /// Critical for diagrams, flowcharts, and annotated technical drawings
+    func extractTextFromImage(_ image: CIImage) async -> String? {
+        let requestHandler = VNImageRequestHandler(ciImage: image, options: [:])
+
+        return await withCheckedContinuation { continuation in
+            let request = VNRecognizeTextRequest { request, error in
+                if let error = error {
+                    Log.debug("[ImageUnderstanding] Image OCR failed: \(error.localizedDescription)", category: .ingestion)
+                    continuation.resume(returning: nil)
+                    return
+                }
+
+                guard let observations = request.results as? [VNRecognizedTextObservation] else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+
+                // Sort observations by reading order (top-to-bottom, left-to-right)
+                let sortedObservations = observations.sorted { obs1, obs2 in
+                    let box1 = obs1.boundingBox
+                    let box2 = obs2.boundingBox
+                    let lineThreshold: CGFloat = 0.05
+
+                    if abs(box1.midY - box2.midY) > lineThreshold {
+                        return box1.midY > box2.midY  // Top to bottom
+                    }
+                    return box1.minX < box2.minX  // Left to right
+                }
+
+                // Extract all text
+                let textLines = sortedObservations.compactMap { observation -> String? in
+                    observation.topCandidates(1).first?.string
+                }
+
+                let combinedText = textLines.joined(separator: " ")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+
+                if combinedText.isEmpty {
+                    continuation.resume(returning: nil)
+                } else {
+                    Log.debug("[ImageUnderstanding] Extracted \(textLines.count) text elements from image", category: .ingestion)
+                    continuation.resume(returning: combinedText)
+                }
+            }
+
+            // Configure for maximum accuracy on potentially low-contrast diagram text
+            request.recognitionLevel = .accurate
+            request.usesLanguageCorrection = true
+            request.recognitionLanguages = ["en-US"]
+            request.minimumTextHeight = 0.01  // Catch small labels
+
+            do {
+                try requestHandler.perform([request])
+            } catch {
+                continuation.resume(returning: nil)
+            }
+        }
+    }
+
+    // MARK: - Context Extraction
+
+    /// Find text that appears before and after an image on the same page
+    /// This provides semantic context for what the image relates to
+    func findSurroundingContext(
+        for imageBounds: CGRect,
+        in textObservations: [VNRecognizedTextObservation],
+        maxChars: Int = 200
+    ) -> (preceding: String?, following: String?) {
+        // Separate text into "above" and "below" the image
+        var aboveTexts: [(text: String, y: CGFloat)] = []
+        var belowTexts: [(text: String, y: CGFloat)] = []
+
+        for observation in textObservations {
+            guard let text = observation.topCandidates(1).first?.string else { continue }
+            let box = observation.boundingBox
+
+            // Vision uses normalized coords where Y=0 is bottom
+            if box.maxY > imageBounds.maxY {
+                // Text is above the image (higher Y = higher on page)
+                aboveTexts.append((text, box.minY))
+            } else if box.minY < imageBounds.minY {
+                // Text is below the image
+                belowTexts.append((text, box.maxY))
+            }
+        }
+
+        // Sort and extract
+        aboveTexts.sort { $0.y > $1.y }  // Closest to image first (lower Y)
+        belowTexts.sort { $0.y < $1.y }  // Closest to image first (higher Y)
+
+        // Take closest text blocks up to maxChars
+        var precedingContext = ""
+        for (text, _) in aboveTexts {
+            if precedingContext.count + text.count > maxChars { break }
+            precedingContext = text + " " + precedingContext
+        }
+
+        var followingContext = ""
+        for (text, _) in belowTexts {
+            if followingContext.count + text.count > maxChars { break }
+            followingContext += text + " "
+        }
+
+        return (
+            precedingContext.isEmpty ? nil : precedingContext.trimmingCharacters(in: .whitespaces),
+            followingContext.isEmpty ? nil : followingContext.trimmingCharacters(in: .whitespaces)
+        )
+    }
+
     // MARK: - Caption Detection
 
     /// Find potential captions for an image based on spatial proximity
@@ -228,53 +343,72 @@ class ImageUnderstandingService {
 
     // MARK: - Image Description Generation
 
-    /// Generate a text description of an image using Apple Intelligence
-    /// This creates searchable text from visual content
+    /// Generate a comprehensive text description of an image
+    /// Combines classification, OCR'd text, caption, and surrounding context
     func generateImageDescription(
         _ image: CIImage,
-        context _: String? = nil, // Optional document context for better descriptions
-        caption: String? = nil
+        extractedText: String? = nil,  // OCR'd text from within the image
+        caption: String? = nil,
+        precedingContext: String? = nil,
+        followingContext: String? = nil
     ) async -> String? {
-        // For now, generate description from classifications + caption
-        // Full Foundation Models image input requires iOS 26+
-
         do {
             let classifications = try await classifyImage(image)
+            let contentType = ImageContentType.from(classifications: classifications)
 
-            if classifications.isEmpty, caption == nil {
+            var descriptionParts: [String] = []
+
+            // 1. Content type
+            if contentType != .unknown {
+                descriptionParts.append("[\(contentType.rawValue.capitalized)]")
+            }
+
+            // 2. Caption (most important for semantic search)
+            if let caption = caption, !caption.isEmpty {
+                let truncated = String(caption.prefix(150))
+                descriptionParts.append("Caption: \(truncated)")
+            }
+
+            // 3. Extracted text from within the image (critical for diagrams!)
+            if let extractedText = extractedText, !extractedText.isEmpty {
+                // Clean up OCR artifacts and cap length
+                let cleanedText = extractedText
+                    .replacingOccurrences(of: "\n", with: " ")
+                    .replacingOccurrences(of: "  ", with: " ")
+                let truncated = String(cleanedText.prefix(200))
+                descriptionParts.append("Labels: \(truncated)")
+            }
+
+            // 4. Top classifications (brief, for context)
+            let topLabels = classifications.prefix(3).map { $0.identifier.replacingOccurrences(of: "_", with: " ") }
+            if !topLabels.isEmpty && descriptionParts.count < 2 {
+                // Only add if we don't have enough other info
+                descriptionParts.append("Shows: \(topLabels.joined(separator: ", "))")
+            }
+
+            // Skip surrounding context in description - it's redundant with the chunk it appears in
+
+            if descriptionParts.isEmpty {
                 return nil
             }
 
-            var description = ""
-
-            // Add content type
-            let contentType = ImageContentType.from(classifications: classifications)
-            if contentType != .unknown {
-                description += "[\(contentType.rawValue.capitalized)] "
-            }
-
-            // Add top classifications
-            let topLabels = classifications.prefix(5).map { $0.identifier.replacingOccurrences(of: "_", with: " ") }
-            if !topLabels.isEmpty {
-                description += "Contains: \(topLabels.joined(separator: ", ")). "
-            }
-
-            // Add caption if available
-            if let caption = caption {
-                description += "Caption: \(caption)"
-            }
-
-            return description.isEmpty ? nil : description.trimmingCharacters(in: .whitespaces)
+            // Cap total description length
+            let joined = descriptionParts.joined(separator: ". ")
+            return String(joined.prefix(400))
 
         } catch {
             Log.warning("[ImageUnderstanding] Failed to generate description: \(error.localizedDescription)", category: .ingestion)
-            return caption // Fall back to just the caption if available
+            // Fall back to extracted text or caption
+            if let extractedText = extractedText { return "Labels: \(String(extractedText.prefix(200)))" }
+            if let caption = caption { return "Caption: \(String(caption.prefix(150)))" }
+            return nil
         }
     }
 
     // MARK: - Aggregate Analysis
 
     /// Analyze all images in a document and return aggregated metadata
+    /// Performs full semantic extraction: classification, OCR, captions, and context
     func analyzeDocumentImages(
         images: [(image: CIImage, pageNumber: Int, bounds: CGRect)],
         textObservations: [[VNRecognizedTextObservation]] // Per-page text
@@ -283,11 +417,13 @@ class ImageUnderstandingService {
         var allClassifications: [String: Float] = [:]
         var captionedCount = 0
         var describedCount = 0
+        var ocrExtractedCount = 0
 
         for (image, pageNumber, bounds) in images {
             do {
-                // Classify the image
+                // 1. Classify the image
                 let classifications = try await classifyImage(image)
+                let contentType = ImageContentType.from(classifications: classifications)
 
                 // Aggregate classifications
                 for classification in classifications {
@@ -295,16 +431,36 @@ class ImageUnderstandingService {
                     allClassifications[classification.identifier] = max(existing, classification.confidence)
                 }
 
-                // Find associated caption
+                // 2. Get page text observations
                 let pageTextObs = pageNumber <= textObservations.count ? textObservations[pageNumber - 1] : []
+
+                // 3. Find associated caption
                 let caption = findAssociatedCaption(for: bounds, in: pageTextObs)
                 if caption != nil { captionedCount += 1 }
 
-                // Generate description
-                let description = await generateImageDescription(image, caption: caption)
-                if description != nil { describedCount += 1 }
+                // 4. Extract text FROM the image (critical for diagrams/flowcharts)
+                var extractedText: String? = nil
+                if contentType == .diagram || contentType == .chart || contentType == .technicalDrawing || contentType == .screenshot {
+                    // These content types likely have text we should extract
+                    extractedText = await extractTextFromImage(image)
+                    if extractedText != nil { ocrExtractedCount += 1 }
+                } else {
+                    // For other types, still try OCR but don't count as critical
+                    extractedText = await extractTextFromImage(image)
+                }
 
-                let contentType = ImageContentType.from(classifications: classifications)
+                // 5. Find surrounding context
+                let (precedingContext, followingContext) = findSurroundingContext(for: bounds, in: pageTextObs)
+
+                // 6. Generate comprehensive description
+                let description = await generateImageDescription(
+                    image,
+                    extractedText: extractedText,
+                    caption: caption,
+                    precedingContext: precedingContext,
+                    followingContext: followingContext
+                )
+                if description != nil { describedCount += 1 }
 
                 let analyzed = AnalyzedImage(
                     imageId: UUID(),
@@ -313,7 +469,10 @@ class ImageUnderstandingService {
                     classifications: classifications,
                     description: description,
                     associatedCaption: caption,
-                    contentType: contentType
+                    contentType: contentType,
+                    extractedText: extractedText,
+                    precedingContext: precedingContext,
+                    followingContext: followingContext
                 )
 
                 analyzedImages.append(analyzed)
@@ -332,7 +491,7 @@ class ImageUnderstandingService {
             imagesWithDescriptions: describedCount
         )
 
-        Log.info("[ImageUnderstanding] Analyzed \(images.count) images: \(captionedCount) captioned, \(describedCount) described", category: .ingestion)
+        Log.info("[ImageUnderstanding] Analyzed \(images.count) images: \(captionedCount) captioned, \(ocrExtractedCount) with extracted text, \(describedCount) described", category: .ingestion)
 
         return (analyzedImages, metadata)
     }

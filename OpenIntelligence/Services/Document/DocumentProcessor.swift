@@ -337,6 +337,189 @@ class DocumentProcessor {
         return (text, pageInfo)
     }
 
+    // MARK: - Text Quality Validation
+
+    /// Check if extracted text is likely garbage (bad OCR layer, encoding issues, etc.)
+    /// Returns true if text quality is acceptable, false if OCR should be used instead
+    private func isTextQualityAcceptable(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 20 else { return false }  // Too short to assess
+
+        // Check 1: Ratio of alphanumeric characters (should be > 60%)
+        let alphanumericCount = trimmed.filter { $0.isLetter || $0.isNumber }.count
+        let alphanumericRatio = Double(alphanumericCount) / Double(trimmed.count)
+        if alphanumericRatio < 0.50 {
+            Log.debug("[DocumentProcessor] Low alphanumeric ratio: \(String(format: "%.1f", alphanumericRatio * 100))%", category: .ingestion)
+            return false
+        }
+
+        // Check 2: Average word length (garbage text often has very short or very long "words")
+        let words = trimmed.split(whereSeparator: { $0.isWhitespace })
+        guard words.count >= 3 else { return false }  // Need some words to assess
+
+        let avgWordLength = Double(words.reduce(0) { $0 + $1.count }) / Double(words.count)
+        if avgWordLength < 2.0 || avgWordLength > 20.0 {
+            Log.debug("[DocumentProcessor] Abnormal avg word length: \(String(format: "%.1f", avgWordLength))", category: .ingestion)
+            return false
+        }
+
+        // Check 3: Too many consecutive non-letter characters (gibberish detector)
+        let consecutiveNonLetterPattern = try? NSRegularExpression(pattern: "[^a-zA-Z0-9\\s]{5,}", options: [])
+        let gibberishMatches = consecutiveNonLetterPattern?.numberOfMatches(
+            in: trimmed,
+            options: [],
+            range: NSRange(trimmed.startIndex..., in: trimmed)
+        ) ?? 0
+        let gibberishRatio = Double(gibberishMatches) / Double(max(1, trimmed.count / 100))
+        if gibberishRatio > 3.0 {
+            Log.debug("[DocumentProcessor] High gibberish ratio: \(gibberishRatio)", category: .ingestion)
+            return false
+        }
+
+        // Check 4: Look for common English/readable patterns
+        let commonPatterns = ["the ", "and ", "is ", "to ", "of ", "a ", "in ", "for "]
+        let hasCommonWords = commonPatterns.contains { trimmed.lowercased().contains($0) }
+
+        // If no common words AND other metrics are borderline, prefer OCR
+        if !hasCommonWords && alphanumericRatio < 0.65 {
+            Log.debug("[DocumentProcessor] No common words found, borderline quality", category: .ingestion)
+            return false
+        }
+
+        return true
+    }
+
+    // MARK: - Header/Footer Removal
+
+    /// Remove repeated headers and footers from multi-page document text
+    /// Detects patterns that appear at the start/end of multiple pages
+    private func removeRepeatedHeadersFooters(from pageTexts: [String]) -> [String] {
+        guard pageTexts.count >= 3 else { return pageTexts }  // Need multiple pages to detect patterns
+
+        // Collect first and last lines from each page
+        var firstLines: [String: Int] = [:]  // line → occurrence count
+        var lastLines: [String: Int] = [:]
+
+        for pageText in pageTexts {
+            let lines = pageText.components(separatedBy: .newlines)
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty }
+
+            // Get first 2 non-empty lines (headers)
+            for line in lines.prefix(2) {
+                let normalized = normalizeForComparison(line)
+                if !normalized.isEmpty && normalized.count < 100 {  // Headers are typically short
+                    firstLines[normalized, default: 0] += 1
+                }
+            }
+
+            // Get last 2 non-empty lines (footers)
+            for line in lines.suffix(2) {
+                let normalized = normalizeForComparison(line)
+                if !normalized.isEmpty && normalized.count < 100 {
+                    lastLines[normalized, default: 0] += 1
+                }
+            }
+        }
+
+        // Find patterns that appear in >50% of pages
+        let threshold = pageTexts.count / 2
+        let repeatedHeaders = Set(firstLines.filter { $0.value > threshold }.keys)
+        let repeatedFooters = Set(lastLines.filter { $0.value > threshold }.keys)
+
+        if repeatedHeaders.isEmpty && repeatedFooters.isEmpty {
+            return pageTexts  // No repeated patterns found
+        }
+
+        Log.debug(
+            "[DocumentProcessor] Removing \(repeatedHeaders.count) repeated headers, \(repeatedFooters.count) footers",
+            category: .ingestion
+        )
+
+        // Remove the repeated lines from each page
+        return pageTexts.map { pageText in
+            var lines = pageText.components(separatedBy: .newlines)
+
+            // Remove headers (from start)
+            while let firstLine = lines.first {
+                let normalized = normalizeForComparison(firstLine)
+                if repeatedHeaders.contains(normalized) || isPageNumber(firstLine) {
+                    lines.removeFirst()
+                } else if firstLine.trimmingCharacters(in: .whitespaces).isEmpty {
+                    lines.removeFirst()  // Skip empty lines at start
+                } else {
+                    break
+                }
+            }
+
+            // Remove footers (from end)
+            while let lastLine = lines.last {
+                let normalized = normalizeForComparison(lastLine)
+                if repeatedFooters.contains(normalized) || isPageNumber(lastLine) {
+                    lines.removeLast()
+                } else if lastLine.trimmingCharacters(in: .whitespaces).isEmpty {
+                    lines.removeLast()  // Skip empty lines at end
+                } else {
+                    break
+                }
+            }
+
+            return lines.joined(separator: "\n")
+        }
+    }
+
+    /// Normalize text for header/footer comparison (ignore case, extra spaces, page numbers)
+    private func normalizeForComparison(_ text: String) -> String {
+        var normalized = text.lowercased()
+            .trimmingCharacters(in: .whitespaces)
+
+        // Remove page numbers for comparison (they change per page but pattern is same)
+        // Matches: "Page 1", "1 of 42", "- 5 -", etc.
+        let pageNumberPatterns = [
+            "page\\s*\\d+",
+            "\\d+\\s*of\\s*\\d+",
+            "-\\s*\\d+\\s*-",
+            "^\\d+$"
+        ]
+
+        for pattern in pageNumberPatterns {
+            if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) {
+                normalized = regex.stringByReplacingMatches(
+                    in: normalized,
+                    options: [],
+                    range: NSRange(normalized.startIndex..., in: normalized),
+                    withTemplate: ""
+                )
+            }
+        }
+
+        return normalized.trimmingCharacters(in: .whitespaces)
+    }
+
+    /// Check if a line is just a page number
+    private func isPageNumber(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+
+        // Common page number patterns
+        let patterns = [
+            "^\\d+$",                           // Just a number: "5"
+            "^page\\s*\\d+$",                   // "Page 5"
+            "^\\d+\\s*of\\s*\\d+$",             // "5 of 42"
+            "^-\\s*\\d+\\s*-$",                 // "- 5 -"
+            "^\\[\\d+\\]$",                     // "[5]"
+            "^\\(\\d+\\)$"                      // "(5)"
+        ]
+
+        for pattern in patterns {
+            if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
+               regex.firstMatch(in: trimmed, options: [], range: NSRange(trimmed.startIndex..., in: trimmed)) != nil {
+                return true
+            }
+        }
+
+        return false
+    }
+
     /// Extract text from PDF with page tracking for semantic chunking
     private func extractTextFromPDFWithPages(url: URL) async throws -> (text: String, pageInfo: PageInfo) {
         guard let pdfDocument = PDFDocument(url: url) else {
@@ -353,60 +536,92 @@ class DocumentProcessor {
             throw DocumentProcessingError.emptyDocument
         }
 
-        var fullText = ""
+        var pageTexts: [String] = []  // Collect page texts first for header/footer removal
         var pagesWithoutText = 0
         var ocrUsedCount = 0
         var totalOCRChars = 0
-        var pageTextRanges: PageTextMapping = [:]  // Track page→text ranges for citations
 
-        // Extract text from all pages, with OCR fallback for image-only pages
+        // PASS 1: Extract text from all pages
         for pageIndex in 0..<pageCount {
-            guard let page = pdfDocument.page(at: pageIndex) else { continue }
+            guard let page = pdfDocument.page(at: pageIndex) else {
+                pageTexts.append("")
+                continue
+            }
 
             let pageStartTime = Date()
             let pageNumber = pageIndex + 1  // 1-indexed for user-facing citations
-
-            // Record start position for this page (before appending text)
-            let pageStartIndex = fullText.endIndex
+            var extractedPageText = ""
 
             // Try standard text extraction first
-            if let pageText = page.string, !pageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let pageText = page.string
+            let hasText = pageText != nil && !pageText!.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+
+            // Check if extracted text is actually readable (not garbage from bad OCR layer)
+            let textQualityOK = hasText && isTextQualityAcceptable(pageText!)
+
+            if hasText && textQualityOK {
                 progressHandler?("page \(pageNumber)/\(pageCount)")
-                // Delay to ensure UI updates (increased for visibility)
-                try? await Task.sleep(nanoseconds: 300_000_000) // 0.3s
+                try? await Task.sleep(nanoseconds: 300_000_000)
 
-                fullText += pageText + "\n\n"
-
-                // Record page→text range mapping for accurate citations
-                let pageEndIndex = fullText.endIndex
-                pageTextRanges[pageNumber] = pageStartIndex..<pageEndIndex
-
+                extractedPageText = pageText!
                 let pageTime = Date().timeIntervalSince(pageStartTime)
-                Log.debug("   ✓ Page \(pageNumber): \(pageText.count) chars (\(String(format: "%.2f", pageTime))s)", category: .ingestion)
-            } else {
-                // No extractable text - try OCR on the page image
-                pagesWithoutText += 1
+                Log.debug("   ✓ Page \(pageNumber): \(pageText!.count) chars (\(String(format: "%.2f", pageTime))s)", category: .ingestion)
+            } else if hasText && !textQualityOK {
+                // Text exists but quality is poor - try OCR instead
+                Log.debug("   ⚠️ Page \(pageNumber): Text layer quality poor, trying OCR...", category: .ingestion)
+                progressHandler?("page \(pageNumber)/\(pageCount), OCR (quality)")
 
-                // Update progress for OCR
-                progressHandler?("page \(pageNumber)/\(pageCount), OCR")
-                // Small delay to ensure UI updates
-                try? await Task.sleep(nanoseconds: 50_000_000) // 0.05s
-
-                // Render page as image and apply OCR
                 if let pageImage = renderPDFPageAsImage(page: page),
                    let ocrText = try? await performOCR(on: pageImage),
-                   !ocrText.isEmpty {
-                    fullText += ocrText + "\n\n"
+                   !ocrText.isEmpty,
+                   isTextQualityAcceptable(ocrText) {
+                    extractedPageText = ocrText
                     ocrUsedCount += 1
                     totalOCRChars += ocrText.count
 
-                    // Record page→text range for OCR content too
-                    let pageEndIndex = fullText.endIndex
-                    pageTextRanges[pageNumber] = pageStartIndex..<pageEndIndex
+                    let pageTime = Date().timeIntervalSince(pageStartTime)
+                    Log.debug("   ✓ Page \(pageNumber): OCR replaced garbage text (\(ocrText.count) chars, \(String(format: "%.2f", pageTime))s)", category: .ingestion)
+                } else {
+                    extractedPageText = pageText!
+                    Log.warning("   ⚠️ Page \(pageNumber): Using original text despite quality concerns", category: .ingestion)
+                }
+            } else {
+                // No extractable text - try OCR on the page image
+                pagesWithoutText += 1
+                progressHandler?("page \(pageNumber)/\(pageCount), OCR")
+                try? await Task.sleep(nanoseconds: 50_000_000)
+
+                if let pageImage = renderPDFPageAsImage(page: page),
+                   let ocrText = try? await performOCR(on: pageImage),
+                   !ocrText.isEmpty {
+                    extractedPageText = ocrText
+                    ocrUsedCount += 1
+                    totalOCRChars += ocrText.count
 
                     let pageTime = Date().timeIntervalSince(pageStartTime)
                     Log.debug("   ✓ Page \(pageNumber): OCR extracted \(ocrText.count) chars (\(String(format: "%.2f", pageTime))s)", category: .ingestion)
                 }
+            }
+
+            pageTexts.append(extractedPageText)
+        }
+
+        // PASS 2: Remove repeated headers and footers
+        progressHandler?("cleaning headers/footers")
+        let cleanedPageTexts = removeRepeatedHeadersFooters(from: pageTexts)
+
+        // PASS 3: Assemble final text with page mappings
+        var fullText = ""
+        var pageTextRanges: PageTextMapping = [:]
+
+        for (index, cleanedText) in cleanedPageTexts.enumerated() {
+            let pageNumber = index + 1
+            let pageStartIndex = fullText.endIndex
+
+            if !cleanedText.isEmpty {
+                fullText += cleanedText + "\n\n"
+                let pageEndIndex = fullText.endIndex
+                pageTextRanges[pageNumber] = pageStartIndex..<pageEndIndex
             }
         }
 
@@ -425,7 +640,7 @@ class DocumentProcessor {
             totalPages: pageCount,
             ocrPagesUsed: ocrUsedCount,
             pageNumbers: Array(1...pageCount),
-            pageTextRanges: pageTextRanges  // Pass mapping for accurate chunk citations
+            pageTextRanges: pageTextRanges
         )
 
         return (fullText, pageInfo)
@@ -460,15 +675,39 @@ class DocumentProcessor {
             let pageStartTime = Date()
 
             // Try standard text extraction first
-            if let pageText = page.string, !pageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let pageText = page.string
+            let hasText = pageText != nil && !pageText!.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            let textQualityOK = hasText && isTextQualityAcceptable(pageText!)
+
+            if hasText && textQualityOK {
                 progressHandler?("page \(pageIndex + 1)/\(pageCount)")
                 // Delay to ensure UI updates (increased for visibility)
                 try? await Task.sleep(nanoseconds: 300_000_000) // 0.3s
 
-                fullText += pageText + "\n\n"
+                fullText += pageText! + "\n\n"
 
                 let pageTime = Date().timeIntervalSince(pageStartTime)
-                Log.debug("   ✓ Page \(pageIndex + 1): \(pageText.count) chars (\(String(format: "%.2f", pageTime))s)", category: .ingestion)
+                Log.debug("   ✓ Page \(pageIndex + 1): \(pageText!.count) chars (\(String(format: "%.2f", pageTime))s)", category: .ingestion)
+            } else if hasText && !textQualityOK {
+                // Text exists but quality is poor - try OCR instead
+                Log.debug("   ⚠️ Page \(pageIndex + 1): Text layer quality poor, trying OCR...", category: .ingestion)
+                progressHandler?("page \(pageIndex + 1)/\(pageCount), OCR (quality)")
+
+                if let pageImage = renderPDFPageAsImage(page: page),
+                   let ocrText = try? await performOCR(on: pageImage),
+                   !ocrText.isEmpty,
+                   isTextQualityAcceptable(ocrText) {
+                    fullText += ocrText + "\n\n"
+                    ocrUsedCount += 1
+                    totalOCRChars += ocrText.count
+
+                    let pageTime = Date().timeIntervalSince(pageStartTime)
+                    Log.debug("   ✓ Page \(pageIndex + 1): OCR replaced garbage text (\(ocrText.count) chars, \(String(format: "%.2f", pageTime))s)", category: .ingestion)
+                } else {
+                    // OCR didn't help - fall back to original text
+                    fullText += pageText! + "\n\n"
+                    Log.warning("   ⚠️ Page \(pageIndex + 1): Using original text despite quality concerns", category: .ingestion)
+                }
             } else {
                 // No extractable text - try OCR on the page image
                 pagesWithoutText += 1
@@ -703,11 +942,54 @@ class DocumentProcessor {
 
             visualMetadata = metadata
 
-            // Append image descriptions to text for embedding
+            // Append compact image descriptions to text for embedding
+            // Cap total image text to avoid overwhelming document/context budgets
+            let maxImageTextPerDoc = 3000  // ~2 chunks worth of image descriptions max
+            var totalImageTextAdded = 0
+
             for analyzed in analyzedImages {
-                if let description = analyzed.description {
-                    fullText += "\n[Image on page \(analyzed.pageNumber)]: \(description)\n"
+                // Skip if we've hit the budget
+                if totalImageTextAdded >= maxImageTextPerDoc { break }
+
+                var imageText = "\n[Figure p.\(analyzed.pageNumber)"
+                if analyzed.contentType != .unknown {
+                    imageText += " - \(analyzed.contentType.rawValue)"
                 }
+                imageText += "]"
+
+                // Prioritize: extracted text > caption > description (most useful first)
+                var contentParts: [String] = []
+
+                // Extracted text is most valuable (actual labels in diagrams)
+                if let extractedText = analyzed.extractedText, !extractedText.isEmpty {
+                    let truncated = String(extractedText.prefix(200))
+                    contentParts.append(truncated)
+                }
+
+                // Caption is next most valuable
+                if let caption = analyzed.associatedCaption {
+                    let truncated = String(caption.prefix(150))
+                    contentParts.append("Caption: \(truncated)")
+                }
+
+                // Full description only if we have room and no other content
+                if contentParts.isEmpty, let description = analyzed.description {
+                    let truncated = String(description.prefix(200))
+                    contentParts.append(truncated)
+                }
+
+                if !contentParts.isEmpty {
+                    imageText += " " + contentParts.joined(separator: ". ")
+                }
+
+                // Cap per-image text and track total
+                let finalImageText = String(imageText.prefix(400)) + "\n"
+                totalImageTextAdded += finalImageText.count
+                fullText += finalImageText
+            }
+
+            if analyzedImages.count > 0 {
+                Log.debug("[DocumentProcessor] Added \(totalImageTextAdded) chars of image descriptions (\(analyzedImages.count) images)", category: .ingestion)
             }
         }
 
