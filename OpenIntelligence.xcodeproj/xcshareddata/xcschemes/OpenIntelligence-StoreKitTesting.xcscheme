@@ -51,7 +51,7 @@
          </BuildableReference>
       </BuildableProductRunnable>
       <StoreKitConfigurationFileReference
-         identifier = "../../OpenIntelligence/StoreKit/StoreKitConfiguration.storekit">
+         identifier = "../../OpenIntelligence/Resources/StoreKit/StoreKitConfiguration.storekit">
       </StoreKitConfigurationFileReference>
    </LaunchAction>
    <ProfileAction
