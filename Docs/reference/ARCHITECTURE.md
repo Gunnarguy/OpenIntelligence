@@ -1637,45 +1637,65 @@ if settingsStore?.enableIterativeRetrieval ?? false {
 
 ```text
 OpenIntelligence/
-├── OpenIntelligenceApp.swift    # App entry point
-├── ContentView.swift            # Root navigation container
-├── Models/                      # Data structures (ChatMessage, DocumentChunk, etc.)
-├── Services/                    # Business logic layer
-│   ├── Billing/                 # StoreKit & entitlement handling
-│   ├── Embeddings/              # Embedding providers (NL, CoreML)
-│   └── Visualization/           # Telemetry & diagnostics services
-├── Views/                       # SwiftUI presentation layer
-│   ├── Billing/                 # Paywall, subscription views
-│   ├── ChatV2/                  # Chat interface components
-│   ├── Diagnostics/             # Debug & analysis views
-│   ├── Documents/               # Document library & import
-│   ├── ModelManagement/         # Model selection & download
-│   ├── Onboarding/              # First-run experience
-│   ├── Settings/                # User preferences
-│   ├── Shared/                  # Reusable UI components
-│   └── Telemetry/               # Performance visualization
-├── Shared/                      # Cross-cutting utilities
-├── StoreKit/                    # Product configuration
-├── Utilities/                   # Extensions & helpers
-└── Assets.xcassets/             # Images, colors, app icon
+├── App/                           # App entry point & configuration
+│   ├── OpenIntelligenceApp.swift  # @main entry
+│   └── ContentView.swift          # Root view (tab bar)
+│
+├── Core/                          # Shared domain logic
+│   ├── Models/                    # Data types (ChatMessage, KnowledgeContainer, etc.)
+│   ├── Protocols/                 # Extracted protocols
+│   └── Extensions/                # Swift extensions
+│
+├── Features/                      # Feature modules (Views organized by domain)
+│   ├── Chat/                      # Main chat interface
+│   ├── Documents/                 # Document library & management
+│   ├── Settings/                  # Settings screens
+│   ├── Billing/                   # StoreKit/subscription UI
+│   ├── Onboarding/                # First-run experience
+│   ├── Diagnostics/               # Debug views
+│   └── Telemetry/                 # Visualization & analytics views
+│
+├── Services/                      # ALL business logic (organized by domain)
+│   ├── RAG/                       # Core RAG pipeline (RAGService, RAGEngine, HybridSearch)
+│   ├── LLM/                       # LLM integrations (LLMService protocol + implementations)
+│   ├── Embedding/                 # Embedding providers (CoreML, NL, AppleFM)
+│   ├── VectorStore/               # Vector databases (protocol + implementations)
+│   ├── Query/                     # Query processing (HyDE, compression, routing)
+│   ├── Document/                  # Document processing (chunking, entity extraction)
+│   ├── Agentic/                   # Agentic orchestration (tools, intents, memory)
+│   ├── Billing/                   # StoreKit billing service
+│   └── Infrastructure/            # Cross-cutting (logging, device, settings, telemetry)
+│
+├── UI/                            # Reusable UI components
+│   ├── DesignSystem/              # Theme, colors, typography
+│   └── Components/                # Shared SwiftUI components
+│
+├── Resources/                     # Static resources
+│   ├── Assets/                    # Image assets, colors
+│   ├── MLModels/                  # CoreML models (.mlpackage)
+│   └── StoreKit/                  # StoreKit configuration
+│
+└── swift-transformers/            # Git submodule (HuggingFace tokenizers)
 
 Docs/
-├── guides/                      # How-to documentation
-├── reference/                   # Architecture & API docs
-└── TestDocuments/               # Sample files for testing
+├── reference/                     # Architecture & API docs
+│   ├── ARCHITECTURE.md            # Full technical reference
+│   ├── RELEASE.md                 # Release checklist, smoke tests
+│   └── PRICING_STRATEGY.md        # Business docs
+└── TestDocuments/                 # Sample files for testing
 
-scripts/                         # Build & CI automation
-
-Vendor/                          # Third-party dependencies (LocalLLMClient)
+OpenIntelligenceTests/             # Unit tests + TestDoubles.swift for mocks
+scripts/                           # CI/CD helpers (secret_scan, preflight_check)
+fastlane/                          # App Store deployment automation
 ```
 
 ### Placement Rules
 
-1. **New Models**: Place in `Models/` with `Sendable` conformance
-2. **New Services**: Place in `Services/` with protocol definition
-3. **New Views**: Group by feature under `Views/{FeatureName}/`
-4. **Shared Components**: Reusable UI goes in `Views/Shared/`
-5. **Utilities**: Extensions and helpers go in `Utilities/`
+1. **New Models**: Place in `Core/Models/` with `Sendable` conformance
+2. **New Services**: Place in appropriate `Services/{Domain}/` with protocol definition
+3. **New Views**: Group by feature under `Features/{FeatureName}/`
+4. **Shared Components**: Reusable UI goes in `UI/Components/`
+5. **Design Tokens**: Theme, colors in `UI/DesignSystem/`
 6. **Tests**: Mirror source structure under `OpenIntelligenceTests/`
 
 ---
