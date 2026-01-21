@@ -233,7 +233,7 @@ struct UnifiedMetricsBar: View {
     }
 
     // MARK: - Main Compact Strip (Premium Two-Row Layout)
-    
+
     /// Three distinct visual treatments based on quality mode:
     /// - **Standard**: Blue theme, shows "Match" score (retrieval quality), single-pass indicator
     /// - **Deep Think**: Purple/cyan theme, shows "Confidence" building (3 sessions → 85% target)
@@ -308,9 +308,9 @@ struct UnifiedMetricsBar: View {
         )
         .contentShape(Rectangle())
     }
-    
+
     // MARK: - Mode-Specific Detail Row (Row 2)
-    
+
     @ViewBuilder
     private var modeSpecificDetailRow: some View {
         if isMaximumMode {
@@ -324,22 +324,22 @@ struct UnifiedMetricsBar: View {
             standardModeDetailRow
         }
     }
-    
+
     private var standardModeDetailRow: some View {
         HStack(spacing: 8) {
             if sourceCount > 0 {
                 premiumSourcesBadge
             }
-            
+
             MiniSparkline(values: speedHistory, color: speedColor)
                 .frame(height: 20)
-            
+
             if toolCallCount > 0 {
                 premiumToolsBadge
             }
         }
     }
-    
+
     private var deepThinkDetailRow: some View {
         HStack(spacing: 8) {
             // Reasoning chain visualization
@@ -347,7 +347,7 @@ struct UnifiedMetricsBar: View {
                 ForEach(0..<3, id: \.self) { index in
                     let isComplete = index < recursiveCallCount
                     let isCurrent = index == recursiveCallCount - 1 && isProcessing
-                    
+
                     Circle()
                         .fill(isComplete ? Color.cyan : Color.cyan.opacity(0.2))
                         .frame(width: 8, height: 8)
@@ -357,7 +357,7 @@ struct UnifiedMetricsBar: View {
                         )
                         .scaleEffect(isCurrent ? 1.3 : 1.0)
                         .animation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true), value: isCurrent)
-                    
+
                     if index < 2 {
                         Rectangle()
                             .fill(isComplete && index < recursiveCallCount - 1 ? Color.cyan : Color.cyan.opacity(0.2))
@@ -365,24 +365,24 @@ struct UnifiedMetricsBar: View {
                     }
                 }
             }
-            
+
             Text("→ 85%")
                 .font(.system(size: 8, weight: .semibold, design: .monospaced))
                 .foregroundStyle(.cyan.opacity(0.7))
-            
+
             Spacer()
-            
+
             if speedHistory.count > 1 {
                 MiniSparkline(values: speedHistory, color: .cyan)
                     .frame(width: 60, height: 18)
             }
-            
+
             if sourceCount > 0 {
                 premiumSourcesBadge
             }
         }
     }
-    
+
     private var maximumModeDetailRow: some View {
         HStack(spacing: 8) {
             // Confidence progress bar toward 98%
@@ -393,12 +393,12 @@ struct UnifiedMetricsBar: View {
                         Capsule()
                             .fill(Color.orange.opacity(0.15))
                             .frame(height: 6)
-                        
+
                         // Target marker at 98%
                         Capsule()
                             .fill(Color.orange.opacity(0.3))
                             .frame(width: geo.size.width * 0.98, height: 6)
-                        
+
                         // Current progress
                         Capsule()
                             .fill(
@@ -415,7 +415,7 @@ struct UnifiedMetricsBar: View {
                 .frame(height: 6)
             }
             .frame(maxWidth: 100)
-            
+
             // Session counter
             HStack(spacing: 2) {
                 Image(systemName: "bolt.fill")
@@ -427,14 +427,14 @@ struct UnifiedMetricsBar: View {
                     .opacity(0.7)
             }
             .foregroundStyle(.orange)
-            
+
             Spacer()
-            
+
             if speedHistory.count > 1 {
                 MiniSparkline(values: speedHistory, color: .orange)
                     .frame(width: 50, height: 18)
             }
-            
+
             if sourceCount > 0 {
                 premiumSourcesBadge
             }
@@ -495,7 +495,7 @@ struct UnifiedMetricsBar: View {
             standardMatchBadge
         }
     }
-    
+
     private var standardMatchBadge: some View {
         let matchScore = computedMatchScore
         let matchPct = Int(matchScore * 100)
@@ -529,7 +529,7 @@ struct UnifiedMetricsBar: View {
                 .fill(matchColor.opacity(0.1))
         )
     }
-    
+
     private var deepThinkConfidenceBadge: some View {
         let confidence = liveConfidence > 0 ? liveConfidence : 0.10
         let pct = Int(confidence * 100)
@@ -571,7 +571,7 @@ struct UnifiedMetricsBar: View {
                 .fill(color.opacity(0.1))
         )
     }
-    
+
     private var maximumConfidenceBadge: some View {
         let confidence = liveConfidence
         let pct = Int(confidence * 100)
@@ -622,9 +622,9 @@ struct UnifiedMetricsBar: View {
                 .fill(color.opacity(0.1))
         )
     }
-    
+
     // MARK: - Mode Progress Indicator (Sessions/Depth)
-    
+
     @ViewBuilder
     private var modeProgressIndicator: some View {
         if isMaximumMode {
