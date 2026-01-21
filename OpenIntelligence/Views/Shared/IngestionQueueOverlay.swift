@@ -1,5 +1,60 @@
 import SwiftUI
 
+// MARK: - Display Shorthand Helpers
+
+/// Shorthand display names for embedding providers.
+/// Maintains technical accuracy while fitting in compact pill UI.
+private func shortProviderDisplay(_ provider: String) -> String {
+    let lower = provider.lowercased()
+    // Handle already-short names from RAGService
+    if lower == "coreml" || lower == "nl" || lower == "fm" || lower == "openai" || lower == "nlctx" {
+        return provider
+    }
+    // Handle legacy long names that may still be in metrics
+    switch lower {
+    case "coreml sentence embedding", "coreml_sentence_embedding":
+        return "CoreML"
+    case "nl embedding", "nl_embedding", "nlembedding":
+        return "NL"
+    case "apple foundation", "apple_foundation", "foundation models":
+        return "FM"
+    case "openai embedding", "openai_embedding":
+        return "OpenAI"
+    case "nl contextual", "nl_contextual", "contextual":
+        return "NLCtx"
+    default:
+        // Truncate long names to 8 chars max
+        if provider.count > 8 {
+            return String(provider.prefix(7)) + "…"
+        }
+        return provider
+    }
+}
+
+/// Shorthand for chunking strategies. Uses SWE-standard abbreviations.
+private func shortChunkStrategy(_ strategy: String) -> String {
+    switch strategy.lowercased() {
+    case "semantic", "semantic_chunking":
+        return "Semantic"
+    case "sentence", "sentence_based":
+        return "Sent"
+    case "paragraph", "paragraph_based":
+        return "Para"
+    case "fixed", "fixed_size", "fixed_window":
+        return "Fixed"
+    case "sliding", "sliding_window":
+        return "Slide"
+    case "recursive", "recursive_split":
+        return "Recur"
+    case "hybrid":
+        return "Hybrid"
+    default:
+        // Capitalize first word, truncate if long
+        let word = strategy.split(separator: "_").first.map(String.init) ?? strategy
+        return word.count > 7 ? String(word.prefix(6)) + "…" : word.capitalized
+    }
+}
+
 struct IngestionQueueOverlay: View {
     let items: [IngestionItem]
     @State private var isMinimized = false
@@ -73,10 +128,10 @@ struct IngestionQueueOverlay: View {
         }
 
         return AnyView(
-            VStack(alignment: .leading, spacing: isMinimized ? 0 : 12) { 
+            VStack(alignment: .leading, spacing: isMinimized ? 0 : 12) {
                 headerView
 
-                if !isMinimized { 
+                if !isMinimized {
                     // Totals summary card (only show when we have metrics data)
                     if totalMetrics.hasData {
                         TotalsSummaryCard(
@@ -132,7 +187,7 @@ struct IngestionQueueOverlay: View {
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(DSColors.primaryText)
 
-                if !isMinimized { 
+                if !isMinimized {
                     Text(statusLine)
                         .font(.caption)
                         .foregroundStyle(DSColors.secondaryText)
@@ -265,21 +320,81 @@ private struct IngestionQueueRow: View {
     @ViewBuilder
     private var liveMetricsView: some View {
         let m = item.metrics
-        HStack(spacing: 12) {
-            if m.chunkCount > 0 {
-                metricPill(icon: "square.split.2x2", value: "\(m.chunkCount)", label: "chunks")
+        VStack(alignment: .leading, spacing: 6) {
+            // Row 1: Core counts
+            HStack(spacing: 8) {
+                if m.chunkCount > 0 {
+                    metricPill(icon: "square.split.2x2", value: "\(m.chunkCount)", label: "chk")
+                }
+                if m.avgChunkWords > 0 {
+                    metricPill(icon: "textformat.size", value: "\(m.avgChunkWords)", label: "avg")
+                }
+                if m.embeddingsGenerated > 0 {
+                    metricPill(icon: "brain.head.profile", value: "\(m.embeddingsGenerated)", label: "vec")
+                }
+                if m.embeddingDimension > 0 {
+                    metricPill(icon: "cpu", value: "\(m.embeddingDimension)D", label: nil)
+                }
             }
-            if m.avgChunkWords > 0 {
-                metricPill(icon: "textformat.size", value: "\(m.avgChunkWords)", label: "avg w")
+
+            // Row 2: Semantic boundaries (the nerdy stuff)
+            if m.sectionsDetected > 0 || m.topicBoundaries > 0 || m.embeddingBoundaries > 0 {
+                HStack(spacing: 8) {
+                    if m.sectionsDetected > 0 {
+                        metricPill(icon: "list.bullet.indent", value: "\(m.sectionsDetected)", label: "sec")
+                    }
+                    if m.topicBoundaries > 0 {
+                        metricPill(icon: "arrow.triangle.branch", value: "\(m.topicBoundaries)", label: "topic")
+                    }
+                    if m.embeddingBoundaries > 0 {
+                        metricPill(icon: "waveform.path.ecg", value: "\(m.embeddingBoundaries)", label: "∇sim")
+                    }
+                }
             }
-            if m.embeddingsGenerated > 0 {
-                metricPill(icon: "brain.head.profile", value: "\(m.embeddingsGenerated)", label: "vectors")
+
+            // Row 3: Entity extraction
+            if m.entitiesExtracted > 0 {
+                HStack(spacing: 8) {
+                    metricPill(icon: "tag", value: "\(m.entitiesExtracted)", label: "ent")
+                    if !m.topEntities.isEmpty {
+                        Text(m.topEntities.prefix(3).joined(separator: ", "))
+                            .font(.system(size: 9))
+                            .foregroundStyle(DSColors.secondaryText)
+                            .lineLimit(1)
+                    }
+                }
             }
-            if m.embeddingDimension > 0 {
-                metricPill(icon: "arrow.up.right.and.arrow.down.left", value: "\(m.embeddingDimension)D", label: nil)
+
+            // Row 4: Analysis scores (when available)
+            if m.vocabularyRichness > 0 || m.technicalDensity > 0 {
+                HStack(spacing: 8) {
+                    if m.vocabularyRichness > 0 {
+                        metricPill(icon: "textformat.abc", value: String(format: "%.0f%%", m.vocabularyRichness * 100), label: "voc")
+                    }
+                    if m.technicalDensity > 0 {
+                        metricPill(icon: "gearshape.2", value: String(format: "%.0f%%", m.technicalDensity * 100), label: "tech")
+                    }
+                    if m.hasCode {
+                        codeBadgeMini("{ }")
+                    }
+                    if m.hasMath {
+                        codeBadgeMini("∑")
+                    }
+                }
             }
         }
         .font(.system(size: 10))
+    }
+
+    @ViewBuilder
+    private func codeBadgeMini(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 8, weight: .bold, design: .monospaced))
+            .padding(.horizontal, 4)
+            .padding(.vertical, 2)
+            .background(Color.orange.opacity(0.2))
+            .foregroundStyle(.orange)
+            .clipShape(RoundedRectangle(cornerRadius: 3))
     }
 
     @ViewBuilder
@@ -303,167 +418,441 @@ private struct IngestionQueueRow: View {
     @ViewBuilder
     private var pipelineDetailsView: some View {
         let m = item.metrics
-        VStack(alignment: .leading, spacing: 8) {
-            // Document Stats
+        VStack(alignment: .leading, spacing: 10) {
+            // ═══════════════════════════════════════════════
+            // DOCUMENT EXTRACTION
+            // ═══════════════════════════════════════════════
             if m.totalWords > 0 || m.fileSizeMB > 0 {
-                detailSection(title: "Document") {
-                    HStack(spacing: 16) {
+                detailSection(title: "📄 Document Extraction", icon: "doc.text.magnifyingglass") {
+                    // Primary stats
+                    HStack(spacing: 12) {
                         if m.fileSizeMB > 0 {
-                            detailItem(label: "Size", value: String(format: "%.2f MB", m.fileSizeMB))
+                            statBox(value: String(format: "%.2f", m.fileSizeMB), unit: "MB", label: "Size")
                         }
                         if m.totalWords > 0 {
-                            detailItem(label: "Words", value: formatNumber(m.totalWords))
+                            statBox(value: formatNumber(m.totalWords), unit: "", label: "Words")
                         }
                         if m.totalCharacters > 0 {
-                            detailItem(label: "Chars", value: formatNumber(m.totalCharacters))
+                            statBox(value: formatNumber(m.totalCharacters), unit: "", label: "Chars")
                         }
                         if m.pageCount > 0 {
-                            detailItem(label: "Pages", value: "\(m.pageCount)")
+                            statBox(value: "\(m.pageCount)", unit: "", label: "Pages")
                         }
                     }
+                    // OCR info
                     if m.ocrPagesCount > 0 {
-                        Text("OCR applied to \(m.ocrPagesCount) page(s)")
-                            .font(.caption2)
-                            .foregroundStyle(.orange)
-                    }
-                }
-            }
-
-            // Chunking Stats
-            if m.chunkCount > 0 {
-                detailSection(title: "Chunking") {
-                    HStack(spacing: 16) {
-                        detailItem(label: "Chunks", value: "\(m.chunkCount)")
-                        detailItem(label: "Avg", value: "\(m.avgChunkWords)w")
-                        detailItem(label: "Range", value: "\(m.minChunkWords)-\(m.maxChunkWords)w")
-                    }
-                    if !m.chunkingStrategy.isEmpty {
-                        HStack(spacing: 8) {
-                            Text("Strategy: \(m.chunkingStrategy.capitalized)")
-                            if m.targetWordWindow > 0 {
-                                Text("• \(m.targetWordWindow)w window")
-                            }
-                            if m.overlapWords > 0 {
-                                Text("• \(m.overlapWords)w overlap")
-                            }
+                        HStack(spacing: 4) {
+                            Image(systemName: "eye.trianglebadge.exclamationmark")
+                                .font(.system(size: 9))
+                            Text("OCR: \(m.ocrPagesCount) page\(m.ocrPagesCount > 1 ? "s" : "") scanned")
                         }
                         .font(.caption2)
-                        .foregroundStyle(DSColors.secondaryText)
+                        .foregroundStyle(.orange)
+                    }
+                    // Extraction timing
+                    if m.extractionTimeMs > 0 {
+                        timingBadge(label: "Extraction", ms: m.extractionTimeMs, throughput: m.totalWords > 0 ? Double(m.totalWords) / (Double(m.extractionTimeMs) / 1000.0) : nil, unit: "w/s")
                     }
                 }
             }
 
-            // Analysis Results (Auto-Adaptive)
-            if m.isAutoAdaptive && m.vocabularyRichness > 0 {
-                detailSection(title: "Corpus Analysis") {
-                    HStack(spacing: 16) {
-                        detailItem(label: "Vocab", value: String(format: "%.0f%%", m.vocabularyRichness * 100))
-                        detailItem(label: "Technical", value: String(format: "%.0f%%", m.technicalDensity * 100))
-                        detailItem(label: "Complexity", value: String(format: "%.1f", m.semanticComplexity))
+            // ═══════════════════════════════════════════════
+            // SEMANTIC CHUNKING
+            // ═══════════════════════════════════════════════
+            if m.chunkCount > 0 {
+                detailSection(title: "🧩 Semantic Chunking", icon: "square.split.2x2") {
+                    // Chunk statistics
+                    HStack(spacing: 12) {
+                        statBox(value: "\(m.chunkCount)", unit: "", label: "Chunks")
+                        statBox(value: "\(m.avgChunkWords)", unit: "w", label: "Avg")
+                        statBox(value: "\(m.minChunkWords)", unit: "w", label: "Min")
+                        statBox(value: "\(m.maxChunkWords)", unit: "w", label: "Max")
                     }
-                    HStack(spacing: 8) {
-                        if m.hasCode {
-                            codeBadge("Code")
+
+                    // Strategy details
+                    if !m.chunkingStrategy.isEmpty || m.targetWordWindow > 0 {
+                        HStack(spacing: 8) {
+                            if !m.chunkingStrategy.isEmpty {
+                                strategyPill(shortChunkStrategy(m.chunkingStrategy))
+                            }
+                            if m.targetWordWindow > 0 {
+                                paramPill("window", "\(m.targetWordWindow)w")
+                            }
+                            if m.overlapWords > 0 {
+                                paramPill("overlap", "\(m.overlapWords)w (\(Int(Double(m.overlapWords) / Double(max(1, m.targetWordWindow)) * 100))%)")
+                            }
                         }
-                        if m.hasMath {
-                            codeBadge("Math")
+                    }
+
+                    // Semantic boundary detection (THE NERDY SHIT)
+                    if m.sectionsDetected > 0 || m.topicBoundaries > 0 || m.embeddingBoundaries > 0 {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("BOUNDARY DETECTION")
+                                .font(.system(size: 8, weight: .bold, design: .monospaced))
+                                .foregroundStyle(DSColors.accent.opacity(0.7))
+                            HStack(spacing: 10) {
+                                if m.sectionsDetected > 0 {
+                                    boundaryItem(icon: "list.bullet.indent", value: m.sectionsDetected, label: "Sections", desc: "Heading/structure")
+                                }
+                                if m.topicBoundaries > 0 {
+                                    boundaryItem(icon: "arrow.triangle.branch", value: m.topicBoundaries, label: "Topics", desc: "TF-IDF shift")
+                                }
+                                if m.embeddingBoundaries > 0 {
+                                    boundaryItem(icon: "waveform.path.ecg", value: m.embeddingBoundaries, label: "∇Sim", desc: "Cosine gradient")
+                                }
+                            }
                         }
-                        if !m.detectedLanguages.isEmpty {
-                            Text("Languages: \(m.detectedLanguages.joined(separator: ", "))")
+                        .padding(6)
+                        .background(DSColors.accent.opacity(0.05))
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                    }
+
+                    // Chunking timing
+                    if m.chunkingTimeMs > 0 {
+                        timingBadge(label: "Chunking", ms: m.chunkingTimeMs, throughput: Double(m.chunkCount) / (Double(m.chunkingTimeMs) / 1000.0), unit: "chk/s")
+                    }
+                }
+            }
+
+            // ═══════════════════════════════════════════════
+            // CORPUS INTELLIGENCE ANALYSIS
+            // ═══════════════════════════════════════════════
+            if m.isAutoAdaptive || m.vocabularyRichness > 0 || m.entitiesExtracted > 0 {
+                detailSection(title: "🧠 Corpus Intelligence", icon: "brain") {
+                    // Linguistic metrics
+                    if m.vocabularyRichness > 0 {
+                        HStack(spacing: 12) {
+                            metricGauge(label: "Vocab Richness", value: m.vocabularyRichness, color: .blue)
+                            metricGauge(label: "Technical Density", value: m.technicalDensity, color: .purple)
+                            if m.semanticComplexity > 0 {
+                                statBox(value: String(format: "%.2f", m.semanticComplexity), unit: "", label: "Complexity")
+                            }
+                        }
+                    }
+
+                    // Multilingual detection
+                    if m.multilingualScore > 0 || !m.detectedLanguages.isEmpty {
+                        HStack(spacing: 8) {
+                            if m.multilingualScore > 0.1 {
+                                metricGauge(label: "Multilingual", value: m.multilingualScore, color: .green)
+                            }
+                            if !m.detectedLanguages.isEmpty {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "globe")
+                                        .font(.system(size: 9))
+                                    Text(m.detectedLanguages.joined(separator: " · "))
+                                        .font(.system(size: 9, weight: .medium))
+                                }
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 3)
+                                .background(Color.green.opacity(0.1))
+                                .clipShape(Capsule())
+                            }
+                        }
+                    }
+
+                    // Content type detection
+                    if m.hasCode || m.hasMath {
+                        HStack(spacing: 6) {
+                            Text("DETECTED:")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundStyle(DSColors.secondaryText)
+                            if m.hasCode {
+                                contentBadge(icon: "chevron.left.forwardslash.chevron.right", text: "Code", color: .orange)
+                            }
+                            if m.hasMath {
+                                contentBadge(icon: "function", text: "Math", color: .pink)
+                            }
+                        }
+                    }
+
+                    // Entity extraction
+                    if m.entitiesExtracted > 0 {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Image(systemName: "tag.fill")
+                                    .font(.system(size: 9))
+                                    .foregroundStyle(.cyan)
+                                Text("\(m.entitiesExtracted) ENTITIES EXTRACTED")
+                                    .font(.system(size: 8, weight: .bold, design: .monospaced))
+                                    .foregroundStyle(.cyan)
+                            }
+                            if !m.topEntities.isEmpty {
+                                Text(m.topEntities.prefix(5).joined(separator: " • "))
+                                    .font(.system(size: 9))
+                                    .foregroundStyle(DSColors.secondaryText)
+                                    .lineLimit(2)
+                            }
+                        }
+                        .padding(6)
+                        .background(Color.cyan.opacity(0.08))
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                    }
+
+                    // Adaptation result
+                    if m.configWasAdapted && !m.adaptationReason.isEmpty {
+                        HStack(spacing: 4) {
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 10))
+                            Text(m.adaptationReason)
                                 .font(.caption2)
+                        }
+                        .foregroundStyle(.green)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.green.opacity(0.1))
+                        .clipShape(Capsule())
+                    }
+
+                    // Analysis timing
+                    if m.analysisTimeMs > 0 {
+                        timingBadge(label: "Analysis", ms: m.analysisTimeMs, throughput: nil, unit: nil)
+                    }
+                }
+            }
+
+            // ═══════════════════════════════════════════════
+            // NEURAL EMBEDDING
+            // ═══════════════════════════════════════════════
+            if m.embeddingsGenerated > 0 {
+                detailSection(title: "⚡ Neural Embedding", icon: "brain.head.profile") {
+                    HStack(spacing: 12) {
+                        statBox(value: "\(m.embeddingsGenerated)", unit: "", label: "Vectors")
+                        statBox(value: "\(m.embeddingDimension)", unit: "D", label: "Dims")
+                        if !m.embeddingProvider.isEmpty {
+                            VStack(spacing: 2) {
+                                Text(shortProviderDisplay(m.embeddingProvider))
+                                    .font(.system(size: 11, weight: .bold, design: .monospaced))
+                                    .foregroundStyle(DSColors.accent)
+                                Text("Encoder")
+                                    .font(.system(size: 8))
+                                    .foregroundStyle(DSColors.secondaryText)
+                            }
+                        }
+                    }
+
+                    // Embedding throughput
+                    if m.embeddingTimeMs > 0 {
+                        let vectorsPerSec = Double(m.embeddingsGenerated) / (Double(m.embeddingTimeMs) / 1000.0)
+                        timingBadge(label: "Embedding", ms: m.embeddingTimeMs, throughput: vectorsPerSec, unit: "vec/s")
+                    }
+                }
+            }
+
+            // ═══════════════════════════════════════════════
+            // PIPELINE TIMING SUMMARY
+            // ═══════════════════════════════════════════════
+            if m.totalTimeMs > 0 {
+                detailSection(title: "⏱ Pipeline Timing", icon: "clock.badge.checkmark") {
+                    // Waterfall timing visualization
+                    VStack(alignment: .leading, spacing: 4) {
+                        let stages: [(String, Int, Color)] = [
+                            ("Extract", m.extractionTimeMs, .blue),
+                            ("Chunk", m.chunkingTimeMs, .purple),
+                            ("Analyze", m.analysisTimeMs, .green),
+                            ("Embed", m.embeddingTimeMs, .orange)
+                        ].filter { $0.1 > 0 }
+
+                        ForEach(stages, id: \.0) { stage in
+                            timingBar(label: stage.0, ms: stage.1, total: m.totalTimeMs, color: stage.2)
+                        }
+                    }
+
+                    // Total with throughput
+                    HStack {
+                        Text("TOTAL")
+                            .font(.system(size: 9, weight: .bold, design: .monospaced))
+                        Spacer()
+                        Text(formatMs(m.totalTimeMs))
+                            .font(.system(size: 12, weight: .bold, design: .monospaced))
+                            .foregroundStyle(DSColors.accent)
+                        if m.totalWords > 0 && m.totalTimeMs > 100 {
+                            Text("(\(formatNumber(Int(Double(m.totalWords) / (Double(m.totalTimeMs) / 1000.0)))) w/s)")
+                                .font(.system(size: 9))
                                 .foregroundStyle(DSColors.secondaryText)
                         }
                     }
-                    if m.configWasAdapted && !m.adaptationReason.isEmpty {
-                        Text("✨ \(m.adaptationReason)")
-                            .font(.caption2)
-                            .foregroundStyle(.green)
-                    }
                 }
             }
 
-            // Embedding Stats
-            if m.embeddingsGenerated > 0 {
-                detailSection(title: "Embeddings") {
-                    HStack(spacing: 16) {
-                        detailItem(label: "Vectors", value: "\(m.embeddingsGenerated)")
-                        detailItem(label: "Dimensions", value: "\(m.embeddingDimension)")
-                        if !m.embeddingProvider.isEmpty {
-                            detailItem(label: "Provider", value: m.embeddingProvider)
-                        }
-                    }
-                }
-            }
-
-            // Timing Stats
-            if m.totalTimeMs > 0 || m.extractionTimeMs > 0 {
-                detailSection(title: "Timing") {
-                    HStack(spacing: 16) {
-                        if m.extractionTimeMs > 0 {
-                            detailItem(label: "Extract", value: formatMs(m.extractionTimeMs))
-                        }
-                        if m.chunkingTimeMs > 0 {
-                            detailItem(label: "Chunk", value: formatMs(m.chunkingTimeMs))
-                        }
-                        if m.analysisTimeMs > 0 {
-                            detailItem(label: "Analyze", value: formatMs(m.analysisTimeMs))
-                        }
-                        if m.embeddingTimeMs > 0 {
-                            detailItem(label: "Embed", value: formatMs(m.embeddingTimeMs))
-                        }
-                    }
-                    if m.totalTimeMs > 0 {
-                        Text("Total pipeline: \(formatMs(m.totalTimeMs))")
-                            .font(.caption2)
-                            .fontWeight(.medium)
-                            .foregroundStyle(DSColors.accent)
-                    }
-                }
-            }
-
-            // Rebuild Info
+            // ═══════════════════════════════════════════════
+            // REBUILD INFO (if applicable)
+            // ═══════════════════════════════════════════════
             if m.isRebuild && !m.rebuildReason.isEmpty {
-                Text("🔄 Rebuild: \(m.rebuildReason)")
-                    .font(.caption2)
-                    .foregroundStyle(.orange)
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.system(size: 10))
+                    Text("REBUILD: \(m.rebuildReason)")
+                        .font(.system(size: 9, weight: .medium))
+                }
+                .foregroundStyle(.orange)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.orange.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
             }
         }
-        .padding(8)
-        .background(DSColors.surface.opacity(0.5))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .padding(10)
+        .background(DSColors.surface.opacity(0.6))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
+    // MARK: - Granular Detail Components
+
     @ViewBuilder
-    private func detailSection(title: String, @ViewBuilder content: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title.uppercased())
-                .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(DSColors.secondaryText)
+    private func detailSection(title: String, icon: String, @ViewBuilder content: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: 9))
+                    .foregroundStyle(DSColors.accent)
+                Text(title.uppercased())
+                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                    .foregroundStyle(DSColors.secondaryText)
+            }
             content()
         }
     }
 
     @ViewBuilder
-    private func detailItem(label: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
-            Text(value)
-                .font(.caption)
-                .fontWeight(.medium)
+    private func statBox(value: String, unit: String, label: String) -> some View {
+        VStack(spacing: 1) {
+            HStack(spacing: 1) {
+                Text(value)
+                    .font(.system(size: 11, weight: .bold, design: .monospaced))
+                if !unit.isEmpty {
+                    Text(unit)
+                        .font(.system(size: 8, weight: .medium))
+                        .foregroundStyle(DSColors.secondaryText)
+                }
+            }
             Text(label)
-                .font(.system(size: 9))
+                .font(.system(size: 8))
                 .foregroundStyle(DSColors.secondaryText)
         }
     }
 
     @ViewBuilder
-    private func codeBadge(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: 9, weight: .semibold))
-            .padding(.horizontal, 5)
-            .padding(.vertical, 2)
-            .background(Color.purple.opacity(0.2))
-            .foregroundStyle(.purple)
+    private func strategyPill(_ strategy: String) -> some View {
+        Text(strategy)
+            .font(.system(size: 9, weight: .semibold, design: .monospaced))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(DSColors.accent.opacity(0.15))
+            .foregroundStyle(DSColors.accent)
             .clipShape(Capsule())
+    }
+
+    @ViewBuilder
+    private func paramPill(_ param: String, _ value: String) -> some View {
+        HStack(spacing: 2) {
+            Text(param)
+                .foregroundStyle(DSColors.secondaryText)
+            Text(value)
+                .fontWeight(.medium)
+        }
+        .font(.system(size: 8))
+        .padding(.horizontal, 5)
+        .padding(.vertical, 2)
+        .background(DSColors.surface)
+        .clipShape(Capsule())
+    }
+
+    @ViewBuilder
+    private func boundaryItem(icon: String, value: Int, label: String, desc: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 3) {
+                Image(systemName: icon)
+                    .font(.system(size: 8))
+                Text("\(value)")
+                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                Text(label)
+                    .font(.system(size: 8, weight: .medium))
+            }
+            Text(desc)
+                .font(.system(size: 7))
+                .foregroundStyle(DSColors.secondaryText.opacity(0.7))
+        }
+    }
+
+    @ViewBuilder
+    private func metricGauge(label: String, value: Double, color: Color) -> some View {
+        VStack(spacing: 3) {
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(color.opacity(0.2))
+                    .frame(width: 40, height: 4)
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(color)
+                    .frame(width: 40 * min(1, value), height: 4)
+            }
+            Text("\(Int(value * 100))%")
+                .font(.system(size: 9, weight: .bold, design: .monospaced))
+            Text(label)
+                .font(.system(size: 7))
+                .foregroundStyle(DSColors.secondaryText)
+        }
+    }
+
+    @ViewBuilder
+    private func contentBadge(icon: String, text: String, color: Color) -> some View {
+        HStack(spacing: 3) {
+            Image(systemName: icon)
+                .font(.system(size: 8))
+            Text(text)
+                .font(.system(size: 9, weight: .semibold))
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(color.opacity(0.15))
+        .foregroundStyle(color)
+        .clipShape(Capsule())
+    }
+
+    @ViewBuilder
+    private func timingBadge(label: String, ms: Int, throughput: Double?, unit: String?) -> some View {
+        HStack(spacing: 8) {
+            HStack(spacing: 3) {
+                Image(systemName: "clock")
+                    .font(.system(size: 8))
+                Text(label)
+                    .font(.system(size: 8))
+                Text(formatMs(ms))
+                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+            }
+            .foregroundStyle(DSColors.secondaryText)
+
+            if let throughput, let unit, throughput > 0 {
+                Text("⚡ \(formatNumber(Int(throughput))) \(unit)")
+                    .font(.system(size: 8, weight: .medium, design: .monospaced))
+                    .foregroundStyle(DSColors.accent)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func timingBar(label: String, ms: Int, total: Int, color: Color) -> some View {
+        let pct = total > 0 ? Double(ms) / Double(total) : 0
+        HStack(spacing: 6) {
+            Text(label)
+                .font(.system(size: 8, weight: .medium))
+                .frame(width: 45, alignment: .leading)
+
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(color.opacity(0.2))
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(color)
+                        .frame(width: geo.size.width * pct)
+                }
+            }
+            .frame(height: 6)
+
+            Text(formatMs(ms))
+                .font(.system(size: 8, design: .monospaced))
+                .frame(width: 35, alignment: .trailing)
+        }
     }
 
     private func formatNumber(_ n: Int) -> String {
@@ -517,7 +906,7 @@ private struct IngestionPipelineSteps: View {
             ? steps.count - 1
             : (item.stage.pipelineIndex ?? -1)
 
-        return HStack(spacing: 3) { 
+        return HStack(spacing: 3) {
             ForEach(steps.indices, id: \.self) { index in
                 Capsule()
                     .fill(stepColor(for: index, activeIndex: activeIndex))
@@ -625,20 +1014,20 @@ private struct TotalsSummaryCard: View {
             // Secondary stats row
             HStack(spacing: 12) {
                 if metrics.avgChunkWords > 0 {
-                    miniStat(icon: "textformat.size", value: "\(metrics.avgChunkWords)w", label: "Avg Chunk")
+                    miniStat(icon: "textformat.size", value: "\(metrics.avgChunkWords)w", label: "Avg")
                 }
                 if metrics.totalPages > 0 {
-                    miniStat(icon: "doc.text", value: "\(metrics.totalPages)", label: "Pages")
+                    miniStat(icon: "doc.text", value: "\(metrics.totalPages)", label: "Pgs")
                 }
                 if metrics.embeddingDimension > 0 {
                     miniStat(
-                        icon: "arrow.up.right.and.arrow.down.left",
+                        icon: "cpu",
                         value: "\(metrics.embeddingDimension)D",
-                        label: metrics.embeddingProvider.isEmpty ? "Dims" : metrics.embeddingProvider
+                        label: metrics.embeddingProvider.isEmpty ? "" : shortProviderDisplay(metrics.embeddingProvider)
                     )
                 }
                 if metrics.totalTimeMs > 0 {
-                    miniStat(icon: "clock", value: formatTime(metrics.totalTimeMs), label: "Total")
+                    miniStat(icon: "clock", value: formatTime(metrics.totalTimeMs), label: "")
                 }
             }
             .font(.system(size: 10))

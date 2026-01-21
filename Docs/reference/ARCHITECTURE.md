@@ -1,8 +1,8 @@
 # OpenIntelligence Technical Architecture
 
-**Version**: 2.2
-**Date**: January 2026
-**Status**: Production-Ready
+**Version**: 2.3
+**Date**: January 20, 2026
+**Status**: Production (App Store Submitted)
 
 ## Executive Summary
 
@@ -10,7 +10,7 @@ OpenIntelligence is a native iOS 26 application implementing a complete Retrieva
 
 **Simple Concept:** Users upload documents, ask questions, get AI-powered answers using information from their documents.
 
-**Latest (v2.2)**: Multi-Query Search with LLM-generated query variations and semantic intent validation for universal retrieval coverage.
+**Latest (v2.3)**: Container dimension auto-migration, granular ingestion pipeline visualization, Maximum mode confidence baseline fix.
 
 ### Key Architectural Principles
 
@@ -368,6 +368,41 @@ func applyLostInMiddleReordering(_ chunks: [DocumentChunk]) -> [DocumentChunk]
 **Auto-Tuning**: `RetrievalConfig.recommended(forDocumentTypes:)` analyzes ingested content and selects optimal preset.
 
 **File**: `OpenIntelligence/Models/KnowledgeContainer.swift`
+
+### ContainerService
+
+**Purpose**: CRUD operations for knowledge containers with automatic migration
+
+**Key Features**:
+
+- Persistent storage of container metadata to JSON
+- **Auto-Migration at Load Time**: Fixes containers with invalid configurations
+
+**Container Dimension Migration** (Jan 2026):
+
+When loading containers, the service automatically detects and corrects:
+
+| Invalid State                                   | Auto-Migration Action                     |
+| ----------------------------------------------- | ----------------------------------------- |
+| `embeddingProviderId = nl_contextual_embedding` | → `coreml_sentence_embedding` (supported) |
+| `embeddingDim = 784` (or other invalid)         | → `384` (CoreML standard)                 |
+| Dimension not in {384, 512, 1024}               | → `384` (default)                         |
+
+**Why Migration Matters**: Without migration, containers created with experimental providers would trigger perpetual rebuild loops as the runtime embedding dimension (384) wouldn't match the stored dimension (784).
+
+```swift
+// Automatic migration on load (ContainerService.swift)
+let validDimensions: Set<Int> = [384, 512, 1024]
+if container.embeddingProviderId == "nl_contextual_embedding" {
+    fixed.embeddingProviderId = "coreml_sentence_embedding"
+    fixed.embeddingDim = 384
+}
+if !validDimensions.contains(container.embeddingDim) {
+    fixed.embeddingDim = 384
+}
+```
+
+**File**: `OpenIntelligence/Services/ContainerService.swift`
 
 ### RAPTOR-lite (Document Summaries)
 
@@ -789,8 +824,68 @@ final class SystemStateMonitor: ObservableObject {
 
 - **UnifiedMetricsBar**: Compact badge (thermal/battery when notable) + expanded System State card
 - **SettingsView**: Live System Monitor section with 2-column grid
+- **IngestionQueueOverlay**: Real-time ingestion pipeline visualization (see below)
 
 **Note**: iOS reports battery in ~5% increments (Apple API limitation).
+
+---
+
+### IngestionQueueOverlay
+
+**Purpose**: Maximum transparency into document ingestion pipeline operations
+
+**Problem Solved**: Users had no visibility into what the app was doing during document import—just a spinner. For a "nerd shit" audience, this felt like a black box.
+
+**Solution**: Real-time granular visualization of every pipeline stage with expandable details.
+
+**UI Components** (Jan 2026 Overhaul):
+
+| Component              | Display                                               |
+| ---------------------- | ----------------------------------------------------- |
+| **Stage Indicator**    | Current operation (Extracting → Chunking → Embedding) |
+| **Progress Bar**       | Visual pipeline step completion                       |
+| **Live Metrics Row**   | 4-row display with real-time metrics                  |
+| **Expandable Details** | Full pipeline statistics on tap                       |
+
+**Live Metrics Display** (4 rows):
+
+```text
+Row 1: Core counts
+  [12 chk] [~280w] [12 vec] [384D]
+
+Row 2: Semantic boundaries
+  [§3 sections] [⊥2 topics] [∇5 sim]
+
+Row 3: Entity extraction
+  [🏷️ 8 entities: John Smith • Acme Corp • New York...]
+
+Row 4: Analysis scores
+  [vocab 45%] [tech 12%] [</> Code] [∑ Math]
+```
+
+**Shorthand Provider Labels**:
+
+| Full Name                   | Shorthand |
+| --------------------------- | --------- |
+| `coreml_sentence_embedding` | CoreML    |
+| `nl_embedding`              | NL        |
+| `apple_foundation`          | FM        |
+| `openai_embedding`          | OpenAI    |
+| `nl_contextual_embedding`   | NLCtx     |
+
+**Expanded Pipeline Details**:
+
+- **📄 Document Extraction**: Size, words, chars, pages, OCR info, extraction throughput
+- **🧩 Semantic Chunking**: Chunk stats, strategy, boundary detection (sections/topics/∇sim)
+- **🧠 Corpus Intelligence**: Vocab richness, tech density, multilingual detection, entity extraction
+- **⚡ Neural Embedding**: Vector count, dimensions, encoder, embedding throughput
+- **⏱ Pipeline Timing**: Waterfall visualization with per-stage bars and total throughput
+
+**Timing Waterfall**: Visual bars showing relative time spent in each stage (Extract → Chunk → Analyze → Embed) with color coding and percentage of total.
+
+**File**: `OpenIntelligence/Views/Shared/IngestionQueueOverlay.swift`
+
+---
 
 **Implementation Details**:
 
@@ -1308,6 +1403,16 @@ for i in 0..<chunks.count {
 - **Standard**: 5 steps, 85% confidence, 16K tokens
 - **Deep Think**: Multi-query + 8 steps, 95% confidence, 32K tokens
 - **Maximum**: Multi-query + 50 steps, 98% confidence, 200K tokens (thermal-limited)
+
+**Confidence Baseline Fix** (Jan 2026):
+
+Maximum mode previously showed 0% → 0% → 0% → 85% confidence jumps, giving users no sense of progress. The fix starts confidence at 5% baseline:
+
+```swift
+// Start with meaningful baseline for progress visibility
+var cumulativeConfidence: Float = shouldReportConfidence ? 0.05 : 0
+// Now shows: 5% → 12% → 20% → 35% → ... → 98%
+```
 
 #### 11. Self-RAG (Adaptive Retrieval)
 

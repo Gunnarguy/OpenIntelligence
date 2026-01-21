@@ -545,11 +545,11 @@ Text(deviceService.chipName)
                         .font(.caption)
                         .foregroundColor(.secondary)
                 } else if settings.ragQualityMode.canonical == .deepThink {
-                    Text("Deep Think chains 4-8 reasoning sessions on your best-matched content. Each step reasons deeper, with cumulative insights building across sessions.")
+                    Text("Deep Think chains 4-8 reasoning sessions dynamically, stopping when 85% confident. Each step reasons deeper, with cumulative insights building across sessions.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 } else {
-                    Text("Standard mode uses a single 4,096-token context window on-device. Private Cloud Compute handles queries exceeding this limit.")
+                    Text("Standard mode activates a 3-session reasoning chain for complex queries with good retrieval. Simple queries use single-session for speed.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -560,10 +560,10 @@ Text(deviceService.chipName)
                         contextInfoPill(icon: "flame.fill", label: "Total Budget", value: "200K+ tokens")
                     } else if settings.ragQualityMode.canonical == .deepThink {
                         contextInfoPill(icon: "square.3.layers.3d", label: "Per Session", value: "4K tokens")
-                        contextInfoPill(icon: "arrow.trianglehead.2.clockwise.rotate.90", label: "Effective", value: "32K+ tokens")
+                        contextInfoPill(icon: "arrow.trianglehead.2.clockwise.rotate.90", label: "Effective", value: "16-32K tokens")
                     } else {
-                        contextInfoPill(icon: deviceService.isMac ? "desktopcomputer" : (deviceService.isIPad ? "ipad" : "iphone"), label: "On-Device", value: "4K tokens")
-                        contextInfoPill(icon: "cloud", label: "PCC", value: "Extended")
+                        contextInfoPill(icon: "square.3.layers.3d", label: "Per Session", value: "4K tokens")
+                        contextInfoPill(icon: "arrow.trianglehead.2.clockwise.rotate.90", label: "Chain Mode", value: "12K+ tokens")
                     }
                 }
             }
@@ -888,22 +888,32 @@ Text(deviceService.chipName)
 
                 VStack(alignment: .leading, spacing: 6) {
                     // Common features for all modes
-                    featureRow(icon: "sparkles", label: "HyDE Query Enhancement", description: "Generates hypothetical answer to improve embedding similarity", color: .green)
-                    featureRow(icon: "text.redaction", label: "Contextual Compression", description: "LLM extracts only query-relevant sentences", color: .green)
-                    featureRow(icon: "doc.on.doc", label: "Parent Document Retrieval", description: "Fetches surrounding chunks for full context", color: .green)
-                    featureRow(icon: "lightbulb", label: "Query Understanding", description: "Resolves pronouns & clarifies ambiguous queries", color: .green)
+                    featureRow(icon: "doc.on.doc", label: "Parent Document Retrieval", description: "Expands chunk window ±5 for full paragraph context", color: .green)
+                    featureRow(icon: "lightbulb", label: "Query Understanding", description: "NLTagger resolves pronouns, NER extracts key entities", color: .green)
+                    featureRow(icon: "arrow.triangle.merge", label: "Hybrid Search + RRF", description: "Vector + BM25 keyword search with Reciprocal Rank Fusion", color: .green)
+                    featureRow(icon: "arrow.up.arrow.down", label: "Cross-Encoder Reranking", description: "TinyBERT reranker scores query-document relevance", color: .green)
+                    featureRow(icon: "shuffle", label: "MMR Diversification", description: "Maximal Marginal Relevance for diverse results", color: .green)
+                    featureRow(icon: "tree", label: "RAPTOR-lite Summaries", description: "Document-level summaries route overview queries", color: .green)
+
+                    // Standard mode only features
+                    if !settings.ragQualityMode.usesAgenticOrchestrator {
+                        Divider()
+                            .padding(.vertical, 4)
+                        featureRow(icon: "sparkles", label: "HyDE Query Expansion", description: "LLM generates hypothetical doc, embedded for cosine retrieval", color: .blue)
+                        featureRow(icon: "text.redaction", label: "Contextual Compression", description: "LLM extracts query-relevant sentences from chunks", color: .blue)
+                    }
 
                     // Deep Think and Maximum shared features
                     if settings.ragQualityMode.usesAgenticOrchestrator {
                         Divider()
                             .padding(.vertical, 4)
-                        featureRow(icon: "magnifyingglass.circle.fill", label: "Multi-Query Search", description: "LLM generates 4-5 search variations for universal coverage", color: .purple)
-                        featureRow(icon: "arrow.triangle.merge", label: "RRF Fusion", description: "Merges results from all query variations intelligently", color: .purple)
-                        featureRow(icon: "checkmark.seal.fill", label: "Semantic Validation", description: "Verifies retrieved content actually answers your question", color: .purple)
-                        featureRow(icon: "arrow.trianglehead.2.clockwise.rotate.90", label: "Iterative Retrieval", description: "Retrieve → assess → refine → retrieve more", color: .purple)
-                        featureRow(icon: "brain.head.profile", label: "Agentic Orchestrator", description: "4-8 reasoning sessions (95% confidence)", color: .purple)
-                        featureRow(icon: "hammer.fill", label: "12+ Tool Functions", description: "SearchDocs, GetFullDocument, ExpandContext, etc.", color: .purple)
-                        featureRow(icon: "chart.bar.xaxis", label: "Confidence Tracking", description: "Stops when confident, escalates if uncertain", color: .purple)
+                        featureRow(icon: "magnifyingglass.circle.fill", label: "Multi-Query Decomposition", description: "LLM generates 4-5 sub-queries for faceted retrieval", color: .purple)
+                        featureRow(icon: "arrow.triangle.merge", label: "RRF Fusion", description: "Reciprocal Rank Fusion merges vector + BM25 results", color: .purple)
+                        featureRow(icon: "checkmark.seal.fill", label: "Semantic Validation", description: "Self-RAG style relevance scoring per chunk", color: .purple)
+                        featureRow(icon: "arrow.trianglehead.2.clockwise.rotate.90", label: "Iterative Retrieval", description: "Retrieve → assess gaps → refine query → retrieve more", color: .purple)
+                        featureRow(icon: "brain.head.profile", label: "Agentic Orchestrator", description: "4-8 dynamic sessions targeting 85% confidence", color: .purple)
+                        featureRow(icon: "hammer.fill", label: "3 @Tool Functions", description: "SearchDocs, ListDocs, GetDocumentSummary", color: .purple)
+                        featureRow(icon: "chart.bar.xaxis", label: "Confidence Tracking", description: "Halts at threshold or escalates uncertainty", color: .purple)
                     }
 
                     // Maximum-exclusive features

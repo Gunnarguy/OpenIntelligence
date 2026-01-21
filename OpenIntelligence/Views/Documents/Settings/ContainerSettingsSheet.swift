@@ -44,15 +44,15 @@ struct ContainerSettingsSheet: View {
     @State var actualProviderInUse: String?
     @State var providerFallbackReason: String?
 
-    var activeContainer: KnowledgeContainer? { 
+    var activeContainer: KnowledgeContainer? {
         containerService.containers.first(where: { $0.id == containerService.activeContainerId })
     }
 
-    var activeIntelligenceReport: LibraryIntelligenceCenter.IntelligenceReport? { 
+    var activeIntelligenceReport: LibraryIntelligenceCenter.IntelligenceReport? {
         ragService.intelligenceReport(for: activeContainer?.id)
     }
 
-    var lastSelfTuneSummary: String? { 
+    var lastSelfTuneSummary: String? {
         guard let stamp = activeContainer?.lastSelfTuneAt else { return nil }
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .full
@@ -175,7 +175,7 @@ struct ContainerSettingsSheet: View {
                     providerId = c.embeddingProviderId
                     // Validate dimension for provider before setting
                     let validDims = supportedDimensions(for: c.embeddingProviderId)
-                    if validDims.contains(c.embeddingDim) { 
+                    if validDims.contains(c.embeddingDim) {
                         dim = c.embeddingDim
                     } else {
                         dim = validDims.first ?? 384
@@ -278,24 +278,24 @@ struct ContainerSettingsSheet: View {
         }
     }
 
-    var embeddingProviderOptions: [EmbeddingProviderOption] { 
+    var embeddingProviderOptions: [EmbeddingProviderOption] {
         [
             // MARK: - CoreML Sentence Embedding (Primary)
 
-            // Custom Core ML model optimized for Apple Silicon.
-            // Uses all-MiniLM-L6-v2 converted to .mlmodelc format.
-            // 384-dim sentence embeddings with excellent semantic accuracy.
+            // Custom Core ML model: all-MiniLM-L6-v2 (sentence-transformers)
+            // Converted to .mlmodelc via coremltools. 384-dim output.
+            // Mean-pooled sentence embeddings with Neural Engine acceleration.
             EmbeddingProviderOption(
                 id: "coreml_sentence_embedding",
                 icon: "cpu.fill",
-                title: "Neural Engine",
-                tagline: "Optimized for Apple Silicon",
-                detail: "Sentence-level embeddings powered by Core ML. Captures full semantic meaning with hardware acceleration on Neural Engine.",
+                title: "Neural Engine (MiniLM)",
+                tagline: "all-MiniLM-L6-v2 • 384-dim",
+                detail: "Sentence-transformer model fine-tuned for semantic similarity. Produces 384-dimensional vectors via mean-pooling, accelerated on Neural Engine.",
                 isSelectable: true,
                 badgeText: "✓ Default",
                 supportedDimensions: [384],
                 metrics: [
-                    OptionMetric(icon: "bolt.fill", text: "Hardware accelerated", tint: .orange),
+                    OptionMetric(icon: "bolt.fill", text: "ANE accelerated", tint: .orange),
                     OptionMetric(icon: "target", text: "High semantic accuracy"),
                     OptionMetric(icon: "iphone", text: "100% on-device"),
                 ],
@@ -304,17 +304,17 @@ struct ContainerSettingsSheet: View {
         ]
     }
 
-    var dimensionOptions: [DimensionOption] { 
+    var dimensionOptions: [DimensionOption] {
         [
-            // 384D - Native dimension for CoreML Sentence Embedding
+            // 384D - Native dimension for CoreML Sentence Embedding (MiniLM-L6-v2)
             DimensionOption(
                 value: 384,
                 icon: "cpu.fill",
-                title: "384D • Neural Engine",
-                caption: "Optimized for Apple Silicon",
-                detail: "Native output of the Core ML sentence embedding model. Hardware-accelerated on Neural Engine for fast, accurate semantic search.",
+                title: "384D • MiniLM-L6-v2",
+                caption: "Neural Engine optimized",
+                detail: "Native output of the bundled all-MiniLM-L6-v2 sentence-transformer. Mean-pooled token embeddings produce dense 384-dim vectors optimized for cosine similarity.",
                 metrics: [
-                    OptionMetric(icon: "bolt.fill", text: "Hardware accelerated", tint: .orange),
+                    OptionMetric(icon: "bolt.fill", text: "ANE accelerated", tint: .orange),
                     OptionMetric(icon: "cube.fill", text: "~0.58 MB / 100 docs"),
                     OptionMetric(icon: "checkmark.seal.fill", text: "Native format"),
                 ]
@@ -322,7 +322,7 @@ struct ContainerSettingsSheet: View {
         ]
     }
 
-    var availableDimensionOptions: [DimensionOption] { 
+    var availableDimensionOptions: [DimensionOption] {
         guard let option = embeddingProviderOptions.first(where: { $0.id == providerId && $0.isSelectable }) else {
             return []
         }
@@ -336,32 +336,32 @@ struct ContainerSettingsSheet: View {
         return option.supportedDimensions.sorted()
     }
 
-    var providerAlerts: [ProviderAvailabilityAlert] { 
+    var providerAlerts: [ProviderAvailabilityAlert] {
         embeddingProviderOptions.compactMap { $0.alert }
     }
 
-    var vectorDBOptions: [VectorDBOptionDescriptor] { 
+    var vectorDBOptions: [VectorDBOptionDescriptor] {
         [
             VectorDBOptionDescriptor(
                 kind: .persistentJSON,
                 icon: "doc.badge.gearshape.fill",
-                title: "JSON Storage",
-                caption: "Accuracy • Persistent",
-                detail: "Exact search over persisted vectors. Survives app restarts and favors maximum recall."
+                title: "Persistent JSON",
+                caption: "Exact k-NN • Durable",
+                detail: "Brute-force cosine similarity over persisted vectors. O(n) search but 100% recall. Survives app restarts."
             ),
             VectorDBOptionDescriptor(
                 kind: .vecturaHNSW,
                 icon: "point.3.connected.trianglepath.dotted",
-                title: "HNSW Index",
-                caption: "Approximate • Fast search",
-                detail: "Hierarchical graph index for sub-millisecond search on 10K+ chunks. Trades a bit of recall for speed."
+                title: "HNSW Graph",
+                caption: "Approximate • O(log n)",
+                detail: "Hierarchical Navigable Small World graph for sub-ms search on 10K+ vectors. ~95% recall tradeoff."
             ),
             VectorDBOptionDescriptor(
                 kind: .inMemory,
                 icon: "memorychip.fill",
-                title: "In-Memory Only",
-                caption: "Temporary • Testing",
-                detail: "Embeddings stored in RAM only. Lost when app closes. Use for experiments only."
+                title: "In-Memory",
+                caption: "Volatile • Testing",
+                detail: "RAM-only storage, cleared on app termination. Use for quick experiments without disk I/O."
             ),
         ]
     }
@@ -537,7 +537,7 @@ struct ContainerSettingsSheet: View {
 
 // MARK: - Settings Helpers
 
-struct EmbeddingProviderOption: Identifiable { 
+struct EmbeddingProviderOption: Identifiable {
     let id: String
     let icon: String
     let title: String
@@ -550,7 +550,7 @@ struct EmbeddingProviderOption: Identifiable {
     let alert: ProviderAvailabilityAlert?
 }
 
-struct DimensionOption: Identifiable { 
+struct DimensionOption: Identifiable {
     let value: Int
     let icon: String
     let title: String
@@ -561,7 +561,7 @@ struct DimensionOption: Identifiable {
     var id: Int { value }
 }
 
-struct VectorDBOptionDescriptor: Identifiable { 
+struct VectorDBOptionDescriptor: Identifiable {
     let kind: VectorDBKind
     let icon: String
     let title: String
@@ -571,7 +571,7 @@ struct VectorDBOptionDescriptor: Identifiable {
     var id: VectorDBKind { kind }
 }
 
-struct ProviderAvailabilityAlert: Identifiable { 
+struct ProviderAvailabilityAlert: Identifiable {
     let id: String
     let icon: String
     let title: String
@@ -593,7 +593,7 @@ private struct LibraryThemePreset: Identifiable {
     }
 }
 
-struct ReembedContext: Identifiable { 
+struct ReembedContext: Identifiable {
     let containerId: UUID
     let reason: String
     let documentCount: Int
@@ -601,7 +601,7 @@ struct ReembedContext: Identifiable {
     var id: UUID { containerId }
 }
 
-struct SelectableOptionCard: View { 
+struct SelectableOptionCard: View {
     let icon: String
     let title: String
     let subtitle: String
@@ -731,14 +731,14 @@ struct SelectableOptionCard: View {
     }
 }
 
-struct OptionMetric: Identifiable { 
+struct OptionMetric: Identifiable {
     let id = UUID()
     let icon: String
     let text: String
     var tint: Color = .secondary
 }
 
-struct SettingHelpCallout: View { 
+struct SettingHelpCallout: View {
     let icon: String
     let title: String
     let description: String
@@ -780,7 +780,7 @@ struct SettingHelpCallout: View {
     }
 }
 
-struct AutoIntelligencePanel: View { 
+struct AutoIntelligencePanel: View {
     let report: LibraryIntelligenceCenter.IntelligenceReport
     let isAutoEnabled: Bool
     var onToggleAuto: (() -> Void)?
@@ -1089,7 +1089,7 @@ private extension LibraryIntelligenceCenter.RetrievalPlan.RerankerStrategy {
     }
 }
 
-struct ReembedStatusBanner: View { 
+struct ReembedStatusBanner: View {
     let progress: ReembedProgress
 
     var body: some View {

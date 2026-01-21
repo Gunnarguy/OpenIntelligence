@@ -15,13 +15,12 @@ OpenIntelligence is a reference implementation of a production-grade **Retrieval
 
 - **Privacy by Design**: All processing happens on-device by default. Optional Private Cloud Compute (PCC) with cryptographic zero-retention.
 - **Hybrid Search Engine**: Combines **BM25** (keyword) and **Vector Search** (semantic) using **Reciprocal Rank Fusion (RRF)** and **Maximal Marginal Relevance (MMR)** for diverse, high-quality retrieval.
-- **Multi-Model Support**:
-  - **Apple Intelligence**: Foundation Models with PCC fallback.
-  - **Local GGUF**: Run Llama 3, Mistral, etc., directly on-device via `llama.cpp`.
-  - **Core ML**: Native Neural Engine acceleration.
-  - **OpenAI**: Optional API integration for macOS/testing.
+- **Apple Intelligence**: Foundation Models with Private Cloud Compute fallback. On-device extractive QA always available.
+- **CoreML Embeddings**: 384-dimensional sentence embeddings via bundled all-MiniLM-L6-v2 model with Neural Engine acceleration.
 - **Agentic Tooling**: 12+ `@Tool` decorated functions allowing the LLM to search, summarize, and analyze your library.
-- **Observability**: Real-time telemetry badges (📱/☁️/🔑), execution timers (TTFT), and vector space visualization.
+- **Multi-Chain Maximum Mode**: Parallel reasoning chains across document clusters, breaking the 4096 token ceiling.
+- **RAPTOR-lite Summaries**: Auto-generated document summaries for efficient overview queries.
+- **Observability**: Real-time telemetry badges (📱/☁️), execution timers (TTFT), granular ingestion pipeline visualization, and 3D embedding space exploration.
 
 ---
 
@@ -52,13 +51,13 @@ graph TD
 
 ### Core Components
 
-| Component | Responsibility | Implementation Details |
-|-----------|----------------|------------------------|
-| **`RAGService`** | Orchestration | `@MainActor` singleton. Manages state, ingestion, and routing. |
-| **`RAGEngine`** | Math & Logic | `actor`. Offloads BM25 scoring, RRF fusion, and MMR to background threads. |
-| **`VectorStoreRouter`** | Storage Access | Manages container-isolated `PersistentVectorDatabase` instances. |
-| **`LLMService`** | Generation | Protocol with 6 implementations (Apple FM, GGUF, OpenAI, etc.). |
-| **`SemanticChunker`** | Pre-processing | Intelligent splitting with topic boundary detection and overlap. |
+| Component               | Responsibility | Implementation Details                                                     |
+| ----------------------- | -------------- | -------------------------------------------------------------------------- |
+| **`RAGService`**        | Orchestration  | `@MainActor` singleton. Manages state, ingestion, and routing.             |
+| **`RAGEngine`**         | Math & Logic   | `actor`. Offloads BM25 scoring, RRF fusion, and MMR to background threads. |
+| **`VectorStoreRouter`** | Storage Access | Manages container-isolated `PersistentVectorDatabase` instances.           |
+| **`LLMService`**        | Generation     | Protocol with 6 implementations (Apple FM, GGUF, OpenAI, etc.).            |
+| **`SemanticChunker`**   | Pre-processing | Intelligent splitting with topic boundary detection and overlap.           |
 
 ---
 
@@ -141,11 +140,11 @@ Go to the **Chat** tab. Ask questions about your documents.
 
 ### 3. Model Configuration
 
-In **Settings**, choose your AI backend:
+In **Settings**, configure your AI preferences:
 
-- **Apple Intelligence**: Best for privacy and integration.
-- **GGUF Local**: Download models like Llama 3.2 directly in the app.
-- **OpenAI**: Requires an API key (stored in Keychain).
+- **Quality Mode**: Choose between Standard (fast), Deep Think (thorough), or Maximum (unlimited reasoning).
+- **Privacy Settings**: Control Private Cloud Compute usage and view execution location.
+- **Intelligence Layer**: Enable/disable query understanding, multi-pass retrieval, conversation memory.
 
 ---
 

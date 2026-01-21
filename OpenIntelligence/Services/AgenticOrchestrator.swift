@@ -45,6 +45,29 @@ struct ThinkingStep: Identifiable, Sendable {
     }
 }
 
+/// Extension to map ThinkingEvent.Kind back to ThinkingStep.StepType for verbose pipeline events
+extension ThinkingEvent.Kind {
+    /// Convert ThinkingEvent.Kind to ThinkingStep.StepType for detailed event forwarding
+    nonisolated var toStepType: ThinkingStep.StepType {
+        switch self {
+        case .planning, .agentic:
+            return .planning
+        case .embedding, .retrieval, .hyde, .queryRewrite, .bm25, .vectorSearch, .parentDoc, .iterative:
+            return .searching
+        case .rerank, .rrf, .mmr:
+            return .analyzing
+        case .gating, .grounding, .selfRag, .factBank:
+            return .analyzing
+        case .context, .compression, .lostInMiddle:
+            return .expanding
+        case .generation, .toolCall:
+            return .synthesizing
+        case .fallback, .warning:
+            return .refining
+        }
+    }
+}
+
 /// Configuration for the agentic loop
 struct AgenticConfig: Sendable {
     /// Maximum thinking steps before forcing synthesis (use Int.max for "unlimited")
@@ -163,6 +186,28 @@ final class AgenticOrchestrator: Sendable {
         }
     }
 
+    /// Create a detailed event forwarder that emits verbose ThinkingView events
+    /// This bridges the onStep callback to the detailed event format used by executeFullRetrievalPipeline
+    private func makeDetailedEventForwarder(
+        onStep: ((ThinkingStep) async -> Void)?
+    ) -> (@Sendable (ThinkingEvent.Kind, String, String) async -> Void)? {
+        guard let onStep = onStep else { return nil }
+        return { @Sendable kind, title, detail in
+            // Create a lightweight ThinkingStep for detailed pipeline events
+            // These are verbose sub-steps that show retrieval internals
+            let detailStep = ThinkingStep(
+                id: UUID(),
+                type: kind.toStepType,
+                input: "",
+                output: "\(title): \(detail)",
+                tokensUsed: 0, // No tokens for pipeline events
+                duration: 0,
+                timestamp: Date()
+            )
+            await onStep(detailStep)
+        }
+    }
+
     /// Execute a retrieval-first reasoning loop
     ///
     /// STRATEGY (Enhanced with Self-RAG and Speculative RAG):
@@ -247,10 +292,14 @@ final class AgenticOrchestrator: Sendable {
         logStepTokens("Query Generation", 50)
         await onStep?(queryGenStep)
 
+        // Create detailed event forwarder for verbose ThinkingView events
+        let detailedForwarder = makeDetailedEventForwarder(onStep: onStep)
+
         // Execute multi-query search with RRF fusion
         let (multiQueryStep, initialChunks) = try await executeMultiQuerySearch(
             queries: searchQueries,
-            ragService: ragService
+            ragService: ragService,
+            onDetailedEvent: detailedForwarder
         )
         steps.append(multiQueryStep)
         logStepTokens("Multi-Query Search", multiQueryStep.tokensUsed)
@@ -448,7 +497,8 @@ final class AgenticOrchestrator: Sendable {
             ), refinedQuery != query {
                 let (refinedStep, refinedChunks) = try await executeSearchStepWithChunks(
                     subQuery: refinedQuery,
-                    ragService: ragService
+                    ragService: ragService,
+                    onDetailedEvent: detailedForwarder
                 )
                 steps.append(refinedStep)
                 logStepTokens("Refined Search", refinedStep.tokensUsed)
@@ -532,7 +582,8 @@ final class AgenticOrchestrator: Sendable {
                 // Search again with reformulated query
                 let (reformulatedSearchStep, reformulatedChunks) = try await executeSearchStepWithChunks(
                     subQuery: reformulatedQuery,
-                    ragService: ragService
+                    ragService: ragService,
+                    onDetailedEvent: detailedForwarder
                 )
                 steps.append(reformulatedSearchStep)
                 logStepTokens("Reformulated Search", reformulatedSearchStep.tokensUsed)
@@ -959,9 +1010,12 @@ final class AgenticOrchestrator: Sendable {
 
         // Use the SAME system prompt structure as Standard mode (RAGService line ~4433)
         // Keep it SHORT to maximize context budget
+        // CRITICAL: Explicitly forbid "I don't have information" responses
         let systemPrompt = """
-        Answer using the excerpts [S1], [S2], etc.
+        Expert research analyst. Answer using the excerpts [S1], [S2], etc.
         Rules: 1) Use excerpts 2) Cite [S1], [S2] 3) Connect user terms to related concepts 4) Be thorough
+        NEVER say "I don't have information" - always provide what IS in the documents.
+        If the question is vague, interpret it based on document topics and provide relevant findings.
         """
 
         // Generate using the main RAGService pipeline which handles:
@@ -1061,6 +1115,9 @@ final class AgenticOrchestrator: Sendable {
     ) async throws -> AgenticResult {
         var allRetrievedChunks = initialChunks
 
+        // Create detailed event forwarder for verbose ThinkingView events
+        let detailedForwarder = makeDetailedEventForwarder(onStep: onStep)
+
         // Planning step to decompose
         let planningStep = try await executePlanningStep(query: query, ragService: ragService)
         steps.append(planningStep)
@@ -1079,7 +1136,8 @@ final class AgenticOrchestrator: Sendable {
 
             let (searchStep, chunks) = try await executeSearchStepWithChunks(
                 subQuery: subQuery,
-                ragService: ragService
+                ragService: ragService,
+                onDetailedEvent: detailedForwarder
             )
             steps.append(searchStep)
             totalTokens += searchStep.tokensUsed
@@ -1173,15 +1231,24 @@ final class AgenticOrchestrator: Sendable {
     }
 
     /// Search step using the FULL Standard pipeline (HyDE, re-ranking, MMR) - not just basic search
-    private func executeSearchStepWithChunks(subQuery: String, ragService: RAGService) async throws -> (ThinkingStep, [RetrievedChunk]) {
+    /// - Parameter onDetailedEvent: Optional callback to emit verbose thinking events (for ThinkingView)
+    private func executeSearchStepWithChunks(
+        subQuery: String,
+        ragService: RAGService,
+        onDetailedEvent: (@Sendable (ThinkingEvent.Kind, String, String) async -> Void)? = nil
+    ) async throws -> (ThinkingStep, [RetrievedChunk]) {
         let startTime = Date()
+
+        // Emit: Starting this search
+        await onDetailedEvent?(.retrieval, "Searching", "Query: \"\(subQuery.prefix(40))...\"")
 
         // Use the FULL hybrid search pipeline with re-ranking and MMR (like Standard mode)
         // This gives us HyDE, AI re-ranking, MMR diversification - everything Standard mode does
         let chunks = try await ragService.executeFullRetrievalPipeline(
             query: subQuery,
             topK: 20,
-            minSimilarity: 0.08 // Low threshold - let re-ranker decide quality
+            minSimilarity: 0.08, // Low threshold - let re-ranker decide quality
+            onDetailedEvent: onDetailedEvent
         )
 
         // Format for LLM consumption - include more context since we have better chunks
@@ -1270,27 +1337,39 @@ final class AgenticOrchestrator: Sendable {
 
     /// Execute multi-query search: search with multiple query variations and fuse results.
     /// Uses Reciprocal Rank Fusion (RRF) to combine rankings from different queries.
+    /// - Parameter onDetailedEvent: Optional callback to emit verbose thinking events (for ThinkingView)
     private func executeMultiQuerySearch(
         queries: [String],
-        ragService: RAGService
+        ragService: RAGService,
+        onDetailedEvent: (@Sendable (ThinkingEvent.Kind, String, String) async -> Void)? = nil
     ) async throws -> (ThinkingStep, [RetrievedChunk]) {
         let startTime = Date()
 
+        await onDetailedEvent?(.retrieval, "Multi-query search", "Searching \(queries.count) query variations")
+
         var allResults: [[RetrievedChunk]] = []
 
-        // Search with each query variation
-        for query in queries {
+        // Search with each query variation - show FULL pipeline for first query only
+        for (index, query) in queries.enumerated() {
             if Task.isCancelled { break }
 
+            await onDetailedEvent?(.retrieval, "Query \(index + 1)/\(queries.count)", "\"\(query.prefix(40))...\"")
+
+            // Show full pipeline details for first query, summary for rest
+            let showDetails = index == 0
             let chunks = try await ragService.executeFullRetrievalPipeline(
                 query: query,
                 topK: 15,
-                minSimilarity: 0.05 // Very low - we'll use RRF to rank
+                minSimilarity: 0.05, // Very low - we'll use RRF to rank
+                onDetailedEvent: showDetails ? onDetailedEvent : nil
             )
             allResults.append(chunks)
 
-            Log.debug("[MultiQuery] Query '\(query.prefix(40))...' returned \(chunks.count) chunks", category: .retrieval)
+            // Show result count for each query
+            await onDetailedEvent?(.retrieval, "Query \(index + 1) done", "\(chunks.count) chunks retrieved")
         }
+
+        await onDetailedEvent?(.rrf, "Fusing results", "RRF across \(allResults.count) result sets")
 
         // Reciprocal Rank Fusion across all query results
         var chunkScores: [UUID: (chunk: RetrievedChunk, score: Float)] = [:]
@@ -1720,6 +1799,9 @@ final class AgenticOrchestrator: Sendable {
         var allRetrievedChunks: [RetrievedChunk] = []
         let startTime = Date()
 
+        // Create detailed event forwarder for verbose ThinkingView events
+        let detailedForwarder = makeDetailedEventForwarder(onStep: onStep)
+
         // Accumulate context across iterations
         var accumulatedContext = ""
         var iteration = 0
@@ -1729,7 +1811,8 @@ final class AgenticOrchestrator: Sendable {
         // Initial retrieval to seed the context
         let (initialStep, initialChunks) = try await executeSearchStepWithChunks(
             subQuery: query,
-            ragService: ragService
+            ragService: ragService,
+            onDetailedEvent: detailedForwarder
         )
         steps.append(initialStep)
         totalTokens += initialStep.tokensUsed
@@ -1807,7 +1890,8 @@ final class AgenticOrchestrator: Sendable {
                 // Execute the search
                 let (resultStep, chunks) = try await executeSearchStepWithChunks(
                     subQuery: searchQuery,
-                    ragService: ragService
+                    ragService: ragService,
+                    onDetailedEvent: detailedForwarder
                 )
                 steps.append(resultStep)
                 totalTokens += resultStep.tokensUsed
@@ -2064,7 +2148,12 @@ final class AgenticOrchestrator: Sendable {
         var allRetrievedChunks: [RetrievedChunk] = []
         let startTime = Date()
 
+        // Create detailed event forwarder for verbose ThinkingView events
+        let detailedForwarder = makeDetailedEventForwarder(onStep: onStep)
+
         Log.info("[Self-RAG] Analyzing query to decide retrieval strategy", category: .llm)
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         // STEP 1: Decide if retrieval is needed
@@ -2099,7 +2188,8 @@ final class AgenticOrchestrator: Sendable {
 
             let (searchStep, chunks) = try await executeSearchStepWithChunks(
                 subQuery: query,
-                ragService: ragService
+                ragService: ragService,
+                onDetailedEvent: detailedForwarder
             )
             steps.append(searchStep)
             totalTokens += searchStep.tokensUsed
@@ -2177,7 +2267,8 @@ final class AgenticOrchestrator: Sendable {
 
             let (searchStep, chunks) = try await executeSearchStepWithChunks(
                 subQuery: query,
-                ragService: ragService
+                ragService: ragService,
+                onDetailedEvent: detailedForwarder
             )
             steps.append(searchStep)
             totalTokens += searchStep.tokensUsed
@@ -2214,38 +2305,27 @@ final class AgenticOrchestrator: Sendable {
         query: String,
         ragService: RAGService
     ) async throws -> (needsRetrieval: Bool, reason: String) {
-        // Heuristic approach (fast, no LLM call needed)
+        // RAG-first philosophy: In a RAG app, users expect answers from their documents.
+        // Only skip retrieval for purely conversational/meta queries.
         let lowercased = query.lowercased()
 
-        // Queries that likely need retrieval (document-specific)
-        let retrievalIndicators = [
-            "document", "file", "pdf", "manual", "guide", "spec",
-            "what does", "how does", "according to", "based on",
-            "in the", "from the", "find", "search", "look up",
-            "where is", "which section", "page", "chapter",
+        // Only these trivial queries can skip retrieval
+        let skipRetrievalPatterns = [
+            "hello", "hi", "hey", "thanks", "thank you", "bye", "goodbye",
+            "how are you", "what's your name", "who are you",
+            "help", "what can you do", "clear chat", "reset",
         ]
 
-        // Queries that can often be answered directly (general knowledge)
-        let directIndicators = [
-            "what is", "define", "explain", "who is", "when was",
-            "how many", "calculate", "convert", "translate",
-        ]
+        // Check for explicit skip patterns (greetings, meta-queries)
+        let isConversational = skipRetrievalPatterns.contains { lowercased.hasPrefix($0) || lowercased == $0 }
 
-        let hasRetrievalIndicator = retrievalIndicators.contains { lowercased.contains($0) }
-        let hasDirectIndicator = directIndicators.contains { lowercased.contains($0) }
-
-        // If query mentions documents/files → definitely retrieve
-        if hasRetrievalIndicator && !hasDirectIndicator {
-            return (true, "Query references documents or requires lookup")
+        if isConversational && query.count < 30 {
+            return (false, "Conversational/meta query - no document lookup needed")
         }
 
-        // If it's a pure definition/general knowledge question → try direct first
-        if hasDirectIndicator && !hasRetrievalIndicator {
-            return (false, "General knowledge question - can try direct answer")
-        }
-
-        // Ambiguous → default to retrieval (safer for RAG app)
-        return (true, "Defaulting to retrieval for comprehensive answer")
+        // Everything else → retrieve from documents
+        // This is a RAG app - the user's documents are the source of truth
+        return (true, "Document retrieval for grounded answer")
     }
 
     /// Self-critique the answer for quality and grounding
@@ -2321,6 +2401,9 @@ final class AgenticOrchestrator: Sendable {
         var allRetrievedChunks: [RetrievedChunk] = []
         let startTime = Date()
 
+        // Create detailed event forwarder for verbose ThinkingView events
+        let detailedForwarder = makeDetailedEventForwarder(onStep: onStep)
+
         Log.info("[Speculative-RAG] Starting multi-path verification with \(candidateCount) candidates", category: .llm)
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -2328,7 +2411,8 @@ final class AgenticOrchestrator: Sendable {
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         let (searchStep, chunks) = try await executeSearchStepWithChunks(
             subQuery: query,
-            ragService: ragService
+            ragService: ragService,
+            onDetailedEvent: detailedForwarder
         )
         steps.append(searchStep)
         totalTokens += searchStep.tokensUsed
@@ -2732,18 +2816,27 @@ extension AgenticOrchestrator {
         var totalTokens = 0
         var allSources: Set<String> = []
 
-        // Unlimited mode OR forced by multi-chain: always report confidence
+        // Mode detection for confidence-based session scaling
         let isUnlimitedMode = config.sessionCount >= 20
-        let shouldReportConfidence = isUnlimitedMode || forceConfidenceReporting
-        let confidenceThreshold: Float = isUnlimitedMode ? self.config.confidenceThreshold : 0.98
+        let isDeepThinkMode = config.sessionCount >= 4 && config.sessionCount <= 10 && !isUnlimitedMode
+
+        // All multi-session modes report confidence for dynamic scaling
+        let shouldReportConfidence = isUnlimitedMode || isDeepThinkMode || forceConfidenceReporting
+
+        // Confidence thresholds:
+        // - Maximum (unlimited): 98% target, minimum 8 sessions
+        // - Deep Think: 85% target, minimum 4 sessions, max 8 sessions
+        let confidenceThreshold: Float = isUnlimitedMode ? self.config.confidenceThreshold : 0.85
+        let minSessionsBeforeEarlyStop = isUnlimitedMode ? 8 : 4
+        let maxSessionsForMode = isUnlimitedMode ? config.sessionCount : min(8, config.sessionCount + 4)
         var actualSessionCount = 0
 
         // FIXED: Start with a meaningful baseline confidence so users see progress from the start
-        // Maximum mode: Start at 5% (shows we're just beginning)
-        // This also means the UI shows progression like: 5% -> 12% -> 20% -> ... instead of 0% -> 0% -> 0% -> 85%
-        var cumulativeConfidence: Float = shouldReportConfidence ? 0.05 : 0
+        // Deep Think: Start at 10% (shows we're just beginning)
+        // Maximum mode: Start at 5% (longer journey to 98%)
+        var cumulativeConfidence: Float = shouldReportConfidence ? (isUnlimitedMode ? 0.05 : 0.10) : 0
 
-        Log.info("[ReasoningChain] Starting \(config.sessionCount)-session chain for: \(query.prefix(40))... (confidence reporting: \(shouldReportConfidence))", category: .llm)
+        Log.info("[ReasoningChain] Starting \(isDeepThinkMode ? "dynamic 4-8" : String(config.sessionCount))-session chain for: \(query.prefix(40))... (confidence reporting: \(shouldReportConfidence), threshold: \(Int(confidenceThreshold * 100))%)", category: .llm)
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         // CRITICAL: Use TOP-K chunks for ALL sessions, not distributed slices
@@ -2777,14 +2870,21 @@ extension AgenticOrchestrator {
 
         if isUnlimitedMode {
             Log.info("[ReasoningChain] UNLIMITED MODE: Will keep reasoning until \(Int(confidenceThreshold * 100))% confident or \(config.sessionCount) sessions max", category: .llm)
+        } else if isDeepThinkMode {
+            Log.info("[ReasoningChain] DEEP THINK MODE: Dynamic 4-8 sessions, targeting \(Int(confidenceThreshold * 100))% confidence", category: .llm)
         }
 
-        for sessionIndex in 0..<config.sessionCount {
+        // Use dynamic max for Deep Think mode (can go up to 8 sessions)
+        let effectiveMaxSessions = isDeepThinkMode ? maxSessionsForMode : config.sessionCount
+
+        for sessionIndex in 0..<effectiveMaxSessions {
             let sessionNum = sessionIndex + 1
             actualSessionCount = sessionNum
 
             if isUnlimitedMode {
                 Log.debug("[ReasoningChain] Session \(sessionNum) (unlimited mode, confidence: \(Int(cumulativeConfidence * 100))%)", category: .llm)
+            } else if isDeepThinkMode {
+                Log.debug("[ReasoningChain] Session \(sessionNum)/4-8 (deep think, confidence: \(Int(cumulativeConfidence * 100))%)", category: .llm)
             } else {
                 Log.debug("[ReasoningChain] Session \(sessionNum)/\(config.sessionCount)", category: .llm)
             }
@@ -2792,11 +2892,13 @@ extension AgenticOrchestrator {
             if Task.isCancelled { break }
 
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            // Unlimited mode: Check if we've reached confidence threshold
-            // Require at least 8 sessions to build up meaningful reasoning depth
+            // Dynamic session stopping based on confidence
+            // - Maximum (unlimited): min 8 sessions, target 98%
+            // - Deep Think: min 4 sessions, target 85%, max 8 sessions
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            if isUnlimitedMode, sessionIndex >= 8, cumulativeConfidence >= confidenceThreshold {
-                Log.info("[ReasoningChain] Unlimited mode: Stopping at \(Int(cumulativeConfidence * 100))% confidence (threshold: \(Int(confidenceThreshold * 100))%)", category: .llm)
+            if sessionIndex >= minSessionsBeforeEarlyStop, cumulativeConfidence >= confidenceThreshold {
+                let modeName = isUnlimitedMode ? "Maximum" : "Deep Think"
+                Log.info("[ReasoningChain] \(modeName) mode: Stopping at \(Int(cumulativeConfidence * 100))% confidence (threshold: \(Int(confidenceThreshold * 100))%)", category: .llm)
                 break
             }
 
@@ -2811,9 +2913,9 @@ extension AgenticOrchestrator {
 
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
             // Build session prompt based on position in chain
-            // For unlimited mode, dynamically determine if this should be the "final" session
+            // For unlimited/deep think mode, dynamically determine if this should be the "final" session
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            let effectiveSessionCount = isUnlimitedMode ? max(config.sessionCount, sessionNum + 3) : config.sessionCount
+            let effectiveSessionCount = (isUnlimitedMode || isDeepThinkMode) ? max(effectiveMaxSessions, sessionNum + 3) : config.sessionCount
 
             // For unlimited mode, use sliding window of recent insights to prevent context overflow
             // Keep only the last 3 insights (each ~500 chars) to stay well under 4096 token limit
@@ -2847,11 +2949,16 @@ extension AgenticOrchestrator {
             // Maximum mode gets higher token limits for more detailed reasoning
             let sessionMaxTokens = isUnlimitedMode ? 1200 : 700
 
+            // Disable tools after session 1 to prevent context overflow
+            // Session 1 can use tools for initial search, later sessions synthesize
+            let disableToolsForSession = sessionNum > 1
+
             let response = try await ragService.generateWithProperConsent(
                 prompt: prompt,
                 context: "", // Context is embedded in prompt
                 systemPrompt: systemPrompt,
-                maxTokens: sessionMaxTokens
+                maxTokens: sessionMaxTokens,
+                disableTools: disableToolsForSession
             )
 
             totalTokens += response.tokensGenerated
@@ -2876,16 +2983,16 @@ extension AgenticOrchestrator {
             // Do this BEFORE appending insight so we can compare with previous insights
             if let conf = parseConfidence(from: response.text) {
                 cumulativeConfidence = (cumulativeConfidence + conf) / 2
-            } else if isUnlimitedMode {
+            } else if isUnlimitedMode || isDeepThinkMode {
                 // Heuristic confidence for Maximum mode:
                 // Designed to require 8-15+ sessions before hitting 98%
                 // Each component is conservative to ensure deep exploration
 
                 // 1. Session contribution (up to 50%) - more sessions = more exploration
-                // MAXIMUM MODE: 3% per session for visible progress, capped at 50%
-                // At 4 sessions: 12%, at 8 sessions: 24%, at 12 sessions: 36%, at 17+: 50% (cap)
+                // DEEP THINK: 8% per session (4 sessions = 32%, 6 sessions = 48%, 8 sessions = 50% cap)
+                // MAXIMUM MODE: 3% per session for visible progress (more conservative for long runs)
                 // This ensures users see meaningful progress in the UI from early steps
-                let sessionContributionRate: Float = 0.03
+                let sessionContributionRate: Float = isDeepThinkMode ? 0.08 : 0.03
                 let sessionContribution = min(sessionContributionRate * Float(sessionNum), 0.50)
 
                 // 2. Length contribution (up to 15%) - longer insights = more substance
@@ -2968,9 +3075,12 @@ extension AgenticOrchestrator {
                 let exhaustionBonus: Float = sessionNum >= 15 ? 0.15 : (sessionNum >= 12 ? 0.10 : (sessionNum >= 10 ? 0.05 : 0))
 
                 // Only calculate confidence normally if we haven't forced termination
-                if cumulativeConfidence<0.99 {
+                // DEEP THINK: Cap at 90% (threshold is 85%)
+                // MAXIMUM MODE: Cap at 99% (threshold is 98%)
+                let confidenceCap: Float = isDeepThinkMode ? 0.90 : 0.99
+                if cumulativeConfidence < confidenceCap {
                     let estimatedConfidence = sessionContribution + lengthContribution + citationBonus + repetitionBonus + exhaustionBonus
-                    cumulativeConfidence = max(cumulativeConfidence, min(estimatedConfidence, 0.99))
+                    cumulativeConfidence = max(cumulativeConfidence, min(estimatedConfidence, confidenceCap))
                 }
 
                 Log.info("[ReasoningChain] Confidence: \(Int(cumulativeConfidence * 100))% (session: \(Int(sessionContribution * 100))%, length: \(Int(lengthContribution * 100))%, citations: \(Int(citationBonus * 100))%, repetition: \(Int(repetitionBonus * 100))%, exhaustion: \(Int(exhaustionBonus * 100))%)", category: .llm)
@@ -3047,18 +3157,16 @@ extension AgenticOrchestrator {
             exhaustivePrompt += "TASK: Synthesize a COMPREHENSIVE, SCHOLARLY answer integrating ALL findings.\n\n"
             exhaustivePrompt += "REQUIREMENTS:\n"
             exhaustivePrompt += "- Include EVERY detail, statistic, finding, and methodology mentioned\n"
-            exhaustivePrompt += "- Use headers (##) to organize by major themes\n"
-            exhaustivePrompt += "- Include bullet points for key findings within each section\n"
+            exhaustivePrompt += "- Organize by major themes with clear topic sentences\n"
             exhaustivePrompt += "- Cite specific studies, authors, or sources when mentioned\n"
             exhaustivePrompt += "- Discuss implications, limitations, and future directions if relevant\n"
-            exhaustivePrompt += "- Be EXHAUSTIVE - this is Maximum mode, the user wants depth\n"
-            exhaustivePrompt += "- Target 800-1200 words minimum\n\n"
+            exhaustivePrompt += "- Be EXHAUSTIVE - this is Maximum mode, the user wants depth\n\n"
             exhaustivePrompt += "COMPREHENSIVE ANSWER:"
 
             var exhaustiveSystemPrompt = "You are a research synthesis expert. Your task is to produce an exhaustive, "
             exhaustiveSystemPrompt += "publication-quality summary. Include all specifics: study names, sample sizes, "
             exhaustiveSystemPrompt += "effect sizes, methodologies, limitations, and conclusions. "
-            exhaustiveSystemPrompt += "Use markdown formatting with headers and bullets. Be thorough and scholarly."
+            exhaustiveSystemPrompt += "Write in clean prose with clear paragraph breaks. Use **bold** for emphasis only. Be thorough and scholarly."
 
             // Apple FM API: 4096 token limit applies to BOTH on-device and PCC
             // The 65K server capacity is internal to Apple, not exposed to developers (TN3193)
@@ -3122,6 +3230,7 @@ extension AgenticOrchestrator {
             case maxSessionsReached = "Maximum sessions reached"
             case thermalLimit = "Thermal throttling detected"
             case userCancelled = "User cancelled"
+            case error = "Model unavailable (inference failed)"
         }
     }
 
@@ -3478,6 +3587,7 @@ extension AgenticOrchestrator {
 
         // Track content saturation via semantic similarity
         var saturationStreak = 0
+        var consecutiveFailures = 0 // Track empty/failed responses from model
         let saturationThreshold = 3 // Trigger expansion after 3 consecutive low-value sessions
         var expansionCount = 0
         let maxExpansions = 3 // Allow up to 3 retrieval expansions (theoretically unlimited chunks)
@@ -3648,6 +3758,32 @@ extension AgenticOrchestrator {
             totalTokens += response.tokensGenerated
 
             let insight = cleanupFinalAnswer(response.text)
+            let responseTextLength = response.text.trimmingCharacters(in: .whitespacesAndNewlines).count
+            let insightLength = insight.trimmingCharacters(in: .whitespacesAndNewlines).count
+
+            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            // CRITICAL: Detect model failures (0 tokens = ANE/PCC failure)
+            // Don't count empty responses toward confidence or session count
+            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            let isEmpty = response.tokensGenerated == 0 || responseTextLength == 0 || insightLength == 0
+
+            if isEmpty {
+                consecutiveFailures += 1
+                Log.warning("[Unlimited] Session \(sessionNum): EMPTY RESPONSE DETECTED (failure \(consecutiveFailures)/3) - tokens=\(response.tokensGenerated), rawLen=\(responseTextLength), cleanLen=\(insightLength)", category: .llm)
+
+                // Stop after 3 consecutive failures to avoid infinite loop
+                if consecutiveFailures >= 3 {
+                    Log.error("[Unlimited] STOPPING: 3 consecutive empty responses - model unavailable", category: .llm)
+                    terminationReason = .error
+                    break
+                }
+
+                // Don't update confidence or add to insights - just try next session
+                continue
+            }
+
+            // Reset failure counter on successful response
+            consecutiveFailures = 0
             allInsights.append(insight)
 
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -3830,18 +3966,22 @@ extension AgenticOrchestrator {
         let insightSummary = previousInsights.isEmpty ? "" :
             "Prior findings: " + previousInsights.suffix(2).map { String($0.prefix(150)) }.joined(separator: " | ")
 
+        // Core instruction for all sessions: document analysis framing
+        let coreInstruction = "Interpret vague questions based on document topics. Report comprehensive findings."
+
         if sessionNum == 1 {
             // First session: Initial exploration
             return (
                 """
                 Q: \(query)
 
-                SOURCES:
+                DOCUMENTS FROM USER'S LIBRARY:
                 \(context)
 
-                Extract specific facts, numbers, and evidence. Be concise.
+                Extract specific facts, numbers, and evidence from these documents.
+                \(coreInstruction)
                 """,
-                "Research analyst. Extract key facts concisely."
+                "Expert research analyst with PhD-level expertise. Extract all facts and evidence from documents."
             )
         } else if sessionNum <= 5 {
             // Early sessions: Build breadth
@@ -3850,27 +3990,27 @@ extension AgenticOrchestrator {
                 Q: \(query)
                 \(insightSummary)
 
-                NEW SOURCES:
+                ADDITIONAL DOCUMENTS:
                 \(context)
 
-                What NEW facts do these add? Avoid repeating prior findings.
+                What NEW facts or findings do these documents add? Avoid repeating prior findings.
                 """,
-                "Find new details. Avoid repetition. Be concise."
+                "Expert research analyst. Find new details. Avoid repetition. Be thorough."
             )
         } else if sessionNum <= 15 {
             // Middle sessions: Build depth - use currentAnswer summary
-            let answerHint = currentAnswer.isEmpty ? "" : "Current answer covers: \(String(currentAnswer.prefix(300)))..."
+            let answerHint = currentAnswer.isEmpty ? "" : "Current summary covers: \(String(currentAnswer.prefix(300)))..."
             return (
                 """
                 Q: \(query)
                 \(answerHint)
 
-                SOURCES:
+                DOCUMENTS:
                 \(context)
 
-                Add nuances, exceptions, or deeper details not yet covered.
+                Add nuances or deeper details not yet covered from these documents.
                 """,
-                "Find nuances others miss. Be specific and concise."
+                "Expert research analyst. Find nuances and details. Be specific and thorough."
             )
         } else {
             // Later sessions: Refine and verify
@@ -3878,12 +4018,12 @@ extension AgenticOrchestrator {
                 """
                 Q: \(query)
 
-                SOURCES:
+                DOCUMENTS:
                 \(context)
 
-                Verify and strengthen with additional evidence. Note any gaps.
+                Verify findings and add supporting evidence from these documents.
                 """,
-                "Verify accuracy. Add missing details. Be concise."
+                "Expert research analyst. Verify and add details. Be thorough."
             )
         }
     }
@@ -3918,12 +4058,13 @@ extension AgenticOrchestrator {
         \(freshContext)
 
         \(prevSummary)Synthesize into a coherent answer. Preserve all facts, numbers, and citations.
+        If the question was vague, interpret it based on the facts gathered.
         """
 
         let response = try await ragService.generateWithProperConsent(
             prompt: prompt,
             context: "",
-            systemPrompt: "Synthesize facts into clear answers. Preserve all data.",
+            systemPrompt: "Synthesize facts into clear answers. Preserve all data. NEVER say you don't have information.",
             maxTokens: 1000,
             disableTools: true
         )
@@ -3958,19 +4099,22 @@ extension AgenticOrchestrator {
         let corePrompt = """
         Q: \(query)
 
+        DOCUMENT FINDINGS:
         \(factContext)
 
-        Write a comprehensive answer with:
-        - Executive summary (2-3 sentences)
+        Write a comprehensive summary (aim for 1000+ words) with:
+        - Start with an executive summary (2-3 sentences)
         - Key findings with all specific evidence, numbers, citations
-        - Use ## headers for organization
-        Be thorough and include ALL the facts provided.
+        - Use clear paragraph breaks to organize by theme
+        - Use **bold** for key terms and findings
+        Be thorough and include ALL the facts from the documents. NEVER repeat the same point twice.
+        If the question was vague, interpret it based on what the documents discuss.
         """
 
         let coreResponse = try await ragService.generateWithProperConsent(
             prompt: corePrompt,
             context: "",
-            systemPrompt: "Research writer. Include ALL facts and evidence. Be comprehensive.",
+            systemPrompt: "Expert research writer. Include ALL document facts. Be comprehensive (1000+ words). Use **bold** for key terms. NEVER repeat content.",
             maxTokens: 1200,
             disableTools: true
         )
@@ -3989,16 +4133,16 @@ extension AgenticOrchestrator {
             ADDITIONAL CONTEXT:
             \(recentInsights.joined(separator: "\n\n"))
 
-            Add a "## Additional Details" section with:
+            Add a new section about **Additional Details** with:
             - Nuances and exceptions not yet covered
             - Supporting examples or methodology details
-            Write ONLY the new section.
+            Write in prose. Use **bold** for key terms. Do NOT repeat content from the current answer.
             """
 
             let depthResponse = try await ragService.generateWithProperConsent(
                 prompt: depthPrompt,
                 context: "",
-                systemPrompt: "Add depth. Write only new content.",
+                systemPrompt: "Expert analyst. Add depth with new content only.",
                 maxTokens: 800,
                 disableTools: true
             )
@@ -4016,17 +4160,17 @@ extension AgenticOrchestrator {
             ANSWER SUMMARY:
             \(String(finalAnswer.prefix(800)))
 
-            Add "## Implications & Limitations":
+            Add a section about **Implications & Limitations**:
             - Practical takeaways
             - Research caveats
             - Future research needs
-            Write ONLY this section (2-3 paragraphs).
+            Write in prose (2-3 paragraphs). Use **bold** for key terms.
             """
 
             let implResponse = try await ragService.generateWithProperConsent(
                 prompt: implicationsPrompt,
                 context: "",
-                systemPrompt: "Write balanced conclusions concisely.",
+                systemPrompt: "Expert analyst. Synthesize implications from document evidence.",
                 maxTokens: 600,
                 disableTools: true
             )
@@ -4054,7 +4198,7 @@ extension AgenticOrchestrator {
             let polishResponse = try await ragService.generateWithProperConsent(
                 prompt: polishPrompt,
                 context: "",
-                systemPrompt: "Editor. Ensure all facts present. Improve clarity.",
+                systemPrompt: "Expert editor. Ensure completeness and clarity.",
                 maxTokens: 1200,
                 disableTools: true
             )
@@ -4390,18 +4534,22 @@ extension AgenticOrchestrator {
         REQUIREMENTS:
         - Integrate findings across ALL clusters - don't just summarize each separately
         - Identify common themes, contradictions, and complementary evidence
-        - Use headers (##) for major themes, bullets for details
+        - Use **bold** for key terms/findings and *italic* for emphasis - this renders well
         - Include specific statistics, study names, and methodologies
         - Discuss implications and limitations
-        - Target 1000+ words for thorough coverage
+        - Target 1000+ words - be THOROUGH but never repeat the same point twice
+        - Each paragraph should add NEW information, not rephrase previous content
 
         COMPREHENSIVE SYNTHESIS:
         """
 
         let systemPrompt = """
-        You are a meta-analysis expert synthesizing research findings from multiple document clusters.
-        Your goal is to produce an integrated, scholarly answer that weaves together all evidence.
-        Be exhaustive and include all relevant details from every cluster.
+        You are an academic research assistant synthesizing document findings.
+        This is document summarization from the user's personal knowledge library - NOT advice generation.
+        Your goal is to produce an integrated summary that weaves together all evidence.
+        Be exhaustive - aim for 1000+ words. Include all relevant details from every document.
+        Use **bold** for key findings and terms. Use *italic* for emphasis.
+        Never repeat the same information - each paragraph must add new content.
         """
 
         var totalTokens = 0
@@ -4416,7 +4564,7 @@ extension AgenticOrchestrator {
 
             IMPROVE THIS SYNTHESIS by:
             - Removing redundant/repeated content
-            - Organizing better with clear headers (##)
+            - Improving paragraph flow and transitions
             - Adding any missing details from the original findings
             - Making it more coherent and readable
 
@@ -4585,45 +4733,61 @@ extension AgenticOrchestrator {
         switch sessionIndex {
         case 0:
             // SESSION 1: Initial Analysis - understand the question and context
-            let systemPrompt = "You are analyzing documents to answer a question. Extract specific details: numbers, durations, steps."
+            let systemPrompt = """
+            You are an expert research analyst with PhD-level expertise.
+            Your role is to extract and synthesize factual information from the user's document library.
+            Analyze with rigor: identify key findings, statistics, causal relationships, and evidence.
+
+            If the query is vague, INTERPRET it based on the document topics.
+            ALWAYS provide comprehensive information. Extract specific details: numbers, data, methodology.
+            NEVER say "I don't have information" - always report what the documents DO contain.
+            """
             let prompt = """
             QUESTION: \(query)
 
-            DOCUMENTS:
+            DOCUMENTS FROM USER'S LIBRARY:
             \(context)
 
-            TASK: Analyze these documents. What specific facts answer the question?
-            Look for exact numbers, durations, steps, or procedures.
+            TASK: Summarize what these documents say that relates to the question.
 
-            Write your findings as clear prose - no special markers or labels.
+            GUIDELINES:
+            1. If the question is vague, interpret it based on document topics
+            2. Report factual content from the documents
+            3. Include specific numbers, statistics, and findings
+            4. This is document summarization, not advice
+
+            Write your findings as clear prose.
             """
             return (prompt, systemPrompt)
 
         case sessionCount - 1:
             // FINAL SESSION: Synthesis - combine all insights into complete answer
             let systemPrompt = """
-            You synthesize research findings into exhaustive, comprehensive answers.
-            Include ALL specific details from prior insights.
-            Use bullet points and organized sections.
-            Be thorough - include every responsibility, step, requirement, or specification found.
+            You are an expert research analyst synthesizing findings from rigorous document analysis.
+            Combine ALL extracted information into a comprehensive, authoritative summary.
+            Include every specific detail, statistic, and finding from prior analysis.
+            Write in clear scholarly prose with logical structure. Use **bold** for key terms.
+            Be thorough (1000+ words). NEVER repeat the same point. Every paragraph adds NEW value.
             """
             let prompt = """
             QUESTION: \(query)
 
-            YOUR RESEARCH FINDINGS(synthesize ALL of these - do not omit any detail):
+            YOUR RESEARCH FINDINGS (synthesize ALL of these - do not omit any detail):
             \(insightSummary)
 
             SUPPORTING DOCUMENTS:
             \(context.prefix(3000))
 
-            TASK: Write an EXHAUSTIVE answer that includes:
-                - Every responsibility, duty, or task mentioned
-                - All specific numbers, dates, durations, and deadlines
-                - Complete step - by - step procedures(all steps, in order)
-                - All requirements, qualifications, or criteria
-                - Any exceptions, notes, or special cases
+            TASK: Write an EXHAUSTIVE answer (1000+ words) that includes:
+            - Every finding, statistic, or data point discovered
+            - All causal relationships, risk factors, or contributing elements
+            - Complete context and supporting details
+            - Specific numbers, percentages, and measurements
+            - Any conclusions or recommendations from the research
 
-            Use bullet points and clear sections.Do NOT summarize - include the FULL detail.
+            FORMAT: Clear prose with paragraph breaks. Use **bold** for key findings. Use *italic* for emphasis.
+            NEVER repeat the same point twice. Each paragraph must add NEW information.
+            If the question was vague, your prior insights have interpreted it - now synthesize.
 
             YOUR COMPREHENSIVE ANSWER:
             """
@@ -4631,34 +4795,35 @@ extension AgenticOrchestrator {
 
         case 1:
             // SESSION 2: Pattern Recognition - look for connections
-            let systemPrompt = "You find patterns and specific details. Look for exact specifications."
+            let systemPrompt = "Expert research analyst. Identify patterns, correlations, and causal relationships across documents."
             let prompt = """
             QUESTION: \(query)
 
             \(insightSummary)
 
-            NEW CONTEXT:
+            ADDITIONAL DOCUMENTS:
             \(context)
 
-            TASK: What additional specific details do you find?
-            Build on previous insights with new information.
+            TASK: What additional details, patterns, or relationships do these documents show?
+            Build on previous findings with new information.
             Write your findings as clear prose.
             """
             return (prompt, systemPrompt)
 
         default:
             // MIDDLE SESSIONS: Deepen understanding
-            let systemPrompt = "You deepen understanding by finding specific details others might miss."
+            let systemPrompt = "Expert research analyst. Extract detailed evidence, methodology, and nuanced findings."
             let prompt = """
             QUESTION: \(query)
 
             \(insightSummary)
 
-            NEW CONTEXT:
+            ADDITIONAL DOCUMENTS:
             \(context)
 
-            TASK: What new aspects or specific details do you notice?
-            Add to previous insights. Write as clear prose.
+            TASK: What new details or findings do you notice in these documents?
+            Add to previous findings. Include specific data points and facts.
+            Write as clear prose.
             """
             return (prompt, systemPrompt)
         }
@@ -4778,6 +4943,7 @@ extension AgenticOrchestrator {
             "ADDITIONAL SPECIFIC DETAILS:", "ADDITIONAL INSIGHTS:", "NEW DETAILS:",
             "SUPPORTING DOCUMENTS:", "PROCEDURE:", "SPECIAL CASES:",
             "RESPONSIBILITIES AND TASKS:", "SPECIAL NOTES:",
+            "YOUR COMPREHENSIVE ANSWER:", "COMPREHENSIVE ANSWER:",
             // Truncated markers (from generation cutoffs)
             "ONING:", "ASONING:", "SONING:", "NING:",
             "NSIGHT:", "SIGHT:", "IGHT:",
@@ -4795,11 +4961,24 @@ extension AgenticOrchestrator {
             result = result.replacingOccurrences(of: marker, with: "", options: .caseInsensitive)
         }
 
+        // Strip markdown headers (##, ###, etc.) - MarkdownText only renders inline markdown
+        result = result.components(separatedBy: .newlines)
+            .map { line in
+                var cleaned = line
+                // Remove markdown headers - convert "## Title" to "Title"
+                if let headerMatch = cleaned.range(of: #"^#{1,6}\s+"#, options: .regularExpression) {
+                    cleaned = String(cleaned[headerMatch.upperBound...])
+                }
+                return cleaned
+            }
+            .joined(separator: "\n")
+
         // Remove lines that are just markers or very short marker fragments
         let badLinePatterns = [
             "reasoning", "insight", "analysis", "observation", "conclusion",
             "reasons", "new details", "additional", "procedure", "special cases",
             "step 1", "step 2", "step 3", "step 4", "step 5",
+            "executive summary", "key findings", "your comprehensive answer",
         ]
         result = result.components(separatedBy: .newlines)
             .filter { line in
@@ -4816,22 +4995,40 @@ extension AgenticOrchestrator {
             }
             .joined(separator: "\n")
 
-        // Collapse multiple blank lines into single
-        while result.contains("\n\n\n") {
-            result = result.replacingOccurrences(of: "\n\n\n", with: "\n\n")
-        }
-
-        // Remove leading dashes/bullets that are orphaned
+        // Convert bullet points and numbered lists to prose-friendly format
+        // NOTE: Preserve inline formatting like **bold** and *italic* - only strip list bullets
         result = result.components(separatedBy: .newlines)
             .map { line in
                 let trimmed = line.trimmingCharacters(in: .whitespaces)
-                // Remove lines that are just "- " or "* " with nothing after
-                if trimmed == "-" || trimmed == "*" || trimmed == "•" {
+                // Convert "- text" to just the text (dash bullets)
+                if trimmed.hasPrefix("- ") && trimmed.count > 2 {
+                    return String(trimmed.dropFirst(2))
+                }
+                // Convert "• text" to just the text (unicode bullets)
+                if trimmed.hasPrefix("• ") && trimmed.count > 2 {
+                    return String(trimmed.dropFirst(2))
+                }
+                // Only strip "* text" if it's clearly a bullet (no closing * for italic)
+                // List bullet: "* some text" vs Italic: "*emphasized*"
+                if trimmed.hasPrefix("* ") && trimmed.count > 2 && !trimmed.dropFirst(2).contains("*") {
+                    return String(trimmed.dropFirst(2))
+                }
+                // Convert numbered lists "1. text" or "1) text" to just text
+                if let numMatch = trimmed.range(of: #"^\d+[.)]\s+"#, options: .regularExpression) {
+                    return String(trimmed[numMatch.upperBound...])
+                }
+                // Remove orphaned bullets/numbers
+                if trimmed == "-" || trimmed == "*" || trimmed == "•" || trimmed.range(of: #"^\d+[.)]?$"#, options: .regularExpression) != nil {
                     return ""
                 }
                 return line
             }
             .joined(separator: "\n")
+
+        // Collapse multiple blank lines into single
+        while result.contains("\n\n\n") {
+            result = result.replacingOccurrences(of: "\n\n\n", with: "\n\n")
+        }
 
         return result.trimmingCharacters(in: .whitespacesAndNewlines)
     }
@@ -4955,7 +5152,7 @@ extension RAGService {
             let config = InferenceConfig(
                 maxTokens: maxTokens,
                 temperature: 0.7,
-                systemPrompt: "You are a focused research assistant. Be concise and precise."
+                systemPrompt: "You are an expert research analyst. Be concise and precise."
             )
 
             return try await tempService.generate(
