@@ -3340,14 +3340,6 @@ class RAGService: ObservableObject {
             self.containerService.containers.first { $0.id == selectedId }
         }
 
-        if let container = selectedContainer, !container.autoAdaptDimension {
-            var updated = container
-            updated.autoAdaptDimension = true
-            await MainActor.run {
-                self.containerService.updateContainer(updated)
-            }
-            refreshIntelligence(for: selectedId, force: true)
-        }
         let vdb = await dbFor(selectedId)
 
         // Establish query-scoped container context for downstream tool calls and listings

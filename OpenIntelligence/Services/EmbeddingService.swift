@@ -50,10 +50,11 @@ class EmbeddingService {
     ) -> EmbeddingService {
         // Map provider IDs to their native (supported) dimensions
         // This prevents mismatched dimension configurations
+        // NOTE: CoreML model (MiniLM-L6-v2) ONLY outputs 384D - this is fixed by the model architecture
         let nativeDimensions: [String: [Int]] = [
             "nl_embedding": [512],
             "nl_contextual_embedding": [512],
-            "coreml_sentence_embedding": [384, 768],
+            "coreml_sentence_embedding": [384],  // MiniLM-L6-v2 is fixed at 384D
             "apple_fm_embed": [1024],
         ]
 
@@ -75,7 +76,7 @@ class EmbeddingService {
         }
 
         let resolved: EmbeddingService
-        switch id { 
+        switch id {
         case "coreml_sentence_embedding":
             resolved = EmbeddingService(
                 provider: CoreMLSentenceEmbeddingProvider(),

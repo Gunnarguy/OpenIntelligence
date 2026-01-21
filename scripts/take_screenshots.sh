@@ -371,6 +371,11 @@ case "$COMMAND" in
 		;;
 	appstore)
 		boot_device "$UDID"
+
+		# Wipe app data to ensure clean state (removes persisted chat history)
+		echo "Wiping app data for clean screenshots..."
+		xcrun simctl uninstall "$UDID" "$BUNDLE_ID" >/dev/null 2>&1 || true
+
 		build_and_install "$UDID" "$DERIVED_DATA_PATH"
 
 		local_ts=$(date "+%Y-%m-%d_%H-%M-%S")
@@ -380,9 +385,9 @@ case "$COMMAND" in
 		# 00 - Raw launch (what you already liked)
 		capture_with_args "$UDID" "$DEVICE_NAME" "$out_dir" "00-launch" "$WAIT_SECONDS"
 
-		# 01 - Chat with a clean demo conversation (removed --args prefix)
-		capture_with_args "$UDID" "$DEVICE_NAME" "$out_dir" "01-chat" "4" \
-			--screenshot --screenshot-tab chat --screenshot-chat-demo
+		# 01 - Chat with full demo (conversation + thinking steps + sources)
+		capture_with_args "$UDID" "$DEVICE_NAME" "$out_dir" "01-chat" "5" \
+			--screenshot --screenshot-tab chat --screenshot-chat-full --screenshot-import-samples
 
 		# 02 - Documents tab, with bundled samples imported (safe, deterministic)
 		capture_with_args "$UDID" "$DEVICE_NAME" "$out_dir" "02-documents" "5" \
@@ -413,44 +418,48 @@ case "$COMMAND" in
 		capture_with_args "$UDID" "$DEVICE_NAME" "$out_dir" "01-chat-hero" "4" \
 			--screenshot --screenshot-tab chat --screenshot-chat-hero --screenshot-import-samples
 
-		# 02 - Chat demo (clean conversation)
-		capture_with_args "$UDID" "$DEVICE_NAME" "$out_dir" "02-chat-demo" "4" \
-			--screenshot --screenshot-tab chat --screenshot-chat-demo --screenshot-import-samples
+		# 02 - Chat full demo (conversation + thinking + sources - the showstopper)
+		capture_with_args "$UDID" "$DEVICE_NAME" "$out_dir" "02-chat-full" "5" \
+			--screenshot --screenshot-tab chat --screenshot-chat-full --screenshot-import-samples
 
-		# 03 - Chat with sources tray
-		capture_with_args "$UDID" "$DEVICE_NAME" "$out_dir" "03-chat-sources" "4" \
+		# 03 - Chat with thinking steps visible
+		capture_with_args "$UDID" "$DEVICE_NAME" "$out_dir" "03-chat-thinking" "5" \
+			--screenshot --screenshot-tab chat --screenshot-chat-thinking --screenshot-chat-demo --screenshot-import-samples
+
+		# 04 - Chat with sources tray
+		capture_with_args "$UDID" "$DEVICE_NAME" "$out_dir" "04-chat-sources" "4" \
 			--screenshot --screenshot-tab chat --screenshot-chat-sources --screenshot-import-samples
 
-		# 04 - Chat details sheet (retrieved sources expanded)
-		capture_with_args "$UDID" "$DEVICE_NAME" "$out_dir" "04-chat-details" "4" \
+		# 05 - Chat details sheet (retrieved sources expanded)
+		capture_with_args "$UDID" "$DEVICE_NAME" "$out_dir" "05-chat-details" "4" \
 			--screenshot --screenshot-tab chat --screenshot-chat-details --screenshot-import-samples
 
-		# 05 - Cloud consent prompt (privacy story)
-		capture_with_args "$UDID" "$DEVICE_NAME" "$out_dir" "05-cloud-consent" "3" \
+		# 06 - Cloud consent prompt (privacy story)
+		capture_with_args "$UDID" "$DEVICE_NAME" "$out_dir" "06-cloud-consent" "3" \
 			--screenshot --screenshot-tab chat --screenshot-cloud-consent
 
-		# 06 - Documents
-		capture_with_args "$UDID" "$DEVICE_NAME" "$out_dir" "06-documents" "6" \
+		# 07 - Documents
+		capture_with_args "$UDID" "$DEVICE_NAME" "$out_dir" "07-documents" "6" \
 			--screenshot --screenshot-tab documents --screenshot-import-samples
 
-		# 07 - Visualizations (overview)
-		capture_with_args "$UDID" "$DEVICE_NAME" "$out_dir" "07-visualizations-overview" "6" \
+		# 08 - Visualizations (overview)
+		capture_with_args "$UDID" "$DEVICE_NAME" "$out_dir" "08-visualizations-overview" "6" \
 			--screenshot --screenshot-tab visualizations --screenshot-import-samples --screenshot-viz-tab overview
 
-		# 08 - Visualizations (retrieval)
-		capture_with_args "$UDID" "$DEVICE_NAME" "$out_dir" "08-visualizations-retrieval" "6" \
+		# 09 - Visualizations (retrieval)
+		capture_with_args "$UDID" "$DEVICE_NAME" "$out_dir" "09-visualizations-retrieval" "6" \
 			--screenshot --screenshot-tab visualizations --screenshot-import-samples --screenshot-viz-tab retrieval
 
-		# 09 - Visualizations (clustering)
-		capture_with_args "$UDID" "$DEVICE_NAME" "$out_dir" "09-visualizations-clustering" "6" \
+		# 10 - Visualizations (clustering)
+		capture_with_args "$UDID" "$DEVICE_NAME" "$out_dir" "10-visualizations-clustering" "6" \
 			--screenshot --screenshot-tab visualizations --screenshot-import-samples --screenshot-viz-tab clustering
 
-		# 10 - Settings (execution & privacy)
-		capture_with_args "$UDID" "$DEVICE_NAME" "$out_dir" "10-settings-execution" "3" \
+		# 11 - Settings (execution & privacy)
+		capture_with_args "$UDID" "$DEVICE_NAME" "$out_dir" "11-settings-execution" "3" \
 			--screenshot --screenshot-tab settings
 
-		# 11 - Settings (model selector modal)
-		capture_with_args "$UDID" "$DEVICE_NAME" "$out_dir" "11-settings-model-selector" "3" \
+		# 12 - Settings (model selector modal)
+		capture_with_args "$UDID" "$DEVICE_NAME" "$out_dir" "12-settings-model-selector" "3" \
 			--screenshot --screenshot-tab settings --screenshot-settings-model-selector
 
 		echo "Done. Folder: $out_dir"
