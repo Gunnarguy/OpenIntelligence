@@ -877,8 +877,17 @@ class DocumentProcessor {
                     pagesWithStructure += 1
                 }
 
+                // Log figure references if any were found
+                if !structuredContent.figureReferences.isEmpty {
+                    Log.debug("[DocumentProcessor] Page \(pageNumber) has \(structuredContent.figureReferences.count) figure references: \(structuredContent.figureReferences.prefix(3).joined(separator: ", "))", category: .ingestion)
+                }
+
+                // Use effectiveContent which automatically falls back to raw text if quality is low
+                // This ensures we don't lose content from low-quality scans
+                let elementsToUse = structuredContent.effectiveContent
+
                 // Convert structured elements to wrappers
-                for element in structuredContent.elements {
+                for element in elementsToUse {
                     let isAtomic = element.elementType == "table"  // Tables should not be split
 
                     // Extract detected entities from table elements
@@ -893,6 +902,18 @@ class DocumentProcessor {
                         pageNumber: element.pageNumber,
                         isAtomicChunk: isAtomic,
                         detectedEntities: entities
+                    ))
+                }
+
+                // Add figure references as searchable content (so queries about figures work)
+                if !structuredContent.figureReferences.isEmpty {
+                    let figureText = "[Visual Content on Page \(pageNumber)]\n" + structuredContent.figureReferences.joined(separator: "\n")
+                    allElements.append(StructuredElementWrapper(
+                        text: figureText,
+                        elementType: "figure",
+                        pageNumber: pageNumber,
+                        isAtomicChunk: true,
+                        detectedEntities: []
                     ))
                 }
 
@@ -1274,7 +1295,13 @@ class DocumentProcessor {
         )
 
         #if canImport(UIKit)
-        let renderer = UIGraphicsImageRenderer(size: scaledSize)
+        // Use opaque format to avoid alpha channel overhead
+        // This prevents the "AlphaPremulLast" warning and halves memory usage
+        let format = UIGraphicsImageRendererFormat()
+        format.opaque = true  // No alpha channel needed - we draw on white background
+        format.scale = 1.0    // We've already scaled the size
+
+        let renderer = UIGraphicsImageRenderer(size: scaledSize, format: format)
         let image = renderer.image { context in
             UIColor.white.set()
             context.fill(CGRect(origin: .zero, size: scaledSize))
@@ -1367,7 +1394,12 @@ class DocumentProcessor {
             let scale: CGFloat = 2.0 // 2x for better quality
             let size = CGSize(width: region.width * scale, height: region.height * scale)
 
-            let renderer = UIGraphicsImageRenderer(size: size)
+            // Use opaque format to avoid alpha channel overhead
+            let format = UIGraphicsImageRendererFormat()
+            format.opaque = true
+            format.scale = 1.0
+
+            let renderer = UIGraphicsImageRenderer(size: size, format: format)
             let image = renderer.image { context in
                 UIColor.white.set()
                 context.fill(CGRect(origin: .zero, size: size))

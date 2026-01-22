@@ -163,7 +163,7 @@ struct KnowledgeContainer: Identifiable, Codable, Equatable, Sendable {
             embeddingProviderId: "coreml_sentence_embedding",
             embeddingDim: 384, // CoreMLSentenceEmbedding outputs 384-dim
             vectorDBKind: .persistentJSON,
-            autoAdaptDimension: true,
+            autoAdaptDimension: false,  // Disabled by default - users can enable in settings
             retrievalConfig: .highAccuracy
         )
     }

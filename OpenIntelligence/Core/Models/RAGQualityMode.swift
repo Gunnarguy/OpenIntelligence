@@ -68,23 +68,26 @@ enum RAGQualityMode: String, Identifiable, Sendable {
 
     // MARK: - Pipeline Parameters
 
-    /// Initial number of chunks to retrieve
+    /// Initial number of chunks to retrieve (baseline before corpus-size scaling)
+    /// Note: RAGService applies dynamic scaling based on actual corpus size
+    /// These are minimums - larger corpora will get proportionally more
     var initialTopK: Int {
         switch canonical {
-        case .standard: return 20 // Generous retrieval
-        case .deepThink: return 20 // Per-step retrieval
-        case .maximum: return 25 // Even more context
-        default: return 20
+        case .standard: return 30 // Increased from 20 for better baseline coverage
+        case .deepThink: return 35 // Per-step retrieval with more context
+        case .maximum: return 50 // Maximum context gathering
+        default: return 30
         }
     }
 
     /// Minimum similarity threshold for retrieval
+    /// Lower thresholds capture more candidates for re-ranking to filter
     var minSimilarity: Float {
         switch canonical {
-        case .standard: return 0.32 // Balanced threshold
-        case .deepThink: return 0.30 // Slightly broader to catch more context
-        case .maximum: return 0.25 // Very broad - catch everything
-        default: return 0.32
+        case .standard: return 0.28 // Lowered from 0.32 to catch more edge cases
+        case .deepThink: return 0.25 // Broader for multi-hop reasoning
+        case .maximum: return 0.20 // Very broad - let re-ranking decide
+        default: return 0.28
         }
     }
 

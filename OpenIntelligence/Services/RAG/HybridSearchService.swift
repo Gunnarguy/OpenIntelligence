@@ -176,12 +176,16 @@ class HybridSearchService {
         Log.debug("Hybrid search starting (vector: \(vectorWeight), keyword: \(keywordWeight))", category: .pipeline)
 
         // 1. Vector search - retrieve more candidates for better coverage
-        let vectorResults = try await vectorDatabase.search(embedding: embedding, topK: topK * 3)
+        // ENHANCEMENT: Scale vector candidates with topK for large corpus support
+        let vectorCandidateMultiplier = topK > 50 ? 2 : 3  // Less aggressive multiplier for large topK
+        let vectorResults = try await vectorDatabase.search(embedding: embedding, topK: topK * vectorCandidateMultiplier)
 
         var candidatePool = vectorResults
 
         if shouldRunLexicalRecall(query: query, vectorCount: vectorResults.count, topK: topK) {
-            let maxRecall = min(200, max(topK * 10, 40))
+            // ENHANCEMENT: Scale lexical recall with topK for large corpus support
+            // For 10,000-chunk corpus with topK=100, we want lexical recall of ~300-500
+            let maxRecall = min(500, max(topK * 5, 100))  // Increased from 200/40 for large corpora
             let lexicalCandidates = try await lexicalRecallCandidates(
                 query: query,
                 embedding: embedding,
@@ -194,7 +198,7 @@ class HybridSearchService {
                 if !unique.isEmpty {
                     candidatePool.append(contentsOf: unique)
                     Log.debug(
-                        "Lexical recall added \(unique.count) candidates",
+                        "Lexical recall added \(unique.count) candidates (max: \(maxRecall))",
                         category: .pipeline
                     )
                 }

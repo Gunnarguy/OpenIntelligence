@@ -56,7 +56,7 @@ final class ContainerService: ObservableObject {
         embeddingProviderId: String = "coreml_sentence_embedding",
         embeddingDim: Int = 384,
         vectorDBKind: VectorDBKind = .persistentJSON,
-        autoAdaptDimension: Bool = true,
+        autoAdaptDimension: Bool = false,  // Disabled by default to prevent re-index loops
         retrievalConfig: RetrievalConfig? = nil
     ) -> KnowledgeContainer {
         let effectiveRetrievalConfig = retrievalConfig ?? .default
@@ -200,7 +200,7 @@ final class ContainerService: ObservableObject {
             embeddingProviderId: "coreml_sentence_embedding",
             embeddingDim: 384,
             vectorDBKind: .persistentJSON,
-            autoAdaptDimension: true,
+            autoAdaptDimension: false,  // Disabled by default to prevent re-index loops
             retrievalConfig: .default
         )
     }

@@ -507,14 +507,34 @@ actor LibraryIntelligenceCenter {
 
     private func calculateMultilingualScore(_ hypotheses: [NLLanguage: Double]) -> Double {
         guard !hypotheses.isEmpty else { return 0 }
-        let languageCount = hypotheses.count
-        let entropyScore = hypotheses.values.reduce(0.0) { sum, prob in
-            guard prob > 0 else { return sum }
-            return sum - (prob * log2(prob))
+
+        // Sort by confidence descending
+        let sorted = hypotheses.sorted { $0.value > $1.value }
+        guard let dominant = sorted.first else { return 0 }
+
+        // If dominant language is highly confident (>70%), probably monolingual
+        // Technical jargon causes low confidence + multiple hypotheses, but that's not "multilingual"
+        if dominant.value > 0.70 {
+            return 0.0  // High confidence single language = not multilingual
         }
-        let languageScore = min(1.0, Double(max(0, languageCount - 1)) / 4.0)
-        let distributionScore = entropyScore / log2(5.0)
-        return (languageScore + distributionScore) / 2.0
+
+        // Check if there's a genuine second language with meaningful confidence
+        // (not just NLLanguageRecognizer hedging on technical content)
+        let secondaryLanguages = sorted.dropFirst().filter { $0.value > 0.20 }
+
+        if secondaryLanguages.isEmpty {
+            // No secondary language with meaningful confidence
+            // Low primary confidence + no alternatives = uncertain detection, not multilingual
+            return 0.0
+        }
+
+        // There IS a genuine secondary language - calculate how multilingual
+        let secondConfidence = secondaryLanguages.first?.value ?? 0
+        let spread = 1.0 - (dominant.value - secondConfidence) // How close are top 2?
+
+        // Scale: if dominant=50%, second=40% → spread=0.9 → high multilingual
+        // If dominant=60%, second=25% → spread=0.65 → moderate multilingual
+        return min(1.0, spread * 0.8)
     }
 
     private func tokenizeWords(_ text: String) -> [String] {

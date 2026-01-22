@@ -3457,7 +3457,7 @@ class RAGService: ObservableObject {
         let qualityModeUsesParentDocRetrieval = qualityMode.usesParentDocumentRetrieval
         let qualityModeMaxSiblingChunks = qualityMode.maxSiblingChunks
         let qualityModeUsesContextualCompression = qualityMode.usesContextualCompression
-        let qualityModeSpecBoostWeight = qualityMode.specificationBoostWeight
+        let _ = qualityMode.specificationBoostWeight  // Reserved for future spec-table boosting
         let qualityModeUsesConversationMemory = qualityMode.usesConversationMemory
         let qualityModeMaxConversationTurns = qualityMode.maxConversationTurns
 
@@ -3492,9 +3492,43 @@ class RAGService: ObservableObject {
             Task { await MainActor.run { self.currentQueryContainerId = nil } }
         }
 
-        // Adjust topK based on adaptive mode parameters
+        // Fetch current stored chunk count from vector database (fallback to cached total)
+        let totalStored = (try? await vdb.count()) ?? totalChunksStored
+
+        // CRITICAL: Dynamic topK scaling based on corpus size
+        // For large documents (1000+ pages = 10,000+ chunks), fixed topK of 20 samples only 0.2%
+        // This scaling ensures we sample a meaningful percentage regardless of corpus size
+        //
+        // Scaling strategy:
+        // - Small corpus (<100 chunks): topK = 15-20 (15-20% sample)
+        // - Medium corpus (100-1000): topK = 20-40 (4-20% sample)
+        // - Large corpus (1000-5000): topK = 40-80 (1.5-8% sample)
+        // - Huge corpus (5000-15000): topK = 80-150 (1-3% sample)
+        // - Massive corpus (15000+): topK = 150-250 (1-2% sample, capped for memory)
+        let corpusSizeAdjustedTopK: Int = {
+            switch totalStored {
+            case 0..<100:
+                return max(15, min(totalStored, 20))  // Small: up to 20
+            case 100..<500:
+                return 25  // Medium-small
+            case 500..<1000:
+                return 35  // Medium
+            case 1000..<2500:
+                return 50  // Large
+            case 2500..<5000:
+                return 75  // Very large
+            case 5000..<10000:
+                return 100  // Huge (1000-page dense doc)
+            case 10000..<20000:
+                return 150  // Massive
+            default:
+                return 200  // Cap at 200 for memory safety
+            }
+        }()
+
+        // Adjust topK based on adaptive mode parameters AND corpus size
         let requestedTopK = max(topK, qualityModeInitialTopK)
-        let baseTopK = requestedTopK
+        let baseTopK = max(requestedTopK, corpusSizeAdjustedTopK)
 
         let queryWords = question.split(separator: " ").count
         let isTrivial = isTrivialQuery(question)
@@ -3504,10 +3538,13 @@ class RAGService: ObservableObject {
         // Caps retrieval when device is under pressure to prevent throttling
         let adaptiveMaxTopK = adaptiveConfig.maxRetrievalCandidates
         let uncappedEffectiveTopK = initialWantsCloudContext
-            ? max(baseTopK, 25) // "Full blown" mode: 25 chunks to balance recall vs overflow risk
-            : max(1, applyTrivialTopKCap ? min(baseTopK, 8) : baseTopK)
+            ? max(baseTopK, 50) // PCC mode: even more context since we have headroom
+            : max(1, applyTrivialTopKCap ? min(baseTopK, 15) : baseTopK)
         let effectiveTopK = min(uncappedEffectiveTopK, adaptiveMaxTopK)
 
+        if corpusSizeAdjustedTopK > requestedTopK {
+            Log.info("[RAG] Corpus-size scaling: \(totalStored) chunks → topK boosted from \(requestedTopK) to \(corpusSizeAdjustedTopK)", category: .retrieval)
+        }
         if effectiveTopK < uncappedEffectiveTopK {
             Log.info("[Adaptive] TopK capped: \(uncappedEffectiveTopK) → \(effectiveTopK) (device pressure)", category: .pipeline)
         }
@@ -3517,8 +3554,6 @@ class RAGService: ObservableObject {
                 : "cloud context available - keeping full topK"
             Log.info("[RAG] Trivial query detected - \(detail)", category: .retrieval)
         }
-        // Fetch current stored chunk count from vector database (fallback to cached total)
-        let totalStored = (try? await vdb.count()) ?? totalChunksStored
 
         var auditCandidatesCount = 0
         var auditRerankedCount = 0
@@ -4982,12 +5017,32 @@ class RAGService: ObservableObject {
                     let compressionService = ContextualCompressionService()
                     let chunkTexts = contextCandidates.map { $0.chunk.text }
 
+                    // Select compression config based on query type
+                    // "exactly", "detail", "comprehensive", "all about" → verbose (minimal compression)
+                    // Simple factual lookups → default (moderate compression)
+                    let queryLower = question.lowercased()
+                    let wantsComprehensiveAnswer = queryLower.contains("exactly") ||
+                        queryLower.contains("detail") ||
+                        queryLower.contains("comprehensive") ||
+                        queryLower.contains("everything about") ||
+                        queryLower.contains("all about") ||
+                        queryLower.contains("explain") ||
+                        queryLower.contains("tell me about") ||
+                        answerIntent == .investigate ||
+                        answerIntent == .compare
+
+                    let compressionConfig: ContextualCompressionService.Config = wantsComprehensiveAnswer ? .verbose : .default
+
+                    if wantsComprehensiveAnswer {
+                        Log.info("[RAG] Using verbose compression for comprehensive query", category: .retrieval)
+                    }
+
                     do {
                         let compressionStartTime = Date()
                         let compressionResults = try await compressionService.compressChunks(
                             chunkTexts,
                             forQuery: question,
-                            config: .default
+                            config: compressionConfig
                         )
                         let compressionTime = Date().timeIntervalSince(compressionStartTime)
 
@@ -4997,10 +5052,9 @@ class RAGService: ObservableObject {
                             let original = contextCandidates[index]
                             let effectiveText = result.effectiveContent
 
-                            // Skip chunks that were entirely irrelevant
-                            if effectiveText.isEmpty {
-                                Log.debug("[Compression] Dropping irrelevant chunk: \(original.chunk.text.prefix(50))...", category: .retrieval)
-                                continue
+                            // Log if compression marked chunk as low-relevance (but we keep a fallback)
+                            if result.wasMarkedIrrelevant {
+                                Log.debug("[Compression] Chunk marked low-relevance, keeping truncated fallback: \(original.chunk.text.prefix(50))...", category: .retrieval)
                             }
 
                             // Create updated chunk with compressed text
@@ -5017,11 +5071,13 @@ class RAGService: ObservableObject {
 
                         let originalTokens = compressionResults.reduce(0) { $0 + $1.originalTokens }
                         let compressedTokens = compressionResults.reduce(0) { $0 + $1.compressedTokens }
+                        let lowRelevanceCount = compressionResults.filter { $0.wasMarkedIrrelevant }.count
                         compressionSavings = originalTokens - compressedTokens
 
                         if updatedCandidates.count > 0 {
                             contextCandidates = updatedCandidates
-                            Log.info("[Compression] \(originalTokens)→\(compressedTokens) tokens saved \(compressionSavings) in \(String(format: "%.0f", compressionTime * 1000))ms", category: .retrieval)
+                            let lowRelNote = lowRelevanceCount > 0 ? " (\(lowRelevanceCount) fallback)" : ""
+                            Log.info("[Compression] \(originalTokens)→\(compressedTokens) tokens saved \(compressionSavings) in \(String(format: "%.0f", compressionTime * 1000))ms\(lowRelNote)", category: .retrieval)
                             emitThinkingEvent(
                                 .context,
                                 title: "Context compressed",
