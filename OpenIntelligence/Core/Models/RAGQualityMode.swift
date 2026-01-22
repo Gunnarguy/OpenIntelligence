@@ -49,9 +49,9 @@ enum RAGQualityMode: String, Identifiable, Sendable {
 
     var description: String {
         switch canonical {
-        case .standard: return "Comprehensive search with HyDE, compression & citations"
-        case .deepThink: return "Multi-query retrieval + multi-step reasoning"
-        case .maximum: return "Multi-query + unlimited reasoning until 98% confident"
+        case .standard: return "Full pipeline with verification gates, graph context & extractive QA"
+        case .deepThink: return "Multi-step reasoning + intent routing + calibrated confidence"
+        case .maximum: return "Unlimited reasoning with verification gates until 98% confident"
         default: return "Comprehensive search"
         }
     }
@@ -173,5 +173,153 @@ enum RAGQualityMode: String, Identifiable, Sendable {
         case .maximum: return .unlimited
         default: return .thorough
         }
+    }
+
+    // MARK: - Per-Feature Pipeline Toggles (NEW: Comprehensive Mode Control)
+
+    /// Whether to use HyDE (Hypothetical Document Embeddings) for vocabulary bridging
+    /// HyDE generates a hypothetical answer first, then embeds it for search
+    var usesHyDE: Bool {
+        true // All modes benefit from HyDE
+    }
+
+    /// Whether to use AI re-ranking after hybrid retrieval
+    /// Re-ranking uses a cross-encoder model to re-score chunks for relevance
+    var usesReRanking: Bool {
+        true // All modes use re-ranking for quality
+    }
+
+    /// Whether to use MMR (Maximal Marginal Relevance) diversification
+    /// MMR balances relevance with diversity to avoid redundant chunks
+    var usesMMR: Bool {
+        true // All modes benefit from diversity
+    }
+
+    /// MMR lambda parameter (0.0 = max diversity, 1.0 = max relevance)
+    var mmrLambda: Float {
+        switch canonical {
+        case .standard: return 0.60  // Balanced relevance/diversity
+        case .deepThink: return 0.55 // Slightly more diversity for multi-hop
+        case .maximum: return 0.50   // Maximum diversity for comprehensive coverage
+        default: return 0.60
+        }
+    }
+
+    /// Whether to run verification gates after generation
+    /// Gates check: retrieval confidence, numeric sanity, contradiction detection
+    var usesVerificationGates: Bool {
+        true // All modes verify for anti-hallucination
+    }
+
+    /// Minimum confidence to pass verification (below this triggers abstention or retry)
+    var verificationConfidenceThreshold: Float {
+        switch canonical {
+        case .standard: return 0.50  // Standard threshold
+        case .deepThink: return 0.60 // Higher bar for deep reasoning
+        case .maximum: return 0.98   // 98% confidence required for Maximum
+        default: return 0.50
+        }
+    }
+
+    /// Whether to use corpus-aware query expansion
+    /// Expands query with synonyms and domain terms from corpus vocabulary
+    var usesQueryExpansion: Bool {
+        true // All modes benefit from expansion
+    }
+
+    /// Maximum number of query expansion variants to generate
+    var maxQueryExpansions: Int {
+        switch canonical {
+        case .standard: return 9     // Reasonable expansion
+        case .deepThink: return 12   // More variants for thorough search
+        case .maximum: return 20     // Maximum coverage
+        default: return 9
+        }
+    }
+
+    /// Whether to use container-specific vocabulary for query expansion
+    /// Adds domain terms learned from this container's ingested documents
+    var usesContainerVocabulary: Bool {
+        true // All modes use learned vocabulary
+    }
+
+    /// Whether to use parent document retrieval (expand matched chunks with siblings)
+    var usesParentDocumentRetrieval: Bool {
+        true // All modes benefit from context expansion
+    }
+
+    /// Maximum sibling chunks to include during parent document expansion
+    var maxSiblingChunks: Int {
+        switch canonical {
+        case .standard: return 2     // Immediate neighbors
+        case .deepThink: return 3    // Broader context
+        case .maximum: return 5      // Maximum context window
+        default: return 2
+        }
+    }
+
+    /// Whether to use contextual compression to extract relevant content
+    var usesContextualCompression: Bool {
+        switch canonical {
+        case .standard: return true   // Compress for efficiency
+        case .deepThink: return true  // Compress for focus
+        case .maximum: return false   // Keep full context in Maximum mode
+        default: return true
+        }
+    }
+
+    /// Boost weight for specification-heavy chunks (tables, numbered lists)
+    /// Higher = prefer structured/spec content for lookup queries
+    var specificationBoostWeight: Float {
+        switch canonical {
+        case .standard: return 1.2   // Moderate boost
+        case .deepThink: return 1.3  // Stronger preference for specs
+        case .maximum: return 1.5    // Maximum spec preference
+        default: return 1.2
+        }
+    }
+
+    /// Whether to use conversation memory for multi-turn context
+    var usesConversationMemory: Bool {
+        true // All modes benefit from conversation context
+    }
+
+    /// Maximum conversation turns to retain in memory
+    var maxConversationTurns: Int {
+        switch canonical {
+        case .standard: return 5     // Recent context
+        case .deepThink: return 10   // Extended context
+        case .maximum: return 20     // Maximum context
+        default: return 5
+        }
+    }
+
+    // MARK: - Feature Configuration Summary
+
+    /// Returns a dictionary of all feature toggles for logging/debugging
+    var featureToggles: [String: Any] {
+        [
+            "usesHyDE": usesHyDE,
+            "usesReRanking": usesReRanking,
+            "usesMMR": usesMMR,
+            "mmrLambda": mmrLambda,
+            "usesVerificationGates": usesVerificationGates,
+            "verificationConfidenceThreshold": verificationConfidenceThreshold,
+            "usesQueryExpansion": usesQueryExpansion,
+            "maxQueryExpansions": maxQueryExpansions,
+            "usesContainerVocabulary": usesContainerVocabulary,
+            "usesParentDocumentRetrieval": usesParentDocumentRetrieval,
+            "maxSiblingChunks": maxSiblingChunks,
+            "usesContextualCompression": usesContextualCompression,
+            "specificationBoostWeight": specificationBoostWeight,
+            "usesConversationMemory": usesConversationMemory,
+            "maxConversationTurns": maxConversationTurns,
+            "usesQueryRewriting": usesQueryRewriting,
+            "usesIterativeRetrieval": usesIterativeRetrieval,
+            "usesAgenticOrchestrator": usesAgenticOrchestrator,
+            "initialTopK": initialTopK,
+            "minSimilarity": minSimilarity,
+            "temperature": temperature,
+        ]
     }
 }

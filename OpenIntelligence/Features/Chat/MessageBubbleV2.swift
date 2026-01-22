@@ -155,7 +155,7 @@ struct MessageBubbleV2: View {
                             HStack(spacing: 2) {
                                 Image(systemName: "bolt")
                                     .font(.system(size: 8, weight: .medium))
-                                Text("Quick")
+                                Text("Standard")
                                     .font(.system(size: 9, weight: .medium))
                             }
                             .foregroundStyle(.blue.opacity(0.6))

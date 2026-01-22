@@ -33,6 +33,13 @@ struct ThinkingEvent: Identifiable, Sendable, Equatable {
         case toolCall       // Function/tool invocation
         case factBank       // FactBank update (Maximum mode)
 
+        // AppleRAG Advanced Features
+        case verification   // Verification gates (anti-hallucination)
+        case graphPack      // Graph-based context packing
+        case extractive     // Extractive summarization
+        case intentRoute    // Answer intent routing
+        case confidence     // Calibrated confidence calculation
+
         /// Maps each kind to a system icon for quick visual scanning.
         var systemIconName: String {
             switch self {
@@ -61,6 +68,12 @@ struct ThinkingEvent: Identifiable, Sendable, Equatable {
             case .agentic: return "brain"
             case .toolCall: return "function"
             case .factBank: return "tray.full"
+            // AppleRAG features
+            case .verification: return "checkmark.shield.fill"
+            case .graphPack: return "point.3.connected.trianglepath.dotted"
+            case .extractive: return "text.quote"
+            case .intentRoute: return "arrow.triangle.branch"
+            case .confidence: return "chart.bar.fill"
             }
         }
 
@@ -91,6 +104,12 @@ struct ThinkingEvent: Identifiable, Sendable, Equatable {
             case .agentic: return "Agentic Step"
             case .toolCall: return "Tool Call"
             case .factBank: return "FactBank"
+            // AppleRAG features
+            case .verification: return "Verification Gates"
+            case .graphPack: return "Graph Context"
+            case .extractive: return "Extractive Summary"
+            case .intentRoute: return "Intent Routing"
+            case .confidence: return "Confidence Calibration"
             }
         }
 
@@ -107,6 +126,12 @@ struct ThinkingEvent: Identifiable, Sendable, Equatable {
             case .fallback, .iterative: return "pink"
             case .warning: return "red"
             case .toolCall, .factBank: return "indigo"
+            // AppleRAG features
+            case .verification: return "mint"
+            case .graphPack: return "purple"
+            case .extractive: return "green"
+            case .intentRoute: return "blue"
+            case .confidence: return "orange"
             }
         }
     }

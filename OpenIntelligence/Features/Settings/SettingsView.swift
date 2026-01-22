@@ -541,15 +541,15 @@ Text(deviceService.chipName)
 
                 // Dynamic explanation based on mode
                 if settings.ragQualityMode.canonical == .maximum {
-                    Text("Maximum mode chains up to 50 reasoning sessions on your best-matched content. Each session reasons deeper on the same high-quality context until 98% confident.")
+                    Text("Maximum mode chains up to 50 reasoning sessions with verification gates (anti-hallucination), graph-based context packing, and calibrated confidence until 98% confident.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 } else if settings.ragQualityMode.canonical == .deepThink {
-                    Text("Deep Think chains 4-8 reasoning sessions dynamically, stopping when 85% confident. Each step reasons deeper, with cumulative insights building across sessions.")
+                    Text("Deep Think chains 4-8 reasoning sessions with intent routing, extractive summarization for summaries, and verification gates. Stops when 85% confident.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 } else {
-                    Text("Standard mode activates a 3-session reasoning chain for complex queries with good retrieval. Simple queries use single-session for speed.")
+                    Text("Standard mode uses verification gates, graph context packing, and extractive QA. Activates multi-session reasoning for complex queries.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -866,10 +866,17 @@ Text(deviceService.chipName)
                 ForEach(RAGQualityMode.userVisibleCases, id: \.id) { mode in
                     intelligenceModeRow(mode: mode, isSelected: settings.ragQualityMode.canonical == mode)
                         .onTapGesture {
+                            let previousMode = settings.ragQualityMode.canonical
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                                 settings.ragQualityMode = mode
                             }
                             DSHaptics.selection()
+
+                            // Reset Deep Think/Maximum metrics when switching modes
+                            // to avoid stale confidence/step counts appearing in the UI
+                            if previousMode != mode {
+                                ragService.resetDeepThinkLiveMetrics()
+                            }
                         }
                 }
             }
@@ -887,12 +894,16 @@ Text(deviceService.chipName)
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
-                    // Common features for all modes
+                    // Common features for all modes (Ingestion & Retrieval)
+                    featureRow(icon: "doc.badge.gearshape", label: "Contextual Embeddings", description: "Document title + section baked into every vector", color: .green)
+                    featureRow(icon: "tablecells", label: "Smart Table Extraction", description: "iOS 26 Vision API preserves tables with captions", color: .green)
+                    featureRow(icon: "link", label: "Cross-Document Entity Linking", description: "Global entity index finds related info across library", color: .green)
                     featureRow(icon: "doc.on.doc", label: "Parent Document Retrieval", description: "Expands chunk window ±5 for full paragraph context", color: .green)
                     featureRow(icon: "lightbulb", label: "Query Understanding", description: "NLTagger resolves pronouns, NER extracts key entities", color: .green)
                     featureRow(icon: "arrow.triangle.merge", label: "Hybrid Search + RRF", description: "Vector + BM25 keyword search with Reciprocal Rank Fusion", color: .green)
                     featureRow(icon: "arrow.up.arrow.down", label: "Cross-Encoder Reranking", description: "TinyBERT reranker scores query-document relevance", color: .green)
                     featureRow(icon: "shuffle", label: "MMR Diversification", description: "Maximal Marginal Relevance for diverse results", color: .green)
+                    featureRow(icon: "arrow.left.arrow.right", label: "Lost-in-Middle Mitigation", description: "Best evidence at start AND end of context window", color: .green)
                     featureRow(icon: "tree", label: "RAPTOR-lite Summaries", description: "Document-level summaries route overview queries", color: .green)
 
                     // Standard mode only features
@@ -907,13 +918,17 @@ Text(deviceService.chipName)
                     if settings.ragQualityMode.usesAgenticOrchestrator {
                         Divider()
                             .padding(.vertical, 4)
+                        featureRow(icon: "signpost.right.and.left", label: "Intent Routing", description: "Classifies query as lookup/procedure/compare/summarize", color: .purple)
                         featureRow(icon: "magnifyingglass.circle.fill", label: "Multi-Query Decomposition", description: "LLM generates 4-5 sub-queries for faceted retrieval", color: .purple)
-                        featureRow(icon: "arrow.triangle.merge", label: "RRF Fusion", description: "Reciprocal Rank Fusion merges vector + BM25 results", color: .purple)
-                        featureRow(icon: "checkmark.seal.fill", label: "Semantic Validation", description: "Self-RAG style relevance scoring per chunk", color: .purple)
-                        featureRow(icon: "arrow.trianglehead.2.clockwise.rotate.90", label: "Iterative Retrieval", description: "Retrieve → assess gaps → refine query → retrieve more", color: .purple)
+                        featureRow(icon: "point.3.connected.trianglepath.dotted", label: "2-Hop Graph Expansion", description: "Entity-based traversal finds related chunks", color: .purple)
+                        featureRow(icon: "arrow.trianglehead.2.clockwise.rotate.90", label: "Recursive Research Loop", description: "Autonomous [SEARCH:]/[ANSWER] protocol until confident", color: .purple)
+                        featureRow(icon: "checkmark.seal.fill", label: "Verification Gates A-D", description: "4-stage anti-hallucination checks before answering", color: .purple)
+                        featureRow(icon: "function", label: "Confidence Calibration", description: "Platt-scaled scores from rerank + margin + coverage", color: .purple)
+                        featureRow(icon: "text.line.first.and.arrowtriangle.forward", label: "Extractive Summarization", description: "Sentence selection via bi-encoder for summarize intent", color: .purple)
+                        featureRow(icon: "rectangle.compress.vertical", label: "Graph Context Packing", description: "Optimal token budget allocation across evidence", color: .purple)
                         featureRow(icon: "brain.head.profile", label: "Agentic Orchestrator", description: "4-8 dynamic sessions targeting 85% confidence", color: .purple)
                         featureRow(icon: "hammer.fill", label: "3 @Tool Functions", description: "SearchDocs, ListDocs, GetDocumentSummary", color: .purple)
-                        featureRow(icon: "chart.bar.xaxis", label: "Confidence Tracking", description: "Halts at threshold or escalates uncertainty", color: .purple)
+                        featureRow(icon: "arrow.trianglehead.2.clockwise.rotate.90", label: "Iterative Retrieval", description: "Retrieve → assess gaps → refine query → retrieve more", color: .purple)
                     }
 
                     // Maximum-exclusive features

@@ -227,8 +227,12 @@ class HybridSearchService {
         // If query keywords appear verbatim in chunk, boost its ranking significantly
         let boostedResults = applyKeywordMatchBoost(query: query, results: fusedResults)
 
-        // 5. Take top K from boosted results and re-rank index
-        let topResults = Array(boostedResults.prefix(topK))
+        // 5. Apply STRUCTURE-AWARE BOOST for spec queries (iOS 26+ structured parsing)
+        // Tables chunks are boosted when query is about specifications (oil, fuel, capacity, etc.)
+        let structureBoostedResults = applyStructureTypeBoost(query: query, results: boostedResults)
+
+        // 6. Take top K from boosted results and re-rank index
+        let topResults = Array(structureBoostedResults.prefix(topK))
 
         Log.debug(
             "Hybrid fusion: \(topResults.count) results from \(vectorResults.count) vector + \(keywordResults.count) BM25",
@@ -282,6 +286,114 @@ class HybridSearchService {
         }
 
         return scoredResults.map { $0.chunk }
+    }
+
+    /// Boost table/list chunks when query seeks specific data (domain-agnostic)
+    /// Detects spec-seeking queries via linguistic patterns, not hardcoded keywords
+    private func applyStructureTypeBoost(query: String, results: [RetrievedChunk]) -> [RetrievedChunk] {
+        let queryLower = query.lowercased()
+
+        // Domain-agnostic detection of "specification-seeking" queries
+        // These patterns work for ANY domain: medical, legal, technical, automotive, etc.
+        let isSpecQuery = detectSpecificationQuery(queryLower)
+        guard isSpecQuery else { return results }
+
+        // Score each result by structure type
+        var scoredResults: [(chunk: RetrievedChunk, boost: Int, originalRank: Int)] = []
+
+        for (idx, result) in results.enumerated() {
+            var boost = 0
+
+            // Check if chunk has structureType metadata (from iOS 26+ structured parsing)
+            if let structureType = result.chunk.metadata.structureType {
+                switch structureType {
+                case "table":
+                    boost += 3  // Strong boost for tables on spec queries
+                case "list":
+                    boost += 1  // Mild boost for lists
+                default:
+                    break
+                }
+            }
+
+            // Also check if content looks like a table (fallback for legacy chunks)
+            let content = result.chunk.content
+            if content.contains("|") && content.components(separatedBy: "|").count >= 4 {
+                // Contains table-like markdown formatting
+                boost += 2
+            }
+
+            // Boost if chunk contains numbers/measurements (specs often have numeric data)
+            if result.chunk.metadata.hasNumericData {
+                boost += 1
+            }
+
+            scoredResults.append((result, boost, idx))
+        }
+
+        // Sort by: boost (desc), then original rank (asc)
+        scoredResults.sort {
+            if $0.boost != $1.boost {
+                return $0.boost > $1.boost
+            }
+            return $0.originalRank < $1.originalRank
+        }
+
+        let boostedCount = scoredResults.prefix(10).filter { $0.boost > 0 }.count
+        if boostedCount > 0 {
+            Log.debug("[Hybrid] Structure boost: \(boostedCount) table/list chunks boosted for spec query", category: .retrieval)
+        }
+
+        return scoredResults.map { $0.chunk }
+    }
+
+    /// Detect if query is seeking specific data/specifications (domain-agnostic)
+    /// Uses linguistic patterns that work across ANY domain
+    private func detectSpecificationQuery(_ query: String) -> Bool {
+        // Pattern 1: "What is the X" / "What are the X" - seeking specific values
+        if query.hasPrefix("what is") || query.hasPrefix("what are") ||
+           query.hasPrefix("what's") {
+            return true
+        }
+
+        // Pattern 2: "How much" / "How many" - quantity queries
+        if query.hasPrefix("how much") || query.hasPrefix("how many") {
+            return true
+        }
+
+        // Pattern 3: Contains numbers or measurement units (seeking numeric specs)
+        let hasNumbers = query.rangeOfCharacter(from: .decimalDigits) != nil
+        let measurementUnits = ["mg", "kg", "ml", "liter", "gallon", "quart", "psi", "kpa",
+                                "volt", "amp", "watt", "hz", "mm", "cm", "inch", "ft", "lb", "oz"]
+        let hasMeasurement = measurementUnits.contains { query.contains($0) }
+        if hasNumbers || hasMeasurement {
+            return true
+        }
+
+        // Pattern 4: Spec-seeking keywords (domain-agnostic)
+        let specPatterns = [
+            "specification", "specs", "spec",
+            "requirement", "requirements",
+            "capacity", "rating", "rated",
+            "recommended", "required",
+            "maximum", "minimum", "max", "min",
+            "type of", "kind of", "grade of",
+            "dosage", "dose",  // Medical
+            "limit", "threshold",  // Legal/technical
+            "tolerance", "range"  // Engineering
+        ]
+        if specPatterns.contains(where: { query.contains($0) }) {
+            return true
+        }
+
+        // Pattern 5: Alphanumeric codes (e.g., "ISO 9001", "API-1234")
+        let alphanumericPattern = #"[A-Z]{2,}\s*[-]?\d+"#
+        if let regex = try? NSRegularExpression(pattern: alphanumericPattern, options: .caseInsensitive),
+           regex.firstMatch(in: query, options: [], range: NSRange(query.startIndex..., in: query)) != nil {
+            return true
+        }
+
+        return false
     }
 
     /// Extract important keywords from query (nouns, verbs - skip stopwords)

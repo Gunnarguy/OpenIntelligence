@@ -5,6 +5,7 @@
 //  Created by Gunnar Hostetler on 10/9/25.
 //
 
+import CoreGraphics
 import Foundation
 
 /// Represents a semantically meaningful chunk of a document with its embedding
@@ -97,6 +98,13 @@ struct ChunkMetadata: Codable, Sendable {
     let characterCount: Int
     let createdAt: Date
 
+    // MARK: - Structured Document Parsing (Jan 2026)
+
+    /// Type of document structure this chunk originated from (table, paragraph, list, title).
+    /// Used to boost retrieval when query seeks structured data (specs, schedules, comparisons).
+    /// nil for legacy chunks or when extracted via flat text (non-structured parsing).
+    let structureType: String?
+
     // MARK: - Parent Document Retrieval (Jan 2026)
 
     /// Unique identifier grouping chunks that belong to the same logical section.
@@ -119,6 +127,28 @@ struct ChunkMetadata: Codable, Sendable {
     /// Default is .detail for backward compatibility with existing chunks
     let abstractionLevel: ChunkAbstractionLevel
 
+    // MARK: - Section Path Hierarchy (AppleRAG CDM, Feb 2026)
+
+    /// Hierarchical heading path for disambiguation
+    /// Example: ["Chapter 5", "5.3 Fluids", "Engine Oil"] enables answering
+    /// "What is the oil capacity in Chapter 5?" vs "What is the oil capacity in Chapter 8?"
+    /// nil for legacy chunks or documents without clear heading structure
+    let sectionPath: [String]?
+
+    // MARK: - Bounding Box (AppleRAG CDM, Feb 2026)
+
+    /// Normalized bounding box (0.0-1.0) for spatial retrieval queries
+    /// Enables queries like "what's in the top-right of page 3" or "table at bottom of page"
+    /// Stored as [x, y, width, height] array for Codable simplicity (CGRect not Codable)
+    /// nil for non-spatial sources (plain text, audio transcriptions)
+    let bboxArray: [CGFloat]?
+
+    /// Convenience accessor to get CGRect from stored array
+    var bbox: CGRect? {
+        guard let arr = bboxArray, arr.count == 4 else { return nil }
+        return CGRect(x: arr[0], y: arr[1], width: arr[2], height: arr[3])
+    }
+
     init(
         chunkIndex: Int,
         startPosition: Int = 0,
@@ -132,10 +162,13 @@ struct ChunkMetadata: Codable, Sendable {
         wordCount: Int = 0,
         characterCount: Int = 0,
         createdAt: Date = Date(),
+        structureType: String? = nil,
         siblingGroupId: String? = nil,
         siblingCount: Int? = nil,
         entities: [String] = [],
-        abstractionLevel: ChunkAbstractionLevel = .detail
+        abstractionLevel: ChunkAbstractionLevel = .detail,
+        sectionPath: [String]? = nil,
+        bboxArray: [CGFloat]? = nil
     ) {
         self.chunkIndex = chunkIndex
         self.startPosition = startPosition
@@ -149,10 +182,13 @@ struct ChunkMetadata: Codable, Sendable {
         self.wordCount = wordCount
         self.characterCount = characterCount
         self.createdAt = createdAt
+        self.structureType = structureType
         self.siblingGroupId = siblingGroupId
         self.siblingCount = siblingCount
         self.entities = entities
         self.abstractionLevel = abstractionLevel
+        self.sectionPath = sectionPath
+        self.bboxArray = bboxArray
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -168,10 +204,13 @@ struct ChunkMetadata: Codable, Sendable {
         case wordCount
         case characterCount
         case createdAt
+        case structureType
         case siblingGroupId
         case siblingCount
         case entities
         case abstractionLevel
+        case sectionPath
+        case bboxArray
     }
 
     init(from decoder: Decoder) throws {
@@ -193,6 +232,8 @@ struct ChunkMetadata: Codable, Sendable {
         // Old persisted chunks will not contain explicit offsets. Fall back to a sensible range based on count.
         endPosition = decodedEnd ?? (fallbackStart + decodedCharacterCount)
         createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
+        // Structured document parsing (optional for backward compatibility with old chunks)
+        structureType = try container.decodeIfPresent(String.self, forKey: .structureType)
         // Parent Document Retrieval fields (optional for backward compatibility)
         siblingGroupId = try container.decodeIfPresent(String.self, forKey: .siblingGroupId)
         siblingCount = try container.decodeIfPresent(Int.self, forKey: .siblingCount)
@@ -200,6 +241,10 @@ struct ChunkMetadata: Codable, Sendable {
         entities = try container.decodeIfPresent([String].self, forKey: .entities) ?? []
         // Abstraction level (defaults to .detail for old chunks without this field)
         abstractionLevel = try container.decodeIfPresent(ChunkAbstractionLevel.self, forKey: .abstractionLevel) ?? .detail
+        // Section path hierarchy (optional for backward compatibility)
+        sectionPath = try container.decodeIfPresent([String].self, forKey: .sectionPath)
+        // Bounding box (optional for backward compatibility)
+        bboxArray = try container.decodeIfPresent([CGFloat].self, forKey: .bboxArray)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -218,6 +263,8 @@ struct ChunkMetadata: Codable, Sendable {
         if wordCount != 0 { try container.encode(wordCount, forKey: .wordCount) }
         if characterCount != 0 { try container.encode(characterCount, forKey: .characterCount) }
         try container.encode(createdAt, forKey: .createdAt)
+        // Structured document parsing
+        try container.encodeIfPresent(structureType, forKey: .structureType)
         // Parent Document Retrieval fields
         try container.encodeIfPresent(siblingGroupId, forKey: .siblingGroupId)
         try container.encodeIfPresent(siblingCount, forKey: .siblingCount)
@@ -229,6 +276,12 @@ struct ChunkMetadata: Codable, Sendable {
         if abstractionLevel != .detail {
             try container.encode(abstractionLevel, forKey: .abstractionLevel)
         }
+        // Section path hierarchy
+        if let sectionPath = sectionPath, !sectionPath.isEmpty {
+            try container.encode(sectionPath, forKey: .sectionPath)
+        }
+        // Bounding box
+        try container.encodeIfPresent(bboxArray, forKey: .bboxArray)
     }
 }
 

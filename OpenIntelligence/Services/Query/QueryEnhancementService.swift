@@ -46,6 +46,86 @@ enum QueryIntent: String, Sendable {
     }
 }
 
+// MARK: - AppleRAG Answer Intent (§6 of AppleRAG Spec)
+
+/// Answer intent classification per AppleRAG spec §6.
+/// Determines the answering strategy: extractive vs abstractive, single vs multi-hop.
+enum AnswerIntent: String, Sendable, CaseIterable {
+    /// Direct fact lookup - run extractive QA on packed context → best span
+    /// Example: "What is the oil capacity?" → "5.7 quarts [S1]"
+    case lookup
+
+    /// Table-specific lookup - retrieve table_row then extract target cell(s)
+    /// Example: "What are the torque specs for head bolts?"
+    case tableLookup = "table_lookup"
+
+    /// Step-by-step procedure - output ordered list_item nodes + headings (preserve order)
+    /// Example: "How do I change the oil?" → ordered steps from source
+    case procedure
+
+    /// Side-by-side comparison - retrieve evidence for A and B separately
+    /// Example: "Compare synthetic vs conventional oil"
+    case compare
+
+    /// Extractive summarization - sentence selection via bi-encoder similarity
+    /// Example: "Summarize the maintenance schedule"
+    case summarize
+
+    /// Multi-hop investigation - answer = "evidence map" + extracted sub-facts
+    /// Example: "What factors affect engine longevity?"
+    case investigate
+
+    /// Numerical computation from extracted values
+    /// Example: "What's the total fluid capacity?" (sum multiple values)
+    case compute
+
+    /// Maps to QueryIntent for hybrid search weight adjustment
+    var searchIntent: QueryIntent {
+        switch self {
+        case .lookup, .tableLookup, .compute:
+            return .keyword  // Favor exact matches
+        case .procedure:
+            return .balanced  // Need structure + content
+        case .compare, .investigate:
+            return .conceptual  // Need semantic understanding
+        case .summarize:
+            return .conceptual  // Need broad coverage
+        }
+    }
+
+    /// Whether this intent should use extractive-first answering (no LLM generation)
+    var isExtractiveFirst: Bool {
+        switch self {
+        case .lookup, .tableLookup, .procedure:
+            return true  // Direct extraction from source
+        case .compare, .summarize, .investigate, .compute:
+            return false  // May need synthesis
+        }
+    }
+
+    /// Whether this intent benefits from multi-hop retrieval
+    var benefitsFromMultiHop: Bool {
+        switch self {
+        case .investigate, .compare:
+            return true
+        case .lookup, .tableLookup, .procedure, .summarize, .compute:
+            return false
+        }
+    }
+
+    /// Structure type boost for this intent
+    var structureTypeBoost: String? {
+        switch self {
+        case .tableLookup:
+            return "table"
+        case .procedure:
+            return "list"
+        default:
+            return nil
+        }
+    }
+}
+
 /// Enhances user queries before retrieval.
 ///
 /// This service must be silent-by-default: do not use direct `print()`.
@@ -154,6 +234,111 @@ final class QueryEnhancementService {
         )
 
         return intent
+    }
+
+    // MARK: - Answer Intent Classification (AppleRAG §6)
+
+    /// Classifies query into answer intent per AppleRAG spec §6.
+    /// Determines the answering strategy: extractive vs abstractive, single vs multi-hop.
+    ///
+    /// Intent hierarchy:
+    /// 1. **lookup**: Direct fact extraction (what, which, when + specific entity)
+    /// 2. **table_lookup**: Table-specific queries (specs, comparisons in tables)
+    /// 3. **procedure**: Step-by-step instructions (how to, steps, procedure)
+    /// 4. **compare**: Side-by-side comparison (vs, compare, difference)
+    /// 5. **summarize**: Overview/summary requests
+    /// 6. **investigate**: Multi-hop research (factors, causes, effects)
+    /// 7. **compute**: Numerical computation (total, sum, calculate)
+    func classifyAnswerIntent(_ query: String) -> AnswerIntent {
+        let lower = query.lowercased()
+        let words = lower.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).map(String.init)
+
+        // Priority 1: Compute (requires numerical aggregation)
+        let computePatterns: [String] = [
+            "total", "sum", "add up", "calculate", "compute", "how much total",
+            "combined", "altogether", "in total"
+        ]
+        for pattern in computePatterns {
+            if lower.contains(pattern) { return .compute }
+        }
+
+        // Priority 2: Compare (explicit comparison request)
+        let comparePatterns: [String] = [
+            " vs ", "versus", "compare", "comparison", "difference between",
+            "differences between", "differ from", "better than", "worse than",
+            "pros and cons", "advantages", "disadvantages"
+        ]
+        for pattern in comparePatterns {
+            if lower.contains(pattern) { return .compare }
+        }
+
+        // Priority 3: Procedure (step-by-step instructions)
+        let procedurePatterns: [String] = [
+            "how to", "how do i", "how can i", "steps to", "procedure for",
+            "instructions for", "guide to", "process for", "way to",
+            "method for", "directions for"
+        ]
+        for pattern in procedurePatterns {
+            if lower.contains(pattern) { return .procedure }
+        }
+
+        // Priority 4: Summarize (overview/summary requests)
+        let summarizePatterns: [String] = [
+            "summarize", "summary", "overview", "brief", "outline",
+            "main points", "key points", "highlights", "recap", "tldr"
+        ]
+        for pattern in summarizePatterns {
+            if lower.contains(pattern) { return .summarize }
+        }
+
+        // Priority 5: Investigate (multi-hop research)
+        let investigatePatterns: [String] = [
+            "factors", "causes", "reasons", "why does", "why is", "why are",
+            "what affects", "what influences", "implications", "consequences",
+            "relationship between", "how does .* affect", "what happens when"
+        ]
+        for pattern in investigatePatterns {
+            if lower.contains(pattern) { return .investigate }
+            // Regex pattern check
+            if pattern.contains(".*"), let _ = lower.range(of: pattern, options: .regularExpression) {
+                return .investigate
+            }
+        }
+
+        // Priority 6: Table lookup (table-specific queries)
+        let tablePatterns: [String] = [
+            "table", "spec", "specification", "chart", "matrix", "grid",
+            "torque value", "pressure value", "capacity"
+        ]
+        let tableIndicators = ["what is the", "what are the", "list the", "show the"]
+        let hasTableIndicator = tableIndicators.contains { lower.contains($0) }
+        for pattern in tablePatterns {
+            if lower.contains(pattern) && hasTableIndicator { return .tableLookup }
+        }
+
+        // Also detect structured data queries without explicit "table" mention
+        let structuredPatterns = [
+            #"\d+\s*(psi|nm|ft-?lb|quart|liter|ml|mm|inch)"#,  // Units
+            #"specification|rating|tolerance|range"#
+        ]
+        for pattern in structuredPatterns {
+            if let _ = lower.range(of: pattern, options: .regularExpression) {
+                return .tableLookup
+            }
+        }
+
+        // Default: lookup (simple fact extraction)
+        // Most "what", "which", "when", "where" questions are lookups
+        let lookupStarters = ["what", "which", "when", "where", "who", "how much", "how many"]
+        for starter in lookupStarters {
+            if lower.hasPrefix(starter) { return .lookup }
+        }
+
+        // Fallback for short queries
+        if words.count <= 5 { return .lookup }
+
+        // For longer conceptual queries, default to investigate
+        return .investigate
     }
 
     /// Produces a small set of query variants for keyword-heavy retrieval (BM25).

@@ -303,6 +303,11 @@ private struct ConsoleLogRow: View {
         case .agentic: return "AGENTIC"
         case .toolCall: return "TOOL"
         case .factBank: return "FACTS"
+        case .verification: return "VERIFY"
+        case .graphPack: return "GRAPH"
+        case .extractive: return "EXTRACT"
+        case .intentRoute: return "INTENT"
+        case .confidence: return "CONFID"
         }
     }
 }

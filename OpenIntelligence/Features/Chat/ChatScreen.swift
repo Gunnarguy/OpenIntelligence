@@ -2036,7 +2036,10 @@ struct CompactChatHeader: View {
             // Bottom row: Quality mode picker + Model status + Stats
             HStack(spacing: 10) {
                 // Always show quality mode picker - Deep Think is useful for all users
-                QualityModeQuickPicker(selectedMode: $settings.ragQualityMode)
+                QualityModeQuickPicker(selectedMode: $settings.ragQualityMode) { _, _ in
+                    // Reset stale Deep Think/Maximum metrics when mode changes
+                    ragService.resetDeepThinkLiveMetrics()
+                }
 
                 // Model indicator (compact)
                 ModelStatusIndicator(deviceCapabilities: deviceCapabilities)
@@ -2082,15 +2085,23 @@ struct CompactChatHeader: View {
 /// Dropdown menu to switch between Standard and Deep Think
 struct QualityModeQuickPicker: View {
     @Binding var selectedMode: RAGQualityMode
+    /// Called when mode changes, passing old and new mode
+    var onModeChange: ((RAGQualityMode, RAGQualityMode) -> Void)?
 
     var body: some View {
         Menu {
             ForEach(RAGQualityMode.userVisibleCases, id: \.id) { mode in
                 Button {
+                    let previousMode = selectedMode
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                         selectedMode = mode
                     }
                     DSHaptics.selection()
+
+                    // Notify parent to reset stale metrics when mode changes
+                    if previousMode.canonical != mode.canonical {
+                        onModeChange?(previousMode, mode)
+                    }
                 } label: {
                     Label {
                         VStack(alignment: .leading) {

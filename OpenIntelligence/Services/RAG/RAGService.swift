@@ -237,6 +237,11 @@ class RAGService: ObservableObject {
     private let intelligenceCenter = LibraryIntelligenceCenter()
     private let documentSummaryService: DocumentSummaryService
     private let queryRouter = QueryRouterService()
+    private let verificationGateService = VerificationGateService()
+    private let graphIndexService = GraphIndexService()
+    private let contextPackingService: ContextPackingService
+    private let confidenceCalibrationService = ConfidenceCalibrationService()
+    private let extractiveSummarizationService: ExtractiveSummarizationService
     private weak var entitlementStore: EntitlementStore?
     private var cancellables = Set<AnyCancellable>()
     @MainActor private weak var settingsStore: SettingsStore?
@@ -406,12 +411,30 @@ class RAGService: ObservableObject {
         chatHistories[resolvedId] = []
         saveChatHistory([], for: resolvedId)
 
+        // Reset Deep Think / Maximum mode live metrics to avoid stale UI
+        resetDeepThinkLiveMetrics()
+
         // Also clear the persisted transcript and conversation memory when clearing chat history
         if #available(iOS 26.0, *) {
             TranscriptPersistenceService.shared.deleteTranscript(for: resolvedId)
             ConversationMemoryService.shared.clearMemory(for: resolvedId)
-            Log.debug("[RAGService] Cleared chat history, transcript, and memory for container \(resolvedId)", category: .initialization)
+            Log.debug("[RAGService] Cleared chat history, transcript, memory, and live metrics for container \(resolvedId)", category: .initialization)
         }
+    }
+
+    /// Resets Deep Think / Maximum mode live metrics to prevent stale state in UI.
+    /// Call this when:
+    /// - Chat is cleared
+    /// - Mode is switched between Standard / Deep Think / Maximum
+    /// - Container is changed
+    @MainActor
+    func resetDeepThinkLiveMetrics() {
+        deepThinkLiveTokens = 0
+        deepThinkLiveSteps = 0
+        deepThinkLiveConfidence = 0
+        lastAuditSnapshot = nil
+        thinkingEvents.removeAll()
+        Log.debug("[RAGService] Reset Deep Think live metrics and audit snapshot", category: .llm)
     }
 
     // MARK: - Transcript Persistence (iOS 26+)
@@ -658,6 +681,12 @@ class RAGService: ObservableObject {
         self.containerService = containerService ?? ContainerService()
         self.vectorRouter = vectorRouter ?? VectorStoreRouter()
         self.entitlementStore = entitlementStore
+
+        // Initialize context packing with graph index
+        self.contextPackingService = ContextPackingService(graphIndex: self.graphIndexService)
+
+        // Initialize extractive summarization with embedding service
+        self.extractiveSummarizationService = ExtractiveSummarizationService(embeddingService: self.embeddingService)
 
         // Priority order for LLM selection:
         // 1. Custom service provided by caller
@@ -2129,6 +2158,40 @@ class RAGService: ObservableObject {
                 ]
             )
 
+            // Step 4.1: Learn vocabulary from chunks for per-container domain adaptation
+            // Extracts domain terms, spec codes, and technical phrases to improve future retrieval
+            for chunk in documentChunks {
+                await ContainerVocabularyService.shared.learnFromChunk(
+                    chunk.content,
+                    containerId: activeContainerId
+                )
+            }
+
+            // Step 4.1b: Learn from Vision-detected entities (emails, phones, dates, URLs, etc.)
+            // These are automatically extracted during structured document parsing
+            let visionEntities = documentProcessor.lastDetectedEntities
+            if !visionEntities.isEmpty {
+                await ContainerVocabularyService.shared.learnFromDetectedEntities(
+                    visionEntities,
+                    containerId: activeContainerId
+                )
+                Log.debug("[RAGService] Learned \(visionEntities.count) Vision-detected entities", category: .ingestion)
+            }
+
+            await ContainerVocabularyService.shared.documentIngested(
+                filename,
+                containerId: activeContainerId
+            )
+            TelemetryCenter.emit(
+                .ingestion,
+                title: "Vocabulary learned",
+                metadata: [
+                    "file": filename,
+                    "container": activeContainerId.uuidString,
+                    "visionEntities": "\(visionEntities.count)",
+                ]
+            )
+
             // Step 4.5: Generate document summary (RAPTOR-lite)
             // Creates a level-1 summary chunk for efficient overview queries
             // Controlled by settings.enableDocumentSummaries
@@ -3381,6 +3444,26 @@ class RAGService: ObservableObject {
         let qualityModeUsesIterativeRetrieval = qualityMode.usesIterativeRetrieval
         let qualityModeRequiresCitations = qualityMode.requiresCitations
 
+        // NEW: Comprehensive quality mode feature toggles
+        let qualityModeUsesHyDE = qualityMode.usesHyDE
+        let qualityModeUsesReRanking = qualityMode.usesReRanking
+        let qualityModeUsesMMR = qualityMode.usesMMR
+        let qualityModeMMRLambda = qualityMode.mmrLambda
+        let qualityModeUsesVerificationGates = qualityMode.usesVerificationGates
+        let qualityModeVerificationThreshold = qualityMode.verificationConfidenceThreshold
+        let qualityModeUsesQueryExpansion = qualityMode.usesQueryExpansion
+        let qualityModeMaxQueryExpansions = qualityMode.maxQueryExpansions
+        let qualityModeUsesContainerVocabulary = qualityMode.usesContainerVocabulary
+        let qualityModeUsesParentDocRetrieval = qualityMode.usesParentDocumentRetrieval
+        let qualityModeMaxSiblingChunks = qualityMode.maxSiblingChunks
+        let qualityModeUsesContextualCompression = qualityMode.usesContextualCompression
+        let qualityModeSpecBoostWeight = qualityMode.specificationBoostWeight
+        let qualityModeUsesConversationMemory = qualityMode.usesConversationMemory
+        let qualityModeMaxConversationTurns = qualityMode.maxConversationTurns
+
+        // Log feature toggles for this quality mode
+        Log.debug("[RAGService] Quality mode '\(qualityModeDisplayName)' features: HyDE=\(qualityModeUsesHyDE), ReRank=\(qualityModeUsesReRanking), MMR=\(qualityModeUsesMMR), Verification=\(qualityModeUsesVerificationGates), QueryExpand=\(qualityModeUsesQueryExpansion), ContainerVocab=\(qualityModeUsesContainerVocabulary), ParentDoc=\(qualityModeUsesParentDocRetrieval), Compression=\(qualityModeUsesContextualCompression)", category: .pipeline)
+
         let developerTuningEnabled: Bool = await MainActor.run {
             settingsStore?.developerRAGTuningEnabled ?? false
         }
@@ -3464,10 +3547,28 @@ class RAGService: ObservableObject {
             ]
         )
 
+        // Build quality mode feature summary for thinking stream
+        var enabledFeatures: [String] = []
+        if qualityModeUsesHyDE { enabledFeatures.append("HyDE") }
+        if qualityModeUsesReRanking { enabledFeatures.append("ReRank") }
+        if qualityModeUsesMMR { enabledFeatures.append("MMR") }
+        if qualityModeUsesVerificationGates { enabledFeatures.append("Verify") }
+        if qualityModeUsesQueryExpansion { enabledFeatures.append("Expand") }
+        if qualityModeUsesContainerVocabulary { enabledFeatures.append("Vocab") }
+        if qualityModeUsesParentDocRetrieval { enabledFeatures.append("Parent") }
+        if qualityModeUsesContextualCompression { enabledFeatures.append("Compress") }
+        let featureSummary = enabledFeatures.joined(separator: " • ")
+
+        emitThinkingEvent(
+            .planning,
+            title: "\(qualityModeDisplayName) mode",
+            detail: featureSummary.isEmpty ? "Minimal features" : featureSummary
+        )
+
         emitThinkingEvent(
             .planning,
             title: "Scoping query",
-            detail: "Top \(effectiveTopK) • \(selectedName) • \(qualityModeDisplayName) mode"
+            detail: "Top \(effectiveTopK) • \(selectedName)"
         )
 
         TelemetryCenter.emit(
@@ -3582,15 +3683,17 @@ class RAGService: ObservableObject {
 
                     // Build conversation context for pronoun resolution
                     // Use ConversationMemoryService for enhanced entity-aware context if available
-                    let useConversationMemory = settingsStore?.enableConversationMemory ?? true
+                    // Respect both quality mode toggle and user settings
+                    let conversationMemoryEnabled = qualityModeUsesConversationMemory && (settingsStore?.enableConversationMemory ?? true)
                     var recentTurns: [ConversationTurn] = []
 
-                    if #available(iOS 26.0, *), useConversationMemory {
+                    if #available(iOS 26.0, *), conversationMemoryEnabled {
                         // Get memory-enhanced context with tracked entities
                         // ONLY use actual conversation turns - NOT synthetic context from memory entities
                         // Synthetic context causes false-positive rewrites (e.g., "this button" → "the button you mentioned")
                         let memory = ConversationMemoryService.shared.memory(for: selectedId)
-                        recentTurns = memory.recentTurns.suffix(3).map { turn in
+                        let maxTurns = min(qualityModeMaxConversationTurns, 3) // Use quality mode limit for rewriting
+                        recentTurns = memory.recentTurns.suffix(maxTurns).map { turn in
                             ConversationTurn(
                                 role: "user",
                                 content: turn.userQuery,
@@ -3663,48 +3766,127 @@ class RAGService: ObservableObject {
                 }
 
                 // Step 1.5: Corpus-Aware Query Expansion
-                Log.section("Step 1.5: Query Expansion", level: .info, category: .pipeline)
-                let expansionStartTime = Date()
-                let queryEnhancer = QueryEnhancementService(corpusVocabulary: finalCorpusVocabulary)
-                let expandedQueries = queryEnhancer.expandQuery(effectiveQuery)
-                let expansionTime = Date().timeIntervalSince(expansionStartTime)
-                Log.info(
-                    "✓ Expanded to \(expandedQueries.count) query variations in \(String(format: "%.0f", expansionTime * 1000))ms",
-                    category: .pipeline
-                )
-                TelemetryCenter.emit(
-                    .retrieval,
-                    title: "Query expanded",
-                    metadata: [
-                        "variants": "\(expandedQueries.count)",
-                    ],
-                    duration: expansionTime
-                )
+                // QUALITY MODE: Check if query expansion is enabled
+                var expandedQueries: [String] = []
+                var expansionTime: TimeInterval = 0
 
-                if !expandedQueries.isEmpty {
+                // Create QueryEnhancementService at outer scope (used by expansion AND intent classification)
+                let queryEnhancer = QueryEnhancementService(corpusVocabulary: finalCorpusVocabulary)
+
+                if qualityModeUsesQueryExpansion {
+                    Log.section("Step 1.5: Query Expansion", level: .info, category: .pipeline)
+                    let expansionStartTime = Date()
+                    expandedQueries = queryEnhancer.expandQuery(effectiveQuery)
+
+                    // Limit to quality mode maximum
+                    if expandedQueries.count > qualityModeMaxQueryExpansions {
+                        expandedQueries = Array(expandedQueries.prefix(qualityModeMaxQueryExpansions))
+                        Log.debug("[RAGService] Capped query expansions to \(qualityModeMaxQueryExpansions) (quality mode: \(qualityModeDisplayName))", category: .retrieval)
+                    }
+
+                    // Step 1.5b: Per-Container Vocabulary Expansion (if enabled)
+                    if qualityModeUsesContainerVocabulary {
+                        let vocabExpansions = await ContainerVocabularyService.shared.expandQuery(
+                            effectiveQuery,
+                            containerId: selectedId
+                        )
+                        if !vocabExpansions.isEmpty {
+                            let uniqueVocabTerms = vocabExpansions.filter { !expandedQueries.contains($0) }
+                            // Respect max expansions limit
+                            let spaceRemaining = qualityModeMaxQueryExpansions - expandedQueries.count
+                            let termsToAdd = Array(uniqueVocabTerms.prefix(max(0, spaceRemaining)))
+                            expandedQueries.append(contentsOf: termsToAdd)
+                            Log.debug(
+                                "[RAGService] Container vocabulary added \(termsToAdd.count) terms",
+                                category: .retrieval
+                            )
+                        }
+                    } else {
+                        Log.debug("[RAGService] Container vocabulary expansion skipped (quality mode: \(qualityModeDisplayName))", category: .pipeline)
+                    }
+
+                    expansionTime = Date().timeIntervalSince(expansionStartTime)
+                    Log.info(
+                        "✓ Expanded to \(expandedQueries.count) query variations in \(String(format: "%.0f", expansionTime * 1000))ms",
+                        category: .pipeline
+                    )
+                    TelemetryCenter.emit(
+                        .retrieval,
+                        title: "Query expanded",
+                        metadata: [
+                            "variants": "\(expandedQueries.count)",
+                            "maxAllowed": "\(qualityModeMaxQueryExpansions)",
+                        ],
+                        duration: expansionTime
+                    )
+
+                    if !expandedQueries.isEmpty {
+                        emitThinkingEvent(
+                            .queryRewrite,
+                            title: "Query expansion",
+                            detail: "\(expandedQueries.count) variants generated"
+                        )
+                    }
+                } else {
+                    Log.info("[RAG] Query expansion skipped (quality mode: \(qualityModeDisplayName))", category: .pipeline)
                     emitThinkingEvent(
                         .queryRewrite,
-                        title: "Query expansion",
-                        detail: "\(expandedQueries.count) variants generated"
+                        title: "Query expansion skipped",
+                        detail: "Quality mode: \(qualityModeDisplayName)"
                     )
                 }
+
+                // Step 1.6: Answer Intent Classification (AppleRAG §6)
+                // Classify query intent to optimize retrieval and answering strategy
+                let answerIntent = queryEnhancer.classifyAnswerIntent(effectiveQuery)
+                Log.info(
+                    "✓ Answer intent: \(answerIntent.rawValue) (extractive-first: \(answerIntent.isExtractiveFirst), multi-hop: \(answerIntent.benefitsFromMultiHop))",
+                    category: .pipeline
+                )
+                emitThinkingEvent(
+                    .intentRoute,
+                    title: "Intent: \(answerIntent.rawValue)",
+                    detail: answerIntent.isExtractiveFirst ? "Extractive-first" : (answerIntent.benefitsFromMultiHop ? "Multi-hop enabled" : "Standard")
+                )
 
                 // Step 2: Embed the user's query
                 Log.section("Step 2: Query Embedding", level: .info, category: .pipeline)
                 let embeddingStartTime = Date()
 
+                // HyDE: Combine quality mode toggle with user settings and service availability
+                let hydeEnabledBySettings = settingsStore?.enableHyDE ?? true
+                let hydeEnabledForMode = qualityModeUsesHyDE && hydeEnabledBySettings && HyDEService.isAvailable
+
+                // CRITICAL: Disable HyDE for extractive/lookup queries to avoid hallucinated specifics biasing retrieval
+                // HyDE can guess wrong values (e.g., "5W-40" when answer is "0W-20") and pull wrong chunks
+                // Extractive-first intents (lookup, tableLookup, procedure) work better with keyword matching
+                let hydeDisabledForIntent = answerIntent.isExtractiveFirst
+                if hydeDisabledForIntent && hydeEnabledForMode {
+                    Log.debug("[HyDE] Disabled for extractive intent '\(answerIntent.rawValue)' - keyword matching preferred", category: .retrieval)
+                }
+
                 // Pipeline Trace: Step 2
                 Log.pipelineStep("2", title: "Query Embedding", details: [
                     ("provider", embeddingProviderId),
                     ("dim", "\(selectedDim)"),
-                    ("HyDE", (settingsStore?.enableHyDE ?? true) && HyDEService.isAvailable ? "enabled" : "off")
+                    ("HyDE", (hydeEnabledForMode && !hydeDisabledForIntent) ? "enabled" : "off")
                 ])
 
                 // HyDE (Hypothetical Document Embeddings) - Gao et al. 2022
                 // Generates a hypothetical answer for better retrieval when question vocab differs from answer vocab
                 // Only used for factual queries where this vocabulary gap is significant
-                let useHyDE = (settingsStore?.enableHyDE ?? true) && HyDEService.isAvailable && HyDEService.shouldUseHyDE(for: effectiveQuery)
+                // DISABLED for extractive/lookup intents where specific values matter
+                let useHyDE = hydeEnabledForMode && !hydeDisabledForIntent && HyDEService.shouldUseHyDE(for: effectiveQuery)
                 var hydeText: String?
+
+                if hydeDisabledForIntent && hydeEnabledForMode {
+                    // HyDE was enabled but skipped due to extractive intent
+                    emitThinkingEvent(
+                        .hyde,
+                        title: "HyDE skipped",
+                        detail: "Extractive intent '\(answerIntent.rawValue)' - using direct keyword matching"
+                    )
+                }
 
                 if useHyDE {
                     let hydeService = HyDEService()
@@ -4085,39 +4267,57 @@ class RAGService: ObservableObject {
                 }
 
                 // Step 4: Re-rank results with multiple signals
-                Log.section("Step 4: Multi-Signal Re-ranking", level: .info, category: .pipeline)
-
-                // Pipeline Trace: Step 4
-                Log.pipelineStep("4", title: "Multi-Signal Reranking", details: [
-                    ("candidates", "\(chunksWithSources.count)")
-                ])
-
+                // QUALITY MODE: Check if re-ranking is enabled
                 let engine = RAGEngine.shared
                 let rerankStartTime = Date()
-                var rerankedChunks = await engine.rerank(
-                    chunks: chunksWithSources,
-                    query: question,
-                    topK: effectiveTopK * 3 // Get more candidates for MMR diversification (clamped)
-                )
-                auditRerankedCount = rerankedChunks.count
-                var rerankTime = Date().timeIntervalSince(rerankStartTime)
-                Log.info(
-                    "✓ Re-ranked to top \(rerankedChunks.count) in \(String(format: "%.0f", rerankTime * 1000))ms",
-                    category: .retrieval
-                )
-                TelemetryCenter.emit(
-                    .retrieval,
-                    title: "Re-ranking complete",
-                    metadata: [
-                        "candidates": "\(rerankedChunks.count)",
-                    ],
-                    duration: rerankTime
-                )
-                emitThinkingEvent(
-                    .rerank,
-                    title: "Cross-encoder rerank",
-                    detail: "\(rerankedChunks.count) candidates scored"
-                )
+                var rerankedChunks: [RetrievedChunk]
+                var rerankTime: TimeInterval = 0
+
+                if qualityModeUsesReRanking {
+                    Log.section("Step 4: Multi-Signal Re-ranking", level: .info, category: .pipeline)
+
+                    // Pipeline Trace: Step 4
+                    Log.pipelineStep("4", title: "Multi-Signal Reranking", details: [
+                        ("candidates", "\(chunksWithSources.count)")
+                    ])
+
+                    rerankedChunks = await engine.rerank(
+                        chunks: chunksWithSources,
+                        query: question,
+                        topK: effectiveTopK * 3 // Get more candidates for MMR diversification (clamped)
+                    )
+                    auditRerankedCount = rerankedChunks.count
+                    rerankTime = Date().timeIntervalSince(rerankStartTime)
+                    Log.info(
+                        "✓ Re-ranked to top \(rerankedChunks.count) in \(String(format: "%.0f", rerankTime * 1000))ms",
+                        category: .retrieval
+                    )
+                    TelemetryCenter.emit(
+                        .retrieval,
+                        title: "Re-ranking complete",
+                        metadata: [
+                            "candidates": "\(rerankedChunks.count)",
+                        ],
+                        duration: rerankTime
+                    )
+                    emitThinkingEvent(
+                        .rerank,
+                        title: "Cross-encoder rerank",
+                        detail: "\(rerankedChunks.count) candidates scored"
+                    )
+                } else {
+                    Log.info("[RAG] Re-ranking skipped (quality mode: \(qualityModeDisplayName))", category: .pipeline)
+                    // Use chunks as-is, sorted by existing scores
+                    rerankedChunks = chunksWithSources.sorted { $0.similarityScore > $1.similarityScore }
+                    rerankedChunks = Array(rerankedChunks.prefix(effectiveTopK * 3))
+                    auditRerankedCount = rerankedChunks.count
+                    rerankTime = Date().timeIntervalSince(rerankStartTime)
+                    emitThinkingEvent(
+                        .rerank,
+                        title: "Re-ranking skipped",
+                        detail: "Quality mode: \(qualityModeDisplayName)"
+                    )
+                }
 
                 let cascadeTopSim = rerankedChunks.first?.similarityScore ?? 0
                 let cascadeAvgTop5: Float = {
@@ -4475,59 +4675,78 @@ class RAGService: ObservableObject {
                 // Step 4.5: Apply MMR for diversity using container's retrieval config
                 Log.section("Step 4.5: MMR Diversification", level: .info, category: .pipeline)
                 let mmrStartTime = Date()
+                var mmrTime: TimeInterval = 0 // Defined at outer scope for final logging
 
-                // Pipeline Trace: Step 4.5
-                Log.pipelineStep("4.5", title: "MMR Diversification", details: [
-                    ("candidates", "\(filteredChunks.count)"),
-                    ("targetK", "\(effectiveTopK)")
-                ])
+                var diverseChunks: [RetrievedChunk] = []
+                var mmrLambda: Float = qualityModeMMRLambda // Default to quality mode value
 
-                // Procedural query override: favor relevance over diversity for step-by-step content
-                // Consecutive chunks from same document are valuable context, not redundant
-                // Note: isProceduralQuery already defined in Step 4.3
-                let mmrLambda = isProceduralQuery ? max(retrievalConfig.mmrLambda, 0.85) : retrievalConfig.mmrLambda
-                if isProceduralQuery {
-                    Log.info("[RAG] Procedural query - boosting MMR lambda to \(mmrLambda) (favor sequential chunks)", category: .retrieval)
+                // Check if MMR is enabled for this quality mode
+                if !qualityModeUsesMMR {
+                    Log.info("[RAG] MMR diversification skipped (quality mode: \(qualityModeDisplayName))", category: .pipeline)
+                    diverseChunks = Array(filteredChunks.prefix(effectiveTopK))
+                    auditMMRSelectedCount = diverseChunks.count
+                    mmrTime = Date().timeIntervalSince(mmrStartTime)
+                    TelemetryCenter.emit(
+                        .retrieval,
+                        title: "MMR skipped",
+                        metadata: ["reason": "quality_mode", "passed": "\(diverseChunks.count)"],
+                        duration: mmrTime
+                    )
+                } else {
+                    // Pipeline Trace: Step 4.5
+                    Log.pipelineStep("4.5", title: "MMR Diversification", details: [
+                        ("candidates", "\(filteredChunks.count)"),
+                        ("targetK", "\(effectiveTopK)")
+                    ])
+
+                    // Procedural query override: favor relevance over diversity for step-by-step content
+                    // Consecutive chunks from same document are valuable context, not redundant
+                    // Note: isProceduralQuery already defined in Step 4.3
+                    // Use quality mode lambda as base, override for procedural queries
+                    mmrLambda = isProceduralQuery ? max(qualityModeMMRLambda, 0.85) : qualityModeMMRLambda
+                    if isProceduralQuery {
+                        Log.info("[RAG] Procedural query - boosting MMR lambda to \(mmrLambda) (favor sequential chunks)", category: .retrieval)
+                    }
+
+                    diverseChunks = await engine.applyMMR(
+                        candidates: filteredChunks,
+                        queryEmbedding: queryEmbedding,
+                        topK: effectiveTopK, // Clamped for short queries
+                        lambda: mmrLambda
+                    )
+                    auditMMRSelectedCount = diverseChunks.count
+                    mmrTime = Date().timeIntervalSince(mmrStartTime)
+                    Log.info(
+                        "✓ Selected \(diverseChunks.count) diverse chunks in \(String(format: "%.0f", mmrTime * 1000))ms",
+                        category: .retrieval
+                    )
+                    Log.debug("  λ=\(String(format: "%.2f", mmrLambda)) (\(Int(mmrLambda * 100))% relevance, \(Int((1 - mmrLambda) * 100))% diversity)", category: .retrieval)
+                    let contextWordCounts = diverseChunks.map { wordCount(of: $0.chunk.content) }
+                    let totalContextWords = contextWordCounts.reduce(0, +)
+                    let maxContextWords = contextWordCounts.max() ?? 0
+                    let averageContextWords =
+                        contextWordCounts.isEmpty
+                            ? 0.0
+                            : Double(totalContextWords) / Double(contextWordCounts.count)
+                    TelemetryCenter.emit(
+                        .retrieval,
+                        title: "MMR diversification",
+                        metadata: [
+                            "selected": "\(diverseChunks.count)",
+                            "lambda": String(format: "%.2f", mmrLambda),
+                            "totalWords": "\(totalContextWords)",
+                            "avgWords": String(format: "%.1f", averageContextWords),
+                            "maxWords": "\(maxContextWords)",
+                        ],
+                        duration: mmrTime
+                    )
+
+                    emitThinkingEvent(
+                        .mmr,
+                        title: "MMR diversity",
+                        detail: "λ=\(String(format: "%.1f", mmrLambda)) • \(diverseChunks.count) selected"
+                    )
                 }
-
-                let diverseChunks = await engine.applyMMR(
-                    candidates: filteredChunks,
-                    queryEmbedding: queryEmbedding,
-                    topK: effectiveTopK, // Clamped for short queries
-                    lambda: mmrLambda
-                )
-                auditMMRSelectedCount = diverseChunks.count
-                let mmrTime = Date().timeIntervalSince(mmrStartTime)
-                Log.info(
-                    "✓ Selected \(diverseChunks.count) diverse chunks in \(String(format: "%.0f", mmrTime * 1000))ms",
-                    category: .retrieval
-                )
-                Log.debug("  λ=\(String(format: "%.2f", mmrLambda)) (\(Int(mmrLambda * 100))% relevance, \(Int((1 - mmrLambda) * 100))% diversity)", category: .retrieval)
-                let contextWordCounts = diverseChunks.map { wordCount(of: $0.chunk.content) }
-                let totalContextWords = contextWordCounts.reduce(0, +)
-                let maxContextWords = contextWordCounts.max() ?? 0
-                let averageContextWords =
-                    contextWordCounts.isEmpty
-                        ? 0.0
-                        : Double(totalContextWords) / Double(contextWordCounts.count)
-                TelemetryCenter.emit(
-                    .retrieval,
-                    title: "MMR diversification",
-                    metadata: [
-                        "selected": "\(diverseChunks.count)",
-                        "lambda": String(format: "%.2f", mmrLambda),
-                        "totalWords": "\(totalContextWords)",
-                        "avgWords": String(format: "%.1f", averageContextWords),
-                        "maxWords": "\(maxContextWords)",
-                    ],
-                    duration: mmrTime
-                )
-
-                emitThinkingEvent(
-                    .mmr,
-                    title: "MMR diversity",
-                    detail: "λ=\(String(format: "%.1f", mmrLambda)) • \(diverseChunks.count) selected"
-                )
 
                 if diverseChunks.isEmpty {
                     Log.warning(
@@ -4669,9 +4888,9 @@ class RAGService: ObservableObject {
 
                 // Step 4.6: Parent Document Retrieval (optional)
                 // Expand matched chunks to include sibling context from same section/page
-                // Respect both user settings AND adaptive pipeline (thermal/battery aware)
-                let useParentDocSetting = settingsStore?.enableParentDocumentRetrieval ?? true
-                let useParentDocRetrieval = useParentDocSetting && adaptiveConfig.enableParentDocumentRetrieval
+                // Respect quality mode toggle, user settings, AND adaptive pipeline (thermal/battery aware)
+                let parentDocEnabledBySettings = settingsStore?.enableParentDocumentRetrieval ?? true
+                let useParentDocRetrieval = qualityModeUsesParentDocRetrieval && parentDocEnabledBySettings && adaptiveConfig.enableParentDocumentRetrieval
 
                 if useParentDocRetrieval, contextCandidates.count > 0, let allChunks = cachedAllChunks {
                     // Select parent config based on query type and quality mode
@@ -4679,14 +4898,21 @@ class RAGService: ObservableObject {
                     let proceduralTerms = ["how to", "steps", "procedure", "process", "reprocess", "instructions", "guide", "workflow"]
                     let isProceduralQuery = proceduralTerms.contains { question.lowercased().contains($0) }
 
-                    let parentConfig: ParentDocumentService.Config
+                    // Create custom config with quality mode sibling limit
+                    var parentConfig: ParentDocumentService.Config
                     if isProceduralQuery {
                         parentConfig = .procedural // 8 siblings, 6000 tokens, very permissive
                         Log.info("[RAG] Procedural query - using maximum parent expansion (8 siblings)", category: .retrieval)
                     } else if useAgentic {
                         parentConfig = .thorough
                     } else {
-                        parentConfig = .default
+                        // Use quality mode sibling limit
+                        parentConfig = ParentDocumentService.Config(
+                            maxSiblingsPerSide: qualityModeMaxSiblingChunks,
+                            maxExpandedTokens: 2000,
+                            allowCrossPageExpansion: false,
+                            minRelevanceForExpansion: 0.15
+                        )
                     }
                     let parentService = ParentDocumentService(config: parentConfig)
 
@@ -4726,18 +4952,18 @@ class RAGService: ObservableObject {
 
                 // Step 4.7: Contextual Compression (optional)
                 // Extract only query-relevant sentences from chunks to maximize signal and save tokens
-                // Respect both user settings AND adaptive pipeline (thermal/battery aware)
+                // Respect quality mode toggle, user settings, AND adaptive pipeline (thermal/battery aware)
                 // CRITICAL: Skip compression for procedural queries - compression destroys step ordering
                 // (e.g., 335→27 tokens = 8% retention loses critical procedural constraints)
                 // CRITICAL: Skip compression for vocabulary mismatch - compressor can't judge relevance
                 // when query terms don't match document vocabulary (conversational vs technical)
                 // CRITICAL: Skip compression for parent-expanded content - parent chunks are too large
                 // for compression model (exceed context window) AND compression defeats hierarchical purpose
-                let useCompressionSetting = settingsStore?.enableContextualCompression ?? true
+                let compressionEnabledBySettings = settingsStore?.enableContextualCompression ?? true
                 let skipCompressionForProcedural = isProceduralQuery // Preserve contiguous spans
                 let skipCompressionForVocabMismatch = vocabularyMismatch // Compressor will destroy content
                 let skipCompressionForParentExpansion = contextStrategy == "parent_expanded" // Chunks too large + defeats purpose
-                let useContextualCompression = useCompressionSetting && adaptiveConfig.enableContextualCompression && !skipCompressionForProcedural && !skipCompressionForVocabMismatch && !skipCompressionForParentExpansion
+                let useContextualCompression = qualityModeUsesContextualCompression && compressionEnabledBySettings && adaptiveConfig.enableContextualCompression && !skipCompressionForProcedural && !skipCompressionForVocabMismatch && !skipCompressionForParentExpansion
                 var compressionSavings = 0
 
                 if skipCompressionForProcedural {
@@ -4807,6 +5033,69 @@ class RAGService: ObservableObject {
                         // This is critical for procedural content that may trigger false positives
                         Log.warning("[Compression] Failed, using original chunks: \(error.localizedDescription)", category: .retrieval)
                         Log.info("[Compression] Preserving all \(contextCandidates.count) original chunks for procedural safety", category: .retrieval)
+                    }
+                }
+
+                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                // Step 4.9: Graph-Based Context Packing (AppleRAG §5)
+                // pack(R + parents(R) + neighbors(R,±1) + graphHops(R,1))
+                // Expands retrieved chunks with graph context for richer LLM input
+                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                if answerIntent.benefitsFromMultiHop, let allChunks = cachedAllChunks {
+                    let graphPackingStart = Date()
+
+                    // Build graph edges for document traversal
+                    let graphEdges = graphIndexService.buildDocumentGraph(chunks: allChunks)
+
+                    // Build lookup table
+                    var chunkLookup: [UUID: DocumentChunk] = [:]
+                    for chunk in allChunks {
+                        chunkLookup[chunk.id] = chunk
+                    }
+
+                    // Extract core chunks from candidates
+                    let coreChunks = contextCandidates.map { $0.chunk }
+
+                    // Calculate token budget based on model context (conservative for Apple FM)
+                    let graphTokenBudget = isAppleFMOnDevice ? 3000 : 6000
+
+                    // Pack with graph context
+                    let packedContext = await contextPackingService.pack(
+                        retrievedChunks: coreChunks,
+                        graphEdges: graphEdges,
+                        allChunks: chunkLookup,
+                        tokenBudget: graphTokenBudget,
+                        neighborDistance: answerIntent.benefitsFromMultiHop ? 1 : 0,
+                        graphHopDistance: answerIntent.benefitsFromMultiHop ? 1 : 0
+                    )
+
+                    let graphPackingTime = Date().timeIntervalSince(graphPackingStart)
+
+                    // Update candidates with packed chunks (convert back to RetrievedChunk)
+                    if packedContext.contextChunkCount > 0 {
+                        var packedCandidates: [RetrievedChunk] = []
+                        for (index, chunk) in packedContext.chunks.enumerated() {
+                            // Find original score if this was a core chunk, else assign lower score
+                            let originalScore = contextCandidates.first { $0.chunk.id == chunk.id }?.similarityScore ?? 0.3
+                            packedCandidates.append(RetrievedChunk(
+                                chunk: chunk,
+                                similarityScore: originalScore,
+                                rank: index,
+                                sourceDocument: contextCandidates.first { $0.chunk.id == chunk.id }?.sourceDocument ?? "",
+                                pageNumber: chunk.metadata.pageNumber
+                            ))
+                        }
+                        contextCandidates = packedCandidates
+
+                        Log.info(
+                            "[GraphPack] \(packedContext.coreChunkCount) core + \(packedContext.contextChunkCount) context chunks (\(packedContext.estimatedTokens) tokens) in \(String(format: "%.0f", graphPackingTime * 1000))ms\(packedContext.wasTruncated ? " [truncated]" : "")",
+                            category: .retrieval
+                        )
+                        emitThinkingEvent(
+                            .graphPack,
+                            title: "Graph context packed",
+                            detail: "+\(packedContext.contextChunkCount) neighbors/refs"
+                        )
                     }
                 }
 
@@ -5179,6 +5468,71 @@ class RAGService: ObservableObject {
                     )
                 }
 
+                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                // Step 5.9: Extractive Summarization (AppleRAG §6)
+                // For .summarize intent, use extractive selection to minimize hallucination
+                // This bypasses LLM generation entirely for pure summarization queries
+                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                if answerIntent == .summarize && answerIntent.isExtractiveFirst {
+                    Log.section("Step 5.9: Extractive Summarization", level: .info, category: .pipeline)
+                    let extractiveStart = Date()
+
+                    do {
+                        let summary = try await extractiveSummarizationService.summarize(
+                            query: effectiveQuery,
+                            chunks: includedRetrievedChunks,
+                            maxWords: 300
+                        )
+
+                        let extractiveTime = Date().timeIntervalSince(extractiveStart)
+
+                        Log.info(
+                            "[Extractive] \(summary.sentences.count) sentences, \(summary.wordCount) words, coverage: \(String(format: "%.0f", summary.coverageScore * 100))% in \(String(format: "%.0f", extractiveTime * 1000))ms",
+                            category: .retrieval
+                        )
+
+                        emitThinkingEvent(
+                            .extractive,
+                            title: "Extractive summary",
+                            detail: "\(summary.sentences.count) sentences • \(summary.wordCount) words"
+                        )
+
+                        // Build response directly from extractive summary
+                        let extractiveMetadata = ResponseMetadata(
+                            timeToFirstToken: nil,
+                            totalGenerationTime: extractiveTime,
+                            tokensGenerated: summary.wordCount,
+                            tokensPerSecond: nil,
+                            modelUsed: "extractive",
+                            retrievalTime: retrievalTime,
+                            retrievalConfigSummary: "extractive_summarization",
+                            gatingDecision: "extractive_intent",
+                            toolCallsMade: nil
+                        )
+
+                        let extractiveResponse = RAGResponse(
+                            queryId: ragQueryValue.id,
+                            retrievedChunks: includedRetrievedChunks,
+                            generatedResponse: summary.summaryText,
+                            metadata: extractiveMetadata,
+                            confidenceScore: summary.coverageScore,
+                            qualityWarnings: []
+                        )
+
+                        Log.info("✓ Extractive summary complete (\(summary.wordCount) words)", category: .pipeline)
+
+                        return await finalizeResponse(
+                            query: question,
+                            containerId: selectedId,
+                            containerName: selectedName,
+                            response: extractiveResponse
+                        )
+                    } catch {
+                        Log.warning("[Extractive] Summarization failed, falling back to LLM: \(error.localizedDescription)", category: .retrieval)
+                        // Fall through to LLM generation
+                    }
+                }
+
                 // Step 6: Generate response using LLM with augmented context
                 Log.section("Step 6: LLM Generation", level: .info, category: .pipeline)
 
@@ -5199,8 +5553,49 @@ class RAGService: ObservableObject {
 
                 // Set explicit system prompt for RAG to ensure comprehensive, ACCURATE answers
                 // Keep concise to maximize context budget (every 100 chars = ~70 tokens)
+
+                // Customize prompt based on answer intent (AppleRAG §3)
+                let intentSpecificInstructions: String
+                switch answerIntent {
+                case .lookup, .tableLookup:
+                    intentSpecificInstructions = """
+                    EXTRACTION MODE: The user wants a specific value, specification, or fact.
+                    - Extract the EXACT value (numbers, units, product names, specifications)
+                    - Example: If asked "what oil?" answer "5W-30 synthetic" NOT "engine oil"
+                    - Include the specific measurement, rating, or identifier from the source
+                    """
+                case .procedure:
+                    intentSpecificInstructions = """
+                    PROCEDURE MODE: The user wants step-by-step instructions.
+                    - List ALL steps in the EXACT order from the source
+                    - Include warnings, prerequisites, and tools needed
+                    - Number each step clearly
+                    """
+                case .compare:
+                    intentSpecificInstructions = """
+                    COMPARISON MODE: The user wants to compare options.
+                    - Create a clear comparison of the options found
+                    - Highlight differences and similarities
+                    - Use a structured format (bullets or table-style)
+                    """
+                case .summarize:
+                    intentSpecificInstructions = """
+                    SUMMARY MODE: Provide a comprehensive overview.
+                    - Cover all major points from the excerpts
+                    - Organize by theme or importance
+                    """
+                case .investigate, .compute:
+                    intentSpecificInstructions = """
+                    ANALYSIS MODE: The user needs deeper investigation.
+                    - Synthesize information across sources
+                    - Show your reasoning and connections
+                    """
+                }
+
                 genConfig.systemPrompt = """
                 You are an expert research analyst. Answer using the provided document excerpts labeled [S1], [S2], etc.
+
+                \(intentSpecificInstructions)
 
                 Rules:
                 1. Base answers on the excerpts provided
@@ -5802,8 +6197,142 @@ class RAGService: ObservableObject {
                         ]
                     )
 
+                    // Step 7.5: Verification Gates (AppleRAG Anti-Hallucination)
+                    // Run Gates A-D to validate response against source evidence
+                    // Respect quality mode toggle for verification
+                    let runVerificationGates = qualityModeUsesVerificationGates
+
+                    var verificationResult: RAGVerificationResult?
+                    var verificationTime: TimeInterval = 0
+
+                    if runVerificationGates {
+                        Log.section("Step 7.5: Verification Gates", level: .info, category: .pipeline)
+
+                        let verificationStartTime = Date()
+                        let topScores = generationRetrievedChunks.map { $0.similarityScore }
+
+                        verificationResult = await verificationGateService.verify(
+                            response: responseText,
+                            query: question,
+                            retrievedChunks: generationRetrievedChunks,
+                            topScores: topScores
+                        )
+                        verificationTime = Date().timeIntervalSince(verificationStartTime)
+
+                        Log.pipelineStep("7.5", title: "Verification Gates", details: [
+                            ("passed", verificationResult!.passed ? "✓" : "✗"),
+                            ("confidence", String(format: "%.2f", verificationResult!.overallConfidence)),
+                            ("gates", verificationResult!.gateResults.map { "\($0.gate.rawValue):\($0.passed ? "✓" : "✗")" }.joined(separator: " "))
+                        ])
+
+                        // Emit verification thinking event
+                        emitThinkingEvent(
+                            .verification,
+                            title: verificationResult!.passed ? "Gates passed ✓" : "Gates failed ✗",
+                            detail: "Confidence: \(String(format: "%.0f", verificationResult!.overallConfidence * 100))%"
+                        )
+
+                        if !verificationResult!.passed {
+                            Log.warning("⚠️ Verification gates failed - response may contain unsupported claims", category: .pipeline)
+                            for gateResult in verificationResult!.gateResults where !gateResult.passed {
+                                Log.warning("   • Gate \(gateResult.gate.rawValue): \(gateResult.details)", category: .pipeline)
+                            }
+
+                            // Intent-aware threshold adjustment:
+                            // For extractive/lookup intents, answers are directly from source - lower threshold acceptable
+                            // For synthesized answers (summarize, investigate), require higher confidence
+                            let effectiveThreshold: Float
+                            if answerIntent.isExtractiveFirst {
+                                // Extractive intents: halve the threshold (e.g., 50% → 25%)
+                                // Direct lookups from source don't need same rigor as synthesized answers
+                                effectiveThreshold = qualityModeVerificationThreshold * 0.5
+                                Log.debug("[Verification] Extractive intent '\(answerIntent.rawValue)' - using relaxed threshold \(String(format: "%.0f", effectiveThreshold * 100))%", category: .pipeline)
+                            } else {
+                                effectiveThreshold = qualityModeVerificationThreshold
+                            }
+
+                            // Check if confidence is below quality mode threshold (Maximum mode requires 98%)
+                            let belowConfidenceThreshold = verificationResult!.overallConfidence < effectiveThreshold
+
+                            // If grounded-only mode and verification fails, abstain
+                            if !allowUngroundedFallback || belowConfidenceThreshold {
+                                let thresholdDisplay = answerIntent.isExtractiveFirst
+                                    ? "\(qualityModeDisplayName) threshold \(String(format: "%.0f", effectiveThreshold * 100))% (relaxed for extractive)"
+                                    : "\(qualityModeDisplayName) threshold \(String(format: "%.0f", effectiveThreshold * 100))%"
+                                let reason = belowConfidenceThreshold
+                                    ? "confidence \(String(format: "%.0f", verificationResult!.overallConfidence * 100))% below \(thresholdDisplay)"
+                                    : "grounded-only mode"
+                                Log.info("🛑 Abstaining: \(reason)", category: .pipeline)
+                                let abstainResponse = verificationGateService.generateAbstentionResponse(
+                                    query: question,
+                                    verificationResult: verificationResult!,
+                                    retrievedChunks: generationRetrievedChunks
+                                )
+                                let response = await makeGroundedAbstainResponse(
+                                    question: question,
+                                    ragQuery: ragQueryValue,
+                                    retrievedChunks: generationRetrievedChunks,
+                                    retrievalTime: retrievalTime,
+                                    retrievalConfig: retrievalConfig,
+                                    embeddingProviderId: embeddingProviderId,
+                                    reason: abstainResponse,
+                                    gatingDecision: "verification_gates_failed:\(verificationResult!.gateResults.filter { !$0.passed }.map { $0.gate.rawValue }.joined(separator: ","))"
+                                )
+                                return await finalizeResponse(
+                                    query: question,
+                                    containerId: selectedId,
+                                    containerName: selectedName,
+                                    response: response
+                                )
+                            }
+                        } else {
+                            Log.info("✓ All verification gates passed (confidence: \(String(format: "%.0f", verificationResult!.overallConfidence * 100))%)", category: .pipeline)
+                        }
+                    } else {
+                        Log.info("[RAG] Verification gates skipped (quality mode: \(qualityModeDisplayName))", category: .pipeline)
+                        emitThinkingEvent(
+                            .verification,
+                            title: "Verification skipped",
+                            detail: "\(qualityModeDisplayName) mode"
+                        )
+                    }
+
+                    // Emit telemetry for verification (only if gates were run)
+                    if let vResult = verificationResult {
+                        TelemetryCenter.emit(
+                            .system,
+                            title: "Verification complete",
+                            metadata: [
+                                "passed": vResult.passed ? "true" : "false",
+                                "confidence": String(format: "%.2f", vResult.overallConfidence),
+                                "failedGates": vResult.gateResults.filter { !$0.passed }.map { $0.gate.rawValue }.joined(separator: ",")
+                            ],
+                            duration: verificationTime
+                        )
+                    }
+
                     // Step 8: Package results
                     let pipelineTotalTime = Date().timeIntervalSince(pipelineStartTime)
+
+                    // Step 8.1: Calibrated Confidence (AppleRAG §7)
+                    // P(correct) = σ(α*s_max + β*m + γ*log(1+n_evidence) - δ)
+                    let isTouchyQuery = question.lowercased().contains(["safety", "warning", "danger", "pressure", "temperature", "voltage", "maximum", "minimum", "limit"].first(where: { question.lowercased().contains($0) }) ?? "___never___")
+                    let calibratedConfidence = confidenceCalibrationService.calibrate(
+                        chunks: generationRetrievedChunks,
+                        verification: verificationResult,
+                        isTouchyQuery: isTouchyQuery
+                    )
+                    Log.info(
+                        "📊 Calibrated confidence: \(String(format: "%.1f", calibratedConfidence.probability * 100))% (\(calibratedConfidence.level.rawValue))",
+                        category: .pipeline
+                    )
+
+                    // Emit calibrated confidence thinking event
+                    emitThinkingEvent(
+                        .confidence,
+                        title: "Confidence: \(calibratedConfidence.level.rawValue)",
+                        detail: "\(String(format: "%.0f", calibratedConfidence.probability * 100))% P(correct)"
+                    )
 
                     // Pipeline Trace: Completion summary
                     Log.pipelineComplete(
@@ -5825,6 +6354,7 @@ class RAGService: ObservableObject {
                             "  - Re-ranking: \(String(format: "%.0f", rerankTime * 1000))ms",
                             "  - MMR Diversification: \(String(format: "%.0f", mmrTime * 1000))ms",
                             "  - Quality Assessment: <1ms",
+                            "  - Verification Gates: \(String(format: "%.0f", verificationTime * 1000))ms",
                             "  - Generation: \(String(format: "%.2f", generationTime))s",
                         ]
                     )
@@ -5841,9 +6371,25 @@ class RAGService: ObservableObject {
                     )
 
                     // Step 9: Create response metadata
-                    let gatingSummary: String? =
+                    var gatingSummary: String? =
                         acceptanceOverride
                             ? "acceptance_override" : lenient ? "lenient" : nil
+
+                    // Append verification result to gating summary (only if gates were run)
+                    if let vResult = verificationResult {
+                        if vResult.passed {
+                            let verifySummary = "verified:\(String(format: "%.0f", vResult.overallConfidence * 100))%"
+                            gatingSummary = gatingSummary.map { "\($0),\(verifySummary)" } ?? verifySummary
+                        } else {
+                            let failedGates = vResult.gateResults.filter { !$0.passed }.map { $0.gate.rawValue }.joined(separator: "+")
+                            let verifySummary = "unverified:\(failedGates)"
+                            gatingSummary = gatingSummary.map { "\($0),\(verifySummary)" } ?? verifySummary
+                        }
+                    } else {
+                        // Verification gates were skipped
+                        gatingSummary = gatingSummary.map { "\($0),verification_skipped" } ?? "verification_skipped"
+                    }
+
                     let metadata = ResponseMetadata(
                         timeToFirstToken: llmResponse.timeToFirstToken,
                         totalGenerationTime: llmResponse.totalTime,
@@ -5860,13 +6406,37 @@ class RAGService: ObservableObject {
                         reasoningTrace: reasoningTraceForMetadata // Chained session insights
                     )
 
+                    // Include verification warnings in quality warnings (only if gates were run)
+                    var finalWarnings = qualityWarnings
+                    if let vResult = verificationResult, !vResult.passed {
+                        for gateResult in vResult.gateResults where !gateResult.passed {
+                            finalWarnings.append("Verification \(gateResult.gate.rawValue): \(gateResult.details)")
+                        }
+                    }
+
+                    // Generate structured answer for rich UI rendering (AppleRAG §6)
+                    let structuredAnswer = StructuredAnswer.from(
+                        response: responseText,
+                        retrievedChunks: generationRetrievedChunks,
+                        answerIntent: answerIntent,
+                        verificationResult: verificationResult,
+                        loops: reasoningTraceForMetadata?.count ?? 1
+                    )
+
+                    // Log structured answer summary
+                    Log.debug(
+                        "[StructuredAnswer] type=\(structuredAnswer.answerType.rawValue), claims=\(structuredAnswer.claims.count), evidence=\(structuredAnswer.evidence.count), gaps=\(structuredAnswer.missing.count)",
+                        category: .pipeline
+                    )
+
                     let response = RAGResponse(
                         queryId: ragQueryValue.id,
                         retrievedChunks: generationRetrievedChunks,
                         generatedResponse: responseText,
                         metadata: metadata,
                         confidenceScore: confidenceScore,
-                        qualityWarnings: qualityWarnings
+                        qualityWarnings: finalWarnings,
+                        structuredAnswer: structuredAnswer
                     )
 
                     let totalTime = Date().timeIntervalSince(pipelineStartTime)

@@ -31,6 +31,7 @@ struct RAGResponse: Sendable {
     let metadata: ResponseMetadata
     let confidenceScore: Float // 0.0-1.0 aggregate confidence
     let qualityWarnings: [String] // Warnings about result quality
+    let structuredAnswer: StructuredAnswer? // AppleRAG §6 structured output
 
     init(id: UUID = UUID(),
          queryId: UUID,
@@ -38,7 +39,8 @@ struct RAGResponse: Sendable {
          generatedResponse: String,
          metadata: ResponseMetadata,
          confidenceScore: Float = 1.0,
-         qualityWarnings: [String] = [])
+         qualityWarnings: [String] = [],
+         structuredAnswer: StructuredAnswer? = nil)
     {
         self.id = id
         self.queryId = queryId
@@ -47,6 +49,7 @@ struct RAGResponse: Sendable {
         self.metadata = metadata
         self.confidenceScore = confidenceScore
         self.qualityWarnings = qualityWarnings
+        self.structuredAnswer = structuredAnswer
     }
 }
 
