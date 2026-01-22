@@ -34,7 +34,7 @@ struct RAGVerificationResult: Sendable {
     }
 
     /// Which gates failed (for logging/debugging)
-    var failedGates: [VerificationGate] {
+    nonisolated var failedGates: [VerificationGate] {
         gateResults.filter { !$0.passed }.map { $0.gate }
     }
 }

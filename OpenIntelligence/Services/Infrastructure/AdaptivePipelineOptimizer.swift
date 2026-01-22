@@ -123,7 +123,7 @@ struct AdaptivePipelineConfig: Sendable {
                 enableContextualCompression: false,
                 enableIterativeRetrieval: false,
                 enableQueryRewriting: true,
-                maxRetrievalCandidates: 10,
+                maxRetrievalCandidates: 40, // Minimum viable for large docs
                 maxContextTokens: 2000,
                 rerankBatchSize: 5,
                 maxAgenticSteps: 0,
@@ -140,7 +140,7 @@ struct AdaptivePipelineConfig: Sendable {
                 enableContextualCompression: true,
                 enableIterativeRetrieval: false, // Too expensive for baseline
                 enableQueryRewriting: true,
-                maxRetrievalCandidates: 20,
+                maxRetrievalCandidates: 75, // Increased from 20 for large doc support
                 maxContextTokens: 3000,
                 rerankBatchSize: 10,
                 maxAgenticSteps: 4,
@@ -157,7 +157,7 @@ struct AdaptivePipelineConfig: Sendable {
                 enableContextualCompression: true,
                 enableIterativeRetrieval: true,
                 enableQueryRewriting: true,
-                maxRetrievalCandidates: 30,
+                maxRetrievalCandidates: 100, // Increased from 30 for large document support
                 maxContextTokens: 3500,
                 rerankBatchSize: 15,
                 maxAgenticSteps: 6,
@@ -174,7 +174,7 @@ struct AdaptivePipelineConfig: Sendable {
                 enableContextualCompression: true,
                 enableIterativeRetrieval: true,
                 enableQueryRewriting: true,
-                maxRetrievalCandidates: 40,
+                maxRetrievalCandidates: 150, // Increased from 40 for large document support
                 maxContextTokens: 3800,
                 rerankBatchSize: 20,
                 maxAgenticSteps: 8,
@@ -191,7 +191,7 @@ struct AdaptivePipelineConfig: Sendable {
                 enableContextualCompression: true,
                 enableIterativeRetrieval: true,
                 enableQueryRewriting: true,
-                maxRetrievalCandidates: 50,
+                maxRetrievalCandidates: 250, // Increased from 50 for large document support (10K+ chunks)
                 maxContextTokens: 4000,
                 rerankBatchSize: 25,
                 maxAgenticSteps: 10,

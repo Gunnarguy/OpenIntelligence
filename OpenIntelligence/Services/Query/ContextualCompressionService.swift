@@ -30,19 +30,44 @@ final class ContextualCompressionService: @unchecked Sendable {
         /// Maximum input tokens before chunked processing
         let maxInputTokens: Int
 
+        /// Whether to include contextually related content (not just directly answering)
+        let includeRelatedContext: Bool
+
         nonisolated static var `default`: Config {
             Config(
-                targetCompressionRatio: 0.4, // Aggressive compression
-                minSentences: 1,
-                maxInputTokens: 1500
+                targetCompressionRatio: 0.6, // More conservative - keep 60%
+                minSentences: 2,
+                maxInputTokens: 1500,
+                includeRelatedContext: true
             )
         }
 
         nonisolated static var conservative: Config {
             Config(
-                targetCompressionRatio: 0.6, // Keep more context
-                minSentences: 2,
-                maxInputTokens: 2000
+                targetCompressionRatio: 0.7, // Keep most context
+                minSentences: 3,
+                maxInputTokens: 2000,
+                includeRelatedContext: true
+            )
+        }
+
+        /// For "exactly" or detail-oriented queries - keep almost everything relevant
+        nonisolated static var verbose: Config {
+            Config(
+                targetCompressionRatio: 0.85, // Keep 85% - minimal compression
+                minSentences: 4,
+                maxInputTokens: 2500,
+                includeRelatedContext: true
+            )
+        }
+
+        /// Aggressive compression for simple factual lookups
+        nonisolated static var aggressive: Config {
+            Config(
+                targetCompressionRatio: 0.4,
+                minSentences: 1,
+                maxInputTokens: 1500,
+                includeRelatedContext: false
             )
         }
     }
@@ -141,19 +166,42 @@ final class ContextualCompressionService: @unchecked Sendable {
         return results
     }
 
-    private func buildCompressionPrompt(chunk: String, query: String, config _: Config) -> String {
-        """
-        Extract ONLY the sentences from this text that are directly relevant to answering the question.
-        Remove all unrelated content. Keep exact wording - do not paraphrase.
-        If nothing is relevant, respond with "NO_RELEVANT_CONTENT".
+    private func buildCompressionPrompt(chunk: String, query: String, config: Config) -> String {
+        if config.includeRelatedContext {
+            // Verbose prompt: include related context for comprehensive answers
+            return """
+            Extract sentences from this text that help answer the question comprehensively.
+            Include:
+            - Sentences that directly answer the question
+            - Related context that provides important background
+            - Technical details, specifications, or procedures mentioned
+            - Connections to other relevant concepts
 
-        Question: \(query)
+            Keep exact wording - do not paraphrase. Preserve technical terms and values.
+            Only respond with "NO_RELEVANT_CONTENT" if the text is completely unrelated.
 
-        Text to compress:
-        \(chunk)
+            Question: \(query)
 
-        Relevant sentences only:
-        """
+            Text:
+            \(chunk)
+
+            Relevant content:
+            """
+        } else {
+            // Aggressive prompt: only directly answering sentences
+            return """
+            Extract ONLY the sentences that directly answer the question.
+            Remove all unrelated content. Keep exact wording - do not paraphrase.
+            If nothing is relevant, respond with "NO_RELEVANT_CONTENT".
+
+            Question: \(query)
+
+            Text to compress:
+            \(chunk)
+
+            Relevant sentences only:
+            """
+        }
     }
 
     private func estimateTokens(_ text: String) -> Int {
@@ -180,20 +228,33 @@ struct CompressionResult: Sendable {
     let compressionRatio: Double
 
     /// Returns true if compression removed content
-    var wasCompressed: Bool {
+    nonisolated var wasCompressed: Bool {
         compressionRatio < 0.95
     }
 
-    /// Returns the content to use (compressed if available, original if nothing relevant)
-    var effectiveContent: String {
+    /// Returns the content to use
+    /// If compression found nothing relevant, returns a truncated version of original
+    /// (the chunk passed retrieval so it likely has SOME value)
+    nonisolated var effectiveContent: String {
         if compressedContent.contains("NO_RELEVANT_CONTENT") || compressedContent.isEmpty {
-            return "" // Chunk was entirely irrelevant
+            // Don't drop entirely - keep first 200 chars as fallback
+            // The chunk passed hybrid search + reranking so it has some relevance
+            let fallback = String(originalContent.prefix(400))
+            if fallback.count < originalContent.count {
+                return fallback + "..."
+            }
+            return originalContent
         }
         return compressedContent
     }
 
+    /// Returns true if compression marked this chunk as irrelevant
+    nonisolated var wasMarkedIrrelevant: Bool {
+        compressedContent.contains("NO_RELEVANT_CONTENT") || compressedContent.isEmpty
+    }
+
     /// Passthrough result when compression is skipped
-    static func passthrough(_ content: String) -> CompressionResult {
+    nonisolated static func passthrough(_ content: String) -> CompressionResult {
         let tokens = max(1, content.count / 4)
         return CompressionResult(
             originalContent: content,

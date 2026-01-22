@@ -238,11 +238,28 @@ enum SpecificationDetector: Sendable {
     }
 
     /// Check if text contains enough specifications to be considered a spec block
+    /// Uses CONSERVATIVE thresholds to avoid over-fragmenting prose content
     /// - Parameter text: Text to analyze
-    /// - Returns: True if text appears to be a specification block
+    /// - Returns: True if text appears to be a genuine specification block
     static func isSpecificationBlock(_ text: String) -> Bool {
         let specs = detectSpecifications(in: text)
-        // Need at least 2 specs to be considered a block
-        return specs.count >= 2
+
+        // Check for spec heading which provides context
+        let hasHeading = text.split(separator: "\n").prefix(3).contains { line in
+            isSpecificationHeading(String(line))
+        }
+
+        // Calculate spec density (specs per 100 words)
+        let wordCount = text.split(separator: " ").count
+        let specDensity = wordCount > 0 ? Double(specs.count) / Double(wordCount) * 100 : 0
+
+        // CONSERVATIVE THRESHOLDS:
+        // - With heading: 3+ specs
+        // - Without heading: 5+ specs AND 5%+ density
+        if hasHeading {
+            return specs.count >= 3
+        } else {
+            return specs.count >= 5 && specDensity >= 5.0
+        }
     }
 }

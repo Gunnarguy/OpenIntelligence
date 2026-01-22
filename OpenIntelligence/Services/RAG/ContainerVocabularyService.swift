@@ -19,7 +19,8 @@ import Foundation
 import NaturalLanguage
 
 /// Represents learned vocabulary for a container
-struct ContainerVocabulary: Codable, Sendable {
+/// Note: @unchecked Sendable because Codable synthesis conflicts with default MainActor isolation
+struct ContainerVocabulary: Codable, @unchecked Sendable {
     let containerId: UUID
     var lastUpdated: Date
 
@@ -348,7 +349,7 @@ actor ContainerVocabularyService {
 
         for file in files where file.pathExtension == "json" {
             if let data = try? Data(contentsOf: file),
-               let vocab = Self.decodeVocabulary(from: data) {
+               let vocab = decodeVocabulary(from: data) {
                 vocabularies[vocab.containerId] = vocab
             }
         }
@@ -360,21 +361,21 @@ actor ContainerVocabularyService {
         let fileURL = storageURL.appendingPathComponent("\(vocab.containerId.uuidString).json")
 
         do {
-            let data = try Self.encodeVocabulary(vocab)
+            let data = try encodeVocabulary(vocab)
             try data.write(to: fileURL, options: .atomic)
         } catch {
             Log.error("[ContainerVocabularyService] Failed to save vocabulary: \(error)", category: .initialization)
         }
     }
 
-    // MARK: - Nonisolated Codable Helpers
-    // These are nonisolated to avoid actor isolation issues with Codable in Swift 6
+    // MARK: - Codable Helpers
+    // Actor-isolated methods that use Codable on the actor's context
 
-    nonisolated private static func decodeVocabulary(from data: Data) -> ContainerVocabulary? {
+    private func decodeVocabulary(from data: Data) -> ContainerVocabulary? {
         try? JSONDecoder().decode(ContainerVocabulary.self, from: data)
     }
 
-    nonisolated private static func encodeVocabulary(_ vocab: ContainerVocabulary) throws -> Data {
+    private func encodeVocabulary(_ vocab: ContainerVocabulary) throws -> Data {
         try JSONEncoder().encode(vocab)
     }
 }
