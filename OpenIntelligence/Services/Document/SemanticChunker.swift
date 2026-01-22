@@ -212,6 +212,10 @@ class SemanticChunker {
             let totalChunks: Int
             let pageNumber: Int?
             let sectionTitle: String?
+            /// Hierarchical path of section headers leading to this chunk
+            /// Example: ["Chapter 5", "5.3 Fluids", "Engine Oil"]
+            /// Used for disambiguation: "What's the oil capacity in Chapter 5?" vs "...in Chapter 8?"
+            let sectionPath: [String]
             let wordCount: Int
             let characterCount: Int
             let topKeywords: [String]
@@ -564,16 +568,34 @@ class SemanticChunker {
         return chunks
     }
 
-    /// Detect section headers and boundaries
-    private func detectSections(_ text: String) -> [(title: String, range: Range<String.Index>)] {
-        var sections: [(String, Range<String.Index>)] = []
+    /// Section with hierarchical level for building section paths
+    struct DetectedSection {
+        let title: String
+        let range: Range<String.Index>
+        let level: Int  // 1 = top-level, 2 = subsection, 3 = sub-subsection
+    }
 
-        // Common section patterns
-        let patterns = [
-            #"^[A-Z][A-Z\s]+:?\s*$"#,  // ALL CAPS HEADERS
-            #"^\d+\.\s+[A-Z].*$"#,      // 1. Numbered sections
-            #"^[IVX]+\.\s+[A-Z].*$"#,   // I. Roman numerals
-            #"^#{1,3}\s+.*$"#           // ## Markdown headers
+    /// Detect section headers and boundaries with hierarchical levels
+    private func detectSections(_ text: String) -> [DetectedSection] {
+        var sections: [DetectedSection] = []
+
+        // Patterns with associated hierarchy levels
+        // Level 1: Major sections (ALL CAPS, #, single digit like "1.")
+        // Level 2: Subsections (##, "1.1", "1.1.")
+        // Level 3: Sub-subsections (###, "1.1.1")
+        let leveledPatterns: [(pattern: String, level: Int)] = [
+            // Markdown headers - level determined by # count
+            (#"^#{3}\s+(.+)$"#, 3),      // ### Sub-subsection
+            (#"^#{2}\s+(.+)$"#, 2),      // ## Subsection
+            (#"^#{1}\s+(.+)$"#, 1),      // # Section
+            // Numbered sections - level determined by dot count
+            (#"^\d+\.\d+\.\d+\.?\s+(.+)$"#, 3),  // 1.1.1 Sub-subsection
+            (#"^\d+\.\d+\.?\s+(.+)$"#, 2),       // 1.1 Subsection
+            (#"^\d+\.?\s+([A-Z].+)$"#, 1),       // 1. Section or 1 Section
+            // Roman numerals (typically top-level)
+            (#"^[IVX]+\.\s+(.+)$"#, 1),
+            // ALL CAPS (typically top-level)
+            (#"^([A-Z][A-Z\s]{3,}):?\s*$"#, 1),
         ]
 
         let lines = text.components(separatedBy: .newlines)
@@ -581,11 +603,30 @@ class SemanticChunker {
 
         for line in lines {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
+            guard !trimmed.isEmpty else {
+                // Still advance past empty lines
+                if let lineRange = text.range(of: line + "\n", range: currentIndex..<text.endIndex) {
+                    currentIndex = lineRange.upperBound
+                }
+                continue
+            }
 
-            for pattern in patterns {
-                if let _ = trimmed.range(of: pattern, options: .regularExpression) {
+            for (pattern, level) in leveledPatterns {
+                if let regex = try? NSRegularExpression(pattern: pattern, options: [.anchorsMatchLines]),
+                   let _ = regex.firstMatch(in: trimmed, range: NSRange(trimmed.startIndex..., in: trimmed)) {
                     if let lineRange = text.range(of: line, range: currentIndex..<text.endIndex) {
-                        sections.append((trimmed, lineRange))
+                        // Clean up the title (remove # markers, normalize spacing)
+                        var cleanTitle = trimmed
+                        if cleanTitle.hasPrefix("#") {
+                            cleanTitle = cleanTitle.drop(while: { $0 == "#" || $0 == " " }).description
+                        }
+                        cleanTitle = cleanTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+
+                        sections.append(DetectedSection(
+                            title: cleanTitle,
+                            range: lineRange,
+                            level: level
+                        ))
                         break
                     }
                 }
@@ -598,6 +639,36 @@ class SemanticChunker {
         }
 
         return sections
+    }
+
+    /// Build hierarchical section path for a given position in text
+    /// Returns path like ["Chapter 5", "5.3 Fluids", "Engine Oil"] based on preceding headers
+    private func buildSectionPath(
+        at position: String.Index,
+        sections: [DetectedSection]
+    ) -> [String] {
+        // Find all sections that precede this position
+        let precedingSections = sections.filter { $0.range.lowerBound < position }
+        guard !precedingSections.isEmpty else { return [] }
+
+        // Build path by keeping track of current hierarchy
+        // When we encounter a section, it replaces everything at its level and below
+        var pathStack: [(level: Int, title: String)] = []
+
+        for section in precedingSections {
+            // Remove any sections at the same level or deeper
+            pathStack.removeAll { $0.level >= section.level }
+            // Add this section
+            pathStack.append((section.level, section.title))
+        }
+
+        // Return just the titles in order
+        return pathStack.map { $0.title }
+    }
+
+    /// Legacy wrapper for compatibility - returns flat section list
+    private func detectSectionsFlat(_ text: String) -> [(title: String, range: Range<String.Index>)] {
+        return detectSections(text).map { (title: $0.title, range: $0.range) }
     }
 
     /// Detect topic boundaries using linguistic cues
@@ -723,7 +794,7 @@ class SemanticChunker {
         from start: String.Index,
         config: ChunkingConfig,
         topicBoundaries: [String.Index],
-        sections: [(title: String, range: Range<String.Index>)]
+        sections: [DetectedSection]
     ) -> Range<String.Index> {
         // 1. Calculate permissible range based on word count
         // convert min/max/target words to approximate character offsets
@@ -894,7 +965,7 @@ class SemanticChunker {
         documentId: UUID,
         range: Range<String.Index>,
         in fullText: String,
-        sections: [(title: String, range: Range<String.Index>)],
+        sections: [DetectedSection],
         pageNumbers: [Int: Range<String.Index>]?
     ) -> EnhancedChunk.ChunkMetadata {
         let wordCount = tokenWordCount(chunkText)
@@ -902,8 +973,11 @@ class SemanticChunker {
         let startOffset = fullText.distance(from: fullText.startIndex, to: range.lowerBound)
         let endOffset = fullText.distance(from: fullText.startIndex, to: range.upperBound)
 
-        // Find section title
-        let sectionTitle = sections.first { $0.range.contains(range.lowerBound) }?.title
+        // Find section title (immediate parent section)
+        let sectionTitle = sections.first { $0.range.lowerBound <= range.lowerBound }?.title
+
+        // Build hierarchical section path
+        let sectionPath = buildSectionPath(at: range.lowerBound, sections: sections)
 
         // Find page number
         let pageNumber = pageNumbers?.first { $0.value.contains(range.lowerBound) }?.key
@@ -925,6 +999,7 @@ class SemanticChunker {
             totalChunks: 0,  // Will be updated
             pageNumber: pageNumber,
             sectionTitle: sectionTitle,
+            sectionPath: sectionPath,
             wordCount: wordCount,
             characterCount: chunkText.count,
             topKeywords: keywords,
@@ -1040,6 +1115,7 @@ class SemanticChunker {
 
     /// Extract top keywords using TF-IDF approximation
     /// Also extracts capitalized multi-word phrases (e.g., "Record Button", "Note Recording")
+    /// ENHANCED: Also extracts specification values (SAE 0W-20, API SN, etc.) via SpecificationDetector
     private func extractKeywords(_ text: String, topN: Int) -> [String] {
         // Prefer lemma-based counting to normalize inflections
         let tagger = NLTagger(tagSchemes: [.lemma, .lexicalClass, .language])
@@ -1079,6 +1155,15 @@ class SemanticChunker {
                     }
                 }
             }
+        }
+
+        // ENHANCED: Extract specification values (SAE 0W-20, API SN, etc.)
+        // These are critical for technical document retrieval (automotive, engineering, medical)
+        let specs = SpecificationDetector.detectSpecifications(in: text)
+        for spec in specs {
+            // Use uppercase for spec values (more recognizable)
+            let specKey = spec.value.uppercased()
+            counts[specKey, default: 0] += 3 // Boost specs even higher than phrases
         }
 
         // Return more keywords for richer corpus vocabulary (up to 2x requested)
@@ -1142,6 +1227,7 @@ class SemanticChunker {
             totalChunks: 1,
             pageNumber: nil,
             sectionTitle: nil,
+            sectionPath: [],  // No section hierarchy for single-chunk docs
             wordCount: wordCount,
             characterCount: text.count,
             topKeywords: keywords,

@@ -56,14 +56,16 @@ extension ThinkingEvent.Kind {
             return .searching
         case .rerank, .rrf, .mmr:
             return .analyzing
-        case .gating, .grounding, .selfRag, .factBank:
+        case .gating, .grounding, .selfRag, .factBank, .verification, .confidence:
             return .analyzing
-        case .context, .compression, .lostInMiddle:
+        case .context, .compression, .lostInMiddle, .graphPack:
             return .expanding
-        case .generation, .toolCall:
+        case .generation, .toolCall, .extractive:
             return .synthesizing
         case .fallback, .warning:
             return .refining
+        case .intentRoute:
+            return .planning
         }
     }
 }

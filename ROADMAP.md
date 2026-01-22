@@ -497,18 +497,17 @@ _Full Vision framework integration for layout-aware document processing_
       _API_: New iOS 18 Vision API for structured document detection
       _Output_: Document quadrilateral and saliency masks
 
-- [ ] **RecognizeDocumentsRequest**: Structured document understanding
-      _API_: New iOS 18 API for receipts, business cards, forms
-      _Benefit_: Extract structured data from known document types
+- [x] **RecognizeDocumentsRequest**: Structured document understanding
+      _API_: iOS 26+ Vision API for document element recognition
+      _Location_: [StructuredDocumentParser.swift](OpenIntelligence/Services/StructuredDocumentParser.swift)
+      _Status_: Implemented - Parses tables, paragraphs, lists, titles as typed elements
+      _Output_: StructuredElement enum with TableData, paragraph text, list items
 
 - [x] **Table Recognition**: Detect and extract table structures
-      _API_: VNRecognizedTextObservation bounding box clustering for row/column alignment
-      _Benefit_: Tables extracted as structured markdown format for better retrieval
-      _Location_: `detectTables()` in [DocumentProcessor.swift](OpenIntelligence/Services/DocumentProcessor.swift)
-      _Status_: Implemented - Grid alignment analysis, DetectedTable struct, markdown output
-      _API_: Vision's table recognition capabilities
-      _Output_: Structured table data (rows, columns, headers)
-      _Chunking_: Tables → structured text chunks with column headers preserved
+      _API_: Vision's RecognizeDocumentsRequest table recognition capabilities
+      _Location_: [StructuredDocumentParser.swift](OpenIntelligence/Services/StructuredDocumentParser.swift)
+      _Status_: Implemented - Tables extracted as atomic chunks with row/column structure
+      _Output_: Structured table data preserved through chunking pipeline
 
 #### Enhanced Metadata
 
@@ -528,6 +527,125 @@ _Full Vision framework integration for layout-aware document processing_
 
 - [ ] **ProcessingMetadata Extension**: Add visual processing stats
       _Fields_: `imagesProcessed`, `imagesWithDescriptions`, `tablesExtracted`, `layoutComplexity`
+
+### Phase 2.06 — Universal Document Intelligence (AppleRAG Spec)
+
+_Nuclear-option RAG architecture for domain-agnostic document understanding. Makes the system universally intelligent across any document type (technical manuals, legal contracts, medical records, research papers)._
+
+#### Canonical Document Model (CDM) Enrichment
+
+- [x] **structureType Field**: Track element type (table/paragraph/list/title) per chunk
+      _Location_: `ChunkMetadata.structureType` in [DocumentChunk.swift](OpenIntelligence/Models/DocumentChunk.swift)
+      _Status_: Implemented - populated by StructuredDocumentParser
+
+- [x] **Structure-Aware Chunking**: Tables and lists preserved as atomic chunks
+      _Location_: `createStructureAwareChunks()` in [DocumentProcessor.swift](OpenIntelligence/Services/DocumentProcessor.swift)
+      _Status_: Implemented - tables never split mid-content
+
+- [x] **Bounding Box Preservation**: Store `bboxArray: [CGFloat]` per chunk for spatial retrieval
+      _Location_: `ChunkMetadata.bboxArray` and `bbox` computed property in [DocumentChunk.swift](OpenIntelligence/Core/Models/DocumentChunk.swift)
+      _Status_: Implemented - field added, ready for population during structured parsing
+      _Benefit_: "Show me what's in the top-right of page 3" queries
+
+- [x] **Section Path Hierarchy**: Store `sectionPath: [String]` (e.g., ["Chapter 5", "5.3 Fluids", "Engine Oil"])
+      _Location_: `ChunkMetadata.sectionPath` in [DocumentChunk.swift](OpenIntelligence/Core/Models/DocumentChunk.swift)
+      _Detection_: `detectSections()` and `buildSectionPath()` in [SemanticChunker.swift](OpenIntelligence/Services/Document/SemanticChunker.swift)
+      _Status_: Implemented - hierarchical section detection with markdown headers, numbered sections, ALL CAPS
+      _Benefit_: Hierarchical disambiguation ("5.3.1 Viscosity" vs "8.2.1 Viscosity" in different chapters)
+
+- [ ] **Graph Edges**: Track cross-references ("See page 47", "Refer to Table 5-2")
+      _Schema_: Add `references: [(target_id, label)]` to ChunkMetadata
+      _Benefit_: Follow-the-trail retrieval for interconnected specs
+
+#### Index Layer Expansion
+
+- [x] **Dense Vector Index**: Semantic similarity search
+      _Status_: Implemented - VectorDatabase protocol + PersistentVectorDatabase/VecturaVectorDatabase
+
+- [x] **Lexical Index (BM25)**: Keyword/exact-match search
+      _Status_: Implemented - BM25Service with corpus vocabulary
+
+- [x] **Structure Index**: Query by element type
+      _Location_: `applyStructureTypeBoost()` in [HybridSearchService.swift](OpenIntelligence/Services/HybridSearchService.swift)
+      _Status_: Implemented - boosts table/list chunks for specification queries
+
+- [ ] **Graph Index**: Cross-reference traversal
+      _Implementation_: Build adjacency list from parsed references
+      _Queries_: "What does Section 5 reference?" → traverse edges
+
+#### Model Pipeline Enhancements
+
+- [x] **Bi-Encoder Embedder**: Fast first-stage retrieval
+      _Status_: Implemented - CoreMLSentenceEmbeddingProvider (384-dim)
+
+- [x] **Cross-Encoder Reranker**: Precise relevance scoring
+      _Status_: Implemented - ReRankerModel.mlpackage in RAGEngine
+
+- [x] **Extractive QA Span Model**: Direct answer extraction without LLM generation
+      _Location_: [ExtractiveQAService.swift](OpenIntelligence/Services/RAG/ExtractiveQAService.swift)
+      _Protocol_: `ExtractiveQAService` with `HeuristicExtractiveQAService` (NLTagger-based) and `PlaceholderExtractiveQAService`
+      _Status_: Stub + heuristic fallback implemented; CoreML model integration ready (awaiting TinyBERT conversion)
+      _Architecture_: TinyBERT (6-layer) + start/end position heads (planned)
+      _Output_: `ExtractionResult { answerSpan, confidence, sourcePassageIndex, spanRange }`
+      _Benefit_: 10x faster for factual lookups; 100% traceable to source text
+      _Fallback_: If confidence < 0.7, escalate to LLM generation
+
+- [ ] **Multi-Hop Reasoning Model**: Chain evidence across chunks
+      _Use Case_: "Compare oil specs in Chapter 5 vs recommended in Chapter 8"
+      _Implementation_: Iterative retrieval with entity linking
+
+#### Verification Gates (Anti-Hallucination)
+
+_Implemented: VerificationGateService.swift with 4-gate verification pipeline_
+
+- [x] **Gate A: Retrieval Confidence Threshold**
+      _Location_: `runGateA()` in [VerificationGateService.swift](OpenIntelligence/Services/RAG/VerificationGateService.swift)
+      _Rule_: If max(chunk*scores) < τ (0.55 normal, 0.65 touchy) OR margin < μ (0.05) → abstain
+      \_Benefit*: Prevents confident-sounding hallucinations when docs don't contain answer
+
+- [x] **Gate B: Evidence Coverage Check**
+      _Location_: `runGateB()` in [VerificationGateService.swift](OpenIntelligence/Services/RAG/VerificationGateService.swift)
+      _Method_: Extract claims from response, verify each has supporting evidence in corpus
+      _Rule_: If coverage < 70% → flag unsupported claims
+      _Benefit_: Catches answers with fabricated details not present in source
+
+- [x] **Gate C: Numeric Sanity Check**
+      _Location_: `runGateC()` in [VerificationGateService.swift](OpenIntelligence/Services/RAG/VerificationGateService.swift)
+      _Method_: Extract numbers from response, verify each appears in source chunks
+      _Rule_: All numbers must trace to corpus (with unit variation tolerance)
+      _Benefit_: Catches hallucinated specifications, measurements, quantities
+
+- [x] **Gate D: Contradiction Sweep**
+      _Location_: `runGateD()` in [VerificationGateService.swift](OpenIntelligence/Services/RAG/VerificationGateService.swift)
+      _Method_: Detect negation patterns ("not", "never", "isn't") and value conflicts between response and corpus
+      _Flag_: "Response mentions X, but document says Y"
+      _Benefit_: Catches hallucinated facts that contradict source
+
+- [x] **Pipeline Integration**: Verification gates wired into RAGService
+      _Location_: Step 7.5 in `queryInternal()` in [RAGService.swift](OpenIntelligence/Services/RAG/RAGService.swift)
+      _Status_: All 4 gates run after LLM generation, before response packaging
+      _Gating_: If grounded-only mode AND gates fail → abstain with explanation
+
+- [ ] **Gate E: LLM Self-Consistency Check** (Future Enhancement)
+      _Method_: Generate 3 responses at temperature 0.3, 0.5, 0.7
+      _Rule_: If entropy(responses) > threshold → flag as "uncertain" in UI
+      _Benefit_: Catches unstable generations
+
+#### Iterative Retrieval Loop
+
+- [x] **Basic Iterative Retrieval**: Refine search based on initial results
+      _Location_: [IterativeRetrievalService.swift](OpenIntelligence/Services/IterativeRetrievalService.swift)
+      _Status_: Implemented - adaptive iteration with quality thresholds
+
+- [ ] **Formalized max_loops Parameter**: Configurable iteration limit
+      _Default_: max*loops = 3
+      \_Implementation*: Add to RetrievalConfig
+
+- [ ] **Confidence Gating Per Loop**: Stop early if confidence >= 0.9
+      _Benefit_: Don't waste cycles when first pass is sufficient
+
+- [ ] **Cross-Chunk Entity Resolution**: Track entities across iterations
+      _Benefit_: "5W-30" in chunk A links to "engine oil viscosity" in chunk B
 
 ### Phase 2.1 — Model Ecosystem
 

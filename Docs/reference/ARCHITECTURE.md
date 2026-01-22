@@ -204,8 +204,37 @@ User Query Input
 | Image Classification | `ClassifyImageRequest` (iOS 18+) | ✅ Implemented | `ImageUnderstandingService` |
 | Caption Association | Spatial proximity analysis | ✅ Implemented | `findAssociatedCaption()` |
 | Image Description | Classification + caption fusion | ✅ Implemented | `generateImageDescription()` |
+| Structured Parsing | `RecognizeDocumentsRequest` (iOS 26+) | ✅ Implemented | `StructuredDocumentParser` |
+| Structure-Aware Chunking | Table/list preservation | ✅ Implemented | `createStructureAwareChunks()` |
 | Document Segmentation | `DetectDocumentSegmentationRequest` | ❌ Not yet | Planned |
-| Table Recognition | Vision table APIs | ❌ Not yet | Planned |
+
+**Structured Document Parsing** (iOS 26+ - Implemented):
+
+The `StructuredDocumentParser` actor uses Vision's `RecognizeDocumentsRequest` to extract document structure:
+
+```swift
+// StructuredElement enum captures typed document elements
+enum StructuredElement {
+    case table(TableData)      // Rows/columns with cell text
+    case paragraph(String)     // Prose text
+    case list([String])        // Bullet/numbered items
+    case title(String)         // Headers/section titles
+}
+
+// Structure-aware chunking preserves atomic elements
+func createStructureAwareChunks(from elements: [StructuredElement]) -> [DocumentChunk]
+// Tables become single chunks (never split mid-table)
+// Lists grouped by parent heading
+// Paragraphs chunked normally with semantic boundaries
+```
+
+**Structure Type Metadata**: Each chunk includes `structureType: String?` in ChunkMetadata:
+- `"table"` - Table data (boosted for specification queries)
+- `"list"` - List items (boosted for enumeration queries)
+- `"paragraph"` - Prose text
+- `"title"` - Section headers
+
+**Structure Boost in Retrieval**: `HybridSearchService.applyStructureTypeBoost()` increases scores for table/list chunks when query contains specification patterns (detected via `detectSpecificationQuery()` using domain-agnostic linguistic patterns).
 
 **Layout-Aware OCR** (Implemented):
 ```swift
@@ -247,7 +276,8 @@ PDF Page → extractImagesFromPDFPage() → ClassifyImageRequest → Image tags
 
 **Files**:
 
-- `OpenIntelligence/Services/DocumentProcessor.swift` - Layout-aware OCR, PDF image extraction
+- `OpenIntelligence/Services/DocumentProcessor.swift` - Layout-aware OCR, PDF image extraction, structure-aware chunking
+- `OpenIntelligence/Services/StructuredDocumentParser.swift` - iOS 26+ structured document parsing (tables, lists, paragraphs)
 - `OpenIntelligence/Services/ImageUnderstandingService.swift` - Image classification and description
 
 ### EmbeddingService
@@ -291,6 +321,7 @@ PDF Page → extractImagesFromPDFPage() → ClassifyImageRequest → Image tags
 - **Vector Search**: Cosine similarity on NLEmbedding vectors (semantic understanding)
 - **BM25 Keyword Search**: TF-IDF variant for exact term matching
 - **Reciprocal Rank Fusion (RRF)**: Combines ranked lists with `k=60` constant
+- **Structure Type Boost**: Elevates table/list chunks for specification queries
 - Configurable fusion weights via `RetrievalConfig`
 
 **Default Weights** (Jan 2026):
@@ -299,6 +330,18 @@ PDF Page → extractImagesFromPDFPage() → ClassifyImageRequest → Image tags
 | -------------- | ----- | ----------------------------------------------- |
 | Vector         | 0.4   | Semantic similarity                             |
 | Keyword (BM25) | 0.6   | Better for specific terms, codes, model numbers |
+
+**Structure-Aware Retrieval** (Implemented):
+
+```swift
+// Detect specification-seeking queries via domain-agnostic linguistic patterns
+func detectSpecificationQuery(_ query: String) -> Bool
+// Patterns: "what is", "how much", contains alphanumeric codes, measurements
+
+// Boost table/list chunks for spec queries
+func applyStructureTypeBoost(_ results: [SearchResult], query: String) -> [SearchResult]
+// Boost factors: table → 1.15x, list → 1.10x for spec queries
+```
 
 **File**: `OpenIntelligence/Services/HybridSearchService.swift`
 
@@ -1461,6 +1504,62 @@ if needsRetrieval {
 **Concept**: Use ML to learn optimal vector/BM25 blend per query type rather than static 40/60 split.
 
 See [ROADMAP.md](../../ROADMAP.md) Phase 2.5 for full "God Mode RAG" feature list.
+
+---
+
+### Universal Document Intelligence (AppleRAG Spec Alignment)
+
+The system is designed to be domain-agnostic—able to understand any document type (technical manuals, legal contracts, medical records, research papers) without hardcoded domain knowledge.
+
+**Current Implementation Status**:
+
+| Component                | Status        | Location                                    |
+| ------------------------ | ------------- | ------------------------------------------- |
+| Bi-Encoder Embedder      | ✅ Implemented | `CoreMLSentenceEmbeddingProvider` (384-dim) |
+| Cross-Encoder Reranker   | ✅ Implemented | `ReRankerModel.mlpackage` in RAGEngine      |
+| Dense Vector Index       | ✅ Implemented | `VectorDatabase` protocol implementations   |
+| Lexical Index (BM25)     | ✅ Implemented | `BM25Service` with corpus vocabulary        |
+| Structure Index          | ✅ Implemented | `structureType` field + structure boost     |
+| Structure-Aware Chunking | ✅ Implemented | Tables/lists preserved as atomic chunks     |
+| Extractive QA Span Model | ❌ Planned     | TinyBERT + start/end heads (Phase 2.06)     |
+| Graph Index              | ❌ Planned     | Cross-reference traversal (Phase 2.06)      |
+| Verification Gates       | ❌ Planned     | Anti-hallucination checks (Phase 2.06)      |
+| Bounding Box Metadata    | ❌ Planned     | `bbox: CGRect` per chunk (Phase 2.06)       |
+| Section Path Hierarchy   | ❌ Planned     | `section_path: [String]` (Phase 2.06)       |
+
+**Planned Extractive QA Pipeline**:
+
+The extractive QA model will provide instant, traceable answers for factual lookups:
+
+```text
+Query: "What is the recommended oil viscosity?"
+      │
+      ▼
+┌─────────────────┐
+│ Hybrid Search   │  ← Retrieve relevant chunks
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ Extractive QA   │  ← TinyBERT predicts start/end positions
+│ Span Model      │    Output: { span: "5W-30", confidence: 0.94 }
+└────────┬────────┘
+         │
+         ├─── confidence ≥ 0.7 ──→ Return span directly (fast path)
+         │
+         └─── confidence < 0.7 ──→ Escalate to LLM generation
+```
+
+**Planned Verification Gates**:
+
+| Gate   | Check                              | Action                                           |
+| ------ | ---------------------------------- | ------------------------------------------------ |
+| Gate A | `max(chunk_scores) < 0.3`          | Abstain: "No relevant information found"         |
+| Gate B | `extractive_confidence < 0.7`      | Escalate to LLM with retrieval context           |
+| Gate C | `entropy(3_responses) > threshold` | Flag as "uncertain" in UI                        |
+| Gate D | Response contradicts corpus        | Show: "Response mentions X, but document says Y" |
+
+See [ROADMAP.md](../../ROADMAP.md) Phase 2.06 for full implementation plan.
 
 ## Advanced RAG Intelligence (v2.0)
 

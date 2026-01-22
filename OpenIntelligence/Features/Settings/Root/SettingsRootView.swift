@@ -388,7 +388,7 @@ struct RetrievalSettingsView: View {
     var body: some View {
         List {
             Section("Retrieval Strategy") {
-                Text("Retrieval runs in balanced mode for coverage and reliability without blocking answers.")
+                Text("Full hybrid retrieval pipeline with vector search, keyword matching, and neural reranking.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -413,8 +413,45 @@ struct RetrievalSettingsView: View {
                     .foregroundStyle(.green)
             }
 
+            Section("Ingestion Features") {
+                featureItem(icon: "doc.badge.gearshape", title: "Contextual Embeddings", detail: "Document title + section context baked into vectors")
+                featureItem(icon: "tablecells", title: "Smart Table Extraction", detail: "iOS 26 Vision API preserves tables with captions")
+                featureItem(icon: "link", title: "Entity Index", detail: "Cross-document linking via global entity correlation")
+                featureItem(icon: "tree", title: "RAPTOR-lite Summaries", detail: "~150-word document summaries for overview queries")
+            }
+
+            Section("Search Features") {
+                featureItem(icon: "arrow.triangle.merge", title: "Hybrid Search + RRF", detail: "Vector + BM25 keyword search with Reciprocal Rank Fusion")
+                featureItem(icon: "arrow.up.arrow.down", title: "Cross-Encoder Reranking", detail: "TinyBERT neural reranker for precision")
+                featureItem(icon: "shuffle", title: "MMR Diversification", detail: "Maximal Marginal Relevance for result diversity")
+                featureItem(icon: "doc.on.doc", title: "Parent Document Retrieval", detail: "±5 chunk window expansion for full context")
+                featureItem(icon: "arrow.left.arrow.right", title: "Lost-in-Middle Mitigation", detail: "Best evidence at start AND end of context")
+            }
+
+            Section("Advanced (Deep Think / Maximum)") {
+                featureItem(icon: "signpost.right.and.left", title: "Intent Routing", detail: "lookup/procedure/compare/summarize classification")
+                featureItem(icon: "point.3.connected.trianglepath.dotted", title: "2-Hop Graph Expansion", detail: "Entity-based traversal across chunks")
+                featureItem(icon: "checkmark.seal.fill", title: "Verification Gates A-D", detail: "4-stage anti-hallucination checks")
+                featureItem(icon: "function", title: "Confidence Calibration", detail: "Platt-scaled scores for reliable uncertainty")
+            }
         }
         .navigationTitle("Retrieval")
+    }
+
+    @ViewBuilder
+    private func featureItem(icon: String, title: String, detail: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: icon)
+                .foregroundColor(.accentColor)
+                .frame(width: 20)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.subheadline.weight(.medium))
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
 }
 
