@@ -329,9 +329,24 @@ final class QueryEnhancementService {
 
         // Default: lookup (simple fact extraction)
         // Most "what", "which", "when", "where" questions are lookups
-        let lookupStarters = ["what", "which", "when", "where", "who", "how much", "how many"]
+        let lookupStarters = ["what", "which", "when", "where", "who", "how much", "how many", "wat"]  // Include common typo "wat"
         for starter in lookupStarters {
             if lower.hasPrefix(starter) { return .lookup }
+        }
+
+        // CRITICAL FIX: Detect specification lookup patterns that may not start with lookup words
+        // "type of oil", "kind of fluid", "grade of", etc. are clearly looking for specific values
+        let specLookupPatterns: [String] = [
+            "type of", "kind of", "grade of", "brand of", "model of",
+            "oil", "fluid", "coolant", "fuel", "gasoline", "diesel",
+            "capacity", "weight", "pressure", "viscosity",
+            "does this car take", "does this vehicle take", "should i use"
+        ]
+        for pattern in specLookupPatterns {
+            if lower.contains(pattern) {
+                Log.debug("[QueryEnhancement] Detected spec lookup pattern: '\(pattern)'", category: .retrieval)
+                return .lookup
+            }
         }
 
         // Fallback for short queries
@@ -706,6 +721,7 @@ extension CorpusVocabulary {
     /// 1. All keywords from chunk metadata
     /// 2. Co-occurrence relationships (which terms appear together)
     /// 3. Text snippets for phrase extraction
+    /// 4. Adjective+noun pairs from text (e.g., "blue outlet", "red button")
     static func build(from chunks: [DocumentChunk]) -> CorpusVocabulary {
         guard !chunks.isEmpty else { return .empty }
 
@@ -714,14 +730,23 @@ extension CorpusVocabulary {
         var textSnippets: [String] = []
 
         for chunk in chunks {
-            // Collect keywords
+            // Collect keywords from metadata
             let chunkKeywords = Set(chunk.metadata.keywords.map { $0.lowercased() })
             allKeywords.formUnion(chunkKeywords)
 
+            // Extract adjective+noun phrases from the actual text
+            // This catches patterns like "blue outlet", "remote access", "network control"
+            let textPhrases = extractAdjectiveNounPairs(from: chunk.content)
+            let phraseKeywords = Set(textPhrases.map { $0.lowercased() })
+            allKeywords.formUnion(phraseKeywords)
+
+            // Combine metadata keywords with extracted phrases for co-occurrence
+            let allChunkTerms = chunkKeywords.union(phraseKeywords)
+
             // Build co-occurrence map (terms that appear in the same chunk are related)
-            for keyword in chunkKeywords {
+            for keyword in allChunkTerms {
                 var related = coOccurrences[keyword] ?? []
-                related.formUnion(chunkKeywords)
+                related.formUnion(allChunkTerms)
                 related.remove(keyword) // Don't include self
                 coOccurrences[keyword] = related
             }
@@ -741,5 +766,58 @@ extension CorpusVocabulary {
             coOccurrences: coOccurrences,
             textSnippets: textSnippets
         )
+    }
+
+    /// Extract adjective+noun pairs using NLTagger
+    /// This catches domain-specific phrases that may not be capitalized
+    private static func extractAdjectiveNounPairs(from text: String) -> [String] {
+        guard !text.isEmpty else { return [] }
+
+        var pairs: [String] = []
+        let tagger = NLTagger(tagSchemes: [.lexicalClass])
+        tagger.string = text
+
+        var previousWord: String?
+        var previousTag: NLTag?
+
+        tagger.enumerateTags(
+            in: text.startIndex..<text.endIndex,
+            unit: .word,
+            scheme: .lexicalClass,
+            options: [.omitPunctuation, .omitWhitespace]
+        ) { tag, range in
+            guard let tag = tag else { return true }
+
+            let word = String(text[range])
+
+            // Check for adjective + noun pattern
+            if let prevWord = previousWord, let prevTag = previousTag {
+                if prevTag == .adjective && tag == .noun {
+                    // Found adjective+noun pair like "blue outlet"
+                    let phrase = "\(prevWord) \(word)"
+                    if phrase.count >= 4 && phrase.count <= 40 {
+                        pairs.append(phrase)
+                    }
+                }
+            }
+
+            // Also capture noun + noun compounds ("network control", "power outlet")
+            if let prevWord = previousWord, let prevTag = previousTag {
+                if prevTag == .noun && tag == .noun {
+                    let phrase = "\(prevWord) \(word)"
+                    if phrase.count >= 5 && phrase.count <= 40 {
+                        pairs.append(phrase)
+                    }
+                }
+            }
+
+            previousWord = word
+            previousTag = tag
+
+            return true
+        }
+
+        // Limit to avoid noise
+        return Array(Set(pairs).prefix(30))
     }
 }

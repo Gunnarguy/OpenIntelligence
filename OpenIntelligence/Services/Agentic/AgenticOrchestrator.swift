@@ -313,19 +313,67 @@ final class AgenticOrchestrator: Sendable {
         await onStep?(multiQueryStep)
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        // STEP 2: Semantic Intent Validation + Quality Evaluation
+        // STEP 2: Hard Relevance Gate (CRITICAL - prevents hallucination)
         // Check that retrieved content actually addresses the question
+        // If not, exit early with "not found" instead of hallucinating
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         var retrievalQuality = evaluateRetrievalQuality(chunks: initialChunks, query: query)
 
-        // Validate semantic intent - are these chunks actually relevant?
+        // HARD CHECK 1: Lexical relevance - do query keywords appear in chunks?
+        let lexicalRelevance = checkLexicalRelevance(query: query, chunks: initialChunks)
+
+        // HARD CHECK 2: Semantic intent - does content address the question?
         let (intentValid, intentReason) = try await validateSemanticIntent(
             query: query,
             chunks: initialChunks,
             ragService: ragService
         )
 
-        // Downgrade quality if semantic intent doesn't match
+        Log.info("[Agentic] Relevance check: lexical=\(String(format: "%.0f%%", lexicalRelevance * 100)), intent=\(intentValid)", category: .retrieval)
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // HARD EXIT: If both checks fail, don't try to salvage - just say "not found"
+        // This prevents the "8 sessions of philosophical rambling" problem
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        if lexicalRelevance < 0.1 && !intentValid {
+            Log.warning("[Agentic] HARD EXIT: Retrieved content is irrelevant (lexical=\(String(format: "%.0f%%", lexicalRelevance * 100)), intent=false)", category: .retrieval)
+
+            let notFoundStep = ThinkingStep(
+                id: UUID(),
+                type: .analyzing,
+                input: "Relevance check",
+                output: "Retrieved content doesn't match the query. The documents may not contain information about this topic.",
+                tokensUsed: 0,
+                duration: 0.1,
+                timestamp: Date()
+            )
+            steps.append(notFoundStep)
+            await onStep?(notFoundStep)
+
+            // Return honest "not found" instead of hallucinating
+            let notFoundAnswer = """
+            I couldn't find information about "\(query)" in your documents.
+
+            The retrieved content was about different topics (account creation, email setup, etc.) that don't address your question.
+
+            **Suggestions:**
+            - Check if your documents contain information about this topic
+            - Try rephrasing your question with different keywords
+            - The specific information you're looking for may not be in the indexed documents
+            """
+
+            return AgenticResult(
+                finalAnswer: notFoundAnswer,
+                steps: steps,
+                totalTokens: totalTokens,
+                totalDuration: Date().timeIntervalSince(startTime),
+                confidence: 0.0, // Honest: we found nothing
+                sourcesUsed: 0,
+                retrievedChunks: []
+            )
+        }
+
+        // Downgrade quality if semantic intent doesn't match but lexical has some overlap
         if !intentValid && (retrievalQuality == .excellent || retrievalQuality == .good) {
             Log.info("[Agentic] Semantic intent mismatch - downgrading from \(retrievalQuality.description) to moderate", category: .llm)
             retrievalQuality = .moderate
@@ -780,6 +828,52 @@ final class AgenticOrchestrator: Sendable {
         }
     }
 
+    // MARK: - Lexical Relevance Check
+
+    /// Stop words to exclude from keyword matching
+    private static let stopWords: Set<String> = [
+        "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
+        "have", "has", "had", "do", "does", "did", "will", "would", "could", "should",
+        "may", "might", "must", "shall", "can", "need", "dare", "ought", "used",
+        "to", "of", "in", "for", "on", "with", "at", "by", "from", "as", "into",
+        "through", "during", "before", "after", "above", "below", "between",
+        "under", "again", "further", "then", "once", "here", "there", "when",
+        "where", "why", "how", "all", "each", "few", "more", "most", "other",
+        "some", "such", "no", "nor", "not", "only", "own", "same", "so", "than",
+        "too", "very", "just", "also", "now", "what", "which", "who", "whom",
+        "this", "that", "these", "those", "am", "it", "its", "i", "me", "my",
+        "myself", "we", "our", "ours", "ourselves", "you", "your", "yours",
+        "he", "him", "his", "she", "her", "hers", "they", "them", "their"
+    ]
+
+    /// Check if query keywords appear in retrieved chunks (simple but effective)
+    /// Returns 0.0-1.0 representing what fraction of query keywords appear in chunks
+    private func checkLexicalRelevance(query: String, chunks: [RetrievedChunk]) -> Float {
+        // Extract meaningful keywords from query (non-stopwords, 3+ chars)
+        let queryWords = query.lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { $0.count >= 3 && !Self.stopWords.contains($0) }
+
+        guard !queryWords.isEmpty else { return 0.5 } // Can't evaluate, assume ok
+
+        // Build combined chunk text
+        let chunkText = chunks.prefix(5)
+            .map { ($0.chunk.parentContent ?? $0.chunk.content).lowercased() }
+            .joined(separator: " ")
+
+        // Count how many query keywords appear in chunks
+        var matchCount = 0
+        for word in queryWords {
+            if chunkText.contains(word) {
+                matchCount += 1
+            }
+        }
+
+        let relevance = Float(matchCount) / Float(queryWords.count)
+        Log.debug("[LexicalRelevance] \(matchCount)/\(queryWords.count) keywords found = \(String(format: "%.0f%%", relevance * 100))", category: .retrieval)
+
+        return relevance
+    }
     /// Evaluate retrieval quality based on similarity scores and coverage
     /// NOTE: Semantic similarity scores are inherently lower than people expect.
     /// 0.15-0.25 is often "good enough" for useful retrieval - don't give up too early!
@@ -916,13 +1010,22 @@ final class AgenticOrchestrator: Sendable {
         let startTime = Date()
 
         // Truncate search results to fit in context budget
-        // At 1.4 chars/token, 3500 chars ≈ 2500 tokens (safe for 4096 limit)
-        let truncatedResults = String(searchResults.prefix(3500))
+        // System prompt is now ~370 tokens, query ~50, output ~800 = 1220 tokens overhead
+        // Remaining: 4096 - 1220 = 2876 tokens ≈ 4000 chars at 1.4 chars/token
+        // Use 3000 chars for safety margin
+        let truncatedResults = String(searchResults.prefix(3000))
 
-        // Use SHORT system prompt to maximize context budget
+        // Deep Think mode: thorough synthesis with actionable details
         let systemPrompt = """
         Answer using ONLY the provided excerpts [S1], [S2], etc.
-        Rules: 1) Use ONLY excerpts 2) Cite sources [S1], [S2] 3) Be thorough
+        Rules:
+        1) Use ONLY information from excerpts - cite [S1], [S2] etc.
+        2) Include SPECIFIC actions: exact steps, durations (e.g., "hold for 1 second")
+        3) Include FEEDBACK indicators: vibrations, lights, sounds, visual cues
+        4) Provide STEP-BY-STEP procedures when applicable
+        5) Include technical specifications (voltages, dimensions, capacities)
+        6) Connect related concepts across multiple excerpts
+        7) Be THOROUGH - extract every relevant detail, don't summarize away specifics
         """
 
         // Generate using the main RAGService pipeline which handles:
@@ -965,14 +1068,14 @@ final class AgenticOrchestrator: Sendable {
         var usedChunks = 0
 
         // CRITICAL: Apple FM has 4096 token limit (both on-device AND PCC)
-        // Token budget breakdown:
-        //   - System prompt: ~150 tokens
+        // Token budget breakdown (updated for enhanced prompts):
+        //   - System prompt: ~610 tokens (enhanced for detail extraction)
         //   - Query: ~50 tokens
-        //   - Context: ~2800 tokens max (safe buffer)
-        //   - Output: ~1000 tokens (we ask for more but system caps it)
+        //   - Context: ~2200 tokens max (reduced for longer prompt)
+        //   - Output: ~800 tokens
         //   - Safety margin: ~100 tokens
-        // At 1.4 chars/token (Apple FM ratio), 2800 tokens ≈ 3920 chars
-        let maxContextChars = 3500 // Conservative to avoid overflow
+        // At 1.4 chars/token (Apple FM ratio), 2200 tokens ≈ 3080 chars
+        let maxContextChars = 2800 // Reduced to account for enhanced prompt
 
         // Target at least 3 chunks for diverse context
         let minChunksTarget = min(3, chunks.count)
@@ -1020,14 +1123,27 @@ final class AgenticOrchestrator: Sendable {
 
         Log.info("[Deep Think] Using \(usedChunks) chunks, \(contextBuilder.count) chars", category: .llm)
 
-        // Use the SAME system prompt structure as Standard mode (RAGService line ~4433)
-        // Keep it SHORT to maximize context budget
+        // Deep Think mode: comprehensive multi-source synthesis with maximum detail
         // CRITICAL: Explicitly forbid "I don't have information" responses
         let systemPrompt = """
-        Expert research analyst. Answer using the excerpts [S1], [S2], etc.
-        Rules: 1) Use excerpts 2) Cite [S1], [S2] 3) Connect user terms to related concepts 4) Be thorough
+        Expert research analyst synthesizing multiple document sources.
+
+        EXTRACTION REQUIREMENTS:
+        - Specific ACTIONS: exact steps, button presses, durations ("hold 1 second until vibration")
+        - Feedback INDICATORS: lights (color, pattern), sounds, vibrations, on-screen messages
+        - STEP-BY-STEP procedures with numbered steps
+        - Technical SPECIFICATIONS: voltages, capacities, dimensions, ranges
+        - WARNINGS and precautions mentioned in documents
+        - CONNECTIONS between related concepts across different excerpts
+
+        FORMAT:
+        - Cite sources as [S1], [S2], etc.
+        - Use headers for major sections
+        - Use bullet points for lists of steps or features
+        - Be EXHAUSTIVE - include every relevant detail from every source
+
         NEVER say "I don't have information" - always provide what IS in the documents.
-        If the question is vague, interpret it based on document topics and provide relevant findings.
+        If the question is vague, interpret it based on document topics and provide all relevant findings.
         """
 
         // Generate using the main RAGService pipeline which handles:
@@ -1089,11 +1205,18 @@ final class AgenticOrchestrator: Sendable {
         let startTime = Date()
 
         // Truncate to fit in 4096 token budget
-        let truncatedResults = String(searchResults.prefix(3500))
+        // Enhanced prompt ~250 tokens, query ~50, output ~800 = 1100 overhead
+        // Remaining: 4096 - 1100 = 2996 tokens ≈ 4200 chars, use 3000 for safety
+        let truncatedResults = String(searchResults.prefix(3000))
 
-        // Short system prompt to maximize context budget
+        // Even for low-confidence, extract maximum value from available excerpts
         let systemPrompt = """
-        Answer using excerpts. Cite [S1], [S2]. Explain what excerpts DO cover that might help.
+        The available excerpts may not directly answer the query, but extract MAXIMUM value:
+        - Cite sources [S1], [S2] for everything mentioned
+        - Include ANY procedures, specifications, or actions found
+        - Note related topics that might help the user
+        - Be specific about what the excerpts DO cover
+        - Include all technical details found, even if tangential
         """
 
         let response = try await ragService.generateWithProperConsent(
@@ -1385,7 +1508,8 @@ final class AgenticOrchestrator: Sendable {
         await onDetailedEvent?(.rrf, "Fusing results", "RRF across \(allResults.count) result sets")
 
         // Reciprocal Rank Fusion across all query results
-        var chunkScores: [UUID: (chunk: RetrievedChunk, score: Float)] = [:]
+        // Track both RRF score (for multi-query consensus) AND original reranker score (for relevance)
+        var chunkScores: [UUID: (chunk: RetrievedChunk, rrfScore: Float, maxRerankerScore: Float)] = [:]
         let k: Float = 60.0 // RRF constant
 
         for results in allResults {
@@ -1393,24 +1517,30 @@ final class AgenticOrchestrator: Sendable {
                 let rrfScore = 1.0 / (k + Float(rank + 1))
 
                 if let existing = chunkScores[chunk.chunk.id] {
-                    // Chunk seen in multiple queries - boost its score
-                    chunkScores[chunk.chunk.id] = (existing.chunk, existing.score + rrfScore)
+                    // Chunk seen in multiple queries - boost RRF score, keep max reranker score
+                    chunkScores[chunk.chunk.id] = (
+                        existing.chunk,
+                        existing.rrfScore + rrfScore,
+                        max(existing.maxRerankerScore, chunk.similarityScore)
+                    )
                 } else {
-                    chunkScores[chunk.chunk.id] = (chunk, rrfScore)
+                    chunkScores[chunk.chunk.id] = (chunk, rrfScore, chunk.similarityScore)
                 }
             }
         }
 
-        // Sort by fused score and take top results
+        // Sort by RERANKER SCORE (actual relevance) and take top results
+        // CRITICAL: RRF is for consensus across queries, but reranker score is the true relevance measure
+        // A chunk with 0.90 reranker score in 1 query is MORE RELEVANT than a chunk with 0.10 in all 5 queries
         let fusedResults = chunkScores.values
-            .sorted { $0.score > $1.score }
+            .sorted { $0.maxRerankerScore > $1.maxRerankerScore }  // Sort by RELEVANCE, not consensus
             .prefix(20)
             .enumerated()
             .map { (index, retrieved) -> RetrievedChunk in
-                // Update similarity score to reflect RRF ranking
+                // Use the reranker score as the similarity - this is what the reasoning chain needs
                 return RetrievedChunk(
                     chunk: retrieved.chunk.chunk,
-                    similarityScore: min(retrieved.score * 10, 1.0), // Normalize to 0-1
+                    similarityScore: retrieved.maxRerankerScore,  // Actual relevance from reranker
                     rank: index + 1,
                     sourceDocument: retrieved.chunk.sourceDocument,
                     pageNumber: retrieved.chunk.pageNumber
@@ -1418,6 +1548,12 @@ final class AgenticOrchestrator: Sendable {
             }
 
         let resultChunks = Array(fusedResults)
+
+        // Log top chunk for debugging - this should now show the most RELEVANT chunk
+        if let topChunk = resultChunks.first {
+            let preview = String(topChunk.chunk.content.prefix(80)).replacingOccurrences(of: "\n", with: " ")
+            Log.debug("[MultiQuery] Top chunk (reranker score \(String(format: "%.2f", topChunk.similarityScore))): \(preview)...", category: .retrieval)
+        }
 
         // Format for logging
         var searchResult = "Multi-query search with \(queries.count) variations:\n"
@@ -1457,7 +1593,19 @@ final class AgenticOrchestrator: Sendable {
             return (true, "High confidence match")
         }
 
-        // For moderate scores, ask LLM to verify semantic match
+        // Fast path: Check lexical overlap first (cheaper than LLM call)
+        let lexicalScore = checkLexicalRelevance(query: query, chunks: chunks)
+        if lexicalScore >= 0.5 {
+            // At least half the query keywords found - likely relevant
+            return (true, "Good keyword overlap (\(Int(lexicalScore * 100))%)")
+        }
+
+        if lexicalScore < 0.1 {
+            // Almost no keyword overlap - clearly irrelevant
+            return (false, "No keyword overlap with query")
+        }
+
+        // For borderline cases (10-50% overlap), ask LLM to verify
         let chunkPreviews = chunks.prefix(3).map { chunk in
             let content = (chunk.chunk.parentContent ?? chunk.chunk.content)
             return String(content.prefix(300))
@@ -2986,6 +3134,47 @@ extension AgenticOrchestrator {
             )
 
             totalTokens += response.tokensGenerated
+
+            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            // Check for early completion signal
+            // If the model says "ANSWER COMPLETE" or "NOT FOUND", stop early
+            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            let responseText = response.text.uppercased()
+            let isAnswerComplete = responseText.contains("ANSWER COMPLETE") ||
+                                   responseText.contains("NOT FOUND IN DOCUMENTS") ||
+                                   responseText.contains("DOCUMENTS DO NOT CONTAIN")
+
+            if isAnswerComplete && sessionNum >= 2 {
+                Log.info("[ReasoningChain] Early termination: model signaled answer complete", category: .llm)
+                // Use what we have so far as the final answer
+                let finalInsight = chainInsights.isEmpty ? response.text : chainInsights.joined(separator: "\n\n")
+                chainInsights.append(response.text)
+                cumulativeConfidence = 1.0  // Signal completion
+
+                // Emit final step
+                if let onStep = onStep {
+                    let step = ThinkingStep(
+                        id: UUID(),
+                        type: .synthesizing,
+                        input: "Final answer",
+                        output: String(finalInsight.prefix(200)),
+                        tokensUsed: totalTokens,
+                        duration: 0,
+                        timestamp: Date(),
+                        confidence: cumulativeConfidence
+                    )
+                    await onStep(step)
+                }
+
+                return ReasoningChainResult(
+                    finalAnswer: finalInsight,
+                    chainInsights: chainInsights,
+                    totalTokens: totalTokens,
+                    sessionCount: sessionNum,
+                    confidence: cumulativeConfidence,
+                    sources: Array(allSources)
+                )
+            }
 
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
             // Extract insight to pass to next session
@@ -4555,8 +4744,12 @@ extension AgenticOrchestrator {
             synthesisInput += "Key Findings:\n\(cluster.insight)\n\n"
         }
 
-        // Truncate if needed to fit in context (leave room for instructions)
-        let maxChars = 6000 // ~1500 tokens
+        // Truncate if needed to fit in context (leave room for enhanced prompt + output)
+        // Enhanced system prompt is ~640 tokens, synthesis prompt header ~200 tokens
+        // Output reserve: 1500 tokens, safety: 100 tokens
+        // Available for content: 4096 - 640 - 200 - 1500 - 100 = 1656 tokens ≈ 2300 chars
+        // But Maximum mode chains multiple sessions, so first session can be tighter
+        let maxChars = 4500 // ~3200 tokens - first session uses more, refinements use less
         if synthesisInput.count > maxChars {
             synthesisInput = String(synthesisInput.prefix(maxChars)) + "\n[...truncated for synthesis]"
         }
@@ -4581,10 +4774,24 @@ extension AgenticOrchestrator {
         let systemPrompt = """
         You are an academic research assistant synthesizing document findings.
         This is document summarization from the user's personal knowledge library - NOT advice generation.
-        Your goal is to produce an integrated summary that weaves together all evidence.
-        Be exhaustive - aim for 1000+ words. Include all relevant details from every document.
-        Use **bold** for key findings and terms. Use *italic* for emphasis.
+
+        MAXIMUM QUALITY REQUIREMENTS:
+        1. COMPLETENESS: Extract every detail - procedures, specifications, warnings, tips
+        2. SPECIFICITY: Include exact values ("5V/2A", "hold 3 seconds", "blue LED blinks twice")
+        3. ACTIONABLE: Provide step-by-step instructions with feedback indicators
+        4. TECHNICAL: Include all specifications, tolerances, and technical parameters
+        5. STRUCTURED: Use headers, bullet points, and numbered steps for clarity
+
+        FORMATTING:
+        - Use **bold** for key findings, terms, and actions
+        - Use *italic* for emphasis and technical terms
+        - Use numbered lists for procedures
+        - Use bullet points for features and specifications
+        - Include section headers for major topics
+
+        Be exhaustive - aim for 1000+ words. Include ALL relevant details from EVERY document.
         Never repeat the same information - each paragraph must add new content.
+        Cross-reference and synthesize findings that appear in multiple sources.
         """
 
         var totalTokens = 0
@@ -4778,12 +4985,13 @@ extension AgenticOrchestrator {
 
         switch sessionIndex {
         case 0:
-            // SESSION 1: Fact Extraction - what does the evidence say?
+            // SESSION 1: Direct Answer Extraction - find the answer in the documents
             let systemPrompt = """
-            You are an expert research analyst. Your task is FACT EXTRACTION.
-            Extract specific data points, statistics, findings, and claims from documents.
-            Focus on WHAT the documents say, not interpretation.
-            Include: numbers, dates, names, percentages, methodologies, direct quotes.
+            You are an expert at finding answers in documents.
+            Your job is to EXTRACT the answer directly from the provided text.
+            Quote or paraphrase exactly what the documents say.
+            If the documents don't contain the answer, say "NOT FOUND IN DOCUMENTS".
+            Do NOT speculate, infer, or make up information.
             """
             let prompt = """
             QUESTION: \(query)
@@ -4791,94 +4999,99 @@ extension AgenticOrchestrator {
             DOCUMENTS FROM USER'S LIBRARY:
             \(context)
 
-            TASK: Extract all FACTS from these documents that relate to the question.
+            TASK: Find and extract the DIRECT ANSWER from these documents.
 
-            Focus on:
-            • Specific numbers, statistics, percentages
-            • Named entities, dates, locations
-            • Direct claims and findings stated in the documents
-            • Methodologies or processes described
+            Rules:
+            1. Quote or paraphrase what the documents ACTUALLY SAY
+            2. Cite your source: [S1], [S2], etc.
+            3. If the answer is a simple fact, just state it clearly
+            4. If documents don't contain the answer, say "NOT FOUND IN DOCUMENTS"
+            5. Do NOT speculate, infer, or add information not in the documents
 
-            List the facts clearly. Do NOT interpret or analyze yet.
+            ANSWER (from documents):
             """
             return (prompt, systemPrompt)
 
         case 1:
-            // SESSION 2: Analysis & Connections - how do facts relate?
+            // SESSION 2: Verify and Complete - fill in any gaps from the same documents
             let systemPrompt = """
-            You are an expert analyst. Your task is PATTERN ANALYSIS.
-            Given extracted facts, identify relationships, causation, contradictions, and themes.
-            Connect the dots between different pieces of information.
+            You verify and complete answers based strictly on document evidence.
+            Add ONLY information that is explicitly stated in the documents.
+            Never add speculation or implications not directly stated.
             """
             let prompt = """
             QUESTION: \(query)
 
-            EXTRACTED FACTS FROM DOCUMENTS:
+            INITIAL ANSWER:
             \(insightSummary)
 
-            ORIGINAL DOCUMENTS (for reference):
-            \(context.prefix(1500))
+            ORIGINAL DOCUMENTS (for verification):
+            \(context.prefix(2000))
 
-            TASK: Analyze the RELATIONSHIPS between these facts.
+            TASK: Verify the answer and add any MISSING details from the documents.
 
-            Identify:
-            • Cause-and-effect relationships
-            • Themes or patterns across multiple facts
-            • Any contradictions or tensions in the evidence
-            • Implications of the facts taken together
+            Check:
+            • Is the answer accurate based on the documents?
+            • Are there additional relevant facts in the documents not yet mentioned?
+            • Are the citations correct?
 
-            Do NOT repeat the facts. Focus on CONNECTIONS between them.
+            If the initial answer is complete and accurate, confirm it.
+            Only add information that is EXPLICITLY in the documents.
             """
             return (prompt, systemPrompt)
 
         case sessionCount - 1:
-            // FINAL SESSION: Synthesis - comprehensive answer
+            // FINAL SESSION: Clean Synthesis
             let systemPrompt = """
-            You are an expert research analyst delivering a comprehensive answer.
-            Synthesize facts AND analysis into a complete, authoritative response.
-            Structure clearly with paragraphs. Use **bold** for key findings.
-            Be thorough but never repetitive. Every sentence adds value.
+            You deliver clear, accurate answers based on prior analysis.
+            Format nicely but do not add new information.
+            Keep it concise and directly relevant to the question.
             """
             let prompt = """
             QUESTION: \(query)
 
-            YOUR RESEARCH (facts extracted + patterns identified):
+            VERIFIED INFORMATION FROM DOCUMENTS:
             \(insightSummary)
 
-            TASK: Write a COMPREHENSIVE answer that:
-            1. Directly addresses the question
-            2. Presents key findings with supporting evidence
-            3. Explains relationships and implications
-            4. Organizes information logically
+            TASK: Write the final answer.
 
-            FORMAT: Clear prose with paragraph breaks. Use **bold** for key terms.
-            Do NOT repeat information. Each paragraph adds NEW value.
+            Rules:
+            1. Directly answer the question using the verified information
+            2. Keep it concise - don't pad with unnecessary context
+            3. Use clear formatting (bold key points if helpful)
+            4. Include source citations [S1], [S2], etc.
+            5. If the documents didn't contain the answer, say so clearly
 
-            YOUR ANSWER:
+            ANSWER:
             """
             return (prompt, systemPrompt)
 
         default:
-            // MIDDLE SESSIONS: Deep dive on specific aspects
-            let systemPrompt = "Expert analyst. Identify nuances, edge cases, and deeper implications not yet covered."
+            // MIDDLE SESSIONS: Look for additional document evidence only
+            let systemPrompt = """
+            You look for additional evidence in documents.
+            Only add information that is DIRECTLY STATED in the documents.
+            If you've already found the answer, say "ANSWER COMPLETE - no additional relevant information in documents."
+            Do NOT speculate about edge cases, implications, or missing context.
+            """
             let prompt = """
             QUESTION: \(query)
 
-            ANALYSIS SO FAR:
+            INFORMATION FOUND SO FAR:
             \(insightSummary)
 
-            DOCUMENTS (for reference):
-            \(context.prefix(1500))
+            DOCUMENTS (look for any missed details):
+            \(context.prefix(2000))
 
-            TASK: What NUANCES or IMPLICATIONS haven't been addressed yet?
+            TASK: Look for any additional STATED FACTS in the documents that are relevant.
 
-            Look for:
-            • Edge cases or exceptions
-            • Deeper implications of the findings
-            • Missing context that changes interpretation
-            • Specific details that add precision
+            Rules:
+            1. Only cite information DIRECTLY STATED in the documents
+            2. If the answer is already complete, say "ANSWER COMPLETE"
+            3. Do NOT speculate about implications, edge cases, or "what if" scenarios
+            4. Do NOT add interpretation or analysis beyond what documents state
 
-            Add NEW insights only. Do not repeat prior analysis.
+            ADDITIONAL FINDINGS (or "ANSWER COMPLETE"):
             """
             return (prompt, systemPrompt)
         }

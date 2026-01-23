@@ -19,8 +19,8 @@ import Foundation
 import NaturalLanguage
 
 /// Represents learned vocabulary for a container
-/// Note: @unchecked Sendable because Codable synthesis conflicts with default MainActor isolation
-struct ContainerVocabulary: Codable, @unchecked Sendable {
+/// Marked nonisolated to allow Codable operations from actor context
+nonisolated struct ContainerVocabulary: Codable, Sendable {
     let containerId: UUID
     var lastUpdated: Date
 
@@ -46,7 +46,7 @@ struct ContainerVocabulary: Codable, @unchecked Sendable {
     // MARK: - Computed Properties
 
     /// Top N most frequent terms (for query expansion)
-    nonisolated func topTerms(_ n: Int = 50) -> [String] {
+    func topTerms(_ n: Int = 50) -> [String] {
         termFrequencies
             .sorted { $0.value > $1.value }
             .prefix(n)
@@ -54,7 +54,7 @@ struct ContainerVocabulary: Codable, @unchecked Sendable {
     }
 
     /// Calculate IDF weight for a term (higher = more specific to this container)
-    nonisolated func idfWeight(for term: String) -> Float {
+    func idfWeight(for term: String) -> Float {
         guard documentCount > 0 else { return 1.0 }
         let tf = Float(termFrequencies[term.lowercased()] ?? 0)
         guard tf > 0 else { return 0.0 }
@@ -66,7 +66,7 @@ struct ContainerVocabulary: Codable, @unchecked Sendable {
     }
 
     /// Check if term is a known specification code
-    nonisolated func isSpecificationCode(_ term: String) -> Bool {
+    func isSpecificationCode(_ term: String) -> Bool {
         specificationCodes.contains(term.uppercased())
     }
 }

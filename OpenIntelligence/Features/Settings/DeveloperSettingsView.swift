@@ -118,7 +118,7 @@ struct DeveloperSettingsView: View {
             // Pipeline Trace Mode
             Section("Pipeline Trace Mode") {
                 Toggle("Enable Pipeline Trace", isOn: $settings.enablePipelineTrace)
-                Text("Shows condensed step-by-step RAG pipeline execution in console. Ideal for understanding how each quality mode (Standard/Deep Think/Maximum) processes your queries without overwhelming output.")
+                Text("Shows detailed chunk-by-chunk tracing through the entire RAG pipeline:\n• Post-HybridSearch: Raw candidates from vector + BM25\n• Post-Rerank: After cross-encoder scoring\n• Post-MMR: After diversity selection\n• Post-FocusedWindow/ParentExpansion/GraphPack\n• Final Context: Exact text sent to LLM\n\nEach trace shows chunk content preview, similarity scores, page numbers, and query term matches.")
                     .font(.footnote)
                     .foregroundColor(.secondary)
 
@@ -126,7 +126,7 @@ struct DeveloperSettingsView: View {
                     HStack {
                         Image(systemName: "list.bullet.clipboard")
                             .foregroundColor(.blue)
-                        Text("Pipeline trace active — run a query to see step-by-step execution")
+                        Text("Pipeline trace active — run a query to see chunk content at each stage")
                             .font(.caption)
                             .foregroundColor(.blue)
                     }

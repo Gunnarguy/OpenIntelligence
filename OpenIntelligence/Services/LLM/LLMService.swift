@@ -702,7 +702,7 @@ struct LLMResponse {
 
                 if config.systemPrompt != nil {
                     // System instructions are already set in the session via config.systemPrompt.
-                    // Provide only the context and question in the user prompt to avoid duplication.
+                    // Provide the context and question, reinforcing comprehensive answer expectations.
                     fullPrompt = """
                     CONTEXT FROM DOCUMENTS:
                     \(context)
@@ -710,17 +710,26 @@ struct LLMResponse {
                     USER QUESTION:
                     \(sanitizedPrompt)
 
-                    Answer directly from the context above. Do not call any tools - the context is already provided.
+                    Answer comprehensively based on the context above. Include:
+                    • Specific actions (press, hold, toggle, etc.) and their exact durations
+                    • Feedback indicators (vibrations, lights, sounds) and what they mean
+                    • Step-by-step procedures when relevant
+                    • All specifications, measurements, and technical details mentioned
+                    Do not call any tools - the context is already provided.
                     """
                 } else {
                     // No system prompt provided. Embed instructions directly in user prompt.
                     // Conversational RAG prompt - Direct answer mode (context already retrieved)
                     fullPrompt = """
-                    Answer the question using ONLY the document excerpts below.
-                        Extract specific details, steps, or actions mentioned in the text.
-                        Be direct and concrete - state what the documents say, don't hedge.
-                        Cite sources like[Document Name, p.X] when referencing specific information.
-                        Do NOT call search_documents - the relevant context is already provided below.
+                    Answer the question thoroughly using the document excerpts below.
+                    Extract ALL specific details from the text including:
+                    - Exact procedures (press for X seconds, toggle Y, etc.)
+                    - Feedback indicators (vibrations, lights, beeps) and their meanings
+                    - Step-by-step instructions when available
+                    - Technical specifications and measurements
+                    Be comprehensive - include everything the documents say about the topic.
+                    Cite sources like [Document Name, p.X] when referencing specific information.
+                    Do NOT call search_documents - the relevant context is already provided below.
 
                     DOCUMENT EXCERPTS:
                     \(context)

@@ -42,14 +42,15 @@ class DocumentProcessor {
     }
 
     /// Wrapper to hold structured elements with page info (works on all iOS versions)
-    private struct StructuredElementWrapper {
+    /// Sendable struct with nonisolated init to allow construction in TaskGroup
+    private struct StructuredElementWrapper: Sendable {
         let text: String
         let elementType: String  // "table", "list", "paragraph", "title"
         let pageNumber: Int
         let isAtomicChunk: Bool  // Tables should be chunked as single units
         let detectedEntities: [(type: String, value: String)]  // Vision-detected entities (emails, phones, etc.)
 
-        init(text: String, elementType: String, pageNumber: Int, isAtomicChunk: Bool, detectedEntities: [(type: String, value: String)] = []) {
+        nonisolated init(text: String, elementType: String, pageNumber: Int, isAtomicChunk: Bool, detectedEntities: [(type: String, value: String)] = []) {
             self.text = text
             self.elementType = elementType
             self.pageNumber = pageNumber
@@ -672,85 +673,191 @@ class DocumentProcessor {
             throw DocumentProcessingError.emptyDocument
         }
 
-        var pageTexts: [String] = []  // Collect page texts first for header/footer removal
-        var pagesWithoutText = 0
-        var ocrUsedCount = 0
-        var totalOCRChars = 0
-        var spatialExtractionCount = 0
+        // PASS 1: Extract text from all pages with parallel processing
+        // Use controlled concurrency to maximize hardware utilization while respecting memory constraints
+        // OCR/Vision tasks are GPU-bound so we limit parallelism to avoid memory pressure
+        let maxConcurrentPages = min(4, ProcessInfo.processInfo.activeProcessorCount)
 
-        // PASS 1: Extract text from all pages
-        for pageIndex in 0..<pageCount {
-            guard let page = pdfDocument.page(at: pageIndex) else {
-                pageTexts.append("")
-                continue
-            }
-
-            let pageStartTime = Date()
-            let pageNumber = pageIndex + 1  // 1-indexed for user-facing citations
-            var extractedPageText = ""
-
-            // Try standard text extraction first to check if text layer exists
-            let pageText = page.string
-            let hasText = pageText != nil && !pageText!.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-
-            // Check if extracted text is actually readable (not garbage from bad OCR layer)
-            let textQualityOK = hasText && isTextQualityAcceptable(pageText!)
-
-            if hasText && textQualityOK {
-                // ENHANCEMENT: Use spatial-aware extraction to preserve column ordering
-                // This prevents left-column and right-column text from being interleaved
-                if let spatialText = extractTextWithSpatialOrdering(from: page), !spatialText.isEmpty {
-                    extractedPageText = spatialText
-                    spatialExtractionCount += 1
-                    progressHandler?("page \(pageNumber)/\(pageCount)")
-                    let pageTime = Date().timeIntervalSince(pageStartTime)
-                    Log.debug("   ✓ Page \(pageNumber): \(spatialText.count) chars (spatial, \(String(format: "%.2f", pageTime))s)", category: .ingestion)
-                } else {
-                    // Fall back to simple extraction
-                    progressHandler?("page \(pageNumber)/\(pageCount)")
-                    extractedPageText = pageText!
-                    let pageTime = Date().timeIntervalSince(pageStartTime)
-                    Log.debug("   ✓ Page \(pageNumber): \(pageText!.count) chars (\(String(format: "%.2f", pageTime))s)", category: .ingestion)
-                }
-            } else if hasText && !textQualityOK {
-                // Text exists but quality is poor - try OCR instead
-                Log.debug("   ⚠️ Page \(pageNumber): Text layer quality poor, trying OCR...", category: .ingestion)
-                progressHandler?("page \(pageNumber)/\(pageCount), OCR (quality)")
-
-                if let pageImage = renderPDFPageAsImage(page: page),
-                   let ocrText = try? await performOCR(on: pageImage),
-                   !ocrText.isEmpty,
-                   isTextQualityAcceptable(ocrText) {
-                    extractedPageText = ocrText
-                    ocrUsedCount += 1
-                    totalOCRChars += ocrText.count
-
-                    let pageTime = Date().timeIntervalSince(pageStartTime)
-                    Log.debug("   ✓ Page \(pageNumber): OCR replaced garbage text (\(ocrText.count) chars, \(String(format: "%.2f", pageTime))s)", category: .ingestion)
-                } else {
-                    extractedPageText = pageText!
-                    Log.warning("   ⚠️ Page \(pageNumber): Using original text despite quality concerns", category: .ingestion)
-                }
-            } else {
-                // No extractable text - try OCR on the page image
-                pagesWithoutText += 1
-                progressHandler?("page \(pageNumber)/\(pageCount), OCR")
-                try? await Task.sleep(nanoseconds: 50_000_000)
-
-                if let pageImage = renderPDFPageAsImage(page: page),
-                   let ocrText = try? await performOCR(on: pageImage),
-                   !ocrText.isEmpty {
-                    extractedPageText = ocrText
-                    ocrUsedCount += 1
-                    totalOCRChars += ocrText.count
-
-                    let pageTime = Date().timeIntervalSince(pageStartTime)
-                    Log.debug("   ✓ Page \(pageNumber): OCR extracted \(ocrText.count) chars (\(String(format: "%.2f", pageTime))s)", category: .ingestion)
-                }
-            }
-
-            pageTexts.append(extractedPageText)
+        // Result container for parallel extraction
+        struct PageExtractionResult: Sendable {
+            let pageIndex: Int
+            let text: String
+            let usedOCR: Bool
+            let usedSpatial: Bool
+            let ocrCharCount: Int
+            let noTextLayer: Bool
         }
+
+        // MEMORY OPTIMIZATION: Page data struct for batch rendering
+        // We now render only maxConcurrentPages at a time instead of all pages upfront
+        // Each 1260×1785 RGBA image ≈ 9MB; 542 pages would be 4.8GB if pre-rendered!
+        struct PageData: Sendable {
+            let pageIndex: Int
+            let pageString: String?
+            let pageImage: CIImage?
+            let hasText: Bool
+            let textQualityOK: Bool
+        }
+
+        // Parallel extraction using TaskGroup with controlled concurrency
+        var results: [PageExtractionResult] = []
+
+        // Process pages in batches to control memory pressure
+        for batchStart in stride(from: 0, to: pageCount, by: maxConcurrentPages) {
+            let batchEnd = min(batchStart + maxConcurrentPages, pageCount)
+            let batchIndices = batchStart..<batchEnd
+
+            // MEMORY OPTIMIZATION: Render only this batch's pages
+            var batchPageData: [PageData] = []
+            for pageIndex in batchIndices {
+                autoreleasepool {
+                    guard let page = pdfDocument.page(at: pageIndex) else {
+                        batchPageData.append(PageData(pageIndex: pageIndex, pageString: nil, pageImage: nil, hasText: false, textQualityOK: false))
+                        return
+                    }
+                    let pageString = page.string
+                    let pageImage = renderPDFPageAsImage(page: page)
+
+                    // Pre-compute text presence and quality checks
+                    let hasText = pageString != nil && !pageString!.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    let textQualityOK = hasText && isTextQualityAcceptable(pageString!)
+
+                    // For pages with good text quality, also try spatial extraction synchronously
+                    var effectiveString = pageString
+                    if hasText && textQualityOK {
+                        if let spatialText = extractTextWithSpatialOrdering(from: page), !spatialText.isEmpty {
+                            effectiveString = spatialText
+                        }
+                    }
+
+                    batchPageData.append(PageData(pageIndex: pageIndex, pageString: effectiveString, pageImage: pageImage, hasText: hasText, textQualityOK: textQualityOK))
+                }
+            }
+
+            let batchResults = await withTaskGroup(of: PageExtractionResult.self) { group in
+                for (batchOffset, pageIndex) in batchIndices.enumerated() {
+                    let pageData = batchPageData[batchOffset]
+
+                    group.addTask {
+                        let pageStartTime = Date()
+                        let pageNumber = pageIndex + 1
+
+                        let pageText = pageData.pageString
+                        // Use pre-computed values to avoid MainActor calls
+                        let hasText = pageData.hasText
+                        let textQualityOK = pageData.textQualityOK
+
+                        if hasText && textQualityOK {
+                            // Good text layer - use it (spatial extraction already applied above)
+                            let isSpatial = pageText != pageData.pageString  // Changed means spatial was used
+                            await MainActor.run {
+                                self.progressHandler?("page \(pageNumber)/\(pageCount)")
+                            }
+                            let pageTime = Date().timeIntervalSince(pageStartTime)
+                            let method = isSpatial ? "spatial" : "text"
+                            Log.debug("   ✓ Page \(pageNumber): \(pageText!.count) chars (\(method), \(String(format: "%.2f", pageTime))s)", category: .ingestion)
+
+                            return PageExtractionResult(
+                                pageIndex: pageIndex,
+                                text: pageText!,
+                                usedOCR: false,
+                                usedSpatial: isSpatial,
+                                ocrCharCount: 0,
+                                noTextLayer: false
+                            )
+                        } else if hasText && !textQualityOK {
+                            // Poor quality text - try enhanced OCR
+                            Log.debug("   ⚠️ Page \(pageNumber): Text layer quality poor, trying enhanced OCR...", category: .ingestion)
+                            await MainActor.run {
+                                self.progressHandler?("page \(pageNumber)/\(pageCount), OCR (quality)")
+                            }
+
+                            if let pageImage = pageData.pageImage {
+                                if let (ocrText, _) = try? await self.performEnhancedSpatialOCR(on: pageImage, pageNumber: pageNumber),
+                                   !ocrText.isEmpty {
+                                    // Check OCR quality on MainActor
+                                    let ocrQualityOK = await MainActor.run { self.isTextQualityAcceptable(ocrText) }
+                                    if ocrQualityOK {
+                                        let pageTime = Date().timeIntervalSince(pageStartTime)
+                                        Log.debug("   ✓ Page \(pageNumber): Enhanced OCR replaced garbage text (\(ocrText.count) chars, \(String(format: "%.2f", pageTime))s)", category: .ingestion)
+
+                                        return PageExtractionResult(
+                                            pageIndex: pageIndex,
+                                            text: ocrText,
+                                            usedOCR: true,
+                                            usedSpatial: false,
+                                            ocrCharCount: ocrText.count,
+                                            noTextLayer: false
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Fallback to original text
+                            Log.warning("   ⚠️ Page \(pageNumber): Using original text despite quality concerns", category: .ingestion)
+                            return PageExtractionResult(
+                                pageIndex: pageIndex,
+                                text: pageText!,
+                                usedOCR: false,
+                                usedSpatial: false,
+                                ocrCharCount: 0,
+                                noTextLayer: false
+                            )
+                        } else {
+                            // No text layer - OCR required
+                            await MainActor.run {
+                                self.progressHandler?("page \(pageNumber)/\(pageCount), OCR")
+                            }
+
+                            if let pageImage = pageData.pageImage {
+                                if let (ocrText, _) = try? await self.performEnhancedSpatialOCR(on: pageImage, pageNumber: pageNumber),
+                                   !ocrText.isEmpty {
+                                    let pageTime = Date().timeIntervalSince(pageStartTime)
+                                    Log.debug("   ✓ Page \(pageNumber): Enhanced OCR extracted \(ocrText.count) chars (\(String(format: "%.2f", pageTime))s)", category: .ingestion)
+
+                                    return PageExtractionResult(
+                                        pageIndex: pageIndex,
+                                        text: ocrText,
+                                        usedOCR: true,
+                                        usedSpatial: false,
+                                        ocrCharCount: ocrText.count,
+                                        noTextLayer: true
+                                    )
+                                }
+                            }
+
+                            return PageExtractionResult(
+                                pageIndex: pageIndex,
+                                text: "",
+                                usedOCR: false,
+                                usedSpatial: false,
+                                ocrCharCount: 0,
+                                noTextLayer: true
+                            )
+                        }
+                    }
+                }
+
+                var collected: [PageExtractionResult] = []
+                for await result in group {
+                    collected.append(result)
+                }
+                return collected
+            }
+
+            results.append(contentsOf: batchResults)
+            // MEMORY OPTIMIZATION: batchPageData goes out of scope here, releasing CIImages
+            // This keeps peak memory to ~36MB (4 pages) instead of ~4.8GB (542 pages)
+        }
+
+        // Sort results by page index and compute statistics
+        results.sort { $0.pageIndex < $1.pageIndex }
+
+        let pageTexts = results.map { $0.text }
+        _ = results.filter { $0.noTextLayer }.count  // pagesWithoutText - tracked but not logged
+        let ocrUsedCount = results.filter { $0.usedOCR }.count
+        let totalOCRChars = results.reduce(0) { $0 + $1.ocrCharCount }
+        let spatialExtractionCount = results.filter { $0.usedSpatial }.count
 
         // PASS 2: Remove repeated headers and footers
         progressHandler?("cleaning headers/footers")
@@ -835,115 +942,198 @@ class DocumentProcessor {
     private func extractWithStructuredParsing(pdfDocument: PDFDocument, pageCount: Int) async throws -> StructuredExtractionResult {
         let parser = StructuredDocumentParser.shared
 
+        Log.info("[DocumentProcessor] Starting structured parsing for \(pageCount) pages (iOS 26+)", category: .ingestion)
+
+        // MEMORY OPTIMIZATION: Render pages in batches, not all at once
+        // Each 1260×1785 RGBA image ≈ 9MB; 542 pages = 4.8GB if pre-rendered!
+        // Now we render only maxConcurrentPages at a time (~27MB peak)
+
+        struct PageRenderData: Sendable {
+            let pageIndex: Int
+            let pageImage: CIImage?
+            let plainText: String?
+        }
+
+        // Result container for parallel processing
+        struct PageParseResult: Sendable {
+            let pageIndex: Int
+            let elements: [StructuredElementWrapper]
+            let pageText: String
+            let hasStructure: Bool
+            let usedOCR: Bool
+        }
+
+        // Parallel structured parsing with controlled concurrency
+        // Vision framework is GPU-intensive; limit to 3 concurrent pages to prevent thermal throttling
+        // This balances speed (~3x faster) with thermal management
+        let maxConcurrentPages = 3
+
+        var results: [PageParseResult] = []
+
+        for batchStart in stride(from: 0, to: pageCount, by: maxConcurrentPages) {
+            let batchEnd = min(batchStart + maxConcurrentPages, pageCount)
+            let batchIndices = batchStart..<batchEnd
+
+            // Update progress for batch
+            await MainActor.run {
+                self.progressHandler?("structured parse \(batchStart + 1)-\(batchEnd)/\(pageCount)")
+            }
+
+            // MEMORY OPTIMIZATION: Render only this batch's pages (not all pages upfront)
+            // This keeps peak memory to ~27MB (3 pages) instead of ~4.8GB (542 pages)
+            var batchRenderData: [PageRenderData] = []
+            for pageIndex in batchIndices {
+                autoreleasepool {
+                    guard let page = pdfDocument.page(at: pageIndex) else {
+                        batchRenderData.append(PageRenderData(pageIndex: pageIndex, pageImage: nil, plainText: nil))
+                        return
+                    }
+                    let pageImage = renderPDFPageAsImage(page: page)
+                    let plainText = page.string
+                    batchRenderData.append(PageRenderData(pageIndex: pageIndex, pageImage: pageImage, plainText: plainText))
+                }
+            }
+
+            let batchResults = await withTaskGroup(of: PageParseResult.self) { group in
+                for (batchOffset, pageIndex) in batchIndices.enumerated() {
+                    let renderData = batchRenderData[batchOffset]
+
+                    group.addTask {
+                        let pageNumber = pageIndex + 1
+
+                        // No page data available
+                        guard let pageImage = renderData.pageImage else {
+                            if let plainText = renderData.plainText, !plainText.isEmpty {
+                                return PageParseResult(
+                                    pageIndex: pageIndex,
+                                    elements: [StructuredElementWrapper(
+                                        text: plainText,
+                                        elementType: "paragraph",
+                                        pageNumber: pageNumber,
+                                        isAtomicChunk: false
+                                    )],
+                                    pageText: plainText,
+                                    hasStructure: false,
+                                    usedOCR: false
+                                )
+                            }
+                            return PageParseResult(pageIndex: pageIndex, elements: [], pageText: "", hasStructure: false, usedOCR: false)
+                        }
+
+                        do {
+                            // Use structured document parser
+                            let structuredContent = try await parser.parsePageImage(pageImage, pageNumber: pageNumber)
+
+                            var elements: [StructuredElementWrapper] = []
+
+                            // Log figure references if any were found
+                            if !structuredContent.figureReferences.isEmpty {
+                                Log.debug("[DocumentProcessor] Page \(pageNumber) has \(structuredContent.figureReferences.count) figure references: \(structuredContent.figureReferences.prefix(3).joined(separator: ", "))", category: .ingestion)
+                            }
+
+                            // Use effectiveContent which automatically falls back to raw text if quality is low
+                            let elementsToUse = structuredContent.effectiveContent
+
+                            // Convert structured elements to wrappers
+                            for element in elementsToUse {
+                                let isAtomic = element.elementType == "table"
+
+                                var entities: [(type: String, value: String)] = []
+                                if case .table(let tableData) = element {
+                                    entities = tableData.detectedEntities.map { ($0.type.rawValue, $0.value) }
+                                }
+
+                                elements.append(StructuredElementWrapper(
+                                    text: element.textForEmbedding,
+                                    elementType: element.elementType,
+                                    pageNumber: element.pageNumber,
+                                    isAtomicChunk: isAtomic,
+                                    detectedEntities: entities
+                                ))
+                            }
+
+                            // Add figure references as searchable content
+                            if !structuredContent.figureReferences.isEmpty {
+                                let figureText = "[Visual Content on Page \(pageNumber)]\n" + structuredContent.figureReferences.joined(separator: "\n")
+                                elements.append(StructuredElementWrapper(
+                                    text: figureText,
+                                    elementType: "figure",
+                                    pageNumber: pageNumber,
+                                    isAtomicChunk: true,
+                                    detectedEntities: []
+                                ))
+                            }
+
+                            return PageParseResult(
+                                pageIndex: pageIndex,
+                                elements: elements,
+                                pageText: structuredContent.rawText,
+                                hasStructure: structuredContent.hasStructuredContent,
+                                usedOCR: false
+                            )
+
+                        } catch StructuredParsingError.noDocumentDetected {
+                            // No document content - try OCR fallback
+                            if let ocrText = try? await self.performOCR(on: pageImage), !ocrText.isEmpty {
+                                return PageParseResult(
+                                    pageIndex: pageIndex,
+                                    elements: [StructuredElementWrapper(
+                                        text: ocrText,
+                                        elementType: "paragraph",
+                                        pageNumber: pageNumber,
+                                        isAtomicChunk: false
+                                    )],
+                                    pageText: ocrText,
+                                    hasStructure: false,
+                                    usedOCR: true
+                                )
+                            }
+                            return PageParseResult(pageIndex: pageIndex, elements: [], pageText: "", hasStructure: false, usedOCR: false)
+
+                        } catch {
+                            Log.warning("[DocumentProcessor] Structured parsing failed for page \(pageNumber): \(error.localizedDescription)", category: .ingestion)
+                            // Fallback to plain text
+                            if let plainText = renderData.plainText, !plainText.isEmpty {
+                                return PageParseResult(
+                                    pageIndex: pageIndex,
+                                    elements: [],
+                                    pageText: plainText,
+                                    hasStructure: false,
+                                    usedOCR: false
+                                )
+                            }
+                            return PageParseResult(pageIndex: pageIndex, elements: [], pageText: "", hasStructure: false, usedOCR: false)
+                        }
+                    }
+                }
+
+                var collected: [PageParseResult] = []
+                for await result in group {
+                    collected.append(result)
+                }
+                return collected
+            }
+
+            results.append(contentsOf: batchResults)
+
+            // MEMORY OPTIMIZATION: Clear batch render data to release CIImages
+            // This allows ARC to reclaim ~27MB per batch before the next batch loads
+            // batchRenderData goes out of scope here, releasing the images
+        }
+
+        // Sort by page index and aggregate results
+        results.sort { $0.pageIndex < $1.pageIndex }
+
         var allElements: [StructuredElementWrapper] = []
         var pageTexts: [String] = []
         var pagesWithStructure = 0
         var ocrUsedCount = 0
 
-        Log.info("[DocumentProcessor] Starting structured parsing for \(pageCount) pages (iOS 26+)", category: .ingestion)
-
-        for pageIndex in 0..<pageCount {
-            let pageNumber = pageIndex + 1
-            progressHandler?("structured parse \(pageNumber)/\(pageCount)")
-
-            guard let page = pdfDocument.page(at: pageIndex) else {
-                pageTexts.append("")
-                continue
-            }
-
-            // Render page as image for Vision API
-            guard let pageImage = renderPDFPageAsImage(page: page) else {
-                Log.warning("[DocumentProcessor] Failed to render page \(pageNumber) for structured parsing", category: .ingestion)
-                // Fallback to plain text extraction for this page
-                if let plainText = page.string, !plainText.isEmpty {
-                    pageTexts.append(plainText)
-                    allElements.append(StructuredElementWrapper(
-                        text: plainText,
-                        elementType: "paragraph",
-                        pageNumber: pageNumber,
-                        isAtomicChunk: false
-                    ))
-                } else {
-                    pageTexts.append("")
-                }
-                continue
-            }
-
-            do {
-                // Use structured document parser
-                let structuredContent = try await parser.parsePageImage(pageImage, pageNumber: pageNumber)
-
-                if structuredContent.hasStructuredContent {
-                    pagesWithStructure += 1
-                }
-
-                // Log figure references if any were found
-                if !structuredContent.figureReferences.isEmpty {
-                    Log.debug("[DocumentProcessor] Page \(pageNumber) has \(structuredContent.figureReferences.count) figure references: \(structuredContent.figureReferences.prefix(3).joined(separator: ", "))", category: .ingestion)
-                }
-
-                // Use effectiveContent which automatically falls back to raw text if quality is low
-                // This ensures we don't lose content from low-quality scans
-                let elementsToUse = structuredContent.effectiveContent
-
-                // Convert structured elements to wrappers
-                for element in elementsToUse {
-                    let isAtomic = element.elementType == "table"  // Tables should not be split
-
-                    // Extract detected entities from table elements
-                    var entities: [(type: String, value: String)] = []
-                    if case .table(let tableData) = element {
-                        entities = tableData.detectedEntities.map { ($0.type.rawValue, $0.value) }
-                    }
-
-                    allElements.append(StructuredElementWrapper(
-                        text: element.textForEmbedding,
-                        elementType: element.elementType,
-                        pageNumber: element.pageNumber,
-                        isAtomicChunk: isAtomic,
-                        detectedEntities: entities
-                    ))
-                }
-
-                // Add figure references as searchable content (so queries about figures work)
-                if !structuredContent.figureReferences.isEmpty {
-                    let figureText = "[Visual Content on Page \(pageNumber)]\n" + structuredContent.figureReferences.joined(separator: "\n")
-                    allElements.append(StructuredElementWrapper(
-                        text: figureText,
-                        elementType: "figure",
-                        pageNumber: pageNumber,
-                        isAtomicChunk: true,
-                        detectedEntities: []
-                    ))
-                }
-
-                // Use raw text for page text assembly
-                pageTexts.append(structuredContent.rawText)
-
-            } catch StructuredParsingError.noDocumentDetected {
-                // No document content - try OCR fallback
-                if let ocrText = try? await performOCR(on: pageImage), !ocrText.isEmpty {
-                    pageTexts.append(ocrText)
-                    ocrUsedCount += 1
-                    allElements.append(StructuredElementWrapper(
-                        text: ocrText,
-                        elementType: "paragraph",
-                        pageNumber: pageNumber,
-                        isAtomicChunk: false
-                    ))
-                } else {
-                    pageTexts.append("")
-                }
-
-            } catch {
-                Log.warning("[DocumentProcessor] Structured parsing failed for page \(pageNumber): \(error.localizedDescription)", category: .ingestion)
-                // Fallback to plain text
-                if let plainText = page.string, !plainText.isEmpty {
-                    pageTexts.append(plainText)
-                } else {
-                    pageTexts.append("")
-                }
-            }
+        for result in results {
+            allElements.append(contentsOf: result.elements)
+            pageTexts.append(result.pageText)
+            if result.hasStructure { pagesWithStructure += 1 }
+            if result.usedOCR { ocrUsedCount += 1 }
         }
 
         Log.info("[DocumentProcessor] Structured parsing complete: \(pagesWithStructure)/\(pageCount) pages with tables/lists, \(allElements.count) elements extracted", category: .ingestion)
@@ -1711,6 +1901,67 @@ class DocumentProcessor {
                 try requestHandler.perform([request])
             } catch {
                 Log.error("[DocumentProcessor] OCR request failed: \(error.localizedDescription)", category: .ingestion)
+                continuation.resume(throwing: error)
+            }
+        }
+    }
+
+    // MARK: - Enhanced Spatial OCR (Full Document Understanding)
+
+    /// Perform OCR with full spatial analysis - extracts hierarchy, layout, figures, and captions
+    /// Returns enriched text with markdown-style headers and figure annotations
+    private func performEnhancedSpatialOCR(on image: CIImage, pageNumber: Int) async throws -> (text: String, analysis: SpatialPageAnalysis?) {
+        let observations = try await performOCRWithObservationsAsync(on: image)
+
+        guard !observations.isEmpty else {
+            return ("", nil)
+        }
+
+        // Perform full spatial analysis
+        let analyzer = SpatialDocumentAnalyzer.shared
+        let analysis = await analyzer.analyze(
+            observations: observations,
+            pageNumber: pageNumber,
+            pageSize: CGSize(width: image.extent.width, height: image.extent.height)
+        )
+
+        // Generate enriched text with hierarchy and figure info
+        let enrichedText = await analyzer.generateEnrichedText(from: analysis)
+
+        Log.info("[DocumentProcessor] Enhanced OCR page \(pageNumber): \(analysis.hierarchy.count) headers, \(analysis.layout.columnCount) columns, \(analysis.figures.count) figures", category: .ingestion)
+
+        return (enrichedText, analysis)
+    }
+
+    /// Async wrapper for observation-based OCR
+    private func performOCRWithObservationsAsync(on image: CIImage) async throws -> [VNRecognizedTextObservation] {
+        let requestHandler = VNImageRequestHandler(ciImage: image, options: [:])
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let request = VNRecognizeTextRequest { request, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                guard let observations = request.results as? [VNRecognizedTextObservation] else {
+                    continuation.resume(returning: [])
+                    return
+                }
+
+                continuation.resume(returning: observations)
+            }
+
+            request.revision = VNRecognizeTextRequestRevision3
+            request.recognitionLevel = .accurate
+            request.usesLanguageCorrection = true
+            request.automaticallyDetectsLanguage = true
+            request.recognitionLanguages = ["en-US", "en-GB", "es-ES", "fr-FR", "de-DE", "it-IT", "pt-BR"]
+            request.minimumTextHeight = 0.0
+
+            do {
+                try requestHandler.perform([request])
+            } catch {
                 continuation.resume(throwing: error)
             }
         }

@@ -462,32 +462,52 @@ actor GraphIndexService {
     }
 
     /// Get immediate neighbors (prev + next chunks)
+    /// CRITICAL: Only return neighbors from the SAME SECTION to avoid pulling irrelevant content.
+    /// For a car manual, a chunk about "engine oil" should not return neighbors about "transmission".
     func neighbors(
         for chunkId: UUID,
         distance: Int = 1,
         graphEdges: [UUID: ChunkGraphEdges],
         allChunks: [UUID: DocumentChunk]
     ) -> [DocumentChunk] {
+        guard let sourceChunk = allChunks[chunkId] else { return [] }
+
         var result: [DocumentChunk] = []
 
-        // Walk backwards
+        // Walk backwards, but only within same section
         var currentId: UUID? = chunkId
         for _ in 0..<distance {
             guard let id = currentId,
                   let edges = graphEdges[id],
                   let prevId = edges.prevChunkId,
                   let chunk = allChunks[prevId] else { break }
+
+            // SECTION FILTER: Only include neighbors from same section
+            if let sourceSection = sourceChunk.metadata.sectionTitle,
+               let neighborSection = chunk.metadata.sectionTitle,
+               sourceSection != neighborSection {
+                break  // Stop walking when we hit a different section
+            }
+
             result.insert(chunk, at: 0)
             currentId = prevId
         }
 
-        // Walk forwards
+        // Walk forwards, but only within same section
         currentId = chunkId
         for _ in 0..<distance {
             guard let id = currentId,
                   let edges = graphEdges[id],
                   let nextId = edges.nextChunkId,
                   let chunk = allChunks[nextId] else { break }
+
+            // SECTION FILTER: Only include neighbors from same section
+            if let sourceSection = sourceChunk.metadata.sectionTitle,
+               let neighborSection = chunk.metadata.sectionTitle,
+               sourceSection != neighborSection {
+                break  // Stop walking when we hit a different section
+            }
+
             result.append(chunk)
             currentId = nextId
         }

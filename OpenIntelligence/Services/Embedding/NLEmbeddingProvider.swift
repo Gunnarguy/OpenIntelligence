@@ -88,17 +88,63 @@ final class NLEmbeddingProvider: EmbeddingProvider {
 
     func embedBatch(texts: [String]) async throws -> [[Float]] {
         guard !texts.isEmpty else { return [] }
-        var out: [[Float]] = []
-        out.reserveCapacity(texts.count)
 
-        for (idx, t) in texts.enumerated() {
-            let e = try await embed(text: t)
-            out.append(e)
-            if (idx + 1) % 50 == 0 {
-                Log.verbose("[NLEmbeddingProvider] Progress: \(idx + 1)/\(texts.count)", category: .embedding)
+        // For small batches, process sequentially to avoid overhead
+        if texts.count < 5 {
+            var out: [[Float]] = []
+            out.reserveCapacity(texts.count)
+            for t in texts {
+                let e = try await embed(text: t)
+                out.append(e)
             }
+            return out
         }
-        return out
+
+        // Parallelize batch embedding for larger batches
+        // NLEmbedding is CPU-bound, so we use all available cores
+        let maxConcurrent = min(8, ProcessInfo.processInfo.activeProcessorCount)
+
+        return try await withThrowingTaskGroup(of: (Int, [Float]).self) { group in
+            var pendingIndex = 0
+            var results: [(Int, [Float])] = []
+            results.reserveCapacity(texts.count)
+
+            // Seed initial batch
+            for _ in 0..<min(maxConcurrent, texts.count) {
+                let idx = pendingIndex
+                let text = texts[idx]
+                pendingIndex += 1
+                group.addTask {
+                    let embedding = try await self.embed(text: text)
+                    return (idx, embedding)
+                }
+            }
+
+            // Process remaining with sliding window
+            for try await result in group {
+                results.append(result)
+
+                // Log progress periodically
+                if results.count % 50 == 0 {
+                    Log.verbose("[NLEmbeddingProvider] Progress: \(results.count)/\(texts.count)", category: .embedding)
+                }
+
+                // Add next task if any remain
+                if pendingIndex < texts.count {
+                    let idx = pendingIndex
+                    let text = texts[idx]
+                    pendingIndex += 1
+                    group.addTask {
+                        let embedding = try await self.embed(text: text)
+                        return (idx, embedding)
+                    }
+                }
+            }
+
+            // Sort by original index
+            results.sort { $0.0 < $1.0 }
+            return results.map { $0.1 }
+        }
     }
 
     // MARK: - Helpers (ported from previous EmbeddingService for parity)

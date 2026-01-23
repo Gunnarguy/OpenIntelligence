@@ -259,32 +259,42 @@ final class ParentDocumentService {
     }
 
     /// Check if two chunks are siblings (same section/page)
+    /// CRITICAL: Siblings must be topically related, not just physically adjacent!
+    /// For a 542-page car manual, a chunk about "engine oil" should NOT pull in
+    /// siblings about "driver assistance" just because they're on nearby pages.
     private func isSibling(_ a: DocumentChunk, _ b: DocumentChunk) -> Bool {
         // Must be same document
         guard a.documentId == b.documentId else { return false }
 
-        // Check explicit sibling group ID first
+        // Check explicit sibling group ID first (most reliable)
         if let groupA = a.metadata.siblingGroupId, let groupB = b.metadata.siblingGroupId {
             return groupA == groupB
         }
 
-        // Fallback: same page and section
+        // STRICT requirement: Same section title (if available)
+        // This prevents pulling chunks about "Driver Assistance" when query is about "Engine Oil"
+        let sameSection = a.metadata.sectionTitle == b.metadata.sectionTitle &&
+                          a.metadata.sectionTitle != nil
+
+        // Same page is a secondary signal but NOT sufficient alone
         let samePage = a.metadata.pageNumber == b.metadata.pageNumber
-        let sameSection = a.metadata.sectionTitle == b.metadata.sectionTitle
 
-        // If we have page numbers, require same page
-        if a.metadata.pageNumber != nil || b.metadata.pageNumber != nil {
-            return samePage
-        }
-
-        // If we have section titles, require same section
+        // If we have section titles, REQUIRE same section (even if same page)
+        // A page can have multiple topics (e.g., end of "Engine Oil" section + start of "Transmission")
         if a.metadata.sectionTitle != nil || b.metadata.sectionTitle != nil {
             return sameSection
         }
 
-        // Fallback: just check chunk index proximity
+        // If we only have page numbers (no sections), require same page AND close chunk index
+        if a.metadata.pageNumber != nil || b.metadata.pageNumber != nil {
+            // Must be same page AND within 2 chunks of each other
+            let indexDistance = abs(a.metadata.chunkIndex - b.metadata.chunkIndex)
+            return samePage && indexDistance <= 2
+        }
+
+        // Fallback: very strict chunk index proximity (adjacent chunks only)
         let indexDistance = abs(a.metadata.chunkIndex - b.metadata.chunkIndex)
-        return indexDistance <= config.maxSiblingsPerSide + 1
+        return indexDistance <= 1
     }
 
     /// Estimate token count from text (rough: ~4 chars per token)
