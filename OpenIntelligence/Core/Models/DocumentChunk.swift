@@ -335,6 +335,22 @@ struct ProcessingMetadata: Codable {
     let pagesProcessed: Int?
     let ocrPagesCount: Int?
     let chunkStats: ChunkStatistics
+
+    // === STRUCTURED DOCUMENT PARSING (Vision iOS 26+) ===
+    var usedStructuredParsing: Bool = false
+    var structuredParsingQuality: Double = 0
+    var tablesExtracted: Int = 0
+    var tableRowsTotal: Int = 0
+    var tableColumnsMax: Int = 0
+    var listsExtracted: Int = 0
+    var listItemsTotal: Int = 0
+    var titlesDetected: Int = 0
+    var figureReferences: Int = 0
+    var visionEntitiesDetected: Int = 0
+    var sectionPathDepth: Int = 0
+    var structuredParsingTimeSeconds: Double = 0
+    var atomicTableChunks: Int = 0
+    var atomicListChunks: Int = 0
 }
 
 struct ChunkStatistics: Codable {

@@ -314,13 +314,41 @@ private struct IngestionQueueRow: View {
     }
 
     private var hasMetrics: Bool {
-        item.metrics.chunkCount > 0 || item.metrics.totalWords > 0 || item.metrics.embeddingsGenerated > 0
+        item.metrics.chunkCount > 0 || item.metrics.totalWords > 0 || item.metrics.embeddingsGenerated > 0 || item.metrics.tablesExtracted > 0
     }
 
     @ViewBuilder
     private var liveMetricsView: some View {
         let m = item.metrics
         VStack(alignment: .leading, spacing: 6) {
+            // Row 0: Structured parsing status (Vision iOS 26+)
+            if m.usedStructuredParsing || m.tablesExtracted > 0 || m.listsExtracted > 0 {
+                HStack(spacing: 6) {
+                    // Vision badge
+                    HStack(spacing: 3) {
+                        Image(systemName: "eye.fill")
+                            .font(.system(size: 7))
+                        Text("Vision")
+                            .font(.system(size: 8, weight: .semibold))
+                    }
+                    .foregroundStyle(.green)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(Color.green.opacity(0.15))
+                    .clipShape(Capsule())
+
+                    if m.tablesExtracted > 0 {
+                        metricPill(icon: "tablecells", value: "\(m.tablesExtracted)", label: "tbl")
+                    }
+                    if m.listsExtracted > 0 {
+                        metricPill(icon: "list.bullet", value: "\(m.listsExtracted)", label: "lst")
+                    }
+                    if m.titlesDetected > 0 {
+                        metricPill(icon: "textformat.size.larger", value: "\(m.titlesDetected)", label: "hdr")
+                    }
+                }
+            }
+
             // Row 1: Core counts
             HStack(spacing: 8) {
                 if m.chunkCount > 0 {
@@ -419,282 +447,307 @@ private struct IngestionQueueRow: View {
     private var pipelineDetailsView: some View {
         let m = item.metrics
         VStack(alignment: .leading, spacing: 10) {
-            // ═══════════════════════════════════════════════
-            // DOCUMENT EXTRACTION
-            // ═══════════════════════════════════════════════
-            if m.totalWords > 0 || m.fileSizeMB > 0 {
-                detailSection(title: "📄 Document Extraction", icon: "doc.text.magnifyingglass") {
-                    // Primary stats
-                    HStack(spacing: 12) {
-                        if m.fileSizeMB > 0 {
-                            statBox(value: String(format: "%.2f", m.fileSizeMB), unit: "MB", label: "Size")
-                        }
-                        if m.totalWords > 0 {
-                            statBox(value: formatNumber(m.totalWords), unit: "", label: "Words")
-                        }
-                        if m.totalCharacters > 0 {
-                            statBox(value: formatNumber(m.totalCharacters), unit: "", label: "Chars")
-                        }
-                        if m.pageCount > 0 {
-                            statBox(value: "\(m.pageCount)", unit: "", label: "Pages")
-                        }
-                    }
-                    // OCR info
-                    if m.ocrPagesCount > 0 {
-                        HStack(spacing: 4) {
-                            Image(systemName: "eye.trianglebadge.exclamationmark")
-                                .font(.system(size: 9))
-                            Text("OCR: \(m.ocrPagesCount) page\(m.ocrPagesCount > 1 ? "s" : "") scanned")
-                        }
-                        .font(.caption2)
-                        .foregroundStyle(.orange)
-                    }
-                    // Extraction timing
-                    if m.extractionTimeMs > 0 {
-                        timingBadge(label: "Extraction", ms: m.extractionTimeMs, throughput: m.totalWords > 0 ? Double(m.totalWords) / (Double(m.extractionTimeMs) / 1000.0) : nil, unit: "w/s")
-                    }
-                }
-            }
-
-            // ═══════════════════════════════════════════════
-            // SEMANTIC CHUNKING
-            // ═══════════════════════════════════════════════
-            if m.chunkCount > 0 {
-                detailSection(title: "🧩 Semantic Chunking", icon: "square.split.2x2") {
-                    // Chunk statistics
-                    HStack(spacing: 12) {
-                        statBox(value: "\(m.chunkCount)", unit: "", label: "Chunks")
-                        statBox(value: "\(m.avgChunkWords)", unit: "w", label: "Avg")
-                        statBox(value: "\(m.minChunkWords)", unit: "w", label: "Min")
-                        statBox(value: "\(m.maxChunkWords)", unit: "w", label: "Max")
-                    }
-
-                    // Strategy details
-                    if !m.chunkingStrategy.isEmpty || m.targetWordWindow > 0 {
-                        HStack(spacing: 8) {
-                            if !m.chunkingStrategy.isEmpty {
-                                strategyPill(shortChunkStrategy(m.chunkingStrategy))
-                            }
-                            if m.targetWordWindow > 0 {
-                                paramPill("window", "\(m.targetWordWindow)w")
-                            }
-                            if m.overlapWords > 0 {
-                                paramPill("overlap", "\(m.overlapWords)w (\(Int(Double(m.overlapWords) / Double(max(1, m.targetWordWindow)) * 100))%)")
-                            }
-                        }
-                    }
-
-                    // Semantic boundary detection (THE NERDY SHIT)
-                    if m.sectionsDetected > 0 || m.topicBoundaries > 0 || m.embeddingBoundaries > 0 {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("BOUNDARY DETECTION")
-                                .font(.system(size: 8, weight: .bold, design: .monospaced))
-                                .foregroundStyle(DSColors.accent.opacity(0.7))
-                            HStack(spacing: 10) {
-                                if m.sectionsDetected > 0 {
-                                    boundaryItem(icon: "list.bullet.indent", value: m.sectionsDetected, label: "Sections", desc: "Heading/structure")
-                                }
-                                if m.topicBoundaries > 0 {
-                                    boundaryItem(icon: "arrow.triangle.branch", value: m.topicBoundaries, label: "Topics", desc: "TF-IDF shift")
-                                }
-                                if m.embeddingBoundaries > 0 {
-                                    boundaryItem(icon: "waveform.path.ecg", value: m.embeddingBoundaries, label: "∇Sim", desc: "Cosine gradient")
-                                }
-                            }
-                        }
-                        .padding(6)
-                        .background(DSColors.accent.opacity(0.05))
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                    }
-
-                    // Chunking timing
-                    if m.chunkingTimeMs > 0 {
-                        timingBadge(label: "Chunking", ms: m.chunkingTimeMs, throughput: Double(m.chunkCount) / (Double(m.chunkingTimeMs) / 1000.0), unit: "chk/s")
-                    }
-                }
-            }
-
-            // ═══════════════════════════════════════════════
-            // CORPUS INTELLIGENCE ANALYSIS
-            // ═══════════════════════════════════════════════
-            if m.isAutoAdaptive || m.vocabularyRichness > 0 || m.entitiesExtracted > 0 {
-                detailSection(title: "🧠 Corpus Intelligence", icon: "brain") {
-                    // Linguistic metrics
-                    if m.vocabularyRichness > 0 {
-                        HStack(spacing: 12) {
-                            metricGauge(label: "Vocab Richness", value: m.vocabularyRichness, color: .blue)
-                            metricGauge(label: "Technical Density", value: m.technicalDensity, color: .purple)
-                            if m.semanticComplexity > 0 {
-                                statBox(value: String(format: "%.2f", m.semanticComplexity), unit: "", label: "Complexity")
-                            }
-                        }
-                    }
-
-                    // Multilingual detection
-                    if m.multilingualScore > 0 || !m.detectedLanguages.isEmpty {
-                        HStack(spacing: 8) {
-                            if m.multilingualScore > 0.1 {
-                                metricGauge(label: "Multilingual", value: m.multilingualScore, color: .green)
-                            }
-                            if !m.detectedLanguages.isEmpty {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "globe")
-                                        .font(.system(size: 9))
-                                    Text(m.detectedLanguages.joined(separator: " · "))
-                                        .font(.system(size: 9, weight: .medium))
-                                }
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 3)
-                                .background(Color.green.opacity(0.1))
-                                .clipShape(Capsule())
-                            }
-                        }
-                    }
-
-                    // Content type detection
-                    if m.hasCode || m.hasMath {
-                        HStack(spacing: 6) {
-                            Text("DETECTED:")
-                                .font(.system(size: 8, weight: .bold))
-                                .foregroundStyle(DSColors.secondaryText)
-                            if m.hasCode {
-                                contentBadge(icon: "chevron.left.forwardslash.chevron.right", text: "Code", color: .orange)
-                            }
-                            if m.hasMath {
-                                contentBadge(icon: "function", text: "Math", color: .pink)
-                            }
-                        }
-                    }
-
-                    // Entity extraction
-                    if m.entitiesExtracted > 0 {
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                Image(systemName: "tag.fill")
-                                    .font(.system(size: 9))
-                                    .foregroundStyle(.cyan)
-                                Text("\(m.entitiesExtracted) ENTITIES EXTRACTED")
-                                    .font(.system(size: 8, weight: .bold, design: .monospaced))
-                                    .foregroundStyle(.cyan)
-                            }
-                            if !m.topEntities.isEmpty {
-                                Text(m.topEntities.prefix(5).joined(separator: " • "))
-                                    .font(.system(size: 9))
-                                    .foregroundStyle(DSColors.secondaryText)
-                                    .lineLimit(2)
-                            }
-                        }
-                        .padding(6)
-                        .background(Color.cyan.opacity(0.08))
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                    }
-
-                    // Adaptation result
-                    if m.configWasAdapted && !m.adaptationReason.isEmpty {
-                        HStack(spacing: 4) {
-                            Image(systemName: "sparkles")
-                                .font(.system(size: 10))
-                            Text(m.adaptationReason)
-                                .font(.caption2)
-                        }
-                        .foregroundStyle(.green)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.green.opacity(0.1))
-                        .clipShape(Capsule())
-                    }
-
-                    // Analysis timing
-                    if m.analysisTimeMs > 0 {
-                        timingBadge(label: "Analysis", ms: m.analysisTimeMs, throughput: nil, unit: nil)
-                    }
-                }
-            }
-
-            // ═══════════════════════════════════════════════
-            // NEURAL EMBEDDING
-            // ═══════════════════════════════════════════════
-            if m.embeddingsGenerated > 0 {
-                detailSection(title: "⚡ Neural Embedding", icon: "brain.head.profile") {
-                    HStack(spacing: 12) {
-                        statBox(value: "\(m.embeddingsGenerated)", unit: "", label: "Vectors")
-                        statBox(value: "\(m.embeddingDimension)", unit: "D", label: "Dims")
-                        if !m.embeddingProvider.isEmpty {
-                            VStack(spacing: 2) {
-                                Text(shortProviderDisplay(m.embeddingProvider))
-                                    .font(.system(size: 11, weight: .bold, design: .monospaced))
-                                    .foregroundStyle(DSColors.accent)
-                                Text("Encoder")
-                                    .font(.system(size: 8))
-                                    .foregroundStyle(DSColors.secondaryText)
-                            }
-                        }
-                    }
-
-                    // Embedding throughput
-                    if m.embeddingTimeMs > 0 {
-                        let vectorsPerSec = Double(m.embeddingsGenerated) / (Double(m.embeddingTimeMs) / 1000.0)
-                        timingBadge(label: "Embedding", ms: m.embeddingTimeMs, throughput: vectorsPerSec, unit: "vec/s")
-                    }
-                }
-            }
-
-            // ═══════════════════════════════════════════════
-            // PIPELINE TIMING SUMMARY
-            // ═══════════════════════════════════════════════
-            if m.totalTimeMs > 0 {
-                detailSection(title: "⏱ Pipeline Timing", icon: "clock.badge.checkmark") {
-                    // Waterfall timing visualization
-                    VStack(alignment: .leading, spacing: 4) {
-                        let stages: [(String, Int, Color)] = [
-                            ("Extract", m.extractionTimeMs, .blue),
-                            ("Chunk", m.chunkingTimeMs, .purple),
-                            ("Analyze", m.analysisTimeMs, .green),
-                            ("Embed", m.embeddingTimeMs, .orange)
-                        ].filter { $0.1 > 0 }
-
-                        ForEach(stages, id: \.0) { stage in
-                            timingBar(label: stage.0, ms: stage.1, total: m.totalTimeMs, color: stage.2)
-                        }
-                    }
-
-                    // Total with throughput
-                    HStack {
-                        Text("TOTAL")
-                            .font(.system(size: 9, weight: .bold, design: .monospaced))
-                        Spacer()
-                        Text(formatMs(m.totalTimeMs))
-                            .font(.system(size: 12, weight: .bold, design: .monospaced))
-                            .foregroundStyle(DSColors.accent)
-                        if m.totalWords > 0 && m.totalTimeMs > 100 {
-                            Text("(\(formatNumber(Int(Double(m.totalWords) / (Double(m.totalTimeMs) / 1000.0)))) w/s)")
-                                .font(.system(size: 9))
-                                .foregroundStyle(DSColors.secondaryText)
-                        }
-                    }
-                }
-            }
-
-            // ═══════════════════════════════════════════════
-            // REBUILD INFO (if applicable)
-            // ═══════════════════════════════════════════════
-            if m.isRebuild && !m.rebuildReason.isEmpty {
-                HStack(spacing: 6) {
-                    Image(systemName: "arrow.triangle.2.circlepath")
-                        .font(.system(size: 10))
-                    Text("REBUILD: \(m.rebuildReason)")
-                        .font(.system(size: 9, weight: .medium))
-                }
-                .foregroundStyle(.orange)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Color.orange.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-            }
+            extractionSection(m)
+            visionLayoutSection(m)
+            chunkingSection(m)
+            corpusIntelligenceSection(m)
+            embeddingSection(m)
+            timingSection(m)
+            rebuildSection(m)
         }
         .padding(10)
         .background(DSColors.surface.opacity(0.6))
         .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    // MARK: - Pipeline Detail Sections (broken up for compiler)
+
+    @ViewBuilder
+    private func extractionSection(_ m: PipelineMetrics) -> some View {
+        if m.totalWords > 0 || m.fileSizeMB > 0 {
+            detailSection(title: "📄 Document Extraction", icon: "doc.text.magnifyingglass") {
+                HStack(spacing: 12) {
+                    if m.fileSizeMB > 0 {
+                        statBox(value: String(format: "%.2f", m.fileSizeMB), unit: "MB", label: "Size")
+                    }
+                    if m.totalWords > 0 {
+                        statBox(value: formatNumber(m.totalWords), unit: "", label: "Words")
+                    }
+                    if m.totalCharacters > 0 {
+                        statBox(value: formatNumber(m.totalCharacters), unit: "", label: "Chars")
+                    }
+                    if m.pageCount > 0 {
+                        statBox(value: "\(m.pageCount)", unit: "", label: "Pages")
+                    }
+                }
+                if m.ocrPagesCount > 0 {
+                    HStack(spacing: 4) {
+                        Image(systemName: "eye.trianglebadge.exclamationmark")
+                            .font(.system(size: 9))
+                        Text("OCR: \(m.ocrPagesCount) page\(m.ocrPagesCount > 1 ? "s" : "") scanned")
+                    }
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+                }
+                if m.extractionTimeMs > 0 {
+                    timingBadge(label: "Extraction", ms: m.extractionTimeMs, throughput: m.totalWords > 0 ? Double(m.totalWords) / (Double(m.extractionTimeMs) / 1000.0) : nil, unit: "w/s")
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func visionLayoutSection(_ m: PipelineMetrics) -> some View {
+        if m.usedStructuredParsing || m.tablesExtracted > 0 || m.listsExtracted > 0 {
+            detailSection(title: "👁 Vision Layout", icon: "doc.viewfinder") {
+                visionStatusBadge(m)
+                visionStatsRow(m)
+                visionTableDetails(m)
+                visionExtras(m)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func visionStatusBadge(_ m: PipelineMetrics) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: m.usedStructuredParsing ? "checkmark.circle.fill" : "xmark.circle")
+                .font(.system(size: 10))
+                .foregroundStyle(m.usedStructuredParsing ? .green : .orange)
+            Text(m.usedStructuredParsing ? "RecognizeDocumentsRequest" : "PDFKit Fallback")
+                .font(.system(size: 9, weight: .medium, design: .monospaced))
+                .foregroundStyle(m.usedStructuredParsing ? .green : .orange)
+            if m.structuredParsingQuality > 0 {
+                Text("(\(Int(m.structuredParsingQuality * 100))% quality)")
+                    .font(.system(size: 8))
+                    .foregroundStyle(DSColors.secondaryText)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background((m.usedStructuredParsing ? Color.green : Color.orange).opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+    }
+
+    @ViewBuilder
+    private func visionStatsRow(_ m: PipelineMetrics) -> some View {
+        if m.tablesExtracted > 0 || m.listsExtracted > 0 || m.titlesDetected > 0 {
+            HStack(spacing: 10) {
+                if m.tablesExtracted > 0 { visionStatItem(icon: "tablecells", count: m.tablesExtracted, label: "Tables", color: .cyan) }
+                if m.listsExtracted > 0 { visionStatItem(icon: "list.bullet", count: m.listsExtracted, label: "Lists", color: .purple) }
+                if m.titlesDetected > 0 { visionStatItem(icon: "textformat.size.larger", count: m.titlesDetected, label: "Headers", color: .blue) }
+                if m.figureReferences > 0 { visionStatItem(icon: "photo", count: m.figureReferences, label: "Figures", color: .orange) }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func visionStatItem(icon: String, count: Int, label: String, color: Color) -> some View {
+        VStack(spacing: 2) {
+            HStack(spacing: 2) {
+                Image(systemName: icon).font(.system(size: 9))
+                Text("\(count)").font(.system(size: 11, weight: .bold, design: .monospaced))
+            }
+            .foregroundStyle(color)
+            Text(label).font(.system(size: 8)).foregroundStyle(DSColors.secondaryText)
+        }
+    }
+
+    @ViewBuilder
+    private func visionTableDetails(_ m: PipelineMetrics) -> some View {
+        if m.tablesExtracted > 0 && (m.tableRowsTotal > 0 || m.tableColumnsMax > 0) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("TABLE STRUCTURE").font(.system(size: 8, weight: .bold, design: .monospaced)).foregroundStyle(.cyan.opacity(0.8))
+                HStack(spacing: 8) {
+                    if m.tableRowsTotal > 0 { HStack(spacing: 2) { Text("\(m.tableRowsTotal)").font(.system(size: 10, weight: .semibold)); Text("rows").font(.system(size: 8)).foregroundStyle(DSColors.secondaryText) } }
+                    if m.tableColumnsMax > 0 { HStack(spacing: 2) { Text("\(m.tableColumnsMax)").font(.system(size: 10, weight: .semibold)); Text("max cols").font(.system(size: 8)).foregroundStyle(DSColors.secondaryText) } }
+                    if m.atomicTableChunks > 0 { HStack(spacing: 2) { Image(systemName: "lock.fill").font(.system(size: 7)); Text("\(m.atomicTableChunks) atomic").font(.system(size: 8)) }.foregroundStyle(.green) }
+                }
+            }
+            .padding(6)
+            .background(Color.cyan.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+        }
+    }
+
+    @ViewBuilder
+    private func visionExtras(_ m: PipelineMetrics) -> some View {
+        if m.visionEntitiesDetected > 0 {
+            HStack(spacing: 4) {
+                Image(systemName: "sparkle.magnifyingglass").font(.system(size: 9))
+                Text("\(m.visionEntitiesDetected) auto-detected").font(.system(size: 9))
+                Text("(emails, phones, dates)").font(.system(size: 8)).foregroundStyle(DSColors.secondaryText)
+            }
+            .foregroundStyle(.mint)
+        }
+        if m.sectionPathDepth > 1 {
+            HStack(spacing: 4) {
+                Image(systemName: "list.bullet.indent").font(.system(size: 9))
+                Text("\(m.sectionPathDepth)-level hierarchy").font(.system(size: 9))
+            }
+            .foregroundStyle(.indigo)
+        }
+        if m.structuredParsingTimeMs > 0 {
+            timingBadge(label: "Vision Parse", ms: m.structuredParsingTimeMs, throughput: m.pageCount > 0 ? Double(m.pageCount) / (Double(m.structuredParsingTimeMs) / 1000.0) : nil, unit: "pg/s")
+        }
+    }
+
+    @ViewBuilder
+    private func chunkingSection(_ m: PipelineMetrics) -> some View {
+        if m.chunkCount > 0 {
+            detailSection(title: "🧩 Chunking", icon: "square.split.2x2") {
+                HStack(spacing: 12) {
+                    statBox(value: "\(m.chunkCount)", unit: "", label: "Chunks")
+                    statBox(value: "\(m.avgChunkWords)", unit: "w", label: "Avg")
+                    statBox(value: "\(m.minChunkWords)", unit: "w", label: "Min")
+                    statBox(value: "\(m.maxChunkWords)", unit: "w", label: "Max")
+                }
+                chunkingAtomicInfo(m)
+                chunkingBoundaries(m)
+                if m.chunkingTimeMs > 0 {
+                    timingBadge(label: "Chunking", ms: m.chunkingTimeMs, throughput: Double(m.chunkCount) / (Double(m.chunkingTimeMs) / 1000.0), unit: "chk/s")
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func chunkingAtomicInfo(_ m: PipelineMetrics) -> some View {
+        if m.atomicTableChunks > 0 || m.atomicListChunks > 0 {
+            HStack(spacing: 8) {
+                Image(systemName: "lock.rectangle.stack").font(.system(size: 9))
+                if m.atomicTableChunks > 0 { Text("\(m.atomicTableChunks) table\(m.atomicTableChunks > 1 ? "s" : "")") }
+                if m.atomicListChunks > 0 { Text("\(m.atomicListChunks) list\(m.atomicListChunks > 1 ? "s" : "")") }
+                Text("kept atomic").foregroundStyle(DSColors.secondaryText)
+            }
+            .font(.system(size: 9))
+            .foregroundStyle(.green)
+        }
+        if !m.chunkingStrategy.isEmpty || m.targetWordWindow > 0 {
+            HStack(spacing: 8) {
+                if !m.chunkingStrategy.isEmpty { strategyPill(shortChunkStrategy(m.chunkingStrategy)) }
+                if m.targetWordWindow > 0 { paramPill("window", "\(m.targetWordWindow)w") }
+                if m.overlapWords > 0 { paramPill("overlap", "\(m.overlapWords)w") }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func chunkingBoundaries(_ m: PipelineMetrics) -> some View {
+        if m.sectionsDetected > 0 || m.topicBoundaries > 0 || m.embeddingBoundaries > 0 {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("BOUNDARIES").font(.system(size: 8, weight: .bold, design: .monospaced)).foregroundStyle(DSColors.accent.opacity(0.7))
+                HStack(spacing: 10) {
+                    if m.sectionsDetected > 0 { boundaryItem(icon: "list.bullet.indent", value: m.sectionsDetected, label: "Sections", desc: "Heading") }
+                    if m.topicBoundaries > 0 { boundaryItem(icon: "arrow.triangle.branch", value: m.topicBoundaries, label: "Topics", desc: "TF-IDF") }
+                    if m.embeddingBoundaries > 0 { boundaryItem(icon: "waveform.path.ecg", value: m.embeddingBoundaries, label: "∇Sim", desc: "Cosine") }
+                }
+            }
+            .padding(6)
+            .background(DSColors.accent.opacity(0.05))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+        }
+    }
+
+    @ViewBuilder
+    private func corpusIntelligenceSection(_ m: PipelineMetrics) -> some View {
+        if m.isAutoAdaptive || m.vocabularyRichness > 0 || m.entitiesExtracted > 0 {
+            detailSection(title: "🧠 Corpus Intel", icon: "brain") {
+                corpusMetrics(m)
+                corpusEntities(m)
+                if m.analysisTimeMs > 0 { timingBadge(label: "Analysis", ms: m.analysisTimeMs, throughput: nil, unit: nil) }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func corpusMetrics(_ m: PipelineMetrics) -> some View {
+        if m.vocabularyRichness > 0 {
+            HStack(spacing: 12) {
+                metricGauge(label: "Vocab", value: m.vocabularyRichness, color: .blue)
+                metricGauge(label: "Tech", value: m.technicalDensity, color: .purple)
+            }
+        }
+        if m.hasCode || m.hasMath {
+            HStack(spacing: 6) {
+                if m.hasCode { contentBadge(icon: "chevron.left.forwardslash.chevron.right", text: "Code", color: .orange) }
+                if m.hasMath { contentBadge(icon: "function", text: "Math", color: .pink) }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func corpusEntities(_ m: PipelineMetrics) -> some View {
+        if m.entitiesExtracted > 0 {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Image(systemName: "tag.fill").font(.system(size: 9)).foregroundStyle(.cyan)
+                    Text("\(m.entitiesExtracted) ENTITIES").font(.system(size: 8, weight: .bold, design: .monospaced)).foregroundStyle(.cyan)
+                }
+                if !m.topEntities.isEmpty {
+                    Text(m.topEntities.prefix(5).joined(separator: " • ")).font(.system(size: 9)).foregroundStyle(DSColors.secondaryText).lineLimit(2)
+                }
+            }
+            .padding(6)
+            .background(Color.cyan.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+        }
+    }
+
+    @ViewBuilder
+    private func embeddingSection(_ m: PipelineMetrics) -> some View {
+        if m.embeddingsGenerated > 0 {
+            detailSection(title: "⚡ Embedding", icon: "brain.head.profile") {
+                HStack(spacing: 12) {
+                    statBox(value: "\(m.embeddingsGenerated)", unit: "", label: "Vectors")
+                    statBox(value: "\(m.embeddingDimension)", unit: "D", label: "Dims")
+                    if !m.embeddingProvider.isEmpty {
+                        VStack(spacing: 2) {
+                            Text(shortProviderDisplay(m.embeddingProvider)).font(.system(size: 11, weight: .bold, design: .monospaced)).foregroundStyle(DSColors.accent)
+                            Text("Encoder").font(.system(size: 8)).foregroundStyle(DSColors.secondaryText)
+                        }
+                    }
+                }
+                if m.embeddingTimeMs > 0 {
+                    let rate = Double(m.embeddingsGenerated) / (Double(m.embeddingTimeMs) / 1000.0)
+                    timingBadge(label: "Embedding", ms: m.embeddingTimeMs, throughput: rate, unit: "vec/s")
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func timingSection(_ m: PipelineMetrics) -> some View {
+        if m.totalTimeMs > 0 {
+            detailSection(title: "⏱ Timing", icon: "clock.badge.checkmark") {
+                VStack(alignment: .leading, spacing: 4) {
+                    if m.extractionTimeMs > 0 { timingBar(label: "Extract", ms: m.extractionTimeMs, total: m.totalTimeMs, color: .blue) }
+                    if m.chunkingTimeMs > 0 { timingBar(label: "Chunk", ms: m.chunkingTimeMs, total: m.totalTimeMs, color: .purple) }
+                    if m.analysisTimeMs > 0 { timingBar(label: "Analyze", ms: m.analysisTimeMs, total: m.totalTimeMs, color: .green) }
+                    if m.embeddingTimeMs > 0 { timingBar(label: "Embed", ms: m.embeddingTimeMs, total: m.totalTimeMs, color: .orange) }
+                }
+                HStack {
+                    Text("TOTAL").font(.system(size: 9, weight: .bold, design: .monospaced))
+                    Spacer()
+                    Text(formatMs(m.totalTimeMs)).font(.system(size: 12, weight: .bold, design: .monospaced)).foregroundStyle(DSColors.accent)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func rebuildSection(_ m: PipelineMetrics) -> some View {
+        if m.isRebuild && !m.rebuildReason.isEmpty {
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.triangle.2.circlepath").font(.system(size: 10))
+                Text("REBUILD: \(m.rebuildReason)").font(.system(size: 9, weight: .medium))
+            }
+            .foregroundStyle(.orange)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Color.orange.opacity(0.1))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+        }
     }
 
     // MARK: - Granular Detail Components

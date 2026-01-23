@@ -187,20 +187,54 @@ class EmbeddingService {
         }
     }
 
-    /// Generate embeddings for multiple text chunks in batch
-    func generateEmbeddings(for texts: [String]) async throws -> [[Float]] {
+    /// Generate embeddings for multiple text chunks in batch with optional progress callback
+    func generateEmbeddings(
+        for texts: [String],
+        progressHandler: ((Int, Int) -> Void)? = nil
+    ) async throws -> [[Float]] {
         do {
             Log.debug("Generating embeddings for \(texts.count) chunks", category: .embedding)
             let startTime = Date()
-            let rawEmbeddings = try await provider.embedBatch(texts: texts)
-            let embeddings = rawEmbeddings.map { adjustDimension($0) }
+
+            // If no progress handler, use the fast batch method
+            guard let progressHandler = progressHandler else {
+                let rawEmbeddings = try await provider.embedBatch(texts: texts)
+                let embeddings = rawEmbeddings.map { adjustDimension($0) }
+                let totalTime = Date().timeIntervalSince(startTime)
+                let avgTime = texts.isEmpty ? 0 : totalTime / Double(texts.count)
+                Log.info("Embedded \(texts.count) chunks in \(String(format: "%.2f", totalTime))s (avg: \(String(format: "%.0f", avgTime * 1000))ms)", category: .embedding)
+                return embeddings
+            }
+
+            // With progress handler, process in smaller batches to report progress
+            let batchSize = 16 // Report progress every 16 chunks
+            var allEmbeddings: [[Float]] = []
+            allEmbeddings.reserveCapacity(texts.count)
+
+            for batchStart in stride(from: 0, to: texts.count, by: batchSize) {
+                let batchEnd = min(batchStart + batchSize, texts.count)
+                let batch = Array(texts[batchStart..<batchEnd])
+
+                let rawBatch = try await provider.embedBatch(texts: batch)
+                let adjusted = rawBatch.map { adjustDimension($0) }
+                allEmbeddings.append(contentsOf: adjusted)
+
+                // Report progress
+                progressHandler(batchEnd, texts.count)
+            }
+
             let totalTime = Date().timeIntervalSince(startTime)
             let avgTime = texts.isEmpty ? 0 : totalTime / Double(texts.count)
             Log.info("Embedded \(texts.count) chunks in \(String(format: "%.2f", totalTime))s (avg: \(String(format: "%.0f", avgTime * 1000))ms)", category: .embedding)
-            return embeddings
+            return allEmbeddings
         } catch {
             throw EmbeddingError.wrap(error, provider: providerIdentifier)
         }
+    }
+
+    /// Generate embeddings for multiple text chunks in batch (no progress callback)
+    func generateEmbeddings(for texts: [String]) async throws -> [[Float]] {
+        try await generateEmbeddings(for: texts, progressHandler: nil)
     }
 
     // MARK: - Validation

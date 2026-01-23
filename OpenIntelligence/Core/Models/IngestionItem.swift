@@ -64,6 +64,20 @@ struct PipelineMetrics: Sendable, Equatable {
     var pageCount: Int = 0
     var ocrPagesCount: Int = 0
 
+    // === STRUCTURED DOCUMENT PARSING (Vision iOS 26+) ===
+    var usedStructuredParsing: Bool = false
+    var structuredParsingQuality: Double = 0  // 0.0-1.0 quality score
+    var tablesExtracted: Int = 0
+    var tableRowsTotal: Int = 0
+    var tableColumnsMax: Int = 0
+    var listsExtracted: Int = 0
+    var listItemsTotal: Int = 0
+    var titlesDetected: Int = 0
+    var figureReferences: Int = 0
+    var visionEntitiesDetected: Int = 0  // Emails, phones, dates, URLs from Vision
+    var sectionPathDepth: Int = 0  // Deepest hierarchy level detected
+    var structuredParsingTimeMs: Int = 0
+
     // Chunking stats
     var chunkCount: Int = 0
     var avgChunkWords: Int = 0
@@ -75,6 +89,8 @@ struct PipelineMetrics: Sendable, Equatable {
     var sectionsDetected: Int = 0
     var topicBoundaries: Int = 0
     var embeddingBoundaries: Int = 0
+    var atomicTableChunks: Int = 0  // Tables kept as single chunks
+    var atomicListChunks: Int = 0   // Lists kept as single chunks
 
     // Entity extraction
     var entitiesExtracted: Int = 0

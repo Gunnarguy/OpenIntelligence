@@ -144,28 +144,42 @@ struct TableData: Sendable {
     }
 
     /// Convert table to a text representation that preserves structure for retrieval
-    /// Format includes both table format AND key-value pairs for better searchability
-    /// Example: "Table: Oil Specifications\nEngine Oil: 0W-20\nCapacity: 4.5L\n| Engine Oil | 0W-20 |..."
+    /// Uses THREE complementary formats for maximum retrievability across ANY domain:
+    /// 1. Natural language sentences ("The viscosity grade is SAE 0W-20")
+    /// 2. Key-value pairs ("Viscosity Grade: SAE 0W-20")
+    /// 3. Markdown table format (for LLM comprehension)
     nonisolated var textRepresentation: String {
         var lines: [String] = []
 
+        // === Section 1: Caption/Title ===
         if let caption = caption, !caption.isEmpty {
             lines.append("Table: \(caption)")
         } else {
             lines.append("Table:")
         }
+        lines.append("")
 
-        // ENHANCEMENT: For 2-column tables, add key-value pairs for better retrieval
-        // This helps queries like "what oil" match "Engine Oil: 0W-20"
+        // === Section 2: Natural Language Summary (UNIVERSAL) ===
+        // Generate plain English sentences from key-value pairs
+        // Works for ANY domain: "The dosage is 500mg", "The price is $49.99", etc.
         if let kvPairs = keyValuePairs, !kvPairs.isEmpty {
+            lines.append("[Summary]")
+            for (key, value) in kvPairs {
+                // Generate natural language sentence
+                let sentence = generateNaturalSentence(key: key, value: value)
+                lines.append(sentence)
+            }
+            lines.append("")
+
+            // === Section 3: Key-Value Pairs (for exact matching) ===
+            lines.append("[Specifications]")
             for (key, value) in kvPairs {
                 lines.append("\(key): \(value)")
             }
-            lines.append("")  // Blank line before table format
+            lines.append("")
         }
 
-        // ENHANCEMENT: Add detected entities for better searchability
-        // Vision automatically extracts emails, phones, dates, URLs, etc.
+        // === Section 4: Detected Entities (Vision auto-extraction) ===
         if !detectedEntities.isEmpty {
             lines.append("[Detected Data]")
             for entity in detectedEntities {
@@ -174,6 +188,8 @@ struct TableData: Sendable {
             lines.append("")
         }
 
+        // === Section 5: Full Markdown Table (for LLM comprehension) ===
+        lines.append("[Table Data]")
         for (index, row) in rows.enumerated() {
             let formattedRow = "| " + row.joined(separator: " | ") + " |"
             lines.append(formattedRow)
@@ -194,6 +210,26 @@ struct TableData: Sendable {
         }
 
         return lines.joined(separator: "\n")
+    }
+
+    /// Generate a natural language sentence from a key-value pair (domain-agnostic)
+    /// Examples:
+    ///   - ("Dosage", "500mg") → "The dosage is 500mg."
+    ///   - ("Engine Oil", "SAE 0W-20") → "The engine oil is SAE 0W-20."
+    ///   - ("Price", "$49.99") → "The price is $49.99."
+    private nonisolated func generateNaturalSentence(key: String, value: String) -> String {
+        let normalizedKey = key.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Handle common grammatical patterns
+        let article: String
+        if normalizedKey.hasPrefix("a ") || normalizedKey.hasPrefix("an ") || normalizedKey.hasPrefix("the ") {
+            article = ""
+        } else {
+            article = "The "
+        }
+
+        return "\(article)\(normalizedKey) is \(cleanValue)."
     }
 
     /// Key-value representation for specs tables (e.g., "Dosage: 500mg", "Part #: API-1234")
@@ -441,14 +477,45 @@ actor StructuredDocumentParser {
             rows.append(cellTexts)
         }
 
-        // Detect if first row looks like a header (often bold/larger, or contains common header words)
+        // UNIVERSAL: Detect if first row looks like a header using structural heuristics
+        // These patterns work across ALL domains (medical, automotive, financial, legal, etc.)
         let headerRow: [String]? = {
             guard let firstRow = rows.first, !firstRow.isEmpty else { return nil }
-            let headerKeywords = ["specification", "description", "type", "value", "name", "capacity", "grade", "viscosity", "quantity", "unit", "item", "part", "number"]
-            let looksLikeHeader = firstRow.contains { cell in
-                headerKeywords.contains { cell.lowercased().contains($0) }
-            }
-            return looksLikeHeader ? firstRow : nil
+            guard rows.count > 1 else { return nil }  // Need at least 2 rows for header detection
+
+            // Heuristic 1: First row cells are shorter than body cells (headers are usually terse)
+            let firstRowAvgLength = firstRow.reduce(0) { $0 + $1.count } / max(1, firstRow.count)
+            let bodyRowsAvgLength: Int = {
+                let bodyRows = Array(rows.dropFirst())
+                guard !bodyRows.isEmpty else { return firstRowAvgLength }
+                let totalChars = bodyRows.reduce(0) { total, row in
+                    total + row.reduce(0) { $0 + $1.count }
+                }
+                let totalCells = bodyRows.reduce(0) { $0 + $1.count }
+                return totalChars / max(1, totalCells)
+            }()
+            let shorterThanBody = firstRowAvgLength < bodyRowsAvgLength
+
+            // Heuristic 2: First row cells don't contain numeric data (headers are usually text labels)
+            let firstRowNumericCells = firstRow.filter { cell in
+                let digits = cell.filter { $0.isNumber }
+                return Double(digits.count) / Double(max(1, cell.count)) > 0.5
+            }.count
+            let mostlyNonNumeric = firstRowNumericCells == 0
+
+            // Heuristic 3: First row cells are different "types" than body cells
+            // (e.g., headers are all-text while body has mixed alphanumeric)
+            let headerPatternsDiffer: Bool = {
+                guard let secondRow = rows.dropFirst().first else { return false }
+                let firstRowPatterns = firstRow.map { classifyCellContent($0) }
+                let secondRowPatterns = secondRow.map { classifyCellContent($0) }
+                // If patterns differ (e.g., first is all .text, second has .numeric), likely header
+                return firstRowPatterns != secondRowPatterns
+            }()
+
+            // If 2+ heuristics match, treat as header
+            let heuristicHits = [shorterThanBody, mostlyNonNumeric, headerPatternsDiffer].filter { $0 }.count
+            return heuristicHits >= 2 ? firstRow : nil
         }()
 
         // Deduplicate entities by value (avoid Hashable actor isolation issues)
@@ -484,6 +551,37 @@ actor StructuredDocumentParser {
         }
 
         return items
+    }
+
+    // MARK: - Universal Cell Content Classification
+
+    /// Cell content type for header detection heuristics (domain-agnostic)
+    private enum CellContentType: Equatable {
+        case text           // Pure text (likely a label/header)
+        case numeric        // Mostly numbers (likely data)
+        case alphanumeric   // Mixed letters and numbers (codes, IDs)
+        case empty          // Empty cell
+    }
+
+    /// Classify cell content type for universal header detection
+    /// Works across ALL domains without keyword matching
+    private func classifyCellContent(_ cell: String) -> CellContentType {
+        let trimmed = cell.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return .empty }
+
+        let digits = trimmed.filter { $0.isNumber }
+        let letters = trimmed.filter { $0.isLetter }
+
+        let digitRatio = Double(digits.count) / Double(trimmed.count)
+        let letterRatio = Double(letters.count) / Double(trimmed.count)
+
+        if digitRatio > 0.6 {
+            return .numeric
+        } else if letterRatio > 0.8 {
+            return .text
+        } else {
+            return .alphanumeric
+        }
     }
 
     // MARK: - Vision DataDetection Entity Extraction

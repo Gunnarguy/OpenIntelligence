@@ -250,8 +250,20 @@ class DocumentProcessor {
             let totalTime = Date().timeIntervalSince(startTime)
                 Log.debug("   ✅ Total processing: \(String(format: "%.2f", totalTime))s", category: .ingestion)
 
-            // Create processing metadata
-            let metadata = ProcessingMetadata(
+            // Calculate structured parsing stats
+            let tableElements = structuredElements.filter { $0.elementType == "table" }
+            let listElements = structuredElements.filter { $0.elementType == "list" }
+            let titleElements = structuredElements.filter { $0.elementType == "title" }
+
+            // Count atomic chunks (tables/lists kept as single units)
+            let atomicTableChunkCount = processedChunks.filter { $0.metadata.structureType == "table" }.count
+            let atomicListChunkCount = processedChunks.filter { $0.metadata.structureType == "list" }.count
+
+            // Calculate max section path depth
+            let maxSectionDepth = processedChunks.compactMap { $0.metadata.sectionPath?.count }.max() ?? 0
+
+            // Create processing metadata with structured parsing stats
+            var metadata = ProcessingMetadata(
                 fileSizeMB: fileSizeMB,
                 totalCharacters: charCount,
                 totalWords: wordCount,
@@ -263,6 +275,20 @@ class DocumentProcessor {
                 ocrPagesCount: ocrPagesCount,
                 chunkStats: chunkStats
             )
+
+            // Add structured parsing stats
+            metadata.usedStructuredParsing = usedStructuredParsing
+            metadata.tablesExtracted = tableElements.count
+            metadata.listsExtracted = listElements.count
+            metadata.titlesDetected = titleElements.count
+            metadata.visionEntitiesDetected = lastDetectedEntities.count
+            metadata.sectionPathDepth = maxSectionDepth
+            metadata.atomicTableChunks = atomicTableChunkCount
+            metadata.atomicListChunks = atomicListChunkCount
+
+            if usedStructuredParsing {
+                Log.info("[DocumentProcessor] Structured parsing stats: \(tableElements.count) tables, \(listElements.count) lists, \(titleElements.count) titles, \(lastDetectedEntities.count) entities detected", category: .ingestion)
+            }
 
             // Create document metadata
             let document = Document(
@@ -1260,13 +1286,22 @@ class DocumentProcessor {
                 var text = element.text
                 guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
 
-                // ENHANCEMENT: Prepend section context to table for better retrieval
-                // This helps queries like "oil specifications" find the right table
+                // UNIVERSAL: Prepend FULL section path to table for hierarchical context
+                // Works for ANY domain: "Operating Materials > Engine Oil > Viscosity Grades"
+                //                       "Medications > Dosing > Adult Dosage"
+                //                       "Financial > Q4 2025 > Revenue Breakdown"
                 var contextPrefix = ""
-                if let sectionTitle = currentSectionTitle, element.elementType == "table" {
+                if !currentSectionPath.isEmpty && element.elementType == "table" {
+                    // Build full hierarchical path (e.g., "Section Path: Chapter > Topic > Subtopic")
+                    let pathString = currentSectionPath.joined(separator: " > ")
+                    contextPrefix = "Section Path: \(pathString)\n"
+                    text = contextPrefix + text
+                    Log.debug("[DocumentProcessor] Table with full path: \(pathString)", category: .ingestion)
+                } else if let sectionTitle = currentSectionTitle, element.elementType == "table" {
+                    // Fallback to single section title if no path available
                     contextPrefix = "Section: \(sectionTitle)\n"
                     text = contextPrefix + text
-                    Log.debug("[DocumentProcessor] Table associated with section: \(sectionTitle)", category: .ingestion)
+                    Log.debug("[DocumentProcessor] Table with section: \(sectionTitle)", category: .ingestion)
                 }
 
                 let wordCount = text.split(separator: " ").count

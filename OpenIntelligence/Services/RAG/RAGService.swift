@@ -2130,6 +2130,24 @@ class RAGService: ObservableObject {
                     metrics.minChunkWords = minChunkWords
                     metrics.maxChunkWords = maxChunkWords
                     metrics.extractionTimeMs = Int(extractionTime * 1000)
+
+                    // === STRUCTURED PARSING TRANSPARENCY ===
+                    if let meta = document.processingMetadata {
+                        metrics.usedStructuredParsing = meta.usedStructuredParsing
+                        metrics.structuredParsingQuality = meta.structuredParsingQuality
+                        metrics.tablesExtracted = meta.tablesExtracted
+                        metrics.tableRowsTotal = meta.tableRowsTotal
+                        metrics.tableColumnsMax = meta.tableColumnsMax
+                        metrics.listsExtracted = meta.listsExtracted
+                        metrics.listItemsTotal = meta.listItemsTotal
+                        metrics.titlesDetected = meta.titlesDetected
+                        metrics.figureReferences = meta.figureReferences
+                        metrics.visionEntitiesDetected = meta.visionEntitiesDetected
+                        metrics.sectionPathDepth = meta.sectionPathDepth
+                        metrics.structuredParsingTimeMs = Int(meta.structuredParsingTimeSeconds * 1000)
+                        metrics.atomicTableChunks = meta.atomicTableChunks
+                        metrics.atomicListChunks = meta.atomicListChunks
+                    }
                 }
             }
 
@@ -2330,16 +2348,38 @@ class RAGService: ObservableObject {
                     id: trackingId,
                     filename: filename,
                     stage: .embedding,
-                    detail: "Vectorizing \(processedChunks.count) chunks → \(embeddingDim)D (parallel)",
-                    progress: 0.1
+                    detail: "Vectorizing \(processedChunks.count) chunks → \(embeddingDim)D",
+                    progress: 0.0
                 ) { metrics in
                     metrics.embeddingDimension = embeddingDim
                     metrics.embeddingProvider = embeddingProviderName
                 }
             }
 
-            // Batch embed all chunks at once (uses TaskGroup parallelization internally)
-            embeddings = try await containerEmbeddingService.generateEmbeddings(for: textsToEmbed)
+            // Capture variables for closure
+            let totalChunks = processedChunks.count
+            let trackingIdForProgress = trackingId
+            let filenameForProgress = filename
+
+            // Batch embed with progress callback for live UI updates
+            embeddings = try await containerEmbeddingService.generateEmbeddings(
+                for: textsToEmbed,
+                progressHandler: { [weak self] completed, total in
+                    Task { @MainActor in
+                        let progress = Double(completed) / Double(max(1, total))
+                        self?.updateIngestionItem(
+                            id: trackingIdForProgress,
+                            filename: filenameForProgress,
+                            stage: .embedding,
+                            detail: "Embedding \(completed)/\(total) chunks...",
+                            progress: progress
+                        ) { metrics in
+                            metrics.embeddingsGenerated = completed
+                            metrics.embeddingBatchProgress = progress
+                        }
+                    }
+                }
+            )
 
             let embeddingTime = Date().timeIntervalSince(embeddingStartTime)
 
