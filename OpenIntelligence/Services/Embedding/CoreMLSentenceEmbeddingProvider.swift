@@ -182,12 +182,59 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
     }
 
     func embedBatch(texts: [String]) async throws -> [[Float]] {
-        var results: [[Float]] = []
-        results.reserveCapacity(texts.count)
-        for text in texts {
-            try results.append(await embed(text: text))
+        // Use parallel embedding for better hardware utilization
+        // Neural Engine can handle concurrent requests efficiently
+        let batchSize = texts.count
+
+        // For small batches, sequential is fine (avoid Task overhead)
+        guard batchSize > 4 else {
+            var results: [[Float]] = []
+            results.reserveCapacity(batchSize)
+            for text in texts {
+                try results.append(await embed(text: text))
+            }
+            return results
         }
-        return results
+
+        // Parallel batching with controlled concurrency
+        // Limit concurrent tasks to avoid memory pressure on ANE
+        let maxConcurrency = min(8, ProcessInfo.processInfo.activeProcessorCount)
+
+        return try await withThrowingTaskGroup(of: (Int, [Float]).self) { group in
+            var results = Array(repeating: [Float](), count: batchSize)
+            var submitted = 0
+            var collected = 0
+
+            // Submit initial batch up to maxConcurrency
+            while submitted < min(maxConcurrency, batchSize) {
+                let index = submitted
+                let text = texts[index]
+                group.addTask {
+                    let embedding = try await self.embed(text: text)
+                    return (index, embedding)
+                }
+                submitted += 1
+            }
+
+            // Process results and submit more as slots free up
+            for try await (index, embedding) in group {
+                results[index] = embedding
+                collected += 1
+
+                // Submit next task if any remaining
+                if submitted < batchSize {
+                    let nextIndex = submitted
+                    let text = texts[nextIndex]
+                    group.addTask {
+                        let embedding = try await self.embed(text: text)
+                        return (nextIndex, embedding)
+                    }
+                    submitted += 1
+                }
+            }
+
+            return results
+        }
     }
 
     // MARK: - Helpers

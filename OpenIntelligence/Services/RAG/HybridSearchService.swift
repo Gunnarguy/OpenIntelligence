@@ -312,9 +312,9 @@ class HybridSearchService {
             if let structureType = result.chunk.metadata.structureType {
                 switch structureType {
                 case "table":
-                    boost += 3  // Strong boost for tables on spec queries
+                    boost += 5  // ENHANCED: Stronger boost for tables on spec queries (was 3)
                 case "list":
-                    boost += 1  // Mild boost for lists
+                    boost += 2  // ENHANCED: Slightly higher boost for lists (was 1)
                 default:
                     break
                 }
@@ -324,12 +324,28 @@ class HybridSearchService {
             let content = result.chunk.content
             if content.contains("|") && content.components(separatedBy: "|").count >= 4 {
                 // Contains table-like markdown formatting
-                boost += 2
+                boost += 3  // ENHANCED: Stronger table detection boost (was 2)
             }
 
             // Boost if chunk contains numbers/measurements (specs often have numeric data)
             if result.chunk.metadata.hasNumericData {
                 boost += 1
+            }
+
+            // ENHANCED: Check for actual specification patterns in content
+            // Strongly boost chunks containing spec codes (0W-20, API SN, ISO 9001, etc.)
+            let specPatterns: [(pattern: String, weight: Int)] = [
+                (#"\d+W-\d+"#, 4),           // Oil viscosity: 0W-20, 5W-30, 10W-40
+                (#"(?:API|SAE|ACEA|ILSAC)\s*[A-Z0-9-]+"#, 3),  // Spec codes: API SN, SAE J300
+                (#"\d+(?:\.\d+)?\s*(?:L|qt|gal|ml)"#, 2),      // Volumes: 4.5L, 5 qt
+                (#"\d+(?:\.\d+)?\s*(?:psi|kPa|bar)"#, 2),      // Pressures: 32 psi
+            ]
+
+            for (pattern, weight) in specPatterns {
+                if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
+                   regex.firstMatch(in: content, options: [], range: NSRange(content.startIndex..., in: content)) != nil {
+                    boost += weight
+                }
             }
 
             scoredResults.append((result, boost, idx))

@@ -95,6 +95,14 @@ struct DetectedEntity: Sendable, Equatable, Hashable {
     }
 }
 
+/// Cell alignment detected from spatial analysis
+enum TableCellAlignment: String, Sendable {
+    case left
+    case center
+    case right
+    case unknown
+}
+
 /// Represents a parsed table with row/column structure preserved
 struct TableData: Sendable {
     let pageNumber: Int
@@ -102,6 +110,38 @@ struct TableData: Sendable {
     let headerRow: [String]?  // First row if detected as header
     let caption: String?  // Table caption if detected nearby
     let detectedEntities: [DetectedEntity]  // Auto-detected data (emails, phones, dates, etc.)
+    let cellAlignments: [[TableCellAlignment]]  // Alignment for each cell
+
+    /// Initialize with default unknown alignments
+    nonisolated init(pageNumber: Int, rows: [[String]], headerRow: [String]?, caption: String?, detectedEntities: [DetectedEntity], cellAlignments: [[TableCellAlignment]]? = nil) {
+        self.pageNumber = pageNumber
+        self.rows = rows
+        self.headerRow = headerRow
+        self.caption = caption
+        self.detectedEntities = detectedEntities
+        // Default to inferred alignments if not provided
+        self.cellAlignments = cellAlignments ?? Self.inferAlignments(from: rows)
+    }
+
+    /// Infer cell alignments from content (numbers = right, short text = center, else left)
+    private static func inferAlignments(from rows: [[String]]) -> [[TableCellAlignment]] {
+        rows.map { row in
+            row.map { cell in
+                let trimmed = cell.trimmingCharacters(in: .whitespaces)
+
+                // Numeric content → right-aligned
+                let numericChars = trimmed.filter { $0.isNumber || $0 == "." || $0 == "," || $0 == "$" || $0 == "%" || $0 == "-" }
+                let isNumeric = Double(numericChars.count) / Double(max(1, trimmed.count)) > 0.6
+                if isNumeric && !trimmed.isEmpty { return .right }
+
+                // Short text (likely header or label) → center
+                if trimmed.count < 15 && !trimmed.contains(" ") { return .center }
+
+                // Default to left
+                return .left
+            }
+        }
+    }
 
     /// Convert table to a text representation that preserves structure for retrieval
     /// Format includes both table format AND key-value pairs for better searchability
@@ -138,9 +178,17 @@ struct TableData: Sendable {
             let formattedRow = "| " + row.joined(separator: " | ") + " |"
             lines.append(formattedRow)
 
-            // Add separator after header row
+            // Add separator after header row with alignment hints
             if index == 0 && headerRow != nil {
-                let separator = "|" + row.map { _ in "---" }.joined(separator: "|") + "|"
+                let alignmentMarkers = cellAlignments.first?.map { alignment -> String in
+                    switch alignment {
+                    case .left: return ":---"
+                    case .right: return "---:"
+                    case .center: return ":---:"
+                    case .unknown: return "---"
+                    }
+                } ?? row.map { _ in "---" }
+                let separator = "|" + alignmentMarkers.joined(separator: "|") + "|"
                 lines.append(separator)
             }
         }
@@ -181,7 +229,7 @@ struct StructuredPageContent: Sendable {
     }
 
     /// Use structured elements if quality is good, otherwise fall back to raw text
-    var effectiveContent: [StructuredElement] {
+    nonisolated var effectiveContent: [StructuredElement] {
         // If structured parsing captured less than 50% of raw text, use raw text instead
         if qualityScore < 0.5 && !rawText.isEmpty {
             return [.paragraph(text: rawText, pageNumber: pageNumber)]

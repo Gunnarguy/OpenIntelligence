@@ -242,6 +242,7 @@ class RAGService: ObservableObject {
     private let contextPackingService: ContextPackingService
     private let confidenceCalibrationService = ConfidenceCalibrationService()
     private let extractiveSummarizationService: ExtractiveSummarizationService
+    private let specificationExtractor = SpecificationExtractor()
     private weak var entitlementStore: EntitlementStore?
     private var cancellables = Set<AnyCancellable>()
     @MainActor private weak var settingsStore: SettingsStore?
@@ -785,6 +786,12 @@ class RAGService: ObservableObject {
         // Load persisted documents metadata
         Task { @MainActor in
             self.cloudConsent = self.loadPersistedConsentStates()
+
+            // After loading consent states, prewarm consent popup if needed
+            // This shows the PCC consent popup during startup rather than mid-query
+            // Delay slightly to let the UI fully render before showing popup
+            try? await Task.sleep(for: .seconds(2))
+            self.prewarmCloudConsentIfNeeded()
         }
         loadDocumentsFromDisk()
 
@@ -1028,6 +1035,267 @@ class RAGService: ObservableObject {
         default:
             return nil
         }
+    }
+
+    // MARK: - Consent Prewarm
+
+    /// Prewarm cloud consent by showing the popup during app startup (if needed)
+    /// This prevents the consent popup from appearing mid-query and disrupting the pipeline.
+    /// Called after model warmup completes so the user sees the popup once before their first query.
+    @MainActor
+    func prewarmCloudConsentIfNeeded() {
+        // Only prewarm for PCC if consent is not yet determined
+        guard cloudConsent[.applePCC] == nil || cloudConsent[.applePCC] == .notDetermined else {
+            Log.debug("[Consent Prewarm] PCC consent already determined: \(cloudConsent[.applePCC]?.rawValue ?? "nil")", category: .initialization)
+            return
+        }
+
+        // Only prewarm if using Apple Foundation Models (PCC)
+        guard llmService is AppleFoundationLLMService else {
+            Log.debug("[Consent Prewarm] Not using Apple Foundation Models, skipping", category: .initialization)
+            return
+        }
+
+        Log.info("[Consent Prewarm] Showing PCC consent popup proactively", category: .initialization)
+
+        // Create a minimal consent record to trigger the popup
+        let prewarmRecord = CloudTransmissionRecord(
+            provider: .applePCC,
+            modelName: "Apple Foundation Model (On-Device)",
+            promptPreview: "[Consent prewarm - no actual data transmitted]",
+            promptCharacterCount: 0,
+            contextChunkCount: 0,
+            contextHashes: [],
+            estimatedBytes: 0
+        )
+
+        // This will trigger the consent popup UI
+        pendingCloudConsent = prewarmRecord
+    }
+
+    // MARK: - Universal Pipeline Tracing
+
+    /// Log chunk content previews at each pipeline stage for debugging
+    /// Shows first 100 chars of each chunk with score and page info
+    private func logChunkTrace(_ chunks: [RetrievedChunk], stage: String, query: String) {
+        guard Log.pipelineTraceEnabled else { return }
+
+        let separator = String(repeating: "─", count: 60)
+        print("\n\(separator)")
+        print("📊 CHUNK TRACE: \(stage) (\(chunks.count) chunks)")
+        print("   Query: \(query.prefix(50))\(query.count > 50 ? "..." : "")")
+        print(separator)
+
+        // Extract key terms from query for highlighting
+        let queryTerms = extractQueryTerms(query)
+
+        for (idx, chunk) in chunks.prefix(10).enumerated() {
+            let content = chunk.chunk.parentContent ?? chunk.chunk.content
+            let preview = String(content.prefix(120)).replacingOccurrences(of: "\n", with: " ")
+            let score = String(format: "%.3f", chunk.similarityScore)
+            let page = chunk.pageNumber.map { "p.\($0)" } ?? "?"
+            let section = chunk.chunk.metadata.sectionTitle ?? "—"
+
+            // Check if chunk contains any query terms
+            let contentLower = content.lowercased()
+            let matchedTerms = queryTerms.filter { contentLower.contains($0) }
+            let termMatch = matchedTerms.isEmpty ? "" : " ✓[\(matchedTerms.joined(separator: ","))]"
+
+            print("  [\(idx)] score=\(score) \(page) §\(section.prefix(20))\(termMatch)")
+            print("       \"\(preview)...\"")
+        }
+
+        if chunks.count > 10 {
+            print("  ... and \(chunks.count - 10) more chunks")
+        }
+        print(separator)
+    }
+
+    /// Log final assembled context with keyword analysis
+    private func logFinalContext(_ context: String, actualChunksUsed: Int, query: String) {
+        guard Log.pipelineTraceEnabled else { return }
+
+        let separator = String(repeating: "═", count: 60)
+        print("\n\(separator)")
+        print("📝 FINAL CONTEXT SENT TO LLM")
+        print("   Query: \(query)")
+        print("   Context: \(context.count) chars, \(actualChunksUsed) chunks")
+        print(separator)
+
+        // Extract key terms and check coverage
+        let queryTerms = extractQueryTerms(query)
+        let contextLower = context.lowercased()
+
+        var foundTerms: [String] = []
+        var missingTerms: [String] = []
+
+        for term in queryTerms {
+            if contextLower.contains(term) {
+                foundTerms.append(term)
+            } else {
+                missingTerms.append(term)
+            }
+        }
+
+        print("   Query terms found: \(foundTerms.joined(separator: ", "))")
+        if !missingTerms.isEmpty {
+            print("   ⚠️ Missing terms: \(missingTerms.joined(separator: ", "))")
+        }
+
+        // Show first 500 chars preview
+        let preview = String(context.prefix(500)).replacingOccurrences(of: "\n", with: "↵")
+        print("   Preview: \"\(preview)...\"")
+        print(separator)
+    }
+
+    /// Scan all chunks for viscosity patterns and report findings
+    /// This helps diagnose whether oil specs are present in the corpus
+    private func runViscosityScan(_ allChunks: [DocumentChunk], query: String) async {
+        guard Log.pipelineTraceEnabled else { return }
+
+        // Only run for oil-related queries to avoid noise
+        let queryLower = query.lowercased()
+        let oilRelated = queryLower.contains("oil") || queryLower.contains("fluid") ||
+                         queryLower.contains("lubricant") || queryLower.contains("viscosity")
+
+        let separator = String(repeating: "═", count: 60)
+        print("\n\(separator)")
+        print("🔍 CORPUS SPECIFICATION SCAN")
+        print("   Query: \(query)")
+        print("   Total chunks: \(allChunks.count)")
+        print(separator)
+
+        // Scan for viscosity patterns
+        let viscosityPattern = #"\d+[Ww]-\d+"#
+        var viscosityChunks: [(idx: Int, page: Int?, match: String, preview: String)] = []
+
+        for (idx, chunk) in allChunks.enumerated() {
+            let content = chunk.content
+            if let range = content.range(of: viscosityPattern, options: .regularExpression) {
+                let match = String(content[range])
+                let preview = String(content.prefix(120)).replacingOccurrences(of: "\n", with: " ")
+                viscosityChunks.append((idx, chunk.metadata.pageNumber, match, preview))
+            }
+        }
+
+        if viscosityChunks.isEmpty {
+            print("   ⚠️ NO VISCOSITY PATTERNS FOUND (0W-20, 5W-30, etc.)")
+            print("   This means the oil specification may be:")
+            print("   • In an image/table not extracted as text")
+            print("   • Split across chunk boundaries")
+            print("   • Using non-standard formatting")
+
+            // Search for related terms to help diagnose
+            var oilMentions = 0
+            var saeMatches: [String] = []
+            for chunk in allChunks {
+                let content = chunk.content.lowercased()
+                if content.contains("engine oil") { oilMentions += 1 }
+                if let range = content.range(of: #"sae\s*\d+"#, options: .regularExpression) {
+                    saeMatches.append(String(chunk.content[range]))
+                }
+            }
+            print("   Related: \(oilMentions) chunks mention 'engine oil'")
+            if !saeMatches.isEmpty {
+                print("   SAE mentions: \(Set(saeMatches).joined(separator: ", "))")
+            }
+        } else {
+            print("   ✅ Found \(viscosityChunks.count) chunks with viscosity specs:")
+            for vc in viscosityChunks.prefix(8) {
+                let section = allChunks[vc.idx].metadata.sectionTitle ?? "—"
+                print("   [\(vc.idx)] p.\(vc.page ?? 0) §\(section.prefix(25))")
+                print("       Match: \(vc.match)")
+                print("       \"\(vc.preview)...\"")
+            }
+            if viscosityChunks.count > 8 {
+                print("   ... and \(viscosityChunks.count - 8) more")
+            }
+        }
+        print(separator)
+    }
+
+    /// Count specification-like patterns in content (numbers, measurements, codes)
+    /// Used to prioritize chunks with actual specs for lookup queries
+    private func countSpecPatterns(_ content: String) -> Int {
+        var score = 0
+
+        // Oil viscosity patterns: 0W-20, 5W-30, etc.
+        let viscosityPattern = #"\d+W-\d+"#
+        if let regex = try? NSRegularExpression(pattern: viscosityPattern, options: []) {
+            score += regex.numberOfMatches(in: content, options: [], range: NSRange(content.startIndex..., in: content)) * 3  // High weight for oil specs
+        }
+
+        // Measurement patterns: 3.5L, 100mm, 32psi, etc.
+        let measurementPattern = #"\d+(?:\.\d+)?\s*(?:L|ml|mm|cm|m|kg|g|psi|kPa|°[CF]|ft|in|lbs?)\b"#
+        if let regex = try? NSRegularExpression(pattern: measurementPattern, options: .caseInsensitive) {
+            score += regex.numberOfMatches(in: content, options: [], range: NSRange(content.startIndex..., in: content)) * 2
+        }
+
+        // Table/list indicators (specs often in tables)
+        if content.contains(":") && content.rangeOfCharacter(from: .decimalDigits) != nil {
+            score += 2
+        }
+
+        // API/spec codes: API SN, SAE, ACEA, etc.
+        let specCodePattern = #"\b(?:API|SAE|ACEA|ILSAC|JASO)\s*[A-Z0-9-]+"#
+        if let regex = try? NSRegularExpression(pattern: specCodePattern, options: []) {
+            score += regex.numberOfMatches(in: content, options: [], range: NSRange(content.startIndex..., in: content)) * 3
+        }
+
+        // General numbers (lower weight)
+        let numberPattern = #"\b\d+(?:\.\d+)?\b"#
+        if let regex = try? NSRegularExpression(pattern: numberPattern, options: []) {
+            score += min(5, regex.numberOfMatches(in: content, options: [], range: NSRange(content.startIndex..., in: content)))  // Cap at 5
+        }
+
+        return score
+    }
+
+    // MARK: - Lexical Relevance Check
+
+    /// Stop words to exclude from keyword matching
+    private static let stopWords: Set<String> = [
+        "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
+        "have", "has", "had", "do", "does", "did", "will", "would", "could", "should",
+        "may", "might", "must", "shall", "can", "need", "dare", "ought", "used",
+        "to", "of", "in", "for", "on", "with", "at", "by", "from", "as", "into",
+        "through", "during", "before", "after", "above", "below", "between",
+        "under", "again", "further", "then", "once", "here", "there", "when",
+        "where", "why", "how", "all", "each", "few", "more", "most", "other",
+        "some", "such", "no", "nor", "not", "only", "own", "same", "so", "than",
+        "too", "very", "just", "also", "now", "what", "which", "who", "whom",
+        "this", "that", "these", "those", "am", "it", "its", "i", "me", "my",
+        "myself", "we", "our", "ours", "ourselves", "you", "your", "yours",
+        "he", "him", "his", "she", "her", "hers", "they", "them", "their"
+    ]
+
+    /// Check if query keywords appear in retrieved chunks (simple but effective)
+    /// Returns 0.0-1.0 representing what fraction of query keywords appear in chunks
+    private func checkLexicalRelevance(query: String, chunks: [RetrievedChunk]) -> Float {
+        // Extract meaningful keywords from query (non-stopwords, 3+ chars)
+        let queryWords = query.lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { $0.count >= 3 && !Self.stopWords.contains($0) }
+
+        guard !queryWords.isEmpty else { return 0.5 } // Can't evaluate, assume ok
+
+        // Build combined chunk text
+        let chunkText = chunks.prefix(5)
+            .map { ($0.chunk.parentContent ?? $0.chunk.content).lowercased() }
+            .joined(separator: " ")
+
+        // Count how many query keywords appear in chunks
+        var matchCount = 0
+        for word in queryWords {
+            if chunkText.contains(word) {
+                matchCount += 1
+            }
+        }
+
+        let relevance = Float(matchCount) / Float(queryWords.count)
+        Log.debug("[LexicalRelevance] \(matchCount)/\(queryWords.count) keywords found = \(String(format: "%.0f%%", relevance * 100))", category: .retrieval)
+
+        return relevance
     }
 
     private func ensureCloudConsentIfNeeded(
@@ -2040,23 +2308,12 @@ class RAGService: ObservableObject {
             let docContext = buildContextualPrefix(filename: filename)
             Log.info("[Contextual] Document prefix: '\(docContext)'", category: .ingestion)
 
-            for (index, chunk) in processedChunks.enumerated() {
-                let progressPct = Double(index + 1) / Double(max(1, processedChunks.count))
-                await MainActor.run {
-                    updateIngestionItem(
-                        id: trackingId,
-                        filename: filename,
-                        stage: .embedding,
-                        detail: "Vectorizing chunk \(index + 1)/\(processedChunks.count) → \(embeddingDim)D",
-                        progress: progressPct
-                    ) { metrics in
-                        metrics.embeddingDimension = embeddingDim
-                        metrics.embeddingProvider = embeddingProviderName
-                        metrics.embeddingsGenerated = index + 1
-                        metrics.embeddingBatchProgress = progressPct
-                    }
-                }
+            // HYPERCHARGE: Build all texts to embed upfront, then batch embed
+            // This uses parallel embedding (TaskGroup) in the provider layer
+            var textsToEmbed: [String] = []
+            textsToEmbed.reserveCapacity(processedChunks.count)
 
+            for chunk in processedChunks {
                 // Build chunk-specific contextual prefix with section info
                 let sectionContext = chunk.metadata.sectionTitle.map { " [\($0)]" } ?? ""
                 let contextualPrefix = docContext + sectionContext + " "
@@ -2064,9 +2321,25 @@ class RAGService: ObservableObject {
 
                 // Embed with contextual prefix prepended (Anthropic's key insight)
                 let textForEmbedding = contextualPrefix + chunk.text
-                let embedding = try await containerEmbeddingService.generateEmbedding(for: textForEmbedding)
-                embeddings.append(embedding)
+                textsToEmbed.append(textForEmbedding)
             }
+
+            // Show initial progress
+            await MainActor.run {
+                updateIngestionItem(
+                    id: trackingId,
+                    filename: filename,
+                    stage: .embedding,
+                    detail: "Vectorizing \(processedChunks.count) chunks → \(embeddingDim)D (parallel)",
+                    progress: 0.1
+                ) { metrics in
+                    metrics.embeddingDimension = embeddingDim
+                    metrics.embeddingProvider = embeddingProviderName
+                }
+            }
+
+            // Batch embed all chunks at once (uses TaskGroup parallelization internally)
+            embeddings = try await containerEmbeddingService.generateEmbeddings(for: textsToEmbed)
 
             let embeddingTime = Date().timeIntervalSince(embeddingStartTime)
 
@@ -3679,6 +3952,10 @@ class RAGService: ObservableObject {
                 if corpusVocabulary.keywords.isEmpty {
                     let allChunks = try await vdb.allChunks()
                     cachedAllChunks = allChunks // Store for HybridSearchService lexical recall
+
+                    // Run viscosity scan when building vocabulary (first query)
+                    await runViscosityScan(allChunks, query: question)
+
                     let built = CorpusVocabulary.build(from: allChunks)
                     // Cache for future queries
                     await MainActor.run {
@@ -3690,6 +3967,67 @@ class RAGService: ObservableObject {
                 } else {
                     finalCorpusVocabulary = corpusVocabulary
                     Log.debug("Using cached corpus vocabulary (0ms)", category: .pipeline)
+
+                    // Even with cached vocabulary, run viscosity scan if pipeline trace is on
+                    // This helps diagnose retrieval issues
+                    if Log.pipelineTraceEnabled {
+                        let allChunks = try await vdb.allChunks()
+                        cachedAllChunks = allChunks
+                        await runViscosityScan(allChunks, query: question)
+                    }
+                }
+
+                // DIAGNOSTIC: For oil queries, ALWAYS scan corpus for viscosity specs
+                // This helps debug retrieval issues without needing Pipeline Trace enabled
+                let queryLower = question.lowercased()
+                if queryLower.contains("oil") || queryLower.contains("viscosity") || queryLower.contains("0w") || queryLower.contains("5w") {
+                    let scanChunks: [DocumentChunk]
+                    if let cached = cachedAllChunks {
+                        scanChunks = cached
+                    } else {
+                        scanChunks = try await vdb.allChunks()
+                    }
+                    let viscosityPattern = #"\d+[Ww]-\d+"#
+                    var viscosityChunks: [(idx: Int, page: Int?, section: String?, match: String, preview: String)] = []
+                    for (idx, chunk) in scanChunks.enumerated() {
+                        let content = chunk.content
+                        if let range = content.range(of: viscosityPattern, options: .regularExpression) {
+                            let match = String(content[range])
+                            let preview = String(content.prefix(150)).replacingOccurrences(of: "\n", with: " ")
+                            viscosityChunks.append((idx, chunk.metadata.pageNumber, chunk.metadata.sectionTitle, match, preview))
+                        }
+                    }
+
+                    Log.info("🔍 [OIL-DIAGNOSTIC] Query: '\(question)'", category: .retrieval)
+                    Log.info("🔍 [OIL-DIAGNOSTIC] Scanned \(scanChunks.count) chunks for viscosity patterns", category: .retrieval)
+
+                    if viscosityChunks.isEmpty {
+                        Log.warning("🔍 [OIL-DIAGNOSTIC] ⚠️ NO CHUNKS contain viscosity specs (0W-20, 5W-30, etc.)", category: .retrieval)
+                        Log.warning("🔍 [OIL-DIAGNOSTIC] The oil specification may be in an image/table that wasn't extracted as text", category: .retrieval)
+
+                        // Look for related terms to help debug
+                        var relatedChunks: [(idx: Int, keyword: String)] = []
+                        let keywords = ["SAE", "synthetic", "motor oil", "engine oil capacity", "oil grade", "API"]
+                        for (idx, chunk) in scanChunks.enumerated() {
+                            for keyword in keywords {
+                                if chunk.content.localizedCaseInsensitiveContains(keyword) {
+                                    relatedChunks.append((idx, keyword))
+                                    break
+                                }
+                            }
+                        }
+                        Log.info("🔍 [OIL-DIAGNOSTIC] Found \(relatedChunks.count) chunks with related oil keywords", category: .retrieval)
+                        for rc in relatedChunks.prefix(3) {
+                            let chunk = scanChunks[rc.idx]
+                            let preview = String(chunk.content.prefix(100)).replacingOccurrences(of: "\n", with: " ")
+                            Log.info("🔍 [OIL-DIAGNOSTIC] Chunk[\(rc.idx)] '\(rc.keyword)': \(preview)...", category: .retrieval)
+                        }
+                    } else {
+                        Log.info("🔍 [OIL-DIAGNOSTIC] ✅ Found \(viscosityChunks.count) chunks with viscosity specs:", category: .retrieval)
+                        for vc in viscosityChunks.prefix(5) {
+                            Log.info("🔍 [OIL-DIAGNOSTIC] Chunk[\(vc.idx)] p.\(vc.page ?? 0) [\(vc.section ?? "?")] \(vc.match): \(vc.preview)", category: .retrieval)
+                        }
+                    }
                 }
 
                 // Check advanced RAG settings
@@ -4011,8 +4349,13 @@ class RAGService: ObservableObject {
                 // Step 2.5: Query Classification for RAPTOR-lite (summary-first retrieval)
                 // Determines whether to search document summaries (L1) or detail chunks (L0)
                 // Controlled by settings.enableQueryRouting
+                // HYPERCHARGE: Run RAPTOR classification in parallel with retrieval setup
+                // (query classification is independent of embedding results)
                 let queryRoutingEnabled = settingsStore?.enableQueryRouting ?? true
-                let queryClassification = await queryRouter.classifyQuery(effectiveQuery)
+                // Capture effectiveQuery to avoid concurrent access to var
+                let queryForRouting = effectiveQuery
+                async let asyncQueryClassification = queryRouter.classifyQuery(queryForRouting)
+                let queryClassification = await asyncQueryClassification
 
                 // Pipeline Trace: Step 2.5 (RAPTOR-lite)
                 if queryRoutingEnabled {
@@ -4283,6 +4626,12 @@ class RAGService: ObservableObject {
                     "✓ Retrieved \(chunksWithSources.count) chunks with hybrid fusion",
                     category: .retrieval
                 )
+
+                // Universal pipeline trace: log chunks after hybrid search
+                if Log.pipelineTraceEnabled {
+                    logChunkTrace(chunksWithSources, stage: "Post-HybridSearch", query: question)
+                }
+
                 Log.debug(
                     "  Time: \(String(format: "%.0f", retrievalTime * 1000))ms",
                     category: .performance
@@ -4327,6 +4676,12 @@ class RAGService: ObservableObject {
                         "✓ Re-ranked to top \(rerankedChunks.count) in \(String(format: "%.0f", rerankTime * 1000))ms",
                         category: .retrieval
                     )
+
+                    // Universal pipeline trace: log chunks after re-ranking
+                    if Log.pipelineTraceEnabled {
+                        logChunkTrace(rerankedChunks, stage: "Post-Rerank", query: question)
+                    }
+
                     TelemetryCenter.emit(
                         .retrieval,
                         title: "Re-ranking complete",
@@ -4598,6 +4953,72 @@ class RAGService: ObservableObject {
                         title: "Low-confidence filtered",
                         metadata: ["dropped": "\(dropped)"]
                     )
+
+                    // SPEC PRESERVATION: For extractive queries, rescue chunks with actual specification values
+                    // Cross-encoders often score table/spec chunks lower (sparse text, dense data)
+                    // But these are exactly the chunks that contain the answer (e.g., "0W-20")
+                    if answerIntent.isExtractiveFirst {
+                        let filteredIds = Set(filteredChunks.map { $0.chunk.id })
+                        let droppedChunks = rerankedChunks.filter { !filteredIds.contains($0.chunk.id) }
+
+                        // Find dropped chunks with high spec scores
+                        var rescuedChunks: [RetrievedChunk] = []
+                        let specThreshold = 5  // Minimum spec pattern score to rescue
+
+                        // Also scan ALL candidates for viscosity patterns (critical for oil queries)
+                        let viscosityPattern = #"\d+[Ww]-\d+"#
+                        var foundViscosityChunk = false
+
+                        for chunk in rerankedChunks {
+                            let content = chunk.chunk.parentContent ?? chunk.chunk.content
+                            if let _ = content.range(of: viscosityPattern, options: .regularExpression) {
+                                foundViscosityChunk = true
+                                // If this chunk was filtered out, force rescue it
+                                if !filteredIds.contains(chunk.chunk.id) {
+                                    Log.info("   🔧 Viscosity spec found in filtered chunk: \(String(content.prefix(80)))...", category: .retrieval)
+                                    rescuedChunks.insert(chunk, at: 0)  // Priority position
+                                }
+                            }
+                        }
+
+                        if !foundViscosityChunk && Log.pipelineTraceEnabled {
+                            Log.warning("   ⚠️ No viscosity specs (e.g., 0W-20) found in ANY of \(rerankedChunks.count) reranked chunks!", category: .retrieval)
+                        }
+
+                        for chunk in droppedChunks {
+                            let content = chunk.chunk.parentContent ?? chunk.chunk.content
+                            let specScore = countSpecPatterns(content)
+
+                            // Also check for table structure (specs often in tables)
+                            let isTableChunk = chunk.chunk.metadata.structureType == "table" ||
+                                               content.contains("|") && content.components(separatedBy: "|").count >= 4
+
+                            // Rescue if high spec score OR table chunk with decent spec score
+                            if specScore >= specThreshold || (isTableChunk && specScore >= 3) {
+                                rescuedChunks.append(chunk)
+                            }
+                        }
+
+                        if !rescuedChunks.isEmpty {
+                            // Limit rescued chunks to prevent flooding
+                            let maxRescue = min(5, rescuedChunks.count)
+                            let topRescued = rescuedChunks.prefix(maxRescue)
+                            filteredChunks.append(contentsOf: topRescued)
+
+                            Log.info(
+                                "   🔧 Spec preservation: rescued \(topRescued.count) spec-containing chunks for extractive query",
+                                category: .retrieval
+                            )
+                            TelemetryCenter.emit(
+                                .retrieval,
+                                title: "Spec preservation",
+                                metadata: [
+                                    "rescued": "\(topRescued.count)",
+                                    "intent": answerIntent.rawValue
+                                ]
+                            )
+                        }
+                    }
                 }
 
                 // Edge case: No high-confidence chunks
@@ -4880,6 +5301,12 @@ class RAGService: ObservableObject {
                 let isAppleFMOnDevice = llmService is AppleFoundationLLMService
                 var contextCandidates = diverseChunks
                 var contextStrategy = "mmr"
+
+                // Universal pipeline trace: log chunk content previews at each stage
+                if Log.pipelineTraceEnabled {
+                    logChunkTrace(diverseChunks, stage: "Post-MMR", query: question)
+                }
+
                 let strongTopSim =
                     auditTopSim >= 0.72 || (auditTopSim >= 0.68 && (auditTopSim - auditAvgTop5) >= 0.03)
                 let shortQuery = queryWords <= 12
@@ -4918,6 +5345,10 @@ class RAGService: ObservableObject {
                             "🔎 Focused context window (\(focused.count) chunks) • topSim \(String(format: "%.3f", auditTopSim)) • source \(sourceName)",
                             category: .retrieval
                         )
+
+                        if Log.pipelineTraceEnabled {
+                            logChunkTrace(focused, stage: "Post-FocusedWindow", query: question)
+                        }
                     }
                 }
 
@@ -4982,6 +5413,10 @@ class RAGService: ObservableObject {
                             "📚 Parent document expansion: \(expansionResult.originalChunks.count) → \(expansionResult.expandedChunks.count) chunks (+\(expansionResult.addedSiblings) siblings)",
                             category: .retrieval
                         )
+
+                        if Log.pipelineTraceEnabled {
+                            logChunkTrace(expansionResult.expandedChunks, stage: "Post-ParentExpansion", query: question)
+                        }
                     }
                 }
 
@@ -5097,6 +5532,12 @@ class RAGService: ObservableObject {
                 // pack(R + parents(R) + neighbors(R,±1) + graphHops(R,1))
                 // Expands retrieved chunks with graph context for richer LLM input
                 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+                // Universal pipeline trace: log chunk content before graph packing
+                if Log.pipelineTraceEnabled {
+                    logChunkTrace(contextCandidates, stage: "Pre-GraphPack", query: question)
+                }
+
                 if answerIntent.benefitsFromMultiHop, let allChunks = cachedAllChunks {
                     let graphPackingStart = Date()
 
@@ -5147,6 +5588,12 @@ class RAGService: ObservableObject {
                             "[GraphPack] \(packedContext.coreChunkCount) core + \(packedContext.contextChunkCount) context chunks (\(packedContext.estimatedTokens) tokens) in \(String(format: "%.0f", graphPackingTime * 1000))ms\(packedContext.wasTruncated ? " [truncated]" : "")",
                             category: .retrieval
                         )
+
+                        // Universal pipeline trace: log chunks after graph packing
+                        if Log.pipelineTraceEnabled {
+                            logChunkTrace(packedCandidates, stage: "Post-GraphPack", query: question)
+                        }
+
                         emitThinkingEvent(
                             .graphPack,
                             title: "Graph context packed",
@@ -5313,6 +5760,40 @@ class RAGService: ObservableObject {
                         return a.rank < b.rank
                     })
                     Log.info("[RAG] Procedural query - preserving document order for sequence fidelity", category: .retrieval)
+                } else if answerIntent.isExtractiveFirst {
+                    // For lookup/table queries, prioritize chunks containing specifications
+                    // This ensures the actual answer (e.g., "0W-20") is included even if context is truncated
+                    orderedCandidates = contextCandidates.sorted(by: { (a: RetrievedChunk, b: RetrievedChunk) -> Bool in
+                        let aContent = a.chunk.parentContent ?? a.chunk.content
+                        let bContent = b.chunk.parentContent ?? b.chunk.content
+
+                        // Count spec-like patterns: numbers, measurements, codes
+                        let aSpecScore = countSpecPatterns(aContent)
+                        let bSpecScore = countSpecPatterns(bContent)
+
+                        // ENHANCED: Also heavily weight table structure for spec queries
+                        // Tables are prime locations for specification data
+                        let aIsTable = a.chunk.metadata.structureType == "table" ||
+                                       (aContent.contains("|") && aContent.components(separatedBy: "|").count >= 4)
+                        let bIsTable = b.chunk.metadata.structureType == "table" ||
+                                       (bContent.contains("|") && bContent.components(separatedBy: "|").count >= 4)
+
+                        // Compute composite priority score
+                        // Tables with specs are highest priority, then high spec count, then relevance
+                        let aTableBonus = aIsTable ? 10 : 0
+                        let bTableBonus = bIsTable ? 10 : 0
+                        let aPriority = aSpecScore + aTableBonus
+                        let bPriority = bSpecScore + bTableBonus
+
+                        // If one has clear spec/table advantage, prioritize it
+                        // Lower threshold (2 instead of 3) to be more aggressive
+                        if abs(aPriority - bPriority) >= 2 {
+                            return aPriority > bPriority
+                        }
+                        // Otherwise, maintain relevance order
+                        return a.similarityScore > b.similarityScore
+                    })
+                    Log.info("[RAG] Extractive query - prioritizing chunks with specifications", category: .retrieval)
                 } else {
                     orderedCandidates = contextCandidates
                 }
@@ -5326,6 +5807,11 @@ class RAGService: ObservableObject {
                     compact: useCompactMode,
                     useLostInMiddleMitigation: useLostInMiddleMitigation
                 )
+
+                // Universal pipeline trace: log final assembled context
+                if Log.pipelineTraceEnabled {
+                    logFinalContext(context, actualChunksUsed: actualChunksUsed, query: question)
+                }
 
                 // Emit lost-in-middle event if it was applied
                 if useLostInMiddleMitigation && orderedCandidates.count >= 4 {
@@ -5480,6 +5966,52 @@ class RAGService: ObservableObject {
                     )
                 }
 
+                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                // HARD RELEVANCE GATE: Check if retrieved content is actually relevant
+                // Prevents hallucination when retrieval returns garbage
+                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                let lexicalRelevance = checkLexicalRelevance(query: effectiveQuery, chunks: includedRetrievedChunks)
+                let bestSimilarity = includedRetrievedChunks.first?.similarityScore ?? 0
+
+                if lexicalRelevance < 0.1 && bestSimilarity < 0.3 {
+                    Log.warning("[RAG] Hard exit: Retrieved content is irrelevant (lexical=\(String(format: "%.0f%%", lexicalRelevance * 100)), similarity=\(String(format: "%.2f", bestSimilarity)))", category: .retrieval)
+
+                    emitThinkingEvent(
+                        .warning,
+                        title: "Content not found",
+                        detail: "Retrieved content doesn't match query"
+                    )
+
+                    let notFoundMetadata = ResponseMetadata(
+                        timeToFirstToken: nil,
+                        totalGenerationTime: 0,
+                        tokensGenerated: 0,
+                        tokensPerSecond: nil,
+                        modelUsed: "none",
+                        retrievalTime: retrievalTime,
+                        retrievalConfigSummary: retrievalConfig.summary,
+                        gatingDecision: "relevance_gate_failed",
+                        toolCallsMade: 0,
+                        embeddingProvider: embeddingProviderId
+                    )
+
+                    let notFoundResponse = RAGResponse(
+                        queryId: ragQueryValue.id,
+                        retrievedChunks: [],
+                        generatedResponse: "I couldn't find relevant information about this topic in your documents. The retrieved content was about different subjects.",
+                        metadata: notFoundMetadata,
+                        confidenceScore: 0.0,
+                        qualityWarnings: ["Relevance gate failed: retrieved content doesn't match query"]
+                    )
+
+                    return await finalizeResponse(
+                        query: question,
+                        containerId: selectedId,
+                        containerName: selectedName,
+                        response: notFoundResponse
+                    )
+                }
+
                 // EVIDENCE-FIRST GATE: Check retrieval quality BEFORE generation
                 // If evidence is weak, switch to Evidence-First mode instead of generating verbosely
                 // Key insight: P(all claims correct) = p^N where N = number of claims
@@ -5586,6 +6118,95 @@ class RAGService: ObservableObject {
                     } catch {
                         Log.warning("[Extractive] Summarization failed, falling back to LLM: \(error.localizedDescription)", category: .retrieval)
                         // Fall through to LLM generation
+                    }
+                }
+
+                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                // Step 5.10: Extractive QA for Lookup Queries (AppleRAG §6b)
+                // For .lookup and .tableLookup intents, extract answer directly from text
+                // This prevents LLM hallucination for factual specifications
+                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                if (answerIntent == .lookup || answerIntent == .tableLookup) && answerIntent.isExtractiveFirst {
+                    Log.section("Step 5.10: Extractive QA", level: .info, category: .pipeline)
+                    let extractiveQAStart = Date()
+
+                    let extractionResult = await specificationExtractor.extract(
+                        query: effectiveQuery,
+                        chunks: includedRetrievedChunks,
+                        answerIntent: answerIntent
+                    )
+
+                    switch extractionResult {
+                    case .success(let extraction):
+                        let extractiveQATime = Date().timeIntervalSince(extractiveQAStart)
+
+                        Log.info(
+                            "[ExtractiveQA] Found: '\(extraction.answerSpan)' (confidence: \(String(format: "%.0f", extraction.confidence * 100))%, type: \(extraction.specificationType)) in \(String(format: "%.0f", extractiveQATime * 1000))ms",
+                            category: .retrieval
+                        )
+
+                        emitThinkingEvent(
+                            .extractive,
+                            title: "Extracted specification",
+                            detail: "'\(extraction.answerSpan)' • \(String(format: "%.0f", extraction.confidence * 100))% confidence"
+                        )
+
+                        // Build response directly from extraction with citation
+                        let extractiveQAMetadata = ResponseMetadata(
+                            timeToFirstToken: nil,
+                            totalGenerationTime: extractiveQATime,
+                            tokensGenerated: extraction.answerSpan.split(separator: " ").count,
+                            tokensPerSecond: nil,
+                            modelUsed: "extractive_qa",
+                            retrievalTime: retrievalTime,
+                            retrievalConfigSummary: "extractive_lookup",
+                            gatingDecision: "extractive_qa_success",
+                            toolCallsMade: nil
+                        )
+
+                        // Format the extracted answer with citation
+                        let formattedAnswer = "**\(extraction.answerSpan)**\n\n_\(extraction.citation)_"
+
+                        let extractiveQAResponse = RAGResponse(
+                            queryId: ragQueryValue.id,
+                            retrievedChunks: includedRetrievedChunks,
+                            generatedResponse: formattedAnswer,
+                            metadata: extractiveQAMetadata,
+                            confidenceScore: extraction.confidence,
+                            qualityWarnings: []
+                        )
+
+                        Log.info("✓ Extractive QA complete: '\(extraction.answerSpan)'", category: .pipeline)
+
+                        return await finalizeResponse(
+                            query: question,
+                            containerId: selectedId,
+                            containerName: selectedName,
+                            response: extractiveQAResponse
+                        )
+
+                    case .failure(let failure):
+                        // Log the failure reason but fall through to LLM
+                        let failureReason: String
+                        switch failure {
+                        case .noSpecsFound:
+                            failureReason = "no specifications found in chunks"
+                        case .noKeywordMatch:
+                            failureReason = "no query keyword matches found"
+                        case .lowConfidence(let bestMatch, let confidence):
+                            failureReason = "low confidence (\(String(format: "%.0f", confidence * 100))%) for '\(bestMatch)'"
+                        case .ambiguousMultiple(let candidates):
+                            failureReason = "ambiguous - \(candidates.count) candidates: \(candidates.joined(separator: ", "))"
+                        case .notLookupQuery:
+                            failureReason = "not a lookup-style query"
+                        }
+                        Log.warning("[ExtractiveQA] Falling back to LLM: \(failureReason)", category: .retrieval)
+                        emitThinkingEvent(
+                            .intentRoute,
+                            title: "Extractive QA fallback",
+                            detail: failureReason
+                        )
+                        // Fall through to constrained LLM generation
                     }
                 }
 
@@ -6231,7 +6852,8 @@ class RAGService: ObservableObject {
                     let (confidenceScore, qualityWarnings) = await engine.assessResponseQuality(
                         chunks: generationRetrievedChunks,
                         query: question,
-                        totalDocs: totalDocsCount
+                        totalDocs: totalDocsCount,
+                        topScoreOverride: auditTopSim > 0 ? auditTopSim : nil  // Use actual reranked score
                     )
 
                     if !qualityWarnings.isEmpty {
@@ -6265,7 +6887,9 @@ class RAGService: ObservableObject {
                         Log.section("Step 7.5: Verification Gates", level: .info, category: .pipeline)
 
                         let verificationStartTime = Date()
-                        let topScores = generationRetrievedChunks.map { $0.similarityScore }
+                        // Use the TOP reranked scores from the pipeline (auditTopSim, auditSecondSim, etc.)
+                        // NOT the scores from generationRetrievedChunks which may be sibling chunks with discounted scores
+                        let topScores = [auditTopSim, auditSecondSim, auditAvgTop5].filter { $0 > 0 }
 
                         verificationResult = await verificationGateService.verify(
                             response: responseText,

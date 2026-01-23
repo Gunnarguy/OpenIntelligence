@@ -565,7 +565,8 @@ actor RAGEngine {
     func assessResponseQuality(
         chunks: [RetrievedChunk],
         query: String,
-        totalDocs: Int
+        totalDocs: Int,
+        topScoreOverride: Float? = nil  // Use reranked score when available (sibling chunks have discounted scores)
     ) async -> (Float, [String]) {
         if Task.isCancelled { return (0.0, ["Cancelled"]) }
         await Task.yield()
@@ -573,10 +574,17 @@ actor RAGEngine {
         var warnings: [String] = []
 
         // Factor 1: Top similarity
-        let topSimilarity = chunks.first?.similarityScore ?? 0
-        if topSimilarity < 0.4 {
+        // Use override if provided (reranked score from pipeline), otherwise fall back to chunk score
+        let topSimilarity = topScoreOverride ?? chunks.first?.similarityScore ?? 0
+
+        // Adjust thresholds for reranker output (normalized 0.10-0.90)
+        // A reranked score of 0.70+ is excellent, 0.50+ is good
+        let lowThreshold: Float = topScoreOverride != nil ? 0.50 : 0.4
+        let moderateThreshold: Float = topScoreOverride != nil ? 0.70 : 0.6
+
+        if topSimilarity < lowThreshold {
             warnings.append("Low relevance: Best match only \(String(format: "%.1f", topSimilarity * 100))% similar")
-        } else if topSimilarity < 0.6 {
+        } else if topSimilarity < moderateThreshold {
             warnings.append("Moderate relevance: Consider rephrasing query for better results")
         }
 

@@ -620,13 +620,21 @@ struct UnifiedMetricsBar: View {
         }
     }
 
-    /// Computed match score from retrieval similarity (not confidence)
+    /// Computed match score from retrieval similarity, rescaled for user comprehension.
+    /// The cross-encoder reranker normalizes scores to 0.10-0.90 range (MS-MARCO model).
+    /// A score of 0.90 means "perfect match" but shows as 90% which confuses users.
+    /// We rescale: (score - 0.10) / 0.80 → maps 0.10→0%, 0.50→50%, 0.90→100%
     private var computedMatchScore: Float {
         // Use actual retrieval quality metrics
         if topSimilarity > 0 {
-            return topSimilarity  // Direct similarity score (0-1)
+            // Rescale reranker scores from [0.10, 0.90] to [0, 1] for intuitive display
+            // This makes 0.90 (max reranker score) show as 100%
+            let rescaled = max(0, (topSimilarity - 0.10) / 0.80)
+            return min(1.0, rescaled)  // Cap at 100%
         } else if let avg = averageSourceScore, avg > 0 {
-            return avg
+            // Also rescale averages from reranker
+            let rescaled = max(0, (avg - 0.10) / 0.80)
+            return min(1.0, rescaled)
         } else if sourceCount > 0 {
             return 0.5  // Default if we have sources but no score
         }

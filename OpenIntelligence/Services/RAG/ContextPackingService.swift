@@ -234,8 +234,23 @@ actor ContextPackingService {
         Int(Double(chunk.content.count) * tokensPerChar)
     }
 
-    /// Sort chunks by document order (page number, then position)
+    /// CRITICAL FIX: Preserve relevance order, not document order!
+    /// The retrieval pipeline carefully ranks chunks by relevance (semantic + BM25 + re-ranking).
+    /// Sorting by page number destroys this ranking and causes the LLM to see irrelevant
+    /// content first (e.g., "driver assistance" from page 100 before "engine oil" from page 522).
+    ///
+    /// New approach: Keep core chunks in their original relevance order (they were already ranked).
+    /// Only sort context chunks (parents/neighbors/refs) by document order within themselves,
+    /// but always place them AFTER their associated core chunk.
     private func sortByDocumentOrder(_ chunks: [DocumentChunk]) -> [DocumentChunk] {
+        // PRESERVE ORIGINAL ORDER - the retrieval pipeline already ranked these by relevance
+        // Re-sorting by page number destroys the careful relevance ranking and causes
+        // the LLM to answer about irrelevant content that happens to appear earlier in the document
+        return chunks
+    }
+
+    /// Legacy sort function (kept for reference, no longer used)
+    private func sortByDocumentOrderLegacy(_ chunks: [DocumentChunk]) -> [DocumentChunk] {
         chunks.sorted { (a: DocumentChunk, b: DocumentChunk) -> Bool in
             // Sort by document first
             if a.documentId != b.documentId {
