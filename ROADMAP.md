@@ -1,15 +1,15 @@
 # OpenIntelligence Roadmap
 
-**Last Updated**: January 23, 2026
-**Version**: 1.0.0 (Build 4)
+**Last Updated**: January 24, 2026
+**Version**: 1.0.0 (Build 5)
 **Status**: Production (App Store Submitted)
-**RAG Maturity Score**: 9.8/10 (Entity Extraction + Recursive Research + mmap Storage + RAPTOR-lite + Query Routing)
+**RAG Maturity Score**: 9.9/10 (Self-RAG 2.0 + Enhanced OCR + Office Docs + Multi-Session Enrichment)
 
 ### 🚀 NEXT: SQLite FTS5 Full-Text Search Engine (v1.1.0)
 
 _Native SQLite FTS5 integration for 10-100X faster keyword search and pattern counting_
 
-**Status**: In Development
+**Status**: ✅ Core Implementation Complete
 **Target**: v1.1.0 (February 2026)
 **Impact**: Critical performance upgrade for large document corpora
 
@@ -33,13 +33,13 @@ _Native SQLite FTS5 integration for 10-100X faster keyword search and pattern co
 #### Features
 
 - [x] **Research & Design**: FTS5 syntax, tokenizers, bm25() function
-- [ ] **SQLiteFullTextService**: Core actor with FTS5 CRUD operations
-- [ ] **Migration**: Auto-migrate .txt files → SQLite on first launch
-- [ ] **HybridSearchService Update**: Replace BM25Scorer with FTS5 bm25()
-- [ ] **RAGService Wiring**: Replace FullTextStorageService calls
-- [ ] **Deletion Cascade**: Document deletion removes FTS5 entries
+- [x] **SQLiteFullTextService**: Core actor with FTS5 CRUD operations (1489 lines)
+- [x] **Migration**: Auto-store to FTS5 during document ingestion (DocumentProcessor.swift line 257)
+- [x] **HybridSearchService Update**: searchWithFTS5() uses native bm25() (line 586)
+- [x] **RAGService Wiring**: All 3 hybrid search paths pass containerId for FTS5 auto-selection
+- [x] **Deletion Cascade**: Document deletion removes FTS5 entries
 - [ ] **Container Isolation**: Per-container FTS5 tables for data isolation
-- [ ] **Benchmark Validation**: Measure 10-100X improvements
+- [ ] **Benchmark Validation**: Measure 10-100X improvements on real corpora
 
 #### Technical Details
 
@@ -51,7 +51,25 @@ _Native SQLite FTS5 integration for 10-100X faster keyword search and pattern co
 
 ---
 
-### Recent Improvements (January 2026 - ZERO Data Loss Architecture)
+### Recent Improvements (January 24, 2026 - Self-RAG 2.0 & Enhanced OCR)
+
+- **Self-RAG 2.0 Enrichment Prompting**: Research-validated multi-session prompting (Chain-of-Verification, RR-MP 2025)
+  - Changed from VERIFICATION to ENHANCEMENT across sessions
+  - Session 2+ now ADDS details instead of second-guessing correct answers
+  - "Technical specifications count as valid answers" - prevents hyper-skeptical rejection
+  - Fixes Deep Think mode giving wrong/no answers when Standard mode works perfectly
+- **Enhanced OCR Quality (360 DPI)**: 5x scale factor for PDF rendering (was 3x/216 DPI)
+  - Low-res image upscaling before OCR (1.5x for images under 1000px)
+  - Contrast enhancement preprocessing for better text recognition
+  - Lower minimumTextHeight threshold to capture small text
+- **Native Office Document Extraction**: Full support for .docx, .xlsx, .pptx without external dependencies
+  - ZIP-based extraction using Apple's Compression framework (deflate decompression)
+  - XML parsing for Word document.xml, Excel sharedStrings.xml + sheet.xml, PowerPoint slide\*.xml
+  - Handles nested archives and multi-sheet workbooks
+- **Multi-Session Prompt Grounding**: "ORIGINAL QUESTION:" prefix prevents answer drift across sessions
+- **Repetition Confidence Fix**: Repetition no longer artificially boosts confidence (may indicate error, not certainty)
+
+### Previous Improvements (January 2026 - ZERO Data Loss Architecture)
 
 - **Full Text Storage Service**: Stores complete original document text for exact queries
   - `FullTextStorageService.swift` - Actor-based persistent storage

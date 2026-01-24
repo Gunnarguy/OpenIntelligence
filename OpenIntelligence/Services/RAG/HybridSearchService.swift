@@ -172,7 +172,14 @@ class HybridSearchService {
     ///   - embedding: Query embedding vector
     ///   - topK: Number of top results to return
     ///   - cachedChunks: Optional pre-fetched chunks to avoid re-loading allChunks() for lexical recall
-    func search(query: String, embedding: [Float], topK: Int, cachedChunks: [DocumentChunk]? = nil) async throws -> [RetrievedChunk] {
+    ///   - containerId: Optional container ID to enable FTS5-accelerated BM25 scoring
+    func search(query: String, embedding: [Float], topK: Int, cachedChunks: [DocumentChunk]? = nil, containerId: UUID? = nil) async throws -> [RetrievedChunk] {
+        // Auto-select FTS5 path if containerId provided and FTS5 data available
+        if let cid = containerId, await isFTS5Available(containerId: cid) {
+            Log.debug("[Hybrid] Using FTS5-accelerated BM25 for container \(cid)", category: .pipeline)
+            return try await searchWithFTS5(query: query, embedding: embedding, topK: topK, containerId: cid)
+        }
+
         Log.debug("Hybrid search starting (vector: \(vectorWeight), keyword: \(keywordWeight))", category: .pipeline)
 
         // 1. Vector search - retrieve more candidates for better coverage

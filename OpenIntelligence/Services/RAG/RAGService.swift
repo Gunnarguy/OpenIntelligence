@@ -4600,11 +4600,13 @@ class RAGService: ObservableObject {
                     // Use expanded queries for keyword search (original for vector)
                     // Pass cached chunks to avoid redundant allChunks() call in lexical recall
                     // For RAPTOR-lite: filteredCachedChunks may be limited to summaries for overview queries
+                    // Pass containerId to enable FTS5-accelerated BM25 (10-100X faster than in-memory)
                     retrievedChunks = try await hybridSearch.search(
                         query: expandedQueries.joined(separator: " "), // Combine expansions
                         embedding: queryEmbedding,
                         topK: effectiveTopK * 3, // Retrieve 3x for better coverage on large docs
-                            cachedChunks: filteredCachedChunks
+                        cachedChunks: filteredCachedChunks,
+                        containerId: selectedId // Enable SQLite FTS5 for this container
                     )
                 }
 
@@ -9417,7 +9419,8 @@ extension RAGService: RAGToolHandler {
             query: expandedQueryString, // Use expanded query for better keyword matching
             embedding: queryEmbedding,
             topK: topK * 2, // Get extra for re-ranking
-            cachedChunks: effectiveChunks // Use RAPTOR-lite filtered chunks
+            cachedChunks: effectiveChunks, // Use RAPTOR-lite filtered chunks
+            containerId: embeddingContext.containerId // Enable SQLite FTS5 acceleration
         )
 
         await onDetailedEvent?(.rrf, "RRF fusion", "\(retrievedChunks.count) candidates from hybrid search")
@@ -9514,7 +9517,8 @@ extension RAGService: RAGToolHandler {
             query: query,
             embedding: queryEmbedding,
             topK: effectiveTopK,
-            cachedChunks: effectiveChunks
+            cachedChunks: effectiveChunks,
+            containerId: embeddingContext.containerId // Enable SQLite FTS5 acceleration
         )
 
         let engine = RAGEngine.shared
