@@ -59,6 +59,10 @@ private func platformColor(_ red: CGFloat, _ green: CGFloat, _ blue: CGFloat, al
 enum EmbeddingSceneBackgroundStyle: String, CaseIterable, Identifiable {
     case aurora
     case midnight
+    case cosmos
+    case nebula
+    case ocean
+    case forest
     case parchment
 
     var id: String { rawValue }
@@ -67,6 +71,10 @@ enum EmbeddingSceneBackgroundStyle: String, CaseIterable, Identifiable {
         switch self {
         case .aurora: return "Aurora"
         case .midnight: return "Midnight"
+        case .cosmos: return "Cosmos"
+        case .nebula: return "Nebula"
+        case .ocean: return "Ocean"
+        case .forest: return "Forest"
         case .parchment: return "Parchment"
         }
     }
@@ -75,7 +83,11 @@ enum EmbeddingSceneBackgroundStyle: String, CaseIterable, Identifiable {
         switch self {
         case .aurora: return "sun.max"
         case .midnight: return "moon.stars"
-        case .parchment: return "rectangle.dashed"
+        case .cosmos: return "sparkles"
+        case .nebula: return "hurricane"
+        case .ocean: return "water.waves"
+        case .forest: return "leaf"
+        case .parchment: return "doc.text"
         }
     }
 
@@ -95,6 +107,42 @@ enum EmbeddingSceneBackgroundStyle: String, CaseIterable, Identifiable {
                 startPoint: CGPoint(x: 0.5, y: 0.0),
                 endPoint: CGPoint(x: 0.5, y: 1.0)
             )
+        case .cosmos:
+            // Deep space black to dark purple - stars would pop
+            return GradientSpec(
+                colors: [platformColor(0.02, 0.02, 0.08),
+                         platformColor(0.12, 0.08, 0.22),
+                         platformColor(0.05, 0.03, 0.12)],
+                startPoint: CGPoint(x: 0.0, y: 0.0),
+                endPoint: CGPoint(x: 1.0, y: 1.0)
+            )
+        case .nebula:
+            // Purple/pink/teal cosmic cloud
+            return GradientSpec(
+                colors: [platformColor(0.18, 0.08, 0.28),
+                         platformColor(0.35, 0.15, 0.45),
+                         platformColor(0.12, 0.25, 0.35)],
+                startPoint: CGPoint(x: 0.0, y: 0.3),
+                endPoint: CGPoint(x: 1.0, y: 0.7)
+            )
+        case .ocean:
+            // Deep ocean blues
+            return GradientSpec(
+                colors: [platformColor(0.02, 0.15, 0.30),
+                         platformColor(0.05, 0.28, 0.45),
+                         platformColor(0.08, 0.18, 0.32)],
+                startPoint: CGPoint(x: 0.5, y: 0.0),
+                endPoint: CGPoint(x: 0.5, y: 1.0)
+            )
+        case .forest:
+            // Deep forest greens
+            return GradientSpec(
+                colors: [platformColor(0.05, 0.12, 0.08),
+                         platformColor(0.12, 0.22, 0.14),
+                         platformColor(0.08, 0.16, 0.10)],
+                startPoint: CGPoint(x: 0.2, y: 0.0),
+                endPoint: CGPoint(x: 0.8, y: 1.0)
+            )
         case .parchment:
             return GradientSpec(
                 colors: [platformColor(0.96, 0.94, 0.89),
@@ -111,8 +159,44 @@ enum EmbeddingSceneBackgroundStyle: String, CaseIterable, Identifiable {
             return platformColor(0.10, 0.16, 0.28)
         case .midnight:
             return platformColor(0.04, 0.04, 0.09)
+        case .cosmos:
+            return platformColor(0.03, 0.02, 0.08)
+        case .nebula:
+            return platformColor(0.15, 0.08, 0.22)
+        case .ocean:
+            return platformColor(0.03, 0.12, 0.22)
+        case .forest:
+            return platformColor(0.04, 0.10, 0.06)
         case .parchment:
             return platformColor(0.92, 0.90, 0.84)
+        }
+    }
+
+    /// Primary text color for labels - ensures readability on this background
+    var labelTextColor: PlatformColor {
+        switch self {
+        case .aurora, .midnight, .cosmos, .nebula, .ocean, .forest:
+            return platformColor(1.0, 1.0, 1.0) // White text on dark
+        case .parchment:
+            return platformColor(0.15, 0.12, 0.10) // Dark brown on light
+        }
+    }
+
+    /// Background pill color for labels - semi-transparent contrast layer
+    var labelBackgroundColor: PlatformColor {
+        switch self {
+        case .aurora, .midnight, .cosmos, .nebula, .ocean, .forest:
+            return platformColor(0.0, 0.0, 0.0, alpha: 0.75) // Dark pill on dark bg
+        case .parchment:
+            return platformColor(1.0, 1.0, 1.0, alpha: 0.85) // Light pill on light bg
+        }
+    }
+
+    /// Whether this is a dark background (for emission glow intensity)
+    var isDark: Bool {
+        switch self {
+        case .aurora, .midnight, .cosmos, .nebula, .ocean, .forest: return true
+        case .parchment: return false
         }
     }
 
@@ -145,12 +229,12 @@ struct EmbeddingSpaceRenderer: View {
     @State private var errorText: String? = nil
 
     // Deterministic per-container controls and state
-    @State private var sampleLimit: Int = 500
+    @State private var sampleLimit: Int = 2000 // Higher default for full visibility
     @State private var allDocIdsForPoints: [UUID] = [] // aligned with points/colors
     @State private var totalPoints: Int = 0
     @State private var selectedDocFilters: Set<UUID> = [] // empty = select all by default
     @State private var loadTask: Task<Void, Never>? = nil
-    @State private var pointScale: Double = 1.2 // Slightly larger points
+    @State private var pointScale: Double = 1.0 // Slightly smaller for more points
     @State private var autoRotate = false // Off by default — let user explore
     @State private var showAxes = true // On by default — show spatial reference
     @State private var depthCue = false // Off for cleaner look
@@ -159,10 +243,36 @@ struct EmbeddingSpaceRenderer: View {
     @State private var insights: [EmbeddingInsight] = []
     @State private var focusMode = false
     @State private var showHUD = true
+    @State private var showClusterLabels = true // Show floating document cluster labels
     @State private var annotationLabels: [PointAnnotationLabel] = []
 
-    // Default: 250/500/1K (lower defaults for cleaner, less cluttered view)
-    private let sampleOptions = [250, 500, 1000]
+    // Search & highlight functionality
+    @State private var searchQuery: String = ""
+    @State private var isSearching: Bool = false
+    @State private var highlightedPointIndices: Set<Int> = []
+
+    // Tap-to-inspect: tapped point info
+    @State private var tappedPointIndex: Int? = nil
+    @State private var showPointDetail: Bool = false
+
+    // Chunk data for tap-to-inspect (loaded once, indexed by point order)
+    @State private var chunkTexts: [String] = []
+    @State private var chunkDocNames: [String] = []
+
+    // Dynamic axis labels derived from analyzing content at axis extremes
+    @State private var dynamicAxisLabels: Embedding3DSceneView.AxisLabels = .placeholder
+
+    // Onboarding / help
+    @State private var showHelpTip: Bool = false
+    @AppStorage("embedding3d_hasSeenOnboarding") private var hasSeenOnboarding: Bool = false
+
+    // FTS5-derived corpus intelligence for richer labels
+    @State private var fts5TopTerms: [String] = []  // Top terms from SQLite FTS5 index
+    @State private var fts5KeyPhrases: [(phrase: String, count: Int)] = []  // Multi-word phrases
+
+    // Sample options: 500 up to 50K (ALL) for full corpus visibility
+    // Higher counts auto-scale point size smaller
+    private let sampleOptions = [500, 2000, 5000, 50000] // 50K = "All" for most libraries
     private static let countFormatter: NumberFormatter = {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
@@ -217,8 +327,623 @@ struct EmbeddingSpaceRenderer: View {
             heroScene
             controlToolbar
             tuningCard
+            embeddingSpaceStats
             insightHighlights
             legendSection
+        }
+    }
+
+    /// Detailed nerd stats for the embedding space
+    private var embeddingSpaceStats: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Image(systemName: "chart.dots.scatter")
+                    .foregroundColor(.purple)
+                Text("Embedding Space Analytics")
+                    .font(.headline)
+                Spacer()
+                Text("🤓 Nerd Mode")
+                    .font(.caption2)
+                    .foregroundColor(.purple)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.purple.opacity(0.15))
+                    .cornerRadius(8)
+            }
+
+            // Core metrics grid
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                EmbeddingStatMini(
+                    label: "Points",
+                    value: "\(totalPoints)",
+                    icon: "circle.fill",
+                    color: .blue
+                )
+                EmbeddingStatMini(
+                    label: "Documents",
+                    value: "\(legendItems.count)",
+                    icon: "doc.fill",
+                    color: .green
+                )
+                EmbeddingStatMini(
+                    label: "Dimensions",
+                    value: "\(embeddingDimension)",
+                    icon: "cube.fill",
+                    color: .purple
+                )
+                EmbeddingStatMini(
+                    label: "Method",
+                    value: projectionMethod.rawValue,
+                    icon: "function",
+                    color: .orange
+                )
+                EmbeddingStatMini(
+                    label: "Coverage",
+                    value: String(format: "%.0f%%", sampleCoverageRatio * 100),
+                    icon: "percent",
+                    color: .cyan
+                )
+                EmbeddingStatMini(
+                    label: "Sample Cap",
+                    value: "\(sampleLimit)",
+                    icon: "slider.horizontal.3",
+                    color: .pink
+                )
+            }
+
+            Divider().opacity(0.3)
+
+            // Distribution insights
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Distribution Analysis")
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(.secondary)
+
+                if !legendItems.isEmpty {
+                    let sortedItems = legendItems.sorted { $0.count > $1.count }
+                    let maxCount = sortedItems.first?.count ?? 1
+                    let minCount = sortedItems.last?.count ?? 0
+                    let avgCount = totalPoints > 0 ? totalPoints / max(legendItems.count, 1) : 0
+                    let variance = calculateVariance(legendItems.map { $0.count })
+
+                    HStack(spacing: 16) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Max pts/doc")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                            Text("\(maxCount)")
+                                .font(.caption.monospacedDigit().weight(.semibold))
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Min pts/doc")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                            Text("\(minCount)")
+                                .font(.caption.monospacedDigit().weight(.semibold))
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Avg pts/doc")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                            Text("\(avgCount)")
+                                .font(.caption.monospacedDigit().weight(.semibold))
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Std Dev")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                            Text(String(format: "%.1f", sqrt(variance)))
+                                .font(.caption.monospacedDigit().weight(.semibold))
+                        }
+                    }
+
+                    // Balance indicator
+                    let balanceScore = calculateBalanceScore(legendItems.map { $0.count })
+                    HStack(spacing: 8) {
+                        Text("Balance Score:")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(Color.secondary.opacity(0.2))
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(balanceColor(balanceScore))
+                                    .frame(width: geo.size.width * CGFloat(balanceScore))
+                            }
+                        }
+                        .frame(height: 8)
+                        Text(String(format: "%.0f%%", balanceScore * 100))
+                            .font(.caption2.monospacedDigit())
+                            .foregroundColor(balanceColor(balanceScore))
+                    }
+                    .frame(height: 20)
+
+                    Text(balanceDescription(balanceScore))
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            Divider().opacity(0.3)
+
+            // Projection details
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Projection Details")
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(.secondary)
+
+                HStack(spacing: 16) {
+                    ProjectionDetailRow(label: "Algorithm", value: projectionMethodDescription)
+                    Spacer()
+                }
+
+                Text(projectionExplainer)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Divider().opacity(0.3)
+
+            // Spatial density analysis
+            spatialDensitySection
+
+            Divider().opacity(0.3)
+
+            // Raw data inspector
+            rawDataInspector
+        }
+        .padding()
+        .background(DSColors.surface)
+        .cornerRadius(16)
+        .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 4)
+        .padding(.horizontal)
+    }
+
+    private var embeddingDimension: Int {
+        // Get from first chunk or default
+        384 // MiniLM-L6-v2 dimension
+    }
+
+    private var projectionMethodDescription: String {
+        switch projectionMethod {
+        case .pca: return "Principal Component Analysis"
+        case .tsne: return "t-Distributed Stochastic Neighbor Embedding"
+        case .umap: return "Uniform Manifold Approximation"
+        }
+    }
+
+    private func calculateVariance(_ values: [Int]) -> Double {
+        guard !values.isEmpty else { return 0 }
+        let mean = Double(values.reduce(0, +)) / Double(values.count)
+        let squaredDiffs = values.map { pow(Double($0) - mean, 2) }
+        return squaredDiffs.reduce(0, +) / Double(values.count)
+    }
+
+    private func calculateBalanceScore(_ counts: [Int]) -> Double {
+        guard counts.count > 1, let maxCount = counts.max(), maxCount > 0 else { return 1.0 }
+        let total = counts.reduce(0, +)
+        let idealPerDoc: Double = Double(total) / Double(counts.count)
+        let deviations: [Double] = counts.map { count in
+            let diff: Double = Double(count) - idealPerDoc
+            return Swift.abs(diff) / idealPerDoc
+        }
+        let avgDeviation: Double = deviations.reduce(0.0, +) / Double(deviations.count)
+        return max(0.0, 1.0 - avgDeviation)
+    }
+
+    private func balanceColor(_ score: Double) -> Color {
+        if score > 0.8 { return .green }
+        else if score > 0.5 { return .orange }
+        else { return .red }
+    }
+
+    private func balanceDescription(_ score: Double) -> String {
+        if score > 0.8 { return "Well-balanced: Points are evenly distributed across documents" }
+        else if score > 0.5 { return "Moderate imbalance: Some documents dominate the sample" }
+        else { return "Highly imbalanced: Consider filtering or adjusting sample cap" }
+    }
+
+    // MARK: - Spatial Density Section
+
+    @ViewBuilder
+    private var spatialDensitySection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Image(systemName: "waveform.path.ecg.rectangle")
+                    .foregroundColor(.cyan)
+                Text("Spatial Density Analysis")
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(.secondary)
+            }
+
+            if !points.isEmpty {
+                let stats = computeSpatialStats()
+
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                    SpatialStatMini(
+                        label: "Centroid",
+                        value: String(format: "(%.2f, %.2f, %.2f)", stats.centroid.x, stats.centroid.y, stats.centroid.z),
+                        icon: "scope"
+                    )
+                    SpatialStatMini(
+                        label: "Avg Distance",
+                        value: String(format: "%.3f", stats.avgDistanceFromCentroid),
+                        icon: "arrow.left.and.right"
+                    )
+                    SpatialStatMini(
+                        label: "Spread (σ)",
+                        value: String(format: "%.3f", stats.spreadStdDev),
+                        icon: "chart.bar.doc.horizontal"
+                    )
+                    SpatialStatMini(
+                        label: "Bounding Box",
+                        value: String(format: "%.2f³", stats.boundingBoxVolume),
+                        icon: "cube"
+                    )
+                    SpatialStatMini(
+                        label: "Density",
+                        value: String(format: "%.1f pts/unit³", stats.pointDensity),
+                        icon: "circle.hexagongrid"
+                    )
+                    SpatialStatMini(
+                        label: "Clustering",
+                        value: clusteringQualityLabel(stats.clusteringCoeff),
+                        icon: "circle.grid.3x3"
+                    )
+                }
+
+                // Axis-wise distribution mini-chart
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Axis Distribution")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+
+                    HStack(spacing: 4) {
+                        AxisDistributionBar(label: "X", range: stats.xRange, color: .red)
+                        AxisDistributionBar(label: "Y", range: stats.yRange, color: .green)
+                        AxisDistributionBar(label: "Z", range: stats.zRange, color: .blue)
+                    }
+                    .frame(height: 40)
+                }
+            } else {
+                Text("No points to analyze")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+
+    // MARK: - Raw Data Inspector
+
+    @ViewBuilder
+    private var rawDataInspector: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Image(systemName: "tablecells")
+                    .foregroundColor(.indigo)
+                Text("Raw Data Inspector")
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(.secondary)
+                Spacer()
+                Text("\(points.count) vectors")
+                    .font(.caption2.monospacedDigit())
+                    .foregroundColor(.secondary)
+            }
+
+            if !points.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    // Memory usage estimate
+                    let memoryBytes = points.count * 3 * MemoryLayout<Float>.size
+                    HStack {
+                        Text("3D Memory:")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        Text(formatBytes(memoryBytes))
+                            .font(.caption2.monospacedDigit())
+                            .fontWeight(.medium)
+                        Spacer()
+                        Text("Float32 × 3")
+                            .font(.caption2)
+                            .foregroundColor(.secondary.opacity(0.7))
+                    }
+
+                    // Original embedding memory estimate
+                    let embeddingMemory = points.count * embeddingDimension * MemoryLayout<Float>.size
+                    HStack {
+                        Text("Original (\(embeddingDimension)D):")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        Text(formatBytes(embeddingMemory))
+                            .font(.caption2.monospacedDigit())
+                            .fontWeight(.medium)
+                        Spacer()
+                        let ratio = Double(memoryBytes) / Double(embeddingMemory)
+                        Text(String(format: "%.1f%% of original", ratio * 100))
+                            .font(.caption2)
+                            .foregroundColor(.green)
+                    }
+                }
+
+                Divider().opacity(0.2)
+
+                // Sample point coordinates
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Sample Points")
+                        .font(.caption2.weight(.medium))
+                        .foregroundColor(.secondary)
+
+                    ForEach(Array(points.prefix(3).enumerated()), id: \.offset) { idx, point in
+                        HStack(spacing: 8) {
+                            Text("[\(idx)]")
+                                .font(.caption2.monospacedDigit())
+                                .foregroundColor(.secondary)
+                                .frame(width: 24, alignment: .trailing)
+                            Text(String(format: "x:%.4f", point.x))
+                                .font(.caption2.monospacedDigit())
+                                .foregroundColor(.red.opacity(0.8))
+                            Text(String(format: "y:%.4f", point.y))
+                                .font(.caption2.monospacedDigit())
+                                .foregroundColor(.green.opacity(0.8))
+                            Text(String(format: "z:%.4f", point.z))
+                                .font(.caption2.monospacedDigit())
+                                .foregroundColor(.blue.opacity(0.8))
+                            Spacer()
+                        }
+                    }
+
+                    if points.count > 3 {
+                        Text("... + \(points.count - 3) more")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .padding(.leading, 32)
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Spatial Stats Computation
+
+    private struct SpatialStats {
+        let centroid: SCNVector3
+        let avgDistanceFromCentroid: Float
+        let spreadStdDev: Float
+        let boundingBoxVolume: Float
+        let pointDensity: Float
+        let clusteringCoeff: Float
+        let xRange: ClosedRange<Float>
+        let yRange: ClosedRange<Float>
+        let zRange: ClosedRange<Float>
+    }
+
+    private func computeSpatialStats() -> SpatialStats {
+        guard !points.isEmpty else {
+            return SpatialStats(
+                centroid: SCNVector3Zero,
+                avgDistanceFromCentroid: 0,
+                spreadStdDev: 0,
+                boundingBoxVolume: 0,
+                pointDensity: 0,
+                clusteringCoeff: 0,
+                xRange: 0...0,
+                yRange: 0...0,
+                zRange: 0...0
+            )
+        }
+
+        // Compute centroid
+        var sumX: Float = 0, sumY: Float = 0, sumZ: Float = 0
+        var minX = Float.greatestFiniteMagnitude, maxX = -Float.greatestFiniteMagnitude
+        var minY = Float.greatestFiniteMagnitude, maxY = -Float.greatestFiniteMagnitude
+        var minZ = Float.greatestFiniteMagnitude, maxZ = -Float.greatestFiniteMagnitude
+
+        for point in points {
+            sumX += point.x; sumY += point.y; sumZ += point.z
+            minX = min(minX, point.x); maxX = max(maxX, point.x)
+            minY = min(minY, point.y); maxY = max(maxY, point.y)
+            minZ = min(minZ, point.z); maxZ = max(maxZ, point.z)
+        }
+
+        let count = Float(points.count)
+        let centroid = SCNVector3(sumX / count, sumY / count, sumZ / count)
+
+        // Compute distances from centroid
+        var distances: [Float] = []
+        distances.reserveCapacity(points.count)
+        for point in points {
+            let dx = point.x - centroid.x
+            let dy = point.y - centroid.y
+            let dz = point.z - centroid.z
+            distances.append(sqrt(dx * dx + dy * dy + dz * dz))
+        }
+
+        let avgDistance = distances.reduce(0, +) / Float(distances.count)
+
+        // Standard deviation
+        let variance = distances.map { pow($0 - avgDistance, 2) }.reduce(0, +) / Float(distances.count)
+        let stdDev = sqrt(variance)
+
+        // Bounding box volume
+        let volume = (maxX - minX) * (maxY - minY) * (maxZ - minZ)
+
+        // Point density
+        let density = volume > 0.0001 ? Float(points.count) / volume : 0
+
+        // Simplified clustering coefficient (average nearest neighbor distance ratio)
+        let clusterCoeff = computeClusteringCoefficient()
+
+        return SpatialStats(
+            centroid: centroid,
+            avgDistanceFromCentroid: avgDistance,
+            spreadStdDev: stdDev,
+            boundingBoxVolume: volume,
+            pointDensity: density,
+            clusteringCoeff: clusterCoeff,
+            xRange: minX...maxX,
+            yRange: minY...maxY,
+            zRange: minZ...maxZ
+        )
+    }
+
+    private func computeClusteringCoefficient() -> Float {
+        // Approximate clustering by looking at nearest neighbor distances
+        // Lower values = tighter clusters
+        guard points.count > 10 else { return 0 }
+
+        let sampleSize = min(50, points.count)
+        let sampleIndices = Array((0..<points.count).shuffled().prefix(sampleSize))
+
+        // OPTIMIZATION: Use spatial grid for O(n) nearest neighbor search instead of O(n²)
+        // Build a coarse grid - cell size based on expected nearest neighbor distance
+        let gridCellSize: Float = 0.5 // Reasonable for normalized viewing cube
+        var grid: [SIMD3<Int32>: [Int]] = [:]
+        grid.reserveCapacity(points.count / 4)
+
+        for i in 0..<points.count {
+            let pt = points[i]
+            let cell = SIMD3<Int32>(
+                Int32(floor(pt.x / gridCellSize)),
+                Int32(floor(pt.y / gridCellSize)),
+                Int32(floor(pt.z / gridCellSize))
+            )
+            grid[cell, default: []].append(i)
+        }
+
+        var nearestDistances: [Float] = []
+        nearestDistances.reserveCapacity(sampleSize)
+
+        for i in sampleIndices {
+            let pt = points[i]
+            let cellX = Int32(floor(pt.x / gridCellSize))
+            let cellY = Int32(floor(pt.y / gridCellSize))
+            let cellZ = Int32(floor(pt.z / gridCellSize))
+
+            var minDistSq: Float = .greatestFiniteMagnitude
+
+            // Check neighboring cells (3x3x3 = 27 cells max)
+            for dx in Int32(-1)...Int32(1) {
+                for dy in Int32(-1)...Int32(1) {
+                    for dz in Int32(-1)...Int32(1) {
+                        let neighborCell = SIMD3<Int32>(cellX + dx, cellY + dy, cellZ + dz)
+                        if let indices = grid[neighborCell] {
+                            for j in indices where i != j {
+                                let other = points[j]
+                                let diffX = pt.x - other.x
+                                let diffY = pt.y - other.y
+                                let diffZ = pt.z - other.z
+                                let distSq = diffX*diffX + diffY*diffY + diffZ*diffZ
+                                minDistSq = min(minDistSq, distSq)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // If no neighbor in adjacent cells, expand search (rare case)
+            if minDistSq == .greatestFiniteMagnitude {
+                for j in 0..<points.count where i != j {
+                    let other = points[j]
+                    let diffX = pt.x - other.x
+                    let diffY = pt.y - other.y
+                    let diffZ = pt.z - other.z
+                    let distSq = diffX*diffX + diffY*diffY + diffZ*diffZ
+                    minDistSq = min(minDistSq, distSq)
+                }
+            }
+
+            if minDistSq < .greatestFiniteMagnitude {
+                nearestDistances.append(sqrt(minDistSq))
+            }
+        }
+
+        guard !nearestDistances.isEmpty else { return 0 }
+        let avgNearestDist = nearestDistances.reduce(0, +) / Float(nearestDistances.count)
+
+        // Normalize to 0-1 range (lower = more clustered)
+        return min(1, max(0, 1 - avgNearestDist * 2))
+    }
+
+    private func clusteringQualityLabel(_ coeff: Float) -> String {
+        if coeff > 0.7 { return "Tight" }
+        else if coeff > 0.4 { return "Moderate" }
+        else { return "Sparse" }
+    }
+
+    private func formatBytes(_ bytes: Int) -> String {
+        if bytes >= 1_048_576 {
+            return String(format: "%.1f MB", Double(bytes) / 1_048_576)
+        } else if bytes >= 1024 {
+            return String(format: "%.1f KB", Double(bytes) / 1024)
+        } else {
+            return "\(bytes) B"
+        }
+    }
+
+    // MARK: - Spatial Helper Views
+
+    private struct SpatialStatMini: View {
+        let label: String
+        let value: String
+        let icon: String
+
+        var body: some View {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.caption2)
+                    .foregroundColor(.cyan.opacity(0.8))
+                    .frame(width: 14)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(label)
+                        .font(.system(size: 9))
+                        .foregroundColor(.secondary)
+                    Text(value)
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 4)
+            .padding(.horizontal, 6)
+            .background(Color.cyan.opacity(0.06))
+            .cornerRadius(6)
+        }
+    }
+
+    private struct AxisDistributionBar: View {
+        let label: String
+        let range: ClosedRange<Float>
+        let color: Color
+
+        var body: some View {
+            VStack(spacing: 2) {
+                Text(label)
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundColor(color)
+
+                GeometryReader { geo in
+                    let width = range.upperBound - range.lowerBound
+                    let normalized = min(1, max(0.1, CGFloat(width)))
+
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(
+                            LinearGradient(
+                                colors: [color.opacity(0.3), color.opacity(0.7)],
+                                startPoint: .bottom,
+                                endPoint: .top
+                            )
+                        )
+                        .frame(height: geo.size.height * normalized)
+                        .frame(maxHeight: .infinity, alignment: .bottom)
+                }
+
+                Text(String(format: "%.2f", range.upperBound - range.lowerBound))
+                    .font(.system(size: 8, design: .monospaced))
+                    .foregroundColor(.secondary)
+            }
+            .frame(maxWidth: .infinity)
         }
     }
 
@@ -266,18 +991,266 @@ struct EmbeddingSpaceRenderer: View {
                 colors: filteredColors,
                 options: sceneOptions,
                 reloadToken: sceneReloadToken,
-                annotations: buildSceneAnnotations()
+                annotations: buildSceneAnnotations(),
+                onPointTapped: { index, position in
+                    // Handle tap - show detail for this point
+                    tappedPointIndex = index
+                    showPointDetail = true
+                }
             )
             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         }
         .overlay(alignment: .topLeading) {
             if showHUD { sceneHUD }
         }
+        .overlay(alignment: .topTrailing) {
+            // Subtle help button
+            helpButton
+        }
+        .overlay(alignment: .top) {
+            // Minimal search bar (only when actively searching)
+            if isSearching {
+                searchBar
+            }
+        }
+        .overlay(alignment: .bottom) {
+            // First-time onboarding tip
+            if !hasSeenOnboarding && !points.isEmpty {
+                onboardingTip
+            }
+        }
+        .overlay(alignment: .center) {
+            // Tapped point detail card
+            if showPointDetail, let idx = tappedPointIndex {
+                tappedPointDetailCard(index: idx)
+                    .transition(.scale.combined(with: .opacity))
+            }
+        }
         .frame(height: heroHeight)
         .shadow(color: .black.opacity(0.08), radius: 18, x: 0, y: 12)
         .padding(.horizontal, heroHorizontalPadding)
         .animation(.spring(response: 0.45, dampingFraction: 0.88), value: focusMode)
         .animation(.easeInOut(duration: 0.2), value: showHUD)
+        .animation(.easeInOut(duration: 0.25), value: isSearching)
+        .animation(.easeInOut(duration: 0.3), value: hasSeenOnboarding)
+    }
+
+    // MARK: - Search & Help UI
+
+    private var helpButton: some View {
+        Button {
+            if showHelpTip {
+                showHelpTip = false
+            } else {
+                showHelpTip = true
+                // Auto-dismiss after 4 seconds
+                DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+                    withAnimation { showHelpTip = false }
+                }
+            }
+        } label: {
+            Image(systemName: showHelpTip ? "xmark.circle.fill" : "questionmark.circle")
+                .font(.system(size: 18, weight: .medium))
+                .foregroundColor(.white.opacity(0.7))
+                .padding(12)
+                .background(
+                    Circle()
+                        .fill(.ultraThinMaterial.opacity(showHelpTip ? 0.9 : 0.5))
+                )
+        }
+        .padding(12)
+        .popover(isPresented: $showHelpTip, arrowEdge: .top) {
+            gestureHelpContent
+        }
+    }
+
+    private var gestureHelpContent: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Navigate Your Knowledge")
+                .font(.headline)
+                .foregroundColor(.primary)
+
+            VStack(alignment: .leading, spacing: 8) {
+                helpRow(icon: "hand.draw", text: "Drag to rotate")
+                helpRow(icon: "arrow.up.left.and.arrow.down.right", text: "Pinch to zoom")
+                helpRow(icon: "hand.tap", text: "Tap a point for details")
+                helpRow(icon: "magnifyingglass", text: "Search to highlight")
+            }
+
+            Divider()
+
+            Text("Points close together = similar content")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .padding()
+        .frame(width: 220)
+    }
+
+    private func helpRow(icon: String, text: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 14))
+                .foregroundColor(.accentColor)
+                .frame(width: 20)
+            Text(text)
+                .font(.subheadline)
+                .foregroundColor(.primary)
+        }
+    }
+
+    private var searchBar: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .foregroundColor(.white.opacity(0.6))
+
+            TextField("Search chunks...", text: $searchQuery)
+                .textFieldStyle(.plain)
+                .foregroundColor(.white)
+                .submitLabel(.search)
+                .onSubmit {
+                    performSearch()
+                }
+
+            if !searchQuery.isEmpty {
+                Button {
+                    searchQuery = ""
+                    highlightedPointIndices = []
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.white.opacity(0.5))
+                }
+            }
+
+            Button {
+                withAnimation { isSearching = false }
+                searchQuery = ""
+                highlightedPointIndices = []
+            } label: {
+                Text("Done")
+                    .font(.caption)
+                    .foregroundColor(.white.opacity(0.8))
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            Capsule()
+                .fill(.ultraThinMaterial)
+        )
+        .padding(.horizontal, 60)
+        .padding(.top, 12)
+    }
+
+    private var onboardingTip: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "lightbulb.fill")
+                .foregroundColor(.yellow)
+
+            Text("Drag to explore • Pinch to zoom • Close points = similar ideas")
+                .font(.caption)
+                .foregroundColor(.white)
+
+            Button {
+                withAnimation {
+                    hasSeenOnboarding = true
+                }
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.caption2)
+                    .foregroundColor(.white.opacity(0.6))
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(
+            Capsule()
+                .fill(.black.opacity(0.7))
+        )
+        .padding(.bottom, 16)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+    }
+
+    /// Detail card shown when a point is tapped
+    private func tappedPointDetailCard(index: Int) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            // Header with close button
+            HStack {
+                Label("Chunk \(index + 1)", systemImage: "doc.text.fill")
+                    .font(.headline)
+                    .foregroundColor(.primary)
+
+                Spacer()
+
+                Button {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        showPointDetail = false
+                        tappedPointIndex = nil
+                    }
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 20))
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            Divider()
+
+            // Document name
+            if index < chunkDocNames.count {
+                HStack(spacing: 6) {
+                    Image(systemName: "folder")
+                        .font(.caption)
+                        .foregroundColor(.accentColor)
+                    Text(chunkDocNames[index])
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
+            }
+
+            // Chunk text preview
+            if index < chunkTexts.count {
+                Text(chunkTexts[index])
+                    .font(.caption)
+                    .foregroundColor(.primary)
+                    .lineLimit(6)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                Text("Loading chunk data...")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .italic()
+            }
+        }
+        .padding()
+        .frame(width: 280)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(.regularMaterial)
+                .shadow(color: .black.opacity(0.2), radius: 12, x: 0, y: 4)
+        )
+    }
+
+    private func performSearch() {
+        // Search through chunk texts and highlight matching points
+        guard !searchQuery.isEmpty else {
+            highlightedPointIndices = []
+            return
+        }
+
+        let query = searchQuery.lowercased()
+        var matches: Set<Int> = []
+
+        for (index, text) in chunkTexts.enumerated() {
+            if text.lowercased().contains(query) {
+                matches.insert(index)
+            }
+        }
+
+        highlightedPointIndices = matches
+        // Trigger scene reload to apply highlighting
+        sceneReloadToken = UUID()
     }
 
     private var tuningCard: some View {
@@ -294,6 +1267,13 @@ struct EmbeddingSpaceRenderer: View {
         .padding(.horizontal)
     }
 
+    /// Format sample option label - 50K shows as "All"
+    private func sampleOptionLabel(_ option: Int) -> String {
+        if option >= 50000 { return "All" }
+        if option >= 1000 { return "\(option/1000)K" }
+        return "\(option)"
+    }
+
     private var sampleOptionRow: some View {
         HStack(spacing: 10) {
             Text("Points")
@@ -305,8 +1285,10 @@ struct EmbeddingSpaceRenderer: View {
                     guard sampleLimit != option else { return }
                     sampleLimit = option
                     saveSampleLimit(option)
+                    // Auto-scale point size based on count
+                    autoScalePointSize()
                 } label: {
-                    Text(option >= 1000 ? "\(option/1000)K" : "\(option)")
+                    Text(sampleOptionLabel(option))
                         .font(.caption2)
                         .fontWeight(sampleLimit == option ? .semibold : .regular)
                         .padding(.vertical, 6)
@@ -322,8 +1304,23 @@ struct EmbeddingSpaceRenderer: View {
 
             InfoButtonView(
                 title: "Sampling",
-                explanation: "The renderer downsamples embeddings per document to stay interactive. Increase the cap to inspect more of the space; auto-rotate helps validate structure."
+                explanation: "Controls how many embedding points are displayed. 'All' shows up to 50K points (scales point size automatically for performance). Higher limits give complete coverage but may slow rotation."
             )
+        }
+    }
+
+    /// Automatically scale point size based on point count for performance
+    private func autoScalePointSize() {
+        // Scale inversely with point count: more points = smaller dots
+        let targetPoints = min(totalPoints, sampleLimit)
+        if targetPoints >= 10000 {
+            pointScale = 0.6 // Tiny dots for massive datasets
+        } else if targetPoints >= 5000 {
+            pointScale = 0.7
+        } else if targetPoints >= 2000 {
+            pointScale = 0.85
+        } else {
+            pointScale = 1.0 // Normal size for smaller datasets
         }
     }
 
@@ -343,44 +1340,371 @@ struct EmbeddingSpaceRenderer: View {
     }
 
     private var sceneOptions: Embedding3DSceneView.SceneOptions {
-        Embedding3DSceneView.SceneOptions(
+        // Convert EmbeddingSpaceView.ProjectionMethod to ProjectionMethodKind
+        let methodKind: ProjectionMethodKind
+        switch projectionMethod {
+        case .pca: methodKind = .pca
+        case .tsne: methodKind = .tsne
+        case .umap: methodKind = .umap
+        }
+        return Embedding3DSceneView.SceneOptions(
             pointScale: CGFloat(pointScale),
             autoRotate: autoRotate,
             showAxes: showAxes,
             depthCue: depthCue,
-            backgroundStyle: backgroundStyle
+            backgroundStyle: backgroundStyle,
+            projectionMethod: methodKind,
+            axisLabels: dynamicAxisLabels
         )
     }
 
     private func buildSceneAnnotations() -> [Embedding3DSceneView.AnnotationData] {
-        guard showHUD, !annotationLabels.isEmpty, !points.isEmpty else { return [] }
+        guard showClusterLabels, !points.isEmpty, !allDocIdsForPoints.isEmpty else { return [] }
 
         var result: [Embedding3DSceneView.AnnotationData] = []
-        for label in annotationLabels {
-            guard label.pointIndex < points.count else { continue }
-            let position = points[label.pointIndex]
-            let uiColor = pointColorsUI[label.pointIndex]
 
-            // Determine detail level based on spatial clustering
-            // In a real implementation, this would check camera distance
-            // For now, use score as a proxy
-            let detailLevel: Int
-            if label.score > 0.8 {
-                detailLevel = 2 // Full detail
-            } else if label.score > 0.5 {
-                detailLevel = 1 // Title only
+        // === LAYER 1: Document Cluster Labels ===
+        // Group points by document and create main cluster labels
+
+        var docPointsMap: [UUID: [SCNVector3]] = [:]
+        var docColorMap: [UUID: PlatformColor] = [:]
+        var docPointIndices: [UUID: [Int]] = [:]
+
+        for (index, point) in points.enumerated() {
+            guard index < allDocIdsForPoints.count else { continue }
+            let docId = allDocIdsForPoints[index]
+            docPointsMap[docId, default: []].append(point)
+            docPointIndices[docId, default: []].append(index)
+            if docColorMap[docId] == nil, index < pointColorsUI.count {
+                docColorMap[docId] = pointColorsUI[index]
+            }
+        }
+
+        // Create main document cluster labels
+        for legendItem in legendItems where legendItem.count > 0 {
+            guard let clusterPoints = docPointsMap[legendItem.docId], !clusterPoints.isEmpty else { continue }
+
+            // Compute centroid - but use DENSITY-WEIGHTED centroid for better visual accuracy
+            // If points are scattered, find the densest region and weight toward it
+            let centroid: SCNVector3
+            if clusterPoints.count <= 3 {
+                // Simple average for tiny clusters
+                var sumX: Float = 0, sumY: Float = 0, sumZ: Float = 0
+                for pt in clusterPoints {
+                    sumX += pt.x; sumY += pt.y; sumZ += pt.z
+                }
+                let count = Float(clusterPoints.count)
+                centroid = SCNVector3(sumX / count, sumY / count, sumZ / count)
+            } else if clusterPoints.count > 100 {
+                // OPTIMIZATION: For large clusters, use grid-based density approximation O(n) instead of O(n²)
+                let radius: Float = 0.3
+                let cellSize = radius // Grid cell size matches neighbor radius
+
+                // Build spatial hash grid
+                var grid: [SIMD3<Int32>: [Int]] = [:]
+                for (i, pt) in clusterPoints.enumerated() {
+                    let cell = SIMD3<Int32>(
+                        Int32(floor(pt.x / cellSize)),
+                        Int32(floor(pt.y / cellSize)),
+                        Int32(floor(pt.z / cellSize))
+                    )
+                    grid[cell, default: []].append(i)
+                }
+
+                // Calculate density by checking only neighboring cells
+                var densities: [Float] = Array(repeating: 1, count: clusterPoints.count)
+                for (i, pt) in clusterPoints.enumerated() {
+                    let cellX = Int32(floor(pt.x / cellSize))
+                    let cellY = Int32(floor(pt.y / cellSize))
+                    let cellZ = Int32(floor(pt.z / cellSize))
+
+                    var neighborCount: Float = 0
+                    // Check 27 neighboring cells (3x3x3)
+                    for dx in Int32(-1)...Int32(1) {
+                        for dy in Int32(-1)...Int32(1) {
+                            for dz in Int32(-1)...Int32(1) {
+                                let neighborCell = SIMD3<Int32>(cellX + dx, cellY + dy, cellZ + dz)
+                                if let indices = grid[neighborCell] {
+                                    for j in indices where j != i {
+                                        let other = clusterPoints[j]
+                                        let diffX = pt.x - other.x
+                                        let diffY = pt.y - other.y
+                                        let diffZ = pt.z - other.z
+                                        let distSq = diffX*diffX + diffY*diffY + diffZ*diffZ
+                                        if distSq < radius * radius {
+                                            neighborCount += 1
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    densities[i] = neighborCount + 1
+                }
+
+                // Weight each point by its density
+                let totalWeight = densities.reduce(0, +)
+                var weightedX: Float = 0, weightedY: Float = 0, weightedZ: Float = 0
+                for (i, pt) in clusterPoints.enumerated() {
+                    let w = densities[i]
+                    weightedX += pt.x * w
+                    weightedY += pt.y * w
+                    weightedZ += pt.z * w
+                }
+                centroid = SCNVector3(
+                    weightedX / totalWeight,
+                    weightedY / totalWeight,
+                    weightedZ / totalWeight
+                )
             } else {
-                detailLevel = 0 // Minimal dot
+                // Density-weighted: points in denser regions get more weight
+                // Calculate local density for each point (count of neighbors within radius)
+                let radius: Float = 0.3 // Neighborhood radius
+                let radiusSq = radius * radius // Avoid sqrt
+                var densities: [Float] = []
+                densities.reserveCapacity(clusterPoints.count)
+                for i in 0..<clusterPoints.count {
+                    var neighborCount: Float = 0
+                    let pt = clusterPoints[i]
+                    for j in 0..<clusterPoints.count where i != j {
+                        let other = clusterPoints[j]
+                        let dx = pt.x - other.x
+                        let dy = pt.y - other.y
+                        let dz = pt.z - other.z
+                        let distSq = dx*dx + dy*dy + dz*dz
+                        if distSq < radiusSq {
+                            neighborCount += 1
+                        }
+                    }
+                    densities.append(neighborCount + 1) // +1 so isolated points still count
+                }
+
+                // Weight each point by its density
+                let totalWeight = densities.reduce(0, +)
+                var weightedX: Float = 0, weightedY: Float = 0, weightedZ: Float = 0
+                for (i, pt) in clusterPoints.enumerated() {
+                    let w = densities[i]
+                    weightedX += pt.x * w
+                    weightedY += pt.y * w
+                    weightedZ += pt.z * w
+                }
+                centroid = SCNVector3(
+                    weightedX / totalWeight,
+                    weightedY / totalWeight,
+                    weightedZ / totalWeight
+                )
             }
 
+            // === PER-DOCUMENT KEYWORDS + POINT COUNT ===
+            // Use chunk metadata keywords specific to THIS document, not global FTS5
+            let docNameLower = legendItem.name.lowercased()
+            var topKeywords: [String] = []
+
+            // Primary: Extract keywords from chunks belonging to THIS document
+            let docKeywords = annotationLabels
+                .filter { $0.docId == legendItem.docId }
+                .flatMap { $0.keywords }
+
+            var keywordCounts: [String: Int] = [:]
+            for kw in docKeywords {
+                let kwLower = kw.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+                // Skip keywords that are part of the document name or too short
+                guard kwLower.count >= 3,
+                      !docNameLower.contains(kwLower),
+                      !kwLower.contains(String(docNameLower.prefix(4))) else { continue }
+                keywordCounts[kwLower, default: 0] += 1
+            }
+
+            // Get top keywords sorted by frequency in this document
+            topKeywords = keywordCounts
+                .sorted { $0.value > $1.value }
+                .prefix(3)
+                .map { $0.key }
+
+            // If still empty, try to extract from chunk content directly
+            if topKeywords.isEmpty {
+                // Find unique section titles for this document
+                let sectionTitles = annotationLabels
+                    .filter { $0.docId == legendItem.docId }
+                    .compactMap { label -> String? in
+                        let title = label.title.lowercased()
+                        guard title != docNameLower, title.count >= 3 else { return nil }
+                        return label.title
+                    }
+                let uniqueSections = Array(Set(sectionTitles)).prefix(2)
+                topKeywords.append(contentsOf: uniqueSections)
+            }
+
+            // Always append point count as last keyword for visibility
+            topKeywords.append("\(clusterPoints.count) chunks")
+
+            let detailLevel = clusterPoints.count >= 30 ? 2 : (clusterPoints.count >= 8 ? 1 : 0)
+
             result.append(Embedding3DSceneView.AnnotationData(
-                position: position,
-                title: label.title,
-                keywords: label.keywords,
-                color: uiColor,
-                detailLevel: detailLevel
+                position: centroid,
+                title: legendItem.name,
+                keywords: topKeywords,
+                color: docColorMap[legendItem.docId] ?? EmbeddingColorPalette.fallback,
+                detailLevel: detailLevel,
+                clusterSize: clusterPoints.count,
+                isDocumentCluster: true
             ))
         }
+
+        // === LAYER 2: Section/Topic Sub-clusters ===
+        // Find semantic sub-clusters within each document using section titles
+
+        for legendItem in legendItems where legendItem.count >= 5 {
+            guard let indices = docPointIndices[legendItem.docId], indices.count >= 5 else { continue }
+
+            // Group by section title
+            var sectionPoints: [String: [SCNVector3]] = [:]
+            var sectionKeywords: [String: [String]] = [:]
+
+            for label in annotationLabels where label.docId == legendItem.docId {
+                guard label.pointIndex < points.count else { continue }
+                let sectionName = label.title
+                sectionPoints[sectionName, default: []].append(points[label.pointIndex])
+                sectionKeywords[sectionName, default: []].append(contentsOf: label.keywords)
+            }
+
+            // Create sub-cluster labels for sections with enough points
+            for (section, sectionPts) in sectionPoints where sectionPts.count >= 3 {
+                // Skip if section name is same as document name (already labeled)
+                if section.lowercased() == legendItem.name.lowercased() { continue }
+
+                // Compute section centroid
+                var sx: Float = 0, sy: Float = 0, sz: Float = 0
+                for pt in sectionPts {
+                    sx += pt.x; sy += pt.y; sz += pt.z
+                }
+                let n = Float(sectionPts.count)
+                let sectionCentroid = SCNVector3(sx / n, sy / n, sz / n)
+
+                // Get unique keywords for this section
+                let uniqueKW = Array(Set(sectionKeywords[section] ?? [])).prefix(2)
+
+                result.append(Embedding3DSceneView.AnnotationData(
+                    position: sectionCentroid,
+                    title: String(section.prefix(25)),
+                    keywords: Array(uniqueKW),
+                    color: (docColorMap[legendItem.docId] ?? EmbeddingColorPalette.fallback).withAlphaComponent(0.8),
+                    detailLevel: 0, // Smaller label
+                    clusterSize: sectionPts.count,
+                    isDocumentCluster: false // This is a sub-cluster
+                ))
+            }
+        }
+
+        // === LAYER 3: FTS5-Powered Keyword Hotspots ===
+        // Use actual top terms from SQLite FTS5 index for meaningful labels
+
+        if !fts5TopTerms.isEmpty && annotationLabels.count >= 5 {
+            // For each top FTS5 term, find where it appears in the embedding space
+            let topTermsToShow = fts5TopTerms.prefix(15) // Top 15 terms from the database
+
+            for term in topTermsToShow {
+                let termLower = term.lowercased()
+
+                // Find chunks that contain this term
+                var termPoints: [SCNVector3] = []
+                for label in annotationLabels {
+                    guard label.pointIndex < points.count else { continue }
+                    // Check if chunk content or keywords contain this term
+                    let detailLower = label.detail.lowercased()
+                    let keywordsLower = label.keywords.map { $0.lowercased() }
+
+                    if detailLower.contains(termLower) || keywordsLower.contains(termLower) {
+                        termPoints.append(points[label.pointIndex])
+                    }
+                }
+
+                guard termPoints.count >= 3 else { continue } // Need at least 3 occurrences
+
+                // Compute centroid
+                var tx: Float = 0, ty: Float = 0, tz: Float = 0
+                for pt in termPoints {
+                    tx += pt.x; ty += pt.y; tz += pt.z
+                }
+                let n = Float(termPoints.count)
+                let termCentroid = SCNVector3(tx / n, ty / n, tz / n)
+
+                // Check spatial coherence
+                var totalDist: Float = 0
+                for pt in termPoints {
+                    let dx = pt.x - termCentroid.x
+                    let dy = pt.y - termCentroid.y
+                    let dz = pt.z - termCentroid.z
+                    totalDist += sqrt(dx*dx + dy*dy + dz*dz)
+                }
+                let avgDist = totalDist / n
+
+                // Only show if clustered (not scattered)
+                if avgDist < 1.8 {
+                    result.append(Embedding3DSceneView.AnnotationData(
+                        position: termCentroid,
+                        title: "#\(term)",
+                        keywords: [],
+                        color: platformColor(0.3, 0.9, 0.95, alpha: 0.9), // Bright cyan for FTS5 terms
+                        detailLevel: 0,
+                        clusterSize: termPoints.count,
+                        isDocumentCluster: false
+                    ))
+                }
+            }
+        } else if annotationLabels.count >= 10 {
+            // Fallback to chunk metadata keywords if no FTS5 data
+            var keywordPositions: [String: [SCNVector3]] = [:]
+
+            for label in annotationLabels {
+                guard label.pointIndex < points.count else { continue }
+                let pt = points[label.pointIndex]
+                for kw in label.keywords {
+                    let normalizedKW = kw.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard normalizedKW.count >= 3 else { continue }
+                    keywordPositions[normalizedKW, default: []].append(pt)
+                }
+            }
+
+            for (keyword, kwPoints) in keywordPositions where kwPoints.count >= 4 {
+                var kx: Float = 0, ky: Float = 0, kz: Float = 0
+                for pt in kwPoints {
+                    kx += pt.x; ky += pt.y; kz += pt.z
+                }
+                let n = Float(kwPoints.count)
+                let kwCentroid = SCNVector3(kx / n, ky / n, kz / n)
+
+                var totalDist: Float = 0
+                for pt in kwPoints {
+                    let dx = pt.x - kwCentroid.x
+                    let dy = pt.y - kwCentroid.y
+                    let dz = pt.z - kwCentroid.z
+                    totalDist += sqrt(dx*dx + dy*dy + dz*dz)
+                }
+                let avgDist = totalDist / n
+
+                if avgDist < 1.5 {
+                    result.append(Embedding3DSceneView.AnnotationData(
+                        position: kwCentroid,
+                        title: "#\(keyword)",
+                        keywords: [],
+                        color: platformColor(0.4, 0.8, 1.0, alpha: 0.9),
+                        detailLevel: 0,
+                        clusterSize: kwPoints.count,
+                        isDocumentCluster: false
+                    ))
+                }
+            }
+        }
+
+        // Sort: Document clusters first (largest), then sub-clusters, then keywords
+        result.sort { lhs, rhs in
+            if lhs.isDocumentCluster != rhs.isDocumentCluster {
+                return lhs.isDocumentCluster // Document clusters first
+            }
+            return lhs.clusterSize > rhs.clusterSize
+        }
+
         return result
     }
 
@@ -456,6 +1780,18 @@ struct EmbeddingSpaceRenderer: View {
                     action: {
                         withAnimation(.easeInOut(duration: 0.2)) {
                             showHUD.toggle()
+                        }
+                    }
+                )
+
+                ControlToggleButton(
+                    icon: "tag.fill",
+                    title: "Labels",
+                    isActive: showClusterLabels,
+                    action: {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            showClusterLabels.toggle()
+                            sceneReloadToken = UUID() // Force scene rebuild
                         }
                     }
                 )
@@ -538,6 +1874,18 @@ struct EmbeddingSpaceRenderer: View {
         VStack(spacing: 8) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
+                    // Search button
+                    ControlToggleButton(
+                        icon: "magnifyingglass",
+                        title: "Search",
+                        isActive: isSearching,
+                        action: {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                isSearching.toggle()
+                            }
+                        }
+                    )
+
                     ControlToggleButton(
                         icon: "arrow.triangle.2.circlepath",
                         title: "Rotate",
@@ -566,6 +1914,18 @@ struct EmbeddingSpaceRenderer: View {
                         action: {
                             withAnimation(.easeInOut(duration: 0.2)) {
                                 showHUD.toggle()
+                            }
+                        }
+                    )
+
+                    ControlToggleButton(
+                        icon: "tag.fill",
+                        title: "Labels",
+                        isActive: showClusterLabels,
+                        action: {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                showClusterLabels.toggle()
+                                sceneReloadToken = UUID()
                             }
                         }
                     )
@@ -726,6 +2086,30 @@ struct EmbeddingSpaceRenderer: View {
                 startPoint: .top,
                 endPoint: .bottomTrailing
             )
+        case .cosmos:
+            return LinearGradient(
+                colors: [Color(red: 0.02, green: 0.02, blue: 0.08), Color(red: 0.12, green: 0.08, blue: 0.22)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        case .nebula:
+            return LinearGradient(
+                colors: [Color(red: 0.18, green: 0.08, blue: 0.28), Color(red: 0.35, green: 0.15, blue: 0.45), Color(red: 0.12, green: 0.25, blue: 0.35)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        case .ocean:
+            return LinearGradient(
+                colors: [Color(red: 0.02, green: 0.15, blue: 0.30), Color(red: 0.05, green: 0.28, blue: 0.45)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        case .forest:
+            return LinearGradient(
+                colors: [Color(red: 0.05, green: 0.12, blue: 0.08), Color(red: 0.12, green: 0.22, blue: 0.14)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
         case .parchment:
             return LinearGradient(
                 colors: [Color(red: 0.96, green: 0.94, blue: 0.89), Color(red: 0.86, green: 0.82, blue: 0.74)],
@@ -758,6 +2142,155 @@ struct EmbeddingSpaceRenderer: View {
                 .clipShape(Capsule())
             }
             .buttonStyle(.plain)
+        }
+    }
+
+    // MARK: - Embedding Space Stats Helpers
+
+    private struct EmbeddingStatMini: View {
+        let label: String
+        let value: String
+        let icon: String
+        var color: Color = .purple
+
+        var body: some View {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 4) {
+                    Image(systemName: icon)
+                        .font(.system(size: 10))
+                        .foregroundColor(color.opacity(0.8))
+                    Text(label)
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundColor(.secondary)
+                }
+                Text(value)
+                    .font(.system(size: 13, weight: .bold, design: .monospaced))
+                    .foregroundColor(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(color.opacity(0.08))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .strokeBorder(color.opacity(0.2), lineWidth: 0.5)
+                    )
+            )
+        }
+    }
+
+    private struct ProjectionDetailRow: View {
+        let label: String
+        let value: String
+        var valueColor: Color = .primary
+
+        var body: some View {
+            HStack {
+                Text(label)
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                Spacer()
+                Text(value)
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .foregroundColor(valueColor)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Color.purple.opacity(0.05))
+            .cornerRadius(4)
+        }
+    }
+
+    private struct DistributionBar: View {
+        let values: [Double]
+        let maxValue: Double
+        let color: Color
+
+        var body: some View {
+            GeometryReader { geometry in
+                HStack(spacing: 1) {
+                    ForEach(Array(values.enumerated()), id: \.offset) { index, value in
+                        let height = maxValue > 0 ? (value / maxValue) * geometry.size.height : 0
+                        RoundedRectangle(cornerRadius: 1)
+                            .fill(color.opacity(0.3 + 0.7 * (value / max(maxValue, 1))))
+                            .frame(width: max(2, geometry.size.width / CGFloat(values.count) - 1), height: height)
+                            .offset(y: geometry.size.height - height)
+                    }
+                }
+            }
+        }
+    }
+
+    private struct VectorSpaceIndicator: View {
+        let coverage: Double // 0-1
+        let sparsity: Double // 0-1
+
+        var body: some View {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Vector Space Health")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(.secondary)
+
+                HStack(spacing: 12) {
+                    // Coverage meter
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Coverage")
+                            .font(.system(size: 9))
+                            .foregroundColor(.secondary)
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                RoundedRectangle(cornerRadius: 2)
+                                    .fill(Color.gray.opacity(0.2))
+                                RoundedRectangle(cornerRadius: 2)
+                                    .fill(coverageColor)
+                                    .frame(width: geo.size.width * coverage)
+                            }
+                        }
+                        .frame(height: 6)
+                        Text(String(format: "%.1f%%", coverage * 100))
+                            .font(.system(size: 9, design: .monospaced))
+                    }
+
+                    // Density meter
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Density")
+                            .font(.system(size: 9))
+                            .foregroundColor(.secondary)
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                RoundedRectangle(cornerRadius: 2)
+                                    .fill(Color.gray.opacity(0.2))
+                                RoundedRectangle(cornerRadius: 2)
+                                    .fill(densityColor)
+                                    .frame(width: geo.size.width * (1 - sparsity))
+                            }
+                        }
+                        .frame(height: 6)
+                        Text(String(format: "%.1f%%", (1 - sparsity) * 100))
+                            .font(.system(size: 9, design: .monospaced))
+                    }
+                }
+            }
+            .padding(10)
+            .background(Color.purple.opacity(0.05))
+            .cornerRadius(8)
+        }
+
+        private var coverageColor: Color {
+            if coverage > 0.8 { return .green }
+            if coverage > 0.5 { return .yellow }
+            return .orange
+        }
+
+        private var densityColor: Color {
+            let density = 1 - sparsity
+            if density > 0.7 { return .green }
+            if density > 0.4 { return .blue }
+            return .purple
         }
     }
 
@@ -894,7 +2427,7 @@ struct EmbeddingSpaceRenderer: View {
         }
 
         var body: some View {
-            HStack(spacing: 6) { 
+            HStack(spacing: 6) {
                 Circle()
                     .fill(label.accent)
 .frame(width: 6, height: 6)
@@ -1193,6 +2726,166 @@ struct EmbeddingSpaceRenderer: View {
         }
     }
 
+    // MARK: - Intelligent Axis Analysis
+
+    /// Analyze what content appears at the extremes of each projection axis
+    /// Returns content-derived labels like "Baking ↔ Grilling" based on actual chunk content
+    private func analyzeAxisLabels(
+        coords: [SIMD3<Float>],
+        chunks: [DocumentChunk]
+    ) -> Embedding3DSceneView.AxisLabels {
+        guard coords.count >= 6, coords.count == chunks.count else {
+            return .placeholder
+        }
+
+        // For each axis, find the top N chunks at each extreme
+        let extremeSampleSize = max(3, min(10, coords.count / 8)) // 3-10 chunks per extreme
+
+        // Create indexed tuples for sorting
+        let indexed = coords.enumerated().map { (idx: $0.offset, coord: $0.element) }
+
+        // X-axis extremes
+        let sortedByX = indexed.sorted { $0.coord.x < $1.coord.x }
+        let xNegIndices = Array(sortedByX.prefix(extremeSampleSize).map { $0.idx })
+        let xPosIndices = Array(sortedByX.suffix(extremeSampleSize).map { $0.idx })
+
+        // Y-axis extremes
+        let sortedByY = indexed.sorted { $0.coord.y < $1.coord.y }
+        let yNegIndices = Array(sortedByY.prefix(extremeSampleSize).map { $0.idx })
+        let yPosIndices = Array(sortedByY.suffix(extremeSampleSize).map { $0.idx })
+
+        // Z-axis extremes
+        let sortedByZ = indexed.sorted { $0.coord.z < $1.coord.z }
+        let zNegIndices = Array(sortedByZ.prefix(extremeSampleSize).map { $0.idx })
+        let zPosIndices = Array(sortedByZ.suffix(extremeSampleSize).map { $0.idx })
+
+        // Use FTS5 terms as a reference vocabulary - these are proven meaningful
+        let vocabularySet = Set(fts5TopTerms.map { $0.lowercased() })
+
+        // Extract representative keywords for each extreme
+        let xNegLabel = extractExtremeLabel(indices: xNegIndices, chunks: chunks, vocabulary: vocabularySet)
+        let xPosLabel = extractExtremeLabel(indices: xPosIndices, chunks: chunks, vocabulary: vocabularySet)
+        let yNegLabel = extractExtremeLabel(indices: yNegIndices, chunks: chunks, vocabulary: vocabularySet)
+        let yPosLabel = extractExtremeLabel(indices: yPosIndices, chunks: chunks, vocabulary: vocabularySet)
+        let zNegLabel = extractExtremeLabel(indices: zNegIndices, chunks: chunks, vocabulary: vocabularySet)
+        let zPosLabel = extractExtremeLabel(indices: zPosIndices, chunks: chunks, vocabulary: vocabularySet)
+
+        return Embedding3DSceneView.AxisLabels(
+            xNeg: xNegLabel, xPos: xPosLabel,
+            yNeg: yNegLabel, yPos: yPosLabel,
+            zNeg: zNegLabel, zPos: zPosLabel
+        )
+    }
+
+    /// Extract the most distinctive keyword from chunks at an axis extreme
+    /// Uses FTS5 vocabulary as a reference for meaningful terms
+    private func extractExtremeLabel(indices: [Int], chunks: [DocumentChunk], vocabulary: Set<String>) -> String {
+        guard !indices.isEmpty else { return "" }
+
+        // First, try to use chunk metadata keywords (already curated)
+        var metadataKeywords: [String: Int] = [:]
+        for idx in indices {
+            guard idx < chunks.count else { continue }
+            for keyword in chunks[idx].metadata.keywords {
+                let clean = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
+                if clean.count >= 3 {
+                    metadataKeywords[clean.lowercased(), default: 0] += 1
+                }
+            }
+        }
+
+        // If we have metadata keywords, prefer those
+        if !metadataKeywords.isEmpty {
+            if let topKeyword = metadataKeywords.sorted(by: { $0.value > $1.value }).first?.key {
+                return topKeyword.prefix(1).uppercased() + topKeyword.dropFirst()
+            }
+        }
+
+        // Fallback: extract from text content
+        let extremeTexts = indices.compactMap { idx -> String? in
+            guard idx < chunks.count else { return nil }
+            return chunks[idx].text
+        }
+
+        guard !extremeTexts.isEmpty else { return "" }
+
+        // Common stopwords to exclude
+        let stopwords = Set([
+            "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
+            "have", "has", "had", "do", "does", "did", "will", "would", "could",
+            "should", "may", "might", "must", "shall", "can", "need", "dare",
+            "ought", "used", "to", "of", "in", "for", "on", "with", "at", "by",
+            "from", "as", "into", "through", "during", "before", "after", "above",
+            "below", "between", "under", "again", "further", "then", "once", "here",
+            "there", "when", "where", "why", "how", "all", "each", "few", "more",
+            "most", "other", "some", "such", "no", "nor", "not", "only", "own",
+            "same", "so", "than", "too", "very", "just", "also", "now", "and",
+            "but", "or", "because", "while", "although", "if", "this", "that",
+            "these", "those", "it", "its", "they", "their", "them", "we", "our",
+            "you", "your", "he", "she", "him", "her", "his", "i", "me", "my",
+            "any", "many", "much", "new", "first", "last", "long", "great", "little",
+            "old", "right", "big", "high", "different", "small", "large", "next",
+            "early", "young", "important", "public", "bad", "good", "like", "make",
+            "get", "see", "know", "take", "come", "think", "look", "want", "give",
+            "use", "find", "tell", "ask", "work", "seem", "feel", "try", "leave",
+            "call", "put", "keep", "let", "begin", "show", "hear", "play", "run",
+            "move", "live", "believe", "hold", "bring", "happen", "write", "provide",
+            "sit", "stand", "lose", "pay", "meet", "include", "continue", "set",
+            "learn", "change", "lead", "understand", "watch", "follow", "stop",
+            "create", "speak", "read", "allow", "add", "spend", "grow", "open",
+            "walk", "win", "offer", "remember", "love", "consider", "appear", "buy",
+            "wait", "serve", "die", "send", "expect", "build", "stay", "fall", "cut",
+            "reach", "kill", "remain", "data", "file", "page", "section", "chapter"
+        ])
+
+        // Extract words and count frequency
+        var wordCounts: [String: Int] = [:]
+        var originalCase: [String: String] = [:] // Store original casing
+
+        for text in extremeTexts {
+            // Split into words - reduced minimum to 3 chars
+            let words = text
+                .components(separatedBy: CharacterSet.alphanumerics.inverted)
+                .filter { word in
+                    let lower = word.lowercased()
+                    return word.count >= 3 && // At least 3 chars (was 4)
+                           word.count <= 20 && // Not too long
+                           !stopwords.contains(lower) &&
+                           !word.allSatisfy({ $0.isNumber }) // Not all numbers
+                }
+
+            for word in words {
+                let lower = word.lowercased()
+                wordCounts[lower, default: 0] += 1
+                // Keep the most "proper" looking case (capitalized or original)
+                if originalCase[lower] == nil || (word.first?.isUppercase == true && originalCase[lower]?.first?.isUppercase != true) {
+                    originalCase[lower] = word
+                }
+            }
+        }
+
+        // Prioritize words that appear in FTS5 vocabulary (proven meaningful)
+        // Score = frequency * (vocabulary bonus)
+        var scored: [(word: String, score: Double)] = []
+        for (word, count) in wordCounts {
+            let vocabBonus = vocabulary.contains(word) ? 2.0 : 1.0
+            let lengthBonus = Double(min(word.count, 12)) / 8.0 // Prefer medium-length words
+            let score = Double(count) * vocabBonus * lengthBonus
+            scored.append((word, score))
+        }
+
+        // Get top scoring word
+        guard let topWord = scored.sorted(by: { $0.score > $1.score }).first?.word else {
+            return ""
+        }
+
+        // Use original casing if available, otherwise capitalize
+        if let original = originalCase[topWord] {
+            return original
+        }
+        return topWord.prefix(1).uppercased() + topWord.dropFirst()
+    }
+
     // MARK: - Data + Projection
 
     private func loadAndProject() async {
@@ -1204,11 +2897,25 @@ struct EmbeddingSpaceRenderer: View {
                 errorText = nil
                 annotationLabels = []
             }
-            let annotationLimit = await MainActor.run { focusMode ? 5 : 3 }
+            // Much higher limit for rich annotations - we need these for keyword/section extraction
+            let annotationLimit = await MainActor.run { focusMode ? 50 : 30 }
+
+            // === LOAD FTS5 CORPUS INTELLIGENCE ===
+            // Get real terms and phrases from the SQLite FTS5 index for this container
+            let activeId = containerService.activeContainerId
+            async let topTermsTask = SQLiteFullTextService.shared.getTopTermsForContainer(containerId: activeId, limit: 100)
+            async let keyPhrasesTask = SQLiteFullTextService.shared.getKeyPhrasesForContainer(containerId: activeId, limit: 30)
+
+            let (topTermsResult, keyPhrasesResult) = await (topTermsTask, keyPhrasesTask)
+
+            // Store FTS5 terms for use in labels (on main actor)
+            await MainActor.run {
+                self.fts5TopTerms = topTermsResult.map { $0.term }
+                self.fts5KeyPhrases = keyPhrasesResult
+            }
 
             // Snapshot documents to resolve names and filter by active container
             let docsSnapshot = await MainActor.run { ragService.documents }
-            let activeId = containerService.activeContainerId
             let defaultId = containerService.containers.first?.id
             let activeDocs = docsSnapshot.filter { doc in
                 if let cid = doc.containerId {
@@ -1438,6 +3145,13 @@ struct EmbeddingSpaceRenderer: View {
                 limit: annotationLimit
             )
 
+            // Extract chunk texts and doc names for tap-to-inspect feature
+            let chunkTextList = sampledChunks.map { $0.text }
+            let chunkDocNameList = sampledDocIds.map { nameById[$0] ?? "Unknown" }
+
+            // Analyze axis extremes to derive content-specific labels
+            let axisLabels = self.analyzeAxisLabels(coords: coords3D, chunks: sampledChunks)
+
             await MainActor.run {
                 self.points = scnPoints
                 self.pointColorsUI = uiColors
@@ -1448,6 +3162,13 @@ struct EmbeddingSpaceRenderer: View {
                 self.isLoading = false
                 self.insights = generatedInsights
                 self.annotationLabels = annotationSet
+                // Store chunk data for tap-to-inspect and search
+                self.chunkTexts = chunkTextList
+                self.chunkDocNames = chunkDocNameList
+                // Store content-derived axis labels
+                self.dynamicAxisLabels = axisLabels
+                // Auto-scale point size based on final count
+                self.autoScalePointSize()
             }
         }
     }
@@ -1464,7 +3185,7 @@ struct EmbeddingSpaceRenderer: View {
         if let v = UserDefaults.standard.value(forKey: key) as? Int, sampleOptions.contains(v) {
             sampleLimit = v
         } else {
-            sampleLimit = 500 // Lower default for much cleaner initial view
+            sampleLimit = 2000 // Higher default for full visibility
         }
     }
 }
@@ -1478,15 +3199,43 @@ struct Embedding3DSceneView: View {
         let showAxes: Bool
         let depthCue: Bool
         let backgroundStyle: EmbeddingSceneBackgroundStyle
+        let projectionMethod: ProjectionMethodKind
+        // Dynamic axis labels derived from content analysis
+        let axisLabels: AxisLabels
+    }
+
+    /// Dynamic axis labels derived from analyzing content at extremes of each axis
+    struct AxisLabels {
+        let xNeg: String  // Label for negative X direction
+        let xPos: String  // Label for positive X direction
+        let yNeg: String  // Label for negative Y direction
+        let yPos: String  // Label for positive Y direction
+        let zNeg: String  // Label for negative Z direction
+        let zPos: String  // Label for positive Z direction
+
+        static let placeholder = AxisLabels(
+            xNeg: "", xPos: "",
+            yNeg: "", yPos: "",
+            zNeg: "", zPos: ""
+        )
     }
 
     struct AnnotationData: Identifiable {
         let id = UUID()
+        let position: SCNVector3       // Cluster centroid position
+        let title: String              // Document/cluster name
+        let keywords: [String]         // Top keywords for this cluster
+        let color: PlatformColor       // Document accent color
+        let detailLevel: Int           // 0=minimal, 1=normal, 2=detailed
+        let clusterSize: Int           // Number of points in this cluster
+        let isDocumentCluster: Bool    // True = per-doc cluster, False = spatial cluster
+    }
+
+    /// Info for a tapped point
+    struct TappedPointInfo: Identifiable {
+        let id = UUID()
+        let index: Int
         let position: SCNVector3
-        let title: String
-        let keywords: [String]
-        let color: PlatformColor
-        let detailLevel: Int // 0=minimal, 1=normal, 2=detailed
     }
 
     let points: [SCNVector3]
@@ -1494,11 +3243,19 @@ struct Embedding3DSceneView: View {
     let options: SceneOptions
     let reloadToken: UUID
     let annotations: [AnnotationData]
+    var onPointTapped: ((Int, SCNVector3) -> Void)?
 
     var body: some View {
-        SceneViewContainer(points: points, colors: colors, options: options, reloadToken: reloadToken, annotations: annotations)
-            .background(DSColors.background)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
+        SceneViewContainer(
+            points: points,
+            colors: colors,
+            options: options,
+            reloadToken: reloadToken,
+            annotations: annotations,
+            onPointTapped: onPointTapped
+        )
+        .background(DSColors.background)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 }
 
@@ -1510,15 +3267,26 @@ struct SceneViewContainer: UIViewRepresentable {
     let reloadToken: UUID
     let annotations: [Embedding3DSceneView.AnnotationData]
 
+    // Callback for when a point is tapped
+    var onPointTapped: ((Int, SCNVector3) -> Void)?
+
     func makeUIView(context: Context) -> SCNView {
         let view = SCNView(frame: .zero)
         view.delegate = context.coordinator
         configure(view)
+
+        // Add tap gesture for point inspection
+        let tapGesture = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
+        view.addGestureRecognizer(tapGesture)
+        context.coordinator.scnView = view
+        context.coordinator.onPointTapped = onPointTapped
+
         return view
     }
 
     func updateUIView(_ uiView: SCNView, context: Context) {
         configure(uiView)
+        context.coordinator.onPointTapped = onPointTapped
     }
 
     private func configure(_ view: SCNView) {
@@ -1534,7 +3302,40 @@ struct SceneViewContainer: UIViewRepresentable {
     }
 
     class Coordinator: NSObject, SCNSceneRendererDelegate {
+        private var lastUpdateTime: TimeInterval = 0
+        private let updateInterval: TimeInterval = 0.05 // Throttle to 20fps for performance
+        weak var scnView: SCNView?
+        var onPointTapped: ((Int, SCNVector3) -> Void)?
+
+        @objc func handleTap(_ gesture: UITapGestureRecognizer) {
+            guard let view = scnView else { return }
+            let location = gesture.location(in: view)
+
+            // Perform hit test
+            let hitResults = view.hitTest(location, options: [
+                .searchMode: SCNHitTestSearchMode.closest.rawValue,
+                .boundingBoxOnly: false
+            ])
+
+            // Find the first hit that's a point node
+            for result in hitResults {
+                if let nodeName = result.node.name, nodeName.hasPrefix("point_") {
+                    // Extract point index from name "point_123"
+                    let indexStr = nodeName.dropFirst(6) // Remove "point_"
+                    if let index = Int(indexStr) {
+                        let position = result.node.position
+                        onPointTapped?(index, position)
+                        return
+                    }
+                }
+            }
+        }
+
         func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
+            // Throttle updates for performance
+            guard time - lastUpdateTime > updateInterval else { return }
+            lastUpdateTime = time
+
             guard let scene = renderer.scene else { return }
             updateLabelLOD(scene: scene, pointOfView: renderer.pointOfView)
         }
@@ -1543,33 +3344,51 @@ struct SceneViewContainer: UIViewRepresentable {
             guard let camera = pointOfView else { return }
             let cameraPos = camera.position
 
-            scene.rootNode.enumerateChildNodes { node, _ in
-                guard node.name == "contentRoot" else { return }
+            // Find the labelLayer node
+            scene.rootNode.enumerateChildNodes { node, stop in
+                guard node.name == "labelLayer" else { return }
 
+                // Update each cluster label based on distance
                 node.enumerateChildNodes { labelNode, _ in
-                    guard labelNode.geometry is SCNText || labelNode.childNodes.contains(where: { $0.geometry is SCNText }) else { return }
+                    // Only process our cluster labels
+                    guard let nodeName = labelNode.name, nodeName.hasPrefix("clusterLabel_") else { return }
 
-                    let distance = simd_distance(simd_float3(cameraPos), simd_float3(labelNode.position))
+                    let distance = simd_distance(
+                        simd_float3(cameraPos.x, cameraPos.y, cameraPos.z),
+                        simd_float3(labelNode.position.x, labelNode.position.y, labelNode.position.z)
+                    )
 
-                    // Dynamic LOD based on distance
-                    if distance < 2.0 {
-                        // Close: show full detail
-                        labelNode.opacity = 0.95
-                        labelNode.scale = SCNVector3(0.4, 0.4, 0.4)
+                    // Smooth LOD transitions - labels always visible but scale with distance
+                    // Closer = smaller scale (more readable), Farther = larger scale (visible from afar)
+                    let (opacity, scale): (Float, Float)
+
+                    if distance < 2.5 {
+                        // Very close - small, crisp, high opacity
+                        opacity = 0.95
+                        scale = 0.8
                     } else if distance < 4.0 {
-                        // Medium: normal detail
-                        labelNode.opacity = 0.8
-                        labelNode.scale = SCNVector3(0.35, 0.35, 0.35)
+                        // Close - slightly larger
+                        opacity = 0.92
+                        scale = 1.0
                     } else if distance < 6.0 {
-                        // Far: minimal
-                        labelNode.opacity = 0.5
-                        labelNode.scale = SCNVector3(0.3, 0.3, 0.3)
+                        // Medium - normal size
+                        opacity = 0.88
+                        scale = 1.2
+                    } else if distance < 9.0 {
+                        // Far - larger to stay readable
+                        opacity = 0.82
+                        scale = 1.5
                     } else {
-                        // Very far: hide
-                        labelNode.opacity = 0.2
-                        labelNode.scale = SCNVector3(0.25, 0.25, 0.25)
+                        // Very far - largest, slightly faded
+                        opacity = 0.7
+                        scale = 1.8
                     }
+
+                    labelNode.opacity = CGFloat(opacity)
+                    labelNode.scale = SCNVector3(scale, scale, scale)
                 }
+
+                stop.pointee = true // Found labelLayer, stop enumeration
             }
         }
     }
@@ -1582,15 +3401,26 @@ struct SceneViewContainer: NSViewRepresentable {
     let reloadToken: UUID
     let annotations: [Embedding3DSceneView.AnnotationData]
 
+    // Callback for when a point is tapped (optional for macOS)
+    var onPointTapped: ((Int, SCNVector3) -> Void)?
+
     func makeNSView(context: Context) -> SCNView {
         let view = SCNView(frame: .zero)
         view.delegate = context.coordinator
         configure(view)
+
+        // Add click gesture for point inspection
+        let clickGesture = NSClickGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleClick(_:)))
+        view.addGestureRecognizer(clickGesture)
+        context.coordinator.scnView = view
+        context.coordinator.onPointTapped = onPointTapped
+
         return view
     }
 
     func updateNSView(_ nsView: SCNView, context: Context) {
         configure(nsView)
+        context.coordinator.onPointTapped = onPointTapped
     }
 
     private func configure(_ view: SCNView) {
@@ -1606,7 +3436,39 @@ struct SceneViewContainer: NSViewRepresentable {
     }
 
     class Coordinator: NSObject, SCNSceneRendererDelegate {
+        private var lastUpdateTime: TimeInterval = 0
+        private let updateInterval: TimeInterval = 0.05 // Throttle to 20fps for performance
+        weak var scnView: SCNView?
+        var onPointTapped: ((Int, SCNVector3) -> Void)?
+
+        @objc func handleClick(_ gesture: NSClickGestureRecognizer) {
+            guard let view = scnView else { return }
+            let location = gesture.location(in: view)
+
+            // Perform hit test
+            let hitResults = view.hitTest(location, options: [
+                .searchMode: SCNHitTestSearchMode.closest.rawValue,
+                .boundingBoxOnly: false
+            ])
+
+            // Find the first hit that's a point node
+            for result in hitResults {
+                if let nodeName = result.node.name, nodeName.hasPrefix("point_") {
+                    let indexStr = nodeName.dropFirst(6)
+                    if let index = Int(indexStr) {
+                        let position = result.node.position
+                        onPointTapped?(index, position)
+                        return
+                    }
+                }
+            }
+        }
+
         func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
+            // Throttle updates for performance
+            guard time - lastUpdateTime > updateInterval else { return }
+            lastUpdateTime = time
+
             guard let scene = renderer.scene else { return }
             updateLabelLOD(scene: scene, pointOfView: renderer.pointOfView)
         }
@@ -1615,27 +3477,45 @@ struct SceneViewContainer: NSViewRepresentable {
             guard let camera = pointOfView else { return }
             let cameraPos = camera.position
 
-            scene.rootNode.enumerateChildNodes { node, _ in
+            // Find the labelLayer node
+            scene.rootNode.enumerateChildNodes { node, stop in
                 guard node.name == "labelLayer" else { return }
 
+                // Update each cluster label based on distance
                 node.enumerateChildNodes { labelNode, _ in
-                    let distance = simd_distance(simd_float3(cameraPos), simd_float3(labelNode.position))
+                    // Only process our cluster labels
+                    guard let nodeName = labelNode.name, nodeName.hasPrefix("clusterLabel_") else { return }
 
-                    // Scale labels based on distance - keep them readable at ALL distances
-                    if distance<3.0 { 
-                        labelNode.opacity = 0.95
-                        labelNode.scale = SCNVector3(0.12, 0.12, 0.12)
+                    let distance = simd_distance(
+                        simd_float3(cameraPos.x, cameraPos.y, cameraPos.z),
+                        simd_float3(labelNode.position.x, labelNode.position.y, labelNode.position.z)
+                    )
+
+                    // Smooth LOD transitions - labels always visible but scale with distance
+                    let (opacity, scale): (Float, Float)
+
+                    if distance < 2.5 {
+                        opacity = 0.95
+                        scale = 0.8
+                    } else if distance < 4.0 {
+                        opacity = 0.92
+                        scale = 1.0
                     } else if distance < 6.0 {
-                        labelNode.opacity = 0.9
-                        labelNode.scale = SCNVector3(0.15, 0.15, 0.15)
-                    } else if distance < 10.0 {
-                        labelNode.opacity = 0.8
-                        labelNode.scale = SCNVector3(0.18, 0.18, 0.18)
+                        opacity = 0.88
+                        scale = 1.2
+                    } else if distance < 9.0 {
+                        opacity = 0.82
+                        scale = 1.5
                     } else {
-                        labelNode.opacity = 0.7
-                        labelNode.scale = SCNVector3(0.22, 0.22, 0.22)
+                        opacity = 0.7
+                        scale = 1.8
                     }
+
+                    labelNode.opacity = CGFloat(opacity)
+                    labelNode.scale = SCNVector3(scale, scale, scale)
                 }
+
+                stop.pointee = true
             }
         }
     }
@@ -1657,11 +3537,11 @@ private func buildScene(points: [SCNVector3], colors: [PlatformColor], options: 
 
     // Add intuitive axes with human-readable labels
     if options.showAxes {
-        contentRoot.addChildNode(makeIntuiveAxesNode())
+        contentRoot.addChildNode(makeIntuiveAxesNode(projectionMethod: options.projectionMethod, axisLabels: options.axisLabels))
     }
 
     addPointNodes(points, colors, scale: options.pointScale, depthCue: options.depthCue, into: contentRoot)
-    addClusterLabels(annotations, into: contentRoot)
+    addClusterLabels(annotations, backgroundStyle: options.backgroundStyle, into: contentRoot)
     addLighting(into: scene.rootNode, depthCue: options.depthCue)
     applyBackground(style: options.backgroundStyle, to: scene)
     applyAutoRotate(options.autoRotate, to: contentRoot)
@@ -1689,33 +3569,35 @@ private func makeGroundPlane() -> SCNNode {
     let container = SCNNode()
 
     // Subtle grid floor - sized to match full axis extent (6.0)
+    // OPTIMIZATION: Fewer grid lines for better performance
     let gridSize: Float = 6.0
-    let gridLines = 12
+    let gridLines = 6 // Reduced from 12
     let spacing = gridSize / Float(gridLines)
+
+    // Share geometry for all grid lines
+    let lineGeo = SCNCylinder(radius: 0.004, height: CGFloat(gridSize))
+    let lineMat = SCNMaterial()
+    #if canImport(UIKit)
+        lineMat.diffuse.contents = UIColor.white.withAlphaComponent(0.08)
+    #else
+        lineMat.diffuse.contents = NSColor.white.withAlphaComponent(0.08)
+    #endif
+    lineMat.lightingModel = .constant
+    lineGeo.materials = [lineMat]
 
     for i in 0 ... gridLines {
         let offset = -gridSize / 2 + Float(i) * spacing
 
-        // X-axis lines
-        let xLine = SCNCylinder(radius: 0.004, height: CGFloat(gridSize))
-        let xMat = SCNMaterial()
-        #if canImport(UIKit)
-            xMat.diffuse.contents = UIColor.white.withAlphaComponent(0.08)
-        #else
-            xMat.diffuse.contents = NSColor.white.withAlphaComponent(0.08)
-        #endif
-        xLine.materials = [xMat]
-        let xNode = SCNNode(geometry: xLine)
+        // X-axis lines (share geometry)
+        let xNode = SCNNode(geometry: lineGeo)
         xNode.eulerAngles = SCNVector3(0, 0, Float.pi / 2)
-        xNode.position = SCNVector3(0, -3.0, offset) // At bottom of Y axis
+        xNode.position = SCNVector3(0, -3.0, offset)
         container.addChildNode(xNode)
 
-        // Z-axis lines
-        let zLine = SCNCylinder(radius: 0.004, height: CGFloat(gridSize))
-        zLine.materials = [xMat]
-        let zNode = SCNNode(geometry: zLine)
+        // Z-axis lines (share geometry)
+        let zNode = SCNNode(geometry: lineGeo)
         zNode.eulerAngles = SCNVector3(Float.pi / 2, 0, 0)
-        zNode.position = SCNVector3(offset, -3.0, 0) // At bottom of Y axis
+        zNode.position = SCNVector3(offset, -3.0, 0)
         container.addChildNode(zNode)
     }
 
@@ -1724,7 +3606,7 @@ private func makeGroundPlane() -> SCNNode {
 
 // MARK: - Clean Arrow Axes (visible, no text clutter)
 
-private func makeIntuiveAxesNode() -> SCNNode { 
+private func makeIntuiveAxesNode(projectionMethod: ProjectionMethodKind, axisLabels: Embedding3DSceneView.AxisLabels) -> SCNNode {
     let node = SCNNode()
 
     // Bright axis colors
@@ -1759,7 +3641,154 @@ private func makeIntuiveAxesNode() -> SCNNode {
     // Origin sphere
     node.addChildNode(makeOriginMarker())
 
+    // === DYNAMIC CONTENT-DERIVED AXIS LABELS ===
+    // Show content-specific labels at each axis endpoint (e.g., "Baking ↔ Grilling")
+    // If labels are empty, fall back to minimal X/Y/Z
+
+    let xPosText = axisLabels.xPos.isEmpty ? "X" : axisLabels.xPos
+    let yPosText = axisLabels.yPos.isEmpty ? "Y" : axisLabels.yPos
+    let zPosText = axisLabels.zPos.isEmpty ? "Z" : axisLabels.zPos
+
+    // Add text labels at the positive end of each axis
+    node.addChildNode(makeAxisLabel(text: xPosText,
+                                    position: SCNVector3(axisHalfLength + 0.4, 0, 0),
+                                    color: xColor))
+    node.addChildNode(makeAxisLabel(text: yPosText,
+                                    position: SCNVector3(0, axisHalfLength + 0.4, 0),
+                                    color: yColor))
+    node.addChildNode(makeAxisLabel(text: zPosText,
+                                    position: SCNVector3(0, 0, axisHalfLength + 0.4),
+                                    color: zColor))
+
+    // Add labels at the negative end of each axis (if we have content-derived labels)
+    if !axisLabels.xNeg.isEmpty {
+        node.addChildNode(makeAxisLabel(text: axisLabels.xNeg,
+                                        position: SCNVector3(-axisHalfLength - 0.4, 0, 0),
+                                        color: xColor))
+    }
+    if !axisLabels.yNeg.isEmpty {
+        node.addChildNode(makeAxisLabel(text: axisLabels.yNeg,
+                                        position: SCNVector3(0, -axisHalfLength - 0.4, 0),
+                                        color: yColor))
+    }
+    if !axisLabels.zNeg.isEmpty {
+        node.addChildNode(makeAxisLabel(text: axisLabels.zNeg,
+                                        position: SCNVector3(0, 0, -axisHalfLength - 0.4),
+                                        color: zColor))
+    }
+
+    // Add a subtle hint near origin explaining the labels represent content themes
+    let hasContentLabels = !axisLabels.xPos.isEmpty || !axisLabels.yPos.isEmpty || !axisLabels.zPos.isEmpty
+    if hasContentLabels {
+        node.addChildNode(makeAxisHintLabel(text: "← themes from content →",
+                                            position: SCNVector3(0, -0.4, 0),
+                                            axis: .x))
+    } else {
+        // Fallback hint based on projection method
+        let hintText: String
+        switch projectionMethod {
+        case .pca, .rp:
+            hintText = "← distance matters →"
+        case .tsne:
+            hintText = "← clusters matter →"
+        case .umap:
+            hintText = "← structure matters →"
+        }
+        node.addChildNode(makeAxisHintLabel(text: hintText,
+                                            position: SCNVector3(0, -0.4, 0),
+                                            axis: .x))
+    }
+
     return node
+}
+
+/// Creates a floating label for an axis endpoint
+private func makeAxisLabel(text: String, position: SCNVector3, color: PlatformColor) -> SCNNode {
+    let textGeo = SCNText(string: text, extrusionDepth: 0.02)
+
+    #if canImport(UIKit)
+    textGeo.font = UIFont.systemFont(ofSize: 0.35, weight: .bold)
+    #else
+    textGeo.font = NSFont.systemFont(ofSize: 0.35, weight: .bold)
+    #endif
+    textGeo.flatness = 0.02
+    textGeo.chamferRadius = 0.01
+
+    let mat = SCNMaterial()
+    mat.diffuse.contents = color
+    mat.emission.contents = color
+    mat.emission.intensity = 0.9
+    mat.lightingModel = .constant
+    mat.isDoubleSided = true
+    textGeo.materials = [mat]
+
+    let textNode = SCNNode(geometry: textGeo)
+
+    // Center the text
+    let (minBound, maxBound) = textGeo.boundingBox
+    let textWidth = maxBound.x - minBound.x
+    let textHeight = maxBound.y - minBound.y
+    textNode.pivot = SCNMatrix4MakeTranslation(
+        minBound.x + textWidth / 2,
+        minBound.y + textHeight / 2,
+        0
+    )
+
+    let container = SCNNode()
+    container.addChildNode(textNode)
+    container.position = position
+
+    // Billboard constraint so it always faces camera
+    let billboard = SCNBillboardConstraint()
+    billboard.freeAxes = [.X, .Y]
+    container.constraints = [billboard]
+
+    return container
+}
+
+/// Creates a smaller hint label near the origin explaining what the axis represents
+private func makeAxisHintLabel(text: String, position: SCNVector3, axis: AxisDirection) -> SCNNode {
+    let textGeo = SCNText(string: text, extrusionDepth: 0.01)
+
+    #if canImport(UIKit)
+    textGeo.font = UIFont.systemFont(ofSize: 0.18, weight: .medium)
+    let textColor = UIColor.white.withAlphaComponent(0.5)
+    #else
+    textGeo.font = NSFont.systemFont(ofSize: 0.18, weight: .medium)
+    let textColor = NSColor.white.withAlphaComponent(0.5)
+    #endif
+    textGeo.flatness = 0.02
+
+    let mat = SCNMaterial()
+    mat.diffuse.contents = textColor
+    mat.emission.contents = textColor
+    mat.emission.intensity = 0.4
+    mat.lightingModel = .constant
+    mat.isDoubleSided = true
+    textGeo.materials = [mat]
+
+    let textNode = SCNNode(geometry: textGeo)
+
+    // Center the text
+    let (minBound, maxBound) = textGeo.boundingBox
+    let textWidth = maxBound.x - minBound.x
+    let textHeight = maxBound.y - minBound.y
+    textNode.pivot = SCNMatrix4MakeTranslation(
+        minBound.x + textWidth / 2,
+        minBound.y + textHeight / 2,
+        0
+    )
+
+    let container = SCNNode()
+    container.addChildNode(textNode)
+    container.position = position
+
+    // Billboard constraint
+    let billboard = SCNBillboardConstraint()
+    billboard.freeAxes = [.X, .Y]
+    container.constraints = [billboard]
+
+    return container
 }
 
 /// Creates an arrow from start to end with a cone tip
@@ -1873,89 +3902,378 @@ private func addPointNodes(_ points: [SCNVector3], _ colors: [PlatformColor], sc
     let baseRadius: CGFloat = 0.08 * countFactor
     let radius = max(0.02, min(0.12, baseRadius * scale))
 
+    // OPTIMIZATION: Reduce geometry complexity based on point count
+    // More points = simpler spheres (8 segments vs 16 for few points)
+    let segmentCount: Int
+    if count > 1000 {
+        segmentCount = 6 // Very simple for large datasets
+    } else if count > 500 {
+        segmentCount = 8
+    } else if count > 100 {
+        segmentCount = 10
+    } else {
+        segmentCount = 12
+    }
+
+    // Group points by color for efficient batching
+    var colorToIndices: [Int: [Int]] = [:]
+    colorToIndices.reserveCapacity(20) // Typical doc count
     for index in 0..<count {
-        let sphere = SCNSphere(radius: radius)
-        sphere.segmentCount = 12 // Fewer segments for better performance
+        let colorHash = colors[index].hash
+        colorToIndices[colorHash, default: []].append(index)
+    }
+
+    // Create one sphere geometry per color (true geometry sharing)
+    // Each color group shares the SAME geometry instance
+    for (colorHash, indices) in colorToIndices {
+        guard let firstIndex = indices.first else { continue }
+        let color = colors[firstIndex]
+
+        // Create shared geometry for this color group
+        let sharedSphere = SCNSphere(radius: radius)
+        sharedSphere.segmentCount = segmentCount
 
         let material = SCNMaterial()
-        material.diffuse.contents = colors[index]
-
-        // Always add glow for visibility - constant lighting for consistent brightness
+        material.diffuse.contents = color
         material.lightingModel = .constant
-        material.emission.contents = colors[index]
-        material.emission.intensity = 0.7 // Strong glow for visibility
+        material.emission.contents = color
+        material.emission.intensity = 0.7
+        sharedSphere.materials = [material]
 
-        sphere.materials = [material]
-
-        let node = SCNNode(geometry: sphere)
-        node.position = points[index]
-        root.addChildNode(node)
+        // Create nodes sharing this geometry
+        for index in indices {
+            let node = SCNNode(geometry: sharedSphere)
+            node.position = points[index]
+            node.name = "point_\(index)"
+            root.addChildNode(node)
+        }
     }
 }
 
-// MARK: - Cluster Labels (Redesigned)
+// MARK: - Cluster Labels (Background-Aware with Arrows)
 
-private func addClusterLabels(_ annotations: [Embedding3DSceneView.AnnotationData], into root: SCNNode) { 
+private func addClusterLabels(_ annotations: [Embedding3DSceneView.AnnotationData], backgroundStyle: EmbeddingSceneBackgroundStyle, into root: SCNNode) {
     guard !annotations.isEmpty else { return }
 
     // Create a dedicated label layer node that renders on top of everything
     let labelLayer = SCNNode()
     labelLayer.name = "labelLayer"
-    // Render labels last (on top) by setting rendering order
     labelLayer.renderingOrder = 100
 
-    for annotation in annotations {
+    // === PHASE 1: Calculate scene bounds and spread distance ===
+    let allPositions = annotations.map { simd_float3($0.position.x, $0.position.y, $0.position.z) }
+    let centroid = allPositions.reduce(simd_float3.zero, +) / Float(allPositions.count)
+    let maxDistFromCenter = allPositions.map { simd_length($0 - centroid) }.max() ?? 1.0
+
+    // Spread labels FAR out - at least 1.5x the data spread, minimum 2.0 units
+    let baseSpreadRadius = max(maxDistFromCenter * 1.8, 2.0)
+
+    // === PHASE 2: Sort annotations by importance (document clusters first, larger clusters prioritized) ===
+    let sortedAnnotations = annotations.sorted { a, b in
+        if a.isDocumentCluster != b.isDocumentCluster { return a.isDocumentCluster }
+        return a.clusterSize > b.clusterSize
+    }
+
+    // === PHASE 3: Calculate initial positions using golden angle spiral for maximum spread ===
+    var labelPositions: [simd_float3] = []
+    let goldenAngle: Float = .pi * (3.0 - sqrt(5.0)) // ~137.5° - optimal distribution
+
+    for (index, annotation) in sortedAnnotations.enumerated() {
+        let clusterPos = simd_float3(annotation.position.x, annotation.position.y, annotation.position.z)
+
+        // Calculate direction from scene centroid through cluster point (push labels outward)
+        var outwardDir = simd_normalize(clusterPos - centroid)
+        if simd_length(outwardDir) < 0.01 {
+            // Fallback if cluster is at centroid
+            outwardDir = simd_float3(cos(Float(index)), 0.3, sin(Float(index)))
+        }
+
+        // Use golden angle spiral for vertical distribution
+        let spiralOffset = goldenAngle * Float(index)
+        let verticalAngle = Float(index) / Float(max(sortedAnnotations.count, 1)) * Float.pi - Float.pi / 2
+
+        // Add rotation around vertical axis based on spiral
+        let rotatedX = outwardDir.x * cos(spiralOffset) - outwardDir.z * sin(spiralOffset)
+        let rotatedZ = outwardDir.x * sin(spiralOffset) + outwardDir.z * cos(spiralOffset)
+        outwardDir = simd_normalize(simd_float3(rotatedX, outwardDir.y + sin(verticalAngle) * 0.5, rotatedZ))
+
+        // Distance varies by type: document clusters further out
+        let distanceMultiplier: Float = annotation.isDocumentCluster ? 1.2 : 0.9
+        let spreadDist = baseSpreadRadius * distanceMultiplier
+
+        // Add some index-based variation to prevent exact alignments
+        let jitter = Float(index % 3) * 0.15 - 0.15
+
+        let labelPos = clusterPos + outwardDir * (spreadDist + jitter)
+        labelPositions.append(labelPos)
+    }
+
+    // === PHASE 4: Collision detection and resolution ===
+    let minSeparation: Float = 0.5 // Minimum distance between labels
+    let iterations = 3 // Number of repulsion passes
+
+    for _ in 0..<iterations {
+        for i in 0..<labelPositions.count {
+            for j in (i + 1)..<labelPositions.count {
+                let delta = labelPositions[j] - labelPositions[i]
+                let dist = simd_length(delta)
+
+                if dist < minSeparation && dist > 0.001 {
+                    // Push labels apart
+                    let overlap = minSeparation - dist
+                    let pushDir = simd_normalize(delta)
+                    let pushAmount = overlap * 0.6
+
+                    labelPositions[i] -= pushDir * pushAmount
+                    labelPositions[j] += pushDir * pushAmount
+                }
+            }
+        }
+    }
+
+    // === PHASE 5: Create label nodes with arrows ===
+    for (index, annotation) in sortedAnnotations.enumerated() {
+        let labelPos = labelPositions[index]
+        let clusterPos = annotation.position
+
+        // Create arrow pointing FROM label TO cluster centroid
+        let arrowNode = makeArrowToCluster(
+            from: SCNVector3(labelPos.x, labelPos.y, labelPos.z),
+            to: clusterPos,
+            color: annotation.color,
+            backgroundStyle: backgroundStyle,
+            isDocumentCluster: annotation.isDocumentCluster
+        )
+
+        // Create the badge
         let labelNode = makeClusterBadge(
             title: annotation.title,
-            count: annotation.detailLevel,
-            color: annotation.color
+            clusterSize: annotation.clusterSize,
+            detailLevel: annotation.detailLevel,
+            keywords: annotation.keywords,
+            accentColor: annotation.color,
+            backgroundStyle: backgroundStyle,
+            priority: index,
+            isDocumentCluster: annotation.isDocumentCluster
         )
-        // Position label AT the cluster centroid (annotation.position is already scaled correctly)
-        // Add Y offset to float above the point cluster
-        labelNode.position = SCNVector3(
-            annotation.position.x,
-            annotation.position.y + 0.5, // Float above the cluster
-            annotation.position.z
-        )
+
+        labelNode.position = SCNVector3(labelPos.x, labelPos.y, labelPos.z)
+        labelLayer.addChildNode(arrowNode)
         labelLayer.addChildNode(labelNode)
     }
 
     root.addChildNode(labelLayer)
 }
 
-/// Creates a floating text label for cluster - BIG, BOLD, ALWAYS VISIBLE
-private func makeClusterBadge(title: String, count: Int, color: PlatformColor) -> SCNNode { 
+/// Creates an arrow line from label position pointing to cluster centroid
+private func makeArrowToCluster(
+    from labelPos: SCNVector3,
+    to clusterPos: SCNVector3,
+    color: PlatformColor,
+    backgroundStyle: EmbeddingSceneBackgroundStyle,
+    isDocumentCluster: Bool
+) -> SCNNode {
     let container = SCNNode()
-    container.renderingOrder = 101 // Render on top of dots
 
-    // Truncate to reasonable length
-    let displayText = title.prefix(16) + (title.count > 16 ? "…" : "")
-    let textGeo = SCNText(string: String(displayText), extrusionDepth: 0.02)
+    // Calculate direction and length
+    let dx = clusterPos.x - labelPos.x
+    let dy = clusterPos.y - labelPos.y
+    let dz = clusterPos.z - labelPos.z
+    let length = sqrt(dx * dx + dy * dy + dz * dz)
 
-    // GIANT font - easily readable without zooming. Base 1.2, up to 1.8 for big clusters
-    let fontSize: CGFloat = min(1.8, max(1.2, 1.0 + CGFloat(min(count, 50)) * 0.015))
+    guard length > 0.1 else { return container } // Skip if too short
+
+    // Shorten the line so it doesn't overlap with label or cluster
+    let shortenAmount: Float = isDocumentCluster ? 0.15 : 0.1
+    let effectiveLength = max(0.1, length - shortenAmount * 2)
+
+    // Create the line (cylinder)
+    let lineRadius: CGFloat = isDocumentCluster ? 0.008 : 0.005
+    let line = SCNCylinder(radius: lineRadius, height: CGFloat(effectiveLength))
+
+    let lineMat = SCNMaterial()
+    lineMat.diffuse.contents = color.withAlphaComponent(0.6)
+    lineMat.emission.contents = color
+    lineMat.emission.intensity = backgroundStyle.isDark ? 0.4 : 0.2
+    lineMat.lightingModel = .constant
+    lineMat.writesToDepthBuffer = false
+    lineMat.readsFromDepthBuffer = false
+    line.materials = [lineMat]
+
+    let lineNode = SCNNode(geometry: line)
+
+    // Position at midpoint
+    let midX = (labelPos.x + clusterPos.x) / 2
+    let midY = (labelPos.y + clusterPos.y) / 2
+    let midZ = (labelPos.z + clusterPos.z) / 2
+    lineNode.position = SCNVector3(midX, midY, midZ)
+
+    // Rotate to point from label to cluster
+    // Default cylinder is along Y axis, we need to rotate it
+    let direction = simd_normalize(simd_float3(dx, dy, dz))
+    let up = simd_float3(0, 1, 0)
+
+    // Calculate rotation quaternion
+    let dot = simd_dot(up, direction)
+    if abs(dot) < 0.999 {
+        let cross = simd_cross(up, direction)
+        let angle = acos(dot)
+        lineNode.rotation = SCNVector4(cross.x, cross.y, cross.z, angle)
+    } else if dot < 0 {
+        // Pointing down
+        lineNode.eulerAngles = SCNVector3(Float.pi, 0, 0)
+    }
+
+    container.addChildNode(lineNode)
+
+    // Create arrowhead (cone) pointing at cluster
+    if isDocumentCluster {
+        let coneHeight: CGFloat = 0.06
+        let coneRadius: CGFloat = 0.025
+        let cone = SCNCone(topRadius: 0, bottomRadius: coneRadius, height: coneHeight)
+
+        let coneMat = SCNMaterial()
+        coneMat.diffuse.contents = color
+        coneMat.emission.contents = color
+        coneMat.emission.intensity = 0.5
+        coneMat.lightingModel = .constant
+        cone.materials = [coneMat]
+
+        let coneNode = SCNNode(geometry: cone)
+
+        // Position near cluster (but not at it)
+        let arrowTipDist = shortenAmount + Float(coneHeight) / 2
+        let tipX = clusterPos.x - direction.x * arrowTipDist
+        let tipY = clusterPos.y - direction.y * arrowTipDist
+        let tipZ = clusterPos.z - direction.z * arrowTipDist
+        coneNode.position = SCNVector3(tipX, tipY, tipZ)
+
+        // Rotate cone to point at cluster
+        if abs(dot) < 0.999 {
+            let cross = simd_cross(up, direction)
+            let angle = acos(dot)
+            coneNode.rotation = SCNVector4(cross.x, cross.y, cross.z, angle)
+        } else if dot < 0 {
+            coneNode.eulerAngles = SCNVector3(Float.pi, 0, 0)
+        }
+
+        container.addChildNode(coneNode)
+    }
+
+    return container
+}
+
+/// Creates a floating cluster label - contrast-aware, with document name, count, and optional keywords
+private func makeClusterBadge(
+    title: String,
+    clusterSize: Int,
+    detailLevel: Int,
+    keywords: [String],
+    accentColor: PlatformColor,
+    backgroundStyle: EmbeddingSceneBackgroundStyle,
+    priority: Int,
+    isDocumentCluster: Bool = true
+) -> SCNNode {
+    let container = SCNNode()
+    container.name = "clusterLabel_\(priority)"
+    container.renderingOrder = 101 + priority
+
+    // === DETERMINE LABEL STYLE ===
+    let isKeywordLabel = title.hasPrefix("#")
+    let isSubCluster = !isDocumentCluster && !isKeywordLabel
+
+    // === BUILD THE LABEL TEXT ===
+    var displayText: String
+    if isKeywordLabel {
+        // Keyword hotspot: just the hashtag
+        displayText = title
+    } else if isDocumentCluster {
+        // Main document cluster: Name (count) + keywords
+        let truncatedTitle = String(title.prefix(22)) + (title.count > 22 ? "…" : "")
+        displayText = "\(truncatedTitle) (\(clusterSize))"
+        if detailLevel >= 1 && !keywords.isEmpty {
+            // Filter out keywords that are substrings of the title (avoid "API API" duplication)
+            let titleLower = title.lowercased()
+            let filteredKeywords = keywords.filter { kw in
+                let kwLower = kw.lowercased()
+                return !titleLower.contains(kwLower) && !kwLower.contains(titleLower.prefix(4))
+            }
+            // Deduplicate keywords (case-insensitive)
+            var seenKeywords: Set<String> = []
+            let uniqueKeywords = filteredKeywords.filter { kw in
+                let lower = kw.lowercased()
+                if seenKeywords.contains(lower) { return false }
+                seenKeywords.insert(lower)
+                return true
+            }
+            if !uniqueKeywords.isEmpty {
+                let keywordStr = uniqueKeywords.prefix(3).joined(separator: " • ")
+                displayText += "\n\(keywordStr)"
+            }
+        }
+    } else {
+        // Sub-cluster: Section name only, smaller
+        let truncatedTitle = String(title.prefix(18)) + (title.count > 18 ? "…" : "")
+        displayText = "▸ \(truncatedTitle)"
+        if !keywords.isEmpty {
+            // Filter keywords that match section title
+            let titleLower = title.lowercased()
+            let filtered = keywords.filter { !titleLower.contains($0.lowercased()) }
+            if let firstKw = filtered.first {
+                displayText += " • \(firstKw)"
+            }
+        }
+    }
+
+    let textGeo = SCNText(string: displayText, extrusionDepth: isDocumentCluster ? 0.02 : 0.012)
+
+    // === DYNAMIC FONT SIZE (larger for readability) ===
+    let baseFontSize: CGFloat
+    if isKeywordLabel {
+        baseFontSize = 0.18 // Larger for keyword tags
+    } else if isDocumentCluster {
+        baseFontSize = 0.24 + CGFloat(min(clusterSize, 80)) / 400.0 // Scale with cluster size, bigger base
+    } else {
+        baseFontSize = 0.16 // Sub-clusters slightly smaller
+    }
+
     #if canImport(UIKit)
-        textGeo.font = UIFont.systemFont(ofSize: fontSize, weight: .black)
+        let fontWeight: UIFont.Weight = isDocumentCluster ? .semibold : (isKeywordLabel ? .medium : .regular)
+        textGeo.font = UIFont.systemFont(ofSize: baseFontSize, weight: fontWeight)
     #else
-        textGeo.font = NSFont.systemFont(ofSize: fontSize, weight: .black)
+        let fontWeight: NSFont.Weight = isDocumentCluster ? .semibold : (isKeywordLabel ? .medium : .regular)
+        textGeo.font = NSFont.systemFont(ofSize: baseFontSize, weight: fontWeight)
     #endif
-    textGeo.flatness = 0.01 // Smoother curves
-    textGeo.chamferRadius = 0.01
+    textGeo.flatness = 0.02 // Much smoother curves (lower = smoother but more geometry)
+    textGeo.chamferRadius = 0.005 // Slightly rounded edges
 
-    // Create contrasting outline/glow effect
+    // === STYLE-SPECIFIC COLORS ===
     let textMat = SCNMaterial()
-    textMat.diffuse.contents = PlatformColor.white // White text for contrast
-    textMat.emission.contents = color // Glow in topic color
-    textMat.emission.intensity = 0.8
-    textMat.lightingModel = .constant // Always fully lit
+    if isKeywordLabel {
+        // Keyword labels: cyan/teal color scheme
+        textMat.diffuse.contents = platformColor(0.2, 0.9, 1.0) // Bright cyan
+        textMat.emission.contents = platformColor(0.0, 0.7, 0.9)
+        textMat.emission.intensity = 0.8
+    } else if isSubCluster {
+        // Sub-cluster: slightly muted, matches document color
+        textMat.diffuse.contents = backgroundStyle.labelTextColor.withAlphaComponent(0.85)
+        textMat.emission.contents = accentColor
+        textMat.emission.intensity = backgroundStyle.isDark ? 0.4 : 0.2
+    } else {
+        // Document cluster: full prominence
+        textMat.diffuse.contents = backgroundStyle.labelTextColor
+        textMat.emission.contents = accentColor
+        textMat.emission.intensity = backgroundStyle.isDark ? 0.6 : 0.3
+    }
+    textMat.lightingModel = .constant
     textMat.isDoubleSided = true
-    textMat.writesToDepthBuffer = false // Don't occlude other labels
-    textMat.readsFromDepthBuffer = false // Render on top of everything
+    textMat.writesToDepthBuffer = false
+    textMat.readsFromDepthBuffer = false
     textGeo.materials = [textMat]
 
     let textNode = SCNNode(geometry: textGeo)
 
-    // Center the text pivot
+    // Center the text pivot point
     let (minBound, maxBound) = textGeo.boundingBox
     let textWidth = maxBound.x - minBound.x
     let textHeight = maxBound.y - minBound.y
@@ -1965,24 +4283,56 @@ private func makeClusterBadge(title: String, count: Int, color: PlatformColor) -
         0
     )
 
-    // Add a dark background pill for contrast
-    let bgWidth = CGFloat(textWidth) + 0.15
-    let bgHeight = CGFloat(textHeight) + 0.08
+    // === BACKGROUND PILL (style varies by type) ===
+    let paddingH: CGFloat = isDocumentCluster ? 0.08 : 0.05
+    let paddingV: CGFloat = isDocumentCluster ? 0.04 : 0.03
+    let bgWidth = CGFloat(textWidth) + paddingH * 2
+    let bgHeight = CGFloat(textHeight) + paddingV * 2
     let bgPlane = SCNPlane(width: bgWidth, height: bgHeight)
-    bgPlane.cornerRadius = bgHeight / 2
+    bgPlane.cornerRadius = min(bgHeight / 2, 0.06)
+
     let bgMat = SCNMaterial()
-    bgMat.diffuse.contents = PlatformColor(Color.black.opacity(0.7))
+    if isKeywordLabel {
+        // Keyword: dark teal background
+        bgMat.diffuse.contents = platformColor(0.0, 0.15, 0.2, alpha: 0.85)
+    } else if isSubCluster {
+        // Sub-cluster: slightly transparent version of main background
+        bgMat.diffuse.contents = backgroundStyle.labelBackgroundColor.withAlphaComponent(0.6)
+    } else {
+        bgMat.diffuse.contents = backgroundStyle.labelBackgroundColor
+    }
     bgMat.lightingModel = .constant
     bgMat.writesToDepthBuffer = false
     bgMat.readsFromDepthBuffer = false
     bgPlane.materials = [bgMat]
 
     let bgNode = SCNNode(geometry: bgPlane)
-    bgNode.renderingOrder = 100 // Behind text but on top of dots
-    bgNode.position = SCNVector3(0, 0, -0.01) // Slightly behind text
+    bgNode.renderingOrder = 100 + priority
+    bgNode.position = SCNVector3(0, 0, -0.005)
 
+    // === ASSEMBLE BASE ===
     container.addChildNode(bgNode)
     container.addChildNode(textNode)
+
+    // === ACCENT INDICATOR (only for document clusters) ===
+    if isDocumentCluster {
+        let indicatorRadius: CGFloat = 0.022
+        let indicator = SCNSphere(radius: indicatorRadius)
+        let indicatorMat = SCNMaterial()
+        indicatorMat.diffuse.contents = accentColor
+        indicatorMat.emission.contents = accentColor
+        indicatorMat.emission.intensity = 0.6
+        indicatorMat.lightingModel = .constant
+        indicator.materials = [indicatorMat]
+
+        let indicatorNode = SCNNode(geometry: indicator)
+        indicatorNode.position = SCNVector3(
+            Float(-bgWidth / 2) - Float(indicatorRadius) - 0.012,
+            0,
+            0
+        )
+        container.addChildNode(indicatorNode)
+    }
 
     // Billboard constraint - always face camera
     let billboard = SCNBillboardConstraint()
@@ -2191,7 +4541,7 @@ private func normalizeToViewingCube(_ coords: [SIMD3<Float>], jitterAmount: Floa
 
 // MARK: - Embedding Visualization Color Palette
 
-enum EmbeddingColorPalette { 
+enum EmbeddingColorPalette {
     static let fallback: PlatformColor = {
         #if canImport(UIKit)
         return UIColor.systemGray

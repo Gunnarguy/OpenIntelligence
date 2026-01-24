@@ -124,7 +124,7 @@ struct TableData: Sendable {
     }
 
     /// Infer cell alignments from content (numbers = right, short text = center, else left)
-    private static func inferAlignments(from rows: [[String]]) -> [[TableCellAlignment]] {
+    nonisolated private static func inferAlignments(from rows: [[String]]) -> [[TableCellAlignment]] {
         rows.map { row in
             row.map { cell in
                 let trimmed = cell.trimmingCharacters(in: .whitespaces)
@@ -151,6 +151,9 @@ struct TableData: Sendable {
     nonisolated var textRepresentation: String {
         var lines: [String] = []
 
+        // DEBUG: Log table structure
+        Log.debug("[TableData] Building textRepresentation: \(rows.count) rows, \(rows.first?.count ?? 0) cols, headerRow=\(headerRow != nil)", category: .ingestion)
+
         // === Section 1: Caption/Title ===
         if let caption = caption, !caption.isEmpty {
             lines.append("Table: \(caption)")
@@ -163,6 +166,7 @@ struct TableData: Sendable {
         // Generate plain English sentences from key-value pairs
         // Works for ANY domain: "The dosage is 500mg", "The price is $49.99", etc.
         if let kvPairs = keyValuePairs, !kvPairs.isEmpty {
+            Log.debug("[TableData] Generated \(kvPairs.count) key-value pairs", category: .ingestion)
             lines.append("[Summary]")
             for (key, value) in kvPairs {
                 // Generate natural language sentence
@@ -175,6 +179,21 @@ struct TableData: Sendable {
             lines.append("[Specifications]")
             for (key, value) in kvPairs {
                 lines.append("\(key): \(value)")
+            }
+            lines.append("")
+        } else if rows.count > 0 {
+            // === Fallback: Row-by-row content (when no key-value structure detected) ===
+            // This ensures table content is ALWAYS searchable even without headers
+            lines.append("[Row Contents]")
+            for (rowIndex, row) in rows.enumerated() {
+                let rowContent = row.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }.joined(separator: ", ")
+                if !rowContent.isEmpty {
+                    if rowIndex == 0 && headerRow != nil {
+                        lines.append("Headers: \(rowContent)")
+                    } else {
+                        lines.append("Row \(rowIndex): \(rowContent)")
+                    }
+                }
             }
             lines.append("")
         }
@@ -232,18 +251,64 @@ struct TableData: Sendable {
         return "\(article)\(normalizedKey) is \(cleanValue)."
     }
 
-    /// Key-value representation for specs tables (e.g., "Dosage: 500mg", "Part #: API-1234")
-    /// Useful when table has 2 columns: property name and value
+    /// Key-value representation for specs tables
+    /// Works for BOTH 2-column tables (key-value) AND multi-column tables (using headers)
+    /// Examples:
+    ///   - 2-column no header: "Viscosity | SAE 0W-20" → [("Viscosity", "SAE 0W-20")]
+    ///   - 2-column with header: Headers: [Property, Value], Row: [Viscosity, SAE 0W-20]
+    ///                           → [("Viscosity", "SAE 0W-20")]
+    ///   - Multi-column with headers: Headers: [Engine, Oil Type, Viscosity]
+    ///                                Row: [2.0L, Synthetic, SAE 0W-20]
+    ///                                → [("Engine", "2.0L"), ("Oil Type", "Synthetic"), ("Viscosity", "SAE 0W-20")]
     nonisolated var keyValuePairs: [(key: String, value: String)]? {
-        guard let firstRow = rows.first, firstRow.count == 2 else { return nil }
+        guard !rows.isEmpty else { return nil }
 
-        return rows.compactMap { row in
-            guard row.count >= 2 else { return nil }
-            let key = row[0].trimmingCharacters(in: .whitespacesAndNewlines)
-            let value = row[1].trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !key.isEmpty && !value.isEmpty else { return nil }
-            return (key: key, value: value)
+        var pairs: [(key: String, value: String)] = []
+
+        // Determine which rows are data (skip header if present)
+        let dataRows: [[String]]
+        if headerRow != nil && rows.count > 1 {
+            // Skip first row (it's the header)
+            dataRows = Array(rows.dropFirst())
+        } else {
+            dataRows = rows
         }
+
+        guard !dataRows.isEmpty else { return nil }
+        let columnCount = dataRows.first?.count ?? 0
+        guard columnCount >= 2 else { return nil }
+
+        // Case 1: 2-column table (classic key-value format)
+        // First column = key, second column = value
+        if columnCount == 2 {
+            for row in dataRows {
+                guard row.count >= 2 else { continue }
+                let key = row[0].trimmingCharacters(in: .whitespacesAndNewlines)
+                let value = row[1].trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !key.isEmpty && !value.isEmpty else { continue }
+                pairs.append((key: key, value: value))
+            }
+            return pairs.isEmpty ? nil : pairs
+        }
+
+        // Case 2: Multi-column table - need headers to make sense of columns
+        guard let headers = headerRow, headers.count >= 2 else {
+            // No headers for multi-column - generate row summaries instead
+            return nil
+        }
+
+        // Use headers as keys for each cell value
+        for row in dataRows {
+            for (colIndex, header) in headers.enumerated() {
+                guard colIndex < row.count else { continue }
+                let key = header.trimmingCharacters(in: .whitespacesAndNewlines)
+                let value = row[colIndex].trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !key.isEmpty && !value.isEmpty else { continue }
+                pairs.append((key: key, value: value))
+            }
+        }
+
+        return pairs.isEmpty ? nil : pairs
     }
 }
 

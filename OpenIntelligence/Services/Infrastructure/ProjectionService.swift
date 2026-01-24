@@ -198,77 +198,140 @@ final class ProjectionService {
         }
         return out
     }
-    
-    // MARK: - t-SNE (Simplified Barnes-Hut approximation)
-    
-    private func tsne3D(X: [[Float]], seed: UInt64, perplexity: Float = 30, iterations: Int = 250) -> [SIMD3<Float>] {
+
+    // MARK: - t-SNE (Optimized with adaptive iterations and sampling)
+
+    private func tsne3D(X: [[Float]], seed: UInt64, perplexity: Float = 30) -> [SIMD3<Float>] {
         let N = X.count
         guard N > 1 else { return X.isEmpty ? [] : [SIMD3<Float>(0, 0, 0)] }
-        
+
+        // OPTIMIZATION: Adaptive iterations based on point count
+        // Fewer points = more iterations (quality), many points = fewer (speed)
+        let iterations: Int
+        if N > 1500 {
+            iterations = 100  // Fast for large datasets
+        } else if N > 500 {
+            iterations = 150
+        } else if N > 100 {
+            iterations = 200
+        } else {
+            iterations = 250  // Original quality for small sets
+        }
+
         // Initialize with PCA for better starting point
         var Y = pca3D_powerIteration(X: X, seed: seed)
-        
-        // Compute pairwise similarities in high-D (Gaussian kernel)
-        let sigma = perplexity / 3.0
-        var P = Array(repeating: Array(repeating: Float(0), count: N), count: N)
-        for i in 0..<N {
-            for j in 0..<N where i != j {
-                var dist: Float = 0
-                for d in 0..<(X[i].count) {
-                    let diff = X[i][d] - X[j][d]
-                    dist += diff * diff
-                }
-                P[i][j] = exp(-dist / (2 * sigma * sigma))
-            }
-            let rowSum = P[i].reduce(0, +)
-            if rowSum > 0 {
-                for j in 0..<N { P[i][j] /= rowSum }
-            }
-        }
-        // Symmetrize
-        for i in 0..<N {
-            for j in 0..<N {
-                P[i][j] = (P[i][j] + P[j][i]) / (2 * Float(N))
-            }
-        }
-        
-        // Gradient descent
-        var velocity = Array(repeating: SIMD3<Float>(0, 0, 0), count: N)
-        let momentum: Float = 0.5
-        let eta: Float = 200.0
-        
-        for iter in 0..<iterations {
-            // Compute Q (Student-t kernel in low-D)
-            var Q = Array(repeating: Array(repeating: Float(0), count: N), count: N)
-            var Z: Float = 0
+
+        // OPTIMIZATION: For large N, use k-nearest neighbors instead of full pairwise
+        // This reduces O(n²) to O(n*k) for similarity computation
+        let useApproximate = N > 300
+        let kNeighbors = min(50, N - 1)  // Only consider nearest neighbors
+
+        var P: [[Float]]
+        if useApproximate {
+            // Build sparse P matrix using only k-nearest neighbors
+            P = Array(repeating: Array(repeating: Float(0), count: N), count: N)
+            let sigma = perplexity / 3.0
+            let sigmaSq2 = 2 * sigma * sigma
+
             for i in 0..<N {
+                // Find k-nearest neighbors
+                var dists: [(Int, Float)] = []
+                dists.reserveCapacity(N)
                 for j in 0..<N where i != j {
-                    let diff = Y[i] - Y[j]
-                    let dist = simd_length(diff)
-                    Q[i][j] = 1.0 / (1.0 + dist * dist)
-                    Z += Q[i][j]
+                    var dist: Float = 0
+                    for d in 0..<X[i].count {
+                        let diff = X[i][d] - X[j][d]
+                        dist += diff * diff
+                    }
+                    dists.append((j, dist))
                 }
-            }
-            if Z > 0 {
-                for i in 0..<N {
-                    for j in 0..<N {
-                        Q[i][j] /= Z
+                dists.sort { $0.1 < $1.1 }
+
+                // Only compute P for k-nearest neighbors
+                var rowSum: Float = 0
+                for (j, distSq) in dists.prefix(kNeighbors) {
+                    P[i][j] = exp(-distSq / sigmaSq2)
+                    rowSum += P[i][j]
+                }
+                if rowSum > 0 {
+                    for (j, _) in dists.prefix(kNeighbors) {
+                        P[i][j] /= rowSum
                     }
                 }
             }
-            
-            // Compute gradients
-            var grad = Array(repeating: SIMD3<Float>(0, 0, 0), count: N)
+        } else {
+            // Original full pairwise for small datasets
+            P = Array(repeating: Array(repeating: Float(0), count: N), count: N)
+            let sigma = perplexity / 3.0
+            let sigmaSq2 = 2 * sigma * sigma
             for i in 0..<N {
                 for j in 0..<N where i != j {
+                    var dist: Float = 0
+                    for d in 0..<(X[i].count) {
+                        let diff = X[i][d] - X[j][d]
+                        dist += diff * diff
+                    }
+                    P[i][j] = exp(-dist / sigmaSq2)
+                }
+                let rowSum = P[i].reduce(0, +)
+                if rowSum > 0 {
+                    for j in 0..<N { P[i][j] /= rowSum }
+                }
+            }
+        }
+
+        // Symmetrize
+        let invN2 = 1.0 / (2 * Float(N))
+        for i in 0..<N {
+            for j in (i+1)..<N {
+                let sym = (P[i][j] + P[j][i]) * invN2
+                P[i][j] = sym
+                P[j][i] = sym
+            }
+        }
+
+        // Gradient descent with optimizations
+        var velocity = Array(repeating: SIMD3<Float>(0, 0, 0), count: N)
+        let momentum: Float = 0.5
+        let eta: Float = 200.0
+
+        for iter in 0..<iterations {
+            // OPTIMIZATION: Sample-based Q computation for large N
+            let computeEveryJ = useApproximate && N > 500 ? 2 : 1  // Skip every other point
+
+            var Q = Array(repeating: Array(repeating: Float(0), count: N), count: N)
+            var Z: Float = 0
+            for i in 0..<N {
+                for j in stride(from: 0, to: N, by: computeEveryJ) where i != j {
+                    let diff = Y[i] - Y[j]
+                    let distSq = simd_length_squared(diff)
+                    Q[i][j] = 1.0 / (1.0 + distSq)
+                    Z += Q[i][j] * Float(computeEveryJ)  // Adjust for sampling
+                }
+            }
+            if Z > 0 {
+                let invZ = 1.0 / Z
+                for i in 0..<N {
+                    for j in 0..<N {
+                        Q[i][j] *= invZ
+                    }
+                }
+            }
+
+            // Compute gradients (sample for very large N)
+            var grad = Array(repeating: SIMD3<Float>(0, 0, 0), count: N)
+            let gradSampleStep = useApproximate && N > 800 ? 2 : 1
+
+            for i in 0..<N {
+                for j in stride(from: 0, to: N, by: gradSampleStep) where i != j {
                     let pij = max(P[i][j], 1e-12)
                     let qij = max(Q[i][j], 1e-12)
-                    let mult = (pij - qij) * Q[i][j]
+                    let mult = (pij - qij) * Q[i][j] * Float(gradSampleStep)
                     let diff = Y[i] - Y[j]
                     grad[i] += 4 * mult * diff
                 }
             }
-            
+
             // Update positions with momentum
             let effectiveEta = iter < 50 ? eta * 4 : eta
             for i in 0..<N {
@@ -276,100 +339,181 @@ final class ProjectionService {
                 Y[i] += velocity[i]
             }
         }
-        
+
         return Y
     }
-    
-    // MARK: - UMAP (Simplified force-directed layout)
-    
-    private func umap3D(X: [[Float]], seed: UInt64, nNeighbors: Int = 15, iterations: Int = 300) -> [SIMD3<Float>] {
+
+    // MARK: - UMAP (Proper implementation with fuzzy set membership)
+
+    private func umap3D(X: [[Float]], seed: UInt64, nNeighbors: Int = 15) -> [SIMD3<Float>] {
         let N = X.count
         guard N > 1 else { return X.isEmpty ? [] : [SIMD3<Float>(0, 0, 0)] }
-        
-        Log.info("UMAP starting with N=\(N) points, nNeighbors=\(nNeighbors), iterations=\(iterations)")
-        
-        // Initialize with scaled random positions for better spreading
-        var rng = VizLCG(seed: seed ^ 0xABC123456)
-        var Y = (0..<N).map { _ in
-            SIMD3<Float>(
-                Float.vizNormal(&rng) * 0.5,
-                Float.vizNormal(&rng) * 0.5,
-                Float.vizNormal(&rng) * 0.5
-            )
-        }
-        
-        Log.info("UMAP initial positions range: \(Y.map { simd_length($0) }.min() ?? 0)...\(Y.map { simd_length($0) }.max() ?? 0)")
-        
-        // Build k-NN graph in high-D
-        var neighbors: [[Int]] = Array(repeating: [], count: N)
+
+        // Adaptive iterations
+        let iterations: Int
+        if N > 1500 { iterations = 200 }
+        else if N > 500 { iterations = 300 }
+        else { iterations = 400 }
+
+        Log.info("UMAP starting with N=\(N) points, k=\(nNeighbors), iters=\(iterations)")
+
+        let D = X[0].count
         let k = min(nNeighbors, N - 1)
+
+        // Step 1: Build k-NN with distances
+        var neighborIndices: [[Int]] = Array(repeating: [], count: N)
+        var neighborDists: [[Float]] = Array(repeating: [], count: N)
+
         for i in 0..<N {
             var dists: [(Int, Float)] = []
+            dists.reserveCapacity(N)
             for j in 0..<N where i != j {
-                var dist: Float = 0
-                for d in 0..<X[i].count {
+                var distSq: Float = 0
+                for d in 0..<D {
                     let diff = X[i][d] - X[j][d]
-                    dist += diff * diff
+                    distSq += diff * diff
                 }
-                dists.append((j, sqrt(dist)))
+                dists.append((j, sqrt(distSq)))
             }
             dists.sort { $0.1 < $1.1 }
-            neighbors[i] = dists.prefix(k).map { $0.0 }
+            neighborIndices[i] = dists.prefix(k).map { $0.0 }
+            neighborDists[i] = dists.prefix(k).map { $0.1 }
         }
-        
-        // Force-directed optimization with better parameters
+
+        // Step 2: Compute local connectivity (sigma) for smooth kNN
+        var sigma = Array(repeating: Float(1.0), count: N)
+        var rho = Array(repeating: Float(0.0), count: N)  // Distance to nearest neighbor
+
+        for i in 0..<N {
+            if !neighborDists[i].isEmpty {
+                rho[i] = neighborDists[i][0]
+                // Binary search for sigma that gives target sum
+                let target = log2(Float(k))
+                var lo: Float = 0.001, hi: Float = 100.0
+                for _ in 0..<20 {  // Binary search iterations
+                    let mid = (lo + hi) / 2
+                    var sum: Float = 0
+                    for d in neighborDists[i] {
+                        sum += exp(-max(0, d - rho[i]) / mid)
+                    }
+                    if sum > target { lo = mid } else { hi = mid }
+                }
+                sigma[i] = (lo + hi) / 2
+            }
+        }
+
+        // Step 3: Build symmetric fuzzy graph (high-D membership weights)
+        var graph: [Int: Float] = [:]  // Sparse: key = i*N+j, value = weight
+
+        for i in 0..<N {
+            for (idx, j) in neighborIndices[i].enumerated() {
+                let d = neighborDists[i][idx]
+                let w_ij = exp(-max(0, d - rho[i]) / sigma[i])
+                let key_ij = i * N + j
+                let key_ji = j * N + i
+
+                // Symmetric: w = w_ij + w_ji - w_ij * w_ji
+                let existing_ij = graph[key_ij] ?? 0
+                let existing_ji = graph[key_ji] ?? 0
+                let symWeight = w_ij + existing_ji - w_ij * existing_ji
+                graph[key_ij] = max(existing_ij, symWeight)
+                graph[key_ji] = max(existing_ji, symWeight)
+            }
+        }
+
+        Log.info("UMAP graph built with \(graph.count) edges")
+
+        // Step 4: Initialize with spectral-like layout (use PCA as init)
+        var Y: [SIMD3<Float>]
+        let pcaInit = pca3D_powerIteration(X: X, seed: seed)
+        if pcaInit.count == N {
+            // Scale PCA init to small range
+            Y = pcaInit.map { $0 * 0.01 }
+        } else {
+            var rng = VizLCG(seed: seed)
+            Y = (0..<N).map { _ in
+                SIMD3<Float>(
+                    Float.vizNormal(&rng) * 0.01,
+                    Float.vizNormal(&rng) * 0.01,
+                    Float.vizNormal(&rng) * 0.01
+                )
+            }
+        }
+
+        // Step 5: Optimize layout
         let a: Float = 1.929
         let b: Float = 0.7915
-        let repulsionStrength: Float = 1.0
-        let learningRate: Float = 1.0
-        
-        for iter in 0..<iterations {
-            var forces = Array(repeating: SIMD3<Float>(0, 0, 0), count: N)
-            let alpha = learningRate * (1.0 - Float(iter) / Float(iterations))
-            
-            // Attractive forces (neighbors)
-            for i in 0..<N {
-                for j in neighbors[i] {
-                    let diff = Y[j] - Y[i]
-                    let dist = max(simd_length(diff), 0.001)
-                    // UMAP attractive force (pull neighbors together)
-                    let weight = -2.0 * a * b * pow(dist, 2 * b - 2) / (1.0 + a * pow(dist, 2 * b))
-                    forces[i] += weight * diff / dist
-                }
-            }
-            
-            // Repulsive forces (negative sampling)
-            var rngLocal = VizLCG(seed: seed ^ UInt64(iter + 1))
-            let negativeSamples = max(5, N / 5)  // Increased from N/10
-            for i in 0..<N {
-                for _ in 0..<negativeSamples {
-                    let j = Int(rngLocal.next() % UInt64(N))
-                    if i != j && !neighbors[i].contains(j) {
-                        let diff = Y[i] - Y[j]
-                        let dist = max(simd_length(diff), 0.001)
-                        // UMAP repulsive force (push non-neighbors apart)
-                        let denom = 0.001 + pow(dist, 2 * b)
-                        let weight = 2.0 * repulsionStrength * b / (denom * (1.0 + a * pow(dist, 2 * b)))
-                        forces[i] += weight * diff / dist
-                    }
-                }
-            }
-            
-            // Update positions with adaptive learning rate
-            for i in 0..<N {
-                Y[i] += alpha * forces[i]
-            }
-            
-            // Log progress periodically
-            if iter % 50 == 0 {
-                let avgForce = forces.map { simd_length($0) }.reduce(0, +) / Float(N)
-                Log.info("UMAP iter \(iter): avgForce=\(avgForce), alpha=\(alpha)")
+        let minDist: Float = 0.1
+
+        // Pre-compute edges as array for faster iteration
+        var edges: [(i: Int, j: Int, w: Float)] = []
+        for (key, w) in graph where w > 0.01 {
+            let i = key / N
+            let j = key % N
+            if i < j {  // Only store each edge once
+                edges.append((i, j, w))
             }
         }
-        
-        Log.info("UMAP optimization complete, positions range: \(Y.map { simd_length($0) }.min() ?? 0)...\(Y.map { simd_length($0) }.max() ?? 0)")
-        
-        // Normalize to reasonable range
+        Log.info("UMAP optimizing \(edges.count) unique edges")
+
+        var epochsPerSample = edges.map { 1.0 / max($0.w, 0.01) }
+        let maxEpochsPerSample = epochsPerSample.max() ?? 1.0
+        epochsPerSample = epochsPerSample.map { $0 / maxEpochsPerSample * Float(iterations) }
+        var epochOfNextSample = epochsPerSample
+
+        let negativeSampleRate = 5
+        var rng = VizLCG(seed: seed ^ 0xDEAD)
+
+        for epoch in 0..<iterations {
+            let alpha = 1.0 - Float(epoch) / Float(iterations)
+
+            // Process edges scheduled for this epoch
+            for (edgeIdx, edge) in edges.enumerated() {
+                if epochOfNextSample[edgeIdx] <= Float(epoch) {
+                    let i = edge.i
+                    let j = edge.j
+
+                    // Attractive force
+                    let diff = Y[i] - Y[j]
+                    let distSq = simd_length_squared(diff) + 0.001
+                    let dist = sqrt(distSq)
+
+                    if dist > minDist {
+                        let gradCoef = -2.0 * a * b * pow(dist, 2 * b - 2) / (1.0 + a * pow(dist, 2 * b))
+                        let grad = gradCoef * diff / dist * alpha
+                        Y[i] += grad
+                        Y[j] -= grad
+                    }
+
+                    // Negative sampling (repulsion)
+                    for _ in 0..<negativeSampleRate {
+                        let k = Int(rng.next() % UInt64(N))
+                        if k != i {
+                            let diffNeg = Y[i] - Y[k]
+                            let distNegSq = simd_length_squared(diffNeg) + 0.001
+                            let distNeg = sqrt(distNegSq)
+
+                            if distNeg > 0.01 {
+                                let gradCoef = 2.0 * b / ((0.001 + distNegSq) * (1.0 + a * pow(distNeg, 2 * b)))
+                                let grad = min(gradCoef, 4.0) * diffNeg / distNeg * alpha
+                                Y[i] += grad
+                            }
+                        }
+                    }
+
+                    epochOfNextSample[edgeIdx] += epochsPerSample[edgeIdx]
+                }
+            }
+
+            if epoch % 100 == 0 {
+                let spread = Y.map { simd_length($0) }.max() ?? 0
+                Log.info("UMAP epoch \(epoch): spread=\(spread)")
+            }
+        }
+
+        Log.info("UMAP optimization complete")
+
+        // Normalize to [-1, 1] range
         var minVals = Y[0], maxVals = Y[0]
         for y in Y {
             minVals = simd_min(minVals, y)
@@ -377,13 +521,12 @@ final class ProjectionService {
         }
         let span = maxVals - minVals
         let scale = simd_max(span.x, simd_max(span.y, span.z))
-        Log.info("UMAP normalization: span=\(span), scale=\(scale)")
         if scale > 0.001 {
             for i in 0..<N {
                 Y[i] = (Y[i] - (minVals + maxVals) * 0.5) * (2.0 / scale)
             }
         }
-        
+
         Log.info("UMAP final normalized positions range: \(Y.map { simd_length($0) }.min() ?? 0)...\(Y.map { simd_length($0) }.max() ?? 0)")
         return Y
     }

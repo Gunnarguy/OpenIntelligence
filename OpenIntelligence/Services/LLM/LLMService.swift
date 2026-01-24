@@ -53,6 +53,14 @@ protocol RAGToolHandler {
 
     /// Get summary of a specific document
     func getDocumentSummary(documentName: String) async throws -> String
+
+    /// Count occurrences of a pattern across ALL documents (exact matching)
+    /// This uses full-text storage, not semantic search
+    func countPatternInCorpus(pattern: String) async throws -> String
+
+    /// Search for exact text pattern across ALL documents
+    /// Returns documents containing the pattern with context
+    func searchExactPattern(pattern: String) async throws -> String
 }
 
 // MARK: - Streaming Bridge

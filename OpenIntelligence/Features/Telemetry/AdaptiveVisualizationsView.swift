@@ -57,12 +57,20 @@ struct AdaptiveVisualizationsView: View {
     enum AtlasBackgroundStyle: String, CaseIterable {
         case aurora = "Aurora"
         case midnight = "Midnight"
+        case cosmos = "Cosmos"
+        case nebula = "Nebula"
+        case ocean = "Ocean"
+        case forest = "Forest"
         case parchment = "Parchment"
 
         var sceneStyle: EmbeddingSceneBackgroundStyle {
             switch self {
             case .aurora: return .aurora
             case .midnight: return .midnight
+            case .cosmos: return .cosmos
+            case .nebula: return .nebula
+            case .ocean: return .ocean
+            case .forest: return .forest
             case .parchment: return .parchment
             }
         }
@@ -71,6 +79,10 @@ struct AdaptiveVisualizationsView: View {
             switch self {
             case .aurora: return "sparkles"
             case .midnight: return "moon.stars"
+            case .cosmos: return "star.fill"
+            case .nebula: return "hurricane"
+            case .ocean: return "water.waves"
+            case .forest: return "leaf"
             case .parchment: return "scroll"
             }
         }
@@ -1456,27 +1468,26 @@ struct AtlasStatPill: View {
     let color: Color
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 4) {
             Image(systemName: icon)
-                .font(.caption)
+                .font(.system(size: 9))
                 .foregroundColor(color)
 
-            VStack(alignment: .leading, spacing: 1) {
-                Text(value)
-                    .font(.caption)
-                    .fontWeight(.bold)
-                    .foregroundColor(.white)
-                Text(label)
-                    .font(.caption2)
-                    .foregroundColor(.white.opacity(0.7))
-            }
+            Text(value)
+                .font(.system(size: 10, weight: .bold, design: .rounded))
+                .foregroundColor(.white)
+
+            Text(label)
+                .font(.system(size: 8))
+                .foregroundColor(.white.opacity(0.6))
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
         .background(
             Capsule()
                 .fill(color.opacity(0.3))
         )
+        .fixedSize() // Prevent wrapping
     }
 }
 
@@ -1584,15 +1595,33 @@ struct Fullscreen3DAtlasView: View {
     @State private var profile: LibraryProfile?
     @State private var chunkTopicAssignments: [UUID: String] = [:]
 
-    private let sampleLimit = 2000 // Higher limit for fullscreen
+    // FTS5-derived corpus intelligence for richer labels
+    @State private var fts5TopTerms: [String] = []
+    @State private var fts5KeyPhrases: [(phrase: String, count: Int)] = []
+
+    private let sampleLimit = 50000 // Show ALL points (up to 50K) for full visibility
+
+    /// Auto-scale point size based on point count for performance
+    private func autoScaledPointScale(for count: Int) -> Double {
+        if count >= 10000 { return 0.6 }  // Tiny dots for massive datasets
+        if count >= 5000 { return 0.7 }
+        if count >= 2000 { return 0.85 }
+        return 1.0  // Normal size for smaller datasets
+    }
 
     private var sceneOptions: Embedding3DSceneView.SceneOptions {
-        Embedding3DSceneView.SceneOptions(
-            pointScale: CGFloat(pointScale),
+        // Auto-scale: blend user pointScale with auto-scaling based on point count
+        let autoScale = autoScaledPointScale(for: points.count)
+        let effectiveScale = pointScale * autoScale
+
+        return Embedding3DSceneView.SceneOptions(
+            pointScale: CGFloat(effectiveScale),
             autoRotate: autoRotate,
             showAxes: true, // Always show axes for spatial reference
             depthCue: depthCue,
-            backgroundStyle: backgroundStyle
+            backgroundStyle: backgroundStyle,
+            projectionMethod: projectionMethod,
+            axisLabels: .placeholder
         )
     }
 
@@ -1607,7 +1636,7 @@ struct Fullscreen3DAtlasView: View {
             } else if points.isEmpty {
                 emptyView
             } else {
-                ZStack { 
+                ZStack {
                     Embedding3DSceneView(
                         points: points,
                         colors: colors,
@@ -1921,6 +1950,10 @@ struct Fullscreen3DAtlasView: View {
         switch style {
         case .aurora: return "Aurora"
         case .midnight: return "Midnight"
+        case .cosmos: return "Cosmos"
+        case .nebula: return "Nebula"
+        case .ocean: return "Ocean"
+        case .forest: return "Forest"
         case .parchment: return "Parchment"
         }
     }
@@ -1991,11 +2024,22 @@ struct Fullscreen3DAtlasView: View {
     private func loadData() async {
         await MainActor.run { isLoading = true }
 
+        // === LOAD FTS5 CORPUS INTELLIGENCE ===
+        let activeContainer = await MainActor.run { ragService.containerService.activeContainerId }
+        async let topTermsTask = SQLiteFullTextService.shared.getTopTermsForContainer(containerId: activeContainer, limit: 50)
+        async let keyPhrasesTask = SQLiteFullTextService.shared.getKeyPhrasesForContainer(containerId: activeContainer, limit: 20)
+
+        let (topTermsResult, keyPhrasesResult) = await (topTermsTask, keyPhrasesTask)
+
+        await MainActor.run {
+            self.fts5TopTerms = topTermsResult.map { $0.term }
+            self.fts5KeyPhrases = keyPhrasesResult
+        }
+
         // Force fresh profile build if none exists or if we need updated topic analysis
         let engine = LibraryVisualizationEngine.shared
 
         // Trigger fresh analysis for the active container
-        let activeContainer = await MainActor.run { ragService.containerService.activeContainerId }
         let allChunks = await ragService.allChunksForActiveContainer()
         let docs = await MainActor.run { ragService.documents }
         await engine.analyze(
@@ -2223,7 +2267,9 @@ struct Fullscreen3DAtlasView: View {
                 title: topic,
                 keywords: [],
                 color: color,
-                detailLevel: pts.count > 20 ? 2 : 1
+                detailLevel: pts.count > 20 ? 2 : 1,
+                clusterSize: pts.count,
+                isDocumentCluster: false
             ))
         }
 
@@ -2334,7 +2380,9 @@ struct Fullscreen3DAtlasView: View {
                 title: topic,
                 keywords: ["\(pts.count) pts"],
                 color: color,
-                detailLevel: pts.count
+                detailLevel: pts.count > 20 ? 2 : (pts.count > 5 ? 1 : 0),
+                clusterSize: pts.count,
+                isDocumentCluster: false
             ))
         }
 
@@ -2368,16 +2416,34 @@ struct CompactAtlasSceneView: View {
     @State private var sceneReloadToken = UUID()
     @State private var chunkTopicAssignments: [UUID: String] = [:] // chunk.id → topic name
 
-    private let sampleLimit = 1500
+    // FTS5-derived corpus intelligence for richer labels
+    @State private var fts5TopTerms: [String] = []
+    @State private var fts5KeyPhrases: [(phrase: String, count: Int)] = []
 
-    // Computed scene options from settings
+    private let sampleLimit = 50000 // Show ALL points (up to 50K) for full visibility
+
+    /// Auto-scale point size based on point count for performance
+    private func autoScaledPointScale(for count: Int) -> Double {
+        if count >= 10000 { return 0.6 }  // Tiny dots for massive datasets
+        if count >= 5000 { return 0.7 }
+        if count >= 2000 { return 0.85 }
+        return 1.0  // Normal size for smaller datasets
+    }
+
+    // Computed scene options from settings (auto-scales point size based on count)
     private var sceneOptions: Embedding3DSceneView.SceneOptions {
-        Embedding3DSceneView.SceneOptions(
-            pointScale: CGFloat(pointScale),
+        // Auto-scale: blend user pointScale with auto-scaling based on point count
+        let autoScale = autoScaledPointScale(for: points.count)
+        let effectiveScale = pointScale * autoScale // User can still adjust relative size
+
+        return Embedding3DSceneView.SceneOptions(
+            pointScale: CGFloat(effectiveScale),
             autoRotate: autoRotate,
             showAxes: true, // Always show axes for spatial reference
             depthCue: depthCue,
-            backgroundStyle: backgroundStyle
+            backgroundStyle: backgroundStyle,
+            projectionMethod: projectionMethod,
+            axisLabels: .placeholder
         )
     }
 
@@ -2525,6 +2591,19 @@ struct CompactAtlasSceneView: View {
 
     private func loadAndProject() async {
         await MainActor.run { isLoading = true }
+
+        // === LOAD FTS5 CORPUS INTELLIGENCE ===
+        // Get real terms and phrases from the SQLite FTS5 index for this container
+        let activeId = containerService.activeContainerId
+        async let topTermsTask = SQLiteFullTextService.shared.getTopTermsForContainer(containerId: activeId, limit: 50)
+        async let keyPhrasesTask = SQLiteFullTextService.shared.getKeyPhrasesForContainer(containerId: activeId, limit: 20)
+
+        let (topTermsResult, keyPhrasesResult) = await (topTermsTask, keyPhrasesTask)
+
+        await MainActor.run {
+            self.fts5TopTerms = topTermsResult.map { $0.term }
+            self.fts5KeyPhrases = keyPhrasesResult
+        }
 
         let allChunks = await ragService.allChunksForActiveContainer()
 
@@ -2900,15 +2979,40 @@ struct CompactAtlasSceneView: View {
             // Get color for this topic
             let color = topicColorMap[topicName] ?? PlatformColor(.white.opacity(0.7))
 
-            // Create keywords from topic name
-            let keywords = [topicName, "\(pointsInCluster.count) pts"]
+            // === PER-TOPIC KEYWORDS FROM CHUNK METADATA ===
+            // Extract keywords from chunks assigned to THIS topic
+            var keywords: [String] = []
+            let topicNameLower = topicName.lowercased()
+
+            // Find chunks belonging to this topic and extract their keywords
+            var topicKeywordCounts: [String: Int] = [:]
+            for (_, chunk) in chunks.enumerated() {
+                guard assignments[chunk.id] == topicName else { continue }
+                for kw in chunk.metadata.keywords {
+                    let kwLower = kw.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard kwLower.count >= 3, !topicNameLower.contains(kwLower) else { continue }
+                    topicKeywordCounts[kwLower, default: 0] += 1
+                }
+            }
+
+            // Get top keywords for this topic
+            let topTopicKeywords = topicKeywordCounts
+                .sorted { $0.value > $1.value }
+                .prefix(2)
+                .map { $0.key }
+            keywords.append(contentsOf: topTopicKeywords)
+
+            // Always show point count
+            keywords.append("\(pointsInCluster.count) pts")
 
             annotations.append(Embedding3DSceneView.AnnotationData(
                 position: centroid,
                 title: topicName,
                 keywords: keywords,
                 color: color,
-                detailLevel: pointsInCluster.count > 50 ? 2 : (pointsInCluster.count > 20 ? 1 : 0)
+                detailLevel: pointsInCluster.count > 50 ? 2 : (pointsInCluster.count > 20 ? 1 : 0),
+                clusterSize: pointsInCluster.count,
+                isDocumentCluster: false
             ))
         }
 

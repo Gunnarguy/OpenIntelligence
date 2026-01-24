@@ -142,8 +142,12 @@ struct DocumentLibraryView: View {
                 }
                 .padding()
 
-                // Stats footer
-                StatsFooter(totalDocuments: filteredDocuments.count, totalChunks: filteredTotalChunks)
+                // Stats footer with Auto Intelligence indicator
+                StatsFooter(
+                    totalDocuments: filteredDocuments.count,
+                    totalChunks: filteredTotalChunks,
+                    autoIntelligenceEnabled: containerService.activeContainer?.autoAdaptDimension ?? true
+                )
                     .padding(.horizontal)
                     .padding(.bottom, 20)
             }
@@ -245,9 +249,19 @@ struct DocumentLibraryView: View {
             }
             .alert("Billing Error", isPresented: Binding(
                 get: { entitlementStore.lastError != nil },
-                set: { if !$0 { entitlementStore.lastError = nil } }
+                set: { newValue in
+                    if !newValue {
+                        Task { @MainActor in
+                            entitlementStore.lastError = nil
+                        }
+                    }
+                }
             )) {
-                Button("OK", role: .cancel) { entitlementStore.lastError = nil }
+                Button("OK", role: .cancel) {
+                    Task { @MainActor in
+                        entitlementStore.lastError = nil
+                    }
+                }
             } message: {
                 if let error = entitlementStore.lastError {
                     Text(error)

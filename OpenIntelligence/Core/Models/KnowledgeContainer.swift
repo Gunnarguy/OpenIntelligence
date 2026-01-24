@@ -116,7 +116,7 @@ struct KnowledgeContainer: Identifiable, Codable, Equatable, Sendable {
         embeddingProviderId: String = "coreml_sentence_embedding", // Silver bullet: CoreML 384-dim
             embeddingDim: Int = 384, // Matches actual CoreMLSentenceEmbeddingProvider output
         vectorDBKind: VectorDBKind = .persistentJSON,
-        autoAdaptDimension: Bool = false,
+        autoAdaptDimension: Bool = true,
         chunkingDirective: ChunkingDirective? = nil,
         lastSelfTuneAt: Date? = nil,
         retrievalConfig: RetrievalConfig = .default,
@@ -163,7 +163,7 @@ struct KnowledgeContainer: Identifiable, Codable, Equatable, Sendable {
             embeddingProviderId: "coreml_sentence_embedding",
             embeddingDim: 384, // CoreMLSentenceEmbedding outputs 384-dim
             vectorDBKind: .persistentJSON,
-            autoAdaptDimension: false,  // Disabled by default - users can enable in settings
+            autoAdaptDimension: true,  // Enabled by default for optimal chunking
             retrievalConfig: .highAccuracy
         )
     }

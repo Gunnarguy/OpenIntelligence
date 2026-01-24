@@ -184,7 +184,28 @@ class ImageUnderstandingService {
     /// Extract text from within an image using Vision OCR
     /// Critical for diagrams, flowcharts, and annotated technical drawings
     func extractTextFromImage(_ image: CIImage) async -> String? {
-        let requestHandler = VNImageRequestHandler(ciImage: image, options: [:])
+        // MAXIMUM QUALITY OCR: Upscale low-res images and enhance for better recognition
+        var processedImage = image
+        let imageSize = image.extent.size
+        let maxDimension = max(imageSize.width, imageSize.height)
+
+        // Upscale small images for better OCR (target 2000px minimum)
+        if maxDimension < 2000 {
+            let upscaleFactor = min(3.0, 2000.0 / maxDimension)
+            let transform = CGAffineTransform(scaleX: upscaleFactor, y: upscaleFactor)
+            processedImage = image.transformed(by: transform)
+        }
+
+        // Enhance contrast for diagram/flowchart text
+        if let contrastFilter = CIFilter(name: "CIColorControls") {
+            contrastFilter.setValue(processedImage, forKey: kCIInputImageKey)
+            contrastFilter.setValue(1.08, forKey: kCIInputContrastKey)  // Slightly higher for diagrams
+            if let output = contrastFilter.outputImage {
+                processedImage = output
+            }
+        }
+
+        let requestHandler = VNImageRequestHandler(ciImage: processedImage, options: [:])
 
         return await withCheckedContinuation { continuation in
             let request = VNRecognizeTextRequest { request, error in
@@ -230,8 +251,9 @@ class ImageUnderstandingService {
             // Configure for maximum accuracy on potentially low-contrast diagram text
             request.recognitionLevel = .accurate
             request.usesLanguageCorrection = true
-            request.recognitionLanguages = ["en-US"]
-            request.minimumTextHeight = 0.01  // Catch small labels
+            request.automaticallyDetectsLanguage = true
+            request.recognitionLanguages = ["en-US", "en-GB", "es-ES", "fr-FR", "de-DE"]
+            request.minimumTextHeight = 0.005  // Catch tiny labels (default is 0.03125)
 
             do {
                 try requestHandler.perform([request])

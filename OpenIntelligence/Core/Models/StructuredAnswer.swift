@@ -51,6 +51,7 @@ struct StructuredAnswer: Codable, Sendable {
         case investigate
         case compute
         case refused
+        case findings  // GOD MODE: Research/author discovery queries
     }
 
     /// Individual claim with evidence citation

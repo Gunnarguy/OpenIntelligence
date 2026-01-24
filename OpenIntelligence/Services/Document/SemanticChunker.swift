@@ -117,10 +117,16 @@ class SemanticChunker {
     }
 
     struct ChunkingConfig {
-        var targetSize: Int = 350 // Larger chunks for better coherence and context efficiency
-        var minSize: Int = 120 // Prevent tiny, useless fragments
-        var maxSize: Int = 550 // Allow expansion for complete thoughts
-        var overlap: Int = 60 // ~17% overlap - enough for continuity without redundancy
+        // Token limit: CoreML embedding model has 512 token max (510 usable after CLS/SEP)
+        // Average English word ≈ 1.3 tokens, but technical text can be 1.5-2.0 tokens/word
+        // SAFE LIMIT: 510 tokens / 1.5 tokens/word ≈ 340 max words
+        // BUT: RAGService adds contextual prefix (~20 words) during embedding
+        // ACTUAL LIMIT: 340 - 30 = 310 words to leave room for prefix
+
+        var targetSize: Int = 260 // Target ~260 words ≈ 380 tokens (safe margin)
+        var minSize: Int = 80 // Prevent tiny fragments
+        var maxSize: Int = 310 // HARD LIMIT: 310 words + ~30 word prefix = 340 total
+        var overlap: Int = 50 // ~17% overlap for continuity
         var useTopicDetection: Bool = true
         var preserveStructure: Bool = true
         /// Parent window size in characters for hierarchical context
@@ -131,32 +137,34 @@ class SemanticChunker {
         // MARK: - Content-Adaptive Presets
 
         /// For technical manuals, specs, reference docs - balanced for lookup AND context
-        /// Increased from 150→280w to pack more info per chunk while staying retrievable
+        /// CRITICAL: maxSize must stay ≤310 words (340 - 30 for contextual prefix)
         static let technicalReference = ChunkingConfig(
-            targetSize: 280,
-            minSize: 100,
-            maxSize: 450,
-            overlap: 50, // ~18% overlap
+            targetSize: 240,
+            minSize: 80,
+            maxSize: 310,  // HARD LIMIT: leaves room for ~30 word contextual prefix
+            overlap: 45,
             useTopicDetection: true,
             preserveStructure: true
         )
 
         /// For narrative content (books, articles, reports - longer chunks for coherence)
+        /// Still respects 310 word max (leaves room for contextual prefix)
         static let narrative = ChunkingConfig(
-            targetSize: 400,
-            minSize: 150,
-            maxSize: 600,
-            overlap: 70, // ~17% overlap
+            targetSize: 280,
+            minSize: 100,
+            maxSize: 310,  // HARD LIMIT: leaves room for ~30 word contextual prefix
+            overlap: 55,
             useTopicDetection: true,
             preserveStructure: true
         )
 
         /// For code files (preserve function/class boundaries)
+        /// Code often tokenizes worse (symbols, camelCase = multiple tokens)
         static let code = ChunkingConfig(
-            targetSize: 250,
-            minSize: 60,
-            maxSize: 500,
-            overlap: 40, // ~16% overlap - less redundancy for code
+            targetSize: 180,
+            minSize: 50,
+            maxSize: 280,  // Conservative for code + contextual prefix
+            overlap: 35,
             useTopicDetection: false, // Code doesn't have natural topics like prose
             preserveStructure: true
         )
@@ -275,7 +283,8 @@ class SemanticChunker {
         var chunks: [EnhancedChunk] = []
         var currentPosition = text.startIndex
         var chunkIndex = 0
-        let maxChunks = 5000 // Safety limit to prevent runaway loops on malformed input
+        // Support documents up to ~65,000 pages (50000 chunks × 260 words × 1.3 pages/260 words)
+        let maxChunks = 50000
 
         while currentPosition < text.endIndex && chunkIndex < maxChunks {
             Log.verbose("[SemanticChunker] Processing chunk \(chunkIndex + 1)", category: .ingestion)
@@ -315,7 +324,7 @@ class SemanticChunker {
             }
 
             // Find optimal chunk end
-            let chunkRange = findOptimalChunkRange(
+            var chunkRange = findOptimalChunkRange(
                 in: text,
                 from: currentPosition,
                 config: config,
@@ -329,7 +338,37 @@ class SemanticChunker {
                 break
             }
 
-            let chunkText = String(text[chunkRange])
+            // HARD LIMIT ENFORCEMENT: Truncate chunk to maxSize words
+            // This prevents token truncation during embedding (510 token limit)
+            var chunkText = String(text[chunkRange])
+            var wordCount = tokenWordCount(chunkText)
+
+            if wordCount > config.maxSize {
+                Log.warning("[SemanticChunker] HARD LIMIT: Chunk \(chunkIndex + 1) has \(wordCount) words, truncating to \(config.maxSize)", category: .ingestion)
+
+                // Use NLTokenizer to properly count words (handles tabs, special chars)
+                // This matches how tokenWordCount() works
+                let tokenizer = NLTokenizer(unit: .word)
+                tokenizer.string = chunkText
+
+                var wordRanges: [Range<String.Index>] = []
+                tokenizer.enumerateTokens(in: chunkText.startIndex..<chunkText.endIndex) { range, _ in
+                    wordRanges.append(range)
+                    return wordRanges.count < config.maxSize  // Stop after maxSize words
+                }
+
+                if let lastRange = wordRanges.last {
+                    // Truncate to end of last word within limit
+                    chunkText = String(chunkText[chunkText.startIndex..<lastRange.upperBound])
+
+                    // Recalculate the range to match truncated text
+                    let newEnd = text.index(currentPosition, offsetBy: chunkText.count, limitedBy: text.endIndex) ?? text.endIndex
+                    chunkRange = currentPosition..<newEnd
+                }
+
+                wordCount = tokenWordCount(chunkText)
+                Log.info("[SemanticChunker] Chunk \(chunkIndex + 1) ACTUALLY truncated to \(wordCount) words", category: .ingestion)
+            }
             Log.verbose("[SemanticChunker] Chunk \(chunkIndex + 1): \(tokenWordCount(chunkText)) words", category: .ingestion)
 
             // Extract metadata
@@ -483,7 +522,7 @@ class SemanticChunker {
         var chunks: [EnhancedChunk] = []
         var currentPosition = text.startIndex
         var chunkIndex = 0
-        let maxChunks = 5000
+        let maxChunks = 50000  // Support very large documents
 
         while currentPosition < text.endIndex, chunkIndex < maxChunks {
             let remainingDistance = text.distance(from: currentPosition, to: text.endIndex)

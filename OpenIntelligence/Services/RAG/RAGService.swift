@@ -1155,8 +1155,8 @@ class RAGService: ObservableObject {
 
         // Only run for oil-related queries to avoid noise
         let queryLower = query.lowercased()
-        let oilRelated = queryLower.contains("oil") || queryLower.contains("fluid") ||
-                         queryLower.contains("lubricant") || queryLower.contains("viscosity")
+        _ = queryLower.contains("oil") || queryLower.contains("fluid") ||
+            queryLower.contains("lubricant") || queryLower.contains("viscosity")
 
         let separator = String(repeating: "═", count: 60)
         print("\n\(separator)")
@@ -2066,7 +2066,7 @@ class RAGService: ObservableObject {
         // Give UI time to show the overlay (short, user-visible)
         try? await Task.sleep(nanoseconds: 200_000_000) // 0.2s
 
-        // Set up progress handler for real-time updates
+        // Set up progress handler for real-time updates (legacy string-based)
         documentProcessor.progressHandler = { [weak self] progress in
             Task { @MainActor in
                 // Use transcribing stage for audio/video files
@@ -2081,12 +2081,36 @@ class RAGService: ObservableObject {
             }
         }
 
+        // Set up RICH progress handler for live metrics during extraction
+        documentProcessor.richProgressHandler = { [weak self] progress in
+            Task { @MainActor in
+                let stage: IngestionStage = progress.stage == "transcribing" ? .transcribing : .extracting
+                self?.updateIngestionItem(
+                    id: trackingId,
+                    filename: filename,
+                    stage: stage,
+                    detail: progress.detail
+                ) { metrics in
+                    // Update live metrics from extraction progress
+                    metrics.usedStructuredParsing = progress.usingVision
+                    metrics.tablesExtracted = progress.tablesFound
+                    metrics.listsExtracted = progress.listsFound
+                    metrics.titlesDetected = progress.headersFound
+                    metrics.ocrPagesCount = progress.ocrPagesUsed
+                    if let totalPages = progress.totalPages {
+                        metrics.pageCount = totalPages
+                    }
+                }
+            }
+        }
+
         do {
             // Step 1: Parse document and extract chunks
             let extractionStartTime = Date()
             let (document, processedChunks) = try await documentProcessor.processDocument(
                 at: url,
-                chunkOverride: chunkOverride
+                chunkOverride: chunkOverride,
+                containerId: activeContainerId  // FTS5 storage with container isolation
             )
             let extractionTime = Date().timeIntervalSince(extractionStartTime)
             let totalChars = processedChunks.reduce(0) { $0 + $1.metadata.characterCount }
@@ -2331,6 +2355,9 @@ class RAGService: ObservableObject {
             var textsToEmbed: [String] = []
             textsToEmbed.reserveCapacity(processedChunks.count)
 
+            // Get token limits from the embedding service
+            let maxTokens = containerEmbeddingService.maxSafeTokens  // 510 for CoreML
+
             for chunk in processedChunks {
                 // Build chunk-specific contextual prefix with section info
                 let sectionContext = chunk.metadata.sectionTitle.map { " [\($0)]" } ?? ""
@@ -2338,7 +2365,38 @@ class RAGService: ObservableObject {
                 contextualPrefixes.append(contextualPrefix)
 
                 // Embed with contextual prefix prepended (Anthropic's key insight)
-                let textForEmbedding = contextualPrefix + chunk.text
+                var textForEmbedding = contextualPrefix + chunk.text
+
+                // CRITICAL: Validate token count using ACTUAL tokenizer
+                // NLTokenizer word count != BPE/WordPiece token count!
+                let tokenCount = containerEmbeddingService.countTokens(textForEmbedding)
+                if tokenCount > maxTokens {
+                    // Truncate text to fit within token limit
+                    // This should rarely happen if DocumentProcessor limits are set correctly
+                    Log.warning(
+                        "[RAGService] ⚠️ Chunk exceeds token limit: \(tokenCount)/\(maxTokens) tokens. " +
+                        "Truncating to prevent embedding data loss.",
+                        category: .ingestion
+                    )
+
+                    // Binary search for safe truncation point
+                    var low = 0
+                    var high = textForEmbedding.count
+                    while low < high {
+                        let mid = (low + high + 1) / 2
+                        let truncated = String(textForEmbedding.prefix(mid))
+                        if containerEmbeddingService.countTokens(truncated) <= maxTokens {
+                            low = mid
+                        } else {
+                            high = mid - 1
+                        }
+                    }
+                    textForEmbedding = String(textForEmbedding.prefix(low))
+
+                    let newTokenCount = containerEmbeddingService.countTokens(textForEmbedding)
+                    Log.info("[RAGService] Truncated to \(newTokenCount) tokens (\(textForEmbedding.count) chars)", category: .ingestion)
+                }
+
                 textsToEmbed.append(textForEmbedding)
             }
 
@@ -2357,7 +2415,7 @@ class RAGService: ObservableObject {
             }
 
             // Capture variables for closure
-            let totalChunks = processedChunks.count
+            _ = processedChunks.count  // totalChunks used indirectly via embeddings
             let trackingIdForProgress = trackingId
             let filenameForProgress = filename
 
@@ -2796,6 +2854,10 @@ class RAGService: ObservableObject {
         let db = await dbForActiveContainer()
         try await db.deleteChunks(forDocument: document.id)
 
+        // Delete full text storage for ZERO data orphans (both FTS5 and legacy file storage)
+        await SQLiteFullTextService.shared.delete(for: document.id)
+        await FullTextStorageService.shared.delete(for: document.id)
+
         // Invalidate visualization cache for active container after removal
         let activeId = await MainActor.run { self.containerService.activeContainerId }
         ProjectionCache.shared.invalidate(forContainer: activeId)
@@ -2820,6 +2882,18 @@ class RAGService: ObservableObject {
         let activeId = await MainActor.run { self.containerService.activeContainerId }
         // Invalidate visualization cache for the cleared container
         ProjectionCache.shared.invalidate(forContainer: activeId)
+
+        // Delete full text storage for all documents being cleared (both FTS5 and legacy)
+        // FTS5: Single bulk operation for entire container (most efficient)
+        await SQLiteFullTextService.shared.deleteContainer(containerId: activeId)
+
+        // Legacy file storage: Delete individual documents
+        let docsToDelete = await MainActor.run {
+            self.documents.filter { $0.containerId == activeId }
+        }
+        for doc in docsToDelete {
+            await FullTextStorageService.shared.delete(for: doc.id)
+        }
 
         await MainActor.run {
             documents.removeAll { $0.containerId == activeId }
@@ -3371,7 +3445,7 @@ class RAGService: ObservableObject {
                         // Retrieval steps (.searching, .expanding) don't count as reasoning sessions
                         let isLLMReasoningSession: Bool = {
                             switch step.type {
-                            case .planning, .analyzing, .synthesizing, .refining, .reformulating:
+                            case .planning, .analyzing, .synthesizing, .refining, .reformulating, .verifying:
                                 return step.tokensUsed > 0  // Must have actual tokens to count
                             case .searching, .expanding:
                                 return false  // Retrieval, not reasoning
@@ -3470,7 +3544,7 @@ class RAGService: ObservableObject {
             // Count LLM calls from step types (each non-search step = 1 LLM call)
             let llmCallCount = result.steps.filter { step in
                 switch step.type {
-                case .planning, .analyzing, .synthesizing, .refining, .reformulating:
+                case .planning, .analyzing, .synthesizing, .refining, .reformulating, .verifying:
                     return true
                 case .searching, .expanding:
                     return false // These are retrieval, not LLM calls
@@ -3535,12 +3609,10 @@ class RAGService: ObservableObject {
                 // Filter to analysis/synthesis steps (not searching/expanding)
                 let reasoningSteps = result.steps.filter { step in
                     switch step.type {
-                    case .analyzing, .synthesizing, .refining, .reformulating:
+                    case .analyzing, .synthesizing, .refining, .reformulating, .verifying:
                         return true
                     case .planning, .searching, .expanding:
                         return false // Skip retrieval steps
-                    @unknown default:
-                        return false
                     }
                 }
 
@@ -5342,6 +5414,151 @@ class RAGService: ObservableObject {
                 var contextCandidates = diverseChunks
                 var contextStrategy = "mmr"
 
+                // ═══════════════════════════════════════════════════════════════════════════════
+                // 🔥 GOD MODE: Intelligent Document-Level Context for Research/Findings Queries
+                // ═══════════════════════════════════════════════════════════════════════════════
+                // When user asks "What did X find?", we need BOTH:
+                // 1. Document summary (L1) for high-level context
+                // 2. Most relevant detail chunks (L0) for specific findings
+                //
+                // Strategy:
+                // - Reserve ~25% of token budget for summary (provides roadmap)
+                // - Use remaining 75% for highest-relevance detail chunks
+                // - Smart deduplication to avoid redundant content
+                // - Dynamic chunk count based on available tokens
+                // ═══════════════════════════════════════════════════════════════════════════════
+                if answerIntent.requiresDocumentSummary, let allChunks = cachedAllChunks {
+                    let summaryChunks = allChunks.filter { $0.metadata.abstractionLevel == .documentSummary }
+                    let existingIds = Set(contextCandidates.map { $0.chunk.id })
+
+                    // Get relevant document IDs from top candidates
+                    let relevantDocIds = Set(contextCandidates.prefix(5).map { $0.chunk.documentId })
+
+                    // Prioritize summaries from documents that appear in top results
+                    let prioritizedSummaries = summaryChunks
+                        .filter { !existingIds.contains($0.id) }
+                        .sorted { chunk1, chunk2 in
+                            let score1 = relevantDocIds.contains(chunk1.documentId) ? 1 : 0
+                            let score2 = relevantDocIds.contains(chunk2.documentId) ? 1 : 0
+                            return score1 > score2
+                        }
+
+                    if !prioritizedSummaries.isEmpty {
+                        // Calculate token budget for summaries (~25% of total context)
+                        // Average summary is ~150 words ≈ 200 tokens ≈ 600 chars
+                        let estimatedContextBudget = 4000 // Conservative estimate for on-device
+                        let summaryBudgetChars = estimatedContextBudget / 4 // 25% for summaries
+
+                        // Select summaries that fit in budget, prioritizing relevant docs
+                        var selectedSummaries: [RetrievedChunk] = []
+                        var summaryCharsUsed = 0
+
+                        for (index, chunk) in prioritizedSummaries.enumerated() {
+                            let chunkChars = chunk.content.count
+                            if summaryCharsUsed + chunkChars <= summaryBudgetChars || selectedSummaries.isEmpty {
+                                // Assign high scores with decay for ordering
+                                let score = Float(0.98 - (Double(index) * 0.02)) // 0.98, 0.96, 0.94...
+                                // Look up document name from documents array
+                                let docName = getDocumentName(for: chunk.documentId)
+                                selectedSummaries.append(RetrievedChunk(
+                                    chunk: chunk,
+                                    similarityScore: score,
+                                    rank: index,
+                                    sourceDocument: docName,
+                                    pageNumber: nil
+                                ))
+                                summaryCharsUsed += chunkChars
+                            }
+                            // Limit to max 3 summaries to leave room for detail chunks
+                            if selectedSummaries.count >= 3 { break }
+                        }
+
+                        // Calculate how many detail chunks we can keep
+                        let remainingBudgetChars = estimatedContextBudget - summaryCharsUsed
+                        let avgDetailChunkChars = contextCandidates.isEmpty ? 400 :
+                            contextCandidates.prefix(10).reduce(0) { $0 + $1.chunk.content.count } / min(10, contextCandidates.count)
+                        let maxDetailChunks = max(3, remainingBudgetChars / max(avgDetailChunkChars, 200))
+
+                        // Filter detail chunks to remove any that are substantially covered by summaries
+                        // (Avoid redundant content - summaries already capture key points)
+                        var detailCandidates = contextCandidates.filter { retrieved in
+                            // Keep chunk if it's NOT a summary (L0 detail chunks)
+                            retrieved.chunk.metadata.abstractionLevel != .documentSummary
+                        }
+
+                        // ═══════════════════════════════════════════════════════════════════
+                        // 🔥 GOD MODE ENHANCEMENT: Author-Name Cross-Reference Boost
+                        // If query contains a name, boost chunks from matching document
+                        // ═══════════════════════════════════════════════════════════════════
+                        let queryWords = question.split(separator: " ").map { String($0).lowercased() }
+                        let potentialAuthorNames = queryWords.filter { word in
+                            // Capitalized in original query, >2 chars, not common words
+                            let originalWord = question.split(separator: " ").first { String($0).lowercased() == word }
+                            let commonWords = Set(["what", "did", "does", "find", "show", "the", "and", "for", "how", "why"])
+                            return originalWord?.first?.isUppercase == true &&
+                                   word.count > 2 &&
+                                   !commonWords.contains(word)
+                        }
+
+                        if !potentialAuthorNames.isEmpty {
+                            // Boost chunks from documents that match author name in filename
+                            detailCandidates = detailCandidates.sorted { a, b in
+                                let aFile = a.sourceDocument.lowercased()
+                                let bFile = b.sourceDocument.lowercased()
+                                let aMatchCount = potentialAuthorNames.filter { aFile.contains($0) }.count
+                                let bMatchCount = potentialAuthorNames.filter { bFile.contains($0) }.count
+
+                                if aMatchCount != bMatchCount {
+                                    return aMatchCount > bMatchCount // More matches = higher priority
+                                }
+                                return a.similarityScore > b.similarityScore // Fall back to similarity
+                            }
+
+                            let boostedCount = detailCandidates.prefix(maxDetailChunks).filter { chunk in
+                                potentialAuthorNames.contains { chunk.sourceDocument.lowercased().contains($0) }
+                            }.count
+
+                            if boostedCount > 0 {
+                                Log.debug("[GOD MODE] Author boost: \(boostedCount) chunks from '\(potentialAuthorNames.joined(separator: ", "))' documents", category: .retrieval)
+                            }
+                        }
+
+                        // Take top N detail chunks by relevance score (now potentially author-boosted)
+                        let topDetailChunks = Array(detailCandidates.prefix(maxDetailChunks))
+
+                        // Merge: Summaries FIRST (high-level roadmap), then detail chunks
+                        contextCandidates = selectedSummaries + topDetailChunks
+                        contextStrategy = "god_mode_hybrid"
+
+                        let totalChars = summaryCharsUsed + topDetailChunks.reduce(0) { $0 + $1.chunk.content.count }
+                        Log.info(
+                            "🔥 [GOD MODE] Hybrid context: \(selectedSummaries.count) summaries (\(summaryCharsUsed) chars) + " +
+                            "\(topDetailChunks.count) detail chunks → \(totalChars) total chars",
+                            category: .retrieval
+                        )
+                        emitThinkingEvent(
+                            .context,
+                            title: "GOD MODE: Hybrid Context",
+                            detail: "\(selectedSummaries.count) summaries + \(topDetailChunks.count) details = comprehensive coverage"
+                        )
+
+                        if Log.pipelineTraceEnabled {
+                            Log.debug("[GOD MODE] Summary budget: \(summaryBudgetChars) chars, used: \(summaryCharsUsed)", category: .retrieval)
+                            Log.debug("[GOD MODE] Detail budget: \(remainingBudgetChars) chars, chunks: \(topDetailChunks.count)", category: .retrieval)
+                            Log.debug("[GOD MODE] Avg detail chunk: \(avgDetailChunkChars) chars", category: .retrieval)
+                        }
+                    } else if !summaryChunks.isEmpty {
+                        Log.debug("[GOD MODE] Summary chunks already in candidates - no injection needed", category: .retrieval)
+                    } else {
+                        Log.info("[GOD MODE] No summary chunks available - using detail-only retrieval", category: .retrieval)
+                        emitThinkingEvent(
+                            .context,
+                            title: "GOD MODE: No summaries",
+                            detail: "Re-ingest documents to enable summary-enhanced retrieval"
+                        )
+                    }
+                }
+
                 // Universal pipeline trace: log chunk content previews at each stage
                 if Log.pipelineTraceEnabled {
                     logChunkTrace(diverseChunks, stage: "Post-MMR", query: question)
@@ -6306,6 +6523,15 @@ class RAGService: ObservableObject {
                     ANALYSIS MODE: The user needs deeper investigation.
                     - Synthesize information across sources
                     - Show your reasoning and connections
+                    """
+                case .findings:
+                    intentSpecificInstructions = """
+                    RESEARCH FINDINGS MODE: The user wants to understand what a researcher/author discovered.
+                    - Summarize the KEY FINDINGS, conclusions, and contributions
+                    - Explain the main thesis, arguments, and evidence presented
+                    - Include methodology and results if relevant
+                    - Connect specific claims to the document summary and detail excerpts
+                    - Name the researchers and their specific contributions
                     """
                 }
 
@@ -7983,11 +8209,20 @@ class RAGService: ObservableObject {
             #endif
             return nil
         case "on_device_analysis":
-            Log.warning("on_device_analysis is deprecated; falling through to Apple Intelligence", category: .initialization)
-            fallthrough
+            // on_device_analysis is now handled by Apple Intelligence; silent fallthrough
+            #if canImport(FoundationModels)
+                if #available(iOS 26.0, *) {
+                    let foundationService = AppleFoundationLLMService()
+                    if foundationService.isAvailable {
+                        foundationService.startWarmup()
+                        return foundationService
+                    }
+                }
+            #endif
+            return nil
         default:
-            // Unknown or deprecated model type - try Apple Intelligence
-            Log.warning("Unknown or deprecated model type: \(modelKey); trying Apple Intelligence", category: .initialization)
+            // Unknown model type - try Apple Intelligence
+            Log.warning("Unknown model type: \(modelKey); trying Apple Intelligence", category: .initialization)
             #if canImport(FoundationModels)
                 if #available(iOS 26.0, *) {
                     let foundationService = AppleFoundationLLMService()
@@ -9425,6 +9660,105 @@ extension RAGService: RAGToolHandler {
         result += "- File Type: \(doc.contentType.rawValue)"
 
         Log.info(" [Tool Call] Returned summary for \(doc.filename) (scoped)")
+        return result
+    }
+
+    /// Count occurrences of a pattern across ALL documents (exact matching)
+    /// This uses full-text storage, not semantic search - ZERO data loss counting
+    /// FTS5 path is 10-100X faster than legacy file-based storage
+    func countPatternInCorpus(pattern: String) async throws -> String {
+        Log.debug(" [Tool Call] count_pattern_in_corpus(pattern: \"\(pattern)\")")
+
+        let activeId = await MainActor.run { self.containerService.activeContainerId }
+
+        // Try FTS5 first (10-100X faster), fall back to legacy file storage
+        let fts5Available = await SQLiteFullTextService.shared.documentCount(for: activeId) > 0
+
+        let counts: [UUID: Int]
+        if fts5Available {
+            // FTS5 path: Use container-scoped search with native bm25()
+            counts = await SQLiteFullTextService.shared.countPatternInCorpus(
+                pattern: pattern,
+                containerId: activeId
+            )
+            Log.debug("[RAGService] Using FTS5 for pattern count (container: \(activeId))", category: .retrieval)
+        } else {
+            // Legacy path: File-based storage (no container isolation)
+            counts = await FullTextStorageService.shared.countPatternInCorpus(pattern: pattern)
+            Log.debug("[RAGService] Using legacy file storage for pattern count", category: .retrieval)
+        }
+
+        if counts.isEmpty {
+            return "Pattern '\(pattern)' not found in any documents."
+        }
+
+        let totalOccurrences = counts.values.reduce(0, +)
+        var result = "Pattern '\(pattern)' found \(totalOccurrences) times across \(counts.count) documents:\n\n"
+
+        // Sort by count descending
+        let sortedCounts = counts.sorted { $0.value > $1.value }
+
+        for (docId, count) in sortedCounts.prefix(20) { // Limit to top 20 for token budget
+            let docName = await documentName(for: docId)
+            result += "- \(docName): \(count) occurrences\n"
+        }
+
+        if sortedCounts.count > 20 {
+            result += "... and \(sortedCounts.count - 20) more documents\n"
+        }
+
+        Log.info(" [Tool Call] Pattern '\(pattern)' found \(totalOccurrences) times in \(counts.count) docs")
+        return result
+    }
+
+    /// Search for exact text pattern across ALL documents
+    /// Returns documents containing the pattern with context
+    /// FTS5 path is 10-100X faster with native snippet() support
+    func searchExactPattern(pattern: String) async throws -> String {
+        Log.debug(" [Tool Call] search_exact_pattern(pattern: \"\(pattern)\")")
+
+        let activeId = await MainActor.run { self.containerService.activeContainerId }
+
+        // Try FTS5 first (10-100X faster with native snippets), fall back to legacy
+        let fts5Available = await SQLiteFullTextService.shared.documentCount(for: activeId) > 0
+
+        let matches: [FullTextStorageService.SearchMatch]
+        if fts5Available {
+            // FTS5 path: Use container-scoped search with native snippet()
+            let fts5Matches = await SQLiteFullTextService.shared.searchCorpus(
+                pattern: pattern,
+                containerId: activeId,
+                maxResults: 10,
+                contextChars: 150
+            )
+            // Convert to legacy SearchMatch format for compatibility
+            matches = fts5Matches.map { m in
+                FullTextStorageService.SearchMatch(
+                    documentId: m.documentId,
+                    occurrences: m.count,
+                    contextSnippet: m.context
+                )
+            }
+            Log.debug("[RAGService] Using FTS5 for exact search (container: \(activeId))", category: .retrieval)
+        } else {
+            // Legacy path: File-based storage (no container isolation)
+            matches = await FullTextStorageService.shared.searchCorpus(pattern: pattern, maxResults: 10)
+            Log.debug("[RAGService] Using legacy file storage for exact search", category: .retrieval)
+        }
+
+        if matches.isEmpty {
+            return "Pattern '\(pattern)' not found in any documents."
+        }
+
+        var result = "Found pattern '\(pattern)' in \(matches.count) documents:\n\n"
+
+        for match in matches {
+            let docName = await documentName(for: match.documentId)
+            result += "**\(docName)** (\(match.occurrences) occurrences):\n"
+            result += "  \"\(match.contextSnippet)\"\n\n"
+        }
+
+        Log.info(" [Tool Call] Pattern '\(pattern)' found in \(matches.count) docs with context")
         return result
     }
 
