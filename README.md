@@ -17,7 +17,10 @@ OpenIntelligence is a reference implementation of a production-grade **Retrieval
 - **Hybrid Search Engine**: Combines **BM25** (keyword) and **Vector Search** (semantic) using **Reciprocal Rank Fusion (RRF)** and **Maximal Marginal Relevance (MMR)** for diverse, high-quality retrieval.
 - **Apple Intelligence**: Foundation Models with Private Cloud Compute fallback. On-device extractive QA always available.
 - **CoreML Embeddings**: 384-dimensional sentence embeddings via bundled all-MiniLM-L6-v2 model with Neural Engine acceleration.
-- **Agentic Tooling**: 12+ `@Tool` decorated functions allowing the LLM to search, summarize, and analyze your library.
+- **Self-RAG 2.0**: Research-validated multi-session reasoning with enrichment prompting (Chain-of-Verification, RR-MP 2025).
+- **Enhanced OCR**: 360 DPI rendering, contrast enhancement, and upscaling for high-quality text extraction from scanned documents.
+- **Office Document Support**: Native extraction for .docx, .xlsx, .pptx using ZIP-based parsing (no external dependencies).
+- **Agentic Tooling**: 14+ `@Tool` decorated functions allowing the LLM to search, summarize, count patterns, and analyze your library.
 - **Multi-Chain Maximum Mode**: Parallel reasoning chains across document clusters, breaking the 4096 token ceiling.
 - **RAPTOR-lite Summaries**: Auto-generated document summaries for efficient overview queries.
 - **Observability**: Real-time telemetry badges (📱/☁️), execution timers (TTFT), granular ingestion pipeline visualization, and 3D embedding space exploration.
@@ -116,14 +119,20 @@ If you encounter build issues or UI glitches, run the clean script:
 
 ### 1. Ingestion
 
-Navigate to the **Documents** tab. Drag and drop PDFs, Markdown, or Text files. The app will:
+Navigate to the **Documents** tab. Drag and drop files. Supported formats:
 
-- **Parse** text using PDFKit or Vision OCR.
+- **PDFs**: Native parsing + 360 DPI OCR for scanned pages
+- **Office Docs**: .docx, .xlsx, .pptx (native ZIP-based extraction)
+- **Text**: .txt, .md, .rtf, code files
+- **Data**: .csv, .json (unlimited rows)
+
+The app will:
+
+- **Parse** text using PDFKit, Vision OCR (360 DPI), or native Office extractors.
 - **Chunk** content into optimized 280-400 word segments with 17% overlap.
-- **Embed** chunks using on-device models:
-  - **CoreML Sentence** (default): Fast 384-dim sentence embeddings.
-  - **NL Embedding**: Fallback word-averaged embeddings via `NLEmbedding`.
+- **Embed** chunks using on-device CoreML (384-dim all-MiniLM-L6-v2).
 - **Index** for both vector and BM25 keyword search.
+- **Store** complete original text for exact pattern queries.
 
 > 💡 **Tip**: Enable high-accuracy mode in Library Settings → Embedding Model for technical or complex documents.
 
@@ -142,7 +151,10 @@ Go to the **Chat** tab. Ask questions about your documents.
 
 In **Settings**, configure your AI preferences:
 
-- **Quality Mode**: Choose between Standard (fast), Deep Think (thorough), or Maximum (unlimited reasoning).
+- **Quality Mode**:
+  - **Standard**: Fast single-pass retrieval + generation (~2-3 seconds)
+  - **Deep Think**: 4-8 session multi-step reasoning with Self-RAG 2.0 enrichment
+  - **Maximum**: Parallel multi-chain reasoning across document clusters (breaks 4096 token ceiling)
 - **Privacy Settings**: Control Private Cloud Compute usage and view execution location.
 - **Intelligence Layer**: Enable/disable query understanding, multi-pass retrieval, conversation memory.
 

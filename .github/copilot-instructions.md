@@ -16,6 +16,7 @@ Ingest ANY document, ANY size. Answer questions using Apple Intelligence. **ZERO
 | LLM context      | 4096 tokens   | Apple FM TN3193 on-device limit         |
 | Context chars    | 5500 max      | ~4000 tokens with margin                |
 | Embedding dim    | 384           | MiniLM output                           |
+| OCR DPI          | 360           | 5x scale factor for PDF rendering       |
 
 **If you touch chunking/embedding/context packing → VERIFY these limits.**
 
@@ -36,11 +37,12 @@ Ingest ANY document, ANY size. Answer questions using Apple Intelligence. **ZERO
 - **RAGEngine** (`actor`): Background math (MMR, BM25, RRF)
 - **Containers**: Data scoped via `VectorStoreRouter`
 - **FullTextStorageService** (`actor`): Complete original document storage for exact queries
+- **AgenticOrchestrator**: Multi-session reasoning with Self-RAG 2.0 enrichment prompting
 
 ### Pipeline
 
 ```
-Ingestion: Vision → SemanticChunker (≤310w) → Token Validation → CoreML Embed → HNSW
+Ingestion: Vision (360 DPI) / Office ZIP → SemanticChunker (≤310w) → Token Validate → Embed → HNSW
                                           ↓
                             FullTextStorageService.store() ← Complete original text
 Retrieval: HyDE → Hybrid Search → RRF → MMR → ReRank → Context Pack
@@ -48,9 +50,15 @@ Retrieval: HyDE → Hybrid Search → RRF → MMR → ReRank → Context Pack
 Generation: LLMService + 14 @Tool functions for agentic search
 ```
 
-### Multi-Session (Breaks 4096 Limit)
+### Multi-Session Reasoning
 
-Maximum mode chains 4-50 sessions × 4096 tokens. Each session gets fresh budget + condensed insight from prior session.
+| Mode       | Sessions | Prompting Strategy                       |
+| ---------- | -------- | ---------------------------------------- |
+| Standard   | 3        | Direct synthesis                         |
+| Deep Think | 4-8      | Self-RAG 2.0: ENHANCE (not verify)       |
+| Maximum    | 8-50     | Multi-chain parallel + cluster synthesis |
+
+**Self-RAG 2.0**: Sessions ADD details, don't second-guess valid answers. "SAE 0W-20" IS an oil type.
 
 ---
 
@@ -59,8 +67,9 @@ Maximum mode chains 4-50 sessions × 4096 tokens. Each session gets fresh budget
 | File                                                       | Purpose                                 |
 | ---------------------------------------------------------- | --------------------------------------- |
 | `Services/RAG/RAGService.swift`                            | Main orchestrator, token validate       |
-| `Services/Agentic/AgenticOrchestrator.swift`               | Multi-session reasoning                 |
+| `Services/Agentic/AgenticOrchestrator.swift`               | Multi-session reasoning (~6000 lines)   |
 | `Services/Document/SemanticChunker.swift`                  | Chunking (310w max, 50000 limit)        |
+| `Services/Document/DocumentProcessor.swift`                | OCR (360 DPI), Office extraction        |
 | `Services/Storage/FullTextStorageService.swift`            | Complete text storage for exact queries |
 | `Services/Embedding/CoreMLSentenceEmbeddingProvider.swift` | 384-dim embeddings + BertTokenizer      |
 

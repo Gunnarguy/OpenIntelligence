@@ -1,7 +1,7 @@
 # OpenIntelligence Technical Architecture
 
-**Version**: 2.4
-**Date**: January 23, 2026
+**Version**: 2.5
+**Date**: January 24, 2026
 **Status**: Production (App Store Submitted)
 
 ## Executive Summary
@@ -10,7 +10,7 @@ OpenIntelligence is a native iOS 26 application implementing a complete Retrieva
 
 **Simple Concept:** Users upload documents, ask questions, get AI-powered answers using information from their documents.
 
-**Latest (v2.4)**: ZERO data loss architecture - FullTextStorageService for exact queries, token validation fix, 50000 chunk limit, CSV row limit removed.
+**Latest (v2.5)**: Enhanced OCR (360 DPI), native Office doc extraction (.docx/.xlsx/.pptx), Self-RAG 2.0 enrichment prompting (research-validated), Deep Think quality mode fix.
 
 ### Key Architectural Principles
 
@@ -192,30 +192,82 @@ User Query Input
 
 #### Vision Framework Integration
 
-**Current Implementation** (Jan 2026):
+**Current Implementation** (Jan 2026 - Enhanced):
 
 | Capability           | API Used                         | Status          |
 | -------------------- | -------------------------------- | --------------- |
 | OCR Text Recognition | `VNRecognizeTextRequest`         | ✅ Implemented  |
+| High-DPI Rendering   | 360 DPI (5x scale factor)        | ✅ Enhanced     |
 | Multi-language OCR   | Recognition languages config     | ✅ 10 languages |
 | Accurate Mode        | `.recognitionLevel = .accurate`  | ✅ Enabled      |
 | Language Correction  | `.usesLanguageCorrection = true` | ✅ Enabled      |
+| Image Upscaling      | CIFilter.lanczosScaleTransform   | ✅ New          |
+| Contrast Enhancement | CIColorControls                  | ✅ New          |
 
-**OCR Pipeline**:
+**OCR Quality Improvements** (Jan 24, 2026):
 
-````swift
+```swift
+// 360 DPI rendering for better text recognition (was 216 DPI)
+let scale: CGFloat = 5.0  // 72 DPI × 5 = 360 DPI
+let scaledSize = CGSize(width: pageRect.width * scale, height: pageRect.height * scale)
+
+// Upscale low-res images before OCR
+if imageSize.width < 1000 || imageSize.height < 1000 {
+    let upscaleFilter = CIFilter.lanczosScaleTransform()
+    upscaleFilter.scale = 1.5  // 50% larger
+}
+
+// Enhance contrast for faded/scanned documents
+let colorControls = CIFilter.colorControls()
+colorControls.contrast = 1.1
+colorControls.brightness = 0.02
+```
+
+#### Office Document Extraction
+
+**Native ZIP-Based Parsing** (Jan 24, 2026):
+
+| Format | Structure                                              | Extraction Method     |
+| ------ | ------------------------------------------------------ | --------------------- |
+| .docx  | ZIP → word/document.xml                                | XML paragraph parsing |
+| .xlsx  | ZIP → xl/sharedStrings.xml + xl/worksheets/sheet\*.xml | Shared string lookup  |
+| .pptx  | ZIP → ppt/slides/slide\*.xml                           | Slide text extraction |
+
+**Implementation**:
+
+```swift
+// ZIPArchive helper using Apple's Compression framework
+class ZIPArchive {
+    func extractFile(named: String) -> Data?  // Deflate decompression
+}
+
+// Word document extraction
+func extractTextFromWordXML(_ xmlData: Data) -> String
+// Parses <w:t> text elements from document.xml
+
+// Excel extraction with shared strings
+func extractSharedStringsFromExcel(_ xmlData: Data) -> [String]
+func extractTextFromExcelSheet(_ xmlData: Data, sharedStrings: [String]) -> String
+
+// PowerPoint slide extraction
+func extractTextFromPowerPointSlide(_ xmlData: Data) -> String
+// Parses <a:t> text elements from slide*.xml
+```
+
+**File**: `OpenIntelligence/Services/DocumentProcessor.swift`
+
 **Implementation Status** (Jan 2026 - Visual Document Understanding):
 
-| Capability | API Used | Status | Location |
-|------------|----------|--------|----------|
-| Spatial Text Ordering | `VNRecognizedTextObservation.boundingBox` | ✅ Implemented | `performOCR()` |
-| Column Detection | Bounding box clustering | ✅ Implemented | `detectColumns()` |
-| Image Classification | `ClassifyImageRequest` (iOS 18+) | ✅ Implemented | `ImageUnderstandingService` |
-| Caption Association | Spatial proximity analysis | ✅ Implemented | `findAssociatedCaption()` |
-| Image Description | Classification + caption fusion | ✅ Implemented | `generateImageDescription()` |
-| Structured Parsing | `RecognizeDocumentsRequest` (iOS 26+) | ✅ Implemented | `StructuredDocumentParser` |
-| Structure-Aware Chunking | Table/list preservation | ✅ Implemented | `createStructureAwareChunks()` |
-| Document Segmentation | `DetectDocumentSegmentationRequest` | ❌ Not yet | Planned |
+| Capability               | API Used                                  | Status        | Location                       |
+| ------------------------ | ----------------------------------------- | ------------- | ------------------------------ |
+| Spatial Text Ordering    | `VNRecognizedTextObservation.boundingBox` | ✅ Implemented | `performOCR()`                 |
+| Column Detection         | Bounding box clustering                   | ✅ Implemented | `detectColumns()`              |
+| Image Classification     | `ClassifyImageRequest` (iOS 18+)          | ✅ Implemented | `ImageUnderstandingService`    |
+| Caption Association      | Spatial proximity analysis                | ✅ Implemented | `findAssociatedCaption()`      |
+| Image Description        | Classification + caption fusion           | ✅ Implemented | `generateImageDescription()`   |
+| Structured Parsing       | `RecognizeDocumentsRequest` (iOS 26+)     | ✅ Implemented | `StructuredDocumentParser`     |
+| Structure-Aware Chunking | Table/list preservation                   | ✅ Implemented | `createStructureAwareChunks()` |
+| Document Segmentation    | `DetectDocumentSegmentationRequest`       | ❌ Not yet     | Planned                        |
 
 **Structured Document Parsing** (iOS 26+ - Implemented):
 
@@ -238,6 +290,7 @@ func createStructureAwareChunks(from elements: [StructuredElement]) -> [Document
 ```
 
 **Structure Type Metadata**: Each chunk includes `structureType: String?` in ChunkMetadata:
+
 - `"table"` - Table data (boosted for specification queries)
 - `"list"` - List items (boosted for enumeration queries)
 - `"paragraph"` - Prose text
@@ -246,6 +299,7 @@ func createStructureAwareChunks(from elements: [StructuredElement]) -> [Document
 **Structure Boost in Retrieval**: `HybridSearchService.applyStructureTypeBoost()` increases scores for table/list chunks when query contains specification patterns (detected via `detectSpecificationQuery()` using domain-agnostic linguistic patterns).
 
 **Layout-Aware OCR** (Implemented):
+
 ```swift
 // Sort observations by reading order (top-to-bottom, left-to-right)
 let sortedObservations = observations.sorted { obs1, obs2 in
@@ -260,7 +314,7 @@ let sortedObservations = observations.sorted { obs1, obs2 in
 }
 // Then apply column detection for multi-column layouts
 let columnText = extractTextWithColumnAwareness(from: sortedObservations)
-````
+```
 
 **Multi-Column Detection**:
 
@@ -1478,31 +1532,51 @@ for i in 0..<chunks.count {
 - Yao et al., "ReAct: Synergizing Reasoning and Acting in Language Models" (2023)
 - Shinn et al., "Reflexion: Language Agents with Verbal Reinforcement Learning" (2023)
 
-**Implementation**: [`AgenticOrchestrator.swift`](../../OpenIntelligence/Services/AgenticOrchestrator.swift) (~5000 lines)
+**Implementation**: [`AgenticOrchestrator.swift`](../../OpenIntelligence/Services/AgenticOrchestrator.swift) (~6000 lines)
 
 - **Multi-Query Search**: LLM generates 4-5 search variations for universal coverage
 - **Semantic Validation**: Verifies retrieved chunks actually answer the question
-- **Tool Library**: 12+ `@Tool` functions (search, reformulate, expand, synthesize)
-- **Reasoning Chains**: 4-50 sessions depending on mode (Standard: 4, Deep Think: 8, Maximum: 50)
+- **Tool Library**: 14+ `@Tool` functions (search, reformulate, expand, synthesize, count patterns)
+- **Reasoning Chains**: 4-50 sessions depending on mode (Standard: 3, Deep Think: 4-8, Maximum: 50)
+- **Self-RAG 2.0 Enrichment**: Multi-session prompts ENHANCE rather than verify (research-validated)
 - **Retrieval Miss Detection**: Falls back to recursive research if answer says "cannot find"
 - **Quality Evaluation**: Confidence scoring after each step, escalation if < threshold
-- **Token Budget**: 16K (standard) to 200K (maximum mode)
+- **Token Budget**: 12K (standard) to 200K (maximum mode)
 
 **Modes**:
 
-- **Standard**: 5 steps, 85% confidence, 16K tokens
-- **Deep Think**: Multi-query + 8 steps, 95% confidence, 32K tokens
-- **Maximum**: Multi-query + 50 steps, 98% confidence, 200K tokens (thermal-limited)
+- **Standard**: 3 sessions, direct synthesis, 12K tokens
+- **Deep Think**: 4-8 sessions, Self-RAG 2.0 enrichment, 32K tokens
+- **Maximum**: Multi-chain parallel reasoning, 98% confidence target, 200K tokens
+
+**Self-RAG 2.0 Enrichment Prompting** (Jan 24, 2026 - Research-Validated):
+
+Based on Chain-of-Verification (Meta 2023) and RR-MP (2025) research, Deep Think sessions now ENHANCE rather than VERIFY:
+
+```swift
+// OLD (caused hyper-skepticism → wrong answers):
+"VERIFY: Does this answer actually answer the question?"
+
+// NEW (enrichment-focused):
+"ENHANCE this answer by adding:
+- More specific values from the documents
+- Quantities, capacities, specifications
+Note: Specifications like 'SAE 0W-20' ARE valid answers."
+```
+
+**Key Research Findings Applied**:
+
+- **Chain-of-Verification (Meta 2023)**: Draft → verify → refine (but verification shouldn't reject valid specs)
+- **RR-MP (Jan 2025)**: Prevent "degeneration of thought" via original question grounding
+- **MAIN-RAG (Dec 2024)**: Multi-agent consensus for document filtering
 
 **Confidence Baseline Fix** (Jan 2026):
 
-Maximum mode previously showed 0% → 0% → 0% → 85% confidence jumps, giving users no sense of progress. The fix starts confidence at 5% baseline:
+Maximum mode previously showed 0% → 0% → 0% → 85% confidence jumps. Fix starts at 5% baseline.
 
-```swift
-// Start with meaningful baseline for progress visibility
-var cumulativeConfidence: Float = shouldReportConfidence ? 0.05 : 0
-// Now shows: 5% → 12% → 20% → 35% → ... → 98%
-```
+**Repetition Confidence Fix** (Jan 2026):
+
+Repetition no longer artificially boosts confidence - repeated wrong answers shouldn't claim 99% certainty.
 
 #### 11. Self-RAG (Adaptive Retrieval)
 
