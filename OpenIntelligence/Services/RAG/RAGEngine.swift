@@ -376,7 +376,17 @@ actor RAGEngine {
 
             // Sanitize content to help Apple FM's language detector
             // URLs and special Unicode can confuse it into detecting wrong languages
-            let content = r.chunk.parentContent ?? r.chunk.content
+            let rawContent = r.chunk.parentContent ?? r.chunk.content
+
+            // Include contextual prefix (document title/author) in final context
+            // This ensures author-based queries like "What did X find?" work correctly
+            // The prefix was used for embedding and re-ranking, so include it for LLM too
+            let content: String
+            if let prefix = r.chunk.contextualPrefix, !prefix.isEmpty {
+                content = prefix + rawContent
+            } else {
+                content = rawContent
+            }
             let sanitizedContent = sanitizeForLanguageDetection(content)
 
             // Calculate remaining budget

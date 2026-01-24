@@ -314,22 +314,36 @@ private struct IngestionQueueRow: View {
     }
 
     private var hasMetrics: Bool {
-        item.metrics.chunkCount > 0 || item.metrics.totalWords > 0 || item.metrics.embeddingsGenerated > 0 || item.metrics.tablesExtracted > 0
+        // Show metrics if we have any counts OR if Vision parsing is active (live updates during extraction)
+        item.metrics.chunkCount > 0 ||
+        item.metrics.totalWords > 0 ||
+        item.metrics.embeddingsGenerated > 0 ||
+        item.metrics.tablesExtracted > 0 ||
+        item.metrics.listsExtracted > 0 ||
+        item.metrics.titlesDetected > 0 ||
+        item.metrics.usedStructuredParsing ||
+        item.metrics.pageCount > 0
     }
 
     @ViewBuilder
     private var liveMetricsView: some View {
         let m = item.metrics
         VStack(alignment: .leading, spacing: 6) {
-            // Row 0: Structured parsing status (Vision iOS 26+)
-            if m.usedStructuredParsing || m.tablesExtracted > 0 || m.listsExtracted > 0 {
+            // Row 0: Structured parsing status (Vision iOS 26+) - shows LIVE during extraction
+            if m.usedStructuredParsing || m.tablesExtracted > 0 || m.listsExtracted > 0 || m.titlesDetected > 0 {
                 HStack(spacing: 6) {
-                    // Vision badge
+                    // Vision badge with optional page count
                     HStack(spacing: 3) {
                         Image(systemName: "eye.fill")
                             .font(.system(size: 7))
                         Text("Vision")
                             .font(.system(size: 8, weight: .semibold))
+                        if m.pageCount > 0 && item.stage == .extracting {
+                            Text("•")
+                                .font(.system(size: 6))
+                            Text("\(m.pageCount) pg")
+                                .font(.system(size: 8))
+                        }
                     }
                     .foregroundStyle(.green)
                     .padding(.horizontal, 5)

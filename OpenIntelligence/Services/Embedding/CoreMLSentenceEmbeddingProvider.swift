@@ -100,6 +100,20 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
         #endif
     }
 
+    // MARK: - Token Counting (for chunk size validation)
+
+    /// Count ACTUAL tokens that will be used during embedding
+    /// This is critical for chunk size validation - NLTokenizer "word count" doesn't match BPE/WordPiece tokens
+    /// Example: "VHA21\VHAPALGarciG1" = 1 NL word but 10+ embedding tokens
+    func countTokens(_ text: String) -> Int {
+        guard let tokenizer = tokenizer else { return 0 }
+        let tokens = tokenizer.tokenize(text: text)
+        return tokens.count + 2  // +2 for [CLS] and [SEP] tokens
+    }
+
+    /// Maximum safe text length in tokens (accounting for CLS/SEP)
+    var maxSafeTokens: Int { maxSequenceLength - 2 }  // 510 for default 512
+
     // MARK: - Embedding
 
     func embed(text: String) async throws -> [Float] {
@@ -243,13 +257,20 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
         let tokens = tokenizer.tokenize(text: text)
         var tokenIds = tokenizer.convertTokensToIds(tokens).compactMap { $0 }
 
-        // QUALITY CHECK: Log when input is truncated (embedding won't represent full chunk)
+        // CRITICAL: Truncation should NEVER happen with proper chunking (max 340 words → ~450 tokens)
+        // If we're hitting this, it means a chunk escaped the safety net in DocumentProcessor
         if tokenIds.count > maxSequenceLength - 2 {
             let originalCount = tokenIds.count
+            let lostTokens = originalCount - (maxSequenceLength - 2)
+            let lossPercent = Int(Double(lostTokens) / Double(originalCount) * 100)
             tokenIds = Array(tokenIds.prefix(maxSequenceLength - 2))
-            Log.warning(
-                "[CoreMLSentenceEmbedding] Input truncated from \(originalCount) to \(maxSequenceLength - 2) tokens. " +
-                "Consider smaller chunk sizes for better embedding quality.",
+
+            // Log as ERROR because this indicates a bug in the chunking pipeline
+            // Every word should be accounted for - truncation = data loss
+            Log.error(
+                "[CoreMLSentenceEmbedding] ❌ TRUNCATION: \(originalCount)→\(maxSequenceLength - 2) tokens " +
+                "(losing \(lostTokens) tokens = \(lossPercent)% of content!). " +
+                "BUG: Chunk escaped size limits. Text preview: \"\(text.prefix(100))...\"",
                 category: .embedding
             )
         }

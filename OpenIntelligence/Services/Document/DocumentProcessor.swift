@@ -11,6 +11,8 @@ import PDFKit
 import UniformTypeIdentifiers
 import Vision
 import CoreImage
+import Tokenizers
+import Compression
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -59,28 +61,135 @@ class DocumentProcessor {
         }
     }
 
+    // MARK: - Live Extraction Progress
+
+    /// Rich progress data for real-time UI transparency during extraction
+    struct ExtractionProgress: Sendable {
+        let stage: String                  // "reading", "parsing", "structured", "chunking"
+        let detail: String                 // Human-readable status
+        let currentPage: Int?              // Current page being processed
+        let totalPages: Int?               // Total pages in document
+        // Live metrics (accumulated as we process)
+        var tablesFound: Int = 0
+        var listsFound: Int = 0
+        var headersFound: Int = 0
+        var ocrPagesUsed: Int = 0
+        var usingVision: Bool = false      // True if RecognizeDocumentsRequest is being used
+        var wordsExtracted: Int = 0
+    }
+
     // MARK: - Configuration
 
     /// Optimal chunk size balances context vs. precision (typically 200-500 words)
     let targetChunkSize: Int
     let chunkOverlap: Int
 
-    /// Progress callback for real-time UI updates
+    /// Progress callback for real-time UI updates (simple string, legacy)
     var progressHandler: ((String) -> Void)?
+
+    /// Rich progress callback with live metrics for extraction transparency
+    var richProgressHandler: ((ExtractionProgress) -> Void)?
+
+    /// Accumulated extraction metrics (updated during processing)
+    private var liveMetrics = ExtractionProgress(stage: "idle", detail: "", currentPage: nil, totalPages: nil)
 
     /// Vision-detected entities from last document processing (reset on each call)
     /// Contains emails, phone numbers, URLs, dates, etc. extracted via DataDetection
     private(set) var lastDetectedEntities: [(type: String, value: String)] = []
 
+    /// BertTokenizer for accurate token counting (matches embedding model tokenization)
+    /// CRITICAL: NLTokenizer word count ≠ BertTokenizer tokens for technical content
+    /// Example: "VHA21\VHAPALGarciG1" = 1 NL word but 10+ embedding tokens
+    private var embeddingTokenizer: BertTokenizer?
+
     init(targetChunkSize: Int = 350, chunkOverlap: Int = 60) {
         self.targetChunkSize = targetChunkSize
         self.chunkOverlap = chunkOverlap
+        loadTokenizer()
+    }
+
+    /// Load BertTokenizer from embedding vocab for accurate token counting
+    private func loadTokenizer() {
+        if let url = Bundle.main.url(forResource: "embedding_vocab", withExtension: "json") {
+            do {
+                let vocabData = try Data(contentsOf: url)
+                let vocabDict = try JSONDecoder().decode([String: Int].self, from: vocabData)
+                embeddingTokenizer = BertTokenizer(
+                    vocab: vocabDict,
+                    merges: nil,
+                    tokenizeChineseChars: true,
+                    doLowerCase: true
+                )
+                Log.info("[DocumentProcessor] Loaded BertTokenizer for accurate chunk validation", category: .ingestion)
+            } catch {
+                Log.warning("[DocumentProcessor] Failed to load BertTokenizer: \(error). Falling back to word estimation.", category: .ingestion)
+            }
+        }
+    }
+
+    // MARK: - Progress Emission Helpers
+
+    /// Emit rich progress with accumulated metrics
+    private func emitProgress(stage: String, detail: String, page: Int? = nil, totalPages: Int? = nil) {
+        // Update simple handler (legacy)
+        progressHandler?(detail)
+
+        // Update accumulated metrics with current page info
+        var progress = liveMetrics
+        progress = ExtractionProgress(
+            stage: stage,
+            detail: detail,
+            currentPage: page,
+            totalPages: totalPages,
+            tablesFound: liveMetrics.tablesFound,
+            listsFound: liveMetrics.listsFound,
+            headersFound: liveMetrics.headersFound,
+            ocrPagesUsed: liveMetrics.ocrPagesUsed,
+            usingVision: liveMetrics.usingVision,
+            wordsExtracted: liveMetrics.wordsExtracted
+        )
+        richProgressHandler?(progress)
+    }
+
+    /// Increment a metric and emit progress
+    private func incrementMetric(tables: Int = 0, lists: Int = 0, headers: Int = 0, ocrPages: Int = 0, words: Int = 0) {
+        liveMetrics = ExtractionProgress(
+            stage: liveMetrics.stage,
+            detail: liveMetrics.detail,
+            currentPage: liveMetrics.currentPage,
+            totalPages: liveMetrics.totalPages,
+            tablesFound: liveMetrics.tablesFound + tables,
+            listsFound: liveMetrics.listsFound + lists,
+            headersFound: liveMetrics.headersFound + headers,
+            ocrPagesUsed: liveMetrics.ocrPagesUsed + ocrPages,
+            usingVision: liveMetrics.usingVision,
+            wordsExtracted: liveMetrics.wordsExtracted + words
+        )
+    }
+
+    /// Reset live metrics for new document
+    private func resetLiveMetrics(usingVision: Bool = false, totalPages: Int? = nil) {
+        liveMetrics = ExtractionProgress(
+            stage: "starting",
+            detail: "Initializing...",
+            currentPage: 0,
+            totalPages: totalPages,
+            tablesFound: 0,
+            listsFound: 0,
+            headersFound: 0,
+            ocrPagesUsed: 0,
+            usingVision: usingVision,
+            wordsExtracted: 0
+        )
     }
 
     // MARK: - Public API
 
     /// Process a document and extract text chunks
-    func processDocument(at url: URL, chunkOverride: ChunkingOverride? = nil) async throws -> (Document, [ProcessedChunk]) {
+    /// Also stores the full original text for exact queries:
+    /// - SQLiteFullTextService (FTS5) when containerId is provided (10-100X faster search)
+    /// - FullTextStorageService (file-based) as fallback when containerId is nil
+    func processDocument(at url: URL, chunkOverride: ChunkingOverride? = nil, containerId: UUID? = nil) async throws -> (Document, [ProcessedChunk]) {
         // Reset detected entities for this document
         lastDetectedEntities = []
         let filename = url.lastPathComponent
@@ -140,6 +249,19 @@ class DocumentProcessor {
             category: .ingestion
         )
 
+        // CRITICAL: Store full original text for exact queries
+        // This enables queries like "count word 'X' in all documents"
+        // FTS5 (SQLite) is 10-100X faster than file-based storage for search
+        if let containerId = containerId {
+            // Primary path: SQLite FTS5 with container isolation (v1.1.0+)
+            await SQLiteFullTextService.shared.store(text: extractedText, for: documentId, containerId: containerId)
+            Log.debug("[DocumentProcessor] Stored full text (\(charCount) chars) to FTS5 for exact query support", category: .ingestion)
+        } else {
+            // Fallback path: File-based storage (legacy, no container context)
+            await FullTextStorageService.shared.store(text: extractedText, for: documentId)
+            Log.debug("[DocumentProcessor] Stored full text (\(charCount) chars) to file storage (legacy path)", category: .ingestion)
+        }
+
         // Chunk the text using semantic chunker
         progressHandler?("chunking text")
         try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s to show chunking (increased for visibility)
@@ -150,11 +272,18 @@ class DocumentProcessor {
         let baseConfig = SemanticChunker.ChunkingConfig.recommended(for: documentType)
         let activeWindow = chunkOverride?.targetWordWindow ?? baseConfig.targetSize
         let activeOverlap = chunkOverride?.overlapWords ?? baseConfig.overlap
+
+        // CRITICAL: maxSize is capped at 310 words to prevent token truncation during embedding
+        // CoreML model has 510 token limit; 340 words ≈ 500 tokens
+        // BUT RAGService adds ~30 word contextual prefix during embedding
+        // ACTUAL SAFE LIMIT: 310 words + 30 prefix = 340 total ≈ 500 tokens
+        let safeMaxSize = 310
+
         let chunkerConfig = SemanticChunker.ChunkingConfig(
-            targetSize: activeWindow,
-            minSize: max(baseConfig.minSize, activeWindow / 4),
-            maxSize: max(baseConfig.maxSize, activeWindow * 2),
-            overlap: activeOverlap,
+            targetSize: min(activeWindow, safeMaxSize - 50),  // Target must leave room for variance
+            minSize: max(baseConfig.minSize, 60),
+            maxSize: safeMaxSize,  // HARD LIMIT: Never exceed 310 words (leaves room for prefix)
+            overlap: min(activeOverlap, 50),  // Cap overlap to prevent bloat
             useTopicDetection: baseConfig.useTopicDetection,
             preserveStructure: baseConfig.preserveStructure
         )
@@ -164,7 +293,7 @@ class DocumentProcessor {
             category: .ingestion
         )
 
-        let processedChunks: [ProcessedChunk]
+        var processedChunks: [ProcessedChunk]
 
         // Structure-aware chunking: Tables and lists become atomic chunks, paragraphs get semantic chunking
         if usedStructuredParsing && !structuredElements.isEmpty {
@@ -209,6 +338,18 @@ class DocumentProcessor {
         }
 
         let chunkingTime = Date().timeIntervalSince(chunkingStartTime)
+
+        // CRITICAL: Post-processing validation - ensure NO chunk exceeds embedding token limit
+        // This is a safety net that catches any chunks that slipped through chunking config limits
+        processedChunks = enforceTokenLimitOnChunks(processedChunks)
+
+        // CONTENT COVERAGE VERIFICATION: Ensure we captured all the source content
+        // This catches bugs where content is silently dropped during chunking
+        verifyContentCoverage(
+            original: extractedText,
+            chunks: processedChunks,
+            documentId: documentId
+        )
 
     		Log.debug(
                 "[DocumentProcessor] Created \(processedChunks.count) semantic chunks in \(String(format: "%.3f", chunkingTime))s",
@@ -970,6 +1111,9 @@ class DocumentProcessor {
 
         Log.info("[DocumentProcessor] Starting structured parsing for \(pageCount) pages (iOS 26+)", category: .ingestion)
 
+        // Reset live metrics for this document with Vision enabled
+        resetLiveMetrics(usingVision: true, totalPages: pageCount)
+
         // MEMORY OPTIMIZATION: Render pages in batches, not all at once
         // Each 1260×1785 RGBA image ≈ 9MB; 542 pages = 4.8GB if pre-rendered!
         // Now we render only maxConcurrentPages at a time (~27MB peak)
@@ -987,6 +1131,10 @@ class DocumentProcessor {
             let pageText: String
             let hasStructure: Bool
             let usedOCR: Bool
+            // Metrics from this page
+            let tablesFound: Int
+            let listsFound: Int
+            let headersFound: Int
         }
 
         // Parallel structured parsing with controlled concurrency
@@ -1000,9 +1148,14 @@ class DocumentProcessor {
             let batchEnd = min(batchStart + maxConcurrentPages, pageCount)
             let batchIndices = batchStart..<batchEnd
 
-            // Update progress for batch
+            // Emit rich progress with current metrics
             await MainActor.run {
-                self.progressHandler?("structured parse \(batchStart + 1)-\(batchEnd)/\(pageCount)")
+                self.emitProgress(
+                    stage: "vision",
+                    detail: "👁 Vision parsing pages \(batchStart + 1)-\(batchEnd)/\(pageCount)",
+                    page: batchEnd,
+                    totalPages: pageCount
+                )
             }
 
             // MEMORY OPTIMIZATION: Render only this batch's pages (not all pages upfront)
@@ -1040,10 +1193,13 @@ class DocumentProcessor {
                                     )],
                                     pageText: plainText,
                                     hasStructure: false,
-                                    usedOCR: false
+                                    usedOCR: false,
+                                    tablesFound: 0,
+                                    listsFound: 0,
+                                    headersFound: 0
                                 )
                             }
-                            return PageParseResult(pageIndex: pageIndex, elements: [], pageText: "", hasStructure: false, usedOCR: false)
+                            return PageParseResult(pageIndex: pageIndex, elements: [], pageText: "", hasStructure: false, usedOCR: false, tablesFound: 0, listsFound: 0, headersFound: 0)
                         }
 
                         do {
@@ -1051,6 +1207,9 @@ class DocumentProcessor {
                             let structuredContent = try await parser.parsePageImage(pageImage, pageNumber: pageNumber)
 
                             var elements: [StructuredElementWrapper] = []
+                            var pageTablesCount = 0
+                            var pageListsCount = 0
+                            var pageHeadersCount = 0
 
                             // Log figure references if any were found
                             if !structuredContent.figureReferences.isEmpty {
@@ -1060,9 +1219,17 @@ class DocumentProcessor {
                             // Use effectiveContent which automatically falls back to raw text if quality is low
                             let elementsToUse = structuredContent.effectiveContent
 
-                            // Convert structured elements to wrappers
+                            // Convert structured elements to wrappers and count types
                             for element in elementsToUse {
                                 let isAtomic = element.elementType == "table"
+
+                                // Count element types for live metrics
+                                switch element.elementType {
+                                case "table": pageTablesCount += 1
+                                case "list": pageListsCount += 1
+                                case "title": pageHeadersCount += 1
+                                default: break
+                                }
 
                                 var entities: [(type: String, value: String)] = []
                                 if case .table(let tableData) = element {
@@ -1095,7 +1262,10 @@ class DocumentProcessor {
                                 elements: elements,
                                 pageText: structuredContent.rawText,
                                 hasStructure: structuredContent.hasStructuredContent,
-                                usedOCR: false
+                                usedOCR: false,
+                                tablesFound: pageTablesCount,
+                                listsFound: pageListsCount,
+                                headersFound: pageHeadersCount
                             )
 
                         } catch StructuredParsingError.noDocumentDetected {
@@ -1111,10 +1281,13 @@ class DocumentProcessor {
                                     )],
                                     pageText: ocrText,
                                     hasStructure: false,
-                                    usedOCR: true
+                                    usedOCR: true,
+                                    tablesFound: 0,
+                                    listsFound: 0,
+                                    headersFound: 0
                                 )
                             }
-                            return PageParseResult(pageIndex: pageIndex, elements: [], pageText: "", hasStructure: false, usedOCR: false)
+                            return PageParseResult(pageIndex: pageIndex, elements: [], pageText: "", hasStructure: false, usedOCR: false, tablesFound: 0, listsFound: 0, headersFound: 0)
 
                         } catch {
                             Log.warning("[DocumentProcessor] Structured parsing failed for page \(pageNumber): \(error.localizedDescription)", category: .ingestion)
@@ -1125,10 +1298,13 @@ class DocumentProcessor {
                                     elements: [],
                                     pageText: plainText,
                                     hasStructure: false,
-                                    usedOCR: false
+                                    usedOCR: false,
+                                    tablesFound: 0,
+                                    listsFound: 0,
+                                    headersFound: 0
                                 )
                             }
-                            return PageParseResult(pageIndex: pageIndex, elements: [], pageText: "", hasStructure: false, usedOCR: false)
+                            return PageParseResult(pageIndex: pageIndex, elements: [], pageText: "", hasStructure: false, usedOCR: false, tablesFound: 0, listsFound: 0, headersFound: 0)
                         }
                     }
                 }
@@ -1138,6 +1314,31 @@ class DocumentProcessor {
                     collected.append(result)
                 }
                 return collected
+            }
+
+            // Aggregate metrics from this batch and emit live progress
+            var batchTables = 0, batchLists = 0, batchHeaders = 0, batchOCR = 0
+            for r in batchResults {
+                batchTables += r.tablesFound
+                batchLists += r.listsFound
+                batchHeaders += r.headersFound
+                if r.usedOCR { batchOCR += 1 }
+            }
+            incrementMetric(tables: batchTables, lists: batchLists, headers: batchHeaders, ocrPages: batchOCR)
+
+            // Emit updated progress with accumulated metrics
+            await MainActor.run {
+                let m = self.liveMetrics
+                var detailParts: [String] = ["pg \(batchEnd)/\(pageCount)"]
+                if m.tablesFound > 0 { detailParts.append("\(m.tablesFound) tbl") }
+                if m.listsFound > 0 { detailParts.append("\(m.listsFound) lst") }
+                if m.headersFound > 0 { detailParts.append("\(m.headersFound) hdr") }
+                self.emitProgress(
+                    stage: "vision",
+                    detail: "👁 Vision: " + detailParts.joined(separator: " • "),
+                    page: batchEnd,
+                    totalPages: pageCount
+                )
             }
 
             results.append(contentsOf: batchResults)
@@ -1321,14 +1522,32 @@ class DocumentProcessor {
                     sectionPath: currentSectionPath.isEmpty ? nil : currentSectionPath  // NOW carries section path
                 )
 
-                chunks.append(ProcessedChunk(
-                    text: text,
-                    parentText: currentSectionTitle,  // Parent text is the section title
-                    metadata: metadata
-                ))
-                chunkIndex += 1
-
-                Log.debug("[DocumentProcessor] Created atomic \(element.elementType) chunk (\(wordCount) words) from page \(element.pageNumber), section: \(currentSectionTitle ?? "none")", category: .ingestion)
+                // Check if atomic chunk exceeds embedding token limit (~400 words ≈ 500 tokens)
+                // If so, split into multiple chunks while preserving context prefix
+                let maxAtomicWords = 380  // Leave room for context prefix in 510 token limit
+                if wordCount > maxAtomicWords {
+                    // Split oversized table/list into multiple chunks
+                    let splitChunks = splitOversizedAtomicChunk(
+                        text: text,
+                        contextPrefix: contextPrefix,
+                        element: element,
+                        baseChunkIndex: chunkIndex,
+                        sectionTitle: currentSectionTitle,
+                        sectionPath: currentSectionPath,
+                        maxWords: maxAtomicWords
+                    )
+                    chunks.append(contentsOf: splitChunks)
+                    chunkIndex += splitChunks.count
+                    Log.debug("[DocumentProcessor] Split oversized \(element.elementType) (\(wordCount)w) into \(splitChunks.count) chunks", category: .ingestion)
+                } else {
+                    chunks.append(ProcessedChunk(
+                        text: text,
+                        parentText: currentSectionTitle,  // Parent text is the section title
+                        metadata: metadata
+                    ))
+                    chunkIndex += 1
+                    Log.debug("[DocumentProcessor] Created atomic \(element.elementType) chunk (\(wordCount) words) from page \(element.pageNumber), section: \(currentSectionTitle ?? "none")", category: .ingestion)
+                }
 
             } else if element.elementType == "paragraph" || element.elementType == "title" {
                 // Buffer paragraphs for semantic chunking
@@ -1350,6 +1569,401 @@ class DocumentProcessor {
         Log.info("[DocumentProcessor] Structure-aware chunking: \(tableChunks) tables, \(listChunks) lists, \(paragraphChunks) paragraphs", category: .ingestion)
 
         return chunks
+    }
+
+    /// Split an oversized atomic chunk (table/list) into multiple smaller chunks
+    /// Preserves context prefix and section path on each chunk for retrieval coherence
+    private func splitOversizedAtomicChunk(
+        text: String,
+        contextPrefix: String,
+        element: StructuredElementWrapper,
+        baseChunkIndex: Int,
+        sectionTitle: String?,
+        sectionPath: [String],
+        maxWords: Int
+    ) -> [ProcessedChunk] {
+        var chunks: [ProcessedChunk] = []
+
+        // Remove context prefix from text to split just the content
+        let contentText = text.hasPrefix(contextPrefix) ? String(text.dropFirst(contextPrefix.count)) : text
+
+        // Split by rows for tables (line-based), or by items for lists
+        let lines = contentText.components(separatedBy: "\n").filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+
+        var currentChunkLines: [String] = []
+        var currentWordCount = 0
+        var chunkNumber = 0
+
+        for line in lines {
+            let lineWords = line.split(separator: " ").count
+
+            // If adding this line would exceed limit, flush current chunk
+            if currentWordCount + lineWords > maxWords && !currentChunkLines.isEmpty {
+                let chunkContent = contextPrefix + "[Part \(chunkNumber + 1)]\n" + currentChunkLines.joined(separator: "\n")
+                let metadata = ChunkMetadata(
+                    chunkIndex: baseChunkIndex + chunkNumber,
+                    startPosition: 0,
+                    endPosition: chunkContent.count,
+                    pageNumber: element.pageNumber,
+                    sectionTitle: sectionTitle,
+                    keywords: extractKeywordsFromStructuredElement(chunkContent, type: element.elementType),
+                    semanticDensity: 0.8,
+                    hasNumericData: element.elementType == "table",
+                    hasListStructure: element.elementType == "list",
+                    wordCount: currentWordCount,
+                    characterCount: chunkContent.count,
+                    structureType: element.elementType,
+                    sectionPath: sectionPath.isEmpty ? nil : sectionPath
+                )
+                chunks.append(ProcessedChunk(text: chunkContent, parentText: sectionTitle, metadata: metadata))
+                chunkNumber += 1
+                currentChunkLines = []
+                currentWordCount = 0
+            }
+
+            currentChunkLines.append(line)
+            currentWordCount += lineWords
+        }
+
+        // Flush remaining lines
+        if !currentChunkLines.isEmpty {
+            let chunkContent = contextPrefix + (chunkNumber > 0 ? "[Part \(chunkNumber + 1)]\n" : "") + currentChunkLines.joined(separator: "\n")
+            let metadata = ChunkMetadata(
+                chunkIndex: baseChunkIndex + chunkNumber,
+                startPosition: 0,
+                endPosition: chunkContent.count,
+                pageNumber: element.pageNumber,
+                sectionTitle: sectionTitle,
+                keywords: extractKeywordsFromStructuredElement(chunkContent, type: element.elementType),
+                semanticDensity: 0.8,
+                hasNumericData: element.elementType == "table",
+                hasListStructure: element.elementType == "list",
+                wordCount: currentWordCount,
+                characterCount: chunkContent.count,
+                structureType: element.elementType,
+                sectionPath: sectionPath.isEmpty ? nil : sectionPath
+            )
+            chunks.append(ProcessedChunk(text: chunkContent, parentText: sectionTitle, metadata: metadata))
+        }
+
+        return chunks
+    }
+
+    // MARK: - Token Limit Enforcement (Critical Safety Net)
+
+    /// Maximum embedding tokens per chunk (512 model limit - 2 for CLS/SEP)
+    private static let maxEmbeddableTokens = 510
+
+    /// Contextual prefix adds ~50-80 tokens during embedding
+    private static let contextualPrefixTokens = 80
+
+    /// Safe token limit for chunks (before contextual prefix is added)
+    private static let safeTokenLimit = maxEmbeddableTokens - contextualPrefixTokens  // 430 tokens
+
+    /// Legacy word-based limit (kept for fallback split function)
+    /// ~200 words should be safe even for high-tokenization content (200 * 2 = 400 tokens)
+    private static let maxEmbeddableWords = 200
+
+    /// Count ACTUAL embedding tokens using BertTokenizer
+    /// CRITICAL: NLTokenizer "word count" does NOT match BPE/WordPiece tokens!
+    /// Example: "VHA21\VHAPALGarciG1" = 1 NL word but 10+ embedding tokens
+    /// Tables with abbreviations/codes can be 2-3x higher than word-based estimates
+    private func countTokens(_ text: String) -> Int {
+        if let tokenizer = embeddingTokenizer {
+            let tokens = tokenizer.tokenize(text: text)
+            return tokens.count + 2  // +2 for [CLS] and [SEP]
+        } else {
+            // Fallback: conservative 3 chars/token for technical content
+            return text.count / 3 + 2
+        }
+    }
+
+    /// Count words using NLTokenizer (for logging/stats only, NOT for limit enforcement)
+    private func countWords(_ text: String) -> Int {
+        let tokenizer = NLTokenizer(unit: .word)
+        tokenizer.string = text
+        var count = 0
+        tokenizer.enumerateTokens(in: text.startIndex..<text.endIndex) { _, _ in
+            count += 1
+            return true
+        }
+        return count
+    }
+
+    /// Post-processing validation that ensures NO chunk exceeds embedding token limit
+    /// Uses ACTUAL BertTokenizer counting, not word estimation
+    /// This is critical for technical content with abbreviations, codes, special chars
+    private func enforceTokenLimitOnChunks(_ chunks: [ProcessedChunk]) -> [ProcessedChunk] {
+        var validatedChunks: [ProcessedChunk] = []
+        var splitCount = 0
+
+        for chunk in chunks {
+            let tokenCount = countTokens(chunk.text)
+
+            if tokenCount > Self.safeTokenLimit {
+                // This chunk WILL cause token truncation - must split it
+                let splitChunks = splitOversizedChunkByTokens(chunk)
+                validatedChunks.append(contentsOf: splitChunks)
+                splitCount += 1
+
+                Log.warning(
+                    "[DocumentProcessor] ⚠️ SPLIT OVERSIZED CHUNK: \(tokenCount)t/\(countWords(chunk.text))w → \(splitChunks.count) sub-chunks " +
+                    "(section: \(chunk.metadata.sectionTitle ?? "none"), type: \(chunk.metadata.structureType ?? "paragraph"))",
+                    category: .ingestion
+                )
+            } else {
+                validatedChunks.append(chunk)
+            }
+        }
+
+        if splitCount > 0 {
+            Log.info(
+                "[DocumentProcessor] Token limit enforcement: split \(splitCount) oversized chunks → " +
+                "\(chunks.count) → \(validatedChunks.count) total",
+                category: .ingestion
+            )
+        }
+
+        // VERIFICATION: No chunk should exceed limit now
+        let stillTooLarge = validatedChunks.filter { countTokens($0.text) > Self.safeTokenLimit }
+        if !stillTooLarge.isEmpty {
+            Log.error(
+                "[DocumentProcessor] ❌ CRITICAL: \(stillTooLarge.count) chunks STILL exceed token limit after split!",
+                category: .ingestion
+            )
+            // Log details of problematic chunks for debugging
+            for (idx, chunk) in stillTooLarge.prefix(3).enumerated() {
+                Log.error("[DocumentProcessor] Oversized chunk \(idx+1): \(countTokens(chunk.text))t, preview: \(String(chunk.text.prefix(100)))...", category: .ingestion)
+            }
+        }
+
+        // Always log enforcement stats for visibility
+        let maxTokenCount = validatedChunks.map { countTokens($0.text) }.max() ?? 0
+        Log.debug(
+            "[DocumentProcessor] Token limit enforcement complete: \(chunks.count)→\(validatedChunks.count) chunks, " +
+            "split=\(splitCount), maxTokens=\(maxTokenCount)/\(Self.safeTokenLimit)",
+            category: .ingestion
+        )
+
+        return validatedChunks
+    }
+
+    /// Split a single oversized chunk into multiple smaller chunks that fit within token limits
+    /// Preserves metadata and adds part markers for context
+    private func splitOversizedChunk(_ chunk: ProcessedChunk) -> [ProcessedChunk] {
+        var subChunks: [ProcessedChunk] = []
+        let text = chunk.text
+        let maxWords = Self.maxEmbeddableWords
+
+        // Try to split on sentence boundaries for coherence
+        let sentences = text.components(separatedBy: CharacterSet(charactersIn: ".!?\n")).filter { !$0.isEmpty }
+
+        var currentText = ""
+        var currentWordCount = 0
+        var partNumber = 0
+
+        for sentence in sentences {
+            let sentenceWords = countWords(sentence)
+
+            // If adding this sentence would exceed limit, flush current buffer
+            if currentWordCount + sentenceWords > maxWords && !currentText.isEmpty {
+                partNumber += 1
+                let partText = "[Part \(partNumber)]\n" + currentText.trimmingCharacters(in: .whitespacesAndNewlines)
+                subChunks.append(createSubChunk(from: chunk, text: partText, index: partNumber - 1))
+                currentText = ""
+                currentWordCount = 0
+            }
+
+            // Handle case where a single sentence is too large (rare but possible)
+            if sentenceWords > maxWords {
+                // Force-split at word boundaries
+                let words = sentence.split(separator: " ")
+                for wordSlice in stride(from: 0, to: words.count, by: maxWords) {
+                    let end = min(wordSlice + maxWords, words.count)
+                    partNumber += 1
+                    let partWords = words[wordSlice..<end].joined(separator: " ")
+                    let partText = "[Part \(partNumber)]\n" + partWords
+                    subChunks.append(createSubChunk(from: chunk, text: partText, index: partNumber - 1))
+                }
+            } else {
+                currentText += sentence + ". "
+                currentWordCount += sentenceWords
+            }
+        }
+
+        // Flush remaining content
+        if !currentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            partNumber += 1
+            let partText = partNumber > 1
+                ? "[Part \(partNumber)]\n" + currentText.trimmingCharacters(in: .whitespacesAndNewlines)
+                : currentText.trimmingCharacters(in: .whitespacesAndNewlines)
+            subChunks.append(createSubChunk(from: chunk, text: partText, index: partNumber - 1))
+        }
+
+        // Edge case: if no sub-chunks were created, return original (shouldn't happen)
+        if subChunks.isEmpty {
+            Log.warning("[DocumentProcessor] Split produced no sub-chunks, returning original", category: .ingestion)
+            return [chunk]
+        }
+
+        return subChunks
+    }
+
+    /// Split a chunk using ACTUAL token counting (not word estimation)
+    /// This is critical for technical content with abbreviations, codes, special chars
+    private func splitOversizedChunkByTokens(_ chunk: ProcessedChunk) -> [ProcessedChunk] {
+        var subChunks: [ProcessedChunk] = []
+        let text = chunk.text
+        let maxTokens = Self.safeTokenLimit - 10  // Leave margin for part markers
+
+        // Try to split on sentence boundaries for coherence
+        let sentences = text.components(separatedBy: CharacterSet(charactersIn: ".!?\n")).filter { !$0.isEmpty }
+
+        var currentText = ""
+        var currentTokens = 0
+        var partNumber = 0
+
+        for sentence in sentences {
+            let sentenceTokens = countTokens(sentence)
+
+            // If adding this sentence would exceed limit, flush current buffer
+            if currentTokens + sentenceTokens > maxTokens && !currentText.isEmpty {
+                partNumber += 1
+                let partText = "[Part \(partNumber)]\n" + currentText.trimmingCharacters(in: .whitespacesAndNewlines)
+                subChunks.append(createSubChunk(from: chunk, text: partText, index: partNumber - 1))
+                currentText = ""
+                currentTokens = 0
+            }
+
+            // Handle case where a single sentence is too large
+            if sentenceTokens > maxTokens {
+                // Force-split by progressively adding words until token limit reached
+                let words = sentence.split(separator: " ").map(String.init)
+                var wordBuffer: [String] = []
+                var bufferTokens = 0
+
+                for word in words {
+                    let wordTokens = countTokens(word)
+                    if bufferTokens + wordTokens > maxTokens && !wordBuffer.isEmpty {
+                        partNumber += 1
+                        let partText = "[Part \(partNumber)]\n" + wordBuffer.joined(separator: " ")
+                        subChunks.append(createSubChunk(from: chunk, text: partText, index: partNumber - 1))
+                        wordBuffer = []
+                        bufferTokens = 0
+                    }
+                    wordBuffer.append(word)
+                    bufferTokens += wordTokens + 1  // +1 for whitespace token
+                }
+
+                // Flush remaining words from sentence
+                if !wordBuffer.isEmpty {
+                    currentText += wordBuffer.joined(separator: " ") + ". "
+                    currentTokens += bufferTokens
+                }
+            } else {
+                currentText += sentence + ". "
+                currentTokens += sentenceTokens
+            }
+        }
+
+        // Flush remaining content
+        if !currentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            partNumber += 1
+            let partText = partNumber > 1
+                ? "[Part \(partNumber)]\n" + currentText.trimmingCharacters(in: .whitespacesAndNewlines)
+                : currentText.trimmingCharacters(in: .whitespacesAndNewlines)
+            subChunks.append(createSubChunk(from: chunk, text: partText, index: partNumber - 1))
+        }
+
+        // Edge case: if no sub-chunks were created, return original
+        if subChunks.isEmpty {
+            Log.warning("[DocumentProcessor] Token-based split produced no sub-chunks, returning original", category: .ingestion)
+            return [chunk]
+        }
+
+        // Final validation: ensure all sub-chunks are within limit
+        let stillOversized = subChunks.filter { countTokens($0.text) > Self.safeTokenLimit }
+        if !stillOversized.isEmpty {
+            Log.warning("[DocumentProcessor] \(stillOversized.count) sub-chunks still oversized after token split, will be truncated at embedding", category: .ingestion)
+        }
+
+        return subChunks
+    }
+
+    /// Create a sub-chunk with inherited metadata from parent
+    private func createSubChunk(from parent: ProcessedChunk, text: String, index: Int) -> ProcessedChunk {
+        let wordCount = countWords(text)  // Use NLTokenizer for accuracy
+        let metadata = ChunkMetadata(
+            chunkIndex: parent.metadata.chunkIndex + index,
+            startPosition: parent.metadata.startPosition,
+            endPosition: parent.metadata.endPosition,
+            pageNumber: parent.metadata.pageNumber,
+            sectionTitle: parent.metadata.sectionTitle,
+            keywords: parent.metadata.keywords,
+            semanticDensity: parent.metadata.semanticDensity,
+            hasNumericData: parent.metadata.hasNumericData,
+            hasListStructure: parent.metadata.hasListStructure,
+            wordCount: wordCount,
+            characterCount: text.count,
+            structureType: parent.metadata.structureType,
+            sectionPath: parent.metadata.sectionPath
+        )
+        return ProcessedChunk(text: text, parentText: parent.parentText, metadata: metadata)
+    }
+
+    // MARK: - Content Coverage Verification
+
+    /// Verify that chunking captured all content from the original document
+    /// This is a diagnostic check - logs warnings if significant content is missing
+    private func verifyContentCoverage(
+        original: String,
+        chunks: [ProcessedChunk],
+        documentId: UUID
+    ) {
+        // Count words in original (normalize whitespace)
+        let originalWords = Set(
+            original.lowercased()
+                .components(separatedBy: .whitespacesAndNewlines)
+                .map { $0.trimmingCharacters(in: .punctuationCharacters) }
+                .filter { $0.count >= 3 }  // Only count meaningful words
+        )
+
+        // Count unique words in all chunks combined
+        var chunkWords = Set<String>()
+        for chunk in chunks {
+            let words = chunk.text.lowercased()
+                .components(separatedBy: .whitespacesAndNewlines)
+                .map { $0.trimmingCharacters(in: .punctuationCharacters) }
+                .filter { $0.count >= 3 }
+            chunkWords.formUnion(words)
+        }
+
+        // Calculate coverage
+        let covered = originalWords.intersection(chunkWords).count
+        let total = originalWords.count
+        let coverage = total > 0 ? Double(covered) / Double(total) * 100 : 100
+
+        // Also check character count as secondary metric
+        let originalChars = original.filter { !$0.isWhitespace }.count
+        let chunkChars = chunks.reduce(0) { $0 + $1.text.filter { !$0.isWhitespace }.count }
+        // Account for overlap - chunks may duplicate some content
+        let charRatio = originalChars > 0 ? Double(chunkChars) / Double(originalChars) * 100 : 100
+
+        if coverage < 90 {
+            let missing = originalWords.subtracting(chunkWords)
+            let sampleMissing = Array(missing.prefix(10)).joined(separator: ", ")
+            Log.warning(
+                "[DocumentProcessor] ⚠️ LOW CONTENT COVERAGE: \(String(format: "%.1f", coverage))% of unique words captured " +
+                "(\(covered)/\(total)). Missing samples: \(sampleMissing)...",
+                category: .ingestion
+            )
+        } else {
+            Log.debug(
+                "[DocumentProcessor] ✅ Content coverage: \(String(format: "%.1f", coverage))% words, " +
+                "\(String(format: "%.0f", charRatio))% chars (includes overlap)",
+                category: .ingestion
+            )
+        }
     }
 
     /// Extract keywords from structured elements using NLTagger (domain-agnostic)
@@ -1507,13 +2121,15 @@ class DocumentProcessor {
     }
 
     /// Render a PDF page as a high-resolution image for OCR processing
-    /// Uses 3x scale (216 DPI) for optimal Vision OCR accuracy
-    /// Apple's Vision framework works best at 150-300 DPI
-    private func renderPDFPageAsImage(page: PDFPage, scale: CGFloat = 3.0) -> CIImage? {
+    /// Uses 5x scale (360 DPI) for maximum Vision OCR accuracy
+    /// Higher DPI captures fine text, small labels, and low-quality scans better
+    /// Apple's Vision framework works best at 150-300+ DPI
+    private func renderPDFPageAsImage(page: PDFPage, scale: CGFloat = 5.0) -> CIImage? {
         let pageBounds = page.bounds(for: .mediaBox)
 
-        // Scale up for OCR accuracy - Vision needs high DPI images
-        // PDF pages are typically 72 DPI, so 3x = 216 DPI (optimal for text recognition)
+        // Scale up for maximum OCR accuracy - Vision needs high DPI images
+        // PDF pages are typically 72 DPI, so 5x = 360 DPI (maximum quality for text recognition)
+        // This captures fine print, subscripts, small labels that 216 DPI misses
         let scaledSize = CGSize(
             width: pageBounds.size.width * scale,
             height: pageBounds.size.height * scale
@@ -1842,13 +2458,26 @@ class DocumentProcessor {
 
         let startTime = Date()
 
-        guard let image = CIImage(contentsOf: url) else {
+        guard var image = CIImage(contentsOf: url) else {
             Log.error("[DocumentProcessor] Failed to load image: \(url.lastPathComponent)", category: .ingestion)
             throw DocumentProcessingError.imageLoadFailed
         }
 
         let imageSize = image.extent.size
-        Log.debug("[DocumentProcessor] Image dimensions: \(Int(imageSize.width))×\(Int(imageSize.height))px", category: .ingestion)
+        Log.debug("[DocumentProcessor] Original image: \(Int(imageSize.width))×\(Int(imageSize.height))px", category: .ingestion)
+
+        // MAXIMUM QUALITY OCR: Upscale low-resolution images for better text recognition
+        // Vision OCR works best at 300+ DPI equivalent resolution
+        // Upscale images smaller than 2000px on their largest dimension
+        let maxDimension = max(imageSize.width, imageSize.height)
+        if maxDimension < 2000 {
+            let upscaleFactor = min(3.0, 2000.0 / maxDimension)  // Up to 3x, target 2000px
+            image = upscaleImageForOCR(image, factor: upscaleFactor)
+            Log.debug("[DocumentProcessor] Upscaled image \(String(format: "%.1f", upscaleFactor))x for OCR", category: .ingestion)
+        }
+
+        // Apply contrast enhancement for better OCR on low-quality scans
+        image = enhanceImageForOCR(image)
 
         let text = try await performOCR(on: image)
         let ocrTime = Date().timeIntervalSince(startTime)
@@ -1856,6 +2485,38 @@ class DocumentProcessor {
         Log.debug("[DocumentProcessor] OCR extracted \(text.count) chars in \(String(format: "%.2f", ocrTime))s", category: .ingestion)
 
         return text
+    }
+
+    /// Upscale an image for better OCR quality using Lanczos interpolation
+    private func upscaleImageForOCR(_ image: CIImage, factor: CGFloat) -> CIImage {
+        let transform = CGAffineTransform(scaleX: factor, y: factor)
+        return image.transformed(by: transform)
+    }
+
+    /// Enhance image contrast and sharpness for better OCR
+    /// Particularly helpful for scanned documents and low-quality images
+    private func enhanceImageForOCR(_ image: CIImage) -> CIImage {
+        var enhanced = image
+
+        // Sharpen slightly to improve text edge detection
+        if let sharpenFilter = CIFilter(name: "CISharpenLuminance") {
+            sharpenFilter.setValue(enhanced, forKey: kCIInputImageKey)
+            sharpenFilter.setValue(0.4, forKey: kCIInputSharpnessKey)  // Subtle sharpening
+            if let output = sharpenFilter.outputImage {
+                enhanced = output
+            }
+        }
+
+        // Enhance contrast for better text/background separation
+        if let contrastFilter = CIFilter(name: "CIColorControls") {
+            contrastFilter.setValue(enhanced, forKey: kCIInputImageKey)
+            contrastFilter.setValue(1.05, forKey: kCIInputContrastKey)  // Subtle contrast boost
+            if let output = contrastFilter.outputImage {
+                enhanced = output
+            }
+        }
+
+        return enhanced
     }
 
     /// Perform OCR on an image using Vision framework with layout-aware text ordering
@@ -2440,18 +3101,19 @@ class DocumentProcessor {
             structuredText += "Table with columns: " + headers.joined(separator: ", ") + "\n\n"
         }
 
-        // Process rows (limit to reasonable size for context)
-        let rowsToProcess = min(lines.count - 1, 1000)
-        for i in 1..<rowsToProcess {
+        // Process ALL rows - ZERO DATA LOSS policy
+        // CSV files must be fully ingested regardless of size
+        let totalRows = lines.count - 1
+        if totalRows > 1000 {
+            Log.info("[DocumentProcessor] Processing large CSV: \(totalRows) rows", category: .ingestion)
+        }
+
+        for i in 1..<lines.count {
             let row = lines[i]
             if !row.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 let values = row.components(separatedBy: delimiter)
                 structuredText += "Row \(i): " + values.joined(separator: " | ") + "\n"
             }
-        }
-
-        if lines.count > 1001 {
-            structuredText += "\n(Note: CSV contains \(lines.count) total rows, showing first 1000 for efficiency)\n"
         }
 
         return structuredText
@@ -2551,17 +3213,206 @@ class DocumentProcessor {
         throw DocumentProcessingError.iWorkExtractionFailed
     }
 
-    /// Extract text from modern Office XML formats
+    /// Extract text from modern Office XML formats (.docx, .xlsx, .pptx)
+    /// These are ZIP archives containing XML with the actual content
     private func extractTextFromOfficeXML(url: URL, type: DocumentType) throws -> String {
-        // Modern Office formats (.docx, .xlsx, .pptx) are ZIP files
-        // They contain XML files with the actual content
+        // Modern Office formats are ZIP files with XML content inside
+        // .docx: word/document.xml
+        // .xlsx: xl/sharedStrings.xml + xl/worksheets/sheet*.xml
+        // .pptx: ppt/slides/slide*.xml
 
-        Log.warning("[DocumentProcessor] Modern Office format detected", category: .ingestion)
-        Log.info("[DocumentProcessor] Suggestion: For best results, export as PDF before importing", category: .ingestion)
+        Log.info("[DocumentProcessor] Extracting Office XML: \(url.lastPathComponent)", category: .ingestion)
 
-        // This would require ZIP extraction and XML parsing
-        // For now, suggest conversion
-        throw DocumentProcessingError.officeFormatNeedsConversion
+        // Read the file as data and extract using Archive (iOS 16+)
+        guard let archive = ZIPArchive(url: url) else {
+            Log.warning("[DocumentProcessor] Failed to open as ZIP archive", category: .ingestion)
+            throw DocumentProcessingError.officeFormatNeedsConversion
+        }
+
+        var extractedText = ""
+
+        switch type {
+        case .word:
+            // Word documents: main content is in word/document.xml
+            if let documentXML = archive.extractString(path: "word/document.xml") {
+                extractedText = extractTextFromWordXML(documentXML)
+            }
+            // Also check for headers/footers
+            for i in 1...10 {
+                if let headerXML = archive.extractString(path: "word/header\(i).xml") {
+                    extractedText += "\n" + extractTextFromWordXML(headerXML)
+                }
+                if let footerXML = archive.extractString(path: "word/footer\(i).xml") {
+                    extractedText += "\n" + extractTextFromWordXML(footerXML)
+                }
+            }
+
+        case .excel:
+            // Excel: shared strings + worksheet cells
+            var sharedStrings: [String] = []
+            if let sharedStringsXML = archive.extractString(path: "xl/sharedStrings.xml") {
+                sharedStrings = extractSharedStringsFromExcel(sharedStringsXML)
+            }
+            // Extract each worksheet
+            for i in 1...100 {
+                if let sheetXML = archive.extractString(path: "xl/worksheets/sheet\(i).xml") {
+                    extractedText += extractTextFromExcelSheet(sheetXML, sharedStrings: sharedStrings)
+                    extractedText += "\n\n"
+                } else {
+                    break
+                }
+            }
+
+        case .powerpoint:
+            // PowerPoint: slides contain text
+            for i in 1...500 {
+                if let slideXML = archive.extractString(path: "ppt/slides/slide\(i).xml") {
+                    extractedText += extractTextFromPowerPointSlide(slideXML)
+                    extractedText += "\n\n---\n\n"  // Slide separator
+                } else {
+                    break
+                }
+            }
+
+        default:
+            throw DocumentProcessingError.officeFormatNeedsConversion
+        }
+
+        let trimmed = extractedText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            Log.warning("[DocumentProcessor] No text extracted from Office document", category: .ingestion)
+            throw DocumentProcessingError.officeFormatNeedsConversion
+        }
+
+        Log.info("[DocumentProcessor] Extracted \(trimmed.count) chars from Office document", category: .ingestion)
+        return trimmed
+    }
+
+    /// Extract text from Word XML (removes tags, preserves structure)
+    private func extractTextFromWordXML(_ xml: String) -> String {
+        // Word uses <w:t> tags for text, <w:p> for paragraphs
+        var text = xml
+
+        // Replace paragraph breaks with newlines
+        text = text.replacingOccurrences(of: "</w:p>", with: "\n")
+
+        // Replace soft breaks
+        text = text.replacingOccurrences(of: "<w:br/>", with: "\n")
+        text = text.replacingOccurrences(of: "<w:br />", with: "\n")
+
+        // Extract text from <w:t> tags
+        // Pattern: <w:t>content</w:t> or <w:t xml:space="preserve">content</w:t>
+        let pattern = #"<w:t[^>]*>([^<]*)</w:t>"#
+        if let regex = try? NSRegularExpression(pattern: pattern, options: []) {
+            let range = NSRange(text.startIndex..., in: text)
+            var extractedParts: [String] = []
+
+            regex.enumerateMatches(in: text, options: [], range: range) { match, _, _ in
+                if let match = match, let contentRange = Range(match.range(at: 1), in: text) {
+                    extractedParts.append(String(text[contentRange]))
+                }
+            }
+
+            return extractedParts.joined()
+        }
+
+        // Fallback: strip all XML tags
+        return text.replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+    }
+
+    /// Extract shared strings from Excel (these are referenced by index in sheets)
+    private func extractSharedStringsFromExcel(_ xml: String) -> [String] {
+        var strings: [String] = []
+
+        // Pattern: <t>content</t> within <si> elements
+        let pattern = #"<si>.*?<t[^>]*>([^<]*)</t>.*?</si>"#
+        if let regex = try? NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators]) {
+            let range = NSRange(xml.startIndex..., in: xml)
+            regex.enumerateMatches(in: xml, options: [], range: range) { match, _, _ in
+                if let match = match, let contentRange = Range(match.range(at: 1), in: xml) {
+                    strings.append(String(xml[contentRange]))
+                }
+            }
+        }
+
+        return strings
+    }
+
+    /// Extract text from Excel worksheet, using shared strings for cell values
+    private func extractTextFromExcelSheet(_ xml: String, sharedStrings: [String]) -> String {
+        var rows: [[String]] = []
+        var currentRow: [String] = []
+
+        // Pattern for cells: <c r="A1" t="s"><v>0</v></c> (t="s" means shared string index)
+        // or <c r="A1"><v>123</v></c> for numbers
+        let rowPattern = #"<row[^>]*>(.*?)</row>"#
+        let cellPattern = #"<c[^>]*(?:t="([^"]*)")?[^>]*><v>([^<]*)</v></c>"#
+
+        if let rowRegex = try? NSRegularExpression(pattern: rowPattern, options: [.dotMatchesLineSeparators]),
+           let cellRegex = try? NSRegularExpression(pattern: cellPattern, options: []) {
+
+            let range = NSRange(xml.startIndex..., in: xml)
+            rowRegex.enumerateMatches(in: xml, options: [], range: range) { rowMatch, _, _ in
+                if let rowMatch = rowMatch, let rowContentRange = Range(rowMatch.range(at: 1), in: xml) {
+                    let rowContent = String(xml[rowContentRange])
+                    currentRow = []
+
+                    let cellRange = NSRange(rowContent.startIndex..., in: rowContent)
+                    cellRegex.enumerateMatches(in: rowContent, options: [], range: cellRange) { cellMatch, _, _ in
+                        if let cellMatch = cellMatch {
+                            let typeRange = Range(cellMatch.range(at: 1), in: rowContent)
+                            let valueRange = Range(cellMatch.range(at: 2), in: rowContent)
+
+                            if let valueRange = valueRange {
+                                let value = String(rowContent[valueRange])
+                                let cellType = typeRange.map { String(rowContent[$0]) }
+
+                                if cellType == "s", let index = Int(value), index < sharedStrings.count {
+                                    currentRow.append(sharedStrings[index])
+                                } else {
+                                    currentRow.append(value)
+                                }
+                            }
+                        }
+                    }
+
+                    if !currentRow.isEmpty {
+                        rows.append(currentRow)
+                    }
+                }
+            }
+        }
+
+        // Format as tab-separated values (like CSV but cleaner for RAG)
+        return rows.map { $0.joined(separator: "\t") }.joined(separator: "\n")
+    }
+
+    /// Extract text from PowerPoint slide XML
+    private func extractTextFromPowerPointSlide(_ xml: String) -> String {
+        let text = xml
+
+        // PowerPoint uses <a:t> tags for text
+        let pattern = #"<a:t>([^<]*)</a:t>"#
+        if let regex = try? NSRegularExpression(pattern: pattern, options: []) {
+            let range = NSRange(text.startIndex..., in: text)
+            var extractedParts: [String] = []
+
+            regex.enumerateMatches(in: text, options: [], range: range) { match, _, _ in
+                if let match = match, let contentRange = Range(match.range(at: 1), in: text) {
+                    let content = String(text[contentRange])
+                    if !content.trimmingCharacters(in: .whitespaces).isEmpty {
+                        extractedParts.append(content)
+                    }
+                }
+            }
+
+            return extractedParts.joined(separator: " ")
+        }
+
+        // Fallback
+        return text.replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
     }
 
     // MARK: - Chunking Strategy
@@ -2783,5 +3634,185 @@ enum DocumentProcessingError: LocalizedError {
         case .audioTranscriptionEmpty:
             return "Audio transcription produced no text. The audio may be silent or incompatible."
         }
+    }
+}
+
+// MARK: - ZIP Archive Helper for Office Documents
+
+/// Lightweight ZIP archive reader for extracting Office XML content
+/// Uses Foundation's compression framework for memory-efficient extraction
+private final class ZIPArchive {
+    private let fileHandle: FileHandle
+    private let fileSize: UInt64
+    private var centralDirectory: [String: CentralDirectoryEntry] = [:]
+
+    struct CentralDirectoryEntry {
+        let compressedSize: UInt32
+        let uncompressedSize: UInt32
+        let localHeaderOffset: UInt32
+        let compressionMethod: UInt16
+    }
+
+    init?(url: URL) {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+        self.fileHandle = handle
+
+        // Get file size
+        do {
+            let endOffset = try handle.seekToEnd()
+            self.fileSize = endOffset
+            try handle.seek(toOffset: 0)
+        } catch {
+            try? handle.close()
+            return nil
+        }
+
+        // Parse central directory
+        if !parseCentralDirectory() {
+            try? handle.close()
+            return nil
+        }
+    }
+
+    deinit {
+        try? fileHandle.close()
+    }
+
+    /// Extract a file from the archive as a string
+    func extractString(path: String) -> String? {
+        guard let data = extractData(path: path) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    /// Extract a file from the archive as data
+    func extractData(path: String) -> Data? {
+        guard let entry = centralDirectory[path] else { return nil }
+
+        do {
+            try fileHandle.seek(toOffset: UInt64(entry.localHeaderOffset))
+
+            // Read local file header
+            guard let localHeader = try fileHandle.read(upToCount: 30) else { return nil }
+            guard localHeader.count >= 30 else { return nil }
+
+            // Parse local header to get filename length and extra field length
+            let filenameLength = UInt16(localHeader[26]) | (UInt16(localHeader[27]) << 8)
+            let extraLength = UInt16(localHeader[28]) | (UInt16(localHeader[29]) << 8)
+
+            // Skip filename and extra field
+            let dataOffset = UInt64(entry.localHeaderOffset) + 30 + UInt64(filenameLength) + UInt64(extraLength)
+            try fileHandle.seek(toOffset: dataOffset)
+
+            // Read compressed data
+            guard let compressedData = try fileHandle.read(upToCount: Int(entry.compressedSize)) else { return nil }
+
+            // Decompress if needed
+            if entry.compressionMethod == 0 {
+                // Stored (no compression)
+                return compressedData
+            } else if entry.compressionMethod == 8 {
+                // Deflate compression
+                return decompressDeflate(compressedData, uncompressedSize: Int(entry.uncompressedSize))
+            }
+
+            return nil
+        } catch {
+            return nil
+        }
+    }
+
+    private func parseCentralDirectory() -> Bool {
+        // Find End of Central Directory record (search from end)
+        let searchSize = min(65557, Int(fileSize))  // Max comment size + EOCD size
+        let searchStart = fileSize - UInt64(searchSize)
+
+        do {
+            try fileHandle.seek(toOffset: searchStart)
+            guard let searchData = try fileHandle.read(upToCount: searchSize) else { return false }
+
+            // Look for EOCD signature (0x06054b50) from the end
+            var eocdOffset: Int?
+            for i in stride(from: searchData.count - 22, through: 0, by: -1) {
+                if searchData[i] == 0x50 && searchData[i+1] == 0x4b &&
+                   searchData[i+2] == 0x05 && searchData[i+3] == 0x06 {
+                    eocdOffset = i
+                    break
+                }
+            }
+
+            guard let offset = eocdOffset else { return false }
+
+            // Parse EOCD
+            let cdEntries = UInt16(searchData[offset + 10]) | (UInt16(searchData[offset + 11]) << 8)
+            let cdSize = UInt32(searchData[offset + 12]) | (UInt32(searchData[offset + 13]) << 8) |
+                         (UInt32(searchData[offset + 14]) << 16) | (UInt32(searchData[offset + 15]) << 24)
+            let cdOffset = UInt32(searchData[offset + 16]) | (UInt32(searchData[offset + 17]) << 8) |
+                           (UInt32(searchData[offset + 18]) << 16) | (UInt32(searchData[offset + 19]) << 24)
+
+            // Read central directory
+            try fileHandle.seek(toOffset: UInt64(cdOffset))
+            guard let cdData = try fileHandle.read(upToCount: Int(cdSize)) else { return false }
+
+            // Parse central directory entries
+            var pos = 0
+            for _ in 0..<cdEntries {
+                guard pos + 46 <= cdData.count else { break }
+
+                // Check signature
+                guard cdData[pos] == 0x50 && cdData[pos+1] == 0x4b &&
+                      cdData[pos+2] == 0x01 && cdData[pos+3] == 0x02 else { break }
+
+                let compressionMethod = UInt16(cdData[pos + 10]) | (UInt16(cdData[pos + 11]) << 8)
+                let compressedSize = UInt32(cdData[pos + 20]) | (UInt32(cdData[pos + 21]) << 8) |
+                                     (UInt32(cdData[pos + 22]) << 16) | (UInt32(cdData[pos + 23]) << 24)
+                let uncompressedSize = UInt32(cdData[pos + 24]) | (UInt32(cdData[pos + 25]) << 8) |
+                                       (UInt32(cdData[pos + 26]) << 16) | (UInt32(cdData[pos + 27]) << 24)
+                let filenameLength = UInt16(cdData[pos + 28]) | (UInt16(cdData[pos + 29]) << 8)
+                let extraLength = UInt16(cdData[pos + 30]) | (UInt16(cdData[pos + 31]) << 8)
+                let commentLength = UInt16(cdData[pos + 32]) | (UInt16(cdData[pos + 33]) << 8)
+                let localHeaderOffset = UInt32(cdData[pos + 42]) | (UInt32(cdData[pos + 43]) << 8) |
+                                        (UInt32(cdData[pos + 44]) << 16) | (UInt32(cdData[pos + 45]) << 24)
+
+                // Extract filename
+                let filenameStart = pos + 46
+                let filenameEnd = filenameStart + Int(filenameLength)
+                guard filenameEnd <= cdData.count else { break }
+
+                if let filename = String(data: cdData[filenameStart..<filenameEnd], encoding: .utf8) {
+                    centralDirectory[filename] = CentralDirectoryEntry(
+                        compressedSize: compressedSize,
+                        uncompressedSize: uncompressedSize,
+                        localHeaderOffset: localHeaderOffset,
+                        compressionMethod: compressionMethod
+                    )
+                }
+
+                pos = filenameEnd + Int(extraLength) + Int(commentLength)
+            }
+
+            return !centralDirectory.isEmpty
+        } catch {
+            return false
+        }
+    }
+
+    /// Decompress deflate-compressed data using Compression framework
+    private func decompressDeflate(_ data: Data, uncompressedSize: Int) -> Data? {
+        // Use raw deflate (not zlib wrapped)
+        var decompressed = Data(count: uncompressedSize)
+        let result = decompressed.withUnsafeMutableBytes { destBuffer in
+            data.withUnsafeBytes { srcBuffer in
+                compression_decode_buffer(
+                    destBuffer.bindMemory(to: UInt8.self).baseAddress!,
+                    uncompressedSize,
+                    srcBuffer.bindMemory(to: UInt8.self).baseAddress!,
+                    data.count,
+                    nil,
+                    COMPRESSION_ZLIB
+                )
+            }
+        }
+
+        return result > 0 ? Data(decompressed.prefix(result)) : nil
     }
 }

@@ -354,6 +354,13 @@ struct OnboardingChecklistView: View {
                 )
 
                 OnboardingFeatureRow(
+                    icon: "brain.head.profile",
+                    iconColor: .purple,
+                    title: "Auto Intelligence",
+                    description: "Automatically learns your documents to give better answers"
+                )
+
+                OnboardingFeatureRow(
                     icon: "doc.text.magnifyingglass",
                     iconColor: .blue,
                     title: "Smart Search",
@@ -361,17 +368,10 @@ struct OnboardingChecklistView: View {
                 )
 
                 OnboardingFeatureRow(
-                    icon: "bolt.fill",
+                    icon: "airplane",
                     iconColor: .orange,
-                    title: "Instant Answers",
-                    description: "No waiting—responses start in under a second"
-                )
-
-                OnboardingFeatureRow(
-                    icon: "iphone",
-                    iconColor: .purple,
-                    title: "Works Offline",
-                    description: "Search and basic answers work without internet"
+                    title: "Works in Airplane Mode",
+                    description: "Search and get answers even without internet"
                 )
             }
 .padding(.horizontal, 32)

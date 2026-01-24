@@ -29,6 +29,7 @@ struct ThinkingStep: Identifiable, Sendable {
         case synthesizing = "✨ Synthesizing answer"
         case refining = "🔧 Refining response"
         case reformulating = "🔄 Trying different angle"
+        case verifying = "✅ Verifying answer"
 
         /// Display name for UI
         var displayName: String { rawValue }
@@ -38,7 +39,7 @@ struct ThinkingStep: Identifiable, Sendable {
             switch self {
             case .planning: return .planning
             case .searching, .reformulating, .expanding: return .retrieval
-            case .analyzing: return .rerank
+            case .analyzing, .verifying: return .rerank
             case .synthesizing, .refining: return .generation
             }
         }
@@ -461,15 +462,51 @@ final class AgenticOrchestrator: Sendable {
                 totalTokens += unlimitedResult.totalTokens
                 logStepTokens("Unlimited (\(unlimitedResult.sessionsRun) sessions)", unlimitedResult.totalTokens)
 
-                return AgenticResult(
-                    finalAnswer: unlimitedResult.finalAnswer,
-                    steps: steps,
-                    totalTokens: totalTokens,
-                    totalDuration: Date().timeIntervalSince(startTime),
-                    confidence: unlimitedResult.confidence,
-                    sourcesUsed: allChunksForMultiChain.count,
-                    retrievedChunks: allChunksForMultiChain
-                )
+                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                // SELF-RAG 2.0: Verify Maximum mode actually answered the question
+                // 41 sessions means nothing if the answer is off-topic garbage
+                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                do {
+                    Log.info("[Agentic] Maximum Mode: Running Self-RAG 2.0 verification", category: .llm)
+
+                    let verification = await verifySelfRAG(
+                        query: query,
+                        answer: unlimitedResult.finalAnswer,
+                        sourceChunks: allChunksForMultiChain,
+                        ragService: ragService
+                    )
+
+                    let verifyStep = ThinkingStep(
+                        id: UUID(),
+                        type: .verifying,
+                        input: "Self-RAG verification",
+                        output: verification.summary,
+                        tokensUsed: 0,
+                        duration: 0.1,
+                        timestamp: Date(),
+                        confidence: verification.calibratedConfidence
+                    )
+                    steps.append(verifyStep)
+                    await onStep?(verifyStep)
+
+                    // Use calibrated confidence, not the inflated session-based one
+                    // If answer doesn't address the question, confidence drops dramatically
+                    let finalConfidence = verification.addressesQuestion
+                        ? max(verification.calibratedConfidence, 0.5)  // Good answer: at least 50%
+                        : min(verification.calibratedConfidence, 0.4)  // Bad answer: capped at 40%
+
+                    Log.info("[Agentic] Maximum Mode: Calibrated confidence \(Int(unlimitedResult.confidence * 100))% → \(Int(finalConfidence * 100))% (addresses question: \(verification.addressesQuestion))", category: .llm)
+
+                    return AgenticResult(
+                        finalAnswer: unlimitedResult.finalAnswer,
+                        steps: steps,
+                        totalTokens: totalTokens,
+                        totalDuration: Date().timeIntervalSince(startTime),
+                        confidence: finalConfidence,
+                        sourcesUsed: allChunksForMultiChain.count,
+                        retrievedChunks: allChunksForMultiChain
+                    )
+                }
             }
 
             // Standard mode: Single reasoning chain
@@ -530,6 +567,72 @@ final class AgenticOrchestrator: Sendable {
                     )
                 }
                 Log.debug("[Agentic] Recursive research also couldn't find answer - using original chain result", category: .llm)
+            }
+
+            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            // SELF-RAG 2.0: Verify answer before returning (Deep Think mode only)
+            // 2026 best practice: Don't just generate — verify citations and relevance
+            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            let isDeepThinkMode = config.maxSteps >= 8 && !config.isUnlimited
+            if isDeepThinkMode {
+                Log.info("[Agentic] Deep Think: Running Self-RAG 2.0 verification", category: .llm)
+
+                let verification = await verifySelfRAG(
+                    query: query,
+                    answer: chainResult.finalAnswer,
+                    sourceChunks: allRetrievedChunks,
+                    ragService: ragService
+                )
+
+                // Emit verification step
+                let verifyStep = ThinkingStep(
+                    id: UUID(),
+                    type: .verifying,
+                    input: "Self-RAG verification",
+                    output: verification.summary,
+                    tokensUsed: 0,
+                    duration: 0.1,
+                    timestamp: Date(),
+                    confidence: verification.calibratedConfidence
+                )
+                steps.append(verifyStep)
+                await onStep?(verifyStep)
+
+                // Apply calibrated confidence (not heuristic session-based)
+                let calibratedConfidence = verification.calibratedConfidence
+
+                // If verification suggests retry and we haven't already recursed
+                if verification.action == "retry" && !answerIndicatesRetrievalMiss(chainResult.finalAnswer) {
+                    Log.info("[Agentic] Self-RAG: Verification suggests retry (relevance issue)", category: .llm)
+                    // Try recursive research as backup
+                    let recursiveResult = try await executeRecursiveResearch(
+                        query: query,
+                        maxIterations: 3,
+                        onStep: onStep
+                    )
+                    if !answerIndicatesRetrievalMiss(recursiveResult.finalAnswer) {
+                        steps.append(contentsOf: recursiveResult.steps)
+                        return AgenticResult(
+                            finalAnswer: recursiveResult.finalAnswer,
+                            steps: steps,
+                            totalTokens: totalTokens + recursiveResult.totalTokens,
+                            totalDuration: Date().timeIntervalSince(startTime),
+                            confidence: max(calibratedConfidence, recursiveResult.confidence),
+                            sourcesUsed: recursiveResult.sourcesUsed,
+                            retrievedChunks: recursiveResult.retrievedChunks
+                        )
+                    }
+                }
+
+                return AgenticResult(
+                    finalAnswer: chainResult.finalAnswer,
+                    steps: steps,
+                    totalTokens: totalTokens,
+                    totalDuration: Date().timeIntervalSince(startTime),
+                    confidence: calibratedConfidence,
+                    sourcesUsed: allRetrievedChunks.count,
+                    retrievedChunks: allRetrievedChunks
+                )
             }
 
             return AgenticResult(
@@ -601,6 +704,42 @@ final class AgenticOrchestrator: Sendable {
 
             totalTokens += chainResult.totalTokens
             logStepTokens("Reasoning Chain (Good)", chainResult.totalTokens)
+
+            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            // SELF-RAG 2.0: Verify answer before returning (Deep Think mode)
+            // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            let isDeepThinkMode = config.maxSteps >= 8 && !config.isUnlimited
+            if isDeepThinkMode {
+                let verification = await verifySelfRAG(
+                    query: query,
+                    answer: chainResult.finalAnswer,
+                    sourceChunks: allRetrievedChunks,
+                    ragService: ragService
+                )
+
+                let verifyStep = ThinkingStep(
+                    id: UUID(),
+                    type: .verifying,
+                    input: "Self-RAG verification",
+                    output: verification.summary,
+                    tokensUsed: 0,
+                    duration: 0.1,
+                    timestamp: Date(),
+                    confidence: verification.calibratedConfidence
+                )
+                steps.append(verifyStep)
+                await onStep?(verifyStep)
+
+                return AgenticResult(
+                    finalAnswer: chainResult.finalAnswer,
+                    steps: steps,
+                    totalTokens: totalTokens,
+                    totalDuration: Date().timeIntervalSince(startTime),
+                    confidence: verification.calibratedConfidence,
+                    sourcesUsed: allRetrievedChunks.count,
+                    retrievedChunks: allRetrievedChunks
+                )
+            }
 
             return AgenticResult(
                 finalAnswer: chainResult.finalAnswer,
@@ -1019,13 +1158,13 @@ final class AgenticOrchestrator: Sendable {
         let systemPrompt = """
         Answer using ONLY the provided excerpts [S1], [S2], etc.
         Rules:
-        1) Use ONLY information from excerpts - cite [S1], [S2] etc.
-        2) Include SPECIFIC actions: exact steps, durations (e.g., "hold for 1 second")
-        3) Include FEEDBACK indicators: vibrations, lights, sounds, visual cues
-        4) Provide STEP-BY-STEP procedures when applicable
-        5) Include technical specifications (voltages, dimensions, capacities)
-        6) Connect related concepts across multiple excerpts
-        7) Be THOROUGH - extract every relevant detail, don't summarize away specifics
+        1) Use ONLY information from excerpts - cite [S1], [S2] etc. (NOT URLs!)
+        2) Look for SPECIFIC VALUES: numbers, measurements, specifications, ratings
+        3) Include exact steps, durations, technical specs when present
+        4) Include FEEDBACK indicators: lights, sounds, vibrations, visual cues
+        5) Provide STEP-BY-STEP procedures when applicable
+        6) Be THOROUGH - extract every relevant detail, especially specific values
+        7) Read OCR'd text carefully - look for model numbers, specifications, capacities
         """
 
         // Generate using the main RAGService pipeline which handles:
@@ -1129,18 +1268,18 @@ final class AgenticOrchestrator: Sendable {
         Expert research analyst synthesizing multiple document sources.
 
         EXTRACTION REQUIREMENTS:
-        - Specific ACTIONS: exact steps, button presses, durations ("hold 1 second until vibration")
-        - Feedback INDICATORS: lights (color, pattern), sounds, vibrations, on-screen messages
+        - Find SPECIFIC VALUES: numbers, specifications, ratings, capacities, measurements
+        - Specific ACTIONS: exact steps, button presses, durations
+        - Feedback INDICATORS: lights, sounds, vibrations, on-screen messages
         - STEP-BY-STEP procedures with numbered steps
         - Technical SPECIFICATIONS: voltages, capacities, dimensions, ranges
-        - WARNINGS and precautions mentioned in documents
-        - CONNECTIONS between related concepts across different excerpts
+        - Read OCR'd text carefully - extract values even if formatting is imperfect
 
         FORMAT:
-        - Cite sources as [S1], [S2], etc.
+        - Cite sources as [S1], [S2], etc. (bracket notation only, NOT URLs!)
         - Use headers for major sections
-        - Use bullet points for lists of steps or features
-        - Be EXHAUSTIVE - include every relevant detail from every source
+        - Use bullet points for lists
+        - Quote exact values/specs when you find them
 
         NEVER say "I don't have information" - always provide what IS in the documents.
         If the question is vague, interpret it based on document topics and provide all relevant findings.
@@ -2543,6 +2682,302 @@ final class AgenticOrchestrator: Sendable {
         }
     }
 
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // MARK: - Self-RAG 2.0: Answer Verification & Citation Grounding
+    // 2026 RAG Best Practice: Don't just generate — VERIFY before returning
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    /// Result of Self-RAG verification
+    struct SelfRAGVerification: Sendable {
+        /// Does the answer actually address the user's question?
+        let addressesQuestion: Bool
+        /// Are citations grounded in actual source content?
+        let citationsVerified: Bool
+        /// Number of citations that were verified
+        let verifiedCitationCount: Int
+        /// Number of citations that couldn't be verified (hallucinated)
+        let unverifiedCitationCount: Int
+        /// Calibrated confidence score (0-1) based on semantic + lexical signals
+        let calibratedConfidence: Float
+        /// Human-readable summary of verification
+        let summary: String
+        /// Suggested action: "accept", "retry", "escalate"
+        let action: String
+    }
+
+    /// Full Self-RAG verification: answer relevance + citation grounding + confidence calibration
+    /// Called after Deep Think synthesis to ensure quality before returning to user
+    func verifySelfRAG(
+        query: String,
+        answer: String,
+        sourceChunks: [RetrievedChunk],
+        ragService: RAGService
+    ) async -> SelfRAGVerification {
+        Log.info("[Self-RAG 2.0] Starting verification: query=\(query.prefix(50))..., answer=\(answer.count) chars", category: .llm)
+
+        // 1. Check if answer addresses the question (semantic relevance)
+        let addressScore = computeAnswerRelevance(query: query, answer: answer)
+        let addressesQuestion = addressScore >= 0.35
+
+        // 2. Verify citations are grounded in sources
+        let citationResult = verifyCitations(answer: answer, sources: sourceChunks)
+
+        // 3. Compute calibrated confidence
+        let calibrated = computeCalibratedConfidence(
+            answerRelevance: addressScore,
+            citationScore: citationResult.groundingScore,
+            answerLength: answer.count,
+            sourceCount: sourceChunks.count
+        )
+
+        // 4. Determine action
+        let action: String
+        if !addressesQuestion {
+            action = "retry"  // Answer doesn't address question, need another attempt
+        } else if citationResult.groundingScore < 0.3 && citationResult.totalCitations > 0 {
+            action = "retry"  // Citations are mostly hallucinated
+        } else if calibrated < 0.5 {
+            action = "escalate"  // Low confidence, maybe escalate to Maximum mode
+        } else {
+            action = "accept"  // Good to go
+        }
+
+        let summary = buildVerificationSummary(
+            addressesQuestion: addressesQuestion,
+            addressScore: addressScore,
+            citationResult: citationResult,
+            calibrated: calibrated,
+            action: action
+        )
+
+        Log.info("[Self-RAG 2.0] Verification complete: \(action) (relevance=\(Int(addressScore * 100))%, citations=\(citationResult.verified)/\(citationResult.totalCitations), confidence=\(Int(calibrated * 100))%)", category: .llm)
+
+        return SelfRAGVerification(
+            addressesQuestion: addressesQuestion,
+            citationsVerified: citationResult.verified == citationResult.totalCitations && citationResult.totalCitations > 0,
+            verifiedCitationCount: citationResult.verified,
+            unverifiedCitationCount: citationResult.totalCitations - citationResult.verified,
+            calibratedConfidence: calibrated,
+            summary: summary,
+            action: action
+        )
+    }
+
+    /// Compute semantic relevance between query and answer using lexical overlap + key term matching
+    /// UNIVERSAL: No domain-specific logic - works for any document type
+    private func computeAnswerRelevance(query: String, answer: String) -> Float {
+        let queryLower = query.lowercased()
+        let answerLower = answer.lowercased()
+
+        // Extract key terms from query (remove stop words)
+        let stopWords: Set<String> = ["what", "how", "why", "when", "where", "who", "which",
+                                       "does", "do", "is", "are", "was", "were", "the", "a", "an",
+                                       "of", "in", "to", "for", "and", "or", "on", "with", "this", "that"]
+        let queryTerms = queryLower.split(separator: " ")
+            .map { String($0).trimmingCharacters(in: .punctuationCharacters) }
+            .filter { $0.count > 2 && !stopWords.contains($0) }
+
+        guard !queryTerms.isEmpty else { return 0.5 }  // Can't evaluate without terms
+
+        // Score 1: Key term coverage (what % of query terms appear in answer?)
+        var matchedTerms = 0
+        for term in queryTerms {
+            if answerLower.contains(term) {
+                matchedTerms += 1
+            }
+        }
+        let termCoverage = Float(matchedTerms) / Float(queryTerms.count)
+
+        // Score 2: Answer has concrete specifics (numbers, citations)
+        let hasNumbers = answer.range(of: #"\d+\.?\d*"#, options: .regularExpression) != nil
+        let hasCitations = answer.contains("[S") || answer.contains("[Doc")
+        let specificityBonus: Float = (hasNumbers ? 0.10 : 0) + (hasCitations ? 0.10 : 0)
+
+        // Score 3: Penalty for hedging/non-answers (UNIVERSAL patterns)
+        let hedgingMarkers = [
+            "isn't explicitly",
+            "not explicitly",
+            "remains speculative",
+            "lack of explicit",
+            "without specific information",
+            "would be necessary to",
+            "further documentation",
+            "requires additional",
+            "doesn't directly",
+            "does not directly",
+            "cannot conclusively",
+            "insufficient information",
+            "not enough information",
+            "future research"
+        ]
+        let hedgingCount = hedgingMarkers.filter { answerLower.contains($0) }.count
+        let hedgingPenalty: Float = min(Float(hedgingCount) * 0.12, 0.5)
+
+        // Score 4: Length-to-substance ratio
+        // Long answers that hedge a lot are worse than short direct answers
+        let lengthPenalty: Float
+        if answer.count > 3000 && hedgingCount >= 2 {
+            lengthPenalty = 0.20  // Long AND hedging = bad
+        } else {
+            lengthPenalty = 0
+        }
+
+        // Score 5: Refusal detection
+        let refusalMarkers = ["i cannot", "i don't have", "not found", "unable to", "no information"]
+        let hasRefusal = refusalMarkers.contains { answerLower.contains($0) }
+        let refusalPenalty: Float = hasRefusal ? 0.25 : 0
+
+        // Score 6: URL hallucination detection
+        // If model generates URLs instead of [S1] citations, that's a hallucination
+        let urlPattern = #"https?://[a-zA-Z0-9\-\.]+\.[a-zA-Z]{2,}"#
+        let hasURLs = answer.range(of: urlPattern, options: .regularExpression) != nil
+        let urlHallucinationPenalty: Float = hasURLs ? 0.30 : 0
+
+        let relevance = min(1.0, (termCoverage * 0.7 + specificityBonus) - hedgingPenalty - lengthPenalty - refusalPenalty - urlHallucinationPenalty)
+        return max(0, relevance)
+    }
+
+    /// Citation verification result
+    private struct CitationVerificationResult {
+        let verified: Int           // Citations that exist in sources
+        let totalCitations: Int     // Total [S1], [S2], etc. found
+        let groundingScore: Float   // 0-1, how well citations are grounded
+        let details: [String]       // Per-citation verification details
+    }
+
+    /// Verify that citations [S1], [S2], etc. actually reference content from sources
+    private func verifyCitations(answer: String, sources: [RetrievedChunk]) -> CitationVerificationResult {
+        // Extract citation markers from answer
+        let citationPattern = #"\[S(\d+)\]"#
+        guard let regex = try? NSRegularExpression(pattern: citationPattern, options: []) else {
+            return CitationVerificationResult(verified: 0, totalCitations: 0, groundingScore: 1.0, details: [])
+        }
+
+        let matches = regex.matches(in: answer, options: [], range: NSRange(answer.startIndex..., in: answer))
+
+        // Get unique citation numbers
+        var citationNumbers: Set<Int> = []
+        for match in matches {
+            if let range = Range(match.range(at: 1), in: answer),
+               let num = Int(answer[range]) {
+                citationNumbers.insert(num)
+            }
+        }
+
+        guard !citationNumbers.isEmpty else {
+            // No citations = can't verify, but not necessarily bad
+            return CitationVerificationResult(verified: 0, totalCitations: 0, groundingScore: 0.5, details: ["No citations found"])
+        }
+
+        // Verify each citation exists in sources
+        var verified = 0
+        var details: [String] = []
+
+        for citationNum in citationNumbers.sorted() {
+            let sourceIndex = citationNum - 1  // [S1] = sources[0]
+            if sourceIndex >= 0 && sourceIndex < sources.count {
+                // Source exists — now verify the claim is actually in the source
+                let sourceContent = sources[sourceIndex].chunk.content.lowercased()
+
+                // Find text near the citation in the answer
+                let citationMarker = "[S\(citationNum)]"
+                if let markerRange = answer.range(of: citationMarker) {
+                    // Extract ~50 chars before the citation marker
+                    let start = answer.index(markerRange.lowerBound, offsetBy: -50, limitedBy: answer.startIndex) ?? answer.startIndex
+                    let claimText = String(answer[start..<markerRange.lowerBound]).lowercased()
+
+                    // Check if key words from the claim appear in the source
+                    let claimWords = claimText.split(separator: " ")
+                        .map { String($0).trimmingCharacters(in: .punctuationCharacters) }
+                        .filter { $0.count > 3 }
+
+                    var matchedWords = 0
+                    for word in claimWords.prefix(10) {
+                        if sourceContent.contains(word) {
+                            matchedWords += 1
+                        }
+                    }
+
+                    let claimGrounded = claimWords.isEmpty || Float(matchedWords) / Float(max(claimWords.count, 1)) >= 0.3
+                    if claimGrounded {
+                        verified += 1
+                        details.append("[S\(citationNum)]: ✓ Verified in source")
+                    } else {
+                        details.append("[S\(citationNum)]: ⚠ Claim not found in source")
+                    }
+                } else {
+                    // Citation marker found via regex but not simple search — weird but accept
+                    verified += 1
+                    details.append("[S\(citationNum)]: ✓ Source exists")
+                }
+            } else {
+                details.append("[S\(citationNum)]: ✗ Source index out of range")
+            }
+        }
+
+        let groundingScore = citationNumbers.isEmpty ? 0.5 : Float(verified) / Float(citationNumbers.count)
+        return CitationVerificationResult(
+            verified: verified,
+            totalCitations: citationNumbers.count,
+            groundingScore: groundingScore,
+            details: details
+        )
+    }
+
+    /// Compute calibrated confidence from multiple signals
+    /// Returns 0-1 confidence that's actually meaningful (not just session count heuristics)
+    private func computeCalibratedConfidence(
+        answerRelevance: Float,
+        citationScore: Float,
+        answerLength: Int,
+        sourceCount: Int
+    ) -> Float {
+        // Weight the signals based on importance
+        // Relevance is most important (does it answer the question?)
+        let relevanceWeight: Float = 0.40
+        // Citation grounding is second (is it factual?)
+        let citationWeight: Float = 0.30
+        // Answer completeness (length + source coverage)
+        let completenessWeight: Float = 0.30
+
+        // Completeness score
+        let lengthScore = min(1.0, Float(answerLength) / 500.0)  // Cap at 500 chars
+        let sourceScore = min(1.0, Float(sourceCount) / 5.0)    // Cap at 5 sources
+        let completeness = (lengthScore + sourceScore) / 2
+
+        // Combine with weights
+        let rawConfidence = (answerRelevance * relevanceWeight) +
+                           (citationScore * citationWeight) +
+                           (completeness * completenessWeight)
+
+        // Apply floor and ceiling
+        // Floor: Never below 30% if we have any answer
+        // Ceiling: Never above 95% without human verification
+        let calibrated = min(0.95, max(0.30, rawConfidence))
+
+        return calibrated
+    }
+
+    /// Build human-readable verification summary
+    private func buildVerificationSummary(
+        addressesQuestion: Bool,
+        addressScore: Float,
+        citationResult: CitationVerificationResult,
+        calibrated: Float,
+        action: String
+    ) -> String {
+        var parts: [String] = []
+
+        parts.append("Relevance: \(Int(addressScore * 100))%")
+        if citationResult.totalCitations > 0 {
+            parts.append("Citations: \(citationResult.verified)/\(citationResult.totalCitations) verified")
+        }
+        parts.append("Confidence: \(Int(calibrated * 100))%")
+        parts.append("Action: \(action)")
+
+        return parts.joined(separator: " | ")
+    }
+
     // MARK: - Speculative RAG (Multi-Path Verification)
 
     /// Speculative RAG: Generate multiple candidate answers, verify each against documents.
@@ -3265,21 +3700,25 @@ extension AgenticOrchestrator {
                         : (similarityCount >= forceTerminationCount || maxOverlapRatio > forceTerminationThreshold)
 
                     if shouldForceTerminate {
-                        repetitionBonus = 0.25 // Strong repetition - topic exhausted
-                        Log.info("[ReasoningChain] Strong repetition detected (\(similarityCount)/4 similar, consecutive: \(consecutiveSimilar), max overlap: \(Int(maxOverlapRatio * 100))%) - topic exhausted", category: .llm)
+                        // Repetition means we're stuck - NOT that we found the answer
+                        // Don't boost confidence, just stop to avoid wasting tokens
+                        repetitionBonus = 0.0 // No confidence boost for repetition
+                        Log.info("[ReasoningChain] Strong repetition detected (\(similarityCount)/4 similar, consecutive: \(consecutiveSimilar), max overlap: \(Int(maxOverlapRatio * 100))%) - stopping to avoid loops", category: .llm)
 
-                        // IMMEDIATE TERMINATION: Force confidence to 99% to trigger stop
-                        // But ONLY if we've done substantial exploration
-                        let minSessionsBeforeForceStop = isUnlimitedMode ? 15 : 6
+                        // IMMEDIATE TERMINATION: Stop the loop, but don't inflate confidence
+                        // The answer may be wrong - repetition != correctness
+                        let minSessionsBeforeForceStop = isUnlimitedMode ? 15 : 4
                         if sessionNum >= minSessionsBeforeForceStop {
-                            cumulativeConfidence = 0.99
-                            Log.info("[ReasoningChain] Forcing early termination due to severe repetition (after \(sessionNum) sessions)", category: .llm)
+                            // Set to threshold to stop, but not higher (don't claim false confidence)
+                            cumulativeConfidence = isDeepThinkMode ? 0.85 : 0.98
+                            Log.info("[ReasoningChain] Forcing early termination due to repetition loop (after \(sessionNum) sessions)", category: .llm)
                         } else {
                             Log.info("[ReasoningChain] Repetition detected but continuing (session \(sessionNum) < \(minSessionsBeforeForceStop) minimum)", category: .llm)
                         }
                     } else if similarityCount >= 2 || maxOverlapRatio > 0.60 {
-                        repetitionBonus = isUnlimitedMode ? 0.05 : 0.15 // Lower bonus in Maximum mode
-                        Log.info("[ReasoningChain] Moderate repetition detected (overlap: \(Int(maxOverlapRatio * 100))%)", category: .llm)
+                        // Moderate repetition - slight penalty, not bonus
+                        repetitionBonus = 0.0 // Don't reward repetition
+                        Log.info("[ReasoningChain] Moderate repetition detected (overlap: \(Int(maxOverlapRatio * 100))%) - no confidence boost", category: .llm)
                     }
                 }
 
@@ -3364,22 +3803,21 @@ extension AgenticOrchestrator {
 
             // PCC can handle much larger prompts (65K context)
             // Structure the prompt for comprehensive synthesis
-            var exhaustivePrompt = "QUESTION: " + query + "\n\n"
+            var exhaustivePrompt = "ORIGINAL QUESTION: " + query + "\n\n"
             exhaustivePrompt += "RESEARCH FINDINGS (" + String(actualSessionCount) + " deep-dive sessions):\n"
             exhaustivePrompt += insightsSummary + "\n\n"
-            exhaustivePrompt += "TASK: Synthesize a COMPREHENSIVE, SCHOLARLY answer integrating ALL findings.\n\n"
+            exhaustivePrompt += "TASK: Synthesize an answer that DIRECTLY addresses: \"" + query + "\"\n\n"
             exhaustivePrompt += "REQUIREMENTS:\n"
-            exhaustivePrompt += "- Include EVERY detail, statistic, finding, and methodology mentioned\n"
-            exhaustivePrompt += "- Organize by major themes with clear topic sentences\n"
-            exhaustivePrompt += "- Cite specific studies, authors, or sources when mentioned\n"
-            exhaustivePrompt += "- Discuss implications, limitations, and future directions if relevant\n"
-            exhaustivePrompt += "- Be EXHAUSTIVE - this is Maximum mode, the user wants depth\n\n"
-            exhaustivePrompt += "COMPREHENSIVE ANSWER:"
+            exhaustivePrompt += "- First, verify the findings actually answer the original question\n"
+            exhaustivePrompt += "- Include specific values, numbers, and specifications found\n"
+            exhaustivePrompt += "- Cite specific sources as [S1], [S2], etc.\n"
+            exhaustivePrompt += "- Be thorough but stay focused on what was asked\n\n"
+            exhaustivePrompt += "DIRECT ANSWER:"
 
-            var exhaustiveSystemPrompt = "You are a research synthesis expert. Your task is to produce an exhaustive, "
-            exhaustiveSystemPrompt += "publication-quality summary. Include all specifics: study names, sample sizes, "
-            exhaustiveSystemPrompt += "effect sizes, methodologies, limitations, and conclusions. "
-            exhaustiveSystemPrompt += "Write in clean prose with clear paragraph breaks. Use **bold** for emphasis only. Be thorough and scholarly."
+            var exhaustiveSystemPrompt = "You synthesize research into a direct answer. "
+            exhaustiveSystemPrompt += "First verify the findings answer the original question. "
+            exhaustiveSystemPrompt += "If findings are about something else, note that clearly. "
+            exhaustiveSystemPrompt += "Include all specific values, numbers, and specifications."
 
             // Apple FM API: 4096 token limit applies to BOTH on-device and PCC
             // The 65K server capacity is internal to Apple, not exposed to developers (TN3193)
@@ -4985,113 +5423,95 @@ extension AgenticOrchestrator {
 
         switch sessionIndex {
         case 0:
-            // SESSION 1: Direct Answer Extraction - find the answer in the documents
+            // SESSION 1: Answer the question using the documents
+            // NOTE: Don't be too restrictive - if there's relevant info, use it
+            // Technical specifications ARE valid answers (SAE 0W-20 = oil type)
             let systemPrompt = """
-            You are an expert at finding answers in documents.
-            Your job is to EXTRACT the answer directly from the provided text.
-            Quote or paraphrase exactly what the documents say.
-            If the documents don't contain the answer, say "NOT FOUND IN DOCUMENTS".
-            Do NOT speculate, infer, or make up information.
+            Answer using the documents. Find specific values and specifications.
+            Technical specs (like "SAE 0W-20", "API SP") ARE valid answers to "what type" questions.
+            Quote exact values from the documents.
             """
             let prompt = """
             QUESTION: \(query)
 
-            DOCUMENTS FROM USER'S LIBRARY:
+            DOCUMENTS:
             \(context)
 
-            TASK: Find and extract the DIRECT ANSWER from these documents.
-
-            Rules:
-            1. Quote or paraphrase what the documents ACTUALLY SAY
-            2. Cite your source: [S1], [S2], etc.
-            3. If the answer is a simple fact, just state it clearly
-            4. If documents don't contain the answer, say "NOT FOUND IN DOCUMENTS"
-            5. Do NOT speculate, infer, or add information not in the documents
-
-            ANSWER (from documents):
+            Find the answer to: "\(query)"
+            - Quote specific values/specifications from the documents
+            - Technical specifications count as valid answers (e.g., "SAE 0W-20" IS an oil type)
+            - Include quantities if mentioned
+            - Cite sources as [S1], [S2] (not URLs)
             """
             return (prompt, systemPrompt)
 
         case 1:
-            // SESSION 2: Verify and Complete - fill in any gaps from the same documents
+            // SESSION 2: Enhance and enrich the initial answer (not hyper-skeptical verification)
             let systemPrompt = """
-            You verify and complete answers based strictly on document evidence.
-            Add ONLY information that is explicitly stated in the documents.
-            Never add speculation or implications not directly stated.
+            You enhance answers by adding more specific values from the documents.
+            Technical specifications (like SAE 0W-20) ARE valid answers - don't reject them.
+            Look for additional details: quantities, capacities, part numbers.
             """
             let prompt = """
-            QUESTION: \(query)
+            ORIGINAL QUESTION: \(query)
 
-            INITIAL ANSWER:
+            CURRENT ANSWER:
             \(insightSummary)
 
-            ORIGINAL DOCUMENTS (for verification):
+            DOCUMENTS:
             \(context.prefix(2000))
 
-            TASK: Verify the answer and add any MISSING details from the documents.
+            ENHANCE this answer by adding:
+            - More specific values from the documents
+            - Quantities, capacities, specifications
+            - Related information (e.g., if asked about oil, include quantity too)
 
-            Check:
-            • Is the answer accurate based on the documents?
-            • Are there additional relevant facts in the documents not yet mentioned?
-            • Are the citations correct?
-
-            If the initial answer is complete and accurate, confirm it.
-            Only add information that is EXPLICITLY in the documents.
+            Note: Specifications like "SAE 0W-20" or "API SP" ARE valid answers to "what type" questions.
+            Cite sources as [S1], [S2] (not URLs).
             """
             return (prompt, systemPrompt)
 
         case sessionCount - 1:
             // FINAL SESSION: Clean Synthesis
             let systemPrompt = """
-            You deliver clear, accurate answers based on prior analysis.
-            Format nicely but do not add new information.
-            Keep it concise and directly relevant to the question.
+            Deliver a clear answer that directly addresses the question.
+            Only include information that answers what was asked.
             """
             let prompt = """
-            QUESTION: \(query)
+            ORIGINAL QUESTION: \(query)
 
-            VERIFIED INFORMATION FROM DOCUMENTS:
+            ANALYSIS:
             \(insightSummary)
 
-            TASK: Write the final answer.
-
-            Rules:
-            1. Directly answer the question using the verified information
-            2. Keep it concise - don't pad with unnecessary context
-            3. Use clear formatting (bold key points if helpful)
-            4. Include source citations [S1], [S2], etc.
-            5. If the documents didn't contain the answer, say so clearly
-
-            ANSWER:
+            Give a direct answer to: "\(query)"
+            - State the specific value/answer clearly
+            - Cite sources as [S1], [S2]
             """
             return (prompt, systemPrompt)
 
         default:
-            // MIDDLE SESSIONS: Look for additional document evidence only
+            // MIDDLE SESSIONS: Enrich with additional details
             let systemPrompt = """
-            You look for additional evidence in documents.
-            Only add information that is DIRECTLY STATED in the documents.
-            If you've already found the answer, say "ANSWER COMPLETE - no additional relevant information in documents."
-            Do NOT speculate about edge cases, implications, or missing context.
+            Add more details and specifications from the documents.
+            Technical specs, model numbers, quantities are all valuable.
+            Don't second-guess correct answers - enhance them.
             """
             let prompt = """
-            QUESTION: \(query)
+            ORIGINAL QUESTION: \(query)
 
-            INFORMATION FOUND SO FAR:
+            CURRENT ANSWER:
             \(insightSummary)
 
-            DOCUMENTS (look for any missed details):
+            DOCUMENTS:
             \(context.prefix(2000))
 
-            TASK: Look for any additional STATED FACTS in the documents that are relevant.
+            ADD more details from the documents:
+            - Additional specifications or part numbers
+            - Quantities and capacities
+            - Related procedures or warnings
 
-            Rules:
-            1. Only cite information DIRECTLY STATED in the documents
-            2. If the answer is already complete, say "ANSWER COMPLETE"
-            3. Do NOT speculate about implications, edge cases, or "what if" scenarios
-            4. Do NOT add interpretation or analysis beyond what documents state
-
-            ADDITIONAL FINDINGS (or "ANSWER COMPLETE"):
+            Keep all correct information from the current answer.
+            Cite as [S1], [S2] only.
             """
             return (prompt, systemPrompt)
         }
@@ -5204,6 +5624,39 @@ extension AgenticOrchestrator {
     private func cleanupFinalAnswer(_ text: String) -> String {
         var result = text
 
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // Handle "NOT FOUND" responses gracefully
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        let upperText = text.uppercased()
+        if upperText.contains("NOT FOUND IN DOCUMENTS") ||
+           upperText.contains("DOCUMENTS DO NOT CONTAIN") ||
+           upperText.contains("COULDN'T FIND") ||
+           upperText.contains("COULD NOT FIND") ||
+           upperText.contains("NO INFORMATION FOUND") ||
+           upperText.contains("NOT AVAILABLE IN") {
+            // Extract what the user was looking for if possible
+            let query = extractQueryContext(from: text)
+            if !query.isEmpty {
+                return "I searched through your documents but couldn't find specific information about \(query). This information may be in an image, diagram, or table that wasn't extracted as text. You could try:\n\n• Checking the original document directly\n• Rephrasing your question with different keywords\n• Uploading additional documentation that covers this topic"
+            } else {
+                return "I searched through your documents but couldn't find the specific information you're looking for. This may be because:\n\n• The information is in an image or diagram that wasn't extracted as text\n• The document uses different terminology\n• This topic isn't covered in the uploaded documents\n\nTry rephrasing your question or checking the original document directly."
+            }
+        }
+
+        // Handle refusal/ethics responses that snuck through
+        let refusalPatterns = [
+            "I'm sorry, but I can't continue with that request",
+            "I'm here to provide helpful and informative content",
+            "adhering to ethical guidelines",
+            "If you have any other questions or need assistance",
+        ]
+        for pattern in refusalPatterns {
+            if text.contains(pattern) {
+                // Strip the refusal, keep any actual content
+                result = result.replacingOccurrences(of: pattern, with: "")
+            }
+        }
+
         // Remove all reasoning/insight markers (including truncated versions and variations)
         let markersToRemove = [
             // Full markers
@@ -5217,6 +5670,9 @@ extension AgenticOrchestrator {
             "NSIGHT:", "SIGHT:", "IGHT:",
             "LYSIS:", "YSIS:", "SIS:",
             "Re Reasoning:", "*ONING:",
+            // Prompt structure leakage
+            "CONCLUSIONS:", "REFERENCES:", "ANSWER:",
+            "conclusions:", "references:", "answer:",
             // Lowercased versions
             "reasons:", "reason:", "insight:", "new details:",
             // Meta markers
@@ -5299,6 +5755,30 @@ extension AgenticOrchestrator {
         }
 
         return result.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Extract what the user was asking about from a "not found" response
+    /// Used to provide helpful feedback about what couldn't be found
+    private func extractQueryContext(from text: String) -> String {
+        // Common patterns where the topic might be mentioned
+        let patterns = [
+            #"(?:about|regarding|for|on)\s+(?:the\s+)?([^.!?\n]+)"#,
+            #"(?:find|locate|search for)\s+(?:the\s+)?([^.!?\n]+)"#,
+            #"(?:information|data|details)\s+(?:about|on|regarding)\s+([^.!?\n]+)"#,
+        ]
+
+        for pattern in patterns {
+            if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
+               let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+               let topicRange = Range(match.range(at: 1), in: text) {
+                let topic = String(text[topicRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+                if topic.count > 3 && topic.count < 100 {
+                    return topic
+                }
+            }
+        }
+
+        return ""
     }
 
     /// Parse confidence score from text

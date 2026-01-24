@@ -554,4 +554,71 @@ class HybridSearchService {
         }
     }
 
+    // MARK: - FTS5 Integration (10-100X faster BM25)
+
+    /// Check if FTS5 acceleration is available for a container
+    /// Call this to determine if FTS5 can be used for BM25 scoring
+    func isFTS5Available(containerId: UUID) async -> Bool {
+        let fts5Service = SQLiteFullTextService.shared
+        let docIds = await fts5Service.getAllDocumentIds()
+        return !docIds.isEmpty
+    }
+
+    /// Get BM25 scores using FTS5's native implementation (10-100X faster)
+    /// - Parameters:
+    ///   - query: Search query
+    ///   - containerId: Container to search within
+    /// - Returns: Map of document UUIDs to BM25 scores
+    func fts5BM25Scores(query: String, containerId: UUID) async -> [UUID: Double] {
+        let fts5Service = SQLiteFullTextService.shared
+        return await fts5Service.bm25Scores(query: query, containerId: containerId)
+    }
+
+    /// Perform hybrid search using FTS5 for BM25 scoring
+    /// This is the optimized path when FTS5 data is available
+    func searchWithFTS5(
+        query: String,
+        embedding: [Float],
+        topK: Int,
+        containerId: UUID
+    ) async throws -> [RetrievedChunk] {
+        Log.debug("[Hybrid] FTS5-accelerated search starting", category: .pipeline)
+
+        let startTime = CFAbsoluteTimeGetCurrent()
+
+        // 1. Vector search (same as before)
+        let vectorCandidateMultiplier = topK > 50 ? 2 : 3
+        let vectorResults = try await vectorDatabase.search(embedding: embedding, topK: topK * vectorCandidateMultiplier)
+
+        // 2. FTS5 BM25 scores (10-100X faster than in-memory)
+        let fts5Service = SQLiteFullTextService.shared
+        let bm25Lookup = await fts5Service.bm25Scores(query: query, containerId: containerId)
+
+        // Map chunk IDs to their parent document's BM25 score
+        let keywordResults: [(chunk: RetrievedChunk, score: Float)] = vectorResults.map { r in
+            let docId = r.chunk.documentId  // Get documentId from the chunk itself
+            let score = Float(bm25Lookup[docId] ?? 0)
+            return (chunk: r, score: score)
+        }
+
+        // 3. Reciprocal Rank Fusion
+        let vectorRanked = reindex(vectorResults.sorted { $0.similarityScore > $1.similarityScore })
+        let fusedResults = await engine.reciprocalRankFusion(
+            vectorResults: vectorRanked,
+            keywordResults: keywordResults,
+            k: 60,
+            vectorWeight: vectorWeight,
+            keywordWeight: keywordWeight
+        )
+
+        // 4. Apply boosts
+        let boostedResults = applyKeywordMatchBoost(query: query, results: fusedResults)
+        let structureBoostedResults = applyStructureTypeBoost(query: query, results: boostedResults)
+
+        let elapsed = CFAbsoluteTimeGetCurrent() - startTime
+        Log.debug("[Hybrid] FTS5-accelerated search completed in \(String(format: "%.1f", elapsed * 1000))ms", category: .pipeline)
+
+        return reindex(Array(structureBoostedResults.prefix(topK)))
+    }
+
 }

@@ -20,7 +20,7 @@ struct ContainerSettingsSheet: View {
     @State var providerId: String = "coreml_sentence_embedding"
     @State var dim: Int = 384
     @State var dbKind: VectorDBKind = .persistentJSON
-    @State var autoAdaptDimension: Bool = false
+    @State var autoAdaptDimension: Bool = true
     @State var pendingReembedContext: ReembedContext?
     @State var showingReembedConfirmation = false
     @State var isReembedding = false
@@ -43,6 +43,12 @@ struct ContainerSettingsSheet: View {
     // Provider fallback tracking
     @State var actualProviderInUse: String?
     @State var providerFallbackReason: String?
+
+    // Library Deep Stats (Nerd Mode)
+    @State var showNerdStats: Bool = false
+    @State var containerFTSStats: [SQLiteFullTextService.DocumentStat] = []
+    @State var containerTopTerms: [SQLiteFullTextService.TermFrequency] = []
+    @State var isLoadingNerdStats: Bool = false
 
     var activeContainer: KnowledgeContainer? {
         containerService.containers.first(where: { $0.id == containerService.activeContainerId })
@@ -149,6 +155,7 @@ struct ContainerSettingsSheet: View {
                 embeddingProviderSection
                 // Vector database section hidden — always uses persistent JSON storage
                 // vectorDatabaseSection
+                libraryNerdStatsSection
             }
             .navigationTitle("Library Settings")
             .iOSNavigationBarInline()
@@ -530,6 +537,28 @@ struct ContainerSettingsSheet: View {
                     reembedError = error.localizedDescription
                     isReembedding = false
                 }
+            }
+        }
+    }
+
+    // MARK: - Nerd Stats Loading
+
+    /// Load comprehensive library statistics for power users
+    func loadNerdStats() {
+        guard let container = activeContainer else { return }
+        isLoadingNerdStats = true
+
+        Task {
+            // Load FTS document stats for this container
+            let ftsDocStats = await SQLiteFullTextService.shared.getDocumentStats(containerId: container.id)
+
+            // Load top terms (global for now, could be filtered by container)
+            let topTerms = await SQLiteFullTextService.shared.getTopTerms(limit: 20)
+
+            await MainActor.run {
+                containerFTSStats = ftsDocStats
+                containerTopTerms = topTerms
+                isLoadingNerdStats = false
             }
         }
     }

@@ -5,6 +5,7 @@
 //  Extracted view sections to reduce body complexity for Swift compiler.
 //
 
+import NaturalLanguage
 import SwiftUI
 
 // MARK: - Extracted Form Sections
@@ -44,14 +45,27 @@ extension ContainerSettingsSheet {
                 .font(.caption)
                 .foregroundColor(.secondary)
 
-            Toggle("Auto Intelligence (corpus-adaptive tuning)", isOn: $autoAdaptDimension)
+            Toggle(isOn: $autoAdaptDimension) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Auto Intelligence")
+                    Text("Automatically optimizes chunking based on your content")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
 
-            if let lastSelfTuneSummary {
-                Text("Last auto-tune: \(lastSelfTuneSummary)")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
+            if autoAdaptDimension {
+                if let lastSelfTuneSummary {
+                    Label("Last tuned: \(lastSelfTuneSummary)", systemImage: "checkmark.circle.fill")
+                        .font(.caption2)
+                        .foregroundColor(.green)
+                } else {
+                    Label("Will analyze your documents and tune automatically", systemImage: "wand.and.stars")
+                        .font(.caption2)
+                        .foregroundColor(.accentColor)
+                }
             } else {
-                Text("LibraryIntelligenceCenter profiles your corpus (vocabulary richness, code density, structure ratio) and auto-selects optimal chunk windows.")
+                Label("Manual mode: You control all chunking settings below", systemImage: "slider.horizontal.3")
                     .font(.caption2)
                     .foregroundColor(.secondary)
             }
@@ -1054,6 +1068,414 @@ extension ContainerSettingsSheet {
             }
         }
     }
+
+    // MARK: - Library Nerd Stats Section (Deep Dive)
+
+    @ViewBuilder
+    var libraryNerdStatsSection: some View {
+        Section {
+            DisclosureGroup(isExpanded: $showNerdStats) {
+                if isLoadingNerdStats {
+                    HStack {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                        Text("Loading deep stats...")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.vertical, 8)
+                } else {
+                    libraryNerdStatsContent
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "wrench.and.screwdriver.fill")
+                        .foregroundColor(.orange)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Library Deep Dive")
+                            .font(.subheadline.weight(.semibold))
+                        Text("Statistics for nerds 🤓")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+            .onChange(of: showNerdStats) { _, expanded in
+                if expanded && containerFTSStats.isEmpty {
+                    loadNerdStats()
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var libraryNerdStatsContent: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // Corpus Intelligence (if available)
+            if let report = activeIntelligenceReport {
+                corpusSignalsCard(report.corpus)
+            }
+
+            // Vector Space Statistics
+            vectorSpaceStatsCard
+
+            // Storage Breakdown
+            storageBreakdownCard
+
+            // Document Distribution
+            documentDistributionCard
+
+            // Top Terms (Vocabulary Analysis)
+            topTermsCard
+
+            // Retrieval Config Summary
+            retrievalConfigSummaryCard
+        }
+        .padding(.top, 8)
+    }
+
+    @ViewBuilder
+    private func corpusSignalsCard(_ signals: LibraryIntelligenceCenter.CorpusSignals) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Corpus Intelligence", systemImage: "brain.head.profile")
+                .font(.caption.weight(.semibold))
+                .foregroundColor(.pink)
+
+            LazyVGrid(columns: [
+                GridItem(.flexible()),
+                GridItem(.flexible())
+            ], spacing: 8) {
+                nerdStatCell(label: "Vocabulary Richness", value: String(format: "%.1f%%", signals.vocabularyRichness * 100), icon: "book.fill")
+                nerdStatCell(label: "Technical Density", value: String(format: "%.1f%%", signals.technicalDensity * 100), icon: "gearshape.fill")
+                nerdStatCell(label: "Semantic Complexity", value: String(format: "%.2f", signals.semanticComplexity), icon: "waveform.path")
+                nerdStatCell(label: "Structured Ratio", value: String(format: "%.1f%%", signals.structuredRatio * 100), icon: "tablecells")
+            }
+
+            // Content type badges
+            HStack(spacing: 8) {
+                if signals.hasCode {
+                    corpusBadge(text: "Code", icon: "chevron.left.forwardslash.chevron.right", color: .blue)
+                }
+                if signals.hasMath {
+                    corpusBadge(text: "Math", icon: "function", color: .purple)
+                }
+                if signals.multilingualScore > 0.1 {
+                    corpusBadge(text: "Multilingual", icon: "globe", color: .green)
+                }
+            }
+
+            // Language breakdown
+            if !signals.languageHypotheses.isEmpty {
+                let sortedLangs = signals.languageHypotheses.sorted { $0.value > $1.value }.prefix(3)
+                HStack(spacing: 8) {
+                    Text("Languages:")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    ForEach(Array(sortedLangs), id: \.key) { lang, conf in
+                        Text("\(lang.rawValue) \(String(format: "%.0f%%", conf * 100))")
+                            .font(.caption2.monospacedDigit())
+                            .foregroundColor(.pink.opacity(0.8))
+                    }
+                }
+            }
+        }
+        .padding(12)
+        .background(Color.pink.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    @ViewBuilder
+    private func corpusBadge(text: String, icon: String, color: Color) -> some View {
+        HStack(spacing: 3) {
+            Image(systemName: icon)
+                .font(.system(size: 9))
+            Text(text)
+                .font(.caption2.weight(.medium))
+        }
+        .foregroundColor(color)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(color.opacity(0.12))
+        .clipShape(Capsule())
+    }
+
+    @ViewBuilder
+    private var vectorSpaceStatsCard: some View {
+        if let container = activeContainer {
+            VStack(alignment: .leading, spacing: 8) {
+                Label("Vector Space", systemImage: "cube.transparent")
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(.cyan)
+
+                let estimatedMemoryBytes = container.totalChunks * container.embeddingDim * 4
+                let bytesPerVector = container.embeddingDim * 4
+
+                LazyVGrid(columns: [
+                    GridItem(.flexible()),
+                    GridItem(.flexible())
+                ], spacing: 8) {
+                    nerdStatCell(label: "Embeddings", value: "\(container.totalChunks)", icon: "point.3.filled.connected.trianglepath.dotted")
+                    nerdStatCell(label: "Dimension", value: "\(container.embeddingDim)D", icon: "cube.fill")
+                    nerdStatCell(label: "Documents", value: "\(container.totalDocuments)", icon: "doc.fill")
+                    nerdStatCell(label: "Memory", value: formatBytes(estimatedMemoryBytes), icon: "memorychip")
+                }
+
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                        .font(.caption2)
+                    Text("~\(bytesPerVector) bytes/vector")
+                        .font(.caption2.monospacedDigit())
+                    Text("(Float32)")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding(12)
+            .background(Color.cyan.opacity(0.06))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+        }
+    }
+
+    @ViewBuilder
+    private var storageBreakdownCard: some View {
+        if let container = activeContainer {
+            VStack(alignment: .leading, spacing: 8) {
+                Label("Storage", systemImage: "internaldrive.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(.purple)
+
+                let avgChunkSize = container.totalChunks > 0 ? container.dbSizeBytes / Int64(container.totalChunks) : 0
+
+                LazyVGrid(columns: [
+                    GridItem(.flexible()),
+                    GridItem(.flexible())
+                ], spacing: 8) {
+                    nerdStatCell(label: "DB Size", value: formatBytes64(container.dbSizeBytes), icon: "cylinder.fill")
+                    nerdStatCell(label: "Chunks", value: "\(container.totalChunks)", icon: "square.stack.3d.up.fill")
+                    nerdStatCell(label: "Documents", value: "\(container.totalDocuments)", icon: "doc.on.doc.fill")
+                    nerdStatCell(label: "Avg/Chunk", value: formatBytes64(avgChunkSize), icon: "ruler")
+                }
+
+                // Last indexed
+                if let lastIndexed = container.lastIndexedAt {
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock.fill")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        Text("Last indexed \(lastIndexed.relativeDescription)")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+            .padding(12)
+            .background(Color.purple.opacity(0.06))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+        }
+    }
+
+    @ViewBuilder
+    private var documentDistributionCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Document Distribution", systemImage: "chart.bar.fill")
+                .font(.caption.weight(.semibold))
+                .foregroundColor(.green)
+
+            if containerFTSStats.isEmpty {
+                Text("No documents in this library")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            } else {
+                // Size distribution
+                let totalChars = containerFTSStats.reduce(0) { $0 + $1.characterCount }
+                let totalWords = containerFTSStats.reduce(0) { $0 + $1.wordCount }
+                let avgChars = containerFTSStats.count > 0 ? totalChars / containerFTSStats.count : 0
+                let avgWords = containerFTSStats.count > 0 ? totalWords / containerFTSStats.count : 0
+
+                LazyVGrid(columns: [
+                    GridItem(.flexible()),
+                    GridItem(.flexible())
+                ], spacing: 8) {
+                    nerdStatCell(label: "Total Chars", value: formatNumber(totalChars), icon: "character")
+                    nerdStatCell(label: "Total Words", value: formatNumber(totalWords), icon: "text.word.spacing")
+                    nerdStatCell(label: "Avg Chars", value: formatNumber(avgChars), icon: "textformat.size")
+                    nerdStatCell(label: "Avg Words", value: formatNumber(avgWords), icon: "textformat")
+                }
+
+                // Size histogram (visual)
+                if containerFTSStats.count > 1 {
+                    sizeHistogramView
+                }
+            }
+        }
+        .padding(12)
+        .background(Color.green.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    @ViewBuilder
+    private var sizeHistogramView: some View {
+        let sortedBySize = containerFTSStats.sorted { $0.characterCount > $1.characterCount }
+        let maxSize = sortedBySize.first?.characterCount ?? 1
+
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Size Distribution (largest → smallest)")
+                .font(.system(size: 9))
+                .foregroundColor(.secondary)
+
+            HStack(alignment: .bottom, spacing: 2) {
+                ForEach(sortedBySize.prefix(10), id: \.id) { doc in
+                    let height = CGFloat(doc.characterCount) / CGFloat(maxSize) * 24
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(Color.green.opacity(0.6))
+                        .frame(width: 8, height: max(4, height))
+                }
+                if sortedBySize.count > 10 {
+                    Text("...")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .frame(height: 28)
+        }
+    }
+
+    @ViewBuilder
+    private var topTermsCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Top Terms (Global)", systemImage: "textformat.abc")
+                .font(.caption.weight(.semibold))
+                .foregroundColor(.orange)
+
+            if containerTopTerms.isEmpty {
+                Text("No term data available")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            } else {
+                // Show top 12 terms as tags
+                FlowLayout(spacing: 6) {
+                    ForEach(containerTopTerms.prefix(12)) { term in
+                        HStack(spacing: 3) {
+                            Text(term.term)
+                                .font(.caption2.weight(.medium))
+                            Text("×\(term.totalOccurrences)")
+                                .font(.system(size: 9).monospacedDigit())
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.orange.opacity(0.12))
+                        .clipShape(Capsule())
+                    }
+                }
+
+                // Vocabulary summary
+                HStack(spacing: 12) {
+                    Label("\(containerTopTerms.count)+ unique terms", systemImage: "text.book.closed")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+        .padding(12)
+        .background(Color.orange.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    @ViewBuilder
+    private var retrievalConfigSummaryCard: some View {
+        let config = retrievalConfig
+
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Retrieval Config", systemImage: "gearshape.2.fill")
+                .font(.caption.weight(.semibold))
+                .foregroundColor(.indigo)
+
+            LazyVGrid(columns: [
+                GridItem(.flexible()),
+                GridItem(.flexible())
+            ], spacing: 8) {
+                nerdStatCell(label: "Min Similarity", value: String(format: "%.2f", config.minSimilarity), icon: "slider.horizontal.3")
+                nerdStatCell(label: "Vector Weight", value: String(format: "%.1f", config.vectorWeight), icon: "cube.fill")
+                nerdStatCell(label: "Lexical Weight", value: String(format: "%.1f", config.lexicalWeight), icon: "text.magnifyingglass")
+                nerdStatCell(label: "MMR λ", value: String(format: "%.2f", config.mmrLambda), icon: "arrow.triangle.branch")
+            }
+
+            // Effective mode description
+            let modeDescription: String = {
+                if config.vectorWeight > 0.7 { return "Semantic-heavy" }
+                if config.lexicalWeight > 0.5 { return "Keyword-heavy" }
+                return "Hybrid balanced"
+            }()
+
+            HStack(spacing: 4) {
+                Image(systemName: "info.circle.fill")
+                    .font(.caption2)
+                Text("Mode: \(modeDescription)")
+                    .font(.caption2)
+            }
+            .foregroundColor(.indigo.opacity(0.8))
+        }
+        .padding(12)
+        .background(Color.indigo.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+
+    @ViewBuilder
+    private func nerdStatCell(label: String, value: String, icon: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .frame(width: 14)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(value)
+                    .font(.caption.weight(.semibold).monospacedDigit())
+                Text(label)
+                    .font(.system(size: 9))
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
+        }
+        .padding(.vertical, 4)
+    }
+
+    // MARK: - Formatting Helpers
+
+    private func formatBytes(_ bytes: Int) -> String {
+        let kb = Double(bytes) / 1024
+        let mb = kb / 1024
+        if mb >= 1 {
+            return String(format: "%.1f MB", mb)
+        } else if kb >= 1 {
+            return String(format: "%.1f KB", kb)
+        } else {
+            return "\(bytes) B"
+        }
+    }
+
+    private func formatBytes64(_ bytes: Int64) -> String {
+        let kb = Double(bytes) / 1024
+        let mb = kb / 1024
+        if mb >= 1 {
+            return String(format: "%.1f MB", mb)
+        } else if kb >= 1 {
+            return String(format: "%.1f KB", kb)
+        } else {
+            return "\(bytes) B"
+        }
+    }
+
+    private func formatNumber(_ n: Int) -> String {
+        if n >= 1_000_000 {
+            return String(format: "%.1fM", Double(n) / 1_000_000)
+        } else if n >= 1_000 {
+            return String(format: "%.1fK", Double(n) / 1_000)
+        } else {
+            return "\(n)"
+        }
+    }
 }
 
 // MARK: - Chunking Preview Visualization
@@ -1169,5 +1591,15 @@ struct ChunkingPreview: View {
     private func chunkColor(for index: Int) -> Color {
         let colors: [Color] = [.blue, .purple, .indigo]
         return colors[index % colors.count].opacity(0.8)
+    }
+}
+
+// MARK: - Date Extension for Relative Description
+
+private extension Date {
+    var relativeDescription: String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: self, relativeTo: Date())
     }
 }

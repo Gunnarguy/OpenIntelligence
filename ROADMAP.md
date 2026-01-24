@@ -1,12 +1,72 @@
 # OpenIntelligence Roadmap
 
-**Last Updated**: January 20, 2026
+**Last Updated**: January 23, 2026
 **Version**: 1.0.0 (Build 4)
 **Status**: Production (App Store Submitted)
 **RAG Maturity Score**: 9.8/10 (Entity Extraction + Recursive Research + mmap Storage + RAPTOR-lite + Query Routing)
 
-### Recent Improvements (January 2026 - Powerhouse RAG Upgrade)
+### 🚀 NEXT: SQLite FTS5 Full-Text Search Engine (v1.1.0)
 
+_Native SQLite FTS5 integration for 10-100X faster keyword search and pattern counting_
+
+**Status**: In Development
+**Target**: v1.1.0 (February 2026)
+**Impact**: Critical performance upgrade for large document corpora
+
+#### Architecture
+
+- **SQLiteFullTextService**: Actor-based service replacing file-per-document storage
+- **FTS5 Virtual Table**: `CREATE VIRTUAL TABLE documents USING fts5(document_id UNINDEXED, content, tokenize='porter unicode61')`
+- **Built-in bm25()**: Native SQLite BM25 ranking (replaces in-memory BM25Scorer)
+- **MATCH Queries**: O(log n) inverted index lookups vs O(n) linear scans
+- **100% Native**: Uses iOS-bundled SQLite via `import SQLite3` - no external dependencies
+
+#### Expected Performance Improvements
+
+| Operation                 | Current (File-based) | With FTS5        | Improvement    |
+| ------------------------- | -------------------- | ---------------- | -------------- |
+| Pattern Count (1000 docs) | ~500ms               | ~5ms             | **100X**       |
+| Keyword Search            | O(n) scan            | O(log n) index   | **10-100X**    |
+| BM25 Scoring              | Rebuild each session | Persisted index  | **10X**        |
+| Disk Storage              | ~1.5MB/1000 docs     | ~300KB/1000 docs | **5X smaller** |
+
+#### Features
+
+- [x] **Research & Design**: FTS5 syntax, tokenizers, bm25() function
+- [ ] **SQLiteFullTextService**: Core actor with FTS5 CRUD operations
+- [ ] **Migration**: Auto-migrate .txt files → SQLite on first launch
+- [ ] **HybridSearchService Update**: Replace BM25Scorer with FTS5 bm25()
+- [ ] **RAGService Wiring**: Replace FullTextStorageService calls
+- [ ] **Deletion Cascade**: Document deletion removes FTS5 entries
+- [ ] **Container Isolation**: Per-container FTS5 tables for data isolation
+- [ ] **Benchmark Validation**: Measure 10-100X improvements
+
+#### Technical Details
+
+- **Tokenizer**: `unicode61` (default, case-insensitive) + `porter` (stemming)
+- **Prefix Indexes**: `prefix='2 3'` for efficient wildcard queries
+- **highlight() / snippet()**: Native context extraction with match highlighting
+- **NEAR Queries**: Proximity search for phrase matching
+- **Contentless Option**: Store content separately, index only for max compression
+
+---
+
+### Recent Improvements (January 2026 - ZERO Data Loss Architecture)
+
+- **Full Text Storage Service**: Stores complete original document text for exact queries
+  - `FullTextStorageService.swift` - Actor-based persistent storage
+  - Enables "count word 'X' in all documents" queries without chunking loss
+  - Pattern counting across entire corpus with `countPatternInCorpus()`
+  - Disk-persisted with memory cache for fast access
+  - ⚠️ **Superseded by SQLiteFullTextService in v1.1.0**
+- **Token Truncation Fix**: Critical fix for 70%+ content loss during embedding
+  - Root cause: NLTokenizer (linguistic words) ≠ BertTokenizer (embedding tokens)
+  - Example: `VHA21\VHAPALGarciG1` = 1 NL word but 10+ BertTokenizer tokens
+  - Solution: Added `countTokens()` using actual BertTokenizer in CoreMLSentenceEmbeddingProvider
+  - Token validation in RAGService with binary search truncation before embedding
+- **CSV Row Limit Removed**: Was 1000 rows (silent data loss), now unlimited
+- **Chunk Limit Increased**: 5000 → 50000 (supports ~65,000 pages)
+- **New Agentic Tools**: `countPatternInCorpus()` and `searchExactPattern()` for LLM
 - **Multi-Chain Maximum Mode**: Parallel reasoning chains across document clusters - breaks the 4096 token ceiling
   - Clusters documents by topic similarity
   - Runs parallel chains per cluster (3-way parallelism)
@@ -84,6 +144,11 @@
 - [x] **12+ @Tool Functions**: Autonomous search, summarization, analysis
 - [x] **RAGAppIntents**: Siri/Shortcuts integration
 - [x] **Tool Call Counter**: Usage tracking and limits
+- [x] **countPatternInCorpus Tool**: Count exact word/pattern occurrences across ALL documents
+      _Location_: [RAGService.swift](OpenIntelligence/Services/RAG/RAGService.swift) extension RAGToolHandler
+      _Uses_: FullTextStorageService for complete original text (not chunked)
+- [x] **searchExactPattern Tool**: Find exact text patterns with context snippets
+      _Benefit_: Enables "how many times is 'X' mentioned" queries with ZERO data loss
 
 ### Advanced Agentic RAG (Jan 2026)
 

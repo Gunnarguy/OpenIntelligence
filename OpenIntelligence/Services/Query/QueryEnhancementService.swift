@@ -79,6 +79,11 @@ enum AnswerIntent: String, Sendable, CaseIterable {
     /// Example: "What's the total fluid capacity?" (sum multiple values)
     case compute
 
+    /// Research findings / author discovery - requires document-level context
+    /// Example: "What did Orfitelli find?" → needs summary + key sections
+    /// GOD MODE: Auto-injects document summary for comprehensive context
+    case findings
+
     /// Maps to QueryIntent for hybrid search weight adjustment
     var searchIntent: QueryIntent {
         switch self {
@@ -86,7 +91,7 @@ enum AnswerIntent: String, Sendable, CaseIterable {
             return .keyword  // Favor exact matches
         case .procedure:
             return .balanced  // Need structure + content
-        case .compare, .investigate:
+        case .compare, .investigate, .findings:
             return .conceptual  // Need semantic understanding
         case .summarize:
             return .conceptual  // Need broad coverage
@@ -98,7 +103,7 @@ enum AnswerIntent: String, Sendable, CaseIterable {
         switch self {
         case .lookup, .tableLookup, .procedure:
             return true  // Direct extraction from source
-        case .compare, .summarize, .investigate, .compute:
+        case .compare, .summarize, .investigate, .compute, .findings:
             return false  // May need synthesis
         }
     }
@@ -106,11 +111,27 @@ enum AnswerIntent: String, Sendable, CaseIterable {
     /// Whether this intent benefits from multi-hop retrieval
     var benefitsFromMultiHop: Bool {
         switch self {
-        case .investigate, .compare:
+        case .investigate, .compare, .findings:
             return true
         case .lookup, .tableLookup, .procedure, .summarize, .compute:
             return false
         }
+    }
+
+    /// Whether this intent should auto-inject document summary (L1) chunks
+    /// GOD MODE: Ensures document-level context is always available
+    var requiresDocumentSummary: Bool {
+        switch self {
+        case .findings, .summarize, .investigate:
+            return true  // Need document-level context
+        case .lookup, .tableLookup, .procedure, .compare, .compute:
+            return false  // Detail chunks sufficient
+        }
+    }
+
+    /// Whether this is an author/research query pattern
+    var isAuthorQuery: Bool {
+        self == .findings
     }
 
     /// Structure type boost for this intent
@@ -120,6 +141,8 @@ enum AnswerIntent: String, Sendable, CaseIterable {
             return "table"
         case .procedure:
             return "list"
+        case .findings:
+            return nil  // No structure bias - need broad coverage
         default:
             return nil
         }
@@ -242,6 +265,7 @@ final class QueryEnhancementService {
     /// Determines the answering strategy: extractive vs abstractive, single vs multi-hop.
     ///
     /// Intent hierarchy:
+    /// 0. **findings**: Author/research discovery (what did X find/discover/show) - GOD MODE
     /// 1. **lookup**: Direct fact extraction (what, which, when + specific entity)
     /// 2. **table_lookup**: Table-specific queries (specs, comparisons in tables)
     /// 3. **procedure**: Step-by-step instructions (how to, steps, procedure)
@@ -252,6 +276,49 @@ final class QueryEnhancementService {
     func classifyAnswerIntent(_ query: String) -> AnswerIntent {
         let lower = query.lowercased()
         let words = lower.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).map(String.init)
+
+        // Priority 0: FINDINGS (GOD MODE) - author/research discovery queries
+        // These need document-level context, not just detail chunks
+        let findingsPatterns: [String] = [
+            "what did .* find", "what did .* discover", "what did .* show",
+            "what did .* demonstrate", "what did .* prove", "what did .* conclude",
+            "what does .* find", "what does .* show", "what does .* argue",
+            "what were .* findings", "what are .* findings", "findings of",
+            "what .* concluded", "what .* discovered", "what .* found",
+            "according to .*'s research", ".*'s main argument", ".*'s thesis",
+            "what is .*'s contribution", "what did .* contribute",
+            "research by", "study by", "paper by", "article by",
+            ".*'s key finding", ".*'s discovery", ".*'s conclusion"
+        ]
+        for pattern in findingsPatterns {
+            if let _ = lower.range(of: pattern, options: .regularExpression) {
+                Log.debug("[QueryEnhancement] 🔥 GOD MODE: Detected findings/author query pattern: '\(pattern)'", category: .retrieval)
+                return .findings
+            }
+        }
+
+        // Also detect simple author-finding patterns without regex
+        let simpleFindingsPatterns: [String] = [
+            "what did", "findings", "conclude", "discovered", "contribution",
+            "main argument", "thesis", "demonstrated"
+        ]
+        let authorIndicators: [String] = ["find", "show", "argue", "discover", "prove", "demonstrate"]
+        let hasAuthorIndicator = authorIndicators.contains { lower.contains($0) }
+
+        // If query has a capitalized word (likely author name) + finding indicator
+        let hasCapitalizedWord = query.split(separator: " ").contains { word in
+            guard let first = word.first else { return false }
+            return first.isUppercase && word.count > 2
+        }
+
+        if hasCapitalizedWord && hasAuthorIndicator {
+            for pattern in simpleFindingsPatterns {
+                if lower.contains(pattern) {
+                    Log.debug("[QueryEnhancement] 🔥 GOD MODE: Author + finding pattern detected", category: .retrieval)
+                    return .findings
+                }
+            }
+        }
 
         // Priority 1: Compute (requires numerical aggregation)
         let computePatterns: [String] = [

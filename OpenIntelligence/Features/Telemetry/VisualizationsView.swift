@@ -224,6 +224,10 @@ struct VisualizationsView: View {
                 documents: activeDocuments,
                 chunkCount: totalChunkCount
             )
+            AdvancedCorpusStatsView(
+                documents: activeDocuments,
+                chunkCount: totalChunkCount
+            )
             QueryAnalyticsView(ragService: ragService)
             PerformanceMetricsView(ragService: ragService)
         }
@@ -668,6 +672,460 @@ struct ChunkDistributionView: View {
     private var averageChunkSize: Int {
         let totalSize = documents.compactMap { $0.processingMetadata?.chunkStats.averageChars }.reduce(0, +)
         return documents.isEmpty ? 0 : totalSize / documents.count
+    }
+}
+
+// MARK: - Advanced Corpus Stats View
+
+struct AdvancedCorpusStatsView: View {
+    let documents: [Document]
+    let chunkCount: Int
+
+    @State private var showNerdStats = false
+
+    private var totalCharacters: Int {
+        // Calculate from average chars × chunk count per document
+        documents.compactMap { doc -> Int? in
+            guard let avgChars = doc.processingMetadata?.chunkStats.averageChars else { return nil }
+            return avgChars * doc.totalChunks
+        }.reduce(0, +)
+    }
+
+    private var totalWords: Int {
+        // Estimate words as chars / 5 (avg word length)
+        totalCharacters / 5
+    }
+
+    private var chunksPerDocStats: (min: Int, max: Int, avg: Double, stdDev: Double) {
+        let counts = documents.map { $0.totalChunks }
+        guard !counts.isEmpty else { return (0, 0, 0, 0) }
+
+        let minVal = counts.min() ?? 0
+        let maxVal = counts.max() ?? 0
+        let avg = Double(counts.reduce(0, +)) / Double(counts.count)
+
+        let variance = counts.map { pow(Double($0) - avg, 2) }.reduce(0, +) / Double(counts.count)
+        let stdDev = sqrt(variance)
+
+        return (minVal, maxVal, avg, stdDev)
+    }
+
+    private var chunkSizeStats: (min: Int, max: Int, avg: Int, median: Int) {
+        let sizes = documents.compactMap { $0.processingMetadata?.chunkStats.averageChars }
+        guard !sizes.isEmpty else { return (0, 0, 0, 0) }
+
+        let sorted = sizes.sorted()
+        let median = sorted[sorted.count / 2]
+
+        return (sorted.first ?? 0, sorted.last ?? 0, sizes.reduce(0, +) / sizes.count, median)
+    }
+
+    private var documentTypeBreakdown: [(type: String, count: Int)] {
+        let grouped = Dictionary(grouping: documents) { doc -> String in
+            let ext = (doc.filename as NSString).pathExtension.lowercased()
+            if ext.isEmpty { return "Text" }
+            return ext.uppercased()
+        }
+        return grouped.map { ($0.key, $0.value.count) }.sorted { $0.count > $1.count }
+    }
+
+    private var ingestionTimeStats: (oldest: Date?, newest: Date?, avgAge: TimeInterval?) {
+        let dates = documents.map { $0.addedAt }
+        guard !dates.isEmpty else { return (nil, nil, nil) }
+
+        let oldest = dates.min()
+        let newest = dates.max()
+        let avgTimestamp = dates.map { $0.timeIntervalSince1970 }.reduce(0, +) / Double(dates.count)
+        let avgAge = Date().timeIntervalSince1970 - avgTimestamp
+
+        return (oldest, newest, avgAge)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text("Corpus Analytics")
+                    .font(.title2)
+                    .fontWeight(.bold)
+
+                Spacer()
+
+                Button {
+                    withAnimation(.spring(response: 0.3)) {
+                        showNerdStats.toggle()
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: showNerdStats ? "chevron.up" : "chevron.down")
+                        Text(showNerdStats ? "Hide Details" : "🤓 Nerd Mode")
+                    }
+                    .font(.caption)
+                    .foregroundColor(.purple)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color.purple.opacity(0.12))
+                    .cornerRadius(8)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal)
+
+            // Quick stats row
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    CorpusQuickStat(icon: "character", label: "Characters", value: formatLargeNumber(totalCharacters), color: .blue)
+                    CorpusQuickStat(icon: "text.word.spacing", label: "Est. Words", value: formatLargeNumber(totalWords), color: .green)
+                    CorpusQuickStat(icon: "doc.on.doc", label: "Avg Chunks/Doc", value: String(format: "%.1f", chunksPerDocStats.avg), color: .purple)
+                    CorpusQuickStat(icon: "ruler", label: "Median Chunk", value: "\(chunkSizeStats.median) chars", color: .orange)
+                }
+                .padding(.horizontal)
+            }
+
+            if showNerdStats {
+                VStack(spacing: 16) {
+                    // Document type breakdown
+                    documentTypeSection
+
+                    // Chunk statistics deep dive
+                    chunkStatsSection
+
+                    // Temporal analysis
+                    temporalAnalysisSection
+
+                    // Data quality indicators
+                    dataQualitySection
+                }
+                .padding(.horizontal)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+    }
+
+    private var documentTypeSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Image(systemName: "doc.badge.gearshape")
+                    .foregroundColor(.indigo)
+                Text("Document Types")
+                    .font(.headline)
+            }
+
+            HStack(spacing: 8) {
+                ForEach(documentTypeBreakdown, id: \.type) { item in
+                    VStack(spacing: 4) {
+                        Text("\(item.count)")
+                            .font(.title3.bold())
+                        Text(item.type)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(typeColor(item.type).opacity(0.12))
+                    .cornerRadius(10)
+                }
+            }
+        }
+        .padding()
+        .background(DSColors.surface)
+        .cornerRadius(14)
+    }
+
+    private var chunkStatsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "chart.bar.doc.horizontal")
+                    .foregroundColor(.cyan)
+                Text("Chunk Statistics")
+                    .font(.headline)
+            }
+
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                NerdStatRow(label: "Min chunks/doc", value: "\(chunksPerDocStats.min)")
+                NerdStatRow(label: "Max chunks/doc", value: "\(chunksPerDocStats.max)")
+                NerdStatRow(label: "Std deviation", value: String(format: "%.2f", chunksPerDocStats.stdDev))
+                NerdStatRow(label: "Coefficient of var", value: String(format: "%.2f", chunksPerDocStats.stdDev / max(chunksPerDocStats.avg, 0.01)))
+                NerdStatRow(label: "Min chunk size", value: "\(chunkSizeStats.min) chars")
+                NerdStatRow(label: "Max chunk size", value: "\(chunkSizeStats.max) chars")
+                NerdStatRow(label: "Size range", value: "\(chunkSizeStats.max - chunkSizeStats.min) chars")
+                NerdStatRow(label: "Tokens (est.)", value: formatLargeNumber(totalCharacters / 4))
+            }
+        }
+        .padding()
+        .background(DSColors.surface)
+        .cornerRadius(14)
+    }
+
+    private var temporalAnalysisSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "clock.badge.checkmark")
+                    .foregroundColor(.mint)
+                Text("Temporal Analysis")
+                    .font(.headline)
+            }
+
+            let timeStats = ingestionTimeStats
+            VStack(alignment: .leading, spacing: 8) {
+                if let oldest = timeStats.oldest {
+                    HStack {
+                        Text("Oldest document:")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text(oldest, style: .date)
+                            .font(.caption.monospacedDigit())
+                    }
+                }
+                if let newest = timeStats.newest {
+                    HStack {
+                        Text("Newest document:")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text(newest, style: .date)
+                            .font(.caption.monospacedDigit())
+                    }
+                }
+                if let avgAge = timeStats.avgAge {
+                    HStack {
+                        Text("Average age:")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text(formatTimeInterval(avgAge))
+                            .font(.caption.monospacedDigit())
+                    }
+                }
+                if let oldest = timeStats.oldest, let newest = timeStats.newest {
+                    HStack {
+                        Text("Corpus span:")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text(formatTimeInterval(newest.timeIntervalSince(oldest)))
+                            .font(.caption.monospacedDigit())
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(DSColors.surface)
+        .cornerRadius(14)
+    }
+
+    private var dataQualitySection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "checkmark.seal")
+                    .foregroundColor(.green)
+                Text("Data Quality Indicators")
+                    .font(.headline)
+            }
+
+            let uniformityScore = calculateUniformityScore()
+            let coverageScore = calculateCoverageScore()
+            let freshnessScore = calculateFreshnessScore()
+
+            VStack(spacing: 10) {
+                QualityIndicatorRow(label: "Chunk Uniformity", score: uniformityScore, description: uniformityDescription(uniformityScore))
+                QualityIndicatorRow(label: "Content Coverage", score: coverageScore, description: coverageDescription(coverageScore))
+                QualityIndicatorRow(label: "Data Freshness", score: freshnessScore, description: freshnessDescription(freshnessScore))
+            }
+        }
+        .padding()
+        .background(DSColors.surface)
+        .cornerRadius(14)
+    }
+
+    // MARK: - Helpers
+
+    private func formatLargeNumber(_ value: Int) -> String {
+        if value >= 1_000_000 {
+            return String(format: "%.1fM", Double(value) / 1_000_000)
+        } else if value >= 1_000 {
+            return String(format: "%.1fK", Double(value) / 1_000)
+        }
+        return "\(value)"
+    }
+
+    private func formatTimeInterval(_ interval: TimeInterval) -> String {
+        let days = Int(interval / 86400)
+        if days > 365 {
+            return "\(days / 365)y \(days % 365)d"
+        } else if days > 30 {
+            return "\(days / 30)mo \(days % 30)d"
+        } else if days > 0 {
+            return "\(days)d"
+        } else {
+            let hours = Int(interval / 3600)
+            return "\(hours)h"
+        }
+    }
+
+    private func typeColor(_ type: String) -> Color {
+        switch type.lowercased() {
+        case "pdf": return .red
+        case "txt", "text": return .blue
+        case "md", "markdown": return .purple
+        case "csv": return .green
+        case "json": return .orange
+        case "html": return .cyan
+        default: return .gray
+        }
+    }
+
+    private func calculateUniformityScore() -> Double {
+        let sizes = documents.map { $0.totalChunks }
+        guard sizes.count > 1, let maxSize = sizes.max(), maxSize > 0 else { return 1.0 }
+
+        let avg = Double(sizes.reduce(0, +)) / Double(sizes.count)
+        let variance = sizes.map { pow(Double($0) - avg, 2) }.reduce(0, +) / Double(sizes.count)
+        let cv = sqrt(variance) / avg // coefficient of variation
+
+        return max(0, min(1, 1 - cv))
+    }
+
+    private func calculateCoverageScore() -> Double {
+        guard !documents.isEmpty, chunkCount > 0 else { return 0 }
+
+        // Check if all docs have chunks
+        let docsWithChunks = documents.filter { $0.totalChunks > 0 }.count
+        let docCoverage = Double(docsWithChunks) / Double(documents.count)
+
+        // Check chunk distribution
+        let avgChunks = Double(chunkCount) / Double(documents.count)
+        let hasGoodDistribution = avgChunks >= 2 ? 1.0 : avgChunks / 2.0
+
+        return (docCoverage + hasGoodDistribution) / 2
+    }
+
+    private func calculateFreshnessScore() -> Double {
+        let dates = documents.map { $0.addedAt }
+        guard !dates.isEmpty else { return 0 }
+
+        let now = Date()
+        let ages = dates.map { now.timeIntervalSince($0) }
+        let avgAge = ages.reduce(0, +) / Double(ages.count)
+
+        // Score based on average age (newer = higher)
+        // 1 day = 1.0, 30 days = 0.5, 365 days = 0.1
+        let dayAge = avgAge / 86400
+        if dayAge < 1 { return 1.0 }
+        if dayAge < 7 { return 0.9 }
+        if dayAge < 30 { return 0.7 }
+        if dayAge < 90 { return 0.5 }
+        if dayAge < 365 { return 0.3 }
+        return 0.1
+    }
+
+    private func uniformityDescription(_ score: Double) -> String {
+        if score > 0.8 { return "Excellent: Chunks are uniformly distributed" }
+        if score > 0.5 { return "Good: Some variation in chunk counts" }
+        return "Consider: High variation between documents"
+    }
+
+    private func coverageDescription(_ score: Double) -> String {
+        if score > 0.8 { return "Excellent: All documents well indexed" }
+        if score > 0.5 { return "Good: Most documents have chunks" }
+        return "Some documents may need reprocessing"
+    }
+
+    private func freshnessDescription(_ score: Double) -> String {
+        if score > 0.8 { return "Fresh: Recently ingested content" }
+        if score > 0.5 { return "Current: Reasonably up-to-date" }
+        return "Consider refreshing older documents"
+    }
+}
+
+// MARK: - Advanced Stats Helper Views
+
+private struct CorpusQuickStat: View {
+    let icon: String
+    let label: String
+    let value: String
+    let color: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.caption)
+                    .foregroundColor(color)
+                Text(label)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+            Text(value)
+                .font(.headline.monospacedDigit())
+                .fontWeight(.semibold)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(color.opacity(0.1))
+        .cornerRadius(12)
+    }
+}
+
+private struct NerdStatRow: View {
+    let label: String
+    let value: String
+
+    var body: some View {
+        HStack {
+            Text(label)
+                .font(.caption)
+                .foregroundColor(.secondary)
+            Spacer()
+            Text(value)
+                .font(.caption.monospacedDigit())
+                .fontWeight(.medium)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(Color.cyan.opacity(0.06))
+        .cornerRadius(6)
+    }
+}
+
+private struct QualityIndicatorRow: View {
+    let label: String
+    let score: Double
+    let description: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(label)
+                    .font(.caption)
+                    .fontWeight(.medium)
+                Spacer()
+                Text(String(format: "%.0f%%", score * 100))
+                    .font(.caption.monospacedDigit())
+                    .foregroundColor(scoreColor)
+            }
+
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(Color.gray.opacity(0.2))
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(scoreColor)
+                        .frame(width: geo.size.width * CGFloat(score))
+                }
+            }
+            .frame(height: 6)
+
+            Text(description)
+                .font(.caption2)
+                .foregroundColor(.secondary)
+        }
+    }
+
+    private var scoreColor: Color {
+        if score > 0.8 { return .green }
+        if score > 0.5 { return .yellow }
+        return .orange
     }
 }
 
@@ -2674,6 +3132,525 @@ private struct SplitMix64: RandomNumberGenerator {
         result = (result ^ (result >> 30)) &* 0xBF58_476D_1CE4_E5B9
         result = (result ^ (result >> 27)) &* 0x94D0_49BB_1331_11EB
         return result ^ (result >> 31)
+    }
+}
+
+// MARK: - FTS5 Storage Visualization
+
+/// Comprehensive SQLite FTS5 full-text search statistics and visualization
+struct FTS5StorageView: View {
+    let containerId: UUID
+
+    @State private var stats: SQLiteFullTextService.FTS5Statistics?
+    @State private var indexInfo: SQLiteFullTextService.FTS5IndexInfo?
+    @State private var documentStats: [SQLiteFullTextService.DocumentStat] = []
+    @State private var isLoading = true
+    @State private var showDocumentList = false
+
+    var body: some View {
+        VStack(spacing: 20) {
+            // Header with status
+            headerSection
+
+            if isLoading {
+                ProgressView("Loading FTS5 statistics...")
+                    .padding()
+            } else if let stats = stats {
+                // Main stats grid
+                mainStatsGrid(stats)
+
+                // Index health card
+                if let indexInfo = indexInfo {
+                    indexHealthCard(indexInfo, stats: stats)
+                }
+
+                // Container breakdown
+                if !stats.containerStats.isEmpty {
+                    containerBreakdownCard(stats)
+                }
+
+                // Document size distribution
+                if !documentStats.isEmpty {
+                    documentSizeChart
+                }
+
+                // Actions
+                actionsSection
+            } else {
+                emptyState
+            }
+        }
+        .padding(.horizontal)
+        .task {
+            await loadStatistics()
+        }
+    }
+
+    private var headerSection: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    Image(systemName: "cylinder.split.1x2.fill")
+                        .foregroundColor(.blue)
+                    Text("SQLite FTS5 Storage")
+                        .font(.headline)
+                }
+                Text("Full-text search with inverted index")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer()
+
+            if let stats = stats {
+                StatusBadge(
+                    status: stats.indexStatus,
+                    color: stats.totalDocuments > 0 ? .green : .orange
+                )
+            }
+        }
+        .padding()
+        .background(DSColors.surface)
+        .cornerRadius(12)
+    }
+
+    private func mainStatsGrid(_ stats: SQLiteFullTextService.FTS5Statistics) -> some View {
+        LazyVGrid(columns: [
+            GridItem(.flexible()),
+            GridItem(.flexible())
+        ], spacing: 12) {
+            FTS5StatCard(
+                icon: "doc.text.fill",
+                title: "Documents",
+                value: "\(stats.totalDocuments)",
+                subtitle: "Indexed",
+                color: .blue
+            )
+
+            FTS5StatCard(
+                icon: "textformat.size",
+                title: "Characters",
+                value: formatNumber(stats.totalCharacters),
+                subtitle: "Total stored",
+                color: .purple
+            )
+
+            FTS5StatCard(
+                icon: "text.word.spacing",
+                title: "Words",
+                value: formatNumber(stats.totalWords),
+                subtitle: "Searchable",
+                color: .green
+            )
+
+            FTS5StatCard(
+                icon: "externaldrive.fill",
+                title: "Database Size",
+                value: formatBytes(stats.databaseSizeBytes),
+                subtitle: "On disk",
+                color: .orange
+            )
+
+            FTS5StatCard(
+                icon: "arrow.up.arrow.down",
+                title: "Avg Doc Size",
+                value: formatNumber(stats.averageDocumentSize),
+                subtitle: "characters",
+                color: .cyan
+            )
+
+            FTS5StatCard(
+                icon: "folder.fill",
+                title: "Containers",
+                value: "\(stats.containerStats.count)",
+                subtitle: "Active",
+                color: .indigo
+            )
+        }
+    }
+
+    private func indexHealthCard(_ indexInfo: SQLiteFullTextService.FTS5IndexInfo, stats: SQLiteFullTextService.FTS5Statistics) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Image(systemName: "wand.and.stars")
+                    .foregroundColor(.purple)
+                Text("Index Health")
+                    .font(.headline)
+                Spacer()
+            }
+
+            HStack(spacing: 20) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Unique Terms")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text(formatNumber(indexInfo.uniqueTerms))
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                }
+
+                Divider()
+                    .frame(height: 40)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Total Occurrences")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text(formatNumber(indexInfo.totalTerms))
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                }
+
+                Divider()
+                    .frame(height: 40)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Avg Frequency")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text(String(format: "%.1f", indexInfo.averageTermFrequency))
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                }
+            }
+
+            // Compression ratio bar
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Storage Efficiency")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Text(String(format: "%.1f%%", min(100, indexInfo.compressionRatio * 100)))
+                        .font(.caption)
+                        .fontWeight(.medium)
+                }
+
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color.gray.opacity(0.2))
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(compressionColor(indexInfo.compressionRatio))
+                            .frame(width: geo.size.width * min(1, CGFloat(indexInfo.compressionRatio)))
+                    }
+                }
+                .frame(height: 8)
+
+                Text(compressionDescription(indexInfo.compressionRatio))
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding()
+        .background(DSColors.surface)
+        .cornerRadius(12)
+    }
+
+    private func containerBreakdownCard(_ stats: SQLiteFullTextService.FTS5Statistics) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "square.stack.3d.up.fill")
+                    .foregroundColor(.indigo)
+                Text("Container Breakdown")
+                    .font(.headline)
+                Spacer()
+            }
+
+            ForEach(stats.containerStats) { container in
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(container.containerId.uuidString.prefix(8) + "...")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                        Text("\(container.documentCount) docs • \(formatNumber(container.totalWords)) words")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+
+                    Spacer()
+
+                    Text(formatNumber(container.totalCharacters))
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.secondary)
+                    Text("chars")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.vertical, 4)
+
+                if container.id != stats.containerStats.last?.id {
+                    Divider()
+                }
+            }
+        }
+        .padding()
+        .background(DSColors.surface)
+        .cornerRadius(12)
+    }
+
+    @ViewBuilder
+    private var documentSizeChart: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "chart.bar.fill")
+                    .foregroundColor(.green)
+                Text("Document Size Distribution")
+                    .font(.headline)
+                Spacer()
+
+                Button {
+                    showDocumentList.toggle()
+                } label: {
+                    Image(systemName: showDocumentList ? "list.bullet" : "chart.bar")
+                        .foregroundColor(.accentColor)
+                }
+            }
+
+            if showDocumentList {
+                documentListView
+            } else {
+                documentBarChart
+            }
+        }
+        .padding()
+        .background(DSColors.surface)
+        .cornerRadius(12)
+    }
+
+    private var documentBarChart: some View {
+        VStack(spacing: 8) {
+            ForEach(documentStats.prefix(10)) { doc in
+                HStack(spacing: 8) {
+                    Text(doc.documentId.uuidString.prefix(8) + "...")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .frame(width: 80, alignment: .leading)
+
+                    GeometryReader { geo in
+                        let maxChars = documentStats.map(\.characterCount).max() ?? 1
+                        let width = geo.size.width * CGFloat(doc.characterCount) / CGFloat(maxChars)
+
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(
+                                LinearGradient(
+                                    colors: [.blue, .purple],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .frame(width: max(4, width))
+                    }
+                    .frame(height: 12)
+
+                    Text(formatNumber(doc.characterCount))
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .frame(width: 50, alignment: .trailing)
+                }
+            }
+
+            if documentStats.count > 10 {
+                Text("+ \(documentStats.count - 10) more documents")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .padding(.top, 4)
+            }
+        }
+    }
+
+    private var documentListView: some View {
+        VStack(spacing: 6) {
+            HStack {
+                Text("Document ID")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                Spacer()
+                Text("Chars")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                Text("Words")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .frame(width: 60)
+            }
+            .padding(.bottom, 4)
+
+            ForEach(documentStats.prefix(15)) { doc in
+                HStack {
+                    Text(doc.documentId.uuidString.prefix(12) + "...")
+                        .font(.caption)
+                        .foregroundColor(.primary)
+                    Spacer()
+                    Text(formatNumber(doc.characterCount))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text(formatNumber(doc.wordCount))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .frame(width: 60, alignment: .trailing)
+                }
+            }
+
+            if documentStats.count > 15 {
+                Text("+ \(documentStats.count - 15) more documents")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .padding(.top, 4)
+            }
+        }
+    }
+
+    private var actionsSection: some View {
+        HStack(spacing: 12) {
+            Button {
+                Task { await loadStatistics() }
+            } label: {
+                Label("Refresh", systemImage: "arrow.clockwise")
+                    .font(.caption)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(Color.accentColor.opacity(0.15))
+                    .foregroundColor(.accentColor)
+                    .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+
+            if let stats = stats, let lastMod = stats.lastModified {
+                Spacer()
+                Text("Last updated: \(lastMod, style: .relative) ago")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(.top, 8)
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "cylinder")
+                .font(.system(size: 48))
+                .foregroundColor(.secondary.opacity(0.5))
+
+            Text("No FTS5 Data")
+                .font(.headline)
+
+            Text("Add documents to populate the full-text search index")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(32)
+        .frame(maxWidth: .infinity)
+        .background(DSColors.surface)
+        .cornerRadius(12)
+    }
+
+    // MARK: - Helpers
+
+    private func loadStatistics() async {
+        isLoading = true
+        let service = SQLiteFullTextService.shared
+        stats = await service.getStatistics()
+        indexInfo = await service.getIndexInfo()
+        documentStats = await service.getDocumentStats(containerId: containerId)
+        isLoading = false
+    }
+
+    private func formatNumber(_ value: Int) -> String {
+        if value >= 1_000_000 {
+            return String(format: "%.1fM", Double(value) / 1_000_000)
+        } else if value >= 1_000 {
+            return String(format: "%.1fK", Double(value) / 1_000)
+        }
+        return "\(value)"
+    }
+
+    private func formatBytes(_ bytes: Int64) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: bytes)
+    }
+
+    private func compressionColor(_ ratio: Double) -> Color {
+        if ratio < 0.3 {
+            return .green
+        } else if ratio < 0.6 {
+            return .blue
+        } else if ratio < 0.9 {
+            return .orange
+        } else {
+            return .red
+        }
+    }
+
+    private func compressionDescription(_ ratio: Double) -> String {
+        if ratio < 0.3 {
+            return "Excellent: Index is highly compressed"
+        } else if ratio < 0.6 {
+            return "Good: Index has efficient storage"
+        } else if ratio < 0.9 {
+            return "Fair: Moderate compression achieved"
+        } else {
+            return "Index size similar to raw text (normal for small datasets)"
+        }
+    }
+}
+
+/// Individual stat card for FTS5 metrics
+private struct FTS5StatCard: View {
+    let icon: String
+    let title: String
+    let value: String
+    let subtitle: String
+    let color: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: icon)
+                    .foregroundColor(color)
+                Spacer()
+            }
+
+            Text(value)
+                .font(.title2)
+                .fontWeight(.bold)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.caption)
+                    .fontWeight(.medium)
+                Text(subtitle)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding()
+        .background(DSColors.surface)
+        .cornerRadius(12)
+    }
+}
+
+/// Status badge for index state
+private struct StatusBadge: View {
+    let status: String
+    let color: Color
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Circle()
+                .fill(color)
+                .frame(width: 8, height: 8)
+            Text(status)
+                .font(.caption)
+                .fontWeight(.medium)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 4)
+        .background(color.opacity(0.15))
+        .cornerRadius(8)
     }
 }
 

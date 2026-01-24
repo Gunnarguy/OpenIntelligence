@@ -21,7 +21,7 @@ struct ContentView: View {
     init() {
         self.screenshotMode = ScreenshotMode.current
         #if DEBUG
-            if !screenshotMode.isEnabled { 
+            if !screenshotMode.isEnabled {
                 StoreKitTestHarness.startIfNeeded()
             }
         #endif
@@ -37,7 +37,7 @@ struct ContentView: View {
             let defaults = UserDefaults(suiteName: suite) ?? .standard
             defaults.removePersistentDomain(forName: suite)
             _onboardingStore = StateObject(wrappedValue: OnboardingStateStore(defaults: defaults))
-        } else { 
+        } else {
             _onboardingStore = StateObject(wrappedValue: OnboardingStateStore())
         }
         _entitlementStore = StateObject(wrappedValue: entitlementStore)
@@ -48,7 +48,7 @@ struct ContentView: View {
     }
 
     enum Tab {
-        case chat, documents, visualizations, settings
+        case chat, documents, visualizations, database, settings
     }
 
     private var shouldShowChecklistLauncher: Bool {
@@ -68,7 +68,7 @@ struct ContentView: View {
         ZStack {
             tabViewContent
 
-            if onboardingStore.isChecklistVisible, !screenshotMode.isEnabled { 
+            if onboardingStore.isChecklistVisible, !screenshotMode.isEnabled {
                 OnboardingChecklistView(
                     ragService: ragService,
                     onOpenSettings: { selectedTab = .settings },
@@ -162,6 +162,19 @@ struct ContentView: View {
             .tag(Tab.visualizations)
 
             NavigationView {
+                DatabaseDashboardView()
+                    .environmentObject(ragService)
+                    .environmentObject(containerService)
+            }
+            #if os(iOS)
+            .navigationViewStyle(.stack)
+            #endif
+            .tabItem {
+                Label("Database", systemImage: "cylinder.split.1x2")
+            }
+            .tag(Tab.database)
+
+            NavigationView {
                 SettingsView(ragService: ragService)
             }
             #if os(iOS)
@@ -238,7 +251,8 @@ private struct ScreenshotMode {
                 switch t {
                 case "chat": return .chat
                 case "documents", "docs": return .documents
-                case "visualizations", "telemetry": return .visualizations
+                case "visualizations", "telemetry", "atlas": return .visualizations
+                case "database", "db", "sqlite", "fts5": return .database
                 case "settings": return .settings
                 default: return nil
                 }

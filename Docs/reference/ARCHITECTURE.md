@@ -1,7 +1,7 @@
 # OpenIntelligence Technical Architecture
 
-**Version**: 2.3
-**Date**: January 20, 2026
+**Version**: 2.4
+**Date**: January 23, 2026
 **Status**: Production (App Store Submitted)
 
 ## Executive Summary
@@ -10,7 +10,7 @@ OpenIntelligence is a native iOS 26 application implementing a complete Retrieva
 
 **Simple Concept:** Users upload documents, ask questions, get AI-powered answers using information from their documents.
 
-**Latest (v2.3)**: Container dimension auto-migration, granular ingestion pipeline visualization, Maximum mode confidence baseline fix.
+**Latest (v2.4)**: ZERO data loss architecture - FullTextStorageService for exact queries, token validation fix, 50000 chunk limit, CSV row limit removed.
 
 ### Key Architectural Principles
 
@@ -62,22 +62,31 @@ User Document Input
 │   Text Content  │
 └────────┬────────┘
          │
-         ▼
-┌─────────────────┐
-│ Chunk Documents │  ← Content-adaptive chunking
-│  (150-400w)     │    ChunkingConfig.recommended()
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Generate        │  ← NLEmbedding
-│ Embeddings      │  ← 512-dim vectors
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ Store in Vector │  ← VectorDatabase protocol
-│    Database     │  ← Cosine similarity
+         ├──────────────────────────────────┐
+         │                                  │
+         ▼                                  ▼
+┌─────────────────┐                ┌─────────────────┐
+│ Store Full Text │  ← ZERO LOSS   │ Chunk Documents │  ← Content-adaptive
+│ (Original)      │                │  (≤310w max)    │    SemanticChunker
+└────────┬────────┘                └────────┬────────┘
+         │                                  │
+         │                                  ▼
+         │                         ┌─────────────────┐
+         │                         │ Token Validate  │  ← BertTokenizer
+         │                         │ (≤510 tokens)   │    Binary search truncate
+         │                         └────────┬────────┘
+         │                                  │
+         │                                  ▼
+         │                         ┌─────────────────┐
+         │                         │ Generate        │  ← CoreML MiniLM-L6
+         │                         │ Embeddings      │  ← 384-dim vectors
+         │                         └────────┬────────┘
+         │                                  │
+         ▼                                  ▼
+┌─────────────────┐                ┌─────────────────┐
+│ FullTextStorage │                │ Store in Vector │  ← HNSW index
+│ Service (disk)  │                │    Database     │  ← Cosine similarity
+└─────────────────┘                └────────┬────────┘
 └────────┬────────┘
          │
          ▼
@@ -286,13 +295,51 @@ PDF Page → extractImagesFromPDFPage() → ClassifyImageRequest → Image tags
 
 **Key Features**:
 
-- Uses `NLEmbedding.wordEmbedding` for 512-dimensional vectors
+- Uses CoreML MiniLM-L6-v2 for 384-dimensional vectors
 - Token-level embedding with averaging for chunk representations
 - Cosine similarity calculation for retrieval
-- Validates dimensions, NaN values, and magnitudes
+- **Token Counting**: `countTokens()` using actual BertTokenizer (critical for validation)
+- **Token Validation**: RAGService validates tokens before embedding, binary search truncation if exceeded
 - Always available on-device (no network required)
 
+**Token Limit** (CRITICAL):
+
+- Max embedding tokens: **510** (512 - 2 for CLS/SEP)
+- Linguistic words ≠ embedding tokens! `VHA21\VHAPALGarciG1` = 1 word but 10+ tokens
+- Use `countTokens()` not word count for validation
+
 **File**: `OpenIntelligence/Services/EmbeddingService.swift`
+
+### FullTextStorageService
+
+**Purpose**: Store and retrieve COMPLETE original document text for exact queries
+
+**Key Features**:
+
+- **ZERO Data Loss**: Stores full text before chunking - nothing is discarded
+- **Pattern Counting**: `countPatternInCorpus(pattern:)` counts across ALL documents
+- **Exact Search**: `searchCorpus(pattern:)` finds exact matches with context
+- **Persistence**: Disk storage with memory cache for fast access
+- **Actor-Based**: Thread-safe async access
+
+**Use Cases**:
+
+- "How many times is 'and' mentioned in all documents?" → exact count
+- "Find all occurrences of 'ERROR-5021'" → exhaustive search
+- Queries requiring complete corpus access, not just chunked retrieval
+
+**Implementation**:
+
+```swift
+// Store during ingestion (in DocumentProcessor)
+await FullTextStorageService.shared.store(text: extractedText, for: documentId)
+
+// Count pattern (used by RAGToolHandler)
+let counts = await FullTextStorageService.shared.countPatternInCorpus(pattern: "and")
+// Returns: [UUID: Int] - document ID to occurrence count
+```
+
+**File**: `OpenIntelligence/Services/Storage/FullTextStorageService.swift`
 
 ### VectorDatabase
 
@@ -1513,8 +1560,8 @@ The system is designed to be domain-agnostic—able to understand any document t
 
 **Current Implementation Status**:
 
-| Component                | Status        | Location                                    |
-| ------------------------ | ------------- | ------------------------------------------- |
+| Component                | Status         | Location                                    |
+| ------------------------ | -------------- | ------------------------------------------- |
 | Bi-Encoder Embedder      | ✅ Implemented | `CoreMLSentenceEmbeddingProvider` (384-dim) |
 | Cross-Encoder Reranker   | ✅ Implemented | `ReRankerModel.mlpackage` in RAGEngine      |
 | Dense Vector Index       | ✅ Implemented | `VectorDatabase` protocol implementations   |

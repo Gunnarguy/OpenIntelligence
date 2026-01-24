@@ -26,6 +26,18 @@ class EmbeddingService {
     /// The actual provider ID being used (may differ from requested if fallback occurred)
     var actualProviderId: String { providerIdentifier }
 
+    // MARK: - Token Counting (Critical for Chunk Validation)
+
+    /// Count ACTUAL tokens that will be used during embedding
+    /// This uses the real tokenizer, not linguistic word count
+    /// Example: "VHA21\VHAPALGarciG1" = 1 word but 10+ tokens
+    func countTokens(_ text: String) -> Int {
+        provider.countTokens(text)
+    }
+
+    /// Maximum safe token count for this provider
+    var maxSafeTokens: Int { provider.maxSafeTokens }
+
     // MARK: - Initialization
 
     init(
