@@ -800,6 +800,20 @@ class RAGService: ObservableObject {
             await self.documentSummaryService.setRAGService(self)
         }
 
+        // Log GPU acceleration status at startup
+        Task {
+            let gpuService = GPUComputeService.shared
+            if gpuService.isGPUAvailable {
+                Log.info("🚀 GPU Compute: \(gpuService.deviceName) ready for vector operations", category: .initialization)
+            } else {
+                Log.warning("⚠️ GPU unavailable, using Accelerate (CPU SIMD) for vector math", category: .initialization)
+            }
+
+            if DocumentProcessor.isGPUAccelerated {
+                Log.info("🚀 GPU Image Processing: Metal context ready for OCR", category: .initialization)
+            }
+        }
+
         // Observe container switches to save/restore transcripts
         observeContainerChanges()
     }

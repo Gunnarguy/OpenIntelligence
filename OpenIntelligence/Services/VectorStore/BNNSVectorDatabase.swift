@@ -34,14 +34,19 @@
 
 import Accelerate
 import Foundation
+import Metal
 
-/// ANE-friendly brute-force vector store using Accelerate.
+/// ANE-friendly brute-force vector store using Accelerate + Metal GPU.
+/// Uses GPU acceleration for large batches (1000+ vectors) via GPUComputeService.
 /// Uses actor isolation for async safety in Swift 6.
 actor BNNSVectorDatabase: VectorDatabase {
     // MARK: - Properties
 
     let dimension: Int
     private let storageURL: URL? // Optional for in-memory only use cases
+
+    /// GPU compute service for accelerated batch operations (initialized lazily)
+    private var gpuCompute: GPUComputeService?
 
     // Contiguous memory storage for max performance
     // We store embeddings in a flat array: [e1_0, e1_1... e2_0...]
@@ -64,6 +69,16 @@ actor BNNSVectorDatabase: VectorDatabase {
                 await self.loadFromDisk(url: url)
             }
         }
+    }
+
+    /// Lazily get GPU compute service (avoids actor isolation issues at property initialization)
+    private func getGPUCompute() async -> GPUComputeService {
+        if let compute = gpuCompute {
+            return compute
+        }
+        let compute = await MainActor.run { GPUComputeService.shared }
+        gpuCompute = compute
+        return compute
     }
 
     // MARK: - Persistence
@@ -208,47 +223,46 @@ actor BNNSVectorDatabase: VectorDatabase {
             return []
         }
 
-        // SILICON-NATIVE: Two options based on chunk count
-        // For large databases (>1000 chunks): Use batch matrix multiply
-        // For smaller databases: Use per-chunk dot product with pre-computed norms
+        var scores: [Float]
 
-        var scores = [Float](repeating: 0.0, count: count)
+        // GPU PATH: Use Metal for large vector stores (1000+ chunks)
+        // GPU provides 10-50x speedup for batch cosine similarity
+        let gpuThreshold = 1000
+        let gpu = await getGPUCompute()
 
-        // DEVICE-ADAPTIVE: Use DeviceCapabilityService to determine optimal batch threshold
-        // Higher-end devices (M-series, A19) benefit from batch path at lower chunk counts
-        let batchThreshold = await DeviceCapabilityService.shared.batchMatrixMultiplyThreshold
+        if count >= gpuThreshold && gpu.isGPUAvailable {
+            // GPU ACCELERATED: Extract all embeddings and compute on GPU
+            let allEmbeddings = (0..<count).map { i -> [Float] in
+                let start = i * dimension
+                return Array(flatEmbeddings[start..<(start + dimension)])
+            }
 
-        if count >= batchThreshold {
-            // BATCH PATH: vDSP_mmul for massive parallelism on Neural Engine
-            // Computes all dot products in one matrix operation
-            flatEmbeddings.withUnsafeBufferPointer { embPtr in
-                embedding.withUnsafeBufferPointer { queryPtr in
-                    scores.withUnsafeMutableBufferPointer { outPtr in
-                        // vDSP_mmul: C = A (m x n) * B (n x p)
-                        // A = Embeddings (Count x Dimension)
-                        // B = Query (Dimension x 1)
-                        // C = Dot Products (Count x 1)
-                        vDSP_mmul(embPtr.baseAddress!, 1,
-                                  queryPtr.baseAddress!, 1,
-                                  outPtr.baseAddress!, 1,
-                                  vDSP_Length(count), 1, vDSP_Length(dimension))
+            scores = gpu.batchCosineSimilarity(query: embedding, documents: allEmbeddings)
+            Log.debug("[BNNSVectorDatabase] 🚀 GPU batch similarity for \(count) vectors", category: .vectorDB)
+        } else {
+            // CPU PATH: Use Accelerate for smaller vector stores
+            scores = [Float](repeating: 0.0, count: count)
+
+            // DEVICE-ADAPTIVE: Use DeviceCapabilityService to determine optimal batch threshold
+            let batchThreshold = await DeviceCapabilityService.shared.batchMatrixMultiplyThreshold
+
+            if count >= batchThreshold {
+                // BATCH PATH: vDSP_mmul for massive parallelism
+                flatEmbeddings.withUnsafeBufferPointer { embPtr in
+                    embedding.withUnsafeBufferPointer { queryPtr in
+                        scores.withUnsafeMutableBufferPointer { outPtr in
+                            vDSP_mmul(embPtr.baseAddress!, 1,
+                                      queryPtr.baseAddress!, 1,
+                                      outPtr.baseAddress!, 1,
+                                      vDSP_Length(count), 1, vDSP_Length(dimension))
+                        }
                     }
                 }
-            }
-
-            // Normalize by pre-computed norms for true cosine similarity
-            for i in 0 ..< count {
-                let chunkNorm = embeddingNorms[i]
-                if chunkNorm > 1e-9 {
-                    scores[i] = scores[i] / (queryNorm * chunkNorm)
-                } else {
-                    scores[i] = 0
+            } else {
+                // INDIVIDUAL PATH: Per-chunk accelerated cosine similarity
+                for i in 0 ..< count {
+                    scores[i] = cosineSimilarityAccelerated(embedding, queryNorm: queryNorm, chunkIndex: i)
                 }
-            }
-        } else {
-            // INDIVIDUAL PATH: Per-chunk accelerated cosine similarity
-            for i in 0 ..< count {
-                scores[i] = cosineSimilarityAccelerated(embedding, queryNorm: queryNorm, chunkIndex: i)
             }
         }
 

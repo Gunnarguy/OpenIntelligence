@@ -255,7 +255,7 @@ struct AttachmentMenuButton: View {
                     Divider()
 
                     Button(action: onVisionCapture) {
-                        Label("Vision Capture", systemImage: "text.viewfinder")
+                        Label("Scan Document", systemImage: "doc.viewfinder")
                     }
                 }
             }

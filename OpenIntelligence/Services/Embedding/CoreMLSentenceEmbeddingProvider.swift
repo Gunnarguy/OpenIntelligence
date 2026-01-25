@@ -45,9 +45,17 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
             if let url = Bundle.main.url(forResource: modelName, withExtension: "mlmodelc") {
                 do {
                     let config = MLModelConfiguration()
-                    config.computeUnits = .all // ANE preferred
+                    // Use device-specific compute units based on GPU acceleration setting
+                    config.computeUnits = DeviceCapabilityService.shared.preferredComputeUnits
+                    let computeDesc: String
+                    switch config.computeUnits {
+                    case .cpuAndGPU: computeDesc = "GPU+CPU (forced GPU mode)"
+                    case .cpuAndNeuralEngine: computeDesc = "ANE+CPU (efficiency mode)"
+                    case .all: computeDesc = "All (system choice)"
+                    default: computeDesc = "default"
+                    }
                     model = try MLModel(contentsOf: url, configuration: config)
-                    Log.info("[CoreMLSentenceEmbeddingProvider] Loaded EmbeddingModel.mlmodelc", category: .embedding)
+                    Log.info("[CoreMLSentenceEmbeddingProvider] Loaded EmbeddingModel.mlmodelc - compute: \(computeDesc)", category: .embedding)
                 } catch {
                     Log.error("[CoreMLSentenceEmbeddingProvider] Failed to load MLModel: \(error)", category: .embedding)
                 }
@@ -55,7 +63,7 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
                 // Fallback: Check for uncompiled package (rare, but good for safety)
                 do {
                     let config = MLModelConfiguration()
-                    config.computeUnits = .all
+                    config.computeUnits = DeviceCapabilityService.shared.preferredComputeUnits
                     model = try MLModel(contentsOf: sourceURL, configuration: config)
                     Log.info("[CoreMLSentenceEmbeddingProvider] Loaded EmbeddingModel.mlpackage (fallback)", category: .embedding)
                 } catch {
@@ -210,9 +218,9 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
             return results
         }
 
-        // Parallel batching with controlled concurrency
-        // Limit concurrent tasks to avoid memory pressure on ANE
-        let maxConcurrency = min(8, ProcessInfo.processInfo.activeProcessorCount)
+        // Parallel batching with device-specific concurrency
+        // CoreML embedding runs on ANE; higher-tier devices can sustain more concurrent requests
+        let maxConcurrency = DeviceCapabilityService.shared.embeddingConcurrency
 
         return try await withThrowingTaskGroup(of: (Int, [Float]).self) { group in
             var results = Array(repeating: [Float](), count: batchSize)

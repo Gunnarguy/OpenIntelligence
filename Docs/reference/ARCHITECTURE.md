@@ -298,6 +298,82 @@ func createStructureAwareChunks(from elements: [StructuredElement]) -> [Document
 
 **Structure Boost in Retrieval**: `HybridSearchService.applyStructureTypeBoost()` increases scores for table/list chunks when query contains specification patterns (detected via `detectSpecificationQuery()` using domain-agnostic linguistic patterns).
 
+### Apple CoreML Vision Models (Planned v1.2.0)
+
+**Purpose**: Enhanced document understanding using Apple's pre-trained CoreML models
+
+OpenIntelligence will integrate Apple's official CoreML models from https://developer.apple.com/machine-learning/models/ to dramatically improve document ingestion quality.
+
+#### V1 Priority Models
+
+| Model             | Size    | Inference Time | Use Case                                         |
+| ----------------- | ------- | -------------- | ------------------------------------------------ |
+| **FastViT T8**    | 8.2MB   | 0.5-0.8ms      | Classify document content type before processing |
+| **DETR ResNet50** | 43-85MB | 32-50ms        | Detect tables, figures, charts, text regions     |
+| **DeepLabV3**     | 4-8MB   | ~30ms          | Lightweight semantic segmentation                |
+
+#### Enhanced Document Pipeline
+
+```text
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    COREML-ENHANCED INGESTION PIPELINE                    │
+└─────────────────────────────────────────────────────────────────────────┘
+
+PDF/Image Input
+      │
+      ▼
+┌─────────────────┐
+│ FastViT T8     │  ← 8MB model, <1ms inference
+│ Content Classify│  → "document", "receipt", "diagram", "photo", "form"
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ DETR ResNet50  │  ← 43MB model, ~35ms inference
+│ Region Detect  │  → Bounding boxes: [table@(x,y), figure@(x,y), text@(x,y)]
+└────────┬────────┘
+         │
+         ├── Table Region ──→ OCR with table settings → Preserve structure
+         ├── Figure Region ─→ Image classification + caption extraction
+         ├── Text Region ───→ Standard OCR → Semantic chunking
+         └── Form Region ───→ Key-value pair extraction
+                │
+                ▼
+┌─────────────────┐
+│ Structure-Aware │  ← Tables never split mid-row
+│ Chunking       │  ← Figures kept atomic with captions
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ Zone Metadata  │  ← ChunkMetadata.zoneType = "table" | "figure" | "prose"
+│ Enrichment     │  ← Enables structure-aware retrieval boosting
+└────────┬────────┘
+         │
+         ▼
+    [Standard RAG Pipeline: Embed → Index → Store]
+```
+
+#### Planned Services
+
+| Service                         | Model         | Responsibility                        |
+| ------------------------------- | ------------- | ------------------------------------- |
+| `DocumentClassificationService` | FastViT T8    | Pre-classify content for routing      |
+| `RegionDetectionService`        | DETR ResNet50 | Detect semantic regions in pages      |
+| `SemanticSegmentationService`   | DeepLabV3     | Pixel-level classification (optional) |
+
+#### V2 Model Catalog
+
+| Model           | Size  | Use Case                                   | Integration Target |
+| --------------- | ----- | ------------------------------------------ | ------------------ |
+| BERT-SQuAD      | 217MB | Extractive QA for simulator/legacy devices | v2.0               |
+| DepthAnythingV2 | 49MB  | 3D document scanning, AR overlay           | v2.0               |
+| MobileNetV2     | 12MB  | Classify embedded images                   | v2.0               |
+| YOLOv3 Tiny     | 17MB  | Real-time camera document detection        | v2.0               |
+| ResNet-50       | 51MB  | High-accuracy image classification         | v2.0               |
+
+**Note**: All models available from Apple at https://developer.apple.com/machine-learning/models/
+
 **Layout-Aware OCR** (Implemented):
 
 ```swift
