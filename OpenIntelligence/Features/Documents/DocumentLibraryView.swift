@@ -34,6 +34,10 @@ struct DocumentLibraryView: View {
     @State private var showingDeleteConfirmation = false
     @State private var libraryToDelete: KnowledgeContainer?
 
+    // Vision Capture and Cached Docs
+    @State private var showVisionCapture = false
+    @State private var showCachedDocs = false
+
     let onViewVisualizations: (() -> Void)?
 
     private var documentLimit: Int { entitlementStore.documentLimit }
@@ -184,6 +188,24 @@ struct DocumentLibraryView: View {
                     }
                 }
 
+                // Vision Capture - camera with live OCR
+                ToolbarItem(placement: .automatic) {
+                    Button {
+                        showVisionCapture = true
+                    } label: {
+                        Label("Vision Capture", systemImage: "text.viewfinder")
+                    }
+                }
+
+                // Cached Documentation browser
+                ToolbarItem(placement: .automatic) {
+                    Button {
+                        showCachedDocs = true
+                    } label: {
+                        Label("Cached Docs", systemImage: "doc.on.doc")
+                    }
+                }
+
                 ToolbarItem(placement: .automatic) {
                     Button {
                         showingContainerSettings = true
@@ -285,6 +307,15 @@ struct DocumentLibraryView: View {
             .sheet(isPresented: $showingPlanSheet) {
                 PlanUpgradeSheet(entryPoint: activePaywallEntryPoint)
                     .environmentObject(entitlementStore)
+            }
+            .fullScreenCover(isPresented: $showVisionCapture) {
+                CameraVisionOverlayView(
+                    ragService: ragService,
+                    containerService: containerService
+                )
+            }
+            .sheet(isPresented: $showCachedDocs) {
+                CachedDocsView(ragService: ragService)
             }
 .alert("New Library", isPresented: $showingNewLibraryPrompt) {
     TextField("Library name", text: $newLibraryName)

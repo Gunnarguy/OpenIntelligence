@@ -875,6 +875,9 @@ class RAGService: ObservableObject {
         } else {
             defaults.set(state.rawValue, forKey: key)
         }
+        // Force immediate sync to disk - important for dev builds where Xcode may kill app quickly
+        defaults.synchronize()
+        Log.info("[Consent] Persisted \(provider.shortName) = \(state.rawValue)", category: .initialization)
     }
 
     @MainActor
@@ -1044,9 +1047,26 @@ class RAGService: ObservableObject {
     /// Called after model warmup completes so the user sees the popup once before their first query.
     @MainActor
     func prewarmCloudConsentIfNeeded() {
-        // Only prewarm for PCC if consent is not yet determined
-        guard cloudConsent[.applePCC] == nil || cloudConsent[.applePCC] == .notDetermined else {
-            Log.debug("[Consent Prewarm] PCC consent already determined: \(cloudConsent[.applePCC]?.rawValue ?? "nil")", category: .initialization)
+        // Check UserDefaults DIRECTLY to ensure we're reading persisted value
+        // This avoids race conditions with SettingsStore initialization
+        let key = ConsentDefaults.key(for: .applePCC)
+        let persistedRaw = UserDefaults.standard.string(forKey: key)
+        Log.info("[Consent Prewarm] Checking key '\(key)' = '\(persistedRaw ?? "nil")'", category: .initialization)
+
+        if let persistedRaw,
+           let persisted = CloudConsentState(rawValue: persistedRaw),
+           persisted != .notDetermined {
+            Log.info("[Consent Prewarm] PCC consent already determined (persisted): \(persisted.rawValue)", category: .initialization)
+            // Also ensure in-memory state matches persisted state
+            if cloudConsent[.applePCC] != persisted {
+                cloudConsent[.applePCC] = persisted
+            }
+            return
+        }
+
+        // Also check in-memory state as backup
+        if let state = cloudConsent[.applePCC], state != .notDetermined {
+            Log.debug("[Consent Prewarm] PCC consent already determined (memory): \(state.rawValue)", category: .initialization)
             return
         }
 
@@ -2189,7 +2209,8 @@ class RAGService: ObservableObject {
                         id: trackingId,
                         filename: filename,
                         stage: .analyzing,
-                        detail: "Profiling corpus vocabulary and complexity..."
+                        detail: "Loading existing chunks for corpus analysis...",
+                        progress: 0.1
                     ) { metrics in
                         metrics.isAutoAdaptive = true
                     }
@@ -2198,6 +2219,16 @@ class RAGService: ObservableObject {
                 // Get ALL existing chunks in this container for comprehensive analysis
                 let db = await dbForActiveContainer()
                 let existingChunks = try await db.allChunks()
+
+                await MainActor.run {
+                    updateIngestionItem(
+                        id: trackingId,
+                        filename: filename,
+                        stage: .analyzing,
+                        detail: "Analyzing \(existingChunks.count + processedChunks.count) chunks for vocabulary patterns...",
+                        progress: 0.3
+                    )
+                }
 
                 // Analyze combined corpus (existing + new document)
                 let allDocumentsForAnalysis = await MainActor.run {
@@ -2226,10 +2257,32 @@ class RAGService: ObservableObject {
                     )
                 }
 
+                // Update progress before analysis
+                await MainActor.run {
+                    updateIngestionItem(
+                        id: trackingId,
+                        filename: filename,
+                        stage: .analyzing,
+                        detail: "Detecting languages, code patterns, and domain signals...",
+                        progress: 0.5
+                    )
+                }
+
                 let report = await intelligenceCenter.analyzeLibrary(
                     documents: allDocumentsForAnalysis,
                     chunks: combinedChunks
                 )
+
+                // Update progress after analysis
+                await MainActor.run {
+                    updateIngestionItem(
+                        id: trackingId,
+                        filename: filename,
+                        stage: .analyzing,
+                        detail: "Computing optimal chunking and embedding strategy...",
+                        progress: 0.8
+                    )
+                }
 
                 let analysisTime = Date().timeIntervalSince(analysisStartTime)
 
@@ -2240,7 +2293,8 @@ class RAGService: ObservableObject {
                         id: trackingId,
                         filename: filename,
                         stage: .analyzing,
-                        detail: "Vocab richness \(String(format: "%.0f%%", report.corpus.vocabularyRichness * 100)) • Tech density \(String(format: "%.0f%%", report.corpus.technicalDensity * 100))"
+                        detail: "Vocab richness \(String(format: "%.0f%%", report.corpus.vocabularyRichness * 100)) • Tech density \(String(format: "%.0f%%", report.corpus.technicalDensity * 100))",
+                        progress: 1.0
                     ) { metrics in
                         metrics.vocabularyRichness = report.corpus.vocabularyRichness
                         metrics.technicalDensity = report.corpus.technicalDensity

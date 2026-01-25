@@ -33,9 +33,9 @@ THE 12 RAG FEATURES
 KEY FEATURES
 
 - Document intake: PDFKit parsing + Vision OCR; paragraph-aware chunking with 17% smart overlap.
-- Flexible models: Apple Intelligence, local GGUF (Llama 3, Mistral), OpenAI, Anthropic—pick what fits.
+- On-device AI: Powered by iOS Foundation Models with Private Cloud Compute fallback.
 - Cited answers: Every response links back to the original source text. Tap to verify.
-- Execution badges: See exactly where processing happened—On-Device, PCC, or API.
+- Execution badges: See exactly where processing happened—On-Device or PCC.
 - Power controls: Top-K tuning, container isolation, quality modes (Standard/Deep Think/Maximum).
 - Siri and Shortcuts: App Intents for quick queries and automations.
 - Observability: Real-time telemetry, TTFT timers, and 3D vector space visualization.
@@ -44,10 +44,15 @@ PRIVACY
 
 - Your documents never leave your device unless you explicitly allow cloud calls.
 - Private Cloud Compute runs on Apple Silicon servers with zero retention.
-- API calls require consent and are transparently logged.
 - No third-party analytics. All telemetry stays on-device.
 
 IN-APP PURCHASES
 
-- Pro subscription unlocks unlimited documents, all 12 RAG features, and premium models.
+- Pro subscription unlocks unlimited documents, all 12 RAG features, and advanced controls.
 - Lifetime option available for one-time purchase.
+- Subscriptions auto-renew until cancelled 24 hours before renewal.
+
+LEGAL
+
+Privacy Policy: https://gunzino.me/openintelligence/privacy
+Terms of Use: https://gunzino.me/openintelligence/terms

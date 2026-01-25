@@ -1,9 +1,96 @@
 # OpenIntelligence Roadmap
 
-**Last Updated**: January 24, 2026
-**Version**: 1.0.0 (Build 5)
-**Status**: Production (App Store Submitted)
+**Last Updated**: January 25, 2026
+**Version**: 1.0.0 (Build 9)
+**Status**: App Store Review - Resubmission Pending
 **RAG Maturity Score**: 9.9/10 (Self-RAG 2.0 + Enhanced OCR + Office Docs + Multi-Session Enrichment)
+
+---
+
+### 🎯 NEXT FEATURES (v1.2.0)
+
+#### 1. Camera Vision Overlay with Apple Intelligence
+
+_Live camera analysis using iOS 26 Vision framework + FoundationModels_
+
+**Status**: 📋 Planning
+**Target**: v1.2.0 (March 2026)
+**Impact**: Real-time document capture and analysis
+
+| Feature                 | Vision API                              | Status  |
+| ----------------------- | --------------------------------------- | ------- |
+| Document Detection      | `DetectDocumentSegmentationRequest`     | Planned |
+| Live Text Recognition   | `RecognizeTextRequest` (continuous)     | Planned |
+| Table Structure Parsing | `RecognizeDocumentsRequest`             | Planned |
+| Barcode/QR Detection    | `DetectBarcodesRequest`                 | Planned |
+| Image Description (AI)  | `FoundationModels` image prompt         | Planned |
+| Subject Isolation       | `GenerateForegroundInstanceMaskRequest` | Planned |
+| Aesthetic Scoring       | `CalculateImageAestheticsScoresRequest` | Planned |
+
+**Architecture**:
+
+- **CameraVisionOverlayView**: SwiftUI view with AVCaptureSession + Vision pipeline
+- **LiveAnalysisService**: Real-time frame analysis with debouncing (10 FPS cap)
+- **CaptureToRAGBridge**: One-tap to extract text/tables and ingest into RAG pipeline
+- **AR Bounding Boxes**: Live overlay of detected text regions, tables, and documents
+
+**User Flow**:
+
+1. Tap camera button on chat screen
+2. Point at document/whiteboard/receipt
+3. See live bounding boxes + extracted text preview
+4. Tap "Capture & Add to Library" to ingest
+5. Ask questions immediately about captured content
+
+#### 2. Documentation Cache Service
+
+_Automatically save fetched web documentation locally for offline access_
+
+**Status**: 📋 Planning
+**Target**: v1.2.0 (March 2026)
+**Impact**: No repeated web fetches; persistent knowledge base
+
+**Architecture**:
+
+- **DocumentationCacheService**: Actor-based service for storing fetched web content
+- **CachedDocument**: Struct with URL, title, content, fetchDate, hash
+- **Docs/cached/** folder in workspace for persistent storage
+- **Markdown conversion**: HTML → cleaned Markdown for RAG ingestion
+- **De-duplication**: SHA256 hash check before storing duplicates
+
+**Features**:
+
+- [ ] Auto-save on every web fetch (opt-in via Settings)
+- [ ] Browse cached documentation in-app
+- [ ] Ingest cached docs into RAG containers
+- [ ] Search across cached documentation
+- [ ] Expiration/freshness policy (30-day default)
+
+#### 3. Enhanced Image Understanding (FoundationModels + Vision)
+
+_Use Apple Intelligence to DESCRIBE image contents, not just classify_
+
+**Status**: 📋 Planning
+**Target**: v1.2.0 (March 2026)
+**Impact**: Rich semantic understanding of diagrams, charts, photos
+
+**Current Capability** (v1.0):
+
+- ✅ Image classification (diagram, chart, photo, logo, etc.)
+- ✅ OCR from images (labels, annotations)
+- ✅ Caption detection via spatial proximity
+- ✅ Surrounding context extraction
+- ✅ OCR retry at 360 DPI for low-quality images
+
+**Planned Enhancements**:
+
+- [ ] **FoundationModels Image Prompting**: Pass image to Apple FM with "Describe this image in detail"
+- [ ] **Diagram Understanding**: "This flowchart shows steps: 1. Input → 2. Process → 3. Output"
+- [ ] **Chart Data Extraction**: "Bar chart showing Q1=20%, Q2=35%, Q3=25%, Q4=20%"
+- [ ] **Photo Scene Description**: "Meeting room with 5 people around a whiteboard"
+- [ ] **Embedded Chunk Metadata**: `imageDescription` field in ChunkMetadata for search
+
+---
 
 ### 🚀 NEXT: SQLite FTS5 Full-Text Search Engine (v1.1.0)
 
@@ -853,6 +940,8 @@ _Move items here when actively working on them._
 | Maximum Mode Confidence Fix                  | ✅ Done | Agent | Fixed 0% confidence display by starting at 5% baseline; progress now shows 5%→12%→20%→... instead of 0%→0%→85%                                                                                     |
 | Ingestion Queue UI Enhancements              | ✅ Done | Agent | Shorthand provider labels (CoreML, NL, FM); 4-row granular metrics; semantic boundary display; entity extraction visualization; timing waterfall; throughput calculations                          |
 | App Store Build 4                            | ✅ Done | Agent | Incremented build to 4, archived and exported IPA for Transporter upload                                                                                                                           |
+| App Store Rejection Fixes (Build 9)          | ✅ Done | Agent | Fixed 3.1.2: Added Terms of Use URL to description. Fixed 5.2.5: Subtitle already compliant. 2.1: IAPs need App Store Connect screenshots                                                          |
+| Deep Think Context Overflow Fix              | ✅ Done | Agent | Extended Maximum mode's sliding window insight compression to Deep Think (4-8 sessions); added context overflow retry with auto-reduction; tighter context budgets for multi-session modes         |
 
 ---
 

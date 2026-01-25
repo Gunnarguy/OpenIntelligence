@@ -51,6 +51,16 @@ platform :ios do
     increment_build_number(xcodeproj: "OpenIntelligence.xcodeproj")
   end
 
+  desc "Upload metadata only (no binary) - for fixing App Store rejection"
+  lane :metadata do
+    deliver(
+      skip_binary_upload: true,
+      skip_screenshots: true,
+      force: true,
+      submit_for_review: false
+    )
+  end
+
   desc "Validate app metadata and screenshots"
   lane :validate do
     deliver(

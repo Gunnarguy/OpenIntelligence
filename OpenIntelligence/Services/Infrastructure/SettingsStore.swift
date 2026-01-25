@@ -349,8 +349,13 @@ final class SettingsStore: ObservableObject {
             defaults.set(false, forKey: Keys.reviewerModeEnabled)
         #endif
         let appleConsentRaw = defaults.string(forKey: Keys.applePCCConsent)
-        applePCCConsent =
-            CloudConsentState(rawValue: appleConsentRaw ?? "") ?? .notDetermined
+        let parsedConsent = CloudConsentState(rawValue: appleConsentRaw ?? "") ?? .notDetermined
+        applePCCConsent = parsedConsent
+        // Clean up stale "notDetermined" strings that were incorrectly persisted
+        // Only allowed/denied should be persisted; notDetermined means no decision yet
+        if appleConsentRaw == "notDetermined" {
+            defaults.removeObject(forKey: Keys.applePCCConsent)
+        }
         hasUserPrimaryOverride =
             defaults.object(forKey: Keys.primaryModelUserOverride) as? Bool ?? false
         developerRAGTuningEnabled = false
@@ -557,7 +562,11 @@ final class SettingsStore: ObservableObject {
         defaults.set(firstFallback.rawValue, forKey: Keys.firstFB)
         defaults.set(secondFallback.rawValue, forKey: Keys.secondFB)
         defaults.set(reviewerModeEnabled, forKey: Keys.reviewerModeEnabled)
-        defaults.set(applePCCConsent.rawValue, forKey: Keys.applePCCConsent)
+        // Only persist consent if user has explicitly chosen (allowed/denied)
+        // Never persist .notDetermined - that should trigger the consent popup
+        if applePCCConsent != .notDetermined {
+            defaults.set(applePCCConsent.rawValue, forKey: Keys.applePCCConsent)
+        }
         defaults.set(hasUserPrimaryOverride, forKey: Keys.primaryModelUserOverride)
         defaults.set(developerRAGTuningEnabled, forKey: Keys.developerRAGTuning)
 

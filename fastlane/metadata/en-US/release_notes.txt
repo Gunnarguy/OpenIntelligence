@@ -6,6 +6,6 @@ Version 1.0 — The 12 RAG Features Release
 - HyDE, RAPTOR-lite, Self-RAG, and Agentic reasoning
 - Contextual compression saves 40-60% tokens
 - Lost-in-Middle mitigation for better attention
-- Apple Intelligence, local GGUF, and API model support
+- Powered by iOS Foundation Models with Private Cloud Compute fallback
 - Real-time telemetry and 3D vector visualization
 - Private by default. Your documents never leave your device.

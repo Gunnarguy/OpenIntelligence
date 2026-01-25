@@ -3925,7 +3925,7 @@ private func addPointNodes(_ points: [SCNVector3], _ colors: [PlatformColor], sc
 
     // Create one sphere geometry per color (true geometry sharing)
     // Each color group shares the SAME geometry instance
-    for (colorHash, indices) in colorToIndices {
+    for (_, indices) in colorToIndices {
         guard let firstIndex = indices.first else { continue }
         let color = colors[firstIndex]
 

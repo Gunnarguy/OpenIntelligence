@@ -85,6 +85,21 @@ final class OnboardingStateStore: ObservableObject {
         isChecklistVisible = false
     }
 
+    /// Resets all onboarding state - useful for testing or re-onboarding
+    func resetAllOnboarding() {
+        hasImportedSamples = false
+        hasAskedFirstQuery = false
+        hasAcknowledgedModelSelection = false
+        hasDismissedPermanently = false
+        isChecklistVisible = true
+
+        defaults.removeObject(forKey: Keys.hasImportedSamples)
+        defaults.removeObject(forKey: Keys.hasAskedFirstQuery)
+        defaults.removeObject(forKey: Keys.hasAcknowledgedModel)
+        defaults.removeObject(forKey: Keys.hasCompleted)
+        defaults.removeObject(forKey: Keys.hasDismissedPermanently)
+    }
+
     private func evaluateCompletion() {
         if hasCompletedOnboarding {
             defaults.set(true, forKey: Keys.hasCompleted)

@@ -489,13 +489,27 @@ final class AgenticOrchestrator: Sendable {
                     steps.append(verifyStep)
                     await onStep?(verifyStep)
 
-                    // Use calibrated confidence, not the inflated session-based one
-                    // If answer doesn't address the question, confidence drops dramatically
-                    let finalConfidence = verification.addressesQuestion
-                        ? max(verification.calibratedConfidence, 0.5)  // Good answer: at least 50%
-                        : min(verification.calibratedConfidence, 0.4)  // Bad answer: capped at 40%
+                    // Use calibrated confidence, but respect the work done
+                    // If 41 sessions achieved 98%, don't crash to 40% unless answer is truly bad
+                    // FIXED 2026-01: Previous version was too aggressive, discarding valid answers
+                    let sessionConfidence = unlimitedResult.confidence
+                    let verifyConfidence = verification.calibratedConfidence
 
-                    Log.info("[Agentic] Maximum Mode: Calibrated confidence \(Int(unlimitedResult.confidence * 100))% → \(Int(finalConfidence * 100))% (addresses question: \(verification.addressesQuestion))", category: .llm)
+                    let finalConfidence: Float
+                    if verification.addressesQuestion {
+                        // Answer is relevant - blend session confidence with verification
+                        // Trust the sessions more (they did the work)
+                        finalConfidence = sessionConfidence * 0.7 + verifyConfidence * 0.3
+                    } else if verifyConfidence >= 0.5 {
+                        // Verification says not relevant, but confidence is decent
+                        // Maybe verification is wrong - use average
+                        finalConfidence = (sessionConfidence + verifyConfidence) / 2
+                    } else {
+                        // Both signals say bad - cap it, but not too harshly
+                        finalConfidence = min(sessionConfidence * 0.6, 0.5)
+                    }
+
+                    Log.info("[Agentic] Maximum Mode: Calibrated confidence \(Int(sessionConfidence * 100))% → \(Int(finalConfidence * 100))% (addresses question: \(verification.addressesQuestion))", category: .llm)
 
                     return AgenticResult(
                         finalAnswer: unlimitedResult.finalAnswer,
@@ -2765,6 +2779,7 @@ final class AgenticOrchestrator: Sendable {
 
     /// Compute semantic relevance between query and answer using lexical overlap + key term matching
     /// UNIVERSAL: No domain-specific logic - works for any document type
+    /// FIXED 2026-01: Previous version was too strict, rejecting valid answers with technical specs
     private func computeAnswerRelevance(query: String, answer: String) -> Float {
         let queryLower = query.lowercased()
         let answerLower = answer.lowercased()
@@ -2772,21 +2787,55 @@ final class AgenticOrchestrator: Sendable {
         // Extract key terms from query (remove stop words)
         let stopWords: Set<String> = ["what", "how", "why", "when", "where", "who", "which",
                                        "does", "do", "is", "are", "was", "were", "the", "a", "an",
-                                       "of", "in", "to", "for", "and", "or", "on", "with", "this", "that"]
+                                       "of", "in", "to", "for", "and", "or", "on", "with", "this", "that",
+                                       "kind", "type", "take", "use", "need", "require", "should", "can"]
         let queryTerms = queryLower.split(separator: " ")
             .map { String($0).trimmingCharacters(in: .punctuationCharacters) }
             .filter { $0.count > 2 && !stopWords.contains($0) }
 
-        guard !queryTerms.isEmpty else { return 0.5 }  // Can't evaluate without terms
+        // CRITICAL FIX: If query is about specs/types, check if answer has technical content
+        // E.g., "what oil" → answer has "0W-20", "SAE", viscosity = GREAT match
+        let isSpecQuery = queryLower.contains("what") || queryLower.contains("which") ||
+                          queryLower.contains("type") || queryLower.contains("kind") ||
+                          queryLower.contains("specification") || queryLower.contains("grade")
+
+        // Technical content patterns (indicates answer is providing actual specs)
+        let technicalPatterns = [
+            #"\d+[wW]-\d+"#,           // Oil viscosity: 0W-20, 5W-30
+            #"[A-Z]{2,}[\s-]?\d+"#,    // Spec codes: SAE, API SN, ACEA
+            #"\d+\.?\d*\s*(mm|cm|l|L|gal|qt|oz|psi|bar|kpa|°|degrees)"#,  // Measurements
+            #"\d+\.?\d*\s*(hp|kw|nm|lb|kg|mph|km/h)"#,  // Power/speed units
+            #"[A-Z]\d{1,3}[A-Z]?"#,    // Part codes: M5, B48, etc.
+        ]
+
+        var hasTechnicalContent = false
+        for pattern in technicalPatterns {
+            if answer.range(of: pattern, options: .regularExpression) != nil {
+                hasTechnicalContent = true
+                break
+            }
+        }
+
+        // If it's a spec query and answer has technical content, that's a strong signal
+        let technicalBonus: Float = (isSpecQuery && hasTechnicalContent) ? 0.40 : 0
 
         // Score 1: Key term coverage (what % of query terms appear in answer?)
+        // Relaxed: even 1 match is meaningful for short queries
         var matchedTerms = 0
         for term in queryTerms {
             if answerLower.contains(term) {
                 matchedTerms += 1
             }
         }
-        let termCoverage = Float(matchedTerms) / Float(queryTerms.count)
+        let termCoverage: Float
+        if queryTerms.isEmpty {
+            termCoverage = 0.5  // Can't evaluate without terms, neutral
+        } else if matchedTerms > 0 {
+            // At least one match = base relevance
+            termCoverage = 0.3 + (Float(matchedTerms) / Float(queryTerms.count)) * 0.7
+        } else {
+            termCoverage = 0.1  // No direct matches, but don't zero out
+        }
 
         // Score 2: Answer has concrete specifics (numbers, citations)
         let hasNumbers = answer.range(of: #"\d+\.?\d*"#, options: .regularExpression) != nil
@@ -2794,47 +2843,47 @@ final class AgenticOrchestrator: Sendable {
         let specificityBonus: Float = (hasNumbers ? 0.10 : 0) + (hasCitations ? 0.10 : 0)
 
         // Score 3: Penalty for hedging/non-answers (UNIVERSAL patterns)
+        // RELAXED: Only penalize strong hedging, not normal caveats
         let hedgingMarkers = [
             "isn't explicitly",
             "not explicitly",
             "remains speculative",
-            "lack of explicit",
             "without specific information",
-            "would be necessary to",
-            "further documentation",
-            "requires additional",
-            "doesn't directly",
-            "does not directly",
-            "cannot conclusively",
             "insufficient information",
             "not enough information",
-            "future research"
+            "cannot be determined",
+            "no information available"
         ]
         let hedgingCount = hedgingMarkers.filter { answerLower.contains($0) }.count
-        let hedgingPenalty: Float = min(Float(hedgingCount) * 0.12, 0.5)
+        let hedgingPenalty: Float = min(Float(hedgingCount) * 0.15, 0.40)
 
         // Score 4: Length-to-substance ratio
         // Long answers that hedge a lot are worse than short direct answers
         let lengthPenalty: Float
-        if answer.count > 3000 && hedgingCount >= 2 {
-            lengthPenalty = 0.20  // Long AND hedging = bad
+        if answer.count > 4000 && hedgingCount >= 3 {
+            lengthPenalty = 0.15  // Long AND heavily hedging = bad
         } else {
             lengthPenalty = 0
         }
 
-        // Score 5: Refusal detection
-        let refusalMarkers = ["i cannot", "i don't have", "not found", "unable to", "no information"]
+        // Score 5: Refusal detection - STRONG penalty only for clear refusals
+        let refusalMarkers = ["i cannot answer", "no information found", "unable to determine"]
         let hasRefusal = refusalMarkers.contains { answerLower.contains($0) }
-        let refusalPenalty: Float = hasRefusal ? 0.25 : 0
+        let refusalPenalty: Float = hasRefusal ? 0.30 : 0
 
         // Score 6: URL hallucination detection
         // If model generates URLs instead of [S1] citations, that's a hallucination
         let urlPattern = #"https?://[a-zA-Z0-9\-\.]+\.[a-zA-Z]{2,}"#
         let hasURLs = answer.range(of: urlPattern, options: .regularExpression) != nil
-        let urlHallucinationPenalty: Float = hasURLs ? 0.30 : 0
+        let urlHallucinationPenalty: Float = hasURLs ? 0.25 : 0
 
-        let relevance = min(1.0, (termCoverage * 0.7 + specificityBonus) - hedgingPenalty - lengthPenalty - refusalPenalty - urlHallucinationPenalty)
-        return max(0, relevance)
+        // FIXED FORMULA: Start with base relevance, add bonuses, then subtract penalties
+        // Technical content bonus is additive, not just term-based
+        let baseRelevance = termCoverage * 0.50 + technicalBonus + specificityBonus
+        let penalties = hedgingPenalty + lengthPenalty + refusalPenalty + urlHallucinationPenalty
+        let relevance = min(1.0, max(0.1, baseRelevance - penalties))  // Floor at 10% if we have any answer
+
+        return relevance
     }
 
     /// Citation verification result
@@ -3457,9 +3506,10 @@ extension AgenticOrchestrator {
         // New approach: ALL sessions see the SAME top-K most relevant chunks.
         // Each session reasons DEEPER on the same high-quality context.
 
-        // For unlimited mode, use smaller context to leave room for accumulated insights
-        let maxChunksPerSession = isUnlimitedMode ? 4 : 6
-        let contextBudget = isUnlimitedMode ? 2500 : (config.maxContextPerSession - 500)
+        // For multi-session modes, use smaller context to leave room for accumulated insights
+        // Deep Think (4-8 sessions) and Maximum (up to 50) both need room for insight chains
+        let maxChunksPerSession = (isUnlimitedMode || isDeepThinkMode) ? 4 : 6
+        let contextBudget = isUnlimitedMode ? 2500 : (isDeepThinkMode ? 2800 : (config.maxContextPerSession - 500))
         let topChunks = Array(chunks.prefix(maxChunksPerSession))
 
         // Pre-build the shared context from top chunks (used by all sessions)
@@ -3526,8 +3576,9 @@ extension AgenticOrchestrator {
 
             // For unlimited mode, use sliding window of recent insights to prevent context overflow
             // Keep only the last 3 insights (each ~500 chars) to stay well under 4096 token limit
+            // ALSO apply to Deep Think mode to prevent context overflow on 4-8 sessions
             let insightsForPrompt: [String]
-            if isUnlimitedMode && chainInsights.count > 3 {
+            if (isUnlimitedMode || isDeepThinkMode) && chainInsights.count > 3 {
                 // Condense older insights into a brief summary + keep recent 2
                 let oldInsightsCount = chainInsights.count - 2
                 let condensedOld = "Previously discovered (\(oldInsightsCount) sessions): " +
@@ -3535,7 +3586,7 @@ extension AgenticOrchestrator {
                         .map { String($0.prefix(100)) }
                         .joined(separator: " | ")
                 insightsForPrompt = [String(condensedOld.prefix(500))] + Array(chainInsights.suffix(2))
-                Log.debug("[ReasoningChain] Unlimited mode: condensed \(chainInsights.count) insights to \(insightsForPrompt.count) for prompt", category: .llm)
+                Log.debug("[ReasoningChain] \(isUnlimitedMode ? "Unlimited" : "Deep Think") mode: condensed \(chainInsights.count) insights to \(insightsForPrompt.count) for prompt", category: .llm)
             } else {
                 insightsForPrompt = chainInsights
             }
@@ -3546,35 +3597,102 @@ extension AgenticOrchestrator {
                 query: query,
                 context: sessionContext,
                 previousInsights: insightsForPrompt,
-                maxInsightLength: isUnlimitedMode ? 600 : config.maxInsightLength  // Shorter for unlimited
+                maxInsightLength: isUnlimitedMode ? 600 : (isDeepThinkMode ? 800 : config.maxInsightLength)  // Shorter for multi-session modes
             )
 
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            // Execute session with proper consent
+            // Execute session with proper consent + context overflow recovery
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
             // Maximum mode gets higher token limits for more detailed reasoning
-            let sessionMaxTokens = isUnlimitedMode ? 1200 : 700
+            let sessionMaxTokens = isUnlimitedMode ? 1200 : (isDeepThinkMode ? 900 : 700)
 
             // Disable tools after session 1 to prevent context overflow
             // Session 1 can use tools for initial search, later sessions synthesize
             let disableToolsForSession = sessionNum > 1
 
-            let response = try await ragService.generateWithProperConsent(
-                prompt: prompt,
-                context: "", // Context is embedded in prompt
-                systemPrompt: systemPrompt,
-                maxTokens: sessionMaxTokens,
-                disableTools: disableToolsForSession
-            )
+            // Attempt execution with automatic context reduction on overflow
+            var sessionPrompt = prompt
+            var currentContext = sessionContext
+            let maxRetries = 2
 
-            totalTokens += response.tokensGenerated
+            var response: LLMResponse? = nil
+            for retryCount in 0...maxRetries {
+                do {
+                    response = try await ragService.generateWithProperConsent(
+                        prompt: sessionPrompt,
+                        context: currentContext,
+                        systemPrompt: systemPrompt,
+                        maxTokens: sessionMaxTokens,
+                        disableTools: disableToolsForSession
+                    )
+                    break // Success - exit retry loop
+                } catch {
+                    let errorDesc = error.localizedDescription.lowercased()
+                    let isContextOverflow = errorDesc.contains("context") || errorDesc.contains("exceeded") ||
+                                           errorDesc.contains("4096") || errorDesc.contains("token")
+
+                    if isContextOverflow && retryCount < maxRetries {
+                        Log.warning("[ReasoningChain] Session \(sessionNum) context overflow, retry \(retryCount + 1)/\(maxRetries) with reduced prompt", category: .llm)
+
+                        // Reduce prompt by truncating context and insights more aggressively
+                        let reductionFactor = 1.0 - (Double(retryCount + 1) * 0.3) // 70%, then 40%
+                        let reducedInsights = insightsForPrompt.map { String($0.prefix(Int(Double($0.count) * reductionFactor))) }
+                        currentContext = String(sessionContext.prefix(Int(Double(sessionContext.count) * reductionFactor)))
+
+                        // Rebuild prompt with reduced content
+                        let (reducedPrompt, _) = buildChainPrompt(
+                            sessionIndex: sessionIndex,
+                            sessionCount: effectiveSessionCount,
+                            query: query,
+                            context: currentContext,
+                            previousInsights: reducedInsights,
+                            maxInsightLength: Int(Double(config.maxInsightLength) * reductionFactor)
+                        )
+                        sessionPrompt = reducedPrompt
+                        continue
+                    }
+
+                    // Non-recoverable error or max retries exceeded - use what we have
+                    if chainInsights.isEmpty {
+                        throw error // Can't recover without any insights
+                    }
+                    Log.warning("[ReasoningChain] Session \(sessionNum) failed, terminating chain early: \(error)", category: .llm)
+                    // Return result with what we've accumulated so far
+                    return ReasoningChainResult(
+                        finalAnswer: cleanupFinalAnswer(chainInsights.last ?? "Unable to complete analysis."),
+                        chainInsights: chainInsights,
+                        totalTokens: totalTokens,
+                        sessionCount: sessionNum - 1,
+                        confidence: cumulativeConfidence,
+                        sources: Array(allSources)
+                    )
+                }
+            }
+
+            // If we exhausted retries without success, use what we have
+            guard let successResponse = response else {
+                if chainInsights.isEmpty {
+                    throw LLMError.contextWindowExceeded
+                }
+                Log.warning("[ReasoningChain] Session \(sessionNum) exhausted retries, using accumulated insights", category: .llm)
+                return ReasoningChainResult(
+                    finalAnswer: cleanupFinalAnswer(chainInsights.last ?? "Unable to complete analysis."),
+                    chainInsights: chainInsights,
+                    totalTokens: totalTokens,
+                    sessionCount: sessionNum - 1,
+                    confidence: cumulativeConfidence,
+                    sources: Array(allSources)
+                )
+            }
+
+            totalTokens += successResponse.tokensGenerated
 
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
             // Check for early completion signal
             // If the model says "ANSWER COMPLETE" or "NOT FOUND", stop early
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            let responseText = response.text.uppercased()
+            let responseText = successResponse.text.uppercased()
             let isAnswerComplete = responseText.contains("ANSWER COMPLETE") ||
                                    responseText.contains("NOT FOUND IN DOCUMENTS") ||
                                    responseText.contains("DOCUMENTS DO NOT CONTAIN")
@@ -3582,8 +3700,8 @@ extension AgenticOrchestrator {
             if isAnswerComplete && sessionNum >= 2 {
                 Log.info("[ReasoningChain] Early termination: model signaled answer complete", category: .llm)
                 // Use what we have so far as the final answer
-                let finalInsight = chainInsights.isEmpty ? response.text : chainInsights.joined(separator: "\n\n")
-                chainInsights.append(response.text)
+                let finalInsight = chainInsights.isEmpty ? successResponse.text : chainInsights.joined(separator: "\n\n")
+                chainInsights.append(successResponse.text)
                 cumulativeConfidence = 1.0  // Signal completion
 
                 // Emit final step
@@ -3621,15 +3739,15 @@ extension AgenticOrchestrator {
 
             if isFinalSession {
                 // For final synthesis, extract the full answer (not truncated)
-                insight = extractFinalAnswer(from: response.text)
+                insight = extractFinalAnswer(from: successResponse.text)
             } else {
                 // For intermediate sessions, extract condensed insight
-                insight = extractInsight(from: response.text, maxLength: config.maxInsightLength)
+                insight = extractInsight(from: successResponse.text, maxLength: config.maxInsightLength)
             }
 
             // Parse confidence if present, or estimate based on response quality
             // Do this BEFORE appending insight so we can compare with previous insights
-            if let conf = parseConfidence(from: response.text) {
+            if let conf = parseConfidence(from: successResponse.text) {
                 cumulativeConfidence = (cumulativeConfidence + conf) / 2
             } else if isUnlimitedMode || isDeepThinkMode {
                 // Heuristic confidence for Maximum mode:
@@ -3753,7 +3871,7 @@ extension AgenticOrchestrator {
                 type: stepType,
                 input: "Session \(sessionNum): \(sessionPromptDescription(sessionIndex, config.sessionCount))",
                 output: isFinalSession ? "Synthesizing final answer..." : insight,
-                tokensUsed: response.tokensGenerated,
+                tokensUsed: successResponse.tokensGenerated,
                 duration: 0.5,
                 timestamp: Date(),
                 confidence: shouldReportConfidence ? cumulativeConfidence : nil
@@ -5415,11 +5533,28 @@ extension AgenticOrchestrator {
         previousInsights: [String],
         maxInsightLength: Int
     ) -> (prompt: String, systemPrompt: String) {
-        let insightSummary = previousInsights.isEmpty
-            ? ""
-            : "PRIOR ANALYSIS:\n" + previousInsights.enumerated()
+        // CRITICAL: Limit total insight summary to prevent context overflow
+        // Apple FM has 4096 token limit ≈ 5700 chars at 1.4 chars/token
+        // Budget: System (~200 tokens), Query (~50), Context (~1000), Output (~800) = 2050 tokens overhead
+        // Remaining for insights: ~2000 tokens ≈ 2800 chars
+        let maxInsightSummaryChars = 2500
+
+        let insightSummary: String
+        if previousInsights.isEmpty {
+            insightSummary = ""
+        } else {
+            let rawSummary = "PRIOR ANALYSIS:\n" + previousInsights.enumerated()
                 .map { "[\($0.offset + 1)] \($0.element)" }
                 .joined(separator: "\n")
+
+            // Truncate if too long - this prevents context overflow in later sessions
+            if rawSummary.count > maxInsightSummaryChars {
+                insightSummary = String(rawSummary.prefix(maxInsightSummaryChars)) + "\n[...truncated for context budget]"
+                Log.debug("[ReasoningChain] Truncated insight summary from \(rawSummary.count) to \(maxInsightSummaryChars) chars", category: .llm)
+            } else {
+                insightSummary = rawSummary
+            }
+        }
 
         switch sessionIndex {
         case 0:

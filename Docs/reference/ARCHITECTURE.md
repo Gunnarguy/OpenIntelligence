@@ -258,8 +258,8 @@ func extractTextFromPowerPointSlide(_ xmlData: Data) -> String
 
 **Implementation Status** (Jan 2026 - Visual Document Understanding):
 
-| Capability               | API Used                                  | Status        | Location                       |
-| ------------------------ | ----------------------------------------- | ------------- | ------------------------------ |
+| Capability               | API Used                                  | Status         | Location                       |
+| ------------------------ | ----------------------------------------- | -------------- | ------------------------------ |
 | Spatial Text Ordering    | `VNRecognizedTextObservation.boundingBox` | ✅ Implemented | `performOCR()`                 |
 | Column Detection         | Bounding box clustering                   | ✅ Implemented | `detectColumns()`              |
 | Image Classification     | `ClassifyImageRequest` (iOS 18+)          | ✅ Implemented | `ImageUnderstandingService`    |
@@ -1648,7 +1648,147 @@ The system is designed to be domain-agnostic—able to understand any document t
 | Bounding Box Metadata    | ❌ Planned     | `bbox: CGRect` per chunk (Phase 2.06)       |
 | Section Path Hierarchy   | ❌ Planned     | `section_path: [String]` (Phase 2.06)       |
 
-**Planned Extractive QA Pipeline**:
+---
+
+### Planned v1.2.0 Subsystems (March 2026)
+
+#### CameraVisionOverlayView
+
+_Live camera analysis with Vision framework overlays_
+
+**Purpose**: Real-time document/text/table detection from camera feed with instant RAG ingestion.
+
+**Architecture**:
+
+```text
+AVCaptureSession → CMSampleBuffer → CGImage
+                                      │
+                                      ▼
+              ┌──────────────────────────────────────┐
+              │        VisionFrameAnalyzer           │
+              │  ┌────────────────────────────────┐  │
+              │  │ DetectDocumentSegmentationReq  │  │ → Document bounding box
+              │  │ RecognizeTextRequest           │  │ → Live OCR text
+              │  │ RecognizeDocumentsRequest      │  │ → Tables/lists structure
+              │  │ DetectBarcodesRequest          │  │ → QR/barcodes
+              │  └────────────────────────────────┘  │
+              └──────────────┬───────────────────────┘
+                             │
+                             ▼
+              ┌──────────────────────────────────────┐
+              │       AR Overlay Layer (SwiftUI)     │
+              │  • Green bounding boxes for text     │
+              │  • Blue boxes for tables             │
+              │  • Yellow boxes for documents        │
+              │  • Live preview of detected content  │
+              └──────────────┬───────────────────────┘
+                             │
+                             ▼
+              ┌──────────────────────────────────────┐
+              │       CaptureToRAGBridge             │
+              │  • One-tap capture                   │
+              │  • Extract text + tables             │
+              │  • Ingest to RAG container           │
+              │  • Ready for immediate Q&A           │
+              └──────────────────────────────────────┘
+```
+
+**Key APIs**:
+
+| Vision API                              | Use Case                        |
+| --------------------------------------- | ------------------------------- |
+| `DetectDocumentSegmentationRequest`     | Find document edges in frame    |
+| `RecognizeTextRequest`                  | Live OCR with bounding boxes    |
+| `RecognizeDocumentsRequest`             | Table/list structure extraction |
+| `DetectBarcodesRequest`                 | QR codes, barcodes              |
+| `CalculateImageAestheticsScoresRequest` | Quality check before capture    |
+
+**File (Planned)**: `OpenIntelligence/Features/Camera/CameraVisionOverlayView.swift`
+
+#### DocumentationCacheService
+
+_Persistent storage for fetched web documentation_
+
+**Purpose**: Save fetched API documentation locally for offline access and RAG ingestion.
+
+**Architecture**:
+
+```swift
+actor DocumentationCacheService {
+    private let cacheDirectory: URL  // ~/Documents/cached_docs/
+
+    struct CachedDocument: Codable {
+        let url: URL
+        let title: String
+        let content: String       // Cleaned Markdown
+        let fetchDate: Date
+        let contentHash: String   // SHA256 for deduplication
+        let sourceType: SourceType  // .appleDevDocs, .github, .web
+    }
+
+    func cache(_ document: CachedDocument) async throws
+    func get(url: URL) -> CachedDocument?
+    func listCached() -> [CachedDocument]
+    func ingestToRAG(documentId: UUID, containerId: UUID) async throws
+}
+```
+
+**Storage Structure**:
+
+```
+~/Documents/cached_docs/
+├── index.json              # URL → filename mapping
+├── apple_vision_framework.md
+├── apple_foundationmodels.md
+├── github_swift_transformers.md
+└── ...
+```
+
+**Features**:
+
+- Auto-cache on web fetch (configurable)
+- Markdown conversion from HTML
+- SHA256 deduplication
+- 30-day expiration policy
+- Browse/search cached docs in-app
+- One-tap RAG ingestion
+
+**File (Planned)**: `OpenIntelligence/Services/Storage/DocumentationCacheService.swift`
+
+#### Enhanced ImageUnderstandingService
+
+_Apple Intelligence image description via FoundationModels_
+
+**Current** (v1.0): Image classification + OCR + caption detection
+
+**Enhanced** (v1.2): Full natural language description using Apple FM
+
+```swift
+// Current approach
+let classification = try await ClassifyImageRequest().perform(on: cgImage)
+// Returns: ["chart", "line_graph", "data_visualization"]
+
+// Enhanced approach (v1.2)
+let session = LanguageModelSession()
+let response = try await session.respond(
+    to: "Describe this image in detail. What does it show?",
+    with: [cgImage]  // Image attachment
+)
+// Returns: "This is a line chart showing quarterly revenue growth.
+//           Q1 shows $2.1M, Q2 shows $2.8M, Q3 shows $3.2M, Q4 shows $4.1M.
+//           The trend indicates 95% year-over-year growth."
+```
+
+**Benefits**:
+
+- Rich semantic descriptions stored in chunk metadata
+- Diagram understanding (flowcharts, architecture diagrams)
+- Chart data extraction (bar charts, pie charts, line graphs)
+- Photo scene description for contextual understanding
+
+**File**: `OpenIntelligence/Services/Document/ImageUnderstandingService.swift`
+
+---
 
 The extractive QA model will provide instant, traceable answers for factual lookups:
 
