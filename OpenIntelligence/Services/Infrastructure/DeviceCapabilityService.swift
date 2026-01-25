@@ -8,6 +8,7 @@
 
 import Foundation
 import UIKit
+import CoreML
 
 /// Device capability tiers for Apple Intelligence
 enum DeviceCapabilityTier: String, Sendable, Comparable {
@@ -104,6 +105,12 @@ final class DeviceCapabilityService: @unchecked Sendable {
         cachedDeviceIdentifier = identifier
         cachedNPUTops = tops
         cachedMemoryGB = Self.detectMemoryGB()
+
+        // Set sensible default GPU acceleration if never set (0.0 means unset)
+        // Balanced (0.5) is a good default - uses ANE primarily with GPU assist
+        if UserDefaults.standard.double(forKey: "gpuAccelerationLevel") == 0.0 {
+            UserDefaults.standard.set(0.5, forKey: "gpuAccelerationLevel")
+        }
     }
 
     // MARK: - Public API
@@ -248,6 +255,119 @@ final class DeviceCapabilityService: @unchecked Sendable {
         case .advanced: return 2000
         case .ultraAdvanced: return 5000
         }
+    }
+
+    // MARK: - Document Ingestion Optimization
+
+    /// Maximum concurrent pages for Vision structured parsing.
+    ///
+    /// Vision's RecognizeDocumentsRequest runs on Neural Engine, which has
+    /// limited parallelism. Too many concurrent requests cause ANE throttling.
+    /// These values are tuned per device tier for optimal throughput.
+    /// When GPU acceleration is high (>0.7), we boost limits for speed over efficiency.
+    var visionParsingConcurrency: Int {
+        let gpuBoost = gpuAccelerationLevel > 0.7
+        switch cachedTier {
+        case .unsupported: return 2
+        case .baseline: return gpuBoost ? 5 : 3   // A17 Pro: 3 → 5 with GPU boost
+        case .enhanced: return gpuBoost ? 8 : 5   // A18 Pro: 5 → 8 with GPU boost
+        case .advanced: return gpuBoost ? 10 : 6  // A19 Pro: 6 → 10 with GPU boost
+        case .ultraAdvanced: return gpuBoost ? 12 : 8  // M-series: 8 → 12 with GPU boost
+        }
+    }
+
+    /// Maximum concurrent pages for PDF OCR extraction.
+    ///
+    /// OCR is less intensive than structured parsing, so we can push higher.
+    /// GPU boost pushes limits further for users who accept the heat tradeoff.
+    var ocrExtractionConcurrency: Int {
+        let gpuBoost = gpuAccelerationLevel > 0.7
+        switch cachedTier {
+        case .unsupported: return 2
+        case .baseline: return gpuBoost ? 6 : 4   // A17 Pro
+        case .enhanced: return gpuBoost ? 10 : 6  // A18 Pro
+        case .advanced: return gpuBoost ? 12 : 8  // A19 Pro
+        case .ultraAdvanced: return gpuBoost ? 16 : 10 // M-series
+        }
+    }
+
+    /// Maximum concurrent embedding requests.
+    ///
+    /// CoreML embedding runs on ANE; limited parallelism prevents throttling.
+    /// GPU boost increases parallelism for faster ingestion.
+    var embeddingConcurrency: Int {
+        let gpuBoost = gpuAccelerationLevel > 0.7
+        switch cachedTier {
+        case .unsupported: return 2
+        case .baseline: return gpuBoost ? 10 : 6  // A17 Pro
+        case .enhanced: return gpuBoost ? 14 : 8  // A18 Pro
+        case .advanced: return gpuBoost ? 16 : 10 // A19 Pro
+        case .ultraAdvanced: return gpuBoost ? 20 : 12 // M-series
+        }
+    }
+
+    // MARK: - GPU Acceleration Settings
+
+    /// GPU acceleration level for ingestion (0.0 = Neural Engine only, 1.0 = Maximum GPU)
+    /// User-configurable via Settings. Higher values use more GPU but generate more heat.
+    ///
+    /// Levels:
+    /// - 0.0-0.3: Efficiency mode (ANE preferred, minimal GPU)
+    /// - 0.3-0.6: Balanced mode (ANE + some GPU for image processing)
+    /// - 0.6-0.9: Performance mode (GPU for CoreML + image processing)
+    /// - 1.0: Maximum mode (Force GPU for everything possible, high heat)
+    var gpuAccelerationLevel: Double {
+        get { UserDefaults.standard.double(forKey: "gpuAccelerationLevel") }
+        set { UserDefaults.standard.set(newValue, forKey: "gpuAccelerationLevel") }
+    }
+
+    /// CoreML compute units based on GPU acceleration level
+    var preferredComputeUnits: MLComputeUnits {
+        let level = gpuAccelerationLevel
+        if level >= 0.9 {
+            return .cpuAndGPU  // Force GPU, bypass Neural Engine
+        } else if level >= 0.6 {
+            return .all  // Let system choose (may use GPU for some ops)
+        } else {
+            return .cpuAndNeuralEngine  // Prefer ANE for efficiency
+        }
+    }
+
+    /// Whether to use GPU-backed CIContext for PDF rendering
+    var useGPUForPDFRendering: Bool {
+        gpuAccelerationLevel >= 0.3
+    }
+
+    /// Maximum concurrent GPU operations (image processing, rendering)
+    var gpuConcurrency: Int {
+        let level = gpuAccelerationLevel
+        if level >= 0.9 {
+            // Maximum GPU mode - push GPU hard
+            switch cachedTier {
+            case .unsupported: return 4
+            case .baseline: return 8   // A17 Pro GPU
+            case .enhanced: return 10  // A18 Pro GPU
+            case .advanced: return 12  // A19 Pro projected
+            case .ultraAdvanced: return 16 // M-series GPU
+            }
+        } else if level >= 0.6 {
+            // Performance mode
+            switch cachedTier {
+            case .unsupported: return 2
+            case .baseline: return 5
+            case .enhanced: return 6
+            case .advanced: return 8
+            case .ultraAdvanced: return 10
+            }
+        } else {
+            // Efficiency/balanced mode
+            return 2
+        }
+    }
+
+    /// Whether to use Metal compute shaders for vector operations
+    var useMetalForVectorOps: Bool {
+        gpuAccelerationLevel >= 0.6
     }
 
     /// Get optimized AgenticConfig for current device

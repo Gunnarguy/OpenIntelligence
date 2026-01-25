@@ -479,13 +479,31 @@ class ImageUnderstandingService {
                 let (precedingContext, followingContext) = findSurroundingContext(for: bounds, in: pageTextObs)
 
                 // 6. Generate comprehensive description
-                let description = await generateImageDescription(
-                    image,
-                    extractedText: extractedText,
-                    caption: caption,
-                    precedingContext: precedingContext,
-                    followingContext: followingContext
-                )
+                // On iOS 26+, try Foundation Models AI first for richer semantic understanding
+                var description: String? = nil
+
+                if #available(iOS 26.0, *) {
+                    // Try AI description first - works best for diagrams, charts, schematics
+                    if contentType == .diagram || contentType == .chart || contentType == .technicalDrawing {
+                        description = await generateAIDescription(
+                            for: image,
+                            contentType: contentType,
+                            extractedText: extractedText,
+                            caption: caption
+                        )
+                    }
+                }
+
+                // Fall back to classification-based description if no AI description
+                if description == nil {
+                    description = await generateImageDescription(
+                        image,
+                        extractedText: extractedText,
+                        caption: caption,
+                        precedingContext: precedingContext,
+                        followingContext: followingContext
+                    )
+                }
                 if description != nil { describedCount += 1 }
 
                 let analyzed = AnalyzedImage(

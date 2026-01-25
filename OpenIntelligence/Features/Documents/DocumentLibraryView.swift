@@ -193,7 +193,7 @@ struct DocumentLibraryView: View {
                     Button {
                         showVisionCapture = true
                     } label: {
-                        Label("Vision Capture", systemImage: "text.viewfinder")
+                        Label("Scan Document", systemImage: "doc.viewfinder")
                     }
                 }
 
@@ -309,7 +309,7 @@ struct DocumentLibraryView: View {
                     .environmentObject(entitlementStore)
             }
             .fullScreenCover(isPresented: $showVisionCapture) {
-                CameraVisionOverlayView(
+                DocumentCaptureView(
                     ragService: ragService,
                     containerService: containerService
                 )

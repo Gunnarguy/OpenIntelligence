@@ -579,6 +579,11 @@ Text(deviceService.chipName)
 
             Divider()
 
+            // GPU Acceleration Controls
+            gpuAccelerationSection(deviceService: deviceService)
+
+            Divider()
+
             // Live System Monitor
             LiveSystemMonitorWrapper()
 
@@ -762,6 +767,211 @@ Text(deviceService.chipName)
         .padding(.vertical, 4)
         .background(Color.cyan.opacity(0.15))
         .clipShape(Capsule())
+    }
+
+    // MARK: - GPU Acceleration Section
+
+    @State private var gpuLevel: Double = DeviceCapabilityService.shared.gpuAccelerationLevel
+
+    // Computed concurrency values that react to gpuLevel changes
+    private var currentVisionConcurrency: Int {
+        let gpuBoost = gpuLevel > 0.7
+        let tier = DeviceCapabilityService.shared.tier
+        switch tier {
+        case .unsupported: return 2
+        case .baseline: return gpuBoost ? 5 : 3
+        case .enhanced: return gpuBoost ? 8 : 5
+        case .advanced: return gpuBoost ? 10 : 6
+        case .ultraAdvanced: return gpuBoost ? 12 : 8
+        }
+    }
+
+    private var currentEmbeddingConcurrency: Int {
+        let gpuBoost = gpuLevel > 0.7
+        let tier = DeviceCapabilityService.shared.tier
+        switch tier {
+        case .unsupported: return 2
+        case .baseline: return gpuBoost ? 10 : 6
+        case .enhanced: return gpuBoost ? 14 : 8
+        case .advanced: return gpuBoost ? 16 : 10
+        case .ultraAdvanced: return gpuBoost ? 20 : 12
+        }
+    }
+
+    private var currentOCRConcurrency: Int {
+        let gpuBoost = gpuLevel > 0.7
+        let tier = DeviceCapabilityService.shared.tier
+        switch tier {
+        case .unsupported: return 2
+        case .baseline: return gpuBoost ? 6 : 4
+        case .enhanced: return gpuBoost ? 10 : 6
+        case .advanced: return gpuBoost ? 12 : 8
+        case .ultraAdvanced: return gpuBoost ? 16 : 10
+        }
+    }
+    private func gpuAccelerationSection(deviceService: DeviceCapabilityService) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Header
+            HStack(spacing: 8) {
+                Image(systemName: "gpu")
+                    .font(.caption)
+                    .foregroundColor(.green)
+                Text("GPU Acceleration")
+                    .font(.subheadline.weight(.medium))
+                Spacer()
+
+                // Mode badge
+                Text(gpuModeName)
+                    .font(.caption2.weight(.medium))
+                    .foregroundColor(gpuModeColor)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(gpuModeColor.opacity(0.15))
+                    .clipShape(Capsule())
+            }
+
+            Text("Higher GPU usage accelerates document ingestion but generates more heat. Neural Engine (ANE) is more efficient for ML inference.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            // GPU Level Slider
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text("GPU Level")
+                        .font(.caption.weight(.medium))
+                    Spacer()
+                    Text("\(Int(gpuLevel * 100))%")
+                        .font(.caption.monospacedDigit().bold())
+                        .foregroundColor(gpuModeColor)
+                        .contentTransition(.numericText())
+                }
+
+                Slider(value: $gpuLevel, in: 0...1, step: 0.1)
+                    .accentColor(gpuModeColor)
+                    .onChange(of: gpuLevel) { _, newValue in
+                        // Save immediately for real-time updates
+                        DeviceCapabilityService.shared.gpuAccelerationLevel = newValue
+                    }
+
+                // Mode descriptions
+                HStack {
+                    Text("🔋 Efficient")
+                        .font(.caption2)
+                        .foregroundColor(gpuLevel < 0.3 ? .green : .secondary)
+                    Spacer()
+                    Text("🔥 Maximum")
+                        .font(.caption2)
+                        .foregroundColor(gpuLevel >= 0.9 ? .red : .secondary)
+                }
+            }
+            .padding(10)
+            .background(Color.green.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .animation(.easeInOut(duration: 0.15), value: gpuLevel)
+
+            // Current settings based on level - LIVE UPDATING
+            VStack(alignment: .leading, spacing: 6) {
+                gpuSettingRow(
+                    icon: "cpu",
+                    label: "CoreML Compute",
+                    value: gpuLevel >= 0.9 ? "GPU + CPU" : (gpuLevel >= 0.6 ? "All (Auto)" : "Neural Engine")
+                )
+                gpuSettingRow(
+                    icon: "doc.text.image",
+                    label: "PDF Processing",
+                    value: gpuLevel >= 0.3 ? "GPU-Accelerated" : "CPU"
+                )
+                gpuSettingRow(
+                    icon: "arrow.triangle.branch",
+                    label: "Vision Concurrency",
+                    value: gpuLevel > 0.7 ? "\(currentVisionConcurrency) pages ⚡" : "\(currentVisionConcurrency) pages"
+                )
+                gpuSettingRow(
+                    icon: "waveform",
+                    label: "OCR Concurrency",
+                    value: gpuLevel > 0.7 ? "\(currentOCRConcurrency) pages ⚡" : "\(currentOCRConcurrency) pages"
+                )
+                gpuSettingRow(
+                    icon: "cube.transparent",
+                    label: "Embedding Concurrency",
+                    value: gpuLevel > 0.7 ? "\(currentEmbeddingConcurrency) parallel ⚡" : "\(currentEmbeddingConcurrency) parallel"
+                )
+                gpuSettingRow(
+                    icon: "thermometer.medium",
+                    label: "Thermal Impact",
+                    value: gpuLevel >= 0.9 ? "🔥 High" : (gpuLevel >= 0.6 ? "⚠️ Moderate" : "✅ Low")
+                )
+            }
+            .animation(.easeInOut(duration: 0.2), value: gpuLevel)
+
+            // Speed estimate for 400-page PDF
+            VStack(alignment: .leading, spacing: 4) {
+                Text("📄 400-Page PDF Estimate")
+                    .font(.caption.weight(.medium))
+                let batches = 400 / currentVisionConcurrency
+                let estimatedSeconds = batches * 2  // ~2s per batch average
+                let minutes = estimatedSeconds / 60
+                let seconds = estimatedSeconds % 60
+                Text("~\(minutes)m \(seconds)s extraction • \(batches) batches")
+                    .font(.caption2.monospacedDigit())
+                    .foregroundColor(.secondary)
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.blue.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+
+            // Warning for high GPU mode
+            if gpuLevel >= 0.9 {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                    Text("Maximum GPU mode may cause device heating during large document ingestion.")
+                        .font(.caption2)
+                        .foregroundColor(.orange)
+                }
+                .padding(8)
+                .background(Color.orange.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+        }
+        .padding(12)
+        .background(Color.green.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .onAppear {
+            gpuLevel = DeviceCapabilityService.shared.gpuAccelerationLevel
+        }
+    }
+
+    private var gpuModeName: String {
+        if gpuLevel >= 0.9 { return "Maximum" }
+        if gpuLevel >= 0.6 { return "Performance" }
+        if gpuLevel >= 0.3 { return "Balanced" }
+        return "Efficient"
+    }
+
+    private var gpuModeColor: Color {
+        if gpuLevel >= 0.9 { return .red }
+        if gpuLevel >= 0.6 { return .orange }
+        if gpuLevel >= 0.3 { return .green }
+        return .blue
+    }
+
+    @ViewBuilder
+    private func gpuSettingRow(icon: String, label: String, value: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.caption2)
+                .foregroundColor(.green)
+                .frame(width: 16)
+            Text(label)
+                .font(.caption)
+            Spacer()
+            Text(value)
+                .font(.caption2.weight(.medium))
+                .foregroundColor(.secondary)
+        }
     }
 
     // MARK: - Generation Tuning Card

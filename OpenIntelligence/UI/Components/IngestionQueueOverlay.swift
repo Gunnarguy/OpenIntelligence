@@ -59,6 +59,7 @@ struct IngestionQueueOverlay: View {
     let items: [IngestionItem]
     @State private var isMinimized = false
     @State private var isDismissed = false
+    @State private var gpuLevel: Double = DeviceCapabilityService.shared.gpuAccelerationLevel
 
     private var sortedItems: [IngestionItem] {
         items.sorted { lhs, rhs in
@@ -176,6 +177,26 @@ struct IngestionQueueOverlay: View {
         )
     }
 
+    // GPU boost level for display (uses @State for reactivity)
+    private var gpuBoostActive: Bool {
+        gpuLevel > 0.7
+    }
+
+    private var currentConcurrency: Int {
+        DeviceCapabilityService.shared.visionParsingConcurrency
+    }
+
+    // Mode label based on GPU level
+    private var processingModeLabel: String {
+        if gpuLevel > 0.7 {
+            return "⚡ Turbo"
+        } else if gpuLevel >= 0.3 {
+            return "🔋 Balanced"
+        } else {
+            return "🌱 Eco"
+        }
+    }
+
     private var headerView: some View {
         HStack(spacing: 10) {
             Image(systemName: "tray.and.arrow.down.fill")
@@ -183,9 +204,26 @@ struct IngestionQueueOverlay: View {
                 .font(.system(size: 14, weight: .semibold))
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(activeCount > 0 ? "Processing uploads" : "Upload complete")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(DSColors.primaryText)
+                HStack(spacing: 6) {
+                    Text(activeCount > 0 ? "Processing uploads" : "Upload complete")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(DSColors.primaryText)
+
+                    // Always show processing mode during active uploads
+                    if activeCount > 0 {
+                        HStack(spacing: 4) {
+                            Text(processingModeLabel)
+                            Text("\(currentConcurrency)x")
+                                .fontWeight(.bold)
+                        }
+                        .font(.caption2)
+                        .foregroundColor(gpuBoostActive ? .orange : DSColors.secondaryText)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(gpuBoostActive ? Color.orange.opacity(0.2) : DSColors.secondaryText.opacity(0.1))
+                        .clipShape(Capsule())
+                    }
+                }
 
                 if !isMinimized {
                     Text(statusLine)
@@ -195,6 +233,32 @@ struct IngestionQueueOverlay: View {
             }
 
             Spacer()
+
+            // GPU Turbo toggle (only show during active processing)
+            if activeCount > 0 {
+                Button {
+                    withAnimation(.spring(response: 0.3)) {
+                        // Cycle through modes: Eco (0.1) → Balanced (0.5) → Turbo (0.9) → Eco
+                        if gpuLevel > 0.7 {
+                            gpuLevel = 0.1  // Back to Eco
+                        } else if gpuLevel >= 0.3 {
+                            gpuLevel = 0.9  // Boost to Turbo
+                        } else {
+                            gpuLevel = 0.5  // Up to Balanced
+                        }
+                        DeviceCapabilityService.shared.gpuAccelerationLevel = gpuLevel
+                    }
+                } label: {
+                    Image(systemName: gpuBoostActive ? "bolt.fill" : "bolt")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(gpuBoostActive ? .orange : DSColors.secondaryText)
+                        .frame(width: 24, height: 24)
+                        .background(gpuBoostActive ? Color.orange.opacity(0.2) : Color.clear)
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .help(gpuBoostActive ? "Turbo Mode - Tap to cycle" : "Tap to cycle GPU modes")
+            }
 
             // Minimize/expand button
             Button {

@@ -9,7 +9,75 @@
 
 ### 🎯 NEXT FEATURES (v1.2.0)
 
-#### 1. Camera Vision Overlay with Apple Intelligence
+#### 1. Apple CoreML Vision Models Integration
+
+_Leverage Apple's pre-trained CoreML models for enhanced document understanding_
+
+**Status**: ✅ Infrastructure Complete (Services Ready, Models Optional)
+**Target**: v1.2.0 (March 2026)
+**Impact**: 10-20x smarter document ingestion with region detection and classification
+
+**V1 Priority Models** (Immediate Integration):
+
+| Model             | Size    | Use Case                                                                    | Status                           |
+| ----------------- | ------- | --------------------------------------------------------------------------- | -------------------------------- |
+| **FastViT T8**    | 8.2MB   | Classify document content before processing (photo, form, diagram, receipt) | ✅ Service Ready (Model Optional) |
+| **DETR ResNet50** | 43-85MB | Detect tables, figures, charts, text regions in documents                   | ✅ Service Ready (Model Optional) |
+| **DeepLabV3**     | 4-8MB   | Lightweight semantic segmentation for simpler documents                     | 📋 Planned                        |
+
+**Implementation Complete**:
+
+- ✅ `CoreMLDocumentClassifier.swift` - FastViT integration with Vision framework fallback
+- ✅ `CoreMLRegionDetector.swift` - DETR integration with Vision framework fallback
+- ✅ `IntelligentDocumentProcessor.swift` - Orchestrator combining classification + detection + OCR
+- ✅ Graceful degradation: Works with or without bundled CoreML models
+- ✅ Falls back to Vision framework APIs when models not present
+
+**To Enable Full CoreML Models**:
+
+1. Download from https://developer.apple.com/machine-learning/models/
+2. Add `FastViTT8F16.mlmodelc` to Xcode project
+3. Add `DETRResnet50SemanticSegmentationF16.mlmodelc` to Xcode project
+4. Services automatically detect and use bundled models
+
+**Enhanced Ingestion Pipeline**:
+
+```
+CURRENT:
+PDF → Vision OCR → Chunker → Embeddings → LLM Query
+
+WITH APPLE COREML MODELS:
+PDF → FastViT (classify: photo? diagram? text? form?)
+    ↓
+    DETR (detect regions: table @ (x,y), figure @ (x,y), text block @ (x,y))
+    ↓
+    Vision OCR (per region, with semantic context)
+    ↓
+    Structure-Aware Chunker → Embeddings → HNSW
+    ↓
+    Query → Hybrid Search → Apple FM
+```
+
+**Architecture**:
+
+- **CoreMLDocumentClassifier**: FastViT integration for content-type detection (actor-based)
+- **CoreMLRegionDetector**: DETR integration for bounding box extraction (actor-based)
+- **IntelligentDocumentProcessor**: Orchestrates classify → detect → extract pipeline
+- **Semantic Zone Metadata**: ChunkMetadata includes zone type (table, figure, prose)
+
+**V2 Model Catalog** (Future Integration):
+
+| Model               | Size  | Use Case                                            | Target |
+| ------------------- | ----- | --------------------------------------------------- | ------ |
+| **BERT-SQuAD**      | 217MB | Extractive QA for simulator testing & older devices | v2.0   |
+| **DepthAnythingV2** | 49MB  | 3D document scanning, AR overlay                    | v2.0   |
+| **MobileNetV2**     | 12MB  | Classify images within documents                    | v2.0   |
+| **YOLOv3 Tiny**     | 17MB  | Real-time camera document detection                 | v2.0   |
+| **ResNet-50**       | 51MB  | High-accuracy image classification                  | v2.0   |
+
+**Downloads**: https://developer.apple.com/machine-learning/models/
+
+#### 2. Camera Vision Overlay with Apple Intelligence
 
 _Live camera analysis using iOS 26 Vision framework + FoundationModels_
 

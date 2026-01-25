@@ -27,9 +27,23 @@ OpenIntelligence is a reference implementation of a production-grade **Retrieval
 
 ### 📷 Coming Soon (v1.2.0)
 
+- **Apple CoreML Vision Models**: Integrate FastViT (8MB), DETR (43MB), and DeepLabV3 for intelligent document understanding. Classify content types, detect tables/figures/text regions, and route to optimized processors.
 - **Camera Vision Overlay**: Point your camera at documents, whiteboards, or receipts. Live bounding boxes show detected text, tables, and documents. One-tap capture to ingest directly into RAG.
 - **Documentation Cache**: Automatically save fetched web documentation locally for offline access. Browse, search, and ingest cached docs.
 - **Enhanced Image Understanding**: Apple Intelligence describes images in natural language—"This flowchart shows 5 steps..." instead of just classifying as "diagram".
+
+### 🔮 v2.0 Model Catalog
+
+Full integration of Apple's CoreML model library:
+
+| Model           | Size  | Use Case                      |
+| --------------- | ----- | ----------------------------- |
+| BERT-SQuAD      | 217MB | Extractive QA for all devices |
+| DepthAnythingV2 | 49MB  | 3D document scanning          |
+| YOLOv3 Tiny     | 17MB  | Real-time camera detection    |
+| ResNet-50       | 51MB  | High-accuracy classification  |
+
+All models from [Apple Machine Learning](https://developer.apple.com/machine-learning/models/).
 
 ---
 

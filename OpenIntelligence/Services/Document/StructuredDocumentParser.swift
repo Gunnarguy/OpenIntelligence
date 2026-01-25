@@ -13,10 +13,26 @@
 import Foundation
 import Vision
 import CoreImage
+import Metal
 
 #if canImport(UIKit)
 import UIKit
 #endif
+
+// MARK: - GPU Acceleration
+
+/// Shared Metal-backed CIContext for GPU-accelerated image processing
+/// CIContext is thread-safe. Using nonisolated(unsafe) to allow access from nonisolated functions.
+nonisolated(unsafe) private let sharedGPUContext: CIContext = {
+    if let device = MTLCreateSystemDefaultDevice() {
+        return CIContext(mtlDevice: device, options: [
+            .cacheIntermediates: true,
+            .priorityRequestLow: false
+        ])
+    } else {
+        return CIContext(options: [.useSoftwareRenderer: true])
+    }
+}()
 
 /// Represents a structured element extracted from a document
 enum StructuredElement: Sendable {
@@ -755,8 +771,8 @@ actor StructuredDocumentParser {
 
     nonisolated private func imageToData(_ ciImage: CIImage) -> Data? {
         #if canImport(UIKit)
-        let context = CIContext()
-        guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else {
+        // Use shared GPU-accelerated context for Metal-based rendering
+        guard let cgImage = sharedGPUContext.createCGImage(ciImage, from: ciImage.extent) else {
             return nil
         }
         let uiImage = UIImage(cgImage: cgImage)

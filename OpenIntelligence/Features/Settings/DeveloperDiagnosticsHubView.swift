@@ -119,6 +119,7 @@ struct DeveloperDiagnosticsHubView: View {
                 NavigationLink {
                     AdaptiveVisualizationsView()
                         .environmentObject(ragService)
+                        .environmentObject(ragService.containerService)
                 } label: {
                     Label("Knowledge Atlas", systemImage: "globe.americas")
                 }

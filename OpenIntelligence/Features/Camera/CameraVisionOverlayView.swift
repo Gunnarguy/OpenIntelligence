@@ -1234,48 +1234,36 @@ struct HumanWireframe: View {
         )
     }
 
-    /// Anatomically accurate joint sizes based on real proportions
+    /// Simple joint sizes for clean stick figure
     private func anatomicalJointSize(for name: String) -> CGFloat {
         let nameLower = name.lowercased()
 
-        // Major joints (ball-and-socket, large synovial)
-        if nameLower.contains("hip") || nameLower.contains("shoulder") {
-            return 14  // Largest joints
+        // Head - largest (top of T)
+        if nameLower.contains("nose") {
+            return 14
         }
-        // Root/pelvis (sacrum)
-        if nameLower.contains("root") {
-            return 16  // Pelvis center
-        }
-        // Medium joints (hinge joints)
-        if nameLower.contains("knee") || nameLower.contains("elbow") {
-            return 11
-        }
-        // Neck (cervical)
-        if nameLower.contains("neck") {
+        // Major structural joints
+        if nameLower.contains("shoulder") || nameLower.contains("hip") {
             return 10
         }
-        // Extremities
-        if nameLower.contains("ankle") || nameLower.contains("wrist") {
+        // Neck and pelvis center
+        if nameLower.contains("neck") || nameLower.contains("root") {
             return 8
         }
-        // Head features
-        if nameLower.contains("nose") {
-            return 10  // Face center
+        // Elbows and knees
+        if nameLower.contains("elbow") || nameLower.contains("knee") {
+            return 8
         }
-        if nameLower.contains("eye") {
-            return 6
-        }
-        if nameLower.contains("ear") {
-            return 5
+        // Hands (wrists) and feet (ankles)
+        if nameLower.contains("wrist") || nameLower.contains("ankle") {
+            return 7
         }
         return 6
     }
 
-    /// Bone thickness based on anatomical bone size
+    /// Clean uniform bone thickness
     private func boneThickness(from connection: PoseConnection) -> CGFloat {
-        // Thicker bones for major structural elements
-        // Base thickness scaled by confidence
-        return 3.5 * CGFloat(max(0.6, connection.confidence))
+        return 4.0 * CGFloat(max(0.7, connection.confidence))
     }
 }
 
@@ -1340,52 +1328,40 @@ struct AnimalWireframe: View {
         )
     }
 
-    /// Anatomically accurate joint sizes for quadrupeds
+    /// Simple joint sizes for clean stick figure
     private func animalJointSize(for name: String) -> CGFloat {
         let nameLower = name.lowercased()
 
-        // Major weight-bearing joints
-        if nameLower.contains("backelbow") {  // Hip (coxofemoral)
-            return 12
-        }
-        if nameLower.contains("frontelbow") { // Shoulder (scapulohumeral)
-            return 11
-        }
-        // Secondary joints
-        if nameLower.contains("knee") {       // Stifle or elbow
-            return 9
-        }
-        // Extremities
-        if nameLower.contains("paw") {
-            return 8
-        }
         // Head
         if nameLower.contains("nose") {
-            return 10
+            return 12
         }
+        // Neck
         if nameLower.contains("neck") {
+            return 8
+        }
+        // Shoulders and hips (major body joints)
+        if nameLower.contains("elbow") && !nameLower.contains("knee") {
             return 10
         }
-        if nameLower.contains("eye") {
-            return 6
+        // Knees/elbows (leg joints)
+        if nameLower.contains("knee") {
+            return 8
         }
-        // Ears
-        if nameLower.contains("ear") {
-            return 4
-        }
-        // Tail
-        if nameLower.contains("tailtop") {
+        // Paws
+        if nameLower.contains("paw") {
             return 7
         }
+        // Tail
         if nameLower.contains("tail") {
-            return 5
+            return 6
         }
-        return 5
+        return 6
     }
 
-    /// Bone thickness for quadrupeds
+    /// Clean uniform bone thickness
     private func animalBoneThickness(from connection: PoseConnection) -> CGFloat {
-        return 3.0 * CGFloat(max(0.6, connection.confidence))
+        return 4.0 * CGFloat(max(0.7, connection.confidence))
     }
 }
 

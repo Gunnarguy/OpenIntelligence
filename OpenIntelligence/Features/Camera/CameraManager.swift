@@ -805,31 +805,30 @@ extension CameraManager {
         var joints: [PoseJoint] = []
         var connections: [PoseConnection] = []
 
-        // Complete human body joint set (17 keypoints - COCO format)
-        // This matches standard anatomical landmarks used in biomechanics
+        // Simple stick figure joints - only what we need for clean wireframe
+        // Head, Neck, Shoulders, Elbows, Hands, Pelvis, Hips, Knees, Ankles
         let jointNames: [VNHumanBodyPoseObservation.JointName] = [
-            // Head (5 points)
-            .nose,          // Tip of nose - face center
-            .leftEye,       // Left eye center
-            .rightEye,      // Right eye center
-            .leftEar,       // Left ear tragus
-            .rightEar,      // Right ear tragus
-            // Upper body (4 points)
-            .neck,          // C7 vertebra / base of neck
-            .leftShoulder,  // Acromion process (top of humerus)
+            // Head (1 point - top of figure)
+            .nose,
+            // Neck (center of shoulder bar)
+            .neck,
+            // Shoulders (ends of top T-bar)
+            .leftShoulder,
             .rightShoulder,
-            // Arms (4 points)
-            .leftElbow,     // Olecranon (elbow joint)
+            // Arms
+            .leftElbow,
             .rightElbow,
-            .leftWrist,     // Distal radius/ulna
-            .rightWrist,
-            // Lower body (4 points)
-            .root,          // Pelvis center / sacrum
-            .leftHip,       // Greater trochanter
+            .leftWrist,      // Hand
+            .rightWrist,     // Hand
+            // Pelvis (center of hip bar)
+            .root,
+            // Hips (ends of bottom T-bar)
+            .leftHip,
             .rightHip,
-            .leftKnee,      // Patella center
+            // Legs
+            .leftKnee,
             .rightKnee,
-            .leftAnkle,     // Lateral malleolus
+            .leftAnkle,
             .rightAnkle
         ]
 
@@ -848,46 +847,42 @@ extension CameraManager {
             }
         }
 
-        // Anatomically accurate skeleton connections
-        // Based on actual bone structure and biomechanical linkages
+        // Clean stick figure skeleton - simple T-shape with limbs
+        // Head → Neck → Shoulders (T-bar) → Spine → Hips (T-bar) → Legs
         let connectionPairs: [(VNHumanBodyPoseObservation.JointName, VNHumanBodyPoseObservation.JointName)] = [
-            // HEAD - Facial triangle
-            (.nose, .leftEye), (.nose, .rightEye),
-            (.leftEye, .leftEar), (.rightEye, .rightEar),
-            (.leftEye, .rightEye),  // Eye line for face orientation
+            // HEAD to NECK (vertical spine start)
+            (.nose, .neck),
 
-            // NECK - Cervical spine connection
-            (.nose, .neck),         // Face to neck
-            (.leftEar, .neck), (.rightEar, .neck),  // Ears frame the neck
+            // SHOULDER BAR (horizontal T across top)
+            (.leftShoulder, .rightShoulder),
 
-            // SHOULDERS - Clavicle (collarbone)
-            (.neck, .leftShoulder), (.neck, .rightShoulder),
-            (.leftShoulder, .rightShoulder),  // Shoulder girdle
+            // NECK connects to shoulder bar center (implicit via shoulders)
+            (.neck, .leftShoulder),
+            (.neck, .rightShoulder),
 
-            // SPINE - Vertebral column
-            (.neck, .root),         // Full spine (neck to pelvis)
+            // SPINE - neck down to pelvis
+            (.neck, .root),
 
-            // TORSO - Ribcage connections
-            (.leftShoulder, .leftHip),   // Left lateral torso
-            (.rightShoulder, .rightHip), // Right lateral torso
+            // HIP BAR (horizontal T across bottom)
+            (.leftHip, .rightHip),
 
-            // PELVIS - Hip girdle
-            (.root, .leftHip), (.root, .rightHip),
-            (.leftHip, .rightHip),  // Pelvis width
+            // PELVIS connects to hip bar
+            (.root, .leftHip),
+            (.root, .rightHip),
 
-            // LEFT ARM - Humerus, Radius/Ulna
-            (.leftShoulder, .leftElbow),  // Humerus
-            (.leftElbow, .leftWrist),     // Forearm (radius/ulna)
+            // LEFT ARM: shoulder → elbow → wrist (hand)
+            (.leftShoulder, .leftElbow),
+            (.leftElbow, .leftWrist),
 
-            // RIGHT ARM
+            // RIGHT ARM: shoulder → elbow → wrist (hand)
             (.rightShoulder, .rightElbow),
             (.rightElbow, .rightWrist),
 
-            // LEFT LEG - Femur, Tibia/Fibula
-            (.leftHip, .leftKnee),   // Femur (thigh bone)
-            (.leftKnee, .leftAnkle), // Tibia/fibula (shin)
+            // LEFT LEG: hip → knee → ankle
+            (.leftHip, .leftKnee),
+            (.leftKnee, .leftAnkle),
 
-            // RIGHT LEG
+            // RIGHT LEG: hip → knee → ankle
             (.rightHip, .rightKnee),
             (.rightKnee, .rightAnkle)
         ]
@@ -942,36 +937,30 @@ extension CameraManager {
         //   Front legs: Shoulder → Elbow → Carpus (wrist) → Paw
         //   Back legs: Hip → Stifle (knee) → Hock (ankle) → Paw
         // TAIL: 3 points for tail curvature
+        // Simple quadruped stick figure joints
+        // Head, Neck, 4 legs with 3 joints each, Tail
         let jointNames: [VNAnimalBodyPoseObservation.JointName] = [
-            // Head - 9 points
-            .nose,                      // Rhinarium (nose leather)
-            .leftEye, .rightEye,        // Eyes
-            .leftEarTop, .leftEarMiddle, .leftEarBottom,    // Left pinna
-            .rightEarTop, .rightEarMiddle, .rightEarBottom, // Right pinna
-
-            // Body - 1 point (neck/withers)
-            .neck,                      // Base of skull / atlas (C1)
-
-            // Front limbs - 6 points (scapula → humerus → radius/ulna → carpals)
-            .leftFrontElbow,            // Actually shoulder (scapulohumeral joint)
-            .leftFrontKnee,             // Actually elbow (humeroradial joint)
-            .leftFrontPaw,              // Carpus/metacarpals (wrist/paw)
+            // Head (just nose as head marker)
+            .nose,
+            // Neck
+            .neck,
+            // Front legs (shoulder/elbow/paw)
+            .leftFrontElbow,   // Shoulder
+            .leftFrontKnee,    // Elbow
+            .leftFrontPaw,     // Paw
             .rightFrontElbow,
             .rightFrontKnee,
             .rightFrontPaw,
-
-            // Back limbs - 6 points (pelvis → femur → tibia → tarsals)
-            .leftBackElbow,             // Actually hip (coxofemoral joint)
-            .leftBackKnee,              // Actually stifle (femorotibial joint - true knee)
-            .leftBackPaw,               // Hock/metatarsals (ankle/paw)
+            // Back legs (hip/knee/paw)
+            .leftBackElbow,    // Hip
+            .leftBackKnee,     // Knee
+            .leftBackPaw,      // Paw
             .rightBackElbow,
             .rightBackKnee,
             .rightBackPaw,
-
-            // Tail - 3 points (caudal vertebrae)
-            .tailTop,                   // Tail base (sacrocaudal junction)
-            .tailMiddle,                // Mid-tail
-            .tailBottom                 // Tail tip
+            // Tail
+            .tailTop,
+            .tailBottom
         ]
 
         var jointPositions: [VNAnimalBodyPoseObservation.JointName: CGPoint] = [:]
@@ -989,58 +978,42 @@ extension CameraManager {
             }
         }
 
-        // Anatomically accurate quadruped skeleton connections
-        // Based on actual bone structure of dogs/cats
+        // Simple quadruped stick figure connections
+        // Head → Neck → Body line → Legs
         let connectionPairs: [(VNAnimalBodyPoseObservation.JointName, VNAnimalBodyPoseObservation.JointName)] = [
-            // HEAD - Facial structure
-            (.nose, .leftEye), (.nose, .rightEye),     // Muzzle to eyes
-            (.leftEye, .rightEye),                      // Eye line (skull width)
+            // HEAD to NECK
+            (.nose, .neck),
 
-            // EARS - Pinna structure (triangular ears)
-            (.leftEye, .leftEarBottom),                 // Eye to ear base
-            (.leftEarBottom, .leftEarMiddle),           // Ear structure
-            (.leftEarMiddle, .leftEarTop),              // Ear tip
-            (.rightEye, .rightEarBottom),
-            (.rightEarBottom, .rightEarMiddle),
-            (.rightEarMiddle, .rightEarTop),
+            // BODY - horizontal spine from front shoulders to back hips
+            (.neck, .leftFrontElbow),                   // Neck to left front shoulder
+            (.neck, .rightFrontElbow),                  // Neck to right front shoulder
+            (.leftFrontElbow, .rightFrontElbow),        // Front shoulders bar
 
-            // NECK - Cervical spine
-            (.nose, .neck),                             // Skull to atlas
-            (.leftEarBottom, .neck),                    // Ear base to neck
-            (.rightEarBottom, .neck),
+            // Connect front to back (body line)
+            (.leftFrontElbow, .leftBackElbow),          // Left side body
+            (.rightFrontElbow, .rightBackElbow),        // Right side body
+            (.leftBackElbow, .rightBackElbow),          // Back hips bar
 
-            // SPINE & BODY - Connect neck to all limb origins
-            // Front assembly (shoulder girdle)
-            (.neck, .leftFrontElbow),                   // Neck to left shoulder
-            (.neck, .rightFrontElbow),                  // Neck to right shoulder
-            (.leftFrontElbow, .rightFrontElbow),        // Chest width (pectoral)
-
-            // Back assembly (pelvic girdle) - connected via spine
-            (.leftFrontElbow, .leftBackElbow),          // Left body line (spine proxy)
-            (.rightFrontElbow, .rightBackElbow),        // Right body line
-            (.leftBackElbow, .rightBackElbow),          // Hip width (pelvic)
-
-            // LEFT FRONT LEG - Scapula → Humerus → Radius
-            (.leftFrontElbow, .leftFrontKnee),          // Humerus (upper arm)
-            (.leftFrontKnee, .leftFrontPaw),            // Radius/ulna + carpals (forearm + wrist)
+            // LEFT FRONT LEG: shoulder → elbow → paw
+            (.leftFrontElbow, .leftFrontKnee),
+            (.leftFrontKnee, .leftFrontPaw),
 
             // RIGHT FRONT LEG
             (.rightFrontElbow, .rightFrontKnee),
             (.rightFrontKnee, .rightFrontPaw),
 
-            // LEFT BACK LEG - Femur → Tibia → Tarsals
-            (.leftBackElbow, .leftBackKnee),            // Femur (thigh)
-            (.leftBackKnee, .leftBackPaw),              // Tibia/fibula + tarsals (shin + hock)
+            // LEFT BACK LEG: hip → knee → paw
+            (.leftBackElbow, .leftBackKnee),
+            (.leftBackKnee, .leftBackPaw),
 
             // RIGHT BACK LEG
             (.rightBackElbow, .rightBackKnee),
             (.rightBackKnee, .rightBackPaw),
 
-            // TAIL - Caudal vertebrae chain
-            (.leftBackElbow, .tailTop),                 // Hip to tail base (one side)
-            (.rightBackElbow, .tailTop),                // Hip to tail base (other side)
-            (.tailTop, .tailMiddle),                    // Proximal tail
-            (.tailMiddle, .tailBottom)                  // Distal tail
+            // TAIL
+            (.leftBackElbow, .tailTop),
+            (.rightBackElbow, .tailTop),
+            (.tailTop, .tailBottom)
         ]
 
         // Create connections
