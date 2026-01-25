@@ -385,6 +385,9 @@ struct GenerationParametersView: View {
 
 struct RetrievalSettingsView: View {
     @EnvironmentObject private var settings: SettingsStore
+    @AppStorage("docCacheAutoEnabled") private var docCacheAutoEnabled: Bool = true
+    @AppStorage("docCacheExpirationDays") private var docCacheExpirationDays: Int = 30
+
     var body: some View {
         List {
             Section("Retrieval Strategy") {
@@ -434,6 +437,46 @@ struct RetrievalSettingsView: View {
                 featureItem(icon: "checkmark.seal.fill", title: "Verification Gates A-D", detail: "4-stage anti-hallucination checks")
                 featureItem(icon: "function", title: "Confidence Calibration", detail: "Platt-scaled scores for reliable uncertainty")
             }
+
+            Section {
+                Toggle(isOn: $docCacheAutoEnabled) {
+                    HStack {
+                        Image(systemName: "doc.on.clipboard")
+                            .foregroundColor(.accentColor)
+                            .frame(width: 20)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Auto-Cache Web Docs")
+                                .font(.subheadline.weight(.medium))
+                            Text("Automatically cache referenced documentation pages for offline access")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: "calendar.badge.clock")
+                        .foregroundColor(.accentColor)
+                        .frame(width: 20)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Cache Expiration")
+                            .font(.subheadline.weight(.medium))
+                        Picker("", selection: $docCacheExpirationDays) {
+                            Text("7 days").tag(7)
+                            Text("14 days").tag(14)
+                            Text("30 days").tag(30)
+                            Text("60 days").tag(60)
+                            Text("90 days").tag(90)
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                }
+            } header: {
+                Text("Documentation Cache")
+            } footer: {
+                Text("Cached documents can be ingested into any library for offline RAG queries.")
+                    .font(.caption)
+            }
         }
         .navigationTitle("Retrieval")
     }
@@ -480,6 +523,10 @@ struct DeveloperDiagnosticsView: View {
 }
 
 struct AboutSettingsView: View {
+    @EnvironmentObject private var onboardingStore: OnboardingStateStore
+    @State private var showResetConfirmation = false
+    @State private var resetComplete = false
+
     private struct PricingPlan: Identifiable {
         let id = UUID()
         let name: String
@@ -593,8 +640,54 @@ struct AboutSettingsView: View {
                     }
                 }
             }
+
+            Section {
+                Button(role: .destructive) {
+                    showResetConfirmation = true
+                } label: {
+                    Label("Reset App Data", systemImage: "arrow.counterclockwise")
+                }
+            } header: {
+                Text("Developer")
+            } footer: {
+                Text("Clears onboarding state, theme preferences, and all cached settings. Documents and embeddings are preserved.")
+            }
         }
         .navigationTitle("About")
+        .alert("Reset App Data?", isPresented: $showResetConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Reset", role: .destructive) {
+                performReset()
+            }
+        } message: {
+            Text("This will reset onboarding, theme, and all preferences. Your documents will not be deleted.")
+        }
+        .alert("Reset Complete", isPresented: $resetComplete) {
+            Button("OK") { }
+        } message: {
+            Text("Please restart the app for changes to take effect.")
+        }
+    }
+
+    private func performReset() {
+        // Reset onboarding
+        onboardingStore.resetAllOnboarding()
+
+        // Reset common AppStorage keys
+        let defaults = UserDefaults.standard
+        let keysToRemove = [
+            "selectedColorScheme",
+            "app_theme",
+            "accentColor",
+            "embedding3d_hasSeenOnboarding",
+            "hasLaunchedBefore",
+            "lastSelectedContainer",
+        ]
+        for key in keysToRemove {
+            defaults.removeObject(forKey: key)
+        }
+
+        resetComplete = true
     }
 }
 

@@ -232,6 +232,7 @@ struct AttachmentMenuButton: View {
     let onSelectDocument: () -> Void
     let onSelectPhoto: () -> Void
     let onTakePhoto: () -> Void
+    var onVisionCapture: (() -> Void)? = nil  // Enhanced Vision capture (optional)
     let isCameraAvailable: Bool
 
     var body: some View {
@@ -247,6 +248,15 @@ struct AttachmentMenuButton: View {
             if isCameraAvailable {
                 Button(action: onTakePhoto) {
                     Label("Take Photo", systemImage: "camera.fill")
+                }
+
+                // Vision Capture - Advanced camera with live OCR and document detection
+                if let onVisionCapture = onVisionCapture {
+                    Divider()
+
+                    Button(action: onVisionCapture) {
+                        Label("Vision Capture", systemImage: "text.viewfinder")
+                    }
                 }
             }
         } label: {

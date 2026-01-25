@@ -17,11 +17,12 @@ struct CloudConsentPromptView: View {
                 .fill(Color.secondary.opacity(0.3))
                 .frame(width: 36, height: 5)
                 .padding(.top, 8)
-                .padding(.bottom, 16)
+                .padding(.bottom, 20)
 
             VStack(spacing: DSSpacing.lg) {
                 // Icon and Title
                 headerSection
+                    .padding(.top, 8)  // Extra padding to prevent cloud icon clipping
 
                 // Simple explanation
                 explanationSection

@@ -95,6 +95,9 @@ struct ChatScreen: View {
     // Cloud consent prompt state
     @State private var activeCloudConsent: CloudTransmissionRecord? = nil
 
+    // Vision Capture overlay
+    @State private var showVisionCapture: Bool = false
+
     // Speed history for sparkline graph
     @State private var speedHistory: [Double] = []
     @State private var lastSpeedSampleTokens: Int = 0
@@ -136,6 +139,159 @@ struct ChatScreen: View {
         return 4096
     }
 
+    // MARK: - Metrics Bar Helpers (split to avoid type-check timeout)
+
+    /// Build the primary metrics bar when consolidatedMetricsData is available
+    @ViewBuilder
+    private func primaryMetricsBar(metricsData: ConsolidatedMetrics) -> some View {
+        let deepThinkTokens = isProcessing ? ragService.deepThinkLiveTokens : (ragService.lastAuditSnapshot?.totalTokensAcrossCalls ?? ragService.deepThinkLiveTokens)
+        let audit = ragService.lastAuditSnapshot
+
+        UnifiedMetricsBar(
+            stage: stage,
+            execution: metricsData.execution,
+            isProcessing: isProcessing,
+            qualityMode: effectiveQualityMode,
+            isLLMActivelyGenerating: ragService.isLLMResponding,
+            contextTokens: metricsData.isRecursiveRAG ? deepThinkTokens : actualContextTokensUsed,
+            maxContextTokens: maxContextTokensForUI,
+            tokensGenerated: metricsData.tokens,
+            tokensPerSecond: metricsData.tokensPerSecond,
+            characterCount: metricsData.characterCount,
+            elapsedTime: metricsData.elapsed,
+            speedHistory: metricsData.isStreaming ? speedHistory : [],
+            ttft: metricsData.ttft,
+            sourceCount: metricsData.sourceCount,
+            averageSourceScore: metricsData.averageScore,
+            totalDocuments: activeDocCount,
+            totalChunks: activeChunkCount,
+            coveredDocuments: coveredDocCount,
+            toolCallCount: metricsData.toolCallCount,
+            modelName: metricsData.modelName,
+            requestedExecutionContext: requestedExecutionContext,
+            vectorWeight: metricsData.vectorWeight,
+            lexicalWeight: metricsData.lexicalWeight,
+            originalQuery: messages.last(where: { $0.role == .user })?.content ?? "",
+            queryIntent: metricsData.queryIntent,
+            hierarchicalChunkingActive: metricsData.hierarchicalChunkingActive,
+            parentChunksUsed: metricsData.parentChunksUsed,
+            siblingChunksAdded: metricsData.siblingChunksAdded,
+            graphExpansionActive: metricsData.graphExpansionActive,
+            graphEntitiesExtracted: metricsData.graphEntitiesExtracted,
+            intentAwareWeightsActive: metricsData.intentAwareWeightsActive,
+            isRecursiveRAG: metricsData.isRecursiveRAG,
+            recursiveCallCount: metricsData.recursiveCallCount,
+            totalStoredChunks: audit?.totalStoredChunks ?? 0,
+            candidatesCount: audit?.candidatesCount ?? 0,
+            rerankedCount: audit?.rerankedCount ?? 0,
+            filteredCount: audit?.filteredCount ?? 0,
+            droppedCount: audit?.droppedCount ?? 0,
+            mmrSelectedCount: audit?.mmrSelectedCount ?? 0,
+            uniqueDocCount: audit?.uniqueDocCount ?? 0,
+            baseWindowTokens: audit?.baseWindowTokens ?? 0,
+            safetyTokens: audit?.safetyTokens ?? 0,
+            promptOverheadTokens: audit?.promptOverheadTokens ?? 0,
+            questionTokens: audit?.questionTokens ?? 0,
+            reservedOutputTokens: audit?.reservedOutputTokens ?? 0,
+            availableContextTokens: audit?.availableContextTokens ?? 0,
+            lenientRetrieval: audit?.lenientRetrieval ?? false,
+            dynamicMinThreshold: audit?.dynamicMin ?? 0,
+            topSimilarity: audit?.topSim ?? 0,
+            secondSimilarity: audit?.secondSim ?? 0,
+            avgTop5Similarity: audit?.avgTop5 ?? 0,
+            acceptanceOverride: audit?.acceptanceOverride ?? false,
+            containerName: audit?.containerName ?? "",
+            embeddingDim: audit?.embeddingDim ?? 512,
+            vectorDBKind: audit?.vectorDBKind.rawValue ?? "",
+            chunkingTargetWords: audit?.chunkingTargetWords ?? 0,
+            chunkingOverlapWords: audit?.chunkingOverlapWords ?? 0,
+            contextStrategy: audit?.contextStrategy ?? "",
+            embeddingElapsed: embeddingElapsedFinal ?? 0,
+            searchElapsed: searchingElapsedFinal ?? 0,
+            generationElapsed: generatingElapsedFinal ?? 0,
+            liveConfidence: ragService.deepThinkLiveConfidence,
+            isMaximumMode: effectiveQualityMode.isUnlimitedMode,
+            maximumModeSessionCount: ragService.deepThinkLiveSteps,
+            onTapDetails: !metricsData.isStreaming ? { showRetrievedDetails = true } : nil
+        )
+    }
+
+    /// Build the minimal metrics bar when processing but no consolidated data yet
+    @ViewBuilder
+    private func minimalMetricsBar() -> some View {
+        let auditSnapshot = ragService.lastAuditSnapshot
+        let minimalVectorWt = Double(auditSnapshot?.retrievalConfig.vectorWeight ?? 0.6)
+        let minimalLexicalWt = Double(auditSnapshot?.retrievalConfig.lexicalWeight ?? 0.4)
+
+        UnifiedMetricsBar(
+            stage: stage,
+            execution: execution,
+            isProcessing: isProcessing,
+            qualityMode: effectiveQualityMode,
+            isLLMActivelyGenerating: ragService.isLLMResponding,
+            contextTokens: auditSnapshot?.isRecursiveRAG == true ? (auditSnapshot?.totalTokensAcrossCalls ?? actualContextTokensUsed) : actualContextTokensUsed,
+            maxContextTokens: maxContextTokensForUI,
+            tokensGenerated: 0,
+            tokensPerSecond: 0,
+            characterCount: 0,
+            elapsedTime: 0,
+            speedHistory: [],
+            ttft: ttft,
+            sourceCount: currentRetrievedChunks.count,
+            averageSourceScore: averageSourceScore,
+            totalDocuments: activeDocCount,
+            totalChunks: activeChunkCount,
+            coveredDocuments: coveredDocCount,
+            toolCallCount: 0,
+            modelName: inferredModelName,
+            requestedExecutionContext: requestedExecutionContext,
+            vectorWeight: minimalVectorWt,
+            lexicalWeight: minimalLexicalWt,
+            originalQuery: messages.last(where: { $0.role == .user })?.content ?? "",
+            queryIntent: deriveQueryIntent(from: auditSnapshot?.retrievalConfig),
+            hierarchicalChunkingActive: auditSnapshot?.contextStrategy == "parent_expanded",
+            parentChunksUsed: 0,
+            siblingChunksAdded: 0,
+            graphExpansionActive: effectiveQualityMode == .deepThink,
+            graphEntitiesExtracted: 0,
+            intentAwareWeightsActive: true,
+            isRecursiveRAG: auditSnapshot?.isRecursiveRAG ?? (effectiveQualityMode == .deepThink),
+            recursiveCallCount: auditSnapshot?.llmCallCount ?? 1,
+            totalStoredChunks: auditSnapshot?.totalStoredChunks ?? 0,
+            candidatesCount: auditSnapshot?.candidatesCount ?? 0,
+            rerankedCount: auditSnapshot?.rerankedCount ?? 0,
+            filteredCount: auditSnapshot?.filteredCount ?? 0,
+            droppedCount: auditSnapshot?.droppedCount ?? 0,
+            mmrSelectedCount: auditSnapshot?.mmrSelectedCount ?? 0,
+            uniqueDocCount: auditSnapshot?.uniqueDocCount ?? 0,
+            baseWindowTokens: auditSnapshot?.baseWindowTokens ?? 0,
+            safetyTokens: auditSnapshot?.safetyTokens ?? 0,
+            promptOverheadTokens: auditSnapshot?.promptOverheadTokens ?? 0,
+            questionTokens: auditSnapshot?.questionTokens ?? 0,
+            reservedOutputTokens: auditSnapshot?.reservedOutputTokens ?? 0,
+            availableContextTokens: auditSnapshot?.availableContextTokens ?? 0,
+            lenientRetrieval: auditSnapshot?.lenientRetrieval ?? false,
+            dynamicMinThreshold: auditSnapshot?.dynamicMin ?? 0,
+            topSimilarity: auditSnapshot?.topSim ?? 0,
+            secondSimilarity: auditSnapshot?.secondSim ?? 0,
+            avgTop5Similarity: auditSnapshot?.avgTop5 ?? 0,
+            acceptanceOverride: auditSnapshot?.acceptanceOverride ?? false,
+            containerName: auditSnapshot?.containerName ?? "",
+            embeddingDim: auditSnapshot?.embeddingDim ?? 512,
+            vectorDBKind: auditSnapshot?.vectorDBKind.rawValue ?? "",
+            chunkingTargetWords: auditSnapshot?.chunkingTargetWords ?? 0,
+            chunkingOverlapWords: auditSnapshot?.chunkingOverlapWords ?? 0,
+            contextStrategy: auditSnapshot?.contextStrategy ?? "",
+            embeddingElapsed: embeddingElapsedFinal ?? 0,
+            searchElapsed: searchingElapsedFinal ?? 0,
+            generationElapsed: generatingElapsedFinal ?? 0,
+            liveConfidence: ragService.deepThinkLiveConfidence,
+            isMaximumMode: effectiveQualityMode.isUnlimitedMode,
+            maximumModeSessionCount: ragService.deepThinkLiveSteps,
+            onTapDetails: nil
+        )
+    }
+
     var body: some View {
         ZStack(alignment: .top) {
             // Main content VStack
@@ -153,159 +309,17 @@ struct ChatScreen: View {
                 // Shows execution location, context usage, generation speed, sources, quality mode
                 // Visible during processing and persists after completion
                 if let metricsData = consolidatedMetricsData {
-                    // For Deep Think, use live token counter during processing, final count after
-                    let deepThinkTokens = isProcessing ? ragService.deepThinkLiveTokens : (ragService.lastAuditSnapshot?.totalTokensAcrossCalls ?? ragService.deepThinkLiveTokens)
-                    let audit = ragService.lastAuditSnapshot
-
-                    UnifiedMetricsBar(
-                        stage: stage,
-                        execution: metricsData.execution,
-                        isProcessing: isProcessing,
-                        qualityMode: effectiveQualityMode,
-                        isLLMActivelyGenerating: ragService.isLLMResponding,
-                        contextTokens: metricsData.isRecursiveRAG ? deepThinkTokens : actualContextTokensUsed,
-                        maxContextTokens: maxContextTokensForUI,
-                        tokensGenerated: metricsData.tokens,
-                        tokensPerSecond: metricsData.tokensPerSecond,
-                        characterCount: metricsData.characterCount,
-                        elapsedTime: metricsData.elapsed,
-                        speedHistory: metricsData.isStreaming ? speedHistory : [],
-                        ttft: metricsData.ttft,
-                        sourceCount: metricsData.sourceCount,
-                        averageSourceScore: metricsData.averageScore,
-                        totalDocuments: activeDocCount,
-                        totalChunks: activeChunkCount,
-                        coveredDocuments: coveredDocCount,
-                        toolCallCount: metricsData.toolCallCount,
-                        modelName: metricsData.modelName,
-                        requestedExecutionContext: requestedExecutionContext,
-                        vectorWeight: metricsData.vectorWeight,
-                        lexicalWeight: metricsData.lexicalWeight,
-                        // Query understanding
-                        originalQuery: messages.last(where: { $0.role == .user })?.content ?? "",
-                        queryIntent: metricsData.queryIntent,
-                        hierarchicalChunkingActive: metricsData.hierarchicalChunkingActive,
-                        parentChunksUsed: metricsData.parentChunksUsed,
-                        siblingChunksAdded: metricsData.siblingChunksAdded,
-                        graphExpansionActive: metricsData.graphExpansionActive,
-                        graphEntitiesExtracted: metricsData.graphEntitiesExtracted,
-                        intentAwareWeightsActive: metricsData.intentAwareWeightsActive,
-                        isRecursiveRAG: metricsData.isRecursiveRAG,
-                        recursiveCallCount: metricsData.recursiveCallCount,
-                        // Full Transparency Dashboard data from audit snapshot
-                        totalStoredChunks: audit?.totalStoredChunks ?? 0,
-                        candidatesCount: audit?.candidatesCount ?? 0,
-                        rerankedCount: audit?.rerankedCount ?? 0,
-                        filteredCount: audit?.filteredCount ?? 0,
-                        droppedCount: audit?.droppedCount ?? 0,
-                        mmrSelectedCount: audit?.mmrSelectedCount ?? 0,
-                        uniqueDocCount: audit?.uniqueDocCount ?? 0,
-                        baseWindowTokens: audit?.baseWindowTokens ?? 0,
-                        safetyTokens: audit?.safetyTokens ?? 0,
-                        promptOverheadTokens: audit?.promptOverheadTokens ?? 0,
-                        questionTokens: audit?.questionTokens ?? 0,
-                        reservedOutputTokens: audit?.reservedOutputTokens ?? 0,
-                        availableContextTokens: audit?.availableContextTokens ?? 0,
-                        lenientRetrieval: audit?.lenientRetrieval ?? false,
-                        dynamicMinThreshold: audit?.dynamicMin ?? 0,
-                        topSimilarity: audit?.topSim ?? 0,
-                        secondSimilarity: audit?.secondSim ?? 0,
-                        avgTop5Similarity: audit?.avgTop5 ?? 0,
-                        acceptanceOverride: audit?.acceptanceOverride ?? false,
-                        containerName: audit?.containerName ?? "",
-                        embeddingDim: audit?.embeddingDim ?? 512,
-                        vectorDBKind: audit?.vectorDBKind.rawValue ?? "",
-                        chunkingTargetWords: audit?.chunkingTargetWords ?? 0,
-                        chunkingOverlapWords: audit?.chunkingOverlapWords ?? 0,
-                        contextStrategy: audit?.contextStrategy ?? "",
-                        embeddingElapsed: embeddingElapsedFinal ?? 0,
-                        searchElapsed: searchingElapsedFinal ?? 0,
-                        generationElapsed: generatingElapsedFinal ?? 0,
-                        liveConfidence: ragService.deepThinkLiveConfidence,
-                        isMaximumMode: effectiveQualityMode.isUnlimitedMode,
-                        maximumModeSessionCount: ragService.deepThinkLiveSteps,
-                        onTapDetails: !metricsData.isStreaming ? { showRetrievedDetails = true } : nil
-                    )
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 6)
-                    .transition(.opacity)
-                    .animation(.easeInOut(duration: 0.15), value: metricsData.tokens)
+                    primaryMetricsBar(metricsData: metricsData)
+                        .padding(.horizontal, 12)
+                        .padding(.bottom, 6)
+                        .transition(.opacity)
+                        .animation(.easeInOut(duration: 0.15), value: metricsData.tokens)
                 } else if isProcessing || currentRetrievedChunks.count > 0 {
                     // Show minimal bar when processing starts (before generating)
-                    let auditSnapshot = ragService.lastAuditSnapshot
-                    let minimalVectorWt = Double(auditSnapshot?.retrievalConfig.vectorWeight ?? 0.6)
-                    let minimalLexicalWt = Double(auditSnapshot?.retrievalConfig.lexicalWeight ?? 0.4)
-                    UnifiedMetricsBar(
-                        stage: stage,
-                        execution: execution,
-                        isProcessing: isProcessing,
-                        qualityMode: effectiveQualityMode,
-                        isLLMActivelyGenerating: ragService.isLLMResponding,
-                        contextTokens: auditSnapshot?.isRecursiveRAG == true ? (auditSnapshot?.totalTokensAcrossCalls ?? actualContextTokensUsed) : actualContextTokensUsed,
-                        maxContextTokens: maxContextTokensForUI,
-                        tokensGenerated: 0,
-                        tokensPerSecond: 0,
-                        characterCount: 0,
-                        elapsedTime: 0,
-                        speedHistory: [],
-                        ttft: ttft,
-                        sourceCount: currentRetrievedChunks.count,
-                        averageSourceScore: averageSourceScore,
-                        totalDocuments: activeDocCount,
-                        totalChunks: activeChunkCount,
-                        coveredDocuments: coveredDocCount,
-                        toolCallCount: 0,
-                        modelName: inferredModelName,
-                        requestedExecutionContext: requestedExecutionContext,
-                        vectorWeight: minimalVectorWt,
-                        lexicalWeight: minimalLexicalWt,
-                        originalQuery: messages.last(where: { $0.role == .user })?.content ?? "",
-                        queryIntent: deriveQueryIntent(from: auditSnapshot?.retrievalConfig),
-                        hierarchicalChunkingActive: auditSnapshot?.contextStrategy == "parent_expanded",
-                        parentChunksUsed: 0,
-                        siblingChunksAdded: 0,
-                        graphExpansionActive: effectiveQualityMode == .deepThink,
-                        graphEntitiesExtracted: 0,
-                        intentAwareWeightsActive: true,
-                        isRecursiveRAG: auditSnapshot?.isRecursiveRAG ?? (effectiveQualityMode == .deepThink),
-                        recursiveCallCount: auditSnapshot?.llmCallCount ?? 1,
-                        // Full Transparency Dashboard data from audit snapshot
-                        totalStoredChunks: auditSnapshot?.totalStoredChunks ?? 0,
-                        candidatesCount: auditSnapshot?.candidatesCount ?? 0,
-                        rerankedCount: auditSnapshot?.rerankedCount ?? 0,
-                        filteredCount: auditSnapshot?.filteredCount ?? 0,
-                        droppedCount: auditSnapshot?.droppedCount ?? 0,
-                        mmrSelectedCount: auditSnapshot?.mmrSelectedCount ?? 0,
-                        uniqueDocCount: auditSnapshot?.uniqueDocCount ?? 0,
-                        baseWindowTokens: auditSnapshot?.baseWindowTokens ?? 0,
-                        safetyTokens: auditSnapshot?.safetyTokens ?? 0,
-                        promptOverheadTokens: auditSnapshot?.promptOverheadTokens ?? 0,
-                        questionTokens: auditSnapshot?.questionTokens ?? 0,
-                        reservedOutputTokens: auditSnapshot?.reservedOutputTokens ?? 0,
-                        availableContextTokens: auditSnapshot?.availableContextTokens ?? 0,
-                        lenientRetrieval: auditSnapshot?.lenientRetrieval ?? false,
-                        dynamicMinThreshold: auditSnapshot?.dynamicMin ?? 0,
-                        topSimilarity: auditSnapshot?.topSim ?? 0,
-                        secondSimilarity: auditSnapshot?.secondSim ?? 0,
-                        avgTop5Similarity: auditSnapshot?.avgTop5 ?? 0,
-                        acceptanceOverride: auditSnapshot?.acceptanceOverride ?? false,
-                        containerName: auditSnapshot?.containerName ?? "",
-                        embeddingDim: auditSnapshot?.embeddingDim ?? 512,
-                        vectorDBKind: auditSnapshot?.vectorDBKind.rawValue ?? "",
-                        chunkingTargetWords: auditSnapshot?.chunkingTargetWords ?? 0,
-                        chunkingOverlapWords: auditSnapshot?.chunkingOverlapWords ?? 0,
-                        contextStrategy: auditSnapshot?.contextStrategy ?? "",
-                        embeddingElapsed: embeddingElapsedFinal ?? 0,
-                        searchElapsed: searchingElapsedFinal ?? 0,
-                        generationElapsed: generatingElapsedFinal ?? 0,
-                        liveConfidence: ragService.deepThinkLiveConfidence,
-                        isMaximumMode: effectiveQualityMode.isUnlimitedMode,
-                        maximumModeSessionCount: ragService.deepThinkLiveSteps,
-                        onTapDetails: nil
-                    )
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 6)
-                    .transition(.opacity)
+                    minimalMetricsBar()
+                        .padding(.horizontal, 12)
+                        .padding(.bottom, 6)
+                        .transition(.opacity)
                 }
 
                 // Main content area
@@ -369,7 +383,12 @@ struct ChatScreen: View {
                     isProcessing: isProcessing,
                     onSend: sendMessage,
                     onStop: stopGeneration,
-                    onSendWithAttachments: sendMessageWithAttachments
+                    onAttach: nil,
+                    onSendWithAttachments: sendMessageWithAttachments,
+                    onVisionCapture: {
+                        showVisionCapture = true
+                        DSHaptics.selection()
+                    }
                 )
             }
 
@@ -381,6 +400,13 @@ struct ChatScreen: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 88)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+        }
+        // Vision Capture overlay
+        .fullScreenCover(isPresented: $showVisionCapture) {
+            CameraVisionOverlayView(
+                ragService: ragService,
+                containerService: ragService.containerService
+            )
         }
 .navigationTitle("Chat")
         #if os(iOS)
@@ -1922,9 +1948,29 @@ struct ChatScreen: View {
             }
         }
 
+        // Handle LLM-specific errors
+        if let llmError = error as? LLMError {
+            switch llmError {
+            case .contextWindowExceeded:
+                return "Deep Think ran too long. Try Standard mode or a shorter question."
+            case .generationFailed(let message):
+                if message.contains("decode") || message.contains("internal") {
+                    return "AI processing limit reached. Try Standard mode instead."
+                }
+                return message
+            case .modelUnavailable:
+                return "Apple Intelligence isn't available. Enable it in Settings."
+            case .notImplemented:
+                return "This feature isn't available yet."
+            }
+        }
+
         let message = error.localizedDescription.lowercased()
         if message.contains("exceededcontextwindowsize") {
-            return "That request is too large. Try a shorter question."
+            return "Deep Think ran too long. Try Standard mode or a shorter question."
+        }
+        if message.contains("decode") || message.contains("json") {
+            return "AI processing limit reached. Try Standard mode instead."
         }
 
         return "Something went wrong. Please try again."

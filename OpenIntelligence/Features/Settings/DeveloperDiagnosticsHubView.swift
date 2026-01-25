@@ -2,97 +2,222 @@
 //  DeveloperDiagnosticsHubView.swift
 //  OpenIntelligence
 //
-//  Consolidated hub for developer tools and diagnostics
+//  Streamlined developer tools and diagnostics hub
 //
 
 import SwiftUI
 
 struct DeveloperDiagnosticsHubView: View {
     @ObservedObject var ragService: RAGService
+    @EnvironmentObject private var settings: SettingsStore
+    @AppStorage("loggingLevel") private var loggingLevelRaw: Int = LoggingConfiguration.Level.info.rawValue
+    @AppStorage("enablePipelineLogs") private var enablePipelineLogs: Bool = true
+    @AppStorage("enablePerformanceLogs") private var enablePerformanceLogs: Bool = true
+    @AppStorage("enableLLMLogs") private var enableLLMLogs: Bool = true
+    @AppStorage("enableStreamingLogs") private var enableStreamingLogs: Bool = false
+    @AppStorage("enableVectorDBLogs") private var enableVectorDBLogs: Bool = true
 
     var body: some View {
-        ZStack {
-            LinearGradient(
-                colors: [DSColors.background, DSColors.surface.opacity(0.95)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
+        List {
+            // Quick Status
+            Section {
+                systemStatusRow
+            } header: {
+                Text("System Status")
+            }
 
-            ScrollView {
-                VStack(spacing: 16) {
-                    // Diagnostics
-                    SurfaceCard {
-                        SectionHeader(icon: "wrench.and.screwdriver", title: "Diagnostics")
-                        VStack(alignment: .leading, spacing: 8) {
-                            NavigationLink {
-                                CoreValidationView(ragService: ragService)
-                            } label: {
-                                Label("Core Validation", systemImage: "checkmark.circle")
-                            }
-
-                            NavigationLink {
-                                TelemetryDashboardView()
-                            } label: {
-                                Label("Telemetry Dashboard", systemImage: "waveform.path.ecg")
-                            }
-
-                            NavigationLink {
-                                ContainerScopingSelfTestsView(ragService: ragService)
-                            } label: {
-                                Label("Container Scoping Self-Tests", systemImage: "magnifyingglass.circle")
-                            }
-
-                            NavigationLink {
-                                BackendHealthDiagnosticsView(ragService: ragService)
-                            } label: {
-                                Label("Backend Health", systemImage: "server.rack")
-                            }
-
-                            NavigationLink {
-                                RAGPipelineAuditView(ragService: ragService)
-                            } label: {
-                                Label("RAG Audit", systemImage: "waveform.path.ecg")
-                            }
-
-                            NavigationLink {
-                                NLChunkingDiagnosticsView()
-                            } label: {
-                                Label("NL Chunking Diagnostics", systemImage: "text.magnifyingglass")
-                            }
-                        }
-                    }
-
-                    // Developer Tools
-                    SurfaceCard {
-                        SectionHeader(icon: "hammer.fill", title: "Developer Tools")
-                        VStack(alignment: .leading, spacing: 8) { 
-                            NavigationLink {
-                                VisualizationsView()
-                                    .environmentObject(ragService)
-                            } label: {
-                                Label("Legacy Visualizations", systemImage: "chart.xyaxis.line")
-                            }
-
-                            NavigationLink {
-                                AdaptiveVisualizationsView()
-                                    .environmentObject(ragService)
-                            } label: {
-                                Label("Knowledge Atlas (Adaptive)", systemImage: "globe.americas")
-                            }
-
-                            NavigationLink {
-                                DeveloperSettingsView()
-                            } label: {
-                                Label("Developer Settings", systemImage: "hammer.fill")
-                            }
-                        }
-                    }
+            // Pipeline Debugging
+            Section {
+                Toggle(isOn: $settings.enablePipelineTrace) {
+                    Label("Pipeline Trace", systemImage: "list.bullet.clipboard")
                 }
-                .padding(16)
+                Toggle(isOn: $settings.forceReasoningChain) {
+                    Label("Force Reasoning Chain", systemImage: "brain")
+                }
+            } header: {
+                Text("Pipeline Debugging")
+            } footer: {
+                Text("Pipeline Trace shows chunk flow through RAG stages. Force Reasoning uses multi-session even when not needed.")
+            }
+
+            // Console Logging
+            Section {
+                Picker("Log Level", selection: $loggingLevelRaw) {
+                    Text("Silent").tag(LoggingConfiguration.Level.silent.rawValue)
+                    Text("Error").tag(LoggingConfiguration.Level.error.rawValue)
+                    Text("Info").tag(LoggingConfiguration.Level.info.rawValue)
+                    Text("Debug").tag(LoggingConfiguration.Level.debug.rawValue)
+                }
+                .pickerStyle(.segmented)
+                .onChange(of: loggingLevelRaw) { _, _ in applyLoggingSettings() }
+            } header: {
+                Text("Console Logging")
+            }
+
+            // Log Categories (collapsed by default)
+            Section {
+                DisclosureGroup("Log Categories") {
+                    Toggle("RAG Pipeline", isOn: $enablePipelineLogs)
+                        .onChange(of: enablePipelineLogs) { _, _ in applyLoggingSettings() }
+                    Toggle("Performance", isOn: $enablePerformanceLogs)
+                        .onChange(of: enablePerformanceLogs) { _, _ in applyLoggingSettings() }
+                    Toggle("LLM Generation", isOn: $enableLLMLogs)
+                        .onChange(of: enableLLMLogs) { _, _ in applyLoggingSettings() }
+                    Toggle("Token Streaming", isOn: $enableStreamingLogs)
+                        .onChange(of: enableStreamingLogs) { _, _ in applyLoggingSettings() }
+                    Toggle("Vector Database", isOn: $enableVectorDBLogs)
+                        .onChange(of: enableVectorDBLogs) { _, _ in applyLoggingSettings() }
+                }
+            }
+
+            // Quick Presets
+            Section {
+                HStack(spacing: 12) {
+                    Button("Production") { applyProductionPreset() }
+                        .buttonStyle(.bordered)
+                        .tint(.gray)
+                    Button("Dev") { applyDevelopmentPreset() }
+                        .buttonStyle(.bordered)
+                        .tint(.blue)
+                    Button("Debug") { applyDebugPreset() }
+                        .buttonStyle(.bordered)
+                        .tint(.orange)
+                }
+                .frame(maxWidth: .infinity)
+            } header: {
+                Text("Presets")
+            }
+
+            // Diagnostic Tools
+            Section {
+                NavigationLink {
+                    CoreValidationView(ragService: ragService)
+                } label: {
+                    Label("Core Validation", systemImage: "checkmark.circle")
+                }
+                NavigationLink {
+                    BackendHealthDiagnosticsView(ragService: ragService)
+                } label: {
+                    Label("Backend Health", systemImage: "server.rack")
+                }
+                NavigationLink {
+                    RAGPipelineAuditView(ragService: ragService)
+                } label: {
+                    Label("Pipeline Audit", systemImage: "list.bullet.clipboard")
+                }
+                NavigationLink {
+                    TelemetryDashboardView()
+                } label: {
+                    Label("Telemetry", systemImage: "chart.bar")
+                }
+            } header: {
+                Text("Diagnostics")
+            }
+
+            // Visualization
+            Section {
+                NavigationLink {
+                    AdaptiveVisualizationsView()
+                        .environmentObject(ragService)
+                } label: {
+                    Label("Knowledge Atlas", systemImage: "globe.americas")
+                }
+            } header: {
+                Text("Visualization")
             }
         }
-        .navigationTitle("Developer & Diagnostics")
+        .navigationTitle("Developer")
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.large)
+        #endif
+        .onAppear { applyLoggingSettings() }
+    }
+
+    // MARK: - System Status Row
+
+    @ViewBuilder
+    private var systemStatusRow: some View {
+        let caps = RAGService.checkDeviceCapabilities()
+
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Circle()
+                    .fill(caps.supportsAppleIntelligence ? Color.green : Color.orange)
+                    .frame(width: 8, height: 8)
+                Text(caps.supportsAppleIntelligence ? "Apple Intelligence Ready" : "On-Device Only")
+                    .font(.subheadline.weight(.medium))
+                Spacer()
+                Text(settings.ragQualityMode.canonical.displayName)
+                    .font(.caption)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.accentColor.opacity(0.15))
+                    .clipShape(Capsule())
+            }
+
+            HStack(spacing: 16) {
+                statusItem("Docs", value: "\(ragService.documents.count)")
+                statusItem("Mode", value: settings.ragQualityMode.canonical.displayName)
+                statusItem("Model", value: settings.selectedModel.displayName)
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private func statusItem(_ label: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .foregroundStyle(.tertiary)
+            Text(value)
+                .fontWeight(.medium)
+        }
+    }
+
+    // MARK: - Logging
+
+    private func applyLoggingSettings() {
+        let level = LoggingConfiguration.Level(rawValue: loggingLevelRaw) ?? .info
+        LoggingConfiguration.currentLevel = level
+
+        var categories = Set<LoggingConfiguration.Category>()
+        if enablePipelineLogs { categories.insert(.pipeline) }
+        if enablePerformanceLogs { categories.insert(.performance) }
+        if enableLLMLogs { categories.insert(.llm) }
+        if enableStreamingLogs { categories.insert(.streaming) }
+        if enableVectorDBLogs { categories.insert(.vectorDB) }
+        LoggingConfiguration.enabledCategories = categories
+    }
+
+    private func applyProductionPreset() {
+        loggingLevelRaw = LoggingConfiguration.Level.silent.rawValue
+        enablePipelineLogs = false
+        enablePerformanceLogs = false
+        enableLLMLogs = false
+        enableStreamingLogs = false
+        enableVectorDBLogs = false
+        applyLoggingSettings()
+    }
+
+    private func applyDevelopmentPreset() {
+        loggingLevelRaw = LoggingConfiguration.Level.info.rawValue
+        enablePipelineLogs = true
+        enablePerformanceLogs = true
+        enableLLMLogs = true
+        enableStreamingLogs = false
+        enableVectorDBLogs = true
+        applyLoggingSettings()
+    }
+
+    private func applyDebugPreset() {
+        loggingLevelRaw = LoggingConfiguration.Level.debug.rawValue
+        enablePipelineLogs = true
+        enablePerformanceLogs = true
+        enableLLMLogs = true
+        enableStreamingLogs = true
+        enableVectorDBLogs = true
+        applyLoggingSettings()
     }
 }
 

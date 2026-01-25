@@ -18,6 +18,9 @@ struct ChatComposerV2: View {
     /// If provided, this is used instead of separate onAttach + onSend calls
     let onSendWithAttachments: ((String, [URL]) -> Void)?
 
+    /// Callback for Vision Capture (advanced camera with live OCR)
+    var onVisionCapture: (() -> Void)? = nil
+
     @State private var inputText: String = ""
     @FocusState private var isInputFocused: Bool
     @State private var textHeight: CGFloat = 40
@@ -94,6 +97,7 @@ struct ChatComposerV2: View {
                                 showCamera = true
                                 DSHaptics.selection()
                             },
+                            onVisionCapture: onVisionCapture,
                             isCameraAvailable: isCameraAvailable
                         )
                         .padding(.trailing, 12)

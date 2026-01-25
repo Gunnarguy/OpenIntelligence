@@ -25,6 +25,12 @@ OpenIntelligence is a reference implementation of a production-grade **Retrieval
 - **RAPTOR-lite Summaries**: Auto-generated document summaries for efficient overview queries.
 - **Observability**: Real-time telemetry badges (📱/☁️), execution timers (TTFT), granular ingestion pipeline visualization, and 3D embedding space exploration.
 
+### 📷 Coming Soon (v1.2.0)
+
+- **Camera Vision Overlay**: Point your camera at documents, whiteboards, or receipts. Live bounding boxes show detected text, tables, and documents. One-tap capture to ingest directly into RAG.
+- **Documentation Cache**: Automatically save fetched web documentation locally for offline access. Browse, search, and ingest cached docs.
+- **Enhanced Image Understanding**: Apple Intelligence describes images in natural language—"This flowchart shows 5 steps..." instead of just classifying as "diagram".
+
 ---
 
 ## 🏗 Architecture
