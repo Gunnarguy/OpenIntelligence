@@ -1699,24 +1699,13 @@ class RAGService: ObservableObject {
                 // Clear any persisted vectors created under a different dimension.
                 self.invalidateVectorStore(for: container.id, clearStorage: true)
 
-                // If the library already has docs, reindex so retrieval works again.
+                // If the library already has docs, schedule reindex so retrieval works again.
+                // ALWAYS use the pending queue (not a direct Task) so onboarding can cancel it
+                // via clearPendingReembeds() after sample import completes.
                 let hasDocs = !self.documentsForContainer(container.id).isEmpty
                 guard hasDocs else { return }
 
-                if self.isProcessing {
-                    // Defer rebuild until processing completes.
-                    self.enqueuePendingReembed(containerId: container.id)
-                    return
-                }
-
-                Task(priority: .utility) { [weak self] in
-                    guard let self else { return }
-                    do {
-                        try await self.reembedDocuments(in: container.id)
-                    } catch {
-                        Log.error("[RAGService] Failed to rebuild index after embedding mismatch: \(error)", category: .embedding)
-                    }
-                }
+                self.enqueuePendingReembed(containerId: container.id)
             }
         }
 
@@ -3334,39 +3323,20 @@ class RAGService: ObservableObject {
     private static let thinkingEventLimit = 150
 
     private func scheduleSelfTuningRebuild(for containerId: UUID, reasons: [String]) {
-        Task.detached(priority: .utility) { [weak self] in
-            guard let self else { return }
-            let canStart = await self.beginSelfTuning(for: containerId)
-            guard canStart else { return }
-            TelemetryCenter.emit(
-                .ingestion,
-                title: "Self-tuning rebuild scheduled",
-                metadata: [
-                    "container": containerId.uuidString,
-                    "reasons": reasons.joined(separator: " | "),
-                ]
-            )
-            do {
-                try await self.reembedDocuments(in: containerId)
-                TelemetryCenter.emit(
-                    .ingestion,
-                    title: "Self-tuning rebuild complete",
-                    metadata: ["container": containerId.uuidString]
-                )
-            } catch {
-                if Task.isCancelled { return }
-                TelemetryCenter.emit(
-                    .ingestion,
-                    severity: .error,
-                    title: "Self-tuning rebuild failed",
-                    metadata: [
-                        "container": containerId.uuidString,
-                        "error": error.localizedDescription,
-                    ]
-                )
-            }
-            await self.finishSelfTuning(for: containerId)
-        }
+        // Log the scheduling intent for telemetry
+        TelemetryCenter.emit(
+            .ingestion,
+            title: "Self-tuning rebuild scheduled",
+            metadata: [
+                "container": containerId.uuidString,
+                "reasons": reasons.joined(separator: " | "),
+            ]
+        )
+
+        // Use the pending reembed queue instead of a direct Task.
+        // This allows onboarding to cancel pending rebuilds via clearPendingReembeds(),
+        // preventing the wasteful delete-and-reimport cycle during first-run setup.
+        enqueuePendingReembed(containerId: containerId)
     }
 
     // MARK: - Thinking Timeline Helpers

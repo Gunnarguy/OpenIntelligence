@@ -2,19 +2,25 @@
 
 **Last Updated**: January 25, 2026
 **Version**: 1.0.0 (Build 9)
-**Status**: App Store Ready - Final Submission
-**RAG Maturity Score**: 9.9/10 (Self-RAG 2.0 + Enhanced OCR + Office Docs + Multi-Session Enrichment)
+**Status**: App Store Ready
+**Maturity**: Production-ready RAG pipeline with 8 agentic tools
 
 ---
 
-## 🎉 v1.0.0 COMPLETE - Ready for App Store
+## 🎉 v1.0.0 COMPLETE - App Store Ready
 
-All core features implemented and tested:
+**What OpenIntelligence Does:**
+Import any document. Ask questions. Get cited answers. All on-device.
 
-- ✅ Full RAG pipeline with hybrid search (BM25 + vector + RRF fusion)
-- ✅ Apple Foundation Models integration (on-device AI)
-- ✅ Multi-format document support (PDF, Office, TXT, MD, CSV, RTF, images)
-- ✅ Self-RAG 2.0 multi-session reasoning
+**Core Features Shipped:**
+
+- ✅ Full RAG pipeline (hybrid search, neural reranking, MMR diversification)
+- ✅ Apple Intelligence integration (iOS 26 Foundation Models)
+- ✅ Multi-format support: PDF, DOCX, XLSX, PPTX, TXT, MD, CSV, RTF, images
+- ✅ 8 agentic @Tool functions for intelligent document analysis
+- ✅ Self-RAG 2.0 multi-session reasoning with enrichment prompting
+- ✅ Metal GPU-synchronized OCR (360 DPI, no race conditions)
+- ✅ TOC-aware reranking (demotes table-of-contents chunks)
 - ✅ Container-based knowledge organization
 - ✅ StoreKit 2 subscription billing
 - ✅ Swift 6 strict concurrency compliance
@@ -101,8 +107,8 @@ _Live camera analysis using iOS 26 Vision framework + FoundationModels_
 
 > **Note**: Implementation complete but disabled for v1.0 App Store release. Code exists in `/Features/Camera/` folder. UI hooks commented out pending further testing of iOS 26 Vision APIs.
 
-| Feature                 | Vision API                              | Status        |
-| ----------------------- | --------------------------------------- | ------------- |
+| Feature                 | Vision API                              | Status         |
+| ----------------------- | --------------------------------------- | -------------- |
 | Document Detection      | `DetectDocumentSegmentationRequest`     | ✅ Implemented |
 | Live Text Recognition   | `RecognizeTextRequest` (continuous)     | ✅ Implemented |
 | Table Structure Parsing | `RecognizeDocumentsRequest`             | ✅ Implemented |

@@ -1,58 +1,61 @@
-OpenIntelligence is a research-grade RAG (Retrieval-Augmented Generation) engine built for privacy. Your documents stay on your device. Answers come with citations. Everything runs locally by default with optional Private Cloud Compute—zero retention, full transparency.
+Ask your documents anything. Get answers with citations.
 
-WHY IT'S DIFFERENT
+OpenIntelligence is a document question-answering app that runs entirely on your device. Import PDFs, Word documents, spreadsheets, or any text file. Ask questions in plain English. Get accurate, cited answers powered by Apple Intelligence.
 
-Most AI apps send your data to the cloud. OpenIntelligence implements 12 peer-reviewed retrieval techniques on-device, giving you research-lab accuracy without sacrificing privacy.
+YOUR DOCUMENTS, YOUR DEVICE
 
-THE 12 RAG FEATURES
+Unlike cloud-based AI services, OpenIntelligence processes everything locally. Your files never leave your iPhone or iPad unless you explicitly enable Private Cloud Compute for complex queries. When PCC is used, Apple's zero-retention policy ensures your data is never stored or logged.
 
-1. Hybrid Search — Combines BM25 keyword matching with vector similarity, fused via Reciprocal Rank Fusion (RRF) for best-of-both retrieval.
+HOW IT WORKS
 
-2. Cross-Encoder Reranking — Neural reranker scores query-document pairs for precision that basic vector search can't match.
+1. Import any document (PDF, DOCX, XLSX, PPTX, TXT, MD, CSV, RTF, or images)
+2. Ask a question about its contents
+3. Receive an answer with exact citations to the source text
+4. Tap any citation to verify the original passage
 
-3. MMR Diversification — Maximal Marginal Relevance ensures diverse results, not just the most similar ones.
+POWERED BY APPLE INTELLIGENCE
 
-4. HyDE — Hypothetical Document Embeddings generate an ideal answer first, then search for real documents that match it. 15-25% recall improvement.
+• On-Device AI: Uses iOS Foundation Models running directly on your device's Neural Engine
+• Private Cloud Compute: Optional fallback for complex queries—same Apple privacy guarantees
+• Execution Badges: Every response shows exactly where it was processed (📱 On-Device or ☁️ PCC)
 
-5. Parent Document Retrieval — Expands matched chunks to include surrounding context from the same section or page.
+SMART RETRIEVAL TECHNOLOGY
 
-6. Contextual Compression — LLM-filters irrelevant sentences from retrieved chunks, saving 40-60% of tokens while improving answer quality.
+OpenIntelligence uses advanced retrieval techniques to find the right information:
 
-7. RAPTOR-lite — Multi-level abstraction hierarchy (L0 raw chunks to L1 summaries) for both detailed and high-level retrieval.
-
-8. Query Routing — Automatically classifies queries and routes to the optimal retrieval strategy.
-
-9. Agentic RAG — 12+ Tool functions let the LLM autonomously search, summarize, and analyze your library across multiple reasoning steps.
-
-10. Self-RAG — The model critiques its own retrieval decisions and re-searches when confidence is low.
-
-11. Lost-in-Middle Mitigation — Reorders context to place the most relevant chunks at the beginning and end, where models pay more attention.
-
-12. Fine-Tuned Embeddings — CoreML Sentence Transformer (384-dim) optimized for semantic similarity, with NLEmbedding fallback.
+• Hybrid Search — Combines keyword matching with semantic understanding
+• Neural Reranking — AI-powered relevance scoring for precise results
+• Intelligent Chunking — Preserves document structure and context
+• Multi-Column Layout Detection — Correctly reads complex PDFs
+• 8 Agentic Tools — The AI can search, summarize, compare, and analyze across your library
 
 KEY FEATURES
 
-- Document intake: PDFKit parsing + Vision OCR; paragraph-aware chunking with 17% smart overlap.
-- On-device AI: Powered by iOS Foundation Models with Private Cloud Compute fallback.
-- Cited answers: Every response links back to the original source text. Tap to verify.
-- Execution badges: See exactly where processing happened—On-Device or PCC.
-- Power controls: Top-K tuning, container isolation, quality modes (Standard/Deep Think/Maximum).
-- Siri and Shortcuts: App Intents for quick queries and automations.
-- Observability: Real-time telemetry, TTFT timers, and 3D vector space visualization.
+• Document Library: Organize files into containers with automatic tagging
+• Quality Modes: Standard for quick answers, Deep Think for thorough research
+• Siri Integration: Ask questions via voice or Shortcuts
+• Real-Time Telemetry: See retrieval scores, generation speed, and confidence levels
+• No Account Required: Works completely offline with no sign-up
 
-PRIVACY
+SUPPORTED FORMATS
 
-- Your documents never leave your device unless you explicitly allow cloud calls.
-- Private Cloud Compute runs on Apple Silicon servers with zero retention.
-- No third-party analytics. All telemetry stays on-device.
+PDF (native text + OCR for scans), Microsoft Office (DOCX, XLSX, PPTX), Plain text (TXT, MD, CSV, RTF), Images (JPEG, PNG, HEIC with text extraction)
 
-IN-APP PURCHASES
+PRIVACY BY DESIGN
 
-- Pro subscription unlocks unlimited documents, all 12 RAG features, and advanced controls.
-- Lifetime option available for one-time purchase.
-- Subscriptions auto-renew until cancelled 24 hours before renewal.
+• All processing happens on-device by default
+• Private Cloud Compute uses Apple Silicon servers with zero data retention
+• No third-party analytics or tracking
+• Your documents are stored only in your app sandbox
 
-LEGAL
+SUBSCRIPTION OPTIONS
+
+• Pro Monthly: Unlimited documents, all features
+• Pro Annual: Save 30% compared to monthly
+• Lifetime: One-time purchase, forever access
+• Free tier includes core functionality with document limits
+
+Payment is charged to your Apple ID account at purchase confirmation. Subscriptions automatically renew unless canceled at least 24 hours before the end of the current period. Manage subscriptions in Settings > Apple ID > Subscriptions.
 
 Privacy Policy: https://gunzino.me/openintelligence/privacy
 Terms of Use: https://gunzino.me/openintelligence/terms

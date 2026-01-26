@@ -955,10 +955,28 @@ actor RAGEngine {
 
         // Pattern 3: High density of standalone 2-digit numbers (page references)
         // TOC has many "45", "52", "53" etc. scattered throughout
-        let standaloneNumberPattern = #"(?<![.\d])\b\d{2}\b(?![.\d])"#
+        // NOTE: Swift Regex doesn't support lookbehind, so we use word boundaries
+        // and filter in code instead
+        let standaloneNumberPattern = #"\b\d{2}\b"#
         let standaloneMatches = content.matches(of: try! Regex(standaloneNumberPattern))
-        let numberDensity = Float(standaloneMatches.count) / Float(wordCount)
-        if standaloneMatches.count >= 8 && numberDensity > 0.04 {
+        // Filter out numbers that are part of decimals or larger numbers
+        let filteredNumberCount = standaloneMatches.filter { match in
+            let matchRange = match.range
+            // Check character before (if exists) isn't a dot or digit
+            if matchRange.lowerBound > content.startIndex {
+                let beforeIdx = content.index(before: matchRange.lowerBound)
+                let beforeChar = content[beforeIdx]
+                if beforeChar == "." || beforeChar.isNumber { return false }
+            }
+            // Check character after (if exists) isn't a dot or digit
+            if matchRange.upperBound < content.endIndex {
+                let afterChar = content[matchRange.upperBound]
+                if afterChar == "." || afterChar.isNumber { return false }
+            }
+            return true
+        }.count
+        let numberDensity = Float(filteredNumberCount) / Float(wordCount)
+        if filteredNumberCount >= 8 && numberDensity > 0.04 {
             penalty += 0.15  // High density of page-like numbers
         }
 
