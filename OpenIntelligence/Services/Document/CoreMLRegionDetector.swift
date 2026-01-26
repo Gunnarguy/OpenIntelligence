@@ -227,7 +227,11 @@ actor CoreMLRegionDetector {
         request.imageCropAndScaleOption = .scaleFill
 
         let handler = VNImageRequestHandler(ciImage: image, options: [:])
-        try handler.perform([request])
+
+        // Limit concurrent Vision requests to prevent Metal race conditions
+        try VisionOCRThrottle.performSync {
+            try handler.perform([request])
+        }
 
         // DETR returns segmentation masks - convert to regions
         guard let results = request.results else {
@@ -341,7 +345,11 @@ actor CoreMLRegionDetector {
         request.usesLanguageCorrection = false
 
         let handler = VNImageRequestHandler(ciImage: image, options: [:])
-        try? handler.perform([request])
+
+        // Limit concurrent Vision OCR to prevent Metal race conditions
+        VisionOCRThrottle.performSync {
+            try? handler.perform([request])
+        }
 
         // Cluster nearby text regions into larger blocks
         return clusterTextRegions(regions)
@@ -387,7 +395,11 @@ actor CoreMLRegionDetector {
         request.maximumObservations = 20
 
         let handler = VNImageRequestHandler(ciImage: image, options: [:])
-        try? handler.perform([request])
+
+        // Limit concurrent Vision requests to prevent Metal race conditions
+        VisionOCRThrottle.performSync {
+            try? handler.perform([request])
+        }
 
         return regions
     }
@@ -399,7 +411,10 @@ actor CoreMLRegionDetector {
 
         do {
             let request = RecognizeDocumentsRequest()
-            let observations = try await request.perform(on: image)
+            // Throttle Vision operations to prevent Metal GPU race conditions
+            let observations = try await VisionOCRThrottle.performAsync {
+                try await request.perform(on: image)
+            }
 
             // Get the document from the first observation
             guard let document = observations.first?.document else {

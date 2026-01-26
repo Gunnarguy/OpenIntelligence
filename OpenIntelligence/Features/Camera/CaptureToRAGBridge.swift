@@ -375,10 +375,13 @@ actor LiveAnalysisService {
                 }
             }
 
-            do {
-                try requestHandler.perform([textRequest, documentRequest, barcodeRequest, classifyRequest, animalRequest, faceRequest, humanRequest])
-            } catch {
-                // Silent failure for live analysis
+            // Limit concurrent Vision requests to prevent Metal race conditions
+            VisionOCRThrottle.performSync {
+                do {
+                    try requestHandler.perform([textRequest, documentRequest, barcodeRequest, classifyRequest, animalRequest, faceRequest, humanRequest])
+                } catch {
+                    // Silent failure for live analysis
+                }
             }
 
             continuation.resume(returning: FrameAnalysis(

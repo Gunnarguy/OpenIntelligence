@@ -159,11 +159,14 @@ actor YOLODetectionService {
 
             request.imageCropAndScaleOption = .scaleFill
 
-            do {
-                try handler.perform([request])
-            } catch {
-                Log.error("[YOLO] Detection failed: \(error.localizedDescription)", category: .ingestion)
-                continuation.resume(returning: [])
+            // Limit concurrent Vision requests to prevent Metal race conditions
+            VisionOCRThrottle.performSync {
+                do {
+                    try handler.perform([request])
+                } catch {
+                    Log.error("[YOLO] Detection failed: \(error.localizedDescription)", category: .ingestion)
+                    continuation.resume(returning: [])
+                }
             }
         }
     }
@@ -189,34 +192,37 @@ actor YOLODetectionService {
         // Use VNRecognizeAnimalsRequest for animal detection with bounding boxes
         let animalRequest = VNRecognizeAnimalsRequest()
 
-        do {
-            try handler.perform([classifyRequest, animalRequest])
+        // Limit concurrent Vision requests to prevent Metal race conditions
+        VisionOCRThrottle.performSync {
+            do {
+                try handler.perform([classifyRequest, animalRequest])
 
-            // Get classifications (no bounding boxes, but good labels)
-            if let classifications = classifyRequest.results {
-                for classification in classifications.prefix(5) where classification.confidence >= threshold {
-                    objects.append(DetectedObject(
-                        label: formatLabel(classification.identifier),
-                        confidence: classification.confidence,
-                        boundingBox: CGRect(x: 0, y: 0, width: 1, height: 1)  // Full frame
-                    ))
-                }
-            }
-
-            // Get animal detections (with bounding boxes)
-            if let animals = animalRequest.results {
-                for animal in animals {
-                    if let topLabel = animal.labels.first, topLabel.confidence >= threshold {
+                // Get classifications (no bounding boxes, but good labels)
+                if let classifications = classifyRequest.results {
+                    for classification in classifications.prefix(5) where classification.confidence >= threshold {
                         objects.append(DetectedObject(
-                            label: formatLabel(topLabel.identifier),
-                            confidence: topLabel.confidence,
-                            boundingBox: animal.boundingBox
+                            label: formatLabel(classification.identifier),
+                            confidence: classification.confidence,
+                            boundingBox: CGRect(x: 0, y: 0, width: 1, height: 1)  // Full frame
                         ))
                     }
                 }
+
+                // Get animal detections (with bounding boxes)
+                if let animals = animalRequest.results {
+                    for animal in animals {
+                        if let topLabel = animal.labels.first, topLabel.confidence >= threshold {
+                            objects.append(DetectedObject(
+                                label: formatLabel(topLabel.identifier),
+                                confidence: topLabel.confidence,
+                                boundingBox: animal.boundingBox
+                            ))
+                        }
+                    }
+                }
+            } catch {
+                Log.error("[YOLO Fallback] Detection failed: \(error.localizedDescription)", category: .ingestion)
             }
-        } catch {
-            Log.error("[YOLO Fallback] Detection failed: \(error.localizedDescription)", category: .ingestion)
         }
 
         return objects

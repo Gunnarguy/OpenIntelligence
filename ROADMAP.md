@@ -2,8 +2,22 @@
 
 **Last Updated**: January 25, 2026
 **Version**: 1.0.0 (Build 9)
-**Status**: App Store Review - Resubmission Pending
+**Status**: App Store Ready - Final Submission
 **RAG Maturity Score**: 9.9/10 (Self-RAG 2.0 + Enhanced OCR + Office Docs + Multi-Session Enrichment)
+
+---
+
+## 🎉 v1.0.0 COMPLETE - Ready for App Store
+
+All core features implemented and tested:
+
+- ✅ Full RAG pipeline with hybrid search (BM25 + vector + RRF fusion)
+- ✅ Apple Foundation Models integration (on-device AI)
+- ✅ Multi-format document support (PDF, Office, TXT, MD, CSV, RTF, images)
+- ✅ Self-RAG 2.0 multi-session reasoning
+- ✅ Container-based knowledge organization
+- ✅ StoreKit 2 subscription billing
+- ✅ Swift 6 strict concurrency compliance
 
 ---
 
@@ -19,8 +33,8 @@ _Leverage Apple's pre-trained CoreML models for enhanced document understanding_
 
 **V1 Priority Models** (Immediate Integration):
 
-| Model             | Size    | Use Case                                                                    | Status                           |
-| ----------------- | ------- | --------------------------------------------------------------------------- | -------------------------------- |
+| Model             | Size    | Use Case                                                                    | Status                            |
+| ----------------- | ------- | --------------------------------------------------------------------------- | --------------------------------- |
 | **FastViT T8**    | 8.2MB   | Classify document content before processing (photo, form, diagram, receipt) | ✅ Service Ready (Model Optional) |
 | **DETR ResNet50** | 43-85MB | Detect tables, figures, charts, text regions in documents                   | ✅ Service Ready (Model Optional) |
 | **DeepLabV3**     | 4-8MB   | Lightweight semantic segmentation for simpler documents                     | 📋 Planned                        |
@@ -81,36 +95,37 @@ PDF → FastViT (classify: photo? diagram? text? form?)
 
 _Live camera analysis using iOS 26 Vision framework + FoundationModels_
 
-**Status**: 📋 Planning
-**Target**: v1.2.0 (March 2026)
+**Status**: ⏸️ Deferred to v2.0 (Code Complete, UI Disabled)
+**Target**: v2.0.0 (Q2 2026)
 **Impact**: Real-time document capture and analysis
 
-| Feature                 | Vision API                              | Status  |
-| ----------------------- | --------------------------------------- | ------- |
-| Document Detection      | `DetectDocumentSegmentationRequest`     | Planned |
-| Live Text Recognition   | `RecognizeTextRequest` (continuous)     | Planned |
-| Table Structure Parsing | `RecognizeDocumentsRequest`             | Planned |
-| Barcode/QR Detection    | `DetectBarcodesRequest`                 | Planned |
-| Image Description (AI)  | `FoundationModels` image prompt         | Planned |
-| Subject Isolation       | `GenerateForegroundInstanceMaskRequest` | Planned |
-| Aesthetic Scoring       | `CalculateImageAestheticsScoresRequest` | Planned |
+> **Note**: Implementation complete but disabled for v1.0 App Store release. Code exists in `/Features/Camera/` folder. UI hooks commented out pending further testing of iOS 26 Vision APIs.
 
-**Architecture**:
+| Feature                 | Vision API                              | Status        |
+| ----------------------- | --------------------------------------- | ------------- |
+| Document Detection      | `DetectDocumentSegmentationRequest`     | ✅ Implemented |
+| Live Text Recognition   | `RecognizeTextRequest` (continuous)     | ✅ Implemented |
+| Table Structure Parsing | `RecognizeDocumentsRequest`             | ✅ Implemented |
+| Barcode/QR Detection    | `DetectBarcodesRequest`                 | ✅ Implemented |
+| Image Description (AI)  | `FoundationModels` image prompt         | ✅ Implemented |
+| Subject Isolation       | `GenerateForegroundInstanceMaskRequest` | ✅ Implemented |
+| Aesthetic Scoring       | `CalculateImageAestheticsScoresRequest` | ✅ Implemented |
+
+**Architecture** (Ready for v2):
 
 - **CameraVisionOverlayView**: SwiftUI view with AVCaptureSession + Vision pipeline
-- **LiveAnalysisService**: Real-time frame analysis with debouncing (10 FPS cap)
+- **CameraManager**: AVFoundation session management with frame analysis
+- **DocumentCaptureView**: Smart capture with auto document detection
 - **CaptureToRAGBridge**: One-tap to extract text/tables and ingest into RAG pipeline
-- **AR Bounding Boxes**: Live overlay of detected text regions, tables, and documents
+- **VisionOCRThrottle**: Serial queue for Metal GPU race condition prevention
 
-**User Flow**:
+**Why Deferred**:
 
-1. Tap camera button on chat screen
-2. Point at document/whiteboard/receipt
-3. See live bounding boxes + extracted text preview
-4. Tap "Capture & Add to Library" to ingest
-5. Ask questions immediately about captured content
+- iOS 26 Vision framework (RecognizeDocumentsRequest) is new/experimental
+- Need more real-world testing across device types
+- Core RAG pipeline is production-ready; camera can wait for v2
 
-#### 2. Documentation Cache Service
+#### 3. Documentation Cache Service
 
 _Automatically save fetched web documentation locally for offline access_
 
@@ -314,7 +329,15 @@ _Native SQLite FTS5 integration for 10-100X faster keyword search and pattern co
 
 ### Agentic Tooling
 
-- [x] **12+ @Tool Functions**: Autonomous search, summarization, analysis
+- [x] **8 @Tool Functions**: Full iOS 26 FoundationModels.Tool protocol integration
+  - `SearchDocumentsTool`: Semantic search with topK/minSimilarity params
+  - `ListDocumentsTool`: List all documents in library
+  - `GetDocumentSummaryTool`: Document metadata and content summary
+  - `CountPatternTool`: Exact pattern count across ALL documents (FTS5)
+  - `SearchExactPatternTool`: Exact text search with context snippets
+  - `GetCorpusStatsTool`: Library-wide statistics
+  - `FindRelatedDocumentsTool`: Semantic document discovery
+  - `CompareDocumentsTool`: Cross-document topic comparison
 - [x] **RAGAppIntents**: Siri/Shortcuts integration
 - [x] **Tool Call Counter**: Usage tracking and limits
 - [x] **countPatternInCorpus Tool**: Count exact word/pattern occurrences across ALL documents

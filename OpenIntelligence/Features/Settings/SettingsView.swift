@@ -1137,7 +1137,7 @@ Text(deviceService.chipName)
                         featureRow(icon: "text.line.first.and.arrowtriangle.forward", label: "Extractive Summarization", description: "Sentence selection via bi-encoder for summarize intent", color: .purple)
                         featureRow(icon: "rectangle.compress.vertical", label: "Graph Context Packing", description: "Optimal token budget allocation across evidence", color: .purple)
                         featureRow(icon: "brain.head.profile", label: "Agentic Orchestrator", description: "4-8 dynamic sessions targeting 85% confidence", color: .purple)
-                        featureRow(icon: "hammer.fill", label: "3 @Tool Functions", description: "SearchDocs, ListDocs, GetDocumentSummary", color: .purple)
+                        featureRow(icon: "hammer.fill", label: "8 @Tool Functions", description: "SearchDocs, ListDocs, GetSummary, CountPattern, ExactSearch, Stats, Related, Compare", color: .purple)
                         featureRow(icon: "arrow.trianglehead.2.clockwise.rotate.90", label: "Iterative Retrieval", description: "Retrieve → assess gaps → refine query → retrieve more", color: .purple)
                     }
 

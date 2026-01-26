@@ -55,7 +55,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Hybrid Search Engine**: Full implementation of BM25 + Vector Search + RRF Fusion.
-- **Agentic Tooling**: 12 `@Tool` functions for Apple Intelligence integration.
+- **Agentic Tooling**: 8 `@Tool` functions for Apple Intelligence integration (iOS 26 FoundationModels.Tool protocol).
 - **Telemetry Dashboard**: Real-time visualization of RAG pipeline performance (TTFT, Tokens/sec).
 - **Apple Foundation Models**: iOS 26 Foundation Models with PCC fallback.
 - **OnDeviceAnalysisService**: Extractive QA fallback (always available offline).

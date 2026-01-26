@@ -377,16 +377,22 @@ class CameraManager: NSObject, ObservableObject {
                 aestheticsScore = observation.overallScore
             }
 
-            do {
-                try requestHandler.perform([textRequest, documentRequest, barcodeRequest, classifyRequest, animalRequest, faceRequest, humanRequest, humanPoseRequest, animalPoseRequest, aestheticsRequest])
-            } catch {
-                Log.debug("[CameraManager] Frame analysis failed: \(error.localizedDescription)", category: .ingestion)
+            // Limit concurrent Vision requests to prevent Metal race conditions
+            VisionOCRThrottle.performSync {
+                do {
+                    try requestHandler.perform([textRequest, documentRequest, barcodeRequest, classifyRequest, animalRequest, faceRequest, humanRequest, humanPoseRequest, animalPoseRequest, aestheticsRequest])
+                } catch {
+                    Log.debug("[CameraManager] Frame analysis failed: \(error.localizedDescription)", category: .ingestion)
+                }
             }
         } else {
-            do {
-                try requestHandler.perform([textRequest, documentRequest, barcodeRequest, classifyRequest, animalRequest, faceRequest, humanRequest, humanPoseRequest, animalPoseRequest])
-            } catch {
-                Log.debug("[CameraManager] Frame analysis failed: \(error.localizedDescription)", category: .ingestion)
+            // Limit concurrent Vision requests to prevent Metal race conditions
+            VisionOCRThrottle.performSync {
+                do {
+                    try requestHandler.perform([textRequest, documentRequest, barcodeRequest, classifyRequest, animalRequest, faceRequest, humanRequest, humanPoseRequest, animalPoseRequest])
+                } catch {
+                    Log.debug("[CameraManager] Frame analysis failed: \(error.localizedDescription)", category: .ingestion)
+                }
             }
         }
 
@@ -500,16 +506,22 @@ class CameraManager: NSObject, ObservableObject {
                 ))
             }
 
-            do {
-                try requestHandler.perform([textRequest, documentRequest, classifyRequest, animalRequest])
-            } catch {
-                Log.error("[CameraManager] Capture analysis failed: \(error.localizedDescription)", category: .ingestion)
+            // Limit concurrent Vision requests to prevent Metal race conditions
+            VisionOCRThrottle.performSync {
+                do {
+                    try requestHandler.perform([textRequest, documentRequest, classifyRequest, animalRequest])
+                } catch {
+                    Log.error("[CameraManager] Capture analysis failed: \(error.localizedDescription)", category: .ingestion)
+                }
             }
         } else {
-            do {
-                try requestHandler.perform([textRequest, classifyRequest, animalRequest])
-            } catch {
-                Log.error("[CameraManager] Capture analysis failed: \(error.localizedDescription)", category: .ingestion)
+            // Limit concurrent Vision requests to prevent Metal race conditions
+            VisionOCRThrottle.performSync {
+                do {
+                    try requestHandler.perform([textRequest, classifyRequest, animalRequest])
+                } catch {
+                    Log.error("[CameraManager] Capture analysis failed: \(error.localizedDescription)", category: .ingestion)
+                }
             }
         }
 
@@ -722,10 +734,13 @@ extension CameraManager: AVCaptureVideoDataOutputSampleBufferDelegate {
             }
         }
 
-        do {
-            try requestHandler.perform([textRequest, documentRequest, classifyRequest, animalRequest, faceRequest, humanRequest, humanPoseRequest, animalPoseRequest])
-        } catch {
-            // Silent failure for frame analysis
+        // Limit concurrent Vision requests to prevent Metal race conditions
+        VisionOCRThrottle.performSync {
+            do {
+                try requestHandler.perform([textRequest, documentRequest, classifyRequest, animalRequest, faceRequest, humanRequest, humanPoseRequest, animalPoseRequest])
+            } catch {
+                // Silent failure for frame analysis
+            }
         }
 
         // Extract scene labels and object names from regions

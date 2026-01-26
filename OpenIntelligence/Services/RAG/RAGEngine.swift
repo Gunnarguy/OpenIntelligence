@@ -304,6 +304,11 @@ actor RAGEngine {
             )
             score += metadataBoost
 
+            // TOC/Boilerplate Detection Penalty
+            // Table-of-contents chunks have many section numbers but little actual content
+            let tocPenalty = computeTOCPenalty(content: r.chunk.content)
+            score -= tocPenalty
+
             scored.append((r, score, keywordBoost, proximityBoost, metadataBoost))
         }
 
@@ -916,6 +921,60 @@ actor RAGEngine {
         return boost
     }
 
+    /// Detect table-of-contents or index-style chunks that match keywords but lack actual content
+    /// Returns a penalty score (0.0 = normal content, up to 0.4 = definitely TOC/index)
+    private func computeTOCPenalty(content: String) -> Float {
+        var penalty: Float = 0
+
+        // Pattern 1: Many section numbers like "1.1.", "2.3.", "3.4.5." etc.
+        // TOC pages have dense section numbering
+        let sectionNumberPattern = #"\b\d+\.\d+\.?"#
+        let sectionMatches = content.matches(of: try! Regex(sectionNumberPattern))
+        if sectionMatches.count >= 8 {
+            penalty += 0.15  // Strong indicator of TOC
+        } else if sectionMatches.count >= 5 {
+            penalty += 0.08
+        }
+
+        // Pattern 2: Page numbers scattered (e.g., "...45", "...12", ".....23")
+        // TOC entries often end with page numbers after dots
+        let pageNumberPattern = #"\.{2,}\s*\d{1,3}\b"#
+        let pageMatches = content.matches(of: try! Regex(pageNumberPattern))
+        if pageMatches.count >= 3 {
+            penalty += 0.12
+        }
+
+        // Pattern 3: High ratio of "?" markers (FAQ-style TOC)
+        // "What is...?", "How to...?" headers are common in TOC
+        let questionCount = content.components(separatedBy: "?").count - 1
+        let wordCount = content.split(separator: " ").count
+        if wordCount > 0 && Float(questionCount) / Float(wordCount) > 0.03 && questionCount >= 4 {
+            penalty += 0.08
+        }
+
+        // Pattern 4: Very short average sentence length (typical of headings/TOC entries)
+        let sentences = content.components(separatedBy: CharacterSet(charactersIn: ".!?\n"))
+            .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+        if sentences.count >= 5 {
+            let avgWordsPerSentence = Float(wordCount) / Float(sentences.count)
+            if avgWordsPerSentence < 6 {
+                penalty += 0.10  // Very short "sentences" = likely headings
+            }
+        }
+
+        // Pattern 5: Contains explicit TOC markers
+        let lowerContent = content.lowercased()
+        if lowerContent.contains("table of contents")
+            || lowerContent.contains("contents")
+            && lowerContent.contains("page")
+            || lowerContent.hasPrefix("content\n")
+        {
+            penalty += 0.15
+        }
+
+        return min(penalty, 0.40)  // Cap penalty at 0.40
+    }
+
     // MARK: - Core ML Cross Encoder Re-Ranking
 
     #if canImport(CoreML)
@@ -1059,7 +1118,15 @@ actor RAGEngine {
                 Log.debug("[RAGEngine] Top chunk preview: \(preview)...", category: .retrieval)
             }
 
-            return normalizedScored.prefix(cappedTopK).map { scoredItem in
+            // Apply TOC/boilerplate penalty after cross-encoder scoring
+            // This demotes table-of-contents chunks that match keywords but lack actual content
+            let penalizedScored = normalizedScored.map { item -> (chunk: RetrievedChunk, score: Float) in
+                let tocPenalty = computeTOCPenalty(content: item.chunk.chunk.content)
+                let adjustedScore = max(0.01, item.score - tocPenalty)
+                return (item.chunk, adjustedScore)
+            }.sorted { $0.score > $1.score }
+
+            return penalizedScored.prefix(cappedTopK).map { scoredItem in
                 // Propagate cross-encoder score to the chunk so downstream sorting preserves re-ranking order
                 RetrievedChunk(
                     chunk: scoredItem.chunk.chunk,

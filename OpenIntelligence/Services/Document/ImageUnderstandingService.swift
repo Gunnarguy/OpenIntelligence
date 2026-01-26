@@ -137,7 +137,10 @@ class ImageUnderstandingService {
         let request = ClassifyImageRequest()
 
         do {
-            let results = try await request.perform(on: image)
+            // Throttle Vision operations to prevent Metal GPU race conditions
+            let results = try await VisionOCRThrottle.performAsync {
+                try await request.perform(on: image)
+            }
 
             // Filter to high-confidence classifications
             let filtered = results.filter { $0.confidence > 0.1 }
@@ -175,10 +178,13 @@ class ImageUnderstandingService {
                 continuation.resume(returning: Array(classifications))
             }
 
-            do {
-                try requestHandler.perform([request])
-            } catch {
-                continuation.resume(returning: [])
+            // Limit concurrent Vision requests to prevent Metal race conditions
+            VisionOCRThrottle.performSync {
+                do {
+                    try requestHandler.perform([request])
+                } catch {
+                    continuation.resume(returning: [])
+                }
             }
         }
     }
@@ -259,10 +265,13 @@ class ImageUnderstandingService {
             request.recognitionLanguages = ["en-US", "en-GB", "es-ES", "fr-FR", "de-DE"]
             request.minimumTextHeight = 0.005  // Catch tiny labels (default is 0.03125)
 
-            do {
-                try requestHandler.perform([request])
-            } catch {
-                continuation.resume(returning: nil)
+            // Limit concurrent Vision OCR to prevent Metal race conditions
+            VisionOCRThrottle.performSync {
+                do {
+                    try requestHandler.perform([request])
+                } catch {
+                    continuation.resume(returning: nil)
+                }
             }
         }
     }

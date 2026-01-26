@@ -408,7 +408,11 @@ actor IntelligentDocumentProcessor {
         request.recognitionLanguages = ["en-US", "en-GB", "de-DE", "fr-FR", "es-ES"]
 
         let handler = VNImageRequestHandler(ciImage: croppedImage, options: [:])
-        try? handler.perform([request])
+
+        // Limit concurrent Vision OCR to prevent Metal race conditions
+        VisionOCRThrottle.performSync {
+            try? handler.perform([request])
+        }
 
         return extractedText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
@@ -439,7 +443,10 @@ actor IntelligentDocumentProcessor {
 
         do {
             let request = RecognizeDocumentsRequest()
-            let observations = try await request.perform(on: croppedImage)
+            // Throttle Vision operations to prevent Metal GPU race conditions
+            let observations = try await VisionOCRThrottle.performAsync {
+                try await request.perform(on: croppedImage)
+            }
 
             // Get the document from the first observation
             guard let document = observations.first?.document else {
