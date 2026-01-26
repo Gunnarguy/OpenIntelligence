@@ -188,14 +188,14 @@ struct DocumentLibraryView: View {
                     }
                 }
 
-                // Vision Capture - camera with live OCR
-                ToolbarItem(placement: .automatic) {
-                    Button {
-                        showVisionCapture = true
-                    } label: {
-                        Label("Scan Document", systemImage: "doc.viewfinder")
-                    }
-                }
+                // MARK: - Vision Capture (v2 feature - disabled for v1 App Store release)
+                // ToolbarItem(placement: .automatic) {
+                //     Button {
+                //         showVisionCapture = true
+                //     } label: {
+                //         Label("Scan Document", systemImage: "doc.viewfinder")
+                //     }
+                // }
 
                 // Cached Documentation browser
                 ToolbarItem(placement: .automatic) {
@@ -308,12 +308,13 @@ struct DocumentLibraryView: View {
                 PlanUpgradeSheet(entryPoint: activePaywallEntryPoint)
                     .environmentObject(entitlementStore)
             }
-            .fullScreenCover(isPresented: $showVisionCapture) {
-                DocumentCaptureView(
-                    ragService: ragService,
-                    containerService: containerService
-                )
-            }
+            // MARK: - Vision Capture (v2 feature - disabled for v1 App Store release)
+            // .fullScreenCover(isPresented: $showVisionCapture) {
+            //     DocumentCaptureView(
+            //         ragService: ragService,
+            //         containerService: containerService
+            //     )
+            // }
             .sheet(isPresented: $showCachedDocs) {
                 CachedDocsView(ragService: ragService)
             }

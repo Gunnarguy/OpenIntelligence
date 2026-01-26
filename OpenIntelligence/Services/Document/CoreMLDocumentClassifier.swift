@@ -249,7 +249,11 @@ actor CoreMLDocumentClassifier {
         request.imageCropAndScaleOption = .centerCrop
 
         let handler = VNImageRequestHandler(ciImage: image, options: [:])
-        try handler.perform([request])
+
+        // Limit concurrent Vision requests to prevent Metal race conditions
+        try VisionOCRThrottle.performSync {
+            try handler.perform([request])
+        }
 
         guard let results = request.results as? [VNClassificationObservation] else {
             return DocumentClassificationResult(
@@ -309,7 +313,10 @@ actor CoreMLDocumentClassifier {
         if #available(iOS 18.0, *) {
             do {
                 let request = ClassifyImageRequest()
-                let results = try await request.perform(on: image)
+                // Throttle Vision operations to prevent Metal GPU race conditions
+                let results = try await VisionOCRThrottle.performAsync {
+                    try await request.perform(on: image)
+                }
 
                 var typeScores: [DocumentContentType: Float] = [:]
 

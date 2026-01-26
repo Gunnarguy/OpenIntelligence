@@ -401,45 +401,48 @@ class SmartCaptureManager: NSObject, ObservableObject {
         // Barcode detection (for products)
         let barcodeRequest = VNDetectBarcodesRequest()
 
-        do {
-            try handler.perform([documentRequest, textRequest, barcodeRequest])
-
-            let docBounds = (documentRequest.results?.first as? VNRectangleObservation)?.boundingBox
-            let docConfidence = (documentRequest.results?.first as? VNRectangleObservation)?.confidence ?? 0
-
-            let textResults = textRequest.results ?? []
-            let textCount = textResults.count
-            let previewText = textResults
-                .prefix(3)
-                .compactMap { $0.topCandidates(1).first?.string }
-                .joined(separator: " ")
-                .prefix(60)
-
-            let hasBarcodes = !(barcodeRequest.results?.isEmpty ?? true)
-
-            // Determine mode based on what we see
-            let mode: CaptureMode
-            if hasBarcodes {
-                mode = .product
-            } else if let bounds = docBounds, docConfidence > 0.7, bounds.width * bounds.height > 0.25 {
-                mode = .document
-            } else if textCount > 5 {
-                mode = .text
-            } else {
-                mode = .photo
+        // Limit concurrent Vision requests to prevent Metal race conditions
+        VisionOCRThrottle.performSync {
+            do {
+                try handler.perform([documentRequest, textRequest, barcodeRequest])
+            } catch {
+                // Silent failure
             }
+        }
 
-            // Check stability for documents
-            let stable = mode == .document ? checkStability(newBounds: docBounds) : true
+        let docBounds = (documentRequest.results?.first as? VNRectangleObservation)?.boundingBox
+        let docConfidence = (documentRequest.results?.first as? VNRectangleObservation)?.confidence ?? 0
 
-            DispatchQueue.main.async {
-                self.detectedMode = mode
-                self.documentBounds = mode == .document ? docBounds : nil
-                self.isStable = stable
-                self.livePreview = String(previewText)
-            }
-        } catch {
-            // Silent fail
+        let textResults = textRequest.results ?? []
+        let textCount = textResults.count
+        let previewText = textResults
+            .prefix(3)
+            .compactMap { $0.topCandidates(1).first?.string }
+            .joined(separator: " ")
+            .prefix(60)
+
+        let hasBarcodes = !(barcodeRequest.results?.isEmpty ?? true)
+
+        // Determine mode based on what we see
+        let mode: CaptureMode
+        if hasBarcodes {
+            mode = .product
+        } else if let bounds = docBounds, docConfidence > 0.7, bounds.width * bounds.height > 0.25 {
+            mode = .document
+        } else if textCount > 5 {
+            mode = .text
+        } else {
+            mode = .photo
+        }
+
+        // Check stability for documents
+        let stable = mode == .document ? checkStability(newBounds: docBounds) : true
+
+        DispatchQueue.main.async {
+            self.detectedMode = mode
+            self.documentBounds = mode == .document ? docBounds : nil
+            self.isStable = stable
+            self.livePreview = String(previewText)
         }
     }
 
@@ -493,45 +496,48 @@ class SmartCaptureManager: NSObject, ObservableObject {
         // Animal/object recognition with breeds (complements YOLO)
         let animalRequest = VNRecognizeAnimalsRequest()
 
-        do {
-            try handler.perform([textRequest, classifyRequest, animalRequest])
+        // Limit concurrent Vision requests to prevent Metal race conditions
+        VisionOCRThrottle.performSync {
+            do {
+                try handler.perform([textRequest, classifyRequest, animalRequest])
+            } catch {
+                Log.error("[SmartCapture] Analysis failed: \(error)", category: .ingestion)
+            }
+        }
 
-            // Extract text
-            extractedText = (textRequest.results ?? [])
-                .sorted { $0.boundingBox.midY > $1.boundingBox.midY }
-                .compactMap { $0.topCandidates(1).first?.string }
-                .joined(separator: " ")
+        // Extract text
+        extractedText = (textRequest.results ?? [])
+            .sorted { $0.boundingBox.midY > $1.boundingBox.midY }
+            .compactMap { $0.topCandidates(1).first?.string }
+            .joined(separator: " ")
 
-            // Scene labels (top classifications) - for context like "outdoor", "kitchen", etc.
-            let classifications = classifyRequest.results ?? []
-            for classification in classifications.prefix(5) where classification.confidence > 0.15 {
-                let label = Self.formatLabel(classification.identifier)
-                let category = Self.categorize(classification.identifier)
+        // Scene labels (top classifications) - for context like "outdoor", "kitchen", etc.
+        let classifications = classifyRequest.results ?? []
+        for classification in classifications.prefix(5) where classification.confidence > 0.15 {
+            let label = Self.formatLabel(classification.identifier)
+            let category = Self.categorize(classification.identifier)
 
-                // Only add scene context, objects come from YOLO
-                if category == .scene {
-                    sceneLabels.append(label)
-                } else if !detectedObjects.contains(label) {
-                    // Add if YOLO didn't already detect it
+            // Only add scene context, objects come from YOLO
+            if category == .scene {
+                sceneLabels.append(label)
+            } else if !detectedObjects.contains(label) {
+                // Add if YOLO didn't already detect it
+                detectedObjects.append(label)
+            }
+        }
+
+        // Animal breeds (more specific than YOLO's generic "dog"/"cat")
+        for observation in animalRequest.results ?? [] {
+            let labels = observation.labels
+                .filter { $0.confidence > 0.3 }
+                .prefix(2)
+                .map { Self.formatLabel($0.identifier) }
+
+            for label in labels {
+                if !detectedObjects.contains(label) {
                     detectedObjects.append(label)
                 }
             }
-
-            // Animal breeds (more specific than YOLO's generic "dog"/"cat")
-            for observation in animalRequest.results ?? [] {
-                let labels = observation.labels
-                    .filter { $0.confidence > 0.3 }
-                    .prefix(2)
-                    .map { Self.formatLabel($0.identifier) }
-
-                for label in labels {
-                    if !detectedObjects.contains(label) {
-                        detectedObjects.append(label)
-                    }
-                }
-            }
-        } catch {
-            Log.error("[SmartCapture] Analysis failed: \(error)", category: .ingestion)
         }
 
         // Generate natural language description

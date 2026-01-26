@@ -1726,11 +1726,13 @@ The system is designed to be domain-agnostic—able to understand any document t
 
 ---
 
-### Planned v1.2.0 Subsystems (March 2026)
+### Deferred to v2.0.0 (Q2 2026)
 
 #### CameraVisionOverlayView
 
 _Live camera analysis with Vision framework overlays_
+
+> **Status**: ⏸️ Code complete, UI disabled for v1.0 App Store release. Files in `/Features/Camera/`.
 
 **Purpose**: Real-time document/text/table detection from camera feed with instant RAG ingestion.
 
@@ -1779,7 +1781,19 @@ AVCaptureSession → CMSampleBuffer → CGImage
 | `DetectBarcodesRequest`                 | QR codes, barcodes              |
 | `CalculateImageAestheticsScoresRequest` | Quality check before capture    |
 
-**File (Planned)**: `OpenIntelligence/Features/Camera/CameraVisionOverlayView.swift`
+**Files** (Implemented, UI Disabled):
+
+- `OpenIntelligence/Features/Camera/CameraVisionOverlayView.swift`
+- `OpenIntelligence/Features/Camera/CameraManager.swift`
+- `OpenIntelligence/Features/Camera/DocumentCaptureView.swift`
+- `OpenIntelligence/Features/Camera/CaptureToRAGBridge.swift`
+- `OpenIntelligence/Services/Document/VisionOCRThrottle.swift` (used by core services)
+
+**Why Deferred**: iOS 26 RecognizeDocumentsRequest is new; needs more real-world testing before App Store.
+
+---
+
+### Planned v1.2.0 Subsystems (March 2026)
 
 #### DocumentationCacheService
 

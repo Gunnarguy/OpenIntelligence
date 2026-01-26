@@ -20,7 +20,7 @@ OpenIntelligence is a reference implementation of a production-grade **Retrieval
 - **Self-RAG 2.0**: Research-validated multi-session reasoning with enrichment prompting (Chain-of-Verification, RR-MP 2025).
 - **Enhanced OCR**: 360 DPI rendering, contrast enhancement, and upscaling for high-quality text extraction from scanned documents.
 - **Office Document Support**: Native extraction for .docx, .xlsx, .pptx using ZIP-based parsing (no external dependencies).
-- **Agentic Tooling**: 14+ `@Tool` decorated functions allowing the LLM to search, summarize, count patterns, and analyze your library.
+- **Agentic Tooling**: 8 `@Tool` decorated functions (iOS 26 FoundationModels.Tool protocol) allowing the LLM to search, summarize, count patterns, compare documents, and analyze your library.
 - **Multi-Chain Maximum Mode**: Parallel reasoning chains across document clusters, breaking the 4096 token ceiling.
 - **RAPTOR-lite Summaries**: Auto-generated document summaries for efficient overview queries.
 - **Observability**: Real-time telemetry badges (📱/☁️), execution timers (TTFT), granular ingestion pipeline visualization, and 3D embedding space exploration.

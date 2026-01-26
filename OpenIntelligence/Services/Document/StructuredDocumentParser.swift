@@ -21,9 +21,14 @@ import UIKit
 
 // MARK: - GPU Acceleration
 
+/// Serial queue to prevent Metal command buffer race conditions
+/// when multiple threads try to render CIImages concurrently
+/// Marked nonisolated(unsafe) because DispatchQueue is thread-safe by design
+nonisolated(unsafe) private let gpuRenderQueue = DispatchQueue(label: "com.openintelligence.structured-parser-gpu", qos: .userInitiated)
+
 /// Shared Metal-backed CIContext for GPU-accelerated image processing
-/// CIContext is thread-safe. Using nonisolated(unsafe) to allow access from nonisolated functions.
-nonisolated(unsafe) private let sharedGPUContext: CIContext = {
+/// CIContext is thread-safe.
+private let sharedGPUContext: CIContext = {
     if let device = MTLCreateSystemDefaultDevice() {
         return CIContext(mtlDevice: device, options: [
             .cacheIntermediates: true,
@@ -383,8 +388,10 @@ actor StructuredDocumentParser {
         // RecognizeDocumentsRequest is simpler in iOS 26 - it handles text recognition internally
         let request = RecognizeDocumentsRequest()
 
-        // Perform the structured document recognition
-        let observations = try await request.perform(on: imageData)
+        // Perform the structured document recognition (throttled to prevent Metal GPU races)
+        let observations = try await VisionOCRThrottle.performAsync {
+            try await request.perform(on: imageData)
+        }
 
         guard let document = observations.first?.document else {
             // RecognizeDocumentsRequest found no document structure
@@ -758,7 +765,11 @@ actor StructuredDocumentParser {
         request.usesLanguageCorrection = true // Apply language model corrections
         request.automaticallyDetectsLanguage = true
 
-        let observations = try await request.perform(on: imageData)
+        // RecognizeTextRequest (iOS 18+) has native async .perform(on:)
+        // Throttle to prevent Metal GPU race conditions
+        let observations = try await VisionOCRThrottle.performAsync {
+            try await request.perform(on: imageData)
+        }
 
         // Combine all recognized text observations
         let recognizedText = observations
@@ -771,11 +782,15 @@ actor StructuredDocumentParser {
 
     nonisolated private func imageToData(_ ciImage: CIImage) -> Data? {
         #if canImport(UIKit)
-        // Use shared GPU-accelerated context for Metal-based rendering
-        guard let cgImage = sharedGPUContext.createCGImage(ciImage, from: ciImage.extent) else {
+        // Use serial queue to prevent Metal command buffer race conditions
+        var cgImage: CGImage?
+        gpuRenderQueue.sync {
+            cgImage = sharedGPUContext.createCGImage(ciImage, from: ciImage.extent)
+        }
+        guard let renderedImage = cgImage else {
             return nil
         }
-        let uiImage = UIImage(cgImage: cgImage)
+        let uiImage = UIImage(cgImage: renderedImage)
         return uiImage.jpegData(compressionQuality: 0.9)
         #else
         return nil

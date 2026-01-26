@@ -261,33 +261,31 @@ final class DeviceCapabilityService: @unchecked Sendable {
 
     /// Maximum concurrent pages for Vision structured parsing.
     ///
-    /// Vision's RecognizeDocumentsRequest runs on Neural Engine, which has
-    /// limited parallelism. Too many concurrent requests cause ANE throttling.
-    /// These values are tuned per device tier for optimal throughput.
-    /// When GPU acceleration is high (>0.7), we boost limits for speed over efficiency.
+    /// Vision's RecognizeDocumentsRequest runs on Neural Engine + GPU.
+    /// VisionOCRThrottle limits to 2 concurrent Vision ops with GPU sync.
+    /// We set batch size slightly higher (3-4) to keep the pipeline fed,
+    /// since rendering/preprocessing can overlap with Vision processing.
     var visionParsingConcurrency: Int {
-        let gpuBoost = gpuAccelerationLevel > 0.7
         switch cachedTier {
         case .unsupported: return 2
-        case .baseline: return gpuBoost ? 5 : 3   // A17 Pro: 3 → 5 with GPU boost
-        case .enhanced: return gpuBoost ? 8 : 5   // A18 Pro: 5 → 8 with GPU boost
-        case .advanced: return gpuBoost ? 10 : 6  // A19 Pro: 6 → 10 with GPU boost
-        case .ultraAdvanced: return gpuBoost ? 12 : 8  // M-series: 8 → 12 with GPU boost
+        case .baseline: return 3   // A17 Pro
+        case .enhanced: return 4   // A18 Pro
+        case .advanced: return 4   // A19 Pro
+        case .ultraAdvanced: return 5  // M-series
         }
     }
 
     /// Maximum concurrent pages for PDF OCR extraction.
     ///
-    /// OCR is less intensive than structured parsing, so we can push higher.
-    /// GPU boost pushes limits further for users who accept the heat tradeoff.
+    /// VisionOCRThrottle limits actual Vision calls to 2 concurrent.
+    /// Higher batch size allows rendering/preprocessing to overlap.
     var ocrExtractionConcurrency: Int {
-        let gpuBoost = gpuAccelerationLevel > 0.7
         switch cachedTier {
         case .unsupported: return 2
-        case .baseline: return gpuBoost ? 6 : 4   // A17 Pro
-        case .enhanced: return gpuBoost ? 10 : 6  // A18 Pro
-        case .advanced: return gpuBoost ? 12 : 8  // A19 Pro
-        case .ultraAdvanced: return gpuBoost ? 16 : 10 // M-series
+        case .baseline: return 4   // A17 Pro
+        case .enhanced: return 5   // A18 Pro
+        case .advanced: return 6   // A19 Pro
+        case .ultraAdvanced: return 8 // M-series
         }
     }
 

@@ -61,6 +61,15 @@ protocol RAGToolHandler {
     /// Search for exact text pattern across ALL documents
     /// Returns documents containing the pattern with context
     func searchExactPattern(pattern: String) async throws -> String
+
+    /// Get corpus-wide statistics
+    func getCorpusStats() async throws -> String
+
+    /// Find documents related to a topic (semantic, returns document names)
+    func findRelatedDocuments(topic: String, maxResults: Int) async throws -> String
+
+    /// Compare how multiple documents discuss a topic
+    func compareDocumentsOnTopic(topic: String, documentNames: [String]?) async throws -> String
 }
 
 // MARK: - Streaming Bridge
@@ -84,6 +93,9 @@ enum LLMStreamingContext {
 }
 
 // MARK: - Tool Protocol Implementations for Function Calling
+// TOKEN BUDGET: Apple FM has 4096 token context limit (~10K chars).
+// Each tool output should be ≤1500 chars to leave room for prompt + response.
+// All tools MUST truncate results to respect this budget.
 
 #if canImport(FoundationModels)
     import FoundationModels
@@ -178,6 +190,179 @@ enum LLMStreamingContext {
             }
             await ToolCallCounter.shared.increment()
             return try await ragService.getDocumentSummary(documentName: arguments.documentName)
+        }
+    }
+
+    // MARK: - Exact Search Tools (Full-Text, Not Semantic)
+
+    /// Tool for counting exact pattern occurrences across ALL documents
+    /// Uses FullTextStorageService for precise counting (not semantic search)
+    @available(iOS 26.0, *)
+    struct CountPatternTool: Tool {
+        let name = "count_pattern"
+        let description = """
+            Count EXACT occurrences of a text pattern across ALL documents in the library.
+            Returns per-document counts and total. Use for questions like "how many times is X mentioned?"
+            This searches the complete original text, not chunked embeddings.
+            """
+
+        weak var ragService: RAGService?
+
+        @Generable
+        struct Arguments {
+            @Guide(
+                description: """
+                    The exact text pattern to count. Case-insensitive.
+                    For multi-word phrases, include the full phrase.
+                    Examples: "SAE 0W-20", "transmission fluid", "warning light"
+                    """
+            )
+            var pattern: String
+        }
+
+        func call(arguments: Arguments) async throws -> String {
+            guard let ragService = ragService else {
+                return "Error: Document service unavailable"
+            }
+            await ToolCallCounter.shared.increment()
+            return try await ragService.countPatternInCorpus(pattern: arguments.pattern)
+        }
+    }
+
+    /// Tool for searching exact text patterns with surrounding context
+    /// Uses FullTextStorageService for precise matching (not semantic search)
+    @available(iOS 26.0, *)
+    struct SearchExactPatternTool: Tool {
+        let name = "search_exact_pattern"
+        let description = """
+            Search for EXACT text matches across ALL documents and return context.
+            Unlike semantic search, this finds precise string matches.
+            Use when you need to find specific terms, codes, model numbers, or exact phrases.
+            """
+
+        weak var ragService: RAGService?
+
+        @Generable
+        struct Arguments {
+            @Guide(
+                description: """
+                    The exact text pattern to search for. Case-insensitive.
+                    Will return surrounding context for each match.
+                    Examples: "VIN number", "torque specification", "error code P0420"
+                    """
+            )
+            var pattern: String
+        }
+
+        func call(arguments: Arguments) async throws -> String {
+            guard let ragService = ragService else {
+                return "Error: Document service unavailable"
+            }
+            await ToolCallCounter.shared.increment()
+            return try await ragService.searchExactPattern(pattern: arguments.pattern)
+        }
+    }
+
+    // MARK: - Analysis Tools
+
+    /// Tool for getting corpus-wide statistics and analysis
+    @available(iOS 26.0, *)
+    struct GetCorpusStatsTool: Tool {
+        let name = "get_corpus_stats"
+        let description = """
+            Get statistics about the entire document library including:
+            - Total documents and pages
+            - Document types breakdown
+            - Total word/character counts
+            - Average document size
+            Use for questions about the library itself.
+            """
+
+        weak var ragService: RAGService?
+
+        @Generable
+        struct Arguments {
+            // No arguments needed for corpus stats
+        }
+
+        func call(arguments _: Arguments) async throws -> String {
+            guard let ragService = ragService else {
+                return "Error: Document service unavailable"
+            }
+            await ToolCallCounter.shared.increment()
+            return try await ragService.getCorpusStats()
+        }
+    }
+
+    /// Tool for finding documents related to a topic
+    @available(iOS 26.0, *)
+    struct FindRelatedDocumentsTool: Tool {
+        let name = "find_related_documents"
+        let description = """
+            Find documents that are semantically related to a topic or query.
+            Returns document names ranked by relevance, not individual chunks.
+            Use when you need to identify WHICH documents cover a topic.
+            """
+
+        weak var ragService: RAGService?
+
+        @Generable
+        struct Arguments {
+            @Guide(
+                description: "Topic or query to find related documents for"
+            )
+            var topic: String
+            @Guide(
+                description: "Maximum number of documents to return",
+                .range(1 ... 20)
+            )
+            var maxResults: Int?
+        }
+
+        func call(arguments: Arguments) async throws -> String {
+            guard let ragService = ragService else {
+                return "Error: Document service unavailable"
+            }
+            await ToolCallCounter.shared.increment()
+            return try await ragService.findRelatedDocuments(
+                topic: arguments.topic,
+                maxResults: arguments.maxResults ?? 5
+            )
+        }
+    }
+
+    /// Tool for comparing content across multiple documents
+    @available(iOS 26.0, *)
+    struct CompareDocumentsTool: Tool {
+        let name = "compare_documents"
+        let description = """
+            Compare how multiple documents discuss the same topic.
+            Useful for finding differences, contradictions, or complementary information.
+            """
+
+        weak var ragService: RAGService?
+
+        @Generable
+        struct Arguments {
+            @Guide(
+                description: "Topic to compare across documents"
+            )
+            var topic: String
+            @Guide(
+                description: "Names of specific documents to compare (optional, uses all if empty)"
+            )
+            var documentNames: [String]?
+        }
+
+        func call(arguments: Arguments) async throws -> String {
+            guard let ragService = ragService else {
+                return "Error: Document service unavailable"
+            }
+            await ToolCallCounter.shared.increment()
+            return try await ragService.compareDocumentsOnTopic(
+                topic: arguments.topic,
+                documentNames: arguments.documentNames
+            )
         }
     }
 
@@ -565,6 +750,7 @@ struct LLMResponse {
 
                 if !disableTools, let ragService = toolHandler as? RAGService {
                     // Create tool instances with RAGService reference
+                    // Core search tools
                     var searchTool = SearchDocumentsTool()
                     searchTool.ragService = ragService
                     tools.append(searchTool)
@@ -576,6 +762,28 @@ struct LLMResponse {
                     var summaryTool = GetDocumentSummaryTool()
                     summaryTool.ragService = ragService
                     tools.append(summaryTool)
+
+                    // Exact pattern tools (full-text, not semantic)
+                    var countTool = CountPatternTool()
+                    countTool.ragService = ragService
+                    tools.append(countTool)
+
+                    var exactSearchTool = SearchExactPatternTool()
+                    exactSearchTool.ragService = ragService
+                    tools.append(exactSearchTool)
+
+                    // Analysis tools
+                    var statsTool = GetCorpusStatsTool()
+                    statsTool.ragService = ragService
+                    tools.append(statsTool)
+
+                    var relatedTool = FindRelatedDocumentsTool()
+                    relatedTool.ragService = ragService
+                    tools.append(relatedTool)
+
+                    var compareTool = CompareDocumentsTool()
+                    compareTool.ragService = ragService
+                    tools.append(compareTool)
 
                     Log.debug("Initialized \(tools.count) tools for agentic RAG", category: .llm)
                 } else if disableTools {

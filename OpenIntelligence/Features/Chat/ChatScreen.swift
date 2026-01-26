@@ -385,10 +385,12 @@ struct ChatScreen: View {
                     onStop: stopGeneration,
                     onAttach: nil,
                     onSendWithAttachments: sendMessageWithAttachments,
-                    onVisionCapture: {
-                        showVisionCapture = true
-                        DSHaptics.selection()
-                    }
+                    // MARK: - Vision Capture (v2 feature - disabled for v1 App Store release)
+                    onVisionCapture: nil
+                    // onVisionCapture: {
+                    //     showVisionCapture = true
+                    //     DSHaptics.selection()
+                    // }
                 )
             }
 
@@ -401,13 +403,13 @@ struct ChatScreen: View {
                 .padding(.bottom, 88)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
         }
-        // Vision Capture overlay
-        .fullScreenCover(isPresented: $showVisionCapture) {
-            CameraVisionOverlayView(
-                ragService: ragService,
-                containerService: ragService.containerService
-            )
-        }
+        // MARK: - Vision Capture (v2 feature - disabled for v1 App Store release)
+        // .fullScreenCover(isPresented: $showVisionCapture) {
+        //     CameraVisionOverlayView(
+        //         ragService: ragService,
+        //         containerService: ragService.containerService
+        //     )
+        // }
 .navigationTitle("Chat")
         #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)

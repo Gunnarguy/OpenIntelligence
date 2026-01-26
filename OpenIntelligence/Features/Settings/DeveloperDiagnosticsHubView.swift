@@ -91,6 +91,12 @@ struct DeveloperDiagnosticsHubView: View {
             // Diagnostic Tools
             Section {
                 NavigationLink {
+                    ChunkInspectorView(ragService: ragService)
+                        .environmentObject(ragService.containerService)
+                } label: {
+                    Label("Chunk Inspector", systemImage: "doc.text.magnifyingglass")
+                }
+                NavigationLink {
                     CoreValidationView(ragService: ragService)
                 } label: {
                     Label("Core Validation", systemImage: "checkmark.circle")

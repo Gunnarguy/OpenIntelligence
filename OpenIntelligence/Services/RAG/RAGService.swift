@@ -17,6 +17,21 @@ import NaturalLanguage
 // NOTE: Local model support (GGUF, CoreML, MLX) has been removed.
 // The app now uses Apple Intelligence and On-Device Analysis only.
 
+// MARK: - Async Collection Helpers
+
+extension Array {
+    /// Filter array with async predicate
+    func asyncFilter(_ isIncluded: @escaping (Element) async -> Bool) async -> [Element] {
+        var result: [Element] = []
+        for element in self {
+            if await isIncluded(element) {
+                result.append(element)
+            }
+        }
+        return result
+    }
+}
+
 struct RetrievalLogEntry: Identifiable, Sendable {
     let id = UUID()
     let timestamp: Date
@@ -9738,8 +9753,9 @@ extension RAGService: RAGToolHandler {
     /// Count occurrences of a pattern across ALL documents (exact matching)
     /// This uses full-text storage, not semantic search - ZERO data loss counting
     /// FTS5 path is 10-100X faster than legacy file-based storage
+    /// Token-budget aware: max ~600 chars output (15 docs × ~40 chars each)
     func countPatternInCorpus(pattern: String) async throws -> String {
-        Log.debug(" [Tool Call] count_pattern_in_corpus(pattern: \"\(pattern)\")")
+        Log.debug("🔧 [Tool Call] count_pattern_in_corpus(pattern: \"\(pattern)\")")
 
         let activeId = await MainActor.run { self.containerService.activeContainerId }
 
@@ -9765,29 +9781,35 @@ extension RAGService: RAGToolHandler {
         }
 
         let totalOccurrences = counts.values.reduce(0, +)
-        var result = "Pattern '\(pattern)' found \(totalOccurrences) times across \(counts.count) documents:\n\n"
 
-        // Sort by count descending
+        // Compact format for token budget
+        var result = "**'\(pattern)':** \(totalOccurrences) total in \(counts.count) docs\n"
+
+        // Sort by count descending, limit to 15 for token budget (~600 chars max)
         let sortedCounts = counts.sorted { $0.value > $1.value }
+        let maxDocs = 15
 
-        for (docId, count) in sortedCounts.prefix(20) { // Limit to top 20 for token budget
+        for (docId, count) in sortedCounts.prefix(maxDocs) {
             let docName = await documentName(for: docId)
-            result += "- \(docName): \(count) occurrences\n"
+            // Truncate long names
+            let truncName = docName.count > 35 ? String(docName.prefix(32)) + "..." : docName
+            result += "- \(truncName): \(count)\n"
         }
 
-        if sortedCounts.count > 20 {
-            result += "... and \(sortedCounts.count - 20) more documents\n"
+        if sortedCounts.count > maxDocs {
+            result += "... +\(sortedCounts.count - maxDocs) more\n"
         }
 
-        Log.info(" [Tool Call] Pattern '\(pattern)' found \(totalOccurrences) times in \(counts.count) docs")
+        Log.info("🔧 [Tool Call] Pattern '\(pattern)' found \(totalOccurrences) times in \(counts.count) docs")
         return result
     }
 
     /// Search for exact text pattern across ALL documents
     /// Returns documents containing the pattern with context
     /// FTS5 path is 10-100X faster with native snippet() support
+    /// Token-budget aware: max ~800 chars (8 matches × ~100 chars each)
     func searchExactPattern(pattern: String) async throws -> String {
-        Log.debug(" [Tool Call] search_exact_pattern(pattern: \"\(pattern)\")")
+        Log.debug("🔧 [Tool Call] search_exact_pattern(pattern: \"\(pattern)\")")
 
         let activeId = await MainActor.run { self.containerService.activeContainerId }
 
@@ -9822,16 +9844,232 @@ extension RAGService: RAGToolHandler {
             return "Pattern '\(pattern)' not found in any documents."
         }
 
-        var result = "Found pattern '\(pattern)' in \(matches.count) documents:\n\n"
+        // Compact format with strict token budget (~800 chars max)
+        let maxMatches = 8
+        let maxSnippetChars = 80
 
-        for match in matches {
+        var result = "**'\(pattern)'** in \(matches.count) docs:\n"
+
+        for match in matches.prefix(maxMatches) {
             let docName = await documentName(for: match.documentId)
-            result += "**\(docName)** (\(match.occurrences) occurrences):\n"
-            result += "  \"\(match.contextSnippet)\"\n\n"
+            let truncName = docName.count > 30 ? String(docName.prefix(27)) + "..." : docName
+            let truncSnippet = match.contextSnippet.count > maxSnippetChars
+                ? String(match.contextSnippet.prefix(maxSnippetChars)) + "..."
+                : match.contextSnippet
+            result += "**\(truncName)** (\(match.occurrences)x): \"\(truncSnippet)\"\n"
         }
 
-        Log.info(" [Tool Call] Pattern '\(pattern)' found in \(matches.count) docs with context")
+        if matches.count > maxMatches {
+            result += "... +\(matches.count - maxMatches) more\n"
+        }
+
+        Log.info("🔧 [Tool Call] Pattern '\(pattern)' found in \(matches.count) docs with context")
         return result
+    }
+
+    /// Get corpus-wide statistics
+    /// Token-budget aware: returns compact stats (~200-400 chars)
+    func getCorpusStats() async throws -> String {
+        Log.debug("🔧 [Tool Call] get_corpus_stats()")
+
+        let activeId = await MainActor.run { self.containerService.activeContainerId }
+        let docs = await MainActor.run { self.documents }
+
+        guard !docs.isEmpty else {
+            return "No documents in the current container."
+        }
+
+        // Calculate statistics
+        let totalDocs = docs.count
+        let totalPages = docs.reduce(0) { $0 + ($1.processingMetadata?.pagesProcessed ?? 1) }
+        let totalChunks = docs.reduce(0) { $0 + $1.totalChunks }
+
+        // Document type breakdown (top 5 only to save tokens)
+        var typeBreakdown: [String: Int] = [:]
+        for doc in docs {
+            let ext = doc.contentType.rawValue.uppercased()
+            typeBreakdown[ext, default: 0] += 1
+        }
+
+        // FTS5 stats
+        let fts5DocCount = await SQLiteFullTextService.shared.documentCount(for: activeId)
+        let fts5TotalChars = await SQLiteFullTextService.shared.totalCharacterCount(for: activeId)
+
+        // Compact format to respect 4096 token budget
+        var result = "📊 **Corpus:** \(totalDocs) docs, \(totalPages) pages, \(totalChunks) chunks\n"
+        result += "**FTS5:** \(fts5DocCount) indexed (\(formatByteCount(fts5TotalChars)))\n"
+        result += "**Types:** "
+        result += typeBreakdown.sorted(by: { $0.value > $1.value })
+            .prefix(5)
+            .map { "\($0.key):\($0.value)" }
+            .joined(separator: ", ")
+
+        Log.info("🔧 [Tool Call] Corpus stats: \(totalDocs) docs, \(totalPages) pages")
+        return result
+    }
+
+    /// Find documents semantically related to a topic
+    /// Token-budget aware: returns compact list (~50 chars per doc, max 10 docs = ~500 chars)
+    func findRelatedDocuments(topic: String, maxResults: Int) async throws -> String {
+        Log.debug("🔧 [Tool Call] find_related_documents(topic: \"\(topic)\", max: \(maxResults))")
+
+        // Clamp maxResults to avoid token overflow (10 docs × ~50 chars = ~500 chars)
+        let safeMaxResults = min(maxResults, 10)
+
+        // Get semantic search results using HybridSearchService
+        let embeddingContext = await resolveEmbeddingContext()
+        let queryEmbedding = try await embeddingContext.service.generateEmbedding(for: topic)
+        let db = await dbFor(embeddingContext.containerId)
+
+        let hybridSearch = HybridSearchService(
+            vectorDatabase: db,
+            vectorWeight: 0.6,
+            keywordWeight: 0.4
+        )
+
+        let results = try await hybridSearch.search(
+            query: topic,
+            embedding: queryEmbedding,
+            topK: safeMaxResults * 3,
+            cachedChunks: nil as [DocumentChunk]?,
+            containerId: embeddingContext.containerId
+        )
+
+        if results.isEmpty {
+            return "No documents found related to '\(topic)'."
+        }
+
+        // Group by document and score by average relevance
+        var docScores: [UUID: (name: String, avgScore: Float, chunkCount: Int)] = [:]
+
+        for result in results {
+            let docId = result.chunk.documentId
+            let docName = await documentName(for: docId)
+
+            if var existing = docScores[docId] {
+                existing.avgScore = (existing.avgScore * Float(existing.chunkCount) + result.similarityScore) / Float(existing.chunkCount + 1)
+                existing.chunkCount += 1
+                docScores[docId] = existing
+            } else {
+                docScores[docId] = (name: docName, avgScore: result.similarityScore, chunkCount: 1)
+            }
+        }
+
+        // Sort by score, limit to safe max
+        let sortedDocs = docScores.sorted { $0.value.avgScore > $1.value.avgScore }
+            .prefix(safeMaxResults)
+
+        // Compact format
+        var result = "**Related to '\(topic)':** \(sortedDocs.count) docs\n"
+
+        for (index, (_, info)) in sortedDocs.enumerated() {
+            let relevance = String(format: "%.0f%%", info.avgScore * 100)
+            // Truncate long names to 40 chars
+            let truncatedName = info.name.count > 40 ? String(info.name.prefix(37)) + "..." : info.name
+            result += "\(index + 1). \(truncatedName) (\(relevance))\n"
+        }
+
+        Log.info("🔧 [Tool Call] Found \(sortedDocs.count) documents related to '\(topic)'")
+        return result
+    }
+
+    /// Compare how multiple documents discuss a topic
+    /// Token-budget aware: max 1500 chars total (~600 tokens) to leave room for synthesis
+    func compareDocumentsOnTopic(topic: String, documentNames: [String]?) async throws -> String {
+        Log.debug("🔧 [Tool Call] compare_documents(topic: \"\(topic)\")")
+
+        // Token budget: ~1500 chars max for comparison output
+        let maxTotalChars = 1500
+        let maxSnippetChars = 200  // Per snippet
+        let maxDocsToCompare = 5   // Max documents
+        let maxSnippetsPerDoc = 2  // Max snippets per doc
+
+        // Search for the topic using HybridSearchService
+        let embeddingContext = await resolveEmbeddingContext()
+        let queryEmbedding = try await embeddingContext.service.generateEmbedding(for: topic)
+        let db = await dbFor(embeddingContext.containerId)
+
+        let hybridSearch = HybridSearchService(
+            vectorDatabase: db,
+            vectorWeight: 0.6,
+            keywordWeight: 0.4
+        )
+
+        let results = try await hybridSearch.search(
+            query: topic,
+            embedding: queryEmbedding,
+            topK: 20,
+            cachedChunks: nil as [DocumentChunk]?,
+            containerId: embeddingContext.containerId
+        )
+
+        if results.isEmpty {
+            return "No content found about '\(topic)' in the document library."
+        }
+
+        // Filter by specific documents if provided
+        let filteredResults: [RetrievedChunk]
+        if let names = documentNames, !names.isEmpty {
+            let lowercaseNames = Set(names.map { $0.lowercased() })
+            filteredResults = await results.asyncFilter { result in
+                let docName = await self.documentName(for: result.chunk.documentId)
+                return lowercaseNames.contains(docName.lowercased())
+            }
+        } else {
+            filteredResults = results
+        }
+
+        if filteredResults.isEmpty {
+            return "Specified documents don't contain content about '\(topic)'."
+        }
+
+        // Group by document
+        var docContent: [String: [String]] = [:]
+
+        for result in filteredResults.prefix(15) {
+            let docName = await documentName(for: result.chunk.documentId)
+            let content = result.chunk.content.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+            // Strict snippet limit
+            let snippet = content.count > maxSnippetChars ? String(content.prefix(maxSnippetChars)) + "..." : content
+
+            if (docContent[docName]?.count ?? 0) < maxSnippetsPerDoc {
+                docContent[docName, default: []].append(snippet)
+            }
+        }
+
+        // Build result with char budget tracking
+        var result = "**Compare '\(topic)':**\n"
+        var currentChars = result.count
+
+        for (docName, snippets) in docContent.sorted(by: { $0.key < $1.key }).prefix(maxDocsToCompare) {
+            let truncatedName = docName.count > 30 ? String(docName.prefix(27)) + "..." : docName
+            let header = "**\(truncatedName):** "
+
+            if currentChars + header.count > maxTotalChars { break }
+            result += header
+            currentChars += header.count
+
+            for snippet in snippets.prefix(maxSnippetsPerDoc) {
+                let quotedSnippet = "\"\(snippet)\" "
+                if currentChars + quotedSnippet.count > maxTotalChars { break }
+                result += quotedSnippet
+                currentChars += quotedSnippet.count
+            }
+            result += "\n"
+        }
+
+        Log.info("🔧 [Tool Call] Compared '\(topic)' across \(docContent.count) documents (\(result.count) chars)")
+        return result
+    }
+
+    private func formatByteCount(_ chars: Int) -> String {
+        if chars < 1000 {
+            return "\(chars) chars"
+        } else if chars < 1_000_000 {
+            return String(format: "%.1fK chars", Float(chars) / 1000)
+        } else {
+            return String(format: "%.1fM chars", Float(chars) / 1_000_000)
+        }
     }
 
     private func formatDate(_ date: Date) -> String {

@@ -589,6 +589,28 @@ actor SQLiteFullTextService {
         return 0
     }
 
+    /// Get total character count for a container
+    func totalCharacterCount(for containerId: UUID) async -> Int {
+        ensureInitialized()
+        guard let db = database else { return 0 }
+
+        let sql = "SELECT COALESCE(SUM(LENGTH(content)), 0) FROM fts_content WHERE document_id IN (SELECT document_id FROM document_meta WHERE container_id = ?)"
+        var statement: OpaquePointer?
+
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
+            return 0
+        }
+
+        defer { sqlite3_finalize(statement) }
+
+        sqlite3_bind_text(statement, 1, containerId.uuidString, -1, SQLITE_TRANSIENT)
+
+        if sqlite3_step(statement) == SQLITE_ROW {
+            return Int(sqlite3_column_int64(statement, 0))
+        }
+        return 0
+    }
+
     // MARK: - Statistics & Diagnostics
 
     /// Comprehensive FTS5 database statistics for visualization

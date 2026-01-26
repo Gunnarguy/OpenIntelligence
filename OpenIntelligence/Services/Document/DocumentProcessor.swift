@@ -34,6 +34,11 @@ class DocumentProcessor {
     /// Shared Metal device for GPU-accelerated image processing
     private static let metalDevice: MTLDevice? = MTLCreateSystemDefaultDevice()
 
+    /// Serial queue for GPU context access to prevent Metal synchronization issues
+    /// CIContext is thread-safe for rendering, but concurrent Metal command buffer
+    /// submissions during VNRecognizeTextRequest can cause race conditions
+    private static let gpuQueue = DispatchQueue(label: "com.openintelligence.gpu-context", qos: .userInitiated)
+
     /// GPU-accelerated CIContext for image operations (PDF rendering, OCR prep)
     /// Using Metal backend provides 5-10x speedup over CPU for image processing
     private static let gpuContext: CIContext = {
@@ -56,7 +61,7 @@ class DocumentProcessor {
     /// GPU-accelerated image preprocessing for improved OCR accuracy
     /// Applies sharpening and contrast enhancement using Metal-backed Core Image filters
     /// - Parameter image: Input CIImage from PDF rendering
-    /// - Returns: Enhanced CIImage optimized for text recognition
+    /// - Returns: Enhanced CIImage optimized for text recognition (eagerly rendered to prevent Metal races)
     private func preprocessImageForOCR(_ image: CIImage) -> CIImage {
         // Skip if GPU not available
         guard Self.metalDevice != nil else { return image }
@@ -84,7 +89,23 @@ class DocumentProcessor {
             }
         }
 
-        return processedImage.cropped(to: image.extent)
+        let croppedImage = processedImage.cropped(to: image.extent)
+
+        // CRITICAL: Eagerly render to CGImage using our controlled context
+        // This prevents Metal command buffer race conditions when Vision
+        // tries to render the lazy CIImage with its own Metal resources
+        // The gpuQueue serializes access to prevent concurrent Metal submissions
+        var renderedCGImage: CGImage?
+        Self.gpuQueue.sync {
+            renderedCGImage = Self.gpuContext.createCGImage(croppedImage, from: croppedImage.extent)
+        }
+
+        if let cgImage = renderedCGImage {
+            return CIImage(cgImage: cgImage)
+        }
+
+        // Fallback to lazy evaluation if rendering fails
+        return croppedImage
     }
 
     struct ChunkingOverride: Sendable {
@@ -2797,8 +2818,12 @@ class DocumentProcessor {
     /// Uses same bulletproof configuration as performOCR()
     /// GPU-accelerated via Metal-backed CGImage conversion
     private func performOCRWithObservations(on image: CIImage) async throws -> [VNRecognizedTextObservation] {
-        // Convert CIImage to CGImage using GPU-accelerated context
-        guard let cgImage = Self.gpuContext.createCGImage(image, from: image.extent) else {
+        // Convert CIImage to CGImage using GPU-accelerated context with serial queue
+        var cgImageResult: CGImage?
+        Self.gpuQueue.sync {
+            cgImageResult = Self.gpuContext.createCGImage(image, from: image.extent)
+        }
+        guard let cgImage = cgImageResult else {
             throw NSError(domain: "DocumentProcessor", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create CGImage for OCR"])
         }
 
@@ -2830,10 +2855,13 @@ class DocumentProcessor {
             // Note: customWords left empty - Vision's language correction handles domain terms
             // Adding domain-specific words here would make the app less universal
 
-            do {
-                try requestHandler.perform([request])
-            } catch {
-                continuation.resume(throwing: error)
+            // Limit concurrent Vision OCR to prevent Metal race conditions
+            VisionOCRThrottle.performSync {
+                do {
+                    try requestHandler.perform([request])
+                } catch {
+                    continuation.resume(throwing: error)
+                }
             }
         }
     }
@@ -2928,8 +2956,12 @@ class DocumentProcessor {
     /// Configured for maximum accuracy with Apple's latest Vision capabilities
     /// GPU-accelerated via Metal-backed CGImage conversion
     private func performOCR(on image: CIImage) async throws -> String {
-        // Convert CIImage to CGImage using GPU-accelerated context for Vision
-        guard let cgImage = Self.gpuContext.createCGImage(image, from: image.extent) else {
+        // Convert CIImage to CGImage using GPU-accelerated context with serial queue
+        var cgImageResult: CGImage?
+        Self.gpuQueue.sync {
+            cgImageResult = Self.gpuContext.createCGImage(image, from: image.extent)
+        }
+        guard let cgImage = cgImageResult else {
             Log.error("[DocumentProcessor] Failed to create CGImage for OCR", category: .ingestion)
             return ""
         }
@@ -3005,11 +3037,14 @@ class DocumentProcessor {
             // Note: customWords left empty - Vision's language correction handles domain terms
             // Adding domain-specific words here would make the app less universal
 
-            do {
-                try requestHandler.perform([request])
-            } catch {
-                Log.error("[DocumentProcessor] OCR request failed: \(error.localizedDescription)", category: .ingestion)
-                continuation.resume(throwing: error)
+            // Limit concurrent Vision OCR to prevent Metal race conditions
+            VisionOCRThrottle.performSync {
+                do {
+                    try requestHandler.perform([request])
+                } catch {
+                    Log.error("[DocumentProcessor] OCR request failed: \(error.localizedDescription)", category: .ingestion)
+                    continuation.resume(throwing: error)
+                }
             }
         }
     }
@@ -3044,8 +3079,12 @@ class DocumentProcessor {
     /// Async wrapper for observation-based OCR
     /// GPU-accelerated via Metal-backed CGImage conversion
     private func performOCRWithObservationsAsync(on image: CIImage) async throws -> [VNRecognizedTextObservation] {
-        // Convert CIImage to CGImage using GPU-accelerated context
-        guard let cgImage = Self.gpuContext.createCGImage(image, from: image.extent) else {
+        // Convert CIImage to CGImage using GPU-accelerated context with serial queue
+        var cgImageResult: CGImage?
+        Self.gpuQueue.sync {
+            cgImageResult = Self.gpuContext.createCGImage(image, from: image.extent)
+        }
+        guard let cgImage = cgImageResult else {
             throw NSError(domain: "DocumentProcessor", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create CGImage for OCR"])
         }
 
@@ -3073,10 +3112,13 @@ class DocumentProcessor {
             request.recognitionLanguages = ["en-US", "en-GB", "es-ES", "fr-FR", "de-DE", "it-IT", "pt-BR"]
             request.minimumTextHeight = 0.0
 
-            do {
-                try requestHandler.perform([request])
-            } catch {
-                continuation.resume(throwing: error)
+            // Limit concurrent Vision OCR to prevent Metal race conditions
+            VisionOCRThrottle.performSync {
+                do {
+                    try requestHandler.perform([request])
+                } catch {
+                    continuation.resume(throwing: error)
+                }
             }
         }
     }

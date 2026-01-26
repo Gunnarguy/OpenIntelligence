@@ -205,7 +205,11 @@ actor LayoutAwareExtractor {
         request.minimumTextHeight = 0.0  // Catch all text sizes
 
         let handler = VNImageRequestHandler(ciImage: image, options: [:])
-        try handler.perform([request])
+
+        // Limit concurrent Vision OCR to prevent Metal race conditions
+        try VisionOCRThrottle.performSync {
+            try handler.perform([request])
+        }
 
         guard let observations = request.results else {
             return []
