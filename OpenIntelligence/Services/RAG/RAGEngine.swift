@@ -922,57 +922,83 @@ actor RAGEngine {
     }
 
     /// Detect table-of-contents or index-style chunks that match keywords but lack actual content
-    /// Returns a penalty score (0.0 = normal content, up to 0.4 = definitely TOC/index)
+    /// Returns a penalty score (0.0 = normal content, up to 0.5 = definitely TOC/index)
     private func computeTOCPenalty(content: String) -> Float {
         var penalty: Float = 0
+        let wordCount = content.split(separator: " ").count
+        guard wordCount > 10 else { return 0 }  // Too short to analyze
 
         // Pattern 1: Many section numbers like "1.1.", "2.3.", "3.4.5." etc.
         // TOC pages have dense section numbering
         let sectionNumberPattern = #"\b\d+\.\d+\.?"#
         let sectionMatches = content.matches(of: try! Regex(sectionNumberPattern))
         if sectionMatches.count >= 8 {
-            penalty += 0.15  // Strong indicator of TOC
+            penalty += 0.18  // Strong indicator of TOC
         } else if sectionMatches.count >= 5 {
-            penalty += 0.08
+            penalty += 0.10
         }
 
-        // Pattern 2: Page numbers scattered (e.g., "...45", "...12", ".....23")
-        // TOC entries often end with page numbers after dots
-        let pageNumberPattern = #"\.{2,}\s*\d{1,3}\b"#
-        let pageMatches = content.matches(of: try! Regex(pageNumberPattern))
-        if pageMatches.count >= 3 {
+        // Pattern 2: Page numbers scattered - multiple formats:
+        // "...45", ".....23", ". 52", "49 ...", standalone 2-digit numbers
+        let pageNumberPattern1 = #"\.{2,}\s*\d{1,3}\b"#  // ...45, .....23
+        let pageNumberPattern2 = #"\.\s+\d{1,2}\b"#      // . 52, . 49
+        let pageNumberPattern3 = #"\b\d{1,2}\s+\.{2,}"#  // 49 ..., 50 ...
+        let pageMatches1 = content.matches(of: try! Regex(pageNumberPattern1))
+        let pageMatches2 = content.matches(of: try! Regex(pageNumberPattern2))
+        let pageMatches3 = content.matches(of: try! Regex(pageNumberPattern3))
+        let totalPageMatches = pageMatches1.count + pageMatches2.count + pageMatches3.count
+        if totalPageMatches >= 5 {
+            penalty += 0.18  // Very strong TOC indicator
+        } else if totalPageMatches >= 3 {
             penalty += 0.12
         }
 
-        // Pattern 3: High ratio of "?" markers (FAQ-style TOC)
-        // "What is...?", "How to...?" headers are common in TOC
-        let questionCount = content.components(separatedBy: "?").count - 1
-        let wordCount = content.split(separator: " ").count
-        if wordCount > 0 && Float(questionCount) / Float(wordCount) > 0.03 && questionCount >= 4 {
-            penalty += 0.08
+        // Pattern 3: High density of standalone 2-digit numbers (page references)
+        // TOC has many "45", "52", "53" etc. scattered throughout
+        let standaloneNumberPattern = #"(?<![.\d])\b\d{2}\b(?![.\d])"#
+        let standaloneMatches = content.matches(of: try! Regex(standaloneNumberPattern))
+        let numberDensity = Float(standaloneMatches.count) / Float(wordCount)
+        if standaloneMatches.count >= 8 && numberDensity > 0.04 {
+            penalty += 0.15  // High density of page-like numbers
         }
 
-        // Pattern 4: Very short average sentence length (typical of headings/TOC entries)
+        // Pattern 4: High ratio of "?" markers (FAQ-style TOC)
+        let questionCount = content.components(separatedBy: "?").count - 1
+        if wordCount > 0 && Float(questionCount) / Float(wordCount) > 0.03 && questionCount >= 4 {
+            penalty += 0.10
+        }
+
+        // Pattern 5: Very short average sentence length (typical of headings/TOC entries)
         let sentences = content.components(separatedBy: CharacterSet(charactersIn: ".!?\n"))
             .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-        if sentences.count >= 5 {
+        if sentences.count >= 6 {
             let avgWordsPerSentence = Float(wordCount) / Float(sentences.count)
-            if avgWordsPerSentence < 6 {
-                penalty += 0.10  // Very short "sentences" = likely headings
+            if avgWordsPerSentence < 5 {
+                penalty += 0.12  // Very short "sentences" = likely headings
+            } else if avgWordsPerSentence < 7 {
+                penalty += 0.06
             }
         }
 
-        // Pattern 5: Contains explicit TOC markers
+        // Pattern 6: Contains explicit TOC markers
         let lowerContent = content.lowercased()
         if lowerContent.contains("table of contents")
-            || lowerContent.contains("contents")
-            && lowerContent.contains("page")
+            || (lowerContent.contains("contents") && lowerContent.contains("page"))
             || lowerContent.hasPrefix("content\n")
         {
             penalty += 0.15
         }
 
-        return min(penalty, 0.40)  // Cap penalty at 0.40
+        // Pattern 7: High ratio of bullet points / list markers in short content
+        // TOC often has • or - at start of many lines
+        let bulletCount = content.components(separatedBy: "•").count - 1
+            + content.components(separatedBy: "\n-").count - 1
+            + content.components(separatedBy: "\n*").count - 1
+        if bulletCount >= 6 && Float(bulletCount) / Float(sentences.count) > 0.4 {
+            penalty += 0.08
+        }
+
+        return min(penalty, 0.50)  // Cap penalty at 0.50
     }
 
     // MARK: - Core ML Cross Encoder Re-Ranking
