@@ -32,13 +32,15 @@ import Metal
 
 /// Shared Metal device for GPU synchronization
 /// We use this to force GPU command buffer completion between Vision calls
-private let metalDevice: MTLDevice? = MTLCreateSystemDefaultDevice()
-private let metalQueue: MTLCommandQueue? = metalDevice?.makeCommandQueue()
+/// nonisolated(unsafe) required because Swift 6 treats module-level lets as main actor isolated
+nonisolated(unsafe) private let metalDevice: MTLDevice? = MTLCreateSystemDefaultDevice()
+nonisolated(unsafe) private let metalQueue: MTLCommandQueue? = metalDevice?.makeCommandQueue()
 
 /// Force GPU to complete all pending work
 /// This drains the Metal command queue, ensuring Vision's async GPU work is complete
-private func synchronizeGPU() {
-    guard let queue = metalQueue, let device = metalDevice else { return }
+/// Must be nonisolated to be callable from any context
+nonisolated private func synchronizeGPU() {
+    guard let queue = metalQueue else { return }
 
     // Create a dummy command buffer and wait for it to complete
     // This ensures all prior GPU work (including Vision's) has finished
@@ -57,9 +59,11 @@ private let maxConcurrentVisionOps = 2
 
 /// Semaphore for controlling Vision concurrency
 /// Value of 2 allows two Vision operations to run in parallel
+/// nonisolated(unsafe) required because Swift 6 treats module-level lets as main actor isolated
 nonisolated(unsafe) private let visionSemaphore = DispatchSemaphore(value: maxConcurrentVisionOps)
 
 /// Serial queue for synchronous Vision operations (fallback when semaphore acquired)
+/// nonisolated(unsafe) required because Swift 6 treats module-level lets as main actor isolated
 nonisolated(unsafe) private let visionSyncQueue = DispatchQueue(
     label: "com.openintelligence.vision-ocr-throttle",
     qos: .userInitiated,
@@ -68,7 +72,8 @@ nonisolated(unsafe) private let visionSyncQueue = DispatchQueue(
 
 /// Cooldown time between Vision operations (seconds)
 /// Brief delay to let GPU command buffers settle
-private let gpuCooldownSeconds: TimeInterval = 0.02  // 20ms
+/// nonisolated(unsafe) required because Swift 6 treats module-level lets as main actor isolated
+nonisolated(unsafe) private let gpuCooldownSeconds: TimeInterval = 0.02  // 20ms
 
 /// Global throttle for Vision OCR operations with GPU synchronization
 /// Allows limited parallelism (2 concurrent) while preventing Metal crashes
@@ -83,10 +88,13 @@ enum VisionOCRThrottle {
         // Acquire semaphore slot (blocks if 2 already running)
         visionSemaphore.wait()
 
+        // Capture cooldown value locally to avoid actor isolation issues
+        let cooldown = gpuCooldownSeconds
+
         defer {
             // Force GPU completion before releasing slot
             synchronizeGPU()
-            Thread.sleep(forTimeInterval: gpuCooldownSeconds)
+            Thread.sleep(forTimeInterval: cooldown)
             visionSemaphore.signal()
         }
 
@@ -110,14 +118,22 @@ enum VisionOCRThrottle {
             }
         }
 
-        defer {
+        // Capture cooldown value locally
+        let cooldown = gpuCooldownSeconds
+
+        do {
+            let result = try await operation()
             // Force GPU completion before releasing slot
             synchronizeGPU()
-            Thread.sleep(forTimeInterval: gpuCooldownSeconds)
+            try? await Task.sleep(for: .seconds(cooldown))
             visionSemaphore.signal()
+            return result
+        } catch {
+            synchronizeGPU()
+            try? await Task.sleep(for: .seconds(cooldown))
+            visionSemaphore.signal()
+            throw error
         }
-
-        return try await operation()
     }
 
     /// Execute an async Vision operation with throttling (non-throwing version)
@@ -132,14 +148,15 @@ enum VisionOCRThrottle {
             }
         }
 
-        defer {
-            // Force GPU completion before releasing slot
-            synchronizeGPU()
-            Thread.sleep(forTimeInterval: gpuCooldownSeconds)
-            visionSemaphore.signal()
-        }
+        // Capture cooldown value locally
+        let cooldown = gpuCooldownSeconds
 
-        return await operation()
+        let result = await operation()
+        // Force GPU completion before releasing slot
+        synchronizeGPU()
+        try? await Task.sleep(for: .seconds(cooldown))
+        visionSemaphore.signal()
+        return result
     }
 
     /// Execute a Vision OCR operation asynchronously with throttling (legacy - wraps sync in async)
@@ -155,6 +172,9 @@ enum VisionOCRThrottle {
             }
         }
 
+        // Capture cooldown value locally
+        let cooldown = gpuCooldownSeconds
+
         return try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 autoreleasepool {
@@ -162,7 +182,7 @@ enum VisionOCRThrottle {
                         let result = try operation()
                         // Force GPU completion before releasing slot
                         synchronizeGPU()
-                        Thread.sleep(forTimeInterval: gpuCooldownSeconds)
+                        Thread.sleep(forTimeInterval: cooldown)
                         visionSemaphore.signal()
                         continuation.resume(returning: result)
                     } catch {

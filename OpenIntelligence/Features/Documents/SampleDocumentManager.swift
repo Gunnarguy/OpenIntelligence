@@ -430,6 +430,10 @@ Works cited
         into ragService: RAGService,
         onProgress: ((Int, Int, String) -> Void)? = nil
     ) async throws {
+        // Suppress reembed kicks during the entire batch import
+        // This prevents the race condition where a reembed starts between document imports
+        await MainActor.run { ragService.beginOnboardingBatch() }
+
         let urls = try writeSamplesToDocumentsDirectory()
         for (index, url) in urls.enumerated() {
             let filename = url.deletingPathExtension().lastPathComponent
@@ -439,8 +443,8 @@ Works cited
         }
 
         // Clear any pending reembed operations that may have been queued during import
-        // This prevents the annoying "reindexing" phase that appears right after onboarding
-        ragService.clearPendingReembeds()
+        // This also re-enables reembed kicks for normal operation
+        await MainActor.run { ragService.clearPendingReembeds() }
     }
 
     /// Persists each sample document in the app's Documents directory (permanent storage).

@@ -5,7 +5,7 @@ Ask your documents anything and get cited answers.
 • Import PDFs, Word docs, Excel spreadsheets, PowerPoint, and more
 • Ask questions in plain English
 • Get accurate answers with citations to exact source passages
-• Powered by Apple Intelligence (on-device AI)
+• Powered by on-device AI using your device's Neural Engine
 • Privacy-first: all processing happens locally by default
 • Optional Private Cloud Compute with Apple's zero-retention guarantee
 • Organize documents into containers with automatic tagging

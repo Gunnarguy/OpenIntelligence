@@ -189,17 +189,21 @@ actor DocumentSummaryService {
             return extractiveFallback(from: representativeText)
         }
 
+        // HARD LIMIT: Summaries MUST fit embedding context (510 tokens max)
+        // With prefix overhead, target ~120 words max to stay safe
+        let safeTargetWords = min(config.targetWords, 120)
+
         let prompt = """
-        Summarize this document in approximately \(config.targetWords) words.
+        Summarize this document in EXACTLY \(safeTargetWords) words or fewer. Do NOT exceed this limit.
         Focus on: main topics, key information, and document purpose.
-        Be concise and informative.
+        Be extremely concise. Stop when you reach \(safeTargetWords) words.
 
         Document: \(documentName)
 
         Content:
         \(representativeText.prefix(config.maxInputChars))
 
-        Summary:
+        Summary (\(safeTargetWords) words max):
         """
 
         do {
@@ -208,20 +212,41 @@ actor DocumentSummaryService {
             let (llmService, inferenceConfig) = await MainActor.run { () -> (LLMService, InferenceConfig) in
                 var config = InferenceConfig()
                 config.temperature = 0.3
-                config.maxTokens = 300
+                // Limit tokens to ~150 words max (at ~1.5 tokens/word = 225 tokens)
+                // Lower than before to reduce continuation triggering
+                config.maxTokens = 200
+                // CRITICAL: Skip continuation for summaries - we want concise output
+                // Continuation was causing 516-word summaries that blew past 510-token embedding limit
+                config.skipContinuation = true
                 return (ragService.llmService, config)
             }
 
             // The system prompt is embedded in the prompt for summary generation
             let fullPrompt = "You are a document summarization assistant. Generate concise, informative summaries.\n\n" + prompt
 
+            // NOTE: Continuation is disabled via config.skipContinuation
+            // We also enforce hard truncation below as safety net
             let response = try await llmService.generate(
                 prompt: fullPrompt,
                 context: nil,
                 config: inferenceConfig
             )
 
-            return response.text.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+            // CRITICAL: Enforce hard word limit for embedding safety
+            // Embedding limit is 510 tokens. With prefix overhead (~30 tokens),
+            // we need ~480 tokens max. At ~1.5 tokens/word, that's ~320 words max.
+            // But technical text can be 2+ tokens/word, so cap at 150 words to be safe.
+            let maxWords = 150
+            let words = response.text.split(separator: " ")
+            let truncatedText: String
+            if words.count > maxWords {
+                Log.warning("[DocumentSummary] Truncating \(words.count)-word summary to \(maxWords) words", category: .pipeline)
+                truncatedText = words.prefix(maxWords).joined(separator: " ") + "..."
+            } else {
+                truncatedText = response.text
+            }
+
+            return truncatedText.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
 
         } catch {
             Log.error("[DocumentSummary] LLM summary failed: \(error), using extractive fallback", category: .pipeline)
