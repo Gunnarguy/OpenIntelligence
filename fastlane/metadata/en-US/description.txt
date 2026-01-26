@@ -1,6 +1,6 @@
 Ask your documents anything. Get answers with citations.
 
-OpenIntelligence is a document question-answering app that runs entirely on your device. Import PDFs, Word documents, spreadsheets, or any text file. Ask questions in plain English. Get accurate, cited answers powered by Apple Intelligence.
+OpenIntelligence is a document question-answering app that runs entirely on your device. Import PDFs, Word documents, spreadsheets, or any text file. Ask questions in plain English. Get accurate, cited answers powered by on-device AI.
 
 YOUR DOCUMENTS, YOUR DEVICE
 
@@ -13,7 +13,7 @@ HOW IT WORKS
 3. Receive an answer with exact citations to the source text
 4. Tap any citation to verify the original passage
 
-POWERED BY APPLE INTELLIGENCE
+POWERED BY ON-DEVICE AI
 
 • On-Device AI: Uses iOS Foundation Models running directly on your device's Neural Engine
 • Private Cloud Compute: Optional fallback for complex queries—same Apple privacy guarantees

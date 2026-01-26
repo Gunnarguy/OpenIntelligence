@@ -1202,7 +1202,8 @@ struct LLMResponse {
             )
 
             // Response continuation: detect if response was cut off and continue if needed
-            let needsContinuation = responseNeedsContinuation(responseText)
+            // Skip continuation if config explicitly disables it (e.g., for summarization)
+            let needsContinuation = !config.skipContinuation && responseNeedsContinuation(responseText)
             if needsContinuation {
                 Log.info("[FM] Response appears incomplete - attempting continuation", category: .llm)
                 let continuedText = try await continueGeneration(

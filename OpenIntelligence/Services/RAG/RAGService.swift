@@ -607,6 +607,8 @@ class RAGService: ObservableObject {
     // defer rebuild work until processing completes to restore retrieval.
     @MainActor private var pendingReembedContainerIds: Set<UUID> = []
     @MainActor private var pendingReembedTask: Task<Void, Never>?
+    /// When true, suppress automatic reembed kicks (used during onboarding batch import)
+    @MainActor private var suppressReembedKicks: Bool = false
 
     private(set) var totalChunksStored: Int = 0
     private let retrievalHistoryLimit = 50
@@ -1850,6 +1852,7 @@ class RAGService: ObservableObject {
     /// This prevents leaving a library with an empty index after a provider/dimension fallback.
     @MainActor
     private func kickPendingReembedIfNeeded() {
+        guard !suppressReembedKicks else { return }  // Suppress during onboarding
         guard !isProcessing else { return }
         guard pendingReembedTask == nil else { return }
         guard !pendingReembedContainerIds.isEmpty else { return }
@@ -1875,9 +1878,17 @@ class RAGService: ObservableObject {
         }
     }
 
+    /// Start suppressing automatic reembed kicks (call before batch onboarding import)
+    @MainActor
+    func beginOnboardingBatch() {
+        suppressReembedKicks = true
+        Log.info("[RAGService] Suppressing reembed kicks for onboarding batch", category: .ingestion)
+    }
+
     /// Clear any pending reembed operations (used after onboarding to prevent unnecessary rebuilds)
     @MainActor
     func clearPendingReembeds() {
+        suppressReembedKicks = false  // Re-enable kicks
         pendingReembedContainerIds.removeAll()
         pendingReembedTask?.cancel()
         pendingReembedTask = nil

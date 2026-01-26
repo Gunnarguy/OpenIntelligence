@@ -19,7 +19,7 @@
       "subscription_group": "com.openintelligence.subscriptions",
       "subscription_group_level": 1,
       "family_shareable": false,
-      "review_notes": "Unlocks unlimited documents, 5 knowledge libraries, and priority ingestion. All processing uses Apple Intelligence (on-device + Private Cloud Compute).",
+      "review_notes": "Unlocks unlimited documents, 5 knowledge libraries, and priority ingestion. All processing uses on-device AI with optional Private Cloud Compute.",
       "pricing": {
         "USD": 5.99,
         "tier": "Tier 6"

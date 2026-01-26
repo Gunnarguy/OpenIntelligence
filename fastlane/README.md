@@ -47,6 +47,14 @@ Upload to TestFlight for beta testing
 
 Increment build number
 
+### ios metadata
+
+```sh
+[bundle exec] fastlane ios metadata
+```
+
+Upload metadata only (no binary) - for fixing App Store rejection
+
 ### ios validate
 
 ```sh

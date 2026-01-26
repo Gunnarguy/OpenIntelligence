@@ -94,6 +94,10 @@ struct InferenceConfig {
     /// Use this for reasoning chain sessions where we want pure reasoning, not tool calls
     var disableTools: Bool = false
 
+    /// Skip automatic continuation for incomplete responses
+    /// Use this for summarization where we want concise output, not extended responses
+    var skipContinuation: Bool = false
+
     /// Preset for RAG queries (factual, non-repetitive, focused)
     static var ragOptimized: InferenceConfig {
         var config = InferenceConfig()

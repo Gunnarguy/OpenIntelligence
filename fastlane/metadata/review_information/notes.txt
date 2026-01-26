@@ -11,6 +11,6 @@ SAMPLE TEST: Import any PDF from Files. A simple Wikipedia article export works 
 
 SUBSCRIPTION TESTING: The Free tier allows 3 documents. Pro features unlock with subscription purchase.
 
-PRIVACY FEATURES: All processing runs on-device by default. The app uses Apple Intelligence (Foundation Models) which may use Private Cloud Compute for complex queries - this is handled automatically by iOS with zero data retention.
+PRIVACY FEATURES: All processing runs on-device by default. The app uses iOS Foundation Models which may use Private Cloud Compute for complex queries - this is handled automatically by iOS with zero data retention.
 
 NO DEMO CREDENTIALS NEEDED - the app does not require sign-in or account creation.

@@ -23,7 +23,7 @@ import UIKit
 
 /// Serial queue to prevent Metal command buffer race conditions
 /// when multiple threads try to render CIImages concurrently
-/// Marked nonisolated(unsafe) because DispatchQueue is thread-safe by design
+/// nonisolated(unsafe) required because Swift 6 treats module-level lets as main actor isolated
 nonisolated(unsafe) private let gpuRenderQueue = DispatchQueue(label: "com.openintelligence.structured-parser-gpu", qos: .userInitiated)
 
 /// Shared Metal-backed CIContext for GPU-accelerated image processing
@@ -767,8 +767,10 @@ actor StructuredDocumentParser {
 
         // RecognizeTextRequest (iOS 18+) has native async .perform(on:)
         // Throttle to prevent Metal GPU race conditions
+        // Capture request as a let to avoid Swift 6 concurrent capture warning
+        let configuredRequest = request
         let observations = try await VisionOCRThrottle.performAsync {
-            try await request.perform(on: imageData)
+            try await configuredRequest.perform(on: imageData)
         }
 
         // Combine all recognized text observations

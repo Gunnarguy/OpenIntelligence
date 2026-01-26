@@ -10,13 +10,12 @@ platform :ios do
     build_app(
       scheme: "OpenIntelligence",
       export_method: "app-store",
-      export_options: {
-        provisioningProfiles: {
-          "Gunndamental.OpenIntelligence" => "OpenIntelligence AppStore"
-        }
-      },
       output_directory: "./build",
-      output_name: "OpenIntelligence.ipa"
+      output_name: "OpenIntelligence.ipa",
+      export_options: {
+        signingStyle: "automatic",
+        teamID: "G4DLR3K35G"  # Your Apple Developer Team ID
+      }
     )
   end
 
