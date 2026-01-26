@@ -5,25 +5,36 @@
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Architecture](https://img.shields.io/badge/architecture-RAG%20%2B%20Actors-purple.svg)](Docs/reference/ARCHITECTURE.md)
 
-**Privacy-first RAG for iOS.** Import documents, ask questions, and receive grounded answers powered by advanced hybrid search and on-device intelligence.
+**Ask your documents anything. Get cited answers.**
 
-OpenIntelligence is a reference implementation of a production-grade **Retrieval-Augmented Generation (RAG)** pipeline on iOS. It demonstrates how to orchestrate local LLMs, vector databases, and hybrid search algorithms (BM25 + Vector + RRF) in a highly concurrent, memory-safe Swift environment.
+OpenIntelligence is a document question-answering app that runs entirely on your iOS device. Import PDFs, Word documents, spreadsheets, or any text file. Ask questions in plain English. Get accurate answers with citations powered by Apple Intelligence.
+
+---
+
+## What It Does
+
+1. **Import documents** - PDFs, Office files (DOCX/XLSX/PPTX), text files, images with text
+2. **Ask questions** - "What's the main topic?" "Find the revenue figures" "Summarize section 3"
+3. **Get cited answers** - Every response includes citations to the exact source passages
+4. **Verify sources** - Tap any citation to see the original text in context
+
+All processing happens on-device by default. Your files never leave your iPhone or iPad unless you explicitly enable Private Cloud Compute for complex queries.
 
 ---
 
 ## 🚀 Key Features
 
-- **Privacy by Design**: All processing happens on-device by default. Optional Private Cloud Compute (PCC) with cryptographic zero-retention.
-- **Hybrid Search Engine**: Combines **BM25** (keyword) and **Vector Search** (semantic) using **Reciprocal Rank Fusion (RRF)** and **Maximal Marginal Relevance (MMR)** for diverse, high-quality retrieval.
-- **Apple Intelligence**: Foundation Models with Private Cloud Compute fallback. On-device extractive QA always available.
-- **CoreML Embeddings**: 384-dimensional sentence embeddings via bundled all-MiniLM-L6-v2 model with Neural Engine acceleration.
-- **Self-RAG 2.0**: Research-validated multi-session reasoning with enrichment prompting (Chain-of-Verification, RR-MP 2025).
-- **Enhanced OCR**: 360 DPI rendering, contrast enhancement, and upscaling for high-quality text extraction from scanned documents.
-- **Office Document Support**: Native extraction for .docx, .xlsx, .pptx using ZIP-based parsing (no external dependencies).
-- **Agentic Tooling**: 8 `@Tool` decorated functions (iOS 26 FoundationModels.Tool protocol) allowing the LLM to search, summarize, count patterns, compare documents, and analyze your library.
-- **Multi-Chain Maximum Mode**: Parallel reasoning chains across document clusters, breaking the 4096 token ceiling.
-- **RAPTOR-lite Summaries**: Auto-generated document summaries for efficient overview queries.
-- **Observability**: Real-time telemetry badges (📱/☁️), execution timers (TTFT), granular ingestion pipeline visualization, and 3D embedding space exploration.
+- **Privacy by Design**: All processing happens on-device by default. Optional Private Cloud Compute (PCC) with Apple's zero-retention guarantee.
+- **Hybrid Search**: Combines BM25 keyword matching with vector semantic search using Reciprocal Rank Fusion (RRF).
+- **Apple Intelligence**: Powered by iOS 26 Foundation Models running on your device's Neural Engine.
+- **CoreML Embeddings**: 384-dimensional sentence embeddings via bundled all-MiniLM-L6-v2 model.
+- **Neural Reranking**: Cross-encoder CoreML model for precision relevance scoring.
+- **Enhanced OCR**: 360 DPI rendering with Metal GPU synchronization for scanned documents.
+- **Office Support**: Native extraction for DOCX, XLSX, PPTX (no external dependencies).
+- **8 Agentic Tools**: `@Tool` functions let the AI search, summarize, count patterns, compare documents, and analyze your library.
+- **Multi-Session Reasoning**: Deep Think mode uses 4-8 parallel reasoning sessions with Self-RAG 2.0 enrichment.
+- **Quality Modes**: Standard (fast), Deep Think (thorough), Maximum (multi-chain parallel reasoning).
+- **Observability**: Real-time telemetry badges (📱 On-Device / ☁️ PCC), execution timers, retrieval scores.
 
 ### 📷 Coming Soon (v1.2.0)
 
@@ -58,8 +69,8 @@ graph TD
     User[User Document] -->|Ingest| DP[DocumentProcessor]
     DP -->|Extract Text| PDF[PDFKit / Vision]
     DP -->|Chunk| SC[SemanticChunker]
-    SC -->|400w Chunks| ES[EmbeddingService]
-    ES -->|512-dim Vector| VSR[VectorStoreRouter]
+    SC -->|≤310w Chunks| ES[EmbeddingService]
+    ES -->|384-dim Vector| VSR[VectorStoreRouter]
     VSR -->|Persist| DB[(VectorDatabase)]
 
     Query[User Query] -->|Expand| QE[QueryEnhancement]
@@ -149,9 +160,9 @@ Navigate to the **Documents** tab. Drag and drop files. Supported formats:
 The app will:
 
 - **Parse** text using PDFKit, Vision OCR (360 DPI), or native Office extractors.
-- **Chunk** content into optimized 280-400 word segments with 17% overlap.
+- **Chunk** content into optimized ≤310 word segments with ~17% overlap.
 - **Embed** chunks using on-device CoreML (384-dim all-MiniLM-L6-v2).
-- **Index** for both vector and BM25 keyword search.
+- **Index** for both vector (HNSW) and BM25 keyword search.
 - **Store** complete original text for exact pattern queries.
 
 > 💡 **Tip**: Enable high-accuracy mode in Library Settings → Embedding Model for technical or complex documents.

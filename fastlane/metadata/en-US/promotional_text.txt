@@ -1,1 +1,1 @@
-12 research-backed RAG techniques on-device. Ask your documents anything—get cited answers. Hybrid search, neural reranking, agentic AI. Private by default.
+Import any document. Ask questions. Get cited answers. Powered by Apple Intelligence, running entirely on your device. No cloud uploads, no accounts, just answers.

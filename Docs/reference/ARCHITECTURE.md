@@ -1,16 +1,16 @@
 # OpenIntelligence Technical Architecture
 
-**Version**: 2.5
-**Date**: January 24, 2026
-**Status**: Production (App Store Submitted)
+**Version**: 2.6
+**Date**: January 25, 2026
+**Status**: Production (App Store Ready)
 
 ## Executive Summary
 
 OpenIntelligence is a native iOS 26 application implementing a complete Retrieval-Augmented Generation (RAG) pipeline. The architecture leverages Apple Intelligence (Foundation Models + Private Cloud Compute) while maintaining a protocol-based design.
 
-**Simple Concept:** Users upload documents, ask questions, get AI-powered answers using information from their documents.
+**Simple Concept:** Import any document. Ask questions in plain English. Get cited answers powered by on-device AI.
 
-**Latest (v2.5)**: Enhanced OCR (360 DPI), native Office doc extraction (.docx/.xlsx/.pptx), Self-RAG 2.0 enrichment prompting (research-validated), Deep Think quality mode fix.
+**Latest (v2.6)**: Metal GPU-synchronized OCR, TOC-aware reranking, 8 agentic @Tool functions, Self-RAG 2.0 enrichment prompting.
 
 ### Key Architectural Principles
 
