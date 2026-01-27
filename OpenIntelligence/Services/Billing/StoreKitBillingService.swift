@@ -46,6 +46,21 @@ final class StoreKitBillingService: BillingService {
                 category: .billing
             )
 
+            // Log StoreKit environment for debugging
+            let skEnvironment = await Transaction.currentEntitlements.first(where: { _ in true })
+            if let entitlement = skEnvironment {
+                if case .verified(let tx) = entitlement {
+                    Log.info("🌍 StoreKit environment: \(tx.environment.rawValue), storefront: \(tx.storefront.countryCode)", category: .billing)
+                }
+            } else {
+                // No entitlements - try to get storefront directly
+                if let storefront = await Storefront.current {
+                    Log.info("🌍 StoreKit storefront: \(storefront.countryCode), id: \(storefront.id)", category: .billing)
+                } else {
+                    Log.warning("🌍 No StoreKit storefront available - user may not be signed into App Store", category: .billing)
+                }
+            }
+
             let storeProducts = try await Product.products(for: ids)
             Log.info("📦 StoreKit returned \(storeProducts.count) products", category: .billing)
 

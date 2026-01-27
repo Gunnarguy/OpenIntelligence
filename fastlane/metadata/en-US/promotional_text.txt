@@ -1,1 +1,1 @@
-Import any document. Ask questions. Get cited answers. Powered by on-device AI, running entirely on your device. No cloud uploads, no accounts, just answers.
+12 RAG techniques. On-device AI. Ask your documents anything—get cited answers in seconds. No cloud, no accounts, just answers that prove themselves.

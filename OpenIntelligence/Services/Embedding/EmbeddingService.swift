@@ -38,6 +38,20 @@ class EmbeddingService {
     /// Maximum safe token count for this provider
     var maxSafeTokens: Int { provider.maxSafeTokens }
 
+    // MARK: - Ingestion Mode (GPU + ANE Parallelism)
+
+    /// Enable ingestion mode - forces embeddings to GPU so ANE can focus on Vision OCR
+    /// This creates true parallelism: GPU handles embeddings while ANE handles Vision OCR
+    /// Call this before starting document ingestion for up to 2x throughput
+    func enableIngestionMode() {
+        provider.enableIngestionMode()
+    }
+
+    /// Disable ingestion mode - returns to default compute units
+    func disableIngestionMode() {
+        provider.disableIngestionMode()
+    }
+
     // MARK: - Initialization
 
     init(

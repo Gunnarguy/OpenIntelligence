@@ -421,8 +421,16 @@ Works cited
         ),
     ]
 
+    /// Names of bundled sample documents in Resources/SampleDocuments
+    private let bundledSampleNames = [
+        "Aurora_EV7_Owners_Manual",
+        "HomeSync_Pro_User_Guide",
+        "Solaris_Industries_Annual_Report_2025"
+    ]
+
     /// Total number of bundled sample documents, used for quota calculations.
-    var sampleCount: Int { samples.count }
+    /// Includes both inline samples and bundled files.
+    var sampleCount: Int { samples.count + bundledSampleNames.count }
 
     /// Writes curated samples to disk and ingests them into the active RAG pipeline.
     /// Uses `.onboarding` context to prevent self-tuning rebuilds during initial setup.
@@ -458,6 +466,8 @@ Works cited
         try FileManager.default.createDirectory(at: samplesDir, withIntermediateDirectories: true)
 
         var urls: [URL] = []
+
+        // 1. Write inline samples (legacy/meta documents)
         for sample in samples {
             let filename = sample.filename.replacingOccurrences(of: " ", with: "-")
             let fileURL = samplesDir
@@ -470,6 +480,42 @@ Works cited
             }
             urls.append(fileURL)
         }
+
+        // 2. Copy bundled sample documents from Resources/SampleDocuments
+        let bundledSamples = loadBundledSampleDocuments(to: samplesDir)
+        urls.append(contentsOf: bundledSamples)
+
+        return urls
+    }
+
+    /// Load sample documents bundled in the app's Resources/SampleDocuments folder
+    /// These are pre-built, compelling demo documents (EV Manual, Smart Home Guide, Annual Report)
+    private func loadBundledSampleDocuments(to destinationDir: URL) -> [URL] {
+        var urls: [URL] = []
+
+        for filename in bundledSampleNames {
+            // Look for the file in the main bundle
+            guard let bundleURL = Bundle.main.url(forResource: filename, withExtension: "md") else {
+                Log.warning("[SampleDocumentManager] Bundled sample not found: \(filename).md")
+                continue
+            }
+
+            let destinationURL = destinationDir.appendingPathComponent("\(filename).md")
+
+            // Only copy if not already present
+            if !FileManager.default.fileExists(atPath: destinationURL.path) {
+                do {
+                    try FileManager.default.copyItem(at: bundleURL, to: destinationURL)
+                    Log.debug("[SampleDocumentManager] Copied bundled sample: \(filename)")
+                } catch {
+                    Log.error("[SampleDocumentManager] Failed to copy \(filename): \(error.localizedDescription)")
+                    continue
+                }
+            }
+
+            urls.append(destinationURL)
+        }
+
         return urls
     }
 }

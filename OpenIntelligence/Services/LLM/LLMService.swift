@@ -634,6 +634,59 @@ struct LLMResponse {
             return description
         }
 
+        // MARK: - Transcript Token Estimation (iOS 26+)
+
+        /// Estimate the token count of the current session transcript.
+        /// This is critical for context budget calculation to avoid overflow.
+        /// Uses conservative 1.4 chars/token ratio (empirically validated for Apple FM).
+        var estimatedTranscriptTokens: Int {
+            guard Thread.isMainThread, let transcript = transcript else { return 0 }
+
+            var totalChars = 0
+            for entry in transcript {
+                switch entry {
+                case let .instructions(inst):
+                    totalChars += String(describing: inst).count
+                case let .prompt(prompt):
+                    totalChars += String(describing: prompt).count
+                case let .response(resp):
+                    totalChars += String(describing: resp).count
+                case let .toolCalls(calls):
+                    // Tool calls are typically compact JSON
+                    totalChars += calls.count * 100 // ~100 chars per tool call average
+                case let .toolOutput(output):
+                    totalChars += String(describing: output).count
+                @unknown default:
+                    totalChars += 50 // Conservative estimate for unknown types
+                }
+            }
+
+            // Use conservative 1.4 chars/token for Apple FM
+            return max(0, Int(ceil(Double(totalChars) / 1.4)))
+        }
+
+        /// Estimate tokens for a pending transcript (before session creation)
+        static func estimateTranscriptTokens(_ transcript: Transcript) -> Int {
+            var totalChars = 0
+            for entry in transcript {
+                switch entry {
+                case let .instructions(inst):
+                    totalChars += String(describing: inst).count
+                case let .prompt(prompt):
+                    totalChars += String(describing: prompt).count
+                case let .response(resp):
+                    totalChars += String(describing: resp).count
+                case let .toolCalls(calls):
+                    totalChars += calls.count * 100
+                case let .toolOutput(output):
+                    totalChars += String(describing: output).count
+                @unknown default:
+                    totalChars += 50
+                }
+            }
+            return max(0, Int(ceil(Double(totalChars) / 1.4)))
+        }
+
         // MARK: - Feedback API (iOS 26+)
 
         /// Submit feedback for the last response to help Apple improve model quality

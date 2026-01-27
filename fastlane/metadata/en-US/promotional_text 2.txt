@@ -1,0 +1,1 @@
+12 research-backed RAG techniques on-device. Ask your documents anything—get cited answers. Hybrid search, neural reranking, agentic AI. Private by default.

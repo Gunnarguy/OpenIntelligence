@@ -1,146 +1,173 @@
 {
-  "identifier": "com.openintelligence.storekit",
-  "description": "StoreKit configuration for local testing of OpenIntelligence monetization tiers.",
-  "version": 1,
-  "defaultLocale": "en_US",
-  "products": [
-    {
-      "id": "pro_monthly",
-      "type": "auto-renewable-subscription",
-      "referenceName": "Pro Monthly",
-      "familySharable": false,
-      "price": {
-        "currencyCode": "USD",
-        "value": 5.99
-      },
-      "subscription": {
-        "groupID": "com.openintelligence.subscriptions",
-        "duration": "P1M",
-        "localizations": [
-          {
-            "locale": "en_US",
-            "name": "Pro Monthly",
-            "description": "Unlimited documents, 5 libraries, and premium retrieval controls."
-          },
-          {
-            "locale": "en_GB",
-            "name": "Pro Monthly",
-            "description": "Unlimited documents, 5 libraries, and premium retrieval controls."
-          },
-          {
-            "locale": "de_DE",
-            "name": "Pro Monatsabo",
-            "description": "Unbegrenzte Dokumente, 5 Bibliotheken und erweiterte Retrieval-Einstellungen."
-          },
-          {
-            "locale": "ja_JP",
-            "name": "プロプラン（月額）",
-            "description": "無制限のドキュメント、5 つのライブラリ、高度な検索コントロールを提供します。"
-          }
-        ],
-        "levels": [
-          1
-        ]
+  "appPolicies" : {
+    "eula" : "",
+    "policies" : [
+      {
+        "locale" : "en_US",
+        "policyText" : "",
+        "policyURL" : ""
       }
-    },
+    ]
+  },
+  "identifier" : "4F5D8D7E-8C9A-4B3D-A1E2-7F6C5D4E3B2A",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
     {
-      "id": "pro_annual",
-      "type": "auto-renewable-subscription",
-      "referenceName": "Pro Annual",
-      "familySharable": true,
-      "price": {
-        "currencyCode": "USD",
-        "value": 49.99
-      },
-      "subscription": {
-        "groupID": "com.openintelligence.subscriptions",
-        "duration": "P1Y",
-        "localizations": [
-          {
-            "locale": "en_US",
-            "name": "Pro Annual",
-            "description": "Annual billing for unlimited documents and 5 libraries. Save 30%."
-          },
-          {
-            "locale": "en_GB",
-            "name": "Pro Annual",
-            "description": "Annual billing for unlimited documents and 5 libraries. Save 30%."
-          },
-          {
-            "locale": "es_ES",
-            "name": "Pro Anual",
-            "description": "Facturación anual para documentos ilimitados y 5 bibliotecas. Ahorra 30%."
-          }
-        ],
-        "levels": [
-          1
-        ]
-      }
-    },
-    {
-      "id": "lifetime_cohort",
-      "type": "non-consumable",
-      "referenceName": "Lifetime Cohort",
-      "familySharable": true,
-      "price": {
-        "currencyCode": "USD",
-        "value": 59.99
-      },
-      "localizations": [
+      "displayPrice" : "59.99",
+      "familyShareable" : true,
+      "internalID" : "A1B2C3D4-E5F6-7890-ABCD-EF1234567890",
+      "localizations" : [
         {
-          "locale": "en_US",
-          "name": "Lifetime Cohort",
-          "description": "One-time unlock for unlimited documents, 10 libraries, and all Pro features forever."
-        },
-        {
-          "locale": "en_GB",
-          "name": "Lifetime Cohort",
-          "description": "One-time unlock for unlimited documents, 10 libraries, and all Pro features forever."
-        },
-        {
-          "locale": "de_DE",
-          "name": "Lifetime-Paket",
-          "description": "Einmaliger Kauf für unbegrenzte Dokumente, 10 Bibliotheken und alle Pro-Funktionen für immer."
-        },
-        {
-          "locale": "ja_JP",
-          "name": "ライフタイム・コホート",
-          "description": "1 回の購入で無制限のドキュメント、10 のライブラリ、すべての Pro 機能を永久にアンロック。"
+          "description" : "One-time unlock for unlimited documents, 10 libraries, and all Pro features forever.",
+          "displayName" : "Lifetime Cohort",
+          "locale" : "en_US"
         }
-      ]
+      ],
+      "productID" : "lifetime_cohort",
+      "referenceName" : "Lifetime Cohort",
+      "type" : "NonConsumable"
     },
     {
-      "id": "doc_pack_addon",
-      "type": "consumable",
-      "referenceName": "Document Pack Add-on",
-      "familySharable": false,
-      "price": {
-        "currencyCode": "USD",
-        "value": 2.99
+      "displayPrice" : "2.99",
+      "familyShareable" : false,
+      "internalID" : "B2C3D4E5-F6A7-8901-BCDE-F23456789012",
+      "localizations" : [
+        {
+          "description" : "Adds 10 extra documents to your workspace quota.",
+          "displayName" : "Document Pack",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "doc_pack_addon",
+      "referenceName" : "Document Pack Add-on",
+      "type" : "Consumable"
+    }
+  ],
+  "settings" : {
+    "_applicationInternalID" : "6740851925",
+    "_developerTeamID" : "Z3E334EXZD",
+    "_failTransactionsEnabled" : false,
+    "_locale" : "en_US",
+    "_storefront" : "USA",
+    "_storeKitErrors" : [
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Load Products"
       },
-      "localizations": [
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Purchase"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Verification"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "App Store Sync"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Subscription Status"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "App Transaction"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Manage Subscriptions Sheet"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Refund Request Sheet"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Offer Code Redeem Sheet"
+      }
+    ]
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "com.openintelligence.subscriptions",
+      "localizations" : [
+
+      ],
+      "name" : "OpenIntelligence Plans",
+      "subscriptions" : [
         {
-          "locale": "en_US",
-          "name": "Document Pack",
-          "description": "Adds 10 extra documents to your workspace quota."
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "5.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "C3D4E5F6-A7B8-9012-CDEF-345678901234",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Unlimited documents, 5 libraries, and premium retrieval controls.",
+              "displayName" : "Pro Monthly",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "pro_monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Pro Monthly",
+          "subscriptionGroupID" : "com.openintelligence.subscriptions",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
         },
         {
-          "locale": "en_GB",
-          "name": "Document Pack",
-          "description": "Adds 10 additional documents to the workspace quota."
-        },
-        {
-          "locale": "fr_FR",
-          "name": "Pack de documents",
-          "description": "Ajoute 10 documents supplémentaires à votre quota."
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "49.99",
+          "familyShareable" : true,
+          "groupNumber" : 1,
+          "internalID" : "D4E5F6A7-B8C9-0123-DEFA-456789012345",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Annual billing for unlimited documents and 5 libraries. Save 30%.",
+              "displayName" : "Pro Annual",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "pro_annual",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "Pro Annual",
+          "subscriptionGroupID" : "com.openintelligence.subscriptions",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
         }
       ]
     }
   ],
-  "subscriptionGroups": [
-    {
-      "id": "com.openintelligence.subscriptions",
-      "referenceName": "OpenIntelligence Plans"
-    }
-  ]
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
 }

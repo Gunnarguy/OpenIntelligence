@@ -38,6 +38,19 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
         setup()
     }
 
+    // MARK: - Ingestion Mode (No-op)
+    // NOTE: Dual-model GPU+ANE parallelism caused Metal synchronizeResource crashes.
+    // Vision OCR + GPU embeddings + PDF rendering overwhelms Metal command buffer queue.
+    // Keeping as no-op for API compatibility.
+
+    func enableIngestionMode() {
+        // No-op: Dual-model approach caused MTLDebugBlitCommandEncoder crashes
+    }
+
+    func disableIngestionMode() {
+        // No-op
+    }
+
     private func setup() {
         // Load Model (compiled from .mlpackage to .mlmodelc by Xcode)
         #if canImport(CoreML)
