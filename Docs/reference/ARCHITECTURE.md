@@ -1,7 +1,7 @@
 # OpenIntelligence Technical Architecture
 
-**Version**: 2.6
-**Date**: January 25, 2026
+**Version**: 2.7
+**Date**: January 26, 2026
 **Status**: Production (App Store Ready)
 
 ## Executive Summary
@@ -10,7 +10,7 @@ OpenIntelligence is a native iOS 26 application implementing a complete Retrieva
 
 **Simple Concept:** Import any document. Ask questions in plain English. Get cited answers powered by on-device AI.
 
-**Latest (v2.6)**: Metal GPU-synchronized OCR, TOC-aware reranking, 8 agentic @Tool functions, Self-RAG 2.0 enrichment prompting.
+**Latest (v2.7)**: Device-tier-aware Vision concurrency, platform-specific Metal optimizations, Mac compatibility via iPad mode.
 
 ### Key Architectural Principles
 
@@ -203,6 +203,20 @@ User Query Input
 | Language Correction  | `.usesLanguageCorrection = true` | ✅ Enabled      |
 | Image Upscaling      | CIFilter.lanczosScaleTransform   | ✅ New          |
 | Contrast Enhancement | CIColorControls                  | ✅ New          |
+
+**Device-Tier-Aware Vision Concurrency** (Jan 26, 2026):
+
+`VisionOCRThrottle` controls concurrent Vision OCR operations with device-specific tuning:
+
+| Device Tier    | Chip     | Vision Ops | Cooldown | Notes                        |
+| -------------- | -------- | ---------- | -------- | ---------------------------- |
+| Enhanced       | A18 Pro  | 5          | 5ms      | Neural Engine optimized      |
+| Advanced       | A19 Pro  | 6          | 3ms      | Next-gen ANE                 |
+| Ultra-Advanced | M-series | 6          | 3ms      | Active cooling (iPad Pro)    |
+| Mac Compatible | M-series | 3          | 10ms     | Conservative for macOS Metal |
+| Baseline       | A17 Pro  | 4          | 8ms      | Conservative for thermal     |
+
+**Platform Detection**: On Mac (via "Designed for iPad"), Metal command buffer scheduling differs from iOS. The system automatically detects `ProcessInfo.processInfo.isiOSAppOnMac` and uses conservative concurrency to prevent Metal validation errors in Apple's Vision framework.
 
 **OCR Quality Improvements** (Jan 24, 2026):
 
@@ -1008,6 +1022,23 @@ Turn 3: "And its towing capacity?"  ← "its" = Telluride
 | A18 (iPhone 16)         | 6         | 24,000     | Standard agentic |
 | A19 (iPhone 17)         | 8         | 32,000     | Enhanced agentic |
 | M-series (iPad Pro)     | 10        | 48,000     | Full power       |
+
+**Device Capability Detection** (Jan 26, 2026):
+
+`DeviceCapabilityService` detects device tier, chip, form factor, and NPU TOPS at runtime:
+
+| Property                   | Purpose                                            |
+| -------------------------- | -------------------------------------------------- |
+| `tier`                     | Capability tier (baseline/enhanced/advanced/ultra) |
+| `chipName`                 | Chip identifier (A17 Pro, A18 Pro, M3, etc.)       |
+| `npuTops`                  | Neural Engine TOPS (35-45 for A17-A19 Pro)         |
+| `isMac`                    | Mac detection (native or iPad app on Mac)          |
+| `visionParsingConcurrency` | Concurrent Vision parsing pages (6-12)             |
+| `ocrExtractionConcurrency` | Concurrent OCR extraction pages (6-14)             |
+| `embeddingConcurrency`     | Concurrent embedding requests (8-16)               |
+| `gpuConcurrency`           | Concurrent GPU operations (4-12)                   |
+
+**Platform-Specific Tuning**: Mac (via "Designed for iPad") receives more conservative concurrency values due to differences in macOS Metal command buffer scheduling.
 
 ### SystemStateMonitor
 

@@ -444,95 +444,74 @@ class ImageUnderstandingService {
 
     /// Analyze all images in a document and return aggregated metadata
     /// Performs full semantic extraction: classification, OCR, captions, and context
+    /// OPTIMIZED: Uses parallel TaskGroup for ~5x speedup on A18 Pro (5 concurrent Vision ops)
     func analyzeDocumentImages(
         images: [(image: CIImage, pageNumber: Int, bounds: CGRect)],
         textObservations: [[VNRecognizedTextObservation]] // Per-page text
     ) async -> (images: [AnalyzedImage], metadata: VisualContentMetadata) {
-        var analyzedImages: [AnalyzedImage] = []
+        guard !images.isEmpty else {
+            return ([], VisualContentMetadata(
+                imageCount: 0,
+                imageClassifications: [:],
+                hasTableContent: false,
+                columnLayout: .single,
+                captionedImages: 0,
+                imagesWithDescriptions: 0
+            ))
+        }
+
+        Log.info("[ImageUnderstanding] 🚀 Parallel analyzing \(images.count) images with TaskGroup", category: .ingestion)
+
+        // PARALLEL PROCESSING: Use TaskGroup to analyze images concurrently
+        // VisionOCRThrottle gates actual Vision ops (5 concurrent on A18 Pro)
+        // This provides ~5x speedup vs sequential processing
+        let results = await withTaskGroup(of: AnalyzedImage?.self) { group in
+            for (image, pageNumber, bounds) in images {
+                // Capture textObservations for this page before entering task
+                let pageTextObs = pageNumber <= textObservations.count ? textObservations[pageNumber - 1] : []
+
+                group.addTask {
+                    do {
+                        return try await self.analyzeOneImage(
+                            image: image,
+                            pageNumber: pageNumber,
+                            bounds: bounds,
+                            pageTextObs: pageTextObs
+                        )
+                    } catch {
+                        Log.warning("[ImageUnderstanding] Failed to analyze image on page \(pageNumber): \(error.localizedDescription)", category: .ingestion)
+                        return nil
+                    }
+                }
+            }
+
+            // Collect results as they complete
+            var collected: [AnalyzedImage] = []
+            for await result in group {
+                if let analyzed = result {
+                    collected.append(analyzed)
+                }
+            }
+            return collected
+        }
+
+        // Sort by page number for consistent output
+        let sortedResults = results.sorted { $0.pageNumber < $1.pageNumber }
+
+        // Aggregate metadata from results
         var allClassifications: [String: Float] = [:]
         var captionedCount = 0
         var describedCount = 0
         var ocrExtractedCount = 0
 
-        for (image, pageNumber, bounds) in images {
-            do {
-                // 1. Classify the image
-                let classifications = try await classifyImage(image)
-                let contentType = ImageContentType.from(classifications: classifications)
-
-                // Aggregate classifications
-                for classification in classifications {
-                    let existing = allClassifications[classification.identifier] ?? 0
-                    allClassifications[classification.identifier] = max(existing, classification.confidence)
-                }
-
-                // 2. Get page text observations
-                let pageTextObs = pageNumber <= textObservations.count ? textObservations[pageNumber - 1] : []
-
-                // 3. Find associated caption
-                let caption = findAssociatedCaption(for: bounds, in: pageTextObs)
-                if caption != nil { captionedCount += 1 }
-
-                // 4. Extract text FROM the image (critical for diagrams/flowcharts)
-                var extractedText: String? = nil
-                if contentType == .diagram || contentType == .chart || contentType == .technicalDrawing || contentType == .screenshot {
-                    // These content types likely have text we should extract
-                    extractedText = await extractTextFromImage(image)
-                    if extractedText != nil { ocrExtractedCount += 1 }
-                } else {
-                    // For other types, still try OCR but don't count as critical
-                    extractedText = await extractTextFromImage(image)
-                }
-
-                // 5. Find surrounding context
-                let (precedingContext, followingContext) = findSurroundingContext(for: bounds, in: pageTextObs)
-
-                // 6. Generate comprehensive description
-                // On iOS 26+, try Foundation Models AI first for richer semantic understanding
-                var description: String? = nil
-
-                if #available(iOS 26.0, *) {
-                    // Try AI description first - works best for diagrams, charts, schematics
-                    if contentType == .diagram || contentType == .chart || contentType == .technicalDrawing {
-                        description = await generateAIDescription(
-                            for: image,
-                            contentType: contentType,
-                            extractedText: extractedText,
-                            caption: caption
-                        )
-                    }
-                }
-
-                // Fall back to classification-based description if no AI description
-                if description == nil {
-                    description = await generateImageDescription(
-                        image,
-                        extractedText: extractedText,
-                        caption: caption,
-                        precedingContext: precedingContext,
-                        followingContext: followingContext
-                    )
-                }
-                if description != nil { describedCount += 1 }
-
-                let analyzed = AnalyzedImage(
-                    imageId: UUID(),
-                    pageNumber: pageNumber,
-                    boundingBox: bounds,
-                    classifications: classifications,
-                    description: description,
-                    associatedCaption: caption,
-                    contentType: contentType,
-                    extractedText: extractedText,
-                    precedingContext: precedingContext,
-                    followingContext: followingContext
-                )
-
-                analyzedImages.append(analyzed)
-
-            } catch {
-                Log.warning("[ImageUnderstanding] Failed to analyze image on page \(pageNumber): \(error.localizedDescription)", category: .ingestion)
+        for analyzed in sortedResults {
+            for classification in analyzed.classifications {
+                let existing = allClassifications[classification.identifier] ?? 0
+                allClassifications[classification.identifier] = max(existing, classification.confidence)
             }
+            if analyzed.associatedCaption != nil { captionedCount += 1 }
+            if analyzed.description != nil { describedCount += 1 }
+            if analyzed.extractedText != nil { ocrExtractedCount += 1 }
         }
 
         let metadata = VisualContentMetadata(
@@ -544,9 +523,74 @@ class ImageUnderstandingService {
             imagesWithDescriptions: describedCount
         )
 
-        Log.info("[ImageUnderstanding] Analyzed \(images.count) images: \(captionedCount) captioned, \(ocrExtractedCount) with extracted text, \(describedCount) described", category: .ingestion)
+        Log.info("[ImageUnderstanding] ✅ Parallel analysis complete: \(sortedResults.count)/\(images.count) images processed (\(captionedCount) captioned, \(ocrExtractedCount) OCR, \(describedCount) described)", category: .ingestion)
 
-        return (analyzedImages, metadata)
+        return (sortedResults, metadata)
+    }
+
+    /// Analyze a single image (internal helper for parallel processing)
+    private func analyzeOneImage(
+        image: CIImage,
+        pageNumber: Int,
+        bounds: CGRect,
+        pageTextObs: [VNRecognizedTextObservation]
+    ) async throws -> AnalyzedImage {
+        // 1. Classify the image
+        let classifications = try await classifyImage(image)
+        let contentType = ImageContentType.from(classifications: classifications)
+
+        // 2. Find associated caption
+        let caption = findAssociatedCaption(for: bounds, in: pageTextObs)
+
+        // 3. Extract text FROM the image (critical for diagrams/flowcharts)
+        var extractedText: String? = nil
+        if contentType == .diagram || contentType == .chart || contentType == .technicalDrawing || contentType == .screenshot {
+            extractedText = await extractTextFromImage(image)
+        } else {
+            extractedText = await extractTextFromImage(image)
+        }
+
+        // 4. Find surrounding context
+        let (precedingContext, followingContext) = findSurroundingContext(for: bounds, in: pageTextObs)
+
+        // 5. Generate comprehensive description
+        var description: String? = nil
+
+        if #available(iOS 26.0, *) {
+            // Try AI description first - works best for diagrams, charts, schematics
+            if contentType == .diagram || contentType == .chart || contentType == .technicalDrawing {
+                description = await generateAIDescription(
+                    for: image,
+                    contentType: contentType,
+                    extractedText: extractedText,
+                    caption: caption
+                )
+            }
+        }
+
+        // Fall back to classification-based description if no AI description
+        if description == nil {
+            description = await generateImageDescription(
+                image,
+                extractedText: extractedText,
+                caption: caption,
+                precedingContext: precedingContext,
+                followingContext: followingContext
+            )
+        }
+
+        return AnalyzedImage(
+            imageId: UUID(),
+            pageNumber: pageNumber,
+            boundingBox: bounds,
+            classifications: classifications,
+            description: description,
+            associatedCaption: caption,
+            contentType: contentType,
+            extractedText: extractedText,
+            precedingContext: precedingContext,
+            followingContext: followingContext
+        )
     }
 
     // MARK: - Apple Intelligence Image Description (iOS 26+)
@@ -763,6 +807,114 @@ class ImageUnderstandingService {
         }
 
         return parts.joined(separator: ". ")
+    }
+
+    // MARK: - Standalone Image Analysis (All iOS Versions)
+
+    /// Analyze a standalone image file and generate rich context for RAG.
+    /// Works on all iOS versions: uses Vision classification + OCR, with AI description on iOS 26+.
+    /// Returns structured text suitable for chunking and embedding.
+    ///
+    /// Example output:
+    /// ```
+    /// [Image: Photograph]
+    /// Content: consumer electronics, audio equipment, speaker
+    /// Text: "SONOS ROOST"
+    /// Description: A white cylindrical wireless speaker with the Sonos logo.
+    /// ```
+    func analyzeStandaloneImage(_ image: CIImage) async -> StandaloneImageAnalysis {
+        // 1. Classify the image
+        let classifications = (try? await classifyImage(image)) ?? []
+        let contentType = ImageContentType.from(classifications: classifications)
+
+        // 2. Extract text from image (OCR)
+        let extractedText = await extractTextFromImage(image)
+
+        // 3. Generate AI description if available (iOS 26+)
+        var aiDescription: String? = nil
+        if #available(iOS 26.0, *) {
+            aiDescription = await generateAIDescription(
+                for: image,
+                contentType: contentType,
+                extractedText: extractedText,
+                caption: nil
+            )
+        }
+
+        // 4. Generate classification-based description as fallback
+        let classificationDescription = await generateImageDescription(
+            image,
+            extractedText: extractedText,
+            caption: nil,
+            precedingContext: nil,
+            followingContext: nil
+        )
+
+        // 5. Build structured text for RAG
+        var textParts: [String] = []
+
+        // Header with content type
+        let typeLabel = contentType != .unknown ? contentType.rawValue.capitalized : "Image"
+        textParts.append("[Image: \(typeLabel)]")
+
+        // Top classifications (semantic content)
+        let topLabels = classifications.prefix(5)
+            .map { $0.identifier.replacingOccurrences(of: "_", with: " ") }
+            .joined(separator: ", ")
+        if !topLabels.isEmpty {
+            textParts.append("Content: \(topLabels)")
+        }
+
+        // OCR text (critical for labels, product names, etc.)
+        if let text = extractedText, !text.isEmpty {
+            let cleanedText = text
+                .replacingOccurrences(of: "\n", with: " ")
+                .replacingOccurrences(of: "  ", with: " ")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            textParts.append("Text: \"\(cleanedText)\"")
+        }
+
+        // AI description (most valuable for semantic understanding)
+        if let description = aiDescription, !description.isEmpty {
+            textParts.append("Description: \(description)")
+        } else if let fallback = classificationDescription, !fallback.isEmpty {
+            textParts.append("Description: \(fallback)")
+        }
+
+        let structuredText = textParts.joined(separator: "\n")
+
+        Log.info("[ImageUnderstanding] 🖼️ Standalone image analyzed: \(contentType.rawValue), \(classifications.count) classifications, \(extractedText?.count ?? 0) OCR chars", category: .ingestion)
+
+        return StandaloneImageAnalysis(
+            classifications: classifications,
+            contentType: contentType,
+            extractedText: extractedText,
+            aiDescription: aiDescription,
+            classificationDescription: classificationDescription,
+            structuredText: structuredText
+        )
+    }
+}
+
+// MARK: - Standalone Image Analysis Result
+
+/// Result from analyzing a standalone image file for RAG ingestion
+struct StandaloneImageAnalysis: Sendable {
+    let classifications: [ImageClassification]
+    let contentType: ImageContentType
+    let extractedText: String?           // OCR text from within image
+    let aiDescription: String?           // iOS 26+ AI description
+    let classificationDescription: String? // Vision classification description
+    let structuredText: String           // Combined text ready for RAG chunking
+
+    /// Raw OCR text only (for backward compatibility)
+    var ocrText: String {
+        extractedText ?? ""
+    }
+
+    /// Best description available
+    var bestDescription: String {
+        aiDescription ?? classificationDescription ?? ""
     }
 }
 

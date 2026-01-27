@@ -813,7 +813,7 @@ Text(deviceService.chipName)
         VStack(alignment: .leading, spacing: 12) {
             // Header
             HStack(spacing: 8) {
-                Image(systemName: "gpu")
+                Image(systemName: "square.stack.3d.up.fill")
                     .font(.caption)
                     .foregroundColor(.green)
                 Text("GPU Acceleration")

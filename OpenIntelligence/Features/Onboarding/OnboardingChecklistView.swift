@@ -422,13 +422,13 @@ struct OnboardingChecklistView: View {
                     .foregroundColor(.white.opacity(0.7))
 
                 HStack(spacing: 8) {
-                    SampleDocChip(title: "Pricing Brief", icon: "doc.text")
-                    SampleDocChip(title: "Architecture", icon: "building.2")
+                    SampleDocChip(title: "EV Owner's Manual", icon: "car.fill")
+                    SampleDocChip(title: "Smart Home Guide", icon: "homekit")
                 }
 
                 HStack(spacing: 8) {
-                    SampleDocChip(title: "User Guide", icon: "book")
-                    SampleDocChip(title: "FAQ", icon: "questionmark.circle")
+                    SampleDocChip(title: "Annual Report", icon: "chart.bar.doc.horizontal")
+                    SampleDocChip(title: "Tech Specs", icon: "cpu")
                 }
             }
 .padding(.horizontal, 32)

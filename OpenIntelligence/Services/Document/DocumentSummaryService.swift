@@ -25,6 +25,10 @@ actor DocumentSummaryService {
         /// Target word count for summaries
         let targetWords: Int
         /// Maximum input characters for summarization (prevents context overflow)
+        /// CRITICAL: Technical text can have 2.5+ tokens/word, so be conservative
+        /// 4096 token limit - 200 output tokens - 100 prompt overhead = ~3800 max input tokens
+        /// At 2.5 tokens/word and 5 chars/word: ~3800/2.5 * 5 = 7600 chars
+        /// Use 5500 for safety margin with highly technical documents (manuals, specs)
         let maxInputChars: Int
         /// Whether to include entity extraction in summary
         let extractEntities: Bool
@@ -33,14 +37,14 @@ actor DocumentSummaryService {
 
         static let `default` = SummaryConfig(
             targetWords: 150,
-            maxInputChars: 8000,  // ~2000 tokens, leaves room for output
+            maxInputChars: 5500,  // ~1400-1800 tokens, leaves room for output + prompt
             extractEntities: true,
             extractTopics: true
         )
 
         static let compact = SummaryConfig(
             targetWords: 80,
-            maxInputChars: 4000,
+            maxInputChars: 3500,
             extractEntities: false,
             extractTopics: true
         )
@@ -193,6 +197,22 @@ actor DocumentSummaryService {
         // With prefix overhead, target ~120 words max to stay safe
         let safeTargetWords = min(config.targetWords, 120)
 
+        // Pre-flight token estimation with conservative 2.5 chars/token
+        // Apple FM context window is 4096 tokens
+        // Budget: 4096 - 200 (output) - 150 (prompt overhead) = 3746 input tokens max
+        let maxInputTokens = 3746
+        let estimatedTokens = Int(ceil(Double(representativeText.count) / 2.5))
+
+        // Truncate input if estimated tokens exceed budget
+        let safeInputText: String
+        if estimatedTokens > maxInputTokens {
+            let safeCharLimit = Int(Double(maxInputTokens) * 2.5)
+            safeInputText = String(representativeText.prefix(safeCharLimit))
+            Log.warning("[DocumentSummary] Truncating input from \(representativeText.count) to \(safeCharLimit) chars (estimated \(estimatedTokens) → \(maxInputTokens) tokens)", category: .pipeline)
+        } else {
+            safeInputText = String(representativeText.prefix(config.maxInputChars))
+        }
+
         let prompt = """
         Summarize this document in EXACTLY \(safeTargetWords) words or fewer. Do NOT exceed this limit.
         Focus on: main topics, key information, and document purpose.
@@ -201,7 +221,7 @@ actor DocumentSummaryService {
         Document: \(documentName)
 
         Content:
-        \(representativeText.prefix(config.maxInputChars))
+        \(safeInputText)
 
         Summary (\(safeTargetWords) words max):
         """

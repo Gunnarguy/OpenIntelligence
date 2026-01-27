@@ -23,8 +23,7 @@ import UIKit
 
 /// Serial queue to prevent Metal command buffer race conditions
 /// when multiple threads try to render CIImages concurrently
-/// nonisolated(unsafe) required because Swift 6 treats module-level lets as main actor isolated
-nonisolated(unsafe) private let gpuRenderQueue = DispatchQueue(label: "com.openintelligence.structured-parser-gpu", qos: .userInitiated)
+private let gpuRenderQueue = DispatchQueue(label: "com.openintelligence.structured-parser-gpu", qos: .userInitiated)
 
 /// Shared Metal-backed CIContext for GPU-accelerated image processing
 /// CIContext is thread-safe.

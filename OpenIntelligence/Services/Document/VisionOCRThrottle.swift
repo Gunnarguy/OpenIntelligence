@@ -11,8 +11,8 @@
 //  command buffer synchronization, leading to crashes like:
 //      MTLDebugBlitCommandEncoder synchronizeResource:
 //
-//  SOLUTION: We use a counting semaphore with explicit Metal GPU synchronization.
-//  This allows LIMITED parallelism (2-3 concurrent) while preventing GPU overload.
+//  SOLUTION: Actor-based async semaphore that leverages Swift Concurrency's
+//  priority propagation to avoid priority inversion warnings.
 //
 //  Usage (synchronous - for legacy VN* APIs):
 //      VisionOCRThrottle.performSync {
@@ -30,20 +30,62 @@ import Metal
 
 // MARK: - Metal GPU Synchronization
 
+/// Check if we're running on Apple Silicon (unified memory architecture)
+/// On Apple Silicon, Metal uses MTLResourceStorageModeShared by default.
+/// Calling synchronizeResource on shared storage is INVALID and crashes.
+private let isAppleSilicon: Bool = {
+    #if arch(arm64)
+    return true
+    #else
+    return false
+    #endif
+}()
+
+/// Check if running on Mac (native or iOS app on Mac)
+private let isRunningOnMac: Bool = {
+    var systemInfo = utsname()
+    uname(&systemInfo)
+    let machine = withUnsafePointer(to: &systemInfo.machine) {
+        $0.withMemoryRebound(to: CChar.self, capacity: 1) {
+            String(cString: $0)
+        }
+    }
+    return machine.contains("Mac") || ProcessInfo.processInfo.isiOSAppOnMac
+}()
+
 /// Shared Metal device for GPU synchronization
 /// We use this to force GPU command buffer completion between Vision calls
-/// nonisolated(unsafe) required because Swift 6 treats module-level lets as main actor isolated
-nonisolated(unsafe) private let metalDevice: MTLDevice? = MTLCreateSystemDefaultDevice()
-nonisolated(unsafe) private let metalQueue: MTLCommandQueue? = metalDevice?.makeCommandQueue()
+/// Only used on iOS devices - disabled on Apple Silicon Macs due to shared memory architecture
+private let metalDevice: MTLDevice? = {
+    // On Apple Silicon Macs, we skip GPU sync entirely
+    // Shared storage mode doesn't need synchronization
+    if isAppleSilicon && isRunningOnMac {
+        return nil
+    }
+    return MTLCreateSystemDefaultDevice()
+}()
+private let metalQueue: MTLCommandQueue? = metalDevice?.makeCommandQueue()
 
 /// Force GPU to complete all pending work
 /// This drains the Metal command queue, ensuring Vision's async GPU work is complete
 /// Must be nonisolated to be callable from any context
+///
+/// IMPORTANT: This is a NO-OP on Apple Silicon Macs!
+/// Apple Silicon uses unified memory with MTLResourceStorageModeShared.
+/// Calling synchronizeResource on shared storage causes assertion failures:
+///   "synchronizeResource: only applies when resourceOptions & MTLResourceStorageModeMask == MTLResourceStorageModeManaged"
+/// iOS devices use different storage modes and need this synchronization.
 nonisolated private func synchronizeGPU() {
+    // Skip entirely on Apple Silicon Macs - shared memory doesn't need sync
+    if isAppleSilicon && isRunningOnMac {
+        return
+    }
+
     guard let queue = metalQueue else { return }
 
     // Create a dummy command buffer and wait for it to complete
     // This ensures all prior GPU work (including Vision's) has finished
+    // Only valid on iOS or Intel Macs with managed storage mode
     if let buffer = queue.makeCommandBuffer() {
         buffer.commit()
         buffer.waitUntilCompleted()
@@ -52,41 +94,169 @@ nonisolated private func synchronizeGPU() {
 
 // MARK: - Throttle Configuration
 
-/// Maximum concurrent Vision operations
-/// 2 provides good parallelism while preventing Metal command buffer overflow
-/// Higher values cause crashes on some devices; 2 is safe across all tiers
-private let maxConcurrentVisionOps = 2
+/// Device-tier-aware maximum concurrent Vision operations
+/// Higher-tier devices (A18 Pro, M-series) can sustain more parallel Vision ops
+/// Lower-tier devices are limited to 2 to prevent Metal command buffer overflow
+private let maxConcurrentVisionOps: Int = {
+    // Detect device tier at initialization
+    // Uses same logic as DeviceCapabilityService but without creating dependency cycle
+    var systemInfo = utsname()
+    uname(&systemInfo)
+    let machine = withUnsafePointer(to: &systemInfo.machine) {
+        $0.withMemoryRebound(to: CChar.self, capacity: 1) {
+            String(cString: $0)
+        }
+    }
 
-/// Semaphore for controlling Vision concurrency
-/// Value of 2 allows two Vision operations to run in parallel
-/// nonisolated(unsafe) required because Swift 6 treats module-level lets as main actor isolated
-nonisolated(unsafe) private let visionSemaphore = DispatchSemaphore(value: maxConcurrentVisionOps)
+    // Check if running as iOS app on Mac (iPad compatibility mode)
+    // On Mac, Metal command buffer behaves differently - need more conservative limits
+    let isRunningOnMac = machine.contains("Mac") || ProcessInfo.processInfo.isiOSAppOnMac
 
-/// Serial queue for synchronous Vision operations (fallback when semaphore acquired)
-/// nonisolated(unsafe) required because Swift 6 treats module-level lets as main actor isolated
-nonisolated(unsafe) private let visionSyncQueue = DispatchQueue(
-    label: "com.openintelligence.vision-ocr-throttle",
-    qos: .userInitiated,
-    attributes: .concurrent  // Allow concurrent execution
-)
+    // Metal Feature Set Tables (Oct 2025):
+    // Apple9 (A18/M3): 1024 threads/group, 32KB threadgroup mem, 256KB imageblock
+    // Apple10 (A19/M4/M5): Same limits + 8x MSAA, 32K textures, sampler LOD bias
+    //
+    // Vision uses Neural Engine (16-core) + GPU. Higher-tier devices sustain more parallelism.
+    // The semaphore controls actual Vision ops; pipeline pre-rendering can exceed this.
+    //
+    // CRITICAL: Too aggressive concurrency causes deallocation races!
+    // Vision observation objects get released across 400+ concurrent threads.
+    // BALANCED VALUES: Fast but stable. The bottleneck is ANE, not concurrency.
+    //
+    // IMPORTANT: Mac has different Metal command buffer scheduling than iPhone.
+    // MTLDebugBlitCommandEncoder crashes happen when command buffers pile up.
+    // Mac needs LOWER concurrency despite more powerful hardware!
+
+    if isRunningOnMac {
+        // Mac (M-series): Conservative for macOS Metal stability
+        return 3   // SAFE: Prevent deallocation races
+    } else if machine.contains("iPhone18") || machine.contains("iPad16") {
+        return 6   // A19 Pro - balanced: fast but stable
+    } else if machine.contains("iPhone17") || machine.contains("iPad15") {
+        return 5   // A18 Pro - balanced: fast but stable
+    } else if machine.contains("iPhone16") || machine.contains("iPad14") {
+        return 4   // A17 Pro - moderate
+    } else if machine.contains("iPad13") {
+        return 4   // M-series iPad - moderate
+    } else {
+        return 2   // Older devices - safe
+    }
+}()
 
 /// Cooldown time between Vision operations (seconds)
 /// Brief delay to let GPU command buffers settle
-/// nonisolated(unsafe) required because Swift 6 treats module-level lets as main actor isolated
-nonisolated(unsafe) private let gpuCooldownSeconds: TimeInterval = 0.02  // 20ms
+/// High-tier devices use shorter cooldown
+private let gpuCooldownSeconds: TimeInterval = {
+    // Match the tier detection from above
+    var systemInfo = utsname()
+    uname(&systemInfo)
+    let machine = withUnsafePointer(to: &systemInfo.machine) {
+        $0.withMemoryRebound(to: CChar.self, capacity: 1) {
+            String(cString: $0)
+        }
+    }
+
+    // Check if running as iOS app on Mac
+    let isRunningOnMac = machine.contains("Mac") || ProcessInfo.processInfo.isiOSAppOnMac
+
+    // Metal GPU command buffer synchronization needs minimal cooldown on high-tier devices.
+    // Apple9+ has improved command buffer scheduling and 64-bit atomics for synchronization.
+    //
+    // CRITICAL: Cooldowns prevent swift_release_dealloc crashes!
+    // Vision observation objects need time to fully deallocate before next batch.
+    // BALANCED VALUES: Short enough for speed, long enough for safe deallocation.
+    //
+    // IMPORTANT: Mac requires LONGER cooldown despite more power!
+    // macOS Metal has different command buffer lifecycle than iOS.
+    // MTLDebugBlitCommandEncoder crashes come from command buffer pile-up.
+
+    if isRunningOnMac {
+        // Mac: Conservative cooldown for stability
+        return 0.008  // 8ms - safe for macOS Metal
+    } else if machine.contains("iPhone18") || machine.contains("iPad16") {
+        return 0.004  // 4ms - A19/M4: fast but safe
+    } else if machine.contains("iPhone17") || machine.contains("iPad15") {
+        return 0.005  // 5ms - A18/M3: balanced
+    } else if machine.contains("iPhone16") || machine.contains("iPad14") {
+        return 0.006  // 6ms - A17/M2: moderate
+    } else if machine.contains("iPad13") {
+        return 0.005  // 5ms - M-series iPad
+    } else {
+        return 0.012  // 12ms - older devices
+    }
+}()
+
+// MARK: - Actor-Based Async Semaphore (Apple-approved approach)
+
+/// Actor-based async semaphore that uses Swift Concurrency's cooperative threading.
+/// This avoids priority inversion because Swift's runtime handles priority propagation
+/// automatically for actor-isolated async code.
+///
+/// Unlike DispatchSemaphore, this doesn't block threads - it suspends tasks cooperatively.
+private actor AsyncVisionSemaphore {
+    private var availableSlots: Int
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    init(maxConcurrent: Int) {
+        self.availableSlots = maxConcurrent
+    }
+
+    /// Acquire a slot, suspending if none available
+    /// Swift's runtime propagates the caller's priority to the actor
+    func acquire() async {
+        if availableSlots > 0 {
+            availableSlots -= 1
+            return
+        }
+
+        // No slot available - suspend until one opens up
+        // Swift Concurrency handles priority propagation automatically
+        await withCheckedContinuation { continuation in
+            waiters.append(continuation)
+        }
+    }
+
+    /// Release a slot, waking the next waiter if any
+    func release() {
+        if let waiter = waiters.first {
+            waiters.removeFirst()
+            waiter.resume()
+        } else {
+            availableSlots += 1
+        }
+    }
+
+    /// Current state for debugging
+    var debugState: (available: Int, waiting: Int) {
+        (availableSlots, waiters.count)
+    }
+}
+
+/// Global async semaphore for Vision operations
+/// Uses actor isolation for proper Swift Concurrency integration
+private let asyncVisionSemaphore = AsyncVisionSemaphore(maxConcurrent: maxConcurrentVisionOps)
+
+/// Legacy semaphore for truly synchronous operations only
+/// NOTE: This will cause priority inversion warnings - unavoidable for sync code
+private let syncVisionSemaphore = DispatchSemaphore(value: maxConcurrentVisionOps)
+
+// MARK: - VisionOCRThrottle
 
 /// Global throttle for Vision OCR operations with GPU synchronization
-/// Allows limited parallelism (2 concurrent) while preventing Metal crashes
+/// Allows limited parallelism while preventing Metal crashes
 enum VisionOCRThrottle {
 
     /// Execute a Vision OCR operation synchronously with throttling and GPU sync
     /// Use this for callback-based Vision APIs (VNImageRequestHandler.perform)
+    /// NOTE: This uses DispatchSemaphore which may cause priority inversion warnings.
+    /// For new code, prefer performAsync or perform (async) methods.
     /// - Parameter operation: The closure containing VNImageRequestHandler.perform()
     /// - Returns: Whatever the operation returns
     /// - Throws: Re-throws any error from the operation
     nonisolated static func performSync<T>(_ operation: () throws -> T) rethrows -> T {
-        // Acquire semaphore slot (blocks if 2 already running)
-        visionSemaphore.wait()
+        // Acquire sync semaphore slot - this is inherently blocking
+        // Priority inversion is unavoidable for truly synchronous operations
+        syncVisionSemaphore.wait()
 
         // Capture cooldown value locally to avoid actor isolation issues
         let cooldown = gpuCooldownSeconds
@@ -95,7 +265,7 @@ enum VisionOCRThrottle {
             // Force GPU completion before releasing slot
             synchronizeGPU()
             Thread.sleep(forTimeInterval: cooldown)
-            visionSemaphore.signal()
+            syncVisionSemaphore.signal()
         }
 
         // Use autoreleasepool to ensure GPU resources are released promptly
@@ -106,17 +276,13 @@ enum VisionOCRThrottle {
 
     /// Execute an async Vision operation with throttling and GPU sync
     /// Use this for iOS 18+ Vision struct APIs (RecognizeTextRequest.perform, etc.)
+    /// Uses actor-based AsyncSemaphore - Swift Concurrency handles priority automatically.
     /// - Parameter operation: The async closure containing Vision operations
     /// - Returns: Whatever the operation returns
     /// - Throws: Re-throws any error from the operation
     nonisolated static func performAsync<T: Sendable>(_ operation: @Sendable @escaping () async throws -> T) async throws -> T {
-        // Acquire semaphore slot on background thread to avoid blocking main thread
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            DispatchQueue.global(qos: .userInitiated).async {
-                visionSemaphore.wait()
-                continuation.resume()
-            }
-        }
+        // Acquire slot via actor - Swift Concurrency propagates priority automatically
+        await asyncVisionSemaphore.acquire()
 
         // Capture cooldown value locally
         let cooldown = gpuCooldownSeconds
@@ -126,27 +292,23 @@ enum VisionOCRThrottle {
             // Force GPU completion before releasing slot
             synchronizeGPU()
             try? await Task.sleep(for: .seconds(cooldown))
-            visionSemaphore.signal()
+            await asyncVisionSemaphore.release()
             return result
         } catch {
             synchronizeGPU()
             try? await Task.sleep(for: .seconds(cooldown))
-            visionSemaphore.signal()
+            await asyncVisionSemaphore.release()
             throw error
         }
     }
 
     /// Execute an async Vision operation with throttling (non-throwing version)
+    /// Uses actor-based AsyncSemaphore - Swift Concurrency handles priority automatically.
     /// - Parameter operation: The async closure containing Vision operations
     /// - Returns: Whatever the operation returns
     nonisolated static func performAsync<T: Sendable>(_ operation: @Sendable @escaping () async -> T) async -> T {
-        // Acquire semaphore slot on background thread
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            DispatchQueue.global(qos: .userInitiated).async {
-                visionSemaphore.wait()
-                continuation.resume()
-            }
-        }
+        // Acquire slot via actor - Swift Concurrency propagates priority automatically
+        await asyncVisionSemaphore.acquire()
 
         // Capture cooldown value locally
         let cooldown = gpuCooldownSeconds
@@ -155,42 +317,37 @@ enum VisionOCRThrottle {
         // Force GPU completion before releasing slot
         synchronizeGPU()
         try? await Task.sleep(for: .seconds(cooldown))
-        visionSemaphore.signal()
+        await asyncVisionSemaphore.release()
         return result
     }
 
     /// Execute a Vision OCR operation asynchronously with throttling (legacy - wraps sync in async)
+    /// Uses actor-based AsyncSemaphore - Swift Concurrency handles priority automatically.
     /// - Parameter operation: The closure containing Vision operations
     /// - Returns: Whatever the operation returns
     /// - Throws: Re-throws any error from the operation
     nonisolated static func perform<T: Sendable>(_ operation: @Sendable @escaping () throws -> T) async throws -> T {
-        // Acquire semaphore slot
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            DispatchQueue.global(qos: .userInitiated).async {
-                visionSemaphore.wait()
-                continuation.resume()
-            }
-        }
+        // Acquire slot via actor - Swift Concurrency propagates priority automatically
+        await asyncVisionSemaphore.acquire()
 
         // Capture cooldown value locally
         let cooldown = gpuCooldownSeconds
 
-        return try await withCheckedThrowingContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                autoreleasepool {
-                    do {
-                        let result = try operation()
-                        // Force GPU completion before releasing slot
-                        synchronizeGPU()
-                        Thread.sleep(forTimeInterval: cooldown)
-                        visionSemaphore.signal()
-                        continuation.resume(returning: result)
-                    } catch {
-                        visionSemaphore.signal()
-                        continuation.resume(throwing: error)
-                    }
-                }
+        do {
+            // Execute in autoreleasepool for proper Vision object cleanup
+            let result: T = try autoreleasepool {
+                try operation()
             }
+            // Force GPU completion before releasing slot
+            synchronizeGPU()
+            try? await Task.sleep(for: .seconds(cooldown))
+            await asyncVisionSemaphore.release()
+            return result
+        } catch {
+            synchronizeGPU()
+            try? await Task.sleep(for: .seconds(cooldown))
+            await asyncVisionSemaphore.release()
+            throw error
         }
     }
 }

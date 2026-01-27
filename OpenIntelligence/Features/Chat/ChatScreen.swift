@@ -98,6 +98,11 @@ struct ChatScreen: View {
     // Vision Capture overlay
     @State private var showVisionCapture: Bool = false
 
+    // Dynamic suggested questions
+    @State private var dynamicSuggestedQuestions: [String] = []
+    @State private var suggestedQuestionsTask: Task<Void, Never>? = nil
+    private let suggestedQuestionsService = SuggestedQuestionsService()
+
     // Speed history for sparkline graph
     @State private var speedHistory: [Double] = []
     @State private var lastSpeedSampleTokens: Int = 0
@@ -428,10 +433,17 @@ struct ChatScreen: View {
             let activeId = ragService.containerService.activeContainerId
             messages = ragService.chatHistory(for: activeId)
             await recalcActiveCounts()
+
+            // Generate dynamic suggested questions based on library content
+            refreshDynamicQuestions()
         }
         // React to document ingestion/removal immediately
         .onReceive(ragService.$documents) { _ in
-            Task { await recalcActiveCounts() }
+            Task {
+                await recalcActiveCounts()
+                // Regenerate suggested questions when documents change
+                refreshDynamicQuestions()
+            }
         }
         // Ensure counts refresh if the user switches containers outside this view
         .onReceive(ragService.containerService.$activeContainerId) { _ in
@@ -1103,13 +1115,70 @@ struct ChatScreen: View {
         messages.isEmpty && !onboardingStore.hasAskedFirstQuery
     }
 
+    /// Starter prompts - uses dynamic questions if available, falls back to generic prompts
     private var starterPrompts: [String] {
-        [
-            "Summarize the pricing brief in three customer-ready bullets.",
-            "What architecture choices keep the retrieval engine private?",
-            "Give me launch talking points for the Pro plan.",
-            "List risks reviewers should know before monetization."
+        // If we have dynamic questions based on library content, use them
+        if !dynamicSuggestedQuestions.isEmpty {
+            return dynamicSuggestedQuestions
+        }
+
+        // If no documents, show onboarding prompts
+        if activeDocCount == 0 {
+            return [
+                "Import documents from the Documents tab to get started.",
+                "What types of documents can I analyze?",
+                "How does the privacy-first search work?"
+            ]
+        }
+
+        // Fallback generic prompts (library has docs but dynamic generation hasn't completed)
+        return [
+            "Summarize the main topics in my documents.",
+            "What are the key facts I should know?",
+            "List the most important details mentioned.",
+            "What questions can my documents answer?"
         ]
+    }
+
+    /// Generate dynamic suggested questions based on library content
+    private func refreshDynamicQuestions() {
+        suggestedQuestionsTask?.cancel()
+        suggestedQuestionsTask = Task {
+            let containerId = ragService.containerService.activeContainerId
+
+            // Get documents for the active container
+            let documents = ragService.documents.filter { doc in
+                if let docContainerId = doc.containerId {
+                    return docContainerId == containerId
+                }
+                return containerId == ragService.containerService.containers.first?.id
+            }
+
+            guard !documents.isEmpty else {
+                dynamicSuggestedQuestions = []
+                return
+            }
+
+            // Get sample chunks for analysis (up to 50)
+            do {
+                let sampleChunks = try await ragService.getSampleChunks(for: containerId, limit: 50)
+
+                let questions = await suggestedQuestionsService.generateQuestions(
+                    for: containerId,
+                    documents: documents,
+                    sampleChunks: sampleChunks,
+                    count: 4
+                )
+
+                guard !Task.isCancelled else { return }
+
+                dynamicSuggestedQuestions = questions.map { $0.text }
+                Log.debug("[ChatScreen] Generated \(questions.count) dynamic suggested questions")
+            } catch {
+                Log.warning("[ChatScreen] Failed to generate dynamic questions: \(error.localizedDescription)")
+                dynamicSuggestedQuestions = []
+            }
+        }
     }
 
     private func persistChatHistory(for containerId: UUID?) {

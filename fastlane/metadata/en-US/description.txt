@@ -1,52 +1,39 @@
-Ask your documents anything. Get answers with citations.
+Your documents. Your questions. Answers that cite their sources.
 
-OpenIntelligence is a document question-answering app that runs entirely on your device. Import PDFs, Word documents, spreadsheets, or any text file. Ask questions in plain English. Get accurate, cited answers powered by on-device AI.
+Stop digging through PDFs. OpenIntelligence brings research-grade retrieval to your iPhone—the same techniques powering enterprise AI search, running entirely on your device.
 
-YOUR DOCUMENTS, YOUR DEVICE
+12 ADVANCED RAG TECHNIQUES. ZERO CLOUD DEPENDENCY.
 
-Unlike cloud-based AI services, OpenIntelligence processes everything locally. Your files never leave your iPhone or iPad unless you explicitly enable Private Cloud Compute for complex queries. When PCC is used, Apple's zero-retention policy ensures your data is never stored or logged.
+This isn't keyword search. OpenIntelligence uses a full retrieval-augmented generation pipeline:
 
-HOW IT WORKS
+• HyDE (Hypothetical Document Embeddings) — Bridges vocabulary gaps between your question and the answer
+• Hybrid Search — BM25 keyword matching fused with 384-dim neural embeddings
+• Reciprocal Rank Fusion — Merges multiple retrieval strategies for better recall
+• MMR Diversification — Reduces redundant results, surfaces broader context
+• Cross-Encoder Reranking — Neural model re-scores every candidate for precision
+• Parent Document Retrieval — Expands matches to include surrounding paragraphs
+• Contextual Compression — Strips irrelevant sentences, keeps only what matters
+• Lost-in-Middle Mitigation — Reorders context so the AI attends to key passages
+• Query Rewriting — Clarifies ambiguous questions before retrieval
+• Semantic Chunking — Splits documents at natural boundaries, not arbitrary limits
+• Multi-Column OCR — Correctly reads complex PDF layouts at 360 DPI
+• Agentic Tool Use — AI calls search, summarize, and compare tools autonomously
 
-1. Import any document (PDF, DOCX, XLSX, PPTX, TXT, MD, CSV, RTF, or images)
-2. Ask a question about its contents
-3. Receive an answer with exact citations to the source text
-4. Tap any citation to verify the original passage
+THE RESULT?
 
-POWERED BY ON-DEVICE AI
+Ask "What oil does my car take?" and get "SAE 0W-20 synthetic, 5.3 quarts"—with a citation you can tap to verify.
 
-• On-Device AI: Uses iOS Foundation Models running directly on your device's Neural Engine
-• Private Cloud Compute: Optional fallback for complex queries—same Apple privacy guarantees
-• Execution Badges: Every response shows exactly where it was processed (📱 On-Device or ☁️ PCC)
+DEEP THINK MODE
 
-SMART RETRIEVAL TECHNOLOGY
+Standard mode answers in seconds. Deep Think spawns multiple reasoning sessions, cross-validates evidence, and synthesizes a thorough response. Perfect for research, legal review, or technical documentation.
 
-OpenIntelligence uses advanced retrieval techniques to find the right information:
+100% PRIVATE BY DEFAULT
 
-• Hybrid Search — Combines keyword matching with semantic understanding
-• Neural Reranking — AI-powered relevance scoring for precise results
-• Intelligent Chunking — Preserves document structure and context
-• Multi-Column Layout Detection — Correctly reads complex PDFs
-• 8 Agentic Tools — The AI can search, summarize, compare, and analyze across your library
-
-KEY FEATURES
-
-• Document Library: Organize files into containers with automatic tagging
-• Quality Modes: Standard for quick answers, Deep Think for thorough research
-• Siri Integration: Ask questions via voice or Shortcuts
-• Real-Time Telemetry: See retrieval scores, generation speed, and confidence levels
-• No Account Required: Works completely offline with no sign-up
+Everything runs on-device. Your documents never leave your iPhone unless you enable Private Cloud Compute—Apple's zero-retention fallback for complex queries. No accounts. No uploads. No tracking.
 
 SUPPORTED FORMATS
 
-PDF (native text + OCR for scans), Microsoft Office (DOCX, XLSX, PPTX), Plain text (TXT, MD, CSV, RTF), Images (JPEG, PNG, HEIC with text extraction)
-
-PRIVACY BY DESIGN
-
-• All processing happens on-device by default
-• Private Cloud Compute uses Apple Silicon servers with zero data retention
-• No third-party analytics or tracking
-• Your documents are stored only in your app sandbox
+PDF (native + OCR), Word, Excel, PowerPoint, Markdown, CSV, RTF, TXT, and images with text extraction.
 
 SUBSCRIPTION OPTIONS
 

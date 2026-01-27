@@ -1,0 +1,58 @@
+OpenIntelligence is a research-grade RAG (Retrieval-Augmented Generation) engine built for privacy. Your documents stay on your device. Answers come with citations. Everything runs locally by default with optional Private Cloud Compute—zero retention, full transparency.
+
+WHY IT'S DIFFERENT
+
+Most AI apps send your data to the cloud. OpenIntelligence implements 12 peer-reviewed retrieval techniques on-device, giving you research-lab accuracy without sacrificing privacy.
+
+THE 12 RAG FEATURES
+
+1. Hybrid Search — Combines BM25 keyword matching with vector similarity, fused via Reciprocal Rank Fusion (RRF) for best-of-both retrieval.
+
+2. Cross-Encoder Reranking — Neural reranker scores query-document pairs for precision that basic vector search can't match.
+
+3. MMR Diversification — Maximal Marginal Relevance ensures diverse results, not just the most similar ones.
+
+4. HyDE — Hypothetical Document Embeddings generate an ideal answer first, then search for real documents that match it. 15-25% recall improvement.
+
+5. Parent Document Retrieval — Expands matched chunks to include surrounding context from the same section or page.
+
+6. Contextual Compression — LLM-filters irrelevant sentences from retrieved chunks, saving 40-60% of tokens while improving answer quality.
+
+7. RAPTOR-lite — Multi-level abstraction hierarchy (L0 raw chunks to L1 summaries) for both detailed and high-level retrieval.
+
+8. Query Routing — Automatically classifies queries and routes to the optimal retrieval strategy.
+
+9. Agentic RAG — 12+ Tool functions let the LLM autonomously search, summarize, and analyze your library across multiple reasoning steps.
+
+10. Self-RAG — The model critiques its own retrieval decisions and re-searches when confidence is low.
+
+11. Lost-in-Middle Mitigation — Reorders context to place the most relevant chunks at the beginning and end, where models pay more attention.
+
+12. Fine-Tuned Embeddings — CoreML Sentence Transformer (384-dim) optimized for semantic similarity, with NLEmbedding fallback.
+
+KEY FEATURES
+
+- Document intake: PDFKit parsing + Vision OCR; paragraph-aware chunking with 17% smart overlap.
+- On-device AI: Powered by iOS Foundation Models with Private Cloud Compute fallback.
+- Cited answers: Every response links back to the original source text. Tap to verify.
+- Execution badges: See exactly where processing happened—On-Device or PCC.
+- Power controls: Top-K tuning, container isolation, quality modes (Standard/Deep Think/Maximum).
+- Siri and Shortcuts: App Intents for quick queries and automations.
+- Observability: Real-time telemetry, TTFT timers, and 3D vector space visualization.
+
+PRIVACY
+
+- Your documents never leave your device unless you explicitly allow cloud calls.
+- Private Cloud Compute runs on Apple Silicon servers with zero retention.
+- No third-party analytics. All telemetry stays on-device.
+
+IN-APP PURCHASES
+
+- Pro subscription unlocks unlimited documents, all 12 RAG features, and advanced controls.
+- Lifetime option available for one-time purchase.
+- Subscriptions auto-renew until cancelled 24 hours before renewal.
+
+LEGAL
+
+Privacy Policy: https://gunzino.me/openintelligence/privacy
+Terms of Use: https://gunzino.me/openintelligence/terms

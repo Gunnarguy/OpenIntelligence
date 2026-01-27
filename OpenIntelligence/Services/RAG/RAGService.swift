@@ -583,6 +583,16 @@ class RAGService: ObservableObject {
     @MainActor @Published private(set) var activeModelName: String = "Loading..."
     @MainActor private var selfTuningInFlight: Set<UUID> = []
 
+    /// Track when containers last completed ingestion to prevent immediate self-tuning rebuilds.
+    /// Self-tuning should analyze library content AFTER all documents are ingested, not after each one.
+    /// This prevents the scenario where a large PDF finishes and immediately triggers re-embedding
+    /// of ALL documents (including the one just processed).
+    @MainActor private var lastIngestionCompletionTime: [UUID: Date] = [:]
+
+    /// Minimum cooldown (in seconds) after ingestion before allowing self-tuning rebuilds.
+    /// This gives time for the batch to complete and prevents wasteful immediate rebuilds.
+    private static let selfTuningCooldownSeconds: TimeInterval = 30.0
+
     // MARK: - Real-time Generation State (iOS 26+)
 
     /// Whether the LLM session is currently generating a response.
@@ -1611,6 +1621,31 @@ class RAGService: ObservableObject {
         }
     }
 
+    /// Return a sample of chunks for content analysis (used by SuggestedQuestionsService)
+    /// - Parameters:
+    ///   - containerId: The container to sample from
+    ///   - limit: Maximum number of chunks to return
+    /// - Returns: Array of sample chunks for analysis
+    func getSampleChunks(for containerId: UUID, limit: Int = 50) async throws -> [DocumentChunk] {
+        guard let container = containerService.containers.first(where: { $0.id == containerId }) else {
+            return []
+        }
+        let db = vectorRouter.db(for: container)
+        let allChunks = try await db.allChunks()
+
+        // Return a representative sample: first, middle, and distributed chunks
+        guard !allChunks.isEmpty else { return [] }
+        guard allChunks.count > limit else { return allChunks }
+
+        var sampleIndices: Set<Int> = []
+        let stride = allChunks.count / limit
+        for i in 0..<limit {
+            sampleIndices.insert(min(i * stride, allChunks.count - 1))
+        }
+
+        return sampleIndices.sorted().map { allChunks[$0] }
+    }
+
     func embeddingDiagnosticsSnapshot() async -> EmbeddingDiagnosticsSnapshot {
         let context = await resolveEmbeddingContext()
         let containerDetails = await MainActor.run {
@@ -1817,6 +1852,11 @@ class RAGService: ObservableObject {
 
     private func runIngestionLoop() async {
         await MainActor.run { self.isProcessing = true }
+
+        // Enable GPU embeddings to free ANE for Vision OCR (true parallelism)
+        embeddingService.enableIngestionMode()
+        Log.info("[RAGService] ⚡ Ingestion mode: GPU embeddings + ANE Vision OCR", category: .ingestion)
+
         while let next = await MainActor.run(body: { self.nextQueuedIngestionItem() }) {
             let context = await MainActor.run { self.ingestionContexts[next.id] ?? .userInitiated }
             do {
@@ -1832,6 +1872,10 @@ class RAGService: ObservableObject {
                 }
             }
         }
+
+        // Return to default compute mode
+        embeddingService.disableIngestionMode()
+
         await MainActor.run {
             self.isProcessing = false
             self.processingStatus = ""
@@ -2865,6 +2909,10 @@ class RAGService: ObservableObject {
                     processingStatus = ""
                 }
 
+                // Record ingestion completion time to prevent immediate self-tuning rebuilds.
+                // This stops the bug where adding a large PDF triggers re-embedding of ALL docs.
+                self.lastIngestionCompletionTime[activeContainerId] = Date()
+
                 self.kickPendingReembedIfNeeded()
 
                 // Auto-tune retrieval config based on document types in container
@@ -3018,6 +3066,13 @@ class RAGService: ObservableObject {
             }
             return
         }
+
+        // VISIBLE LOGGING: Make rebuild starts obvious in console
+        Log.warning(
+            "🔄 [Reembed] STARTING FULL REBUILD of \(documentsToRebuild.count) documents in container \(targetContainerId)\n" +
+            "   Documents: \(documentsToRebuild.map { $0.filename }.joined(separator: ", "))",
+            category: .ingestion
+        )
 
         let originalContainerId = await MainActor.run { self.containerService.activeContainerId }
         if originalContainerId != targetContainerId {
@@ -3334,6 +3389,14 @@ class RAGService: ObservableObject {
     private static let thinkingEventLimit = 150
 
     private func scheduleSelfTuningRebuild(for containerId: UUID, reasons: [String]) {
+        // VISIBLE LOGGING: Make self-tuning decisions obvious in console (not ghost process)
+        Log.warning(
+            "⚠️ [SelfTuning] AUTO-REBUILD SCHEDULED for container \(containerId)\n" +
+            "   Reasons: \(reasons.joined(separator: " | "))\n" +
+            "   This will re-embed ALL documents in the container!",
+            category: .ingestion
+        )
+
         // Log the scheduling intent for telemetry
         TelemetryCenter.emit(
             .ingestion,
@@ -3400,6 +3463,28 @@ class RAGService: ObservableObject {
         // current rebuild is still running, creating an infinite “re-upload/re-embed” loop.
         let isSelfTuningInFlight = await MainActor.run { self.selfTuningInFlight.contains(containerId) }
         if isSelfTuningInFlight {
+            return
+        }
+
+        // CRITICAL FIX: Skip self-tuning if we just finished ingesting documents.
+        // This prevents the scenario where processing a large PDF completes and then
+        // immediately triggers re-embedding of ALL documents including what was just processed.
+        // Self-tuning should wait until the user's batch is fully complete.
+        let isInCooldown = await MainActor.run { () -> Bool in
+            if let lastCompletion = self.lastIngestionCompletionTime[containerId] {
+                let elapsed = Date().timeIntervalSince(lastCompletion)
+                if elapsed < Self.selfTuningCooldownSeconds {
+                    Log.info(
+                        "[SelfTuning] Skipping auto-rebuild for container \(containerId) - " +
+                        "in cooldown period (\(String(format: "%.1f", elapsed))s < \(Self.selfTuningCooldownSeconds)s)",
+                        category: .ingestion
+                    )
+                    return true
+                }
+            }
+            return false
+        }
+        if isInCooldown {
             return
         }
 
@@ -6037,11 +6122,25 @@ class RAGService: ObservableObject {
                 let promptOverheadTokens = 120 + systemPromptTokens // Template overhead
                 let questionTokens = estimateTokensConservative(chars: question.count)
 
+                // CRITICAL: Account for transcript history tokens (Jan 26, 2026)
+                // The session transcript contains all previous prompts/responses and consumes context window.
+                // Without accounting for this, we overflow with "5180 tokens" when estimated "1629 tokens".
+                let transcriptTokens: Int
+                if let appleFMService = llmService as? AppleFoundationLLMService {
+                    transcriptTokens = appleFMService.estimatedTranscriptTokens
+                    if transcriptTokens > 0 {
+                        Log.debug("[RAG] Transcript history: ~\(transcriptTokens) tokens reserved", category: .pipeline)
+                    }
+                } else {
+                    transcriptTokens = 0
+                }
+
                 // Reserve room for output
                 let reservedOutputTokens = max(150, min(inferenceConfig.maxTokens, 300))
 
                 // Calculate available tokens, then apply ONE 15% safety haircut at the end
-                let rawAvailableTokens = baseWindowTokens - promptOverheadTokens - questionTokens - reservedOutputTokens
+                // Now includes transcript tokens in the budget calculation
+                let rawAvailableTokens = baseWindowTokens - promptOverheadTokens - questionTokens - reservedOutputTokens - transcriptTokens
                 let globalSafetyFactor: Double = isAppleFMOnDevice ? 0.85 : 0.90 // 15% or 10% safety margin
                 let availableForContextTokens = max(
                     0,
@@ -6068,7 +6167,7 @@ class RAGService: ObservableObject {
                     Log.info("[RAG] Simulator mode: using on-device context budget (4096 tokens, \(maxContextChars) chars)", category: .pipeline)
                 #endif
 
-                Log.debug("Context budget: base=\(baseWindowTokens), question=\(questionTokens), available=\(availableForContextTokens) tokens → \(maxContextChars) chars, compact=\(useCompactMode)", category: .pipeline)
+                Log.debug("Context budget: base=\(baseWindowTokens), question=\(questionTokens), transcript=\(transcriptTokens), available=\(availableForContextTokens) tokens → \(maxContextChars) chars, compact=\(useCompactMode)", category: .pipeline)
 
                 // For procedural queries, preserve document order instead of relevance order
                 // This prevents sequence inversions (e.g., "dry before disinfect" errors)

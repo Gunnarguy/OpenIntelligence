@@ -192,42 +192,48 @@ actor LayoutAwareExtractor {
     // MARK: - Vision Text Recognition
 
     private func recognizeTextBlocks(in image: CIImage, pageNumber: Int) async throws -> [TextBlock] {
-        let request = VNRecognizeTextRequest()
+        // Capture actor-isolated value before entering nonisolated context
+        let minConf = self.minConfidence
 
-        // === GPU/ANE OPTIMIZED CONFIGURATION ===
-        // Vision automatically uses Neural Engine (ANE) on supported devices
-        // VNRecognizeTextRequestRevision3 is the fastest and most accurate
-        request.revision = VNRecognizeTextRequestRevision3
-        request.recognitionLevel = .accurate
-        request.usesLanguageCorrection = true
-        request.automaticallyDetectsLanguage = true  // Better than hardcoded list
-        request.recognitionLanguages = ["en-US", "en-GB", "es-ES", "fr-FR", "de-DE"]
-        request.minimumTextHeight = 0.0  // Catch all text sizes
+        // Use actor-based async throttle to avoid priority inversion warnings
+        // VisionOCRThrottle.perform uses AsyncSemaphore internally
+        return try await VisionOCRThrottle.perform {
+            // Use autoreleasepool to force Vision object cleanup within throttle window
+            // This prevents cross-thread deallocation races on Mac
+            try autoreleasepool { () -> [TextBlock] in
+                let request = VNRecognizeTextRequest()
 
-        let handler = VNImageRequestHandler(ciImage: image, options: [:])
+                // === GPU/ANE OPTIMIZED CONFIGURATION ===
+                request.revision = VNRecognizeTextRequestRevision3
+                request.recognitionLevel = .accurate
+                request.usesLanguageCorrection = true
+                request.automaticallyDetectsLanguage = true
+                request.recognitionLanguages = ["en-US", "en-GB", "es-ES", "fr-FR", "de-DE"]
+                request.minimumTextHeight = 0.0
 
-        // Limit concurrent Vision OCR to prevent Metal race conditions
-        try VisionOCRThrottle.performSync {
-            try handler.perform([request])
-        }
+                let handler = VNImageRequestHandler(ciImage: image, options: [:])
+                try handler.perform([request])
 
-        guard let observations = request.results else {
-            return []
-        }
+                guard let observations = request.results else {
+                    return []
+                }
 
-        return observations.compactMap { observation -> TextBlock? in
-            guard observation.confidence >= minConfidence,
-                  let text = observation.topCandidates(1).first?.string,
-                  !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                return nil
+                // Extract ALL data from observations NOW before they're released
+                return observations.compactMap { observation -> TextBlock? in
+                    guard observation.confidence >= minConf,
+                          let text = observation.topCandidates(1).first?.string,
+                          !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                        return nil
+                    }
+
+                    return TextBlock(
+                        text: String(text),  // Force copy
+                        boundingBox: observation.boundingBox,
+                        confidence: observation.confidence,
+                        pageNumber: pageNumber
+                    )
+                }
             }
-
-            return TextBlock(
-                text: text,
-                boundingBox: observation.boundingBox,
-                confidence: observation.confidence,
-                pageNumber: pageNumber
-            )
         }
     }
 

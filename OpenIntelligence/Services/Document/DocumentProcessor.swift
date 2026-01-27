@@ -2504,96 +2504,116 @@ class DocumentProcessor {
     private func analyzeEmbeddedImages(pdfDocument: PDFDocument, pageCount: Int) async -> [StructuredElementWrapper] {
         var imageElements: [StructuredElementWrapper] = []
 
-        // Extract images from all pages
-        var extractedImages: [(image: CIImage, pageNumber: Int, bounds: CGRect)] = []
+        // MEMORY OPTIMIZATION: Process images in batches to avoid OOM on large PDFs
+        // Previous implementation loaded ALL images (100+ pages × 48MB = 5GB+) before analysis
+        // Now we process in batches of 20 pages, keeping memory under ~960MB for images
+        let imageBatchSize = 20
+        var totalImagesProcessed = 0
 
-        // Batch image extraction across pages
-        emitProgress(stage: "visual", detail: "🖼 Extracting embedded images...", page: 0, totalPages: pageCount)
+        emitProgress(stage: "visual", detail: "🖼 Scanning for embedded images...", page: 0, totalPages: pageCount)
 
-        for pageIndex in 0 ..< pageCount {
-            guard let page = pdfDocument.page(at: pageIndex) else { continue }
-            let pageNumber = pageIndex + 1
+        for batchStart in stride(from: 0, to: pageCount, by: imageBatchSize) {
+            let batchEnd = min(batchStart + imageBatchSize, pageCount)
 
-            let pageImages = extractImagesFromPDFPage(page: page)
-            for (image, bounds) in pageImages {
-                extractedImages.append((image, pageNumber, bounds))
+            // Extract images for just this batch of pages
+            var batchImages: [(image: CIImage, pageNumber: Int, bounds: CGRect)] = []
+
+            for pageIndex in batchStart..<batchEnd {
+                autoreleasepool {
+                    guard let page = pdfDocument.page(at: pageIndex) else { return }
+                    let pageNumber = pageIndex + 1
+
+                    let pageImages = extractImagesFromPDFPage(page: page)
+                    for (image, bounds) in pageImages {
+                        batchImages.append((image, pageNumber, bounds))
+                    }
+                }
             }
+
+            // Skip if no images in this batch
+            guard !batchImages.isEmpty else { continue }
+
+            emitProgress(
+                stage: "visual",
+                detail: "🧠 Analyzing images (pages \(batchStart + 1)-\(batchEnd)/\(pageCount))...",
+                page: batchEnd,
+                totalPages: pageCount
+            )
+
+            // Analyze just this batch's images
+            let emptyTextObs: [[VNRecognizedTextObservation]] = Array(repeating: [], count: batchEnd - batchStart)
+
+            let (analyzedImages, _) = await ImageUnderstandingService.shared.analyzeDocumentImages(
+                images: batchImages,
+                textObservations: emptyTextObs
+            )
+
+            // Convert analyzed images to StructuredElementWrapper entries immediately
+            // This allows the CIImages to be released before the next batch
+            for analyzed in analyzedImages {
+                if let element = createImageElement(from: analyzed) {
+                    imageElements.append(element)
+                }
+            }
+
+            totalImagesProcessed += batchImages.count
+
+            // CIImages in batchImages released here when scope exits
         }
 
         // Early exit if no images found
-        guard !extractedImages.isEmpty else {
+        guard totalImagesProcessed > 0 else {
             Log.debug("[DocumentProcessor] No embedded images found in PDF", category: .ingestion)
             return []
         }
 
-        emitProgress(stage: "visual", detail: "🧠 Analyzing \(extractedImages.count) images with AI...", page: 0, totalPages: pageCount)
-        Log.info("[DocumentProcessor] Analyzing \(extractedImages.count) embedded images for visual understanding", category: .ingestion)
-
-        // Analyze images with ImageUnderstandingService
-        // For text observations, we'll use an empty array since structured parsing already captured text
-        let emptyTextObs: [[VNRecognizedTextObservation]] = Array(repeating: [], count: pageCount)
-
-        let (analyzedImages, _) = await ImageUnderstandingService.shared.analyzeDocumentImages(
-            images: extractedImages,
-            textObservations: emptyTextObs
-        )
-
-        // Convert analyzed images to StructuredElementWrapper entries
-        for analyzed in analyzedImages {
-            // Build rich description for the image
-            var descriptionParts: [String] = []
-
-            // Content type header
-            let contentTypeLabel = analyzed.contentType != .unknown ? analyzed.contentType.rawValue.capitalized : "Image"
-            descriptionParts.append("[\(contentTypeLabel) on Page \(analyzed.pageNumber)]")
-
-            // Caption is most valuable for search
-            if let caption = analyzed.associatedCaption, !caption.isEmpty {
-                descriptionParts.append("Caption: \(String(caption.prefix(200)))")
-            }
-
-            // Extracted text from within image (critical for diagrams/flowcharts)
-            if let extractedText = analyzed.extractedText, !extractedText.isEmpty {
-                let cleanedText = extractedText
-                    .replacingOccurrences(of: "\n", with: " ")
-                    .replacingOccurrences(of: "  ", with: " ")
-                descriptionParts.append("Labels: \(String(cleanedText.prefix(300)))")
-            }
-
-            // AI-generated description (if available)
-            if let description = analyzed.description, !description.isEmpty {
-                // Only add if we don't have extracted text (avoid redundancy)
-                if analyzed.extractedText?.isEmpty ?? true {
-                    descriptionParts.append(String(description.prefix(250)))
-                }
-            }
-
-            // Skip if we have no useful content
-            guard descriptionParts.count > 1 else { continue }
-
-            let fullDescription = descriptionParts.joined(separator: "\n")
-
-            // Create element wrapper - figures are atomic chunks
-            let element = StructuredElementWrapper(
-                text: fullDescription,
-                elementType: "figure",
-                pageNumber: analyzed.pageNumber,
-                isAtomicChunk: true,
-                detectedEntities: []
-            )
-
-            imageElements.append(element)
-        }
-
-        if !imageElements.isEmpty {
-            Log.info("[DocumentProcessor] Created \(imageElements.count) searchable visual content chunks " +
-                "(diagrams: \(analyzedImages.filter { $0.contentType == .diagram }.count), " +
-                "charts: \(analyzedImages.filter { $0.contentType == .chart }.count), " +
-                "drawings: \(analyzedImages.filter { $0.contentType == .technicalDrawing }.count))",
-                category: .ingestion)
-        }
-
+        Log.info("[DocumentProcessor] Analyzed \(totalImagesProcessed) embedded images, created \(imageElements.count) visual content chunks", category: .ingestion)
         return imageElements
+    }
+
+    /// Helper to create a StructuredElementWrapper from an analyzed image
+    private func createImageElement(from analyzed: AnalyzedImage) -> StructuredElementWrapper? {
+        // Build rich description for the image
+        var descriptionParts: [String] = []
+
+        // Content type header
+        let contentTypeLabel = analyzed.contentType != .unknown ? analyzed.contentType.rawValue.capitalized : "Image"
+        descriptionParts.append("[\(contentTypeLabel) on Page \(analyzed.pageNumber)]")
+
+        // Caption is most valuable for search
+        if let caption = analyzed.associatedCaption, !caption.isEmpty {
+            descriptionParts.append("Caption: \(String(caption.prefix(200)))")
+        }
+
+        // Extracted text from within image (critical for diagrams/flowcharts)
+        if let extractedText = analyzed.extractedText, !extractedText.isEmpty {
+            let cleanedText = extractedText
+                .replacingOccurrences(of: "\n", with: " ")
+                .replacingOccurrences(of: "  ", with: " ")
+            descriptionParts.append("Labels: \(String(cleanedText.prefix(300)))")
+        }
+
+        // AI-generated description (if available)
+        if let description = analyzed.description, !description.isEmpty {
+            // Only add if we don't have extracted text (avoid redundancy)
+            if analyzed.extractedText?.isEmpty ?? true {
+                descriptionParts.append(String(description.prefix(250)))
+            }
+        }
+
+        // Skip if we have no useful content
+        guard descriptionParts.count > 1 else { return nil }
+
+        let fullDescription = descriptionParts.joined(separator: "\n")
+
+        // Create element wrapper - figures are atomic chunks
+        return StructuredElementWrapper(
+            text: fullDescription,
+            elementType: "figure",
+            pageNumber: analyzed.pageNumber,
+            isAtomicChunk: true,
+            detectedEntities: []
+        )
     }
 
     // MARK: - PDF Image Extraction (Visual Document Understanding)
@@ -2884,14 +2904,15 @@ class DocumentProcessor {
         return attributedString.string
     }
 
-    /// Extract text from images using Vision framework OCR
+    /// Extract text from images using Vision framework OCR + Visual Understanding
+    /// Enhanced for standalone image files: includes classification, AI description, and OCR
     private func extractTextFromImage(url: URL) async throws -> String {
-        progressHandler?("OCR scanning")
-        try? await Task.sleep(nanoseconds: 100_000_000) // 0.1s to show OCR status
+        progressHandler?("Analyzing image")
+        try? await Task.sleep(nanoseconds: 100_000_000) // 0.1s to show status
 
         let startTime = Date()
 
-        guard var image = CIImage(contentsOf: url) else {
+        guard let image = CIImage(contentsOf: url) else {
             Log.error("[DocumentProcessor] Failed to load image: \(url.lastPathComponent)", category: .ingestion)
             throw DocumentProcessingError.imageLoadFailed
         }
@@ -2899,25 +2920,20 @@ class DocumentProcessor {
         let imageSize = image.extent.size
         Log.debug("[DocumentProcessor] Original image: \(Int(imageSize.width))×\(Int(imageSize.height))px", category: .ingestion)
 
-        // MAXIMUM QUALITY OCR: Upscale low-resolution images for better text recognition
-        // Vision OCR works best at 300+ DPI equivalent resolution
-        // Upscale images smaller than 2000px on their largest dimension
-        let maxDimension = max(imageSize.width, imageSize.height)
-        if maxDimension < 2000 {
-            let upscaleFactor = min(3.0, 2000.0 / maxDimension)  // Up to 3x, target 2000px
-            image = upscaleImageForOCR(image, factor: upscaleFactor)
-            Log.debug("[DocumentProcessor] Upscaled image \(String(format: "%.1f", upscaleFactor))x for OCR", category: .ingestion)
-        }
+        // Use ImageUnderstandingService for comprehensive analysis
+        // This provides: classification, OCR, and AI description (iOS 26+)
+        progressHandler?("Understanding image content")
+        let analysis = await ImageUnderstandingService.shared.analyzeStandaloneImage(image)
 
-        // Apply contrast enhancement for better OCR on low-quality scans
-        image = enhanceImageForOCR(image)
+        let analysisTime = Date().timeIntervalSince(startTime)
+        Log.debug("[DocumentProcessor] 🖼️ Image analysis complete in \(String(format: "%.2f", analysisTime))s", category: .ingestion)
+        Log.debug("[DocumentProcessor] - Type: \(analysis.contentType.rawValue)", category: .ingestion)
+        Log.debug("[DocumentProcessor] - Classifications: \(analysis.classifications.count)", category: .ingestion)
+        Log.debug("[DocumentProcessor] - OCR: \(analysis.extractedText?.count ?? 0) chars", category: .ingestion)
+        Log.debug("[DocumentProcessor] - AI description: \(analysis.aiDescription != nil ? "yes" : "no")", category: .ingestion)
 
-        let text = try await performOCR(on: image)
-        let ocrTime = Date().timeIntervalSince(startTime)
-
-        Log.debug("[DocumentProcessor] OCR extracted \(text.count) chars in \(String(format: "%.2f", ocrTime))s", category: .ingestion)
-
-        return text
+        // Return the structured text which includes all visual understanding
+        return analysis.structuredText
     }
 
     /// Upscale an image for better OCR quality using Lanczos interpolation

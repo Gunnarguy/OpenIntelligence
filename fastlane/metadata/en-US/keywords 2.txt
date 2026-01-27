@@ -1,0 +1,1 @@
+ai,private,rag,documents,search,chat,apple,on-device,llm,ocr,pdf,research,retrieval,embeddings

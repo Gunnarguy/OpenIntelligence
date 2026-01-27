@@ -28,20 +28,47 @@ import Accelerate
 /// Thread-safe buffer pool for Metal buffer reuse
 /// Eliminates allocation overhead by keeping buffers around for reuse
 /// Uses manual lock-based synchronization - all mutable state is protected by NSLock
+///
+/// Metal Feature Set Tables (Oct 2025):
+/// - Apple9: 256KB implicit imageblock, improved memory bandwidth
+/// - All A17+: 8GB+ unified memory, can cache more aggressively
 final class MetalBufferPool: @unchecked Sendable {
     private let device: MTLDevice
     private nonisolated(unsafe) var pools: [Int: [MTLBuffer]] = [:]  // Size bucket -> available buffers
     private let lock = NSLock()
 
-    /// Maximum buffers to keep per size bucket
-    private let maxBuffersPerBucket = 8
+    /// Maximum buffers to keep per size bucket (doubled for Apple9+)
+    private let maxBuffersPerBucket: Int
 
-    /// Maximum total cached memory (64MB default)
-    private let maxCacheBytes: Int = 64 * 1024 * 1024
+    /// Maximum total cached memory (tier-based for optimal throughput)
+    private let maxCacheBytes: Int
     private nonisolated(unsafe) var currentCacheBytes: Int = 0
 
     init(device: MTLDevice) {
         self.device = device
+
+        // Device-tier-aware cache sizing based on Metal Feature Set Tables
+        // Apple9+ (A17/A18 Pro, M3+) have improved memory bandwidth and 8GB+ RAM
+        let deviceName = device.name.lowercased()
+        if deviceName.contains("a19") || deviceName.contains("m5") || deviceName.contains("m4") {
+            // Apple10 / Next-gen: Maximum caching for fastest throughput
+            self.maxCacheBytes = 256 * 1024 * 1024  // 256MB
+            self.maxBuffersPerBucket = 16
+        } else if deviceName.contains("a18") || deviceName.contains("m3") {
+            // Apple9: Aggressive caching, 256KB imageblock support
+            self.maxCacheBytes = 192 * 1024 * 1024  // 192MB
+            self.maxBuffersPerBucket = 12
+        } else if deviceName.contains("a17") || deviceName.contains("m2") {
+            // Apple9: Good caching with 8GB unified memory
+            self.maxCacheBytes = 128 * 1024 * 1024  // 128MB
+            self.maxBuffersPerBucket = 10
+        } else {
+            // Older devices or unknown: Conservative defaults
+            self.maxCacheBytes = 64 * 1024 * 1024   // 64MB
+            self.maxBuffersPerBucket = 8
+        }
+
+        Log.info("[MetalBufferPool] 📦 Cache configured: \(maxCacheBytes / (1024*1024))MB, \(maxBuffersPerBucket) buffers/bucket", category: .initialization)
     }
 
     /// Round up to next power of 2 for efficient bucketing
@@ -244,7 +271,10 @@ final class GPUComputeService: @unchecked Sendable {
         self.batchNormalizeSIMDPipeline = normSIMDPipeline
 
         Log.info("[GPUComputeService] 🚀 Metal GPU initialized: \(mtlDevice.name)", category: .initialization)
-        Log.info("[GPUComputeService] 📦 Buffer pool ready (64MB cache, 8 buffers/bucket)", category: .initialization)
+        if let pool = self.bufferPool {
+            let stats = pool.stats
+            Log.info("[GPUComputeService] 📦 Buffer pool ready (\(stats.totalBytes / (1024*1024))MB cache)", category: .initialization)
+        }
         if cosineSimilarityPipeline != nil {
             Log.info("[GPUComputeService] ✓ Batch cosine similarity pipeline ready", category: .initialization)
         }

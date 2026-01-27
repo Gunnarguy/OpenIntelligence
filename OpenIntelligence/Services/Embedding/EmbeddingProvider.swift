@@ -29,6 +29,13 @@ protocol EmbeddingProvider {
 
     /// Maximum safe token count (typically 510 for 512-token models after CLS/SEP)
     var maxSafeTokens: Int { get }
+
+    /// Enable ingestion mode - forces embeddings to GPU so ANE can focus on Vision OCR
+    /// This creates true ANE+GPU parallelism for faster document ingestion
+    func enableIngestionMode()
+
+    /// Disable ingestion mode - returns to default compute units
+    func disableIngestionMode()
 }
 
 // MARK: - Default Implementations
@@ -42,4 +49,8 @@ extension EmbeddingProvider {
 
     /// Default max tokens (512 - 2 for CLS/SEP)
     var maxSafeTokens: Int { 510 }
+
+    /// Default no-op for providers that don't support ingestion mode
+    func enableIngestionMode() {}
+    func disableIngestionMode() {}
 }

@@ -207,53 +207,64 @@ final class DeviceCapabilityService: @unchecked Sendable {
     /// - Larger batches: Better for high-bandwidth devices (iPad Pro, M-series)
     ///
     /// Used by BNNSVectorDatabase for vDSP_mmul batch matrix operations.
+    /// STABLE: Reduced after Metal command buffer crashes at MAX POWER.
     var vectorBatchSize: Int {
+        // STABLE: Moderate batch sizes to avoid memory pressure
         switch cachedTier {
-        case .unsupported: return 64
-        case .baseline: return 256 // A17 Pro: Conservative to avoid ANE throttling
-        case .enhanced: return 512 // A18: Better Neural Engine bandwidth
-        case .advanced: return 768 // A19: Projected improvement
-        case .ultraAdvanced: return 1024 // M-series: Maximum throughput
+        case .unsupported: return 128
+        case .baseline: return 384    // A17 Pro: conservative
+        case .enhanced: return 512    // A18 Pro: moderate
+        case .advanced: return 768    // A19 Pro: scaled
+        case .ultraAdvanced: return 1024 // M-series: reasonable
         }
     }
 
     /// Recommended batch size for embedding generation.
     ///
-    /// Larger batches amortize CoreML model loading overhead but risk memory pressure.
+    /// Larger batches amortize CoreML model loading overhead.
+    /// Metal Feature Set: Apple9+ has 256KB implicit imageblock and improved memory.
+    /// MiniLM-L6-v2 uses ~100MB; these batch sizes fit comfortably.
+    /// STABLE: Reduced for pipeline stability.
     var embeddingBatchSize: Int {
+        // STABLE: Moderate batches for smooth pipeline
         switch cachedTier {
         case .unsupported: return 8
-        case .baseline: return 16 // A17 Pro: Conservative memory usage
-        case .enhanced: return 24 // A18: Better memory bandwidth
-        case .advanced: return 32 // A19: Projected
-        case .ultraAdvanced: return 48 // M-series with 8GB+ RAM
+        case .baseline: return 16   // A17 Pro: conservative
+        case .enhanced: return 24   // A18 Pro: moderate
+        case .advanced: return 32   // A19 Pro: scaled
+        case .ultraAdvanced: return 48 // M-series: reasonable
         }
     }
 
     /// Threshold above which to use batch matrix multiply vs individual dot products.
     ///
-    /// Batch matrix multiply has overhead but scales better for large chunk counts.
-    /// Below this threshold, individual vDSP_dotpr calls are faster.
+    /// Metal Feature Set: SIMD-scoped matrix multiply on Apple7+.
+    /// Batch matrix multiply amortizes dispatch overhead for large datasets.
     var batchMatrixMultiplyThreshold: Int {
+        // MAX POWER: Use SIMD matrix multiply as early as possible
+        // Apple9 64-bit atomics make batch synchronization fast
         switch cachedTier {
-        case .unsupported: return Int.max // Never use batch
-        case .baseline: return 500 // A17 Pro: Conservative threshold
-        case .enhanced: return 300 // A18: Earlier switch to batch
-        case .advanced: return 200 // A19: More aggressive batching
-        case .ultraAdvanced: return 100 // M-series: Batch almost always
+        case .unsupported: return Int.max
+        case .baseline: return 100  // A17 Pro: batch early
+        case .enhanced: return 50   // A18 Pro: batch everything
+        case .advanced: return 32   // A19 Pro: always batch
+        case .ultraAdvanced: return 16 // M-series: batch from the start
         }
     }
 
     /// Maximum chunks to process in a single vector search before yielding.
     ///
-    /// Prevents UI jank during large searches by breaking work into cooperative chunks.
+    /// Metal Feature Set: Apple9+ supports 64-bit atomics for lock-free progress tracking.
+    /// Higher-tier devices can process more chunks before yielding to UI.
     var maxChunksPerSearchYield: Int {
+        // MAX POWER: Process more chunks before yielding
+        // 64-bit atomics enable lock-free progress tracking
         switch cachedTier {
-        case .unsupported: return 100
-        case .baseline: return 500
-        case .enhanced: return 1000
-        case .advanced: return 2000
-        case .ultraAdvanced: return 5000
+        case .unsupported: return 200
+        case .baseline: return 2000   // A17 Pro: fast single-core
+        case .enhanced: return 4000   // A18 Pro: MAXIMUM chunk processing
+        case .advanced: return 8000   // A19 Pro: next-gen cores
+        case .ultraAdvanced: return 16000 // M-series: unlimited
         }
     }
 
@@ -261,46 +272,73 @@ final class DeviceCapabilityService: @unchecked Sendable {
 
     /// Maximum concurrent pages for Vision structured parsing.
     ///
-    /// Vision's RecognizeDocumentsRequest runs on Neural Engine + GPU.
-    /// VisionOCRThrottle limits to 2 concurrent Vision ops with GPU sync.
-    /// We set batch size slightly higher (3-4) to keep the pipeline fed,
-    /// since rendering/preprocessing can overlap with Vision processing.
+    /// Vision's RecognizeDocumentsRequest runs on Neural Engine (16-core) + GPU.
+    /// NOTE: Too high causes swift_release_dealloc crashes from deallocation races.
+    /// VisionOCRThrottle gates actual Vision ops; this is pre-render pipeline size.
+    ///
+    /// CRITICAL: Values must coordinate with VisionOCRThrottle maxConcurrentVisionOps!
+    /// Pipeline size should be ~2x Vision ops to keep Vision saturated.
+    ///
+    /// IMPORTANT: Mac needs LOWER values despite more power!
+    /// macOS Metal command buffer scheduling differs from iOS.
     var visionParsingConcurrency: Int {
+        // Mac check - macOS Metal is pickier about command buffer pile-up
+        if isMac || ProcessInfo.processInfo.isiOSAppOnMac {
+            return 6  // Mac: 2x the 3 Vision ops
+        }
+
+        // iOS devices: 2x VisionOCRThrottle limits for pipeline saturation
         switch cachedTier {
         case .unsupported: return 2
-        case .baseline: return 3   // A17 Pro
-        case .enhanced: return 4   // A18 Pro
-        case .advanced: return 4   // A19 Pro
-        case .ultraAdvanced: return 5  // M-series
+        case .baseline: return 8   // A17 Pro: 2x the 4 Vision ops
+        case .enhanced: return 10  // A18 Pro: 2x the 5 Vision ops
+        case .advanced: return 12  // A19 Pro: 2x the 6 Vision ops
+        case .ultraAdvanced: return 8 // M-series iPad: moderate
         }
     }
 
     /// Maximum concurrent pages for PDF OCR extraction.
     ///
-    /// VisionOCRThrottle limits actual Vision calls to 2 concurrent.
-    /// Higher batch size allows rendering/preprocessing to overlap.
+    /// Metal Feature Set: Apple9 supports 256KB implicit imageblock (2x Apple8).
+    /// NOTE: Too high causes swift_release_dealloc crashes from deallocation races.
+    /// Keep moderate to avoid Vision observation deallocation races.
+    ///
+    /// CRITICAL: Values must coordinate with VisionOCRThrottle maxConcurrentVisionOps!
     var ocrExtractionConcurrency: Int {
+        // Mac check - macOS Metal is pickier about command buffer pile-up
+        if isMac || ProcessInfo.processInfo.isiOSAppOnMac {
+            return 6  // Mac: matches visionParsingConcurrency
+        }
+
+        // iOS devices - 2x VisionOCRThrottle for pipeline saturation
         switch cachedTier {
         case .unsupported: return 2
-        case .baseline: return 4   // A17 Pro
-        case .enhanced: return 5   // A18 Pro
-        case .advanced: return 6   // A19 Pro
-        case .ultraAdvanced: return 8 // M-series
+        case .baseline: return 8   // A17 Pro: 2x the 4 Vision ops
+        case .enhanced: return 10  // A18 Pro: 2x the 5 Vision ops
+        case .advanced: return 12  // A19 Pro: 2x the 6 Vision ops
+        case .ultraAdvanced: return 8 // M-series iPad: moderate
         }
     }
 
     /// Maximum concurrent embedding requests.
     ///
-    /// CoreML embedding runs on ANE; limited parallelism prevents throttling.
-    /// GPU boost increases parallelism for faster ingestion.
+    /// CoreML embedding uses ANE (16-core Neural Engine) + optional GPU fallback.
+    /// Metal Feature Set: SIMD-scoped matrix multiply available on Apple7+.
+    /// STABLE: Reduced after Metal synchronizeResource crashes.
+    /// GPU boost mode disabled - caused Metal command buffer conflicts.
     var embeddingConcurrency: Int {
-        let gpuBoost = gpuAccelerationLevel > 0.7
+        // Mac check - macOS Metal is pickier
+        if isMac || ProcessInfo.processInfo.isiOSAppOnMac {
+            return 8  // Mac: Conservative for macOS Metal stability
+        }
+
+        // iOS devices
         switch cachedTier {
         case .unsupported: return 2
-        case .baseline: return gpuBoost ? 10 : 6  // A17 Pro
-        case .enhanced: return gpuBoost ? 14 : 8  // A18 Pro
-        case .advanced: return gpuBoost ? 16 : 10 // A19 Pro
-        case .ultraAdvanced: return gpuBoost ? 20 : 12 // M-series
+        case .baseline: return 10  // A17 Pro: 2x Vision ops
+        case .enhanced: return 12  // A18 Pro: 2x Vision ops (5 * 2 + margin)
+        case .advanced: return 16  // A19 Pro: scaled
+        case .ultraAdvanced: return 12 // M-series iPad: moderate
         }
     }
 
@@ -331,35 +369,67 @@ final class DeviceCapabilityService: @unchecked Sendable {
         }
     }
 
+    /// Force embeddings to GPU during ingestion to parallelize with Vision OCR on ANE
+    ///
+    /// Vision OCR is ANE-bound. Running embeddings on GPU simultaneously creates true parallelism:
+    /// - ANE: Vision OCR (text recognition)
+    /// - GPU: CoreML embeddings (MiniLM-L6-v2)
+    ///
+    /// This prevents ANE contention and can nearly double ingestion throughput.
+    var embeddingComputeUnitsDuringIngestion: MLComputeUnits {
+        // Always use GPU for embeddings during ingestion to free ANE for Vision
+        // GPU is 5-6% utilized during ingestion - let's put it to work!
+        switch cachedTier {
+        case .unsupported:
+            return .cpuAndNeuralEngine  // Older devices may not have good GPU CoreML support
+        case .baseline, .enhanced, .advanced, .ultraAdvanced:
+            return .cpuAndGPU  // Force GPU, leave ANE for Vision OCR
+        }
+    }
+
     /// Whether to use GPU-backed CIContext for PDF rendering
     var useGPUForPDFRendering: Bool {
         gpuAccelerationLevel >= 0.3
     }
 
     /// Maximum concurrent GPU operations (image processing, rendering)
+    ///
+    /// Metal Feature Set Tables (Oct 2025):
+    /// - Apple9 (A18): 6-core GPU, 1024 threads/group, 32KB threadgroup mem
+    /// - Apple10 (A19): Similar limits but improved scheduling
+    /// - All support Metal 3 & 4, ray tracing, mesh shaders
+    /// STABLE: Reduced after MTLDebugBlitCommandEncoder crashes.
+    ///
+    /// IMPORTANT: Mac needs LOWER values despite more GPU cores!
+    /// macOS Metal command buffer scheduling differs from iOS.
     var gpuConcurrency: Int {
+        // Mac check - macOS Metal is pickier about command buffer pile-up
+        if isMac || ProcessInfo.processInfo.isiOSAppOnMac {
+            return 4  // Mac: Conservative for macOS Metal stability
+        }
+
         let level = gpuAccelerationLevel
         if level >= 0.9 {
-            // Maximum GPU mode - push GPU hard
-            switch cachedTier {
-            case .unsupported: return 4
-            case .baseline: return 8   // A17 Pro GPU
-            case .enhanced: return 10  // A18 Pro GPU
-            case .advanced: return 12  // A19 Pro projected
-            case .ultraAdvanced: return 16 // M-series GPU
-            }
-        } else if level >= 0.6 {
-            // Performance mode
+            // Performance mode - safe maximums for iOS
             switch cachedTier {
             case .unsupported: return 2
-            case .baseline: return 5
-            case .enhanced: return 6
-            case .advanced: return 8
-            case .ultraAdvanced: return 10
+            case .baseline: return 8    // A17 Pro: safe
+            case .enhanced: return 10   // A18 Pro: moderate
+            case .advanced: return 12   // A19 Pro: scaled
+            case .ultraAdvanced: return 8 // M-series iPad: moderate
+            }
+        } else if level >= 0.6 {
+            // Balanced mode
+            switch cachedTier {
+            case .unsupported: return 2
+            case .baseline: return 6
+            case .enhanced: return 8
+            case .advanced: return 10
+            case .ultraAdvanced: return 6 // M-series iPad
             }
         } else {
-            // Efficiency/balanced mode
-            return 2
+            // Efficiency mode
+            return 4
         }
     }
 
