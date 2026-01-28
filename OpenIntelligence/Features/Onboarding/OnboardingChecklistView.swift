@@ -136,18 +136,18 @@ struct OnboardingChecklistView: View {
     // MARK: - Processing Overlay
 
     private var processingOverlay: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 20) {
             // Header with pulsing icon
             HStack(spacing: 12) {
                 ZStack {
                     Circle()
                         .fill(Color.accentColor.opacity(0.2))
-                        .frame(width: 56, height: 56)
+                        .frame(width: 48, height: 48)
                         .scaleEffect(pulseAnimation ? 1.1 : 1.0)
                         .animation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true), value: pulseAnimation)
 
-                    Image(systemName: "arrow.down.doc.fill")
-                        .font(.system(size: 24, weight: .semibold))
+                    Image(systemName: "cpu")
+                        .font(.system(size: 20, weight: .semibold))
                         .foregroundStyle(
                             LinearGradient(
                                 colors: [.accentColor, .purple],
@@ -157,8 +157,8 @@ struct OnboardingChecklistView: View {
                         )
                 }
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Setting up your library")
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("RAG Pipeline Active")
                         .font(.headline)
                         .foregroundColor(.white)
 
@@ -170,6 +170,46 @@ struct OnboardingChecklistView: View {
                 Spacer()
             }
             .padding(.horizontal, 4)
+
+            // Pipeline legend - shows which phase is active
+            HStack(spacing: 12) {
+                PipelineStageBadge(
+                    label: "Extract",
+                    icon: "doc.text",
+                    isActive: currentPipelinePhase == .extract
+                )
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundColor(.white.opacity(0.3))
+
+                PipelineStageBadge(
+                    label: "Chunk",
+                    icon: "rectangle.split.3x1",
+                    isActive: currentPipelinePhase == .chunk
+                )
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundColor(.white.opacity(0.3))
+
+                PipelineStageBadge(
+                    label: "Embed",
+                    icon: "point.3.connected.trianglepath.dotted",
+                    isActive: currentPipelinePhase == .embed
+                )
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundColor(.white.opacity(0.3))
+
+                PipelineStageBadge(
+                    label: "Index",
+                    icon: "magnifyingglass",
+                    isActive: currentPipelinePhase == .index
+                )
+            }
+            .padding(.horizontal, 8)
 
             // Real-time ingestion queue
             if !ragService.ingestionItems.isEmpty {
@@ -258,6 +298,39 @@ struct OnboardingChecklistView: View {
 
     private var completedItemsCount: Int {
         ragService.ingestionItems.filter { $0.stage == .complete }.count
+    }
+
+    /// Check if any active item is in one of the specified stages
+    private func hasActiveStage(_ stages: [IngestionStage]) -> Bool {
+        ragService.ingestionItems.contains { stages.contains($0.stage) }
+    }
+
+    /// Simplified pipeline phase for UI display
+    private enum PipelinePhase {
+        case none, extract, chunk, embed, index
+    }
+
+    /// Current pipeline phase based on active ingestion items
+    private var currentPipelinePhase: PipelinePhase {
+        let items = ragService.ingestionItems
+        guard !items.isEmpty else { return .none }
+
+        // Find the first non-terminal item's stage
+        for item in items where !item.stage.isTerminal {
+            switch item.stage {
+            case .queued, .loading, .transcribing, .extracting:
+                return .extract
+            case .chunking, .analyzing, .adapting, .reindexing:
+                return .chunk
+            case .embedding:
+                return .embed
+            case .indexing, .storing:
+                return .index
+            default:
+                continue
+            }
+        }
+        return .none
     }
 
     private var overallProgress: Double {
@@ -422,17 +495,16 @@ struct OnboardingChecklistView: View {
                     .foregroundColor(.white.opacity(0.7))
 
                 HStack(spacing: 8) {
-                    SampleDocChip(title: "EV Owner's Manual", icon: "car.fill")
-                    SampleDocChip(title: "Smart Home Guide", icon: "homekit")
+                    SampleDocChip(title: "Pricing Guide", icon: "dollarsign.circle")
+                    SampleDocChip(title: "RAG Tech Guide", icon: "cpu")
                 }
 
                 HStack(spacing: 8) {
-                    SampleDocChip(title: "Annual Report", icon: "chart.bar.doc.horizontal")
-                    SampleDocChip(title: "Tech Specs", icon: "cpu")
+                    SampleDocChip(title: "Private Cloud Compute", icon: "cloud.fill")
                 }
             }
-.padding(.horizontal, 32)
-    .padding(.top, 8)
+            .padding(.horizontal, 32)
+            .padding(.top, 8)
 
             Spacer()
             Spacer()
@@ -473,25 +545,26 @@ struct OnboardingChecklistView: View {
                     }
                 }
 
-                // Mark as imported
-                onboardingStore.markSamplesImported()
-
                 // Brief pause to show completion
                 processingStatus = "Ready!"
                 processingProgress = 1.0
                 try? await Task.sleep(for: .milliseconds(400))
 
-                // Now navigate to chat
-                onboardingStore.dismissChecklist()
+                // Reset LLM session to ensure fresh context budget for first queries
+                // This prevents transcript tokens from eating into context window
+                ragService.resetLLMSession()
+
+                // Mark onboarding complete - user tapped Get Started, they're onboarded
+                onboardingStore.skipPermanently()
                 onOpenChat()
 
             } catch {
                 Log.error("Sample import failed: \(error)", category: .initialization)
                 processingStatus = "Import failed"
 
-                // Still navigate after brief delay on error
+                // Still complete onboarding after brief delay on error
                 try? await Task.sleep(for: .seconds(1))
-                onboardingStore.dismissChecklist()
+                onboardingStore.skipPermanently()
                 onOpenChat()
             }
         }
@@ -592,7 +665,8 @@ private struct SplashBackdrop: View {
 
 // MARK: - Onboarding Ingestion Row
 
-/// Compact row for showing document processing status during onboarding
+/// Transparent, nerdy row for showing document processing pipeline during onboarding
+/// Gives users a taste of the app's detailed transparency philosophy
 private struct OnboardingIngestionRow: View {
     let item: IngestionItem
 
@@ -623,9 +697,50 @@ private struct OnboardingIngestionRow: View {
         }
     }
 
+    /// Real-time metrics string based on current stage
+    private var metricsDetail: String? {
+        let m = item.metrics
+
+        switch item.stage {
+        case .extracting:
+            if m.totalWords > 0 {
+                return "\(m.totalWords.formatted()) words"
+            }
+        case .chunking:
+            if m.chunkCount > 0 {
+                return "\(m.chunkCount) chunks @ ~\(m.avgChunkWords)w"
+            }
+        case .embedding:
+            if m.embeddingsGenerated > 0 {
+                return "\(m.embeddingsGenerated)/\(m.chunkCount) → 384d"
+            } else if m.chunkCount > 0 {
+                return "0/\(m.chunkCount) → 384d vectors"
+            }
+        case .indexing:
+            return "BM25 + HNSW"
+        case .complete:
+            // Show final stats
+            let timeStr = m.totalTimeMs > 0 ? "\(m.totalTimeMs)ms" : ""
+            if m.chunkCount > 0 && !timeStr.isEmpty {
+                return "\(m.chunkCount) chunks in \(timeStr)"
+            } else if m.chunkCount > 0 {
+                return "\(m.chunkCount) chunks indexed"
+            }
+        default:
+            break
+        }
+        return nil
+    }
+
+    /// Pipeline progress (which stage out of total)
+    private var pipelineProgress: (current: Int, total: Int)? {
+        guard let idx = item.stage.pipelineIndex else { return nil }
+        return (idx + 1, IngestionStage.pipelineStages.count)
+    }
+
     var body: some View {
         HStack(spacing: 10) {
-            // Stage icon with animation
+            // Stage icon with pulse animation for active stages
             ZStack {
                 if !item.stage.isTerminal {
                     Circle()
@@ -642,44 +757,131 @@ private struct OnboardingIngestionRow: View {
                     .frame(width: 28, height: 28)
             }
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 2) {
+                // Filename
                 Text(item.filename)
                     .font(.system(size: 13, weight: .medium))
                     .foregroundColor(.white)
                     .lineLimit(1)
                     .truncationMode(.middle)
 
-                Text(item.stage.displayName)
-                    .font(.caption2)
-                    .foregroundColor(.white.opacity(0.6))
+                // Stage name + pipeline position
+                HStack(spacing: 4) {
+                    Text(item.stage.displayName)
+                        .font(.caption2.weight(.medium))
+                        .foregroundColor(stageColor)
+
+                    if let (current, total) = pipelineProgress {
+                        Text("•")
+                            .font(.caption2)
+                            .foregroundColor(.white.opacity(0.3))
+                        Text("\(current)/\(total)")
+                            .font(.caption2.monospacedDigit())
+                            .foregroundColor(.white.opacity(0.4))
+                    }
+                }
+
+                // Metrics detail (nerdy stats)
+                if let detail = metricsDetail {
+                    Text(detail)
+                        .font(.system(size: 10, weight: .regular, design: .monospaced))
+                        .foregroundColor(.white.opacity(0.5))
+                }
             }
 
             Spacer()
 
-            // Mini progress indicator or checkmark
-            if item.stage == .complete {
-                Image(systemName: "checkmark")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(.green)
-            } else if item.stage == .failed {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 10))
-                    .foregroundColor(.red)
-            } else if let progress = item.progress {
-                Text("\(Int(progress * 100))%")
-                    .font(.caption2.monospacedDigit())
-                    .foregroundColor(.white.opacity(0.6))
-            } else {
-                ProgressView()
-                    .scaleEffect(0.6)
-                    .tint(.white.opacity(0.6))
+            // Status indicator
+            VStack(alignment: .trailing, spacing: 2) {
+                if item.stage == .complete {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.green)
+                } else if item.stage == .failed {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 10))
+                        .foregroundColor(.red)
+                } else if let progress = item.progress {
+                    Text("\(Int(progress * 100))%")
+                        .font(.caption2.monospacedDigit())
+                        .foregroundColor(.white.opacity(0.6))
+                } else {
+                    ProgressView()
+                        .scaleEffect(0.6)
+                        .tint(.white.opacity(0.6))
+                }
+
+                // Elapsed time for active items
+                if let started = item.startedAt, !item.stage.isTerminal {
+                    Text(elapsedString(from: started))
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundColor(.white.opacity(0.4))
+                }
             }
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.vertical, 10)
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(Color.white.opacity(0.08))
         )
+    }
+
+    private func elapsedString(from start: Date) -> String {
+        let elapsed = Date().timeIntervalSince(start)
+        if elapsed < 1 {
+            return "<1s"
+        } else if elapsed < 60 {
+            return String(format: "%.1fs", elapsed)
+        } else {
+            return String(format: "%.0fm", elapsed / 60)
+        }
+    }
+}
+
+// MARK: - Pipeline Stage Badge
+
+/// Visual indicator for pipeline stages during onboarding
+private struct PipelineStageBadge: View {
+    let label: String
+    let icon: String
+    let isActive: Bool
+
+    @State private var isPulsing = false
+
+    var body: some View {
+        VStack(spacing: 4) {
+            ZStack {
+                // Outer pulse ring for active state
+                if isActive {
+                    Circle()
+                        .stroke(Color.accentColor.opacity(0.4), lineWidth: 2)
+                        .frame(width: 36, height: 36)
+                        .scaleEffect(isPulsing ? 1.3 : 1.0)
+                        .opacity(isPulsing ? 0 : 0.8)
+                        .animation(.easeOut(duration: 1.0).repeatForever(autoreverses: false), value: isPulsing)
+                }
+
+                Circle()
+                    .fill(isActive ? Color.accentColor : Color.white.opacity(0.1))
+                    .frame(width: 32, height: 32)
+
+                Image(systemName: icon)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(isActive ? .white : .white.opacity(0.4))
+            }
+            .scaleEffect(isActive ? 1.1 : 1.0)
+            .animation(.easeInOut(duration: 0.2), value: isActive)
+
+            Text(label)
+                .font(.system(size: 9, weight: isActive ? .bold : .medium))
+                .foregroundColor(isActive ? .white : .white.opacity(0.4))
+        }
+        .onAppear {
+            if isActive { isPulsing = true }
+        }
+        .onChange(of: isActive) { _, newValue in
+            isPulsing = newValue
+        }
     }
 }

@@ -1115,7 +1115,7 @@ struct ChatScreen: View {
         messages.isEmpty && !onboardingStore.hasAskedFirstQuery
     }
 
-    /// Starter prompts - uses dynamic questions if available, falls back to generic prompts
+    /// Starter prompts - uses dynamic questions if available, falls back to sample doc prompts
     private var starterPrompts: [String] {
         // If we have dynamic questions based on library content, use them
         if !dynamicSuggestedQuestions.isEmpty {
@@ -1131,12 +1131,13 @@ struct ChatScreen: View {
             ]
         }
 
-        // Fallback generic prompts (library has docs but dynamic generation hasn't completed)
+        // Fallback prompts relevant to sample documents
+        // These are specific enough to get good answers but not too nuanced
         return [
-            "Summarize the main topics in my documents.",
-            "What are the key facts I should know?",
-            "List the most important details mentioned.",
-            "What questions can my documents answer?"
+            "How much does the Pro annual subscription cost?",
+            "What embedding model is used and how many dimensions?",
+            "What privacy guarantees does Private Cloud Compute provide?",
+            "What file formats does OpenIntelligence support?"
         ]
     }
 
