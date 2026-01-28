@@ -436,6 +436,19 @@ class RAGService: ObservableObject {
             ConversationMemoryService.shared.clearMemory(for: resolvedId)
             Log.debug("[RAGService] Cleared chat history, transcript, memory, and live metrics for container \(resolvedId)", category: .initialization)
         }
+
+        // Reset the LLM session to clear transcript from memory
+        resetLLMSession()
+    }
+
+    /// Resets the LLM session to clear accumulated transcript and free up context budget.
+    /// Call after onboarding, when starting fresh, or when context budget is exhausted.
+    @MainActor
+    func resetLLMSession() {
+        if let appleFMService = _llmService as? AppleFoundationLLMService {
+            appleFMService.resetSession(clearTools: false)
+            Log.info("[RAGService] Reset LLM session - context budget restored", category: .llm)
+        }
     }
 
     /// Resets Deep Think / Maximum mode live metrics to prevent stale state in UI.
