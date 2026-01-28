@@ -580,7 +580,13 @@ actor IntelligentDocumentProcessor {
         )
 
         #if canImport(UIKit)
-        let renderer = UIGraphicsImageRenderer(size: scaledSize)
+        // Use opaque format to avoid alpha channel overhead
+        // This prevents "AlphaPremulLast" warning and halves memory during decode
+        let format = UIGraphicsImageRendererFormat()
+        format.opaque = true
+        format.scale = 1.0
+
+        let renderer = UIGraphicsImageRenderer(size: scaledSize, format: format)
         let uiImage = renderer.image { context in
             UIColor.white.setFill()
             context.fill(CGRect(origin: .zero, size: scaledSize))

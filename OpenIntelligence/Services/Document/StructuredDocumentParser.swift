@@ -23,7 +23,7 @@ import UIKit
 
 /// Serial queue to prevent Metal command buffer race conditions
 /// when multiple threads try to render CIImages concurrently
-private let gpuRenderQueue = DispatchQueue(label: "com.openintelligence.structured-parser-gpu", qos: .userInitiated)
+nonisolated(unsafe) private let gpuRenderQueue = DispatchQueue(label: "com.openintelligence.structured-parser-gpu", qos: .userInitiated)
 
 /// Shared Metal-backed CIContext for GPU-accelerated image processing
 /// CIContext is thread-safe.
@@ -791,8 +791,26 @@ actor StructuredDocumentParser {
         guard let renderedImage = cgImage else {
             return nil
         }
-        let uiImage = UIImage(cgImage: renderedImage)
-        return uiImage.jpegData(compressionQuality: 0.9)
+
+        // Convert to opaque image to avoid "AlphaPremulLast" warning
+        // PDF pages are opaque - including alpha doubles memory during decode
+        let width = renderedImage.width
+        let height = renderedImage.height
+
+        // Use UIGraphicsImageRenderer with opaque format for optimal memory
+        let format = UIGraphicsImageRendererFormat()
+        format.opaque = true
+        format.scale = 1.0
+
+        let size = CGSize(width: width, height: height)
+        let renderer = UIGraphicsImageRenderer(size: size, format: format)
+        let opaqueImage = renderer.image { context in
+            UIColor.white.setFill()
+            context.fill(CGRect(origin: .zero, size: size))
+            context.cgContext.draw(renderedImage, in: CGRect(origin: .zero, size: size))
+        }
+
+        return opaqueImage.jpegData(compressionQuality: 0.9)
         #else
         return nil
         #endif

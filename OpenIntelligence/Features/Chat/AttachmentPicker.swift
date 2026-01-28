@@ -376,7 +376,10 @@ func generateThumbnail(for url: URL) -> UIImage? {
            let image = UIImage(data: data)
         {
             let size = CGSize(width: 60, height: 60)
-            UIGraphicsBeginImageContextWithOptions(size, false, 0)
+            // Use opaque context - thumbnails have white background
+            UIGraphicsBeginImageContextWithOptions(size, true, 0)
+            UIColor.white.setFill()
+            UIRectFill(CGRect(origin: .zero, size: size))
             image.draw(in: CGRect(origin: .zero, size: size))
             let thumbnail = UIGraphicsGetImageFromCurrentImageContext()
             UIGraphicsEndImageContext()
