@@ -5265,11 +5265,31 @@ class RAGService: ObservableObject {
                         if !rescuedChunks.isEmpty {
                             // Limit rescued chunks to prevent flooding
                             let maxRescue = min(5, rescuedChunks.count)
-                            let topRescued = rescuedChunks.prefix(maxRescue)
-                            filteredChunks.append(contentsOf: topRescued)
+                            let topRescued = Array(rescuedChunks.prefix(maxRescue))
+
+                            // CRITICAL FIX (Jan 27, 2026): Boost rescued chunk scores!
+                            // Cross-encoders score spec/table chunks LOW because they're data-dense.
+                            // But these chunks contain THE ANSWER (e.g., "0W-20").
+                            // Without boosting, MMR will pick the "relevant-looking" chunks first
+                            // (like EVIC messages with "car" in them) and skip the specs.
+                            //
+                            // Strategy: Boost to match top chunk score + 0.05 so they're selected first
+                            let topScore = filteredChunks.first?.similarityScore ?? 0.8
+                            let boostedRescued = topRescued.map { chunk -> RetrievedChunk in
+                                RetrievedChunk(
+                                    chunk: chunk.chunk,
+                                    similarityScore: topScore + 0.05,  // Slightly higher than top
+                                    rank: 0,  // Top rank
+                                    sourceDocument: chunk.sourceDocument,
+                                    pageNumber: chunk.pageNumber
+                                )
+                            }
+
+                            // Insert at FRONT so MMR picks them first
+                            filteredChunks.insert(contentsOf: boostedRescued, at: 0)
 
                             Log.info(
-                                "   🔧 Spec preservation: rescued \(topRescued.count) spec-containing chunks for extractive query",
+                                "   🔧 Spec preservation: rescued \(topRescued.count) spec-containing chunks for extractive query (boosted to \(String(format: "%.2f", topScore + 0.05)))",
                                 category: .retrieval
                             )
                             TelemetryCenter.emit(
@@ -5277,7 +5297,8 @@ class RAGService: ObservableObject {
                                 title: "Spec preservation",
                                 metadata: [
                                     "rescued": "\(topRescued.count)",
-                                    "intent": answerIntent.rawValue
+                                    "intent": answerIntent.rawValue,
+                                    "boostedScore": String(format: "%.2f", topScore + 0.05)
                                 ]
                             )
                         }
@@ -6119,7 +6140,15 @@ class RAGService: ObservableObject {
                 // This replaces the previous compound safety (1.6x factor + 800 buffer)
                 let safetyTokens = isAppleFMOnDevice ? 400 : 300
                 let systemPromptTokens = estimateTokensConservative(chars: (inferenceConfig.systemPrompt ?? "").count)
-                let promptOverheadTokens = 120 + systemPromptTokens // Template overhead
+
+                // CRITICAL (Jan 27, 2026): Account for @Tool schema tokens!
+                // Each of the 8 tools (SearchDocuments, ListDocuments, GetSummary, CountPattern,
+                // ExactSearch, Stats, Related, Compare) includes description + parameter schema.
+                // Empirically, this adds ~800-1200 tokens total. Use 1000 as conservative estimate.
+                // Without this, we overflow: estimated 1655 tokens but actual was 4440!
+                let toolSchemaTokens = isAppleFMOnDevice ? 1000 : 800
+
+                let promptOverheadTokens = 120 + systemPromptTokens + toolSchemaTokens // Template + system + tools
                 let questionTokens = estimateTokensConservative(chars: question.count)
 
                 // CRITICAL: Account for transcript history tokens (Jan 26, 2026)

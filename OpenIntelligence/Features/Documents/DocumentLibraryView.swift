@@ -81,18 +81,22 @@ struct DocumentLibraryView: View {
                     onDeleteLibrary: handleDeleteLibrary
                 )
                 .padding(.horizontal)
-                DocumentQuotaBanner(
-                    currentCount: ragService.documents.count,
-                    limit: documentLimit,
-                    tierName: entitlementStore.activeTier.displayName,
-                    addOnPacks: entitlementStore.addOnPacks,
-                    packCap: entitlementStore.documentPackCap,
-                    remainingPackCapacity: entitlementStore.remainingDocumentPackCapacity,
-                    hasReachedPackCap: entitlementStore.hasReachedDocumentPackCap,
-                    onUpgrade: { presentPlanSheet(for: .quotaBanner) },
-                    onRefillPack: refillDocumentPack
-                )
-                .padding(.horizontal)
+
+                // Hide quota banner when user has purchased all 3 document packs
+                if !entitlementStore.hasReachedDocumentPackCap {
+                    DocumentQuotaBanner(
+                        currentCount: ragService.documents.count,
+                        limit: documentLimit,
+                        tierName: entitlementStore.activeTier.displayName,
+                        addOnPacks: entitlementStore.addOnPacks,
+                        packCap: entitlementStore.documentPackCap,
+                        remainingPackCapacity: entitlementStore.remainingDocumentPackCapacity,
+                        hasReachedPackCap: entitlementStore.hasReachedDocumentPackCap,
+                        onUpgrade: { presentPlanSheet(for: .quotaBanner) },
+                        onRefillPack: refillDocumentPack
+                    )
+                    .padding(.horizontal)
+                }
             }
 
             // Expandable content section
@@ -119,18 +123,22 @@ struct DocumentLibraryView: View {
                 onDeleteLibrary: handleDeleteLibrary
             )
             .padding(.horizontal)
-            DocumentQuotaBanner(
-                currentCount: ragService.documents.count,
-                limit: documentLimit,
-                tierName: entitlementStore.activeTier.displayName,
-                addOnPacks: entitlementStore.addOnPacks,
-                packCap: entitlementStore.documentPackCap,
-                remainingPackCapacity: entitlementStore.remainingDocumentPackCapacity,
-                hasReachedPackCap: entitlementStore.hasReachedDocumentPackCap,
-                onUpgrade: { presentPlanSheet(for: .quotaBanner) },
-                onRefillPack: refillDocumentPack
-            )
-            .padding(.horizontal)
+
+            // Hide quota banner when user has purchased all 3 document packs
+            if !entitlementStore.hasReachedDocumentPackCap {
+                DocumentQuotaBanner(
+                    currentCount: ragService.documents.count,
+                    limit: documentLimit,
+                    tierName: entitlementStore.activeTier.displayName,
+                    addOnPacks: entitlementStore.addOnPacks,
+                    packCap: entitlementStore.documentPackCap,
+                    remainingPackCapacity: entitlementStore.remainingDocumentPackCapacity,
+                    hasReachedPackCap: entitlementStore.hasReachedDocumentPackCap,
+                    onUpgrade: { presentPlanSheet(for: .quotaBanner) },
+                    onRefillPack: refillDocumentPack
+                )
+                .padding(.horizontal)
+            }
             // Document list with modern styling
             ScrollView {
                 LazyVStack(spacing: 12) {

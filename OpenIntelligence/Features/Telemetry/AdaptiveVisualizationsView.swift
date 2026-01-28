@@ -2823,27 +2823,156 @@ struct CompactAtlasSceneView: View {
     }
 
     private func inferTopicFromContent(text: String) -> String {
-        // Pattern-based topic inference for unmatched chunks
-        let patterns: [(pattern: String, topic: String)] = [
-            ("func |class |struct |enum |protocol ", "Code"),
-            ("import |#include|require\\(|from .+ import", "Code"),
-            ("http|api|endpoint|request|response", "API"),
-            ("test|spec|assert|expect|describe|it\\(", "Testing"),
-            ("config|settings|options|parameters", "Config"),
-            ("error|exception|throw|catch|try", "Errors"),
-            ("async|await|promise|future|task", "Async"),
-            ("view|component|render|display|screen", "UI"),
-            ("model|schema|entity|record|data", "Data"),
-            ("auth|login|token|session|permission", "Auth"),
+        let lowercased = text.lowercased()
+
+        // First, detect document domain for context-aware labeling
+        let domain = detectDomain(from: lowercased)
+
+        // Domain-specific pattern matching for meaningful labels
+        switch domain {
+        case "vehicle":
+            return inferVehicleTopic(from: lowercased)
+        case "technical":
+            return inferTechnicalTopic(from: lowercased)
+        case "legal":
+            return inferLegalTopic(from: lowercased)
+        case "medical":
+            return inferMedicalTopic(from: lowercased)
+        default:
+            return inferGeneralTopic(from: lowercased)
+        }
+    }
+
+    /// Detect document domain from content
+    private func detectDomain(from text: String) -> String {
+        // Vehicle/automotive indicators
+        let vehicleTerms = ["vehicle", "car", "engine", "transmission", "brake", "tire", "oil",
+                           "fuel", "mph", "dashboard", "steering", "warranty", "maintenance"]
+        if vehicleTerms.contains(where: { text.contains($0) }) { return "vehicle" }
+
+        // Technical/software indicators
+        let techTerms = ["api", "function", "code", "software", "database", "server", "deploy"]
+        if techTerms.contains(where: { text.contains($0) }) { return "technical" }
+
+        // Legal indicators
+        let legalTerms = ["agreement", "contract", "liability", "hereby", "pursuant"]
+        if legalTerms.contains(where: { text.contains($0) }) { return "legal" }
+
+        // Medical indicators
+        let medicalTerms = ["patient", "diagnosis", "treatment", "medication", "symptoms"]
+        if medicalTerms.contains(where: { text.contains($0) }) { return "medical" }
+
+        return "general"
+    }
+
+    /// Infer topic for vehicle/automotive content
+    private func inferVehicleTopic(from text: String) -> String {
+        let patterns: [(terms: [String], label: String)] = [
+            (["infotainment", "display", "screen", "touchscreen", "navigation"], "Infotainment System"),
+            (["bluetooth", "audio", "speaker", "radio", "music", "sound"], "Audio & Connectivity"),
+            (["setting", "settings", "configure", "customize"], "Vehicle Settings"),
+            (["climate", "air conditioning", "hvac", "temperature", "heater"], "Climate Control"),
+            (["seat", "seating", "lumbar", "headrest"], "Seat Adjustment"),
+            (["safety", "airbag", "collision", "seatbelt"], "Safety Features"),
+            (["adas", "driver assist", "lane", "blind spot", "cruise control"], "Driver Assistance"),
+            (["alarm", "security", "theft", "lock", "keyless"], "Security System"),
+            (["camera", "backup", "parking", "sensor"], "Parking Assistance"),
+            (["oil", "lubricant", "viscosity"], "Oil Specifications"),
+            (["maintenance", "service", "schedule"], "Maintenance Schedule"),
+            (["tire", "wheel", "pressure", "rotation"], "Tire Information"),
+            (["brake", "braking", "pad", "rotor"], "Brake System"),
+            (["coolant", "antifreeze", "radiator"], "Cooling System"),
+            (["battery", "charging", "jump start"], "Battery & Charging"),
+            (["fuel", "gas", "gasoline", "tank", "mpg"], "Fuel System"),
+            (["engine", "motor", "horsepower", "torque"], "Engine Specs"),
+            (["transmission", "gear", "shift"], "Transmission"),
+            (["warranty", "coverage", "guarantee"], "Warranty"),
+            (["interior", "cabin", "dashboard", "console"], "Interior Features"),
+            (["trunk", "cargo", "storage"], "Cargo & Storage"),
+            (["gauge", "speedometer", "instrument"], "Instrument Panel"),
+            (["warning", "indicator", "alert"], "Warning Lights"),
+            (["specification", "dimension", "weight"], "Specifications"),
+            (["mirror", "lighting", "headlight"], "Exterior Controls"),
         ]
 
-        for (pattern, topic) in patterns {
-            if text.range(of: pattern, options: .regularExpression) != nil {
-                return topic
+        return matchBestPattern(patterns: patterns, text: text) ?? "Vehicle Info"
+    }
+
+    /// Infer topic for technical/software content
+    private func inferTechnicalTopic(from text: String) -> String {
+        let patterns: [(terms: [String], label: String)] = [
+            (["api", "endpoint", "rest", "graphql"], "API Reference"),
+            (["authentication", "auth", "oauth", "token", "login"], "Authentication"),
+            (["database", "sql", "query", "schema"], "Database"),
+            (["configuration", "config", "settings", "env"], "Configuration"),
+            (["testing", "test", "unit test", "spec"], "Testing"),
+            (["error", "exception", "debugging", "troubleshoot"], "Error Handling"),
+            (["security", "encryption", "ssl"], "Security"),
+            (["performance", "optimization", "cache"], "Performance"),
+            (["deployment", "deploy", "ci/cd", "docker"], "Deployment"),
+            (["architecture", "design", "pattern"], "Architecture"),
+        ]
+
+        return matchBestPattern(patterns: patterns, text: text) ?? "Technical"
+    }
+
+    /// Infer topic for legal content
+    private func inferLegalTopic(from text: String) -> String {
+        let patterns: [(terms: [String], label: String)] = [
+            (["liability", "indemnify", "damages"], "Liability"),
+            (["confidential", "nda", "non-disclosure"], "Confidentiality"),
+            (["termination", "cancel", "expiration"], "Termination"),
+            (["payment", "fee", "compensation"], "Payment Terms"),
+            (["intellectual property", "copyright", "trademark"], "IP Rights"),
+            (["dispute", "arbitration", "mediation"], "Dispute Resolution"),
+        ]
+
+        return matchBestPattern(patterns: patterns, text: text) ?? "Legal Terms"
+    }
+
+    /// Infer topic for medical content
+    private func inferMedicalTopic(from text: String) -> String {
+        let patterns: [(terms: [String], label: String)] = [
+            (["diagnosis", "symptom", "condition"], "Diagnosis"),
+            (["treatment", "therapy", "procedure"], "Treatment"),
+            (["medication", "drug", "prescription", "dosage"], "Medications"),
+            (["side effect", "adverse", "reaction"], "Side Effects"),
+        ]
+
+        return matchBestPattern(patterns: patterns, text: text) ?? "Medical Info"
+    }
+
+    /// Infer topic for general content
+    private func inferGeneralTopic(from text: String) -> String {
+        let patterns: [(terms: [String], label: String)] = [
+            (["introduction", "overview", "about"], "Introduction"),
+            (["installation", "setup", "install"], "Setup"),
+            (["usage", "how to", "guide", "tutorial"], "Guide"),
+            (["troubleshoot", "problem", "issue", "fix"], "Troubleshooting"),
+            (["faq", "question", "answer"], "FAQ"),
+            (["contact", "support", "help"], "Support"),
+        ]
+
+        return matchBestPattern(patterns: patterns, text: text) ?? "General"
+    }
+
+    /// Helper to find the best matching pattern
+    private func matchBestPattern(patterns: [(terms: [String], label: String)], text: String) -> String? {
+        var bestMatch: (label: String, score: Int)?
+
+        for pattern in patterns {
+            var score = 0
+            for term in pattern.terms {
+                if text.contains(term) {
+                    score += 1
+                }
+            }
+            if score > 0 && (bestMatch == nil || score > bestMatch!.score) {
+                bestMatch = (pattern.label, score)
             }
         }
 
-        return "General"
+        return bestMatch?.label
     }
 
     // MARK: - Color Mapping
@@ -2855,17 +2984,80 @@ struct CompactAtlasSceneView: View {
             topicColorMap[topic.name] = PlatformColor(topic.color)
         }
 
-        // Fallback palette for inferred topics
+        // Expanded fallback palette for domain-specific topics
         let fallbackPalette: [String: Color] = [
+            // Technical topics
             "Code": .blue,
+            "API Reference": .purple,
             "API": .purple,
             "Testing": .green,
+            "Configuration": .orange,
             "Config": .orange,
+            "Error Handling": .red,
             "Errors": .red,
             "Async": .cyan,
             "UI": .pink,
             "Data": .indigo,
+            "Authentication": .yellow,
             "Auth": .yellow,
+            "Database": .teal,
+            "Deployment": .mint,
+            "Security": .red.opacity(0.7),
+            "Performance": .orange.opacity(0.8),
+            "Architecture": .blue.opacity(0.7),
+            "Technical": .blue,
+
+            // Vehicle topics
+            "Infotainment System": .purple,
+            "Audio & Connectivity": .purple.opacity(0.8),
+            "Vehicle Settings": .blue,
+            "Climate Control": .cyan,
+            "Seat Adjustment": .brown,
+            "Safety Features": .red,
+            "Driver Assistance": .green,
+            "Security System": .orange,
+            "Parking Assistance": .teal,
+            "Oil Specifications": .yellow,
+            "Maintenance Schedule": .orange,
+            "Tire Information": .gray,
+            "Brake System": .red.opacity(0.7),
+            "Cooling System": .blue.opacity(0.7),
+            "Battery & Charging": .green.opacity(0.8),
+            "Fuel System": .yellow.opacity(0.8),
+            "Engine Specs": .indigo,
+            "Transmission": .purple.opacity(0.7),
+            "Warranty": .green,
+            "Interior Features": .brown.opacity(0.7),
+            "Cargo & Storage": .gray.opacity(0.8),
+            "Instrument Panel": .blue.opacity(0.6),
+            "Warning Lights": .orange.opacity(0.9),
+            "Specifications": .gray,
+            "Exterior Controls": .teal.opacity(0.8),
+            "Vehicle Info": .blue.opacity(0.5),
+
+            // Legal topics
+            "Liability": .red.opacity(0.6),
+            "Confidentiality": .purple.opacity(0.6),
+            "Termination": .orange.opacity(0.6),
+            "Payment Terms": .green.opacity(0.6),
+            "IP Rights": .blue.opacity(0.6),
+            "Dispute Resolution": .yellow.opacity(0.6),
+            "Legal Terms": .purple.opacity(0.5),
+
+            // Medical topics
+            "Diagnosis": .blue.opacity(0.7),
+            "Treatment": .green.opacity(0.7),
+            "Medications": .purple.opacity(0.7),
+            "Side Effects": .orange.opacity(0.7),
+            "Medical Info": .teal.opacity(0.7),
+
+            // General topics
+            "Introduction": .blue.opacity(0.6),
+            "Setup": .green.opacity(0.6),
+            "Guide": .teal.opacity(0.6),
+            "Troubleshooting": .orange.opacity(0.6),
+            "FAQ": .purple.opacity(0.6),
+            "Support": .green.opacity(0.5),
             "General": .gray,
         ]
 
@@ -2880,6 +3072,11 @@ struct CompactAtlasSceneView: View {
         ]
         var docColorMap: [UUID: PlatformColor] = [:]
         var docColorIndex = 0
+
+        // Cache for dynamically assigned topic colors
+        var dynamicTopicColors: [String: PlatformColor] = [:]
+        let dynamicPalette: [Color] = [.blue, .purple, .teal, .orange, .pink, .green, .indigo, .cyan, .mint, .brown]
+        var dynamicColorIndex = 0
 
         return chunks.map { chunk in
             guard let topicName = assignments[chunk.id] else {
@@ -2903,8 +3100,16 @@ struct CompactAtlasSceneView: View {
                 return PlatformColor(fallback)
             }
 
-            // Ultimate fallback
-            return PlatformColor(.gray.opacity(0.6))
+            // Try already assigned dynamic color for this topic
+            if let dynamicColor = dynamicTopicColors[topicName] {
+                return dynamicColor
+            }
+
+            // Assign a new dynamic color for unrecognized topics
+            let newColor = PlatformColor(dynamicPalette[dynamicColorIndex % dynamicPalette.count].opacity(0.7))
+            dynamicTopicColors[topicName] = newColor
+            dynamicColorIndex += 1
+            return newColor
         }
     }
 
