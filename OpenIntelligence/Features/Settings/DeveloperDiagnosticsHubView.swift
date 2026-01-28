@@ -91,6 +91,11 @@ struct DeveloperDiagnosticsHubView: View {
             // Diagnostic Tools
             Section {
                 NavigationLink {
+                    RAGAccuracyView(ragService: ragService)
+                } label: {
+                    Label("RAG Accuracy", systemImage: "checkmark.seal.fill")
+                }
+                NavigationLink {
                     ChunkInspectorView(ragService: ragService)
                         .environmentObject(ragService.containerService)
                 } label: {

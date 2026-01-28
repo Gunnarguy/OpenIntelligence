@@ -440,79 +440,22 @@ actor VerificationGateService {
     }
 
     /// Detect contradictions in retrieved chunks
-    /// CONSERVATIVE: Only flag true contradictions (same subject, conflicting claims)
-    /// NOT a contradiction: different numbers for unrelated facts
+    /// ULTRA CONSERVATIVE: Only flag when SAME measurement type has conflicting values
+    /// Car manuals have hundreds of different numbers (page refs, part numbers, specs) - NOT contradictions!
     private func detectContradictions(in chunks: [RetrievedChunk]) -> [String] {
         var contradictions: [String] = []
 
         // Look for negation patterns near similar content
         let negationIndicators = ["not", "never", "no longer", "unlike", "instead of", "rather than", "contrary to"]
-        // Exclude common transition words that aren't true contradictions
-        _ = ["however", "but", "although", "while"]  // These are discourse markers, not contradictions (reserved for future use)
 
-        // Build a CONTEXTUAL keyword→value map from chunks
-        // Key = (subject noun + context words) to avoid false positives
-        var factMap: [String: [(value: String, context: String)]] = [:]
+        // ULTRA CONSERVATIVE: Only look for explicit "X is Y" vs "X is not Y" patterns
+        // Do NOT flag different numbers as contradictions - car manuals have MANY different specs
+        // Examples that are NOT contradictions:
+        //   - MS-12991 (standard) vs 2.4L (engine size) vs 532 (page number)
+        //   - 5W-40 (1.4L engine) vs 0W-20 (2.4L engine) - different engines!
+        //   - Front tire 35 PSI vs Rear tire 32 PSI - different locations!
 
-        for chunk in chunks {
-            let sentences = chunk.chunk.content.components(separatedBy: ". ")
-            for sentence in sentences {
-                // Extract subject-value patterns with more context
-                let numbers = extractNumbers(from: sentence)
-                for number in numbers {
-                    // Use noun + nearby context words as key (not just first noun)
-                    let tagger = NLTagger(tagSchemes: [.lexicalClass])
-                    tagger.string = sentence
-                    var nouns: [String] = []
-                    tagger.enumerateTags(in: sentence.startIndex..<sentence.endIndex, unit: .word, scheme: .lexicalClass) { tag, range in
-                        if let tag = tag, tag == .noun {
-                            let word = String(sentence[range]).lowercased()
-                            if word.count >= 3 {
-                                nouns.append(word)
-                            }
-                        }
-                        return true
-                    }
-
-                    // Build composite key from nearby nouns (within 5 words of number)
-                    if nouns.count >= 2 {
-                        let key = nouns.prefix(3).joined(separator: "_")
-                        factMap[key, default: []].append((value: number, context: sentence))
-                    }
-                }
-            }
-        }
-
-        // Check for keys with multiple SIGNIFICANTLY different values
-        // ULTRA CONSERVATIVE: Only flag the most egregious contradictions
-        // Car manuals have MANY different numbers for different specs - not contradictions!
-        for (key, entries) in factMap {
-            let uniqueValues = Set(entries.map { normalizeNumber($0.value) })
-            if uniqueValues.count > 1 {
-                // Check if numbers are significantly different (not just formatting)
-                let numericValues = uniqueValues.compactMap { Double($0) }
-                if numericValues.count >= 2 {
-                    let sorted = numericValues.sorted()
-                    // Skip if smallest value is effectively zero
-                    guard sorted.first! >= 1.0 else { continue }  // Raised from 0.01 to 1.0
-                    let ratio = sorted.last! / sorted.first!
-                    // Only flag if values differ by 10x or more (raised from 5x)
-                    // Different specs (weight front vs rear, min vs max) are NOT contradictions
-                    if ratio >= 10.0 {
-                        // Require VERY STRONG contextual overlap (7+ shared words)
-                        let contexts = entries.map { $0.context }
-                        let sharedWords = findSharedKeywords(contexts)
-                        // Must share 7+ significant words AND be about the SAME thing
-                        if sharedWords.count >= 7 {
-                            contradictions.append("\(key): \(uniqueValues.joined(separator: " vs "))")
-                        }
-                    }
-                }
-            }
-        }
-
-        // Also check for explicit negation patterns - but be VERY conservative
-        // Only flag when negation directly contradicts a previous claim
+        // Only flag when negation DIRECTLY contradicts a previous positive claim
         for i in 0..<chunks.count {
             for j in (i+1)..<chunks.count {
                 let content1 = chunks[i].chunk.content.lowercased()
@@ -528,13 +471,13 @@ actor VerificationGateService {
                             let negContext = String(content2[startIdx..<endIdx])
 
                             // Check if chunk1 has the opposite claim (same subject, no negation)
-                            let negatedTerms = Set(negContext.split(separator: " ").map { String($0) }.filter { $0.count > 4 && $0 != indicator })
-                            let terms1 = Set(content1.split(separator: " ").map { String($0) }.filter { $0.count > 4 })
+                            let negatedTerms = Set(negContext.split(separator: " ").map { String($0) }.filter { $0.count > 5 && $0 != indicator })
+                            let terms1 = Set(content1.split(separator: " ").map { String($0) }.filter { $0.count > 5 })
                             let overlap = negatedTerms.intersection(terms1)
 
-                            // Require high overlap (5+ shared terms) AND no negation in chunk1
+                            // Require VERY high overlap (7+ shared terms) AND no negation in chunk1
                             let hasNegationInChunk1 = negationIndicators.contains { content1.contains($0) }
-                            if overlap.count >= 5 && !hasNegationInChunk1 {
+                            if overlap.count >= 7 && !hasNegationInChunk1 {
                                 contradictions.append("Possible contradiction near '\(indicator)'")
                                 break
                             }
@@ -543,6 +486,10 @@ actor VerificationGateService {
                 }
             }
         }
+
+        // REMOVED: The numeric comparison logic that caused false positives
+        // Different numbers for different specs are NOT contradictions.
+        // Only explicit negation patterns ("is" vs "is not") warrant contradiction flags.
 
         return Array(Set(contradictions))  // Deduplicate
     }

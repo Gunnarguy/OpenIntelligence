@@ -922,6 +922,7 @@ class DocumentProcessor {
 
     /// Extract text from PDF with page tracking for semantic chunking
     /// Uses spatial-aware extraction to handle multi-column layouts correctly
+    /// ADAPTIVE OCR: Pre-scans pages to classify complexity, skips OCR for simple pages
     private func extractTextFromPDFWithPages(url: URL) async throws -> (text: String, pageInfo: PageInfo) {
         guard let pdfDocument = PDFDocument(url: url) else {
             Log.error("[DocumentProcessor] PDF load failed: \(url.lastPathComponent)", category: .ingestion)
@@ -937,7 +938,32 @@ class DocumentProcessor {
             throw DocumentProcessingError.emptyDocument
         }
 
-        // PASS 1: Extract text from all pages with parallel processing
+        // PHASE 0: ADAPTIVE COMPLEXITY PRE-SCAN (~5-10ms per page)
+        // Quickly analyze all pages to determine OCR strategy BEFORE rendering images
+        // This saves massive time by skipping OCR entirely for simple text pages
+        let complexityStartTime = Date()
+        var complexityAnalyses: [PageComplexityAnalysis] = []
+
+        // Batch analyze pages (runs concurrently, very fast)
+        let pagesToAnalyze: [(PDFPage, Int)] = (0..<pageCount).compactMap { index in
+            guard let page = pdfDocument.page(at: index) else { return nil }
+            return (page, index + 1)
+        }
+
+        complexityAnalyses = await PageComplexityAnalyzer.shared.analyzeBatch(pages: pagesToAnalyze)
+
+        // Log summary and estimate time savings
+        let complexityTime = Date().timeIntervalSince(complexityStartTime) * 1000
+        PageComplexityAnalyzer.shared.logBatchSummary(complexityAnalyses)
+        Log.debug("[DocumentProcessor] Complexity pre-scan: \(String(format: "%.0f", complexityTime))ms for \(pageCount) pages", category: .ingestion)
+
+        // Build lookup map for quick access during processing
+        var pageComplexity: [Int: PageComplexityAnalysis] = [:]
+        for analysis in complexityAnalyses {
+            pageComplexity[analysis.pageNumber] = analysis
+        }
+
+        // PHASE 1: Extract text from all pages with ADAPTIVE parallel processing
         // Use device-specific concurrency to maximize hardware utilization
         // OCR runs on Neural Engine (ANE), so concurrency is tuned per device tier
         let maxConcurrentPages = DeviceCapabilityService.shared.ocrExtractionConcurrency
@@ -974,6 +1000,7 @@ class DocumentProcessor {
 
             // MEMORY OPTIMIZATION: Render only this batch's pages
             // GPU ACCELERATION: Apply preprocessing filters for better OCR accuracy
+            // ADAPTIVE OCR: Only render images for pages that need OCR based on complexity analysis
             var batchPageData: [PageData] = []
             for pageIndex in batchIndices {
                 autoreleasepool {
@@ -981,12 +1008,24 @@ class DocumentProcessor {
                         batchPageData.append(PageData(pageIndex: pageIndex, pageString: nil, pageImage: nil, hasText: false, textQualityOK: false))
                         return
                     }
+
+                    let pageNumber = pageIndex + 1
+                    let complexity = pageComplexity[pageNumber]
+                    let strategy = complexity?.processingStrategy ?? .enhancedOCR  // Default to safe
+
                     let pageString = page.string
-                    // Render and preprocess image using GPU for OCR enhancement
-                    var pageImage = renderPDFPageAsImage(page: page)
-                    if let image = pageImage {
-                        pageImage = preprocessImageForOCR(image)
+
+                    // ADAPTIVE: Only render image if this page actually needs OCR
+                    // Simple pages (.directText, .spatialText) skip expensive image rendering entirely!
+                    var pageImage: CIImage? = nil
+                    if strategy == .basicOCR || strategy == .enhancedOCR || strategy == .fullOCR {
+                        // Complex page - render and preprocess image
+                        pageImage = renderPDFPageAsImage(page: page)
+                        if let image = pageImage {
+                            pageImage = preprocessImageForOCR(image)
+                        }
                     }
+                    // else: Skip image rendering - saves ~50-100ms per simple page!
 
                     // Pre-compute text presence and quality checks
                     let hasText = pageString != nil && !pageString!.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -1290,6 +1329,32 @@ class DocumentProcessor {
 
         var results: [PageParseResult] = []
 
+        // ═══════════════════════════════════════════════════════════════════════
+        // PHASE 0: ADAPTIVE COMPLEXITY PRE-SCAN
+        // Only render images and run Vision for pages that NEED it
+        // Simple single-column pages skip Vision entirely → massive speedup
+        // ═══════════════════════════════════════════════════════════════════════
+        let complexityStartTime = Date()
+        let pagesToAnalyze: [(PDFPage, Int)] = (0..<pageCount).compactMap { index in
+            guard let page = pdfDocument.page(at: index) else { return nil }
+            return (page, index + 1)
+        }
+        let complexityAnalyses = await PageComplexityAnalyzer.shared.analyzeBatch(pages: pagesToAnalyze)
+        PageComplexityAnalyzer.shared.logBatchSummary(complexityAnalyses)
+        let complexityTime = Date().timeIntervalSince(complexityStartTime) * 1000
+        Log.info("[DocumentProcessor] Complexity pre-scan: \(String(format: "%.0f", complexityTime))ms for \(pageCount) pages", category: .ingestion)
+
+        // Build lookup for quick access
+        var pageComplexity: [Int: PageComplexityAnalysis] = [:]
+        for analysis in complexityAnalyses {
+            pageComplexity[analysis.pageNumber] = analysis
+        }
+
+        // Count pages that can skip Vision
+        let skipVisionCount = complexityAnalyses.filter { $0.processingStrategy == .directText || $0.processingStrategy == .spatialText }.count
+        let visionRequired = pageCount - skipVisionCount
+        Log.info("[DocumentProcessor] 🚀 ADAPTIVE: \(skipVisionCount) pages skip Vision OCR, \(visionRequired) need layout detection", category: .ingestion)
+
         for batchStart in stride(from: 0, to: pageCount, by: maxConcurrentPages) {
             let batchEnd = min(batchStart + maxConcurrentPages, pageCount)
             let batchIndices = batchStart..<batchEnd
@@ -1309,6 +1374,7 @@ class DocumentProcessor {
             // MEMORY OPTIMIZATION: Render only this batch's pages (not all pages upfront)
             // This keeps peak memory to ~27MB (3 pages) instead of ~4.8GB (542 pages)
             // GPU ACCELERATION: Apply preprocessing filters for better OCR accuracy
+            // ADAPTIVE: Only render images for pages that need Vision layout detection
 
             // Emit GPU rendering progress
             let gpuActive = DeviceCapabilityService.shared.useGPUForPDFRendering
@@ -1329,25 +1395,46 @@ class DocumentProcessor {
                         batchRenderData.append(PageRenderData(pageIndex: pageIndex, pageImage: nil, plainText: nil, layoutText: nil))
                         return
                     }
-                    // Render page and apply GPU-accelerated preprocessing for OCR
-                    var pageImage = renderPDFPageAsImage(page: page)
-                    if let image = pageImage {
-                        pageImage = preprocessImageForOCR(image)
+
+                    let pageNumber = pageIndex + 1
+                    let complexity = pageComplexity[pageNumber]
+                    let strategy = complexity?.processingStrategy ?? .enhancedOCR  // Safe default
+                    let needsVision = strategy == .basicOCR || strategy == .enhancedOCR || strategy == .fullOCR
+
+                    // ADAPTIVE: Only render image if this page needs Vision layout detection
+                    // Simple pages with good text skip image rendering entirely!
+                    var pageImage: CIImage? = nil
+                    if needsVision {
+                        pageImage = renderPDFPageAsImage(page: page)
+                        if let image = pageImage {
+                            pageImage = preprocessImageForOCR(image)
+                        }
                     }
+
                     let plainText = page.string
-                    batchRenderData.append(PageRenderData(pageIndex: pageIndex, pageImage: pageImage, plainText: plainText, layoutText: nil))
+
+                    // For simple pages, try spatial extraction right away
+                    var layoutText: String? = nil
+                    if !needsVision, let text = plainText, !text.isEmpty {
+                        // Use PDFKit spatial extraction (no Vision needed)
+                        layoutText = extractTextWithSpatialOrdering(from: page) ?? text
+                        Log.debug("[DocumentProcessor] Page \(pageNumber): Using PDFKit spatial extraction (skipped Vision)", category: .ingestion)
+                    }
+
+                    batchRenderData.append(PageRenderData(pageIndex: pageIndex, pageImage: pageImage, plainText: plainText, layoutText: layoutText))
                 }
             }
 
-            // LAYOUT-AWARE EXTRACTION: For hybrid mode, extract layout-aware text in parallel
+            // LAYOUT-AWARE EXTRACTION: Only for pages that need Vision
+            // Simple pages already have layoutText from PDFKit above
             // This properly handles multi-column layouts by detecting columns spatially
-            // This is the ONLY Vision call for hybrid mode (no RecognizeDocumentsRequest)
-            if useHybridMode {
+            let pagesNeedingVision = batchRenderData.filter { $0.pageImage != nil && $0.layoutText == nil }
+            if useHybridMode && !pagesNeedingVision.isEmpty {
                 // Emit layout extraction progress - Vision uses Neural Engine (ANE)
                 await MainActor.run {
                     self.emitProgress(
                         stage: "layout",
-                        detail: "📐 [ANE] Detecting columns \(batchStart + 1)-\(batchEnd)/\(pageCount)",
+                        detail: "📐 [ANE] Detecting columns for \(pagesNeedingVision.count) complex pages",
                         page: batchStart,
                         totalPages: pageCount
                     )
@@ -1357,7 +1444,9 @@ class DocumentProcessor {
                 await withTaskGroup(of: (Int, String).self) { group in
                     for (batchOffset, pageIndex) in batchIndices.enumerated() {
                         let renderData = batchRenderData[batchOffset]
-                        guard let pageImage = renderData.pageImage else { continue }
+                        // ADAPTIVE: Skip pages that already have layoutText (PDFKit extraction)
+                        // Only run Vision on pages with images that need layout detection
+                        guard let pageImage = renderData.pageImage, renderData.layoutText == nil else { continue }
 
                         group.addTask {
                             let pageNumber = pageIndex + 1

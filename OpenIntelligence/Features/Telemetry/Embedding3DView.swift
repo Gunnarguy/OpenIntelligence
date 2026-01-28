@@ -3965,8 +3965,8 @@ private func addClusterLabels(_ annotations: [Embedding3DSceneView.AnnotationDat
     let centroid = allPositions.reduce(simd_float3.zero, +) / Float(allPositions.count)
     let maxDistFromCenter = allPositions.map { simd_length($0 - centroid) }.max() ?? 1.0
 
-    // Spread labels FAR out - at least 1.5x the data spread, minimum 2.0 units
-    let baseSpreadRadius = max(maxDistFromCenter * 1.8, 2.0)
+    // Spread labels VERY far out - at least 2.5x the data spread, minimum 3.5 units
+    let baseSpreadRadius = max(maxDistFromCenter * 2.8, 3.5)
 
     // === PHASE 2: Sort annotations by importance (document clusters first, larger clusters prioritized) ===
     let sortedAnnotations = annotations.sorted { a, b in
@@ -3998,19 +3998,19 @@ private func addClusterLabels(_ annotations: [Embedding3DSceneView.AnnotationDat
         outwardDir = simd_normalize(simd_float3(rotatedX, outwardDir.y + sin(verticalAngle) * 0.5, rotatedZ))
 
         // Distance varies by type: document clusters further out
-        let distanceMultiplier: Float = annotation.isDocumentCluster ? 1.2 : 0.9
+        let distanceMultiplier: Float = annotation.isDocumentCluster ? 1.4 : 1.1
         let spreadDist = baseSpreadRadius * distanceMultiplier
 
         // Add some index-based variation to prevent exact alignments
-        let jitter = Float(index % 3) * 0.15 - 0.15
+        let jitter = Float(index % 3) * 0.2 - 0.2
 
         let labelPos = clusterPos + outwardDir * (spreadDist + jitter)
         labelPositions.append(labelPos)
     }
 
     // === PHASE 4: Collision detection and resolution ===
-    let minSeparation: Float = 0.5 // Minimum distance between labels
-    let iterations = 3 // Number of repulsion passes
+    let minSeparation: Float = 0.8 // Minimum distance between labels
+    let iterations = 4 // Number of repulsion passes
 
     for _ in 0..<iterations {
         for i in 0..<labelPositions.count {

@@ -479,7 +479,10 @@ final class LibraryVisualizationEngine: ObservableObject {
         let palette: [Color] = [.blue, .purple, .green, .orange, .pink]
         var topicClusters: [TopicCluster] = []
 
-        for (index, clusterKeywords) in topClusters.enumerated() {
+        // Collect cluster data for batch label generation
+        var clusterData: [(keywords: [String], chunkIds: Set<UUID>, sampleChunks: [DocumentChunk])] = []
+
+        for clusterKeywords in topClusters {
             guard !clusterKeywords.isEmpty else { continue }
 
             // Count chunks in this cluster
@@ -488,18 +491,55 @@ final class LibraryVisualizationEngine: ObservableObject {
                 clusterChunkIds.formUnion(keywordChunks[kw] ?? [])
             }
 
-            // Find representative snippet
-            let representativeChunk = chunks.first { clusterChunkIds.contains($0.id) }
-            let snippet = representativeChunk?.content.prefix(100).trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            // Get sample chunks for LLM context (up to 3)
+            let sampleChunks = chunks.filter { clusterChunkIds.contains($0.id) }.prefix(3)
 
-            // Generate topic name from top keywords
-            let topicName = generateTopicName(from: clusterKeywords)
+            clusterData.append((
+                keywords: Array(clusterKeywords.prefix(5)),
+                chunkIds: clusterChunkIds,
+                sampleChunks: Array(sampleChunks)
+            ))
+        }
+
+        // Get document context for better labeling
+        let documentNames = Set(chunks.compactMap { chunk -> String? in
+            // Try to get document name from contextual prefix
+            if let prefix = chunk.contextualPrefix,
+               prefix.range(of: "\\[From (.+?)\\]", options: .regularExpression) != nil,
+               let nameRange = prefix.range(of: "(?<=\\[From ).+?(?=\\])", options: .regularExpression) {
+                return String(prefix[nameRange])
+            }
+            return nil
+        })
+        let documentContext = documentNames.first
+
+        // Generate intelligent labels using ClusterLabelService
+        // This uses LLM when available, falls back to domain-aware heuristics
+        _ = clusterData.map { data in
+            (keywords: data.keywords, sampleContent: data.sampleChunks.map { $0.content })
+        }
+
+        // Note: We're on MainActor, need to access the actor properly
+        // For now, use the heuristic path which is synchronous
+        // The async LLM path will be used when called from an async context
+
+        for (index, data) in clusterData.enumerated() {
+            // Find representative snippet
+            let snippet = data.sampleChunks.first?.content.prefix(100).trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+            // Generate topic name using improved heuristics
+            // (LLM path is used in Atlas view directly for better async handling)
+            let topicName = generateTopicNameEnhanced(
+                from: data.keywords,
+                sampleContent: data.sampleChunks.map { $0.content },
+                documentContext: documentContext
+            )
 
             topicClusters.append(TopicCluster(
                 name: topicName,
-                keywords: Array(clusterKeywords.prefix(5)),
-                chunkCount: clusterChunkIds.count,
-                percentage: Float(clusterChunkIds.count) / Float(max(chunks.count, 1)),
+                keywords: data.keywords,
+                chunkCount: data.chunkIds.count,
+                percentage: Float(data.chunkIds.count) / Float(max(chunks.count, 1)),
                 color: palette[index % palette.count],
                 representativeSnippet: String(snippet)
             ))
@@ -551,6 +591,173 @@ final class LibraryVisualizationEngine: ObservableObject {
         }
 
         return formatted.joined(separator: " & ")
+    }
+
+    /// Enhanced topic name generation using domain-aware heuristics
+    /// Produces meaningful labels like "Infotainment System" instead of "UI • images"
+    private func generateTopicNameEnhanced(
+        from keywords: [String],
+        sampleContent: [String],
+        documentContext: String?
+    ) -> String {
+        let allText = (sampleContent.joined(separator: " ") + " " + keywords.joined(separator: " ")).lowercased()
+
+        // Detect document domain
+        let domain = detectDocumentDomain(from: documentContext, content: allText)
+
+        // Try domain-specific patterns first
+        if let domainLabel = matchDomainPatterns(domain: domain, keywords: keywords, content: allText) {
+            return domainLabel
+        }
+
+        // Fallback to improved keyword-based naming
+        return generateTopicName(from: keywords)
+    }
+
+    /// Detect the domain/type of document from context and content
+    private func detectDocumentDomain(from context: String?, content: String) -> String {
+        let text = (context ?? "").lowercased() + " " + content.lowercased()
+
+        // Vehicle/automotive
+        let vehicleTerms = ["vehicle", "car", "truck", "engine", "transmission", "brake", "tire",
+                           "oil", "fuel", "mpg", "dashboard", "steering", "kia", "toyota", "ford",
+                           "honda", "bmw", "sportage", "manual", "owner's manual", "warranty"]
+        if vehicleTerms.contains(where: { text.contains($0) }) { return "vehicle" }
+
+        // Technical/software
+        let techTerms = ["api", "function", "code", "software", "algorithm", "database", "server",
+                        "programming", "developer", "git", "deploy", "kubernetes"]
+        if techTerms.contains(where: { text.contains($0) }) { return "technical" }
+
+        // Legal
+        let legalTerms = ["agreement", "contract", "liability", "hereby", "pursuant", "jurisdiction",
+                         "plaintiff", "defendant", "court", "attorney"]
+        if legalTerms.contains(where: { text.contains($0) }) { return "legal" }
+
+        // Medical
+        let medicalTerms = ["patient", "diagnosis", "treatment", "medication", "symptoms", "clinical",
+                           "hospital", "physician", "dosage"]
+        if medicalTerms.contains(where: { text.contains($0) }) { return "medical" }
+
+        return "general"
+    }
+
+    /// Match domain-specific patterns to generate meaningful labels
+    private func matchDomainPatterns(domain: String, keywords: [String], content: String) -> String? {
+        let allText = keywords.joined(separator: " ") + " " + content
+
+        let patterns: [(terms: [String], label: String)]
+
+        switch domain {
+        case "vehicle":
+            patterns = [
+                // Infotainment & Display
+                (["infotainment", "display", "screen", "touchscreen", "navigation", "nav", "gps"], "Infotainment System"),
+                (["bluetooth", "audio", "speaker", "radio", "music", "sound", "stereo"], "Audio & Connectivity"),
+                (["carplay", "android auto", "phone", "smartphone"], "Phone Integration"),
+
+                // Settings & Controls
+                (["setting", "settings", "configure", "configuration", "customize"], "Vehicle Settings"),
+                (["climate", "air conditioning", "hvac", "temperature", "heater", "ac"], "Climate Control"),
+                (["seat", "seating", "lumbar", "headrest", "position"], "Seat Adjustment"),
+                (["mirror", "mirrors", "rearview", "side mirror"], "Mirror Controls"),
+                (["lighting", "lights", "headlight", "headlamp"], "Lighting System"),
+
+                // Safety & Security
+                (["safety", "airbag", "collision", "crash", "seatbelt", "restraint"], "Safety Features"),
+                (["adas", "driver assist", "lane", "blind spot", "cruise control", "adaptive"], "Driver Assistance"),
+                (["alarm", "security", "theft", "lock", "unlock", "key", "keyless"], "Security System"),
+                (["camera", "backup", "parking", "sensor"], "Parking Assistance"),
+
+                // Maintenance & Fluids
+                (["oil", "lubricant", "viscosity", "synthetic"], "Oil Specifications"),
+                (["maintenance", "service", "schedule", "interval"], "Maintenance Schedule"),
+                (["tire", "wheel", "pressure", "rotation", "psi"], "Tire Information"),
+                (["brake", "braking", "pad", "rotor"], "Brake System"),
+                (["coolant", "antifreeze", "radiator"], "Cooling System"),
+                (["battery", "charging", "jump start"], "Battery & Charging"),
+                (["fuel", "gas", "gasoline", "tank", "mpg"], "Fuel System"),
+
+                // Engine & Drivetrain
+                (["engine", "motor", "horsepower", "torque"], "Engine Specifications"),
+                (["transmission", "gear", "shift", "automatic"], "Transmission"),
+                (["drivetrain", "awd", "4wd", "fwd", "all-wheel"], "Drivetrain"),
+
+                // Warranty & Service
+                (["warranty", "coverage", "guarantee"], "Warranty Information"),
+                (["dealer", "service center", "authorized"], "Service & Dealers"),
+
+                // Interior & Features
+                (["interior", "cabin", "dashboard", "console"], "Interior Features"),
+                (["trunk", "cargo", "storage", "capacity"], "Cargo & Storage"),
+                (["window", "windshield", "wiper", "defroster"], "Windows & Wipers"),
+
+                // Instrument Panel
+                (["gauge", "speedometer", "tachometer", "instrument"], "Instrument Panel"),
+                (["warning", "indicator", "alert", "message"], "Warning Lights"),
+
+                // Specifications
+                (["specification", "specs", "dimension", "weight"], "Vehicle Specifications"),
+                (["towing", "trailer", "hitch", "payload"], "Towing Capacity"),
+            ]
+
+        case "technical":
+            patterns = [
+                (["api", "endpoint", "rest", "graphql"], "API Reference"),
+                (["authentication", "auth", "oauth", "token", "login"], "Authentication"),
+                (["database", "sql", "query", "schema"], "Database"),
+                (["deployment", "deploy", "ci/cd", "docker"], "Deployment"),
+                (["configuration", "config", "settings", "env"], "Configuration"),
+                (["testing", "test", "unit test", "integration"], "Testing"),
+                (["error", "exception", "debugging"], "Error Handling"),
+                (["security", "encryption", "ssl", "tls"], "Security"),
+                (["performance", "optimization", "cache"], "Performance"),
+            ]
+
+        case "legal":
+            patterns = [
+                (["liability", "indemnify", "damages"], "Liability & Indemnity"),
+                (["confidential", "nda", "non-disclosure"], "Confidentiality"),
+                (["termination", "cancel", "expiration"], "Termination"),
+                (["payment", "fee", "compensation"], "Payment Terms"),
+                (["intellectual property", "copyright", "trademark"], "Intellectual Property"),
+                (["dispute", "arbitration", "mediation"], "Dispute Resolution"),
+            ]
+
+        case "medical":
+            patterns = [
+                (["diagnosis", "symptom", "condition"], "Diagnosis"),
+                (["treatment", "therapy", "procedure"], "Treatment Options"),
+                (["medication", "drug", "prescription", "dosage"], "Medications"),
+                (["side effect", "adverse", "reaction"], "Side Effects"),
+            ]
+
+        default:
+            patterns = [
+                (["introduction", "overview", "about", "getting started"], "Introduction"),
+                (["installation", "setup", "install", "configure"], "Setup Guide"),
+                (["usage", "how to", "guide", "tutorial"], "Usage Guide"),
+                (["troubleshoot", "problem", "issue", "fix"], "Troubleshooting"),
+                (["faq", "question", "answer", "frequently"], "FAQ"),
+                (["contact", "support", "help"], "Support & Contact"),
+            ]
+        }
+
+        // Score each pattern
+        var bestMatch: (label: String, score: Int)?
+        for pattern in patterns {
+            var score = 0
+            for term in pattern.terms {
+                if allText.lowercased().contains(term) {
+                    score += 1
+                }
+            }
+            if score > 0 && (bestMatch == nil || score > bestMatch!.score) {
+                bestMatch = (pattern.label, score)
+            }
+        }
+
+        return bestMatch?.label
     }
 
     /// Check if a keyword is valid (not a stop word, proper length, etc.)
