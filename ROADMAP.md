@@ -12,19 +12,21 @@
 **What OpenIntelligence Does:**
 Import any document. Ask questions. Get cited answers. All on-device.
 
-**RAG Pipeline: 21+ Distinct Techniques**
+**RAG Pipeline: 23 Steps End-to-End (51 Services)**
 
-| Category           | Count | Techniques                                                                                                                                                                                                                                          |
+| Phase              | Steps | Details                                                                                                                                                                                                                                             |
 | ------------------ | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Ingestion          | 5     | Contextual embeddings, smart table extraction, entity extraction, section detection, content-adaptive chunking                                                                                                                                      |
-| Retrieval (Always) | 5     | Hybrid Search + RRF, cross-encoder rerank, MMR diversification, lost-in-middle mitigation, parent doc expansion                                                                                                                                     |
-| Standard Mode      | +2    | HyDE query expansion, contextual compression                                                                                                                                                                                                        |
-| Deep Think         | +11   | Intent routing, multi-query decomposition, 2-hop graph expansion, recursive research, verification gates A-D, confidence calibration, extractive summarization, graph context packing, agentic orchestrator, 8 @Tool functions, iterative retrieval |
-| Maximum Mode       | +3    | Unlimited reasoning (50 sessions), exhaustive synthesis, 200K+ token budget                                                                                                                                                                         |
+| Ingestion          | 6     | Parse → SemanticChunker → Entity Extraction → Token Validation → Embedding → Store (HNSW + FTS5 + EntityIndex)                                                                                                                                      |
+| Query Processing   | 7     | Corpus Analysis → Query Understanding → Query Expansion → Intent Classification → Query Embedding → RAPTOR-lite Routing → Hybrid Search                                                                                                            |
+| Post-Retrieval     | 7     | Cross-Encoder Rerank → Low-Confidence Filter → Multi-Doc Representation → MMR → Parent Doc Retrieval → Contextual Compression → Graph Context Packing                                                                                              |
+| Generation         | 3     | Context Assembly (Lost-in-Middle) → Extractive Summarization/QA → LLM Generation                                                                                                                                                                    |
+| Post-Generation    | 4     | Quality Assessment → Verification Gates A-D → Calibrated Confidence → Response Metadata                                                                                                                                                            |
+
+**51 Services across 9 categories**: See [ARCHITECTURE.md](Docs/reference/ARCHITECTURE.md) → "Complete Service Inventory"
 
 **Core Features Shipped:**
 
-- ✅ Full RAG pipeline (21+ techniques: hybrid search, neural reranking, MMR, verification gates)
+- ✅ Full RAG pipeline (23-step, 51 services: hybrid search, neural reranking, MMR, verification gates)
 - ✅ Apple Intelligence integration (iOS 26 Foundation Models)
 - ✅ Multi-format support: PDF, DOCX, XLSX, PPTX, TXT, MD, CSV, RTF, images
 - ✅ 8 agentic @Tool functions for intelligent document analysis

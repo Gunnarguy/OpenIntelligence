@@ -1,10 +1,51 @@
 # Advanced RAG Techniques Reference
 
-**Version**: 1.2
-**Updated**: January 10, 2026
+**Version**: 1.3
+**Updated**: January 29, 2026
 **Compatibility**: iOS 26+ / Apple Intelligence
 
-This document provides quick reference for all advanced RAG (Retrieval-Augmented Generation) techniques implemented in OpenIntelligence.
+This document provides quick reference for all advanced RAG (Retrieval-Augmented Generation) techniques implemented in OpenIntelligence. The full system comprises **51 services** executing a **23-step end-to-end pipeline**.
+
+> **Full Architecture**: See [ARCHITECTURE.md](ARCHITECTURE.md) → "Complete Service Inventory (51 Services)"
+
+---
+
+## Pipeline Overview (23 Steps)
+
+```
+INGESTION (6 steps):
+  1. Parse (PDFKit/Vision OCR 360 DPI/Office ZIP)
+  2. SemanticChunker (≤310w, section detection)
+  3. Entity Extraction (NLTagger NER + PascalCase)
+  4. Token Validation (BertTokenizer ≤510)
+  5. Embedding (384-dim MiniLM)
+  6. Store (HNSW index + FTS5 + EntityIndex)
+
+QUERY → RESPONSE (17 steps):
+  Step 0:   Corpus Analysis (vocabulary cache)
+  Step 1:   Query Understanding (pronoun resolution, NER)
+  Step 1.5: Query Expansion (corpus + container vocab)
+  Step 1.6: Intent Classification (lookup/procedure/compare/summarize)
+  Step 2:   Query Embedding (384-dim)
+  Step 2.5: RAPTOR-lite Routing (overview → L1 summaries)
+  Step 3:   Hybrid Search (Vector + BM25 + RRF) or Iterative Retrieval
+  Step 4:   Cross-Encoder Rerank (TinyBERT)
+  Step 4.3: Low-Confidence Filtering
+  Step 4.4: Multi-Document Representation (source diversity)
+  Step 4.5: MMR Diversification (λ=0.6)
+  Step 4.6: Parent Document Retrieval (±5 siblings)
+  Step 4.7: Contextual Compression (LLM filters)
+  Step 4.9: Graph Context Packing (token budget)
+  Step 5:   Context Assembly (Lost-in-Middle reorder)
+  Step 5.9: Extractive Summarization (for summarize intent)
+  Step 5.10: Extractive QA (for lookup intent)
+  Step 6:   LLM Generation (Apple FM / PCC)
+  Step 7:   Quality Assessment (confidence scoring)
+  Step 7.5: Verification Gates A-D (anti-hallucination)
+  Step 8:   Package Results
+  Step 8.1: Calibrated Confidence (Platt scaling)
+  Step 9:   Response Metadata (timing, sources, metrics)
+```
 
 ---
 

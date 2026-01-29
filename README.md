@@ -63,6 +63,8 @@ All models from [Apple Machine Learning](https://developer.apple.com/machine-lea
 
 OpenIntelligence uses a **Protocol-First** architecture with strict **Actor Isolation** to handle heavy RAG workloads without blocking the main thread.
 
+**51 services** organized into 9 categories power a **23-step end-to-end pipeline** from document ingestion to cited response generation. See [ARCHITECTURE.md](Docs/reference/ARCHITECTURE.md) for the complete service inventory.
+
 ### Data Flow Pipeline
 
 ```mermaid
