@@ -10,19 +10,21 @@ OpenIntelligence is a native iOS 26 application implementing a complete Retrieva
 
 **Simple Concept:** Import any document. Ask questions in plain English. Get cited answers powered by on-device AI.
 
-**Latest (v2.8)**: Device-tier-aware Vision concurrency, platform-specific Metal optimizations, Mac compatibility via iPad mode, 4-gate verification pipeline.
+**Latest (v2.8)**: Device-tier-aware Vision concurrency, platform-specific Metal optimizations, Mac compatibility via iPad mode, 4-gate verification pipeline, 51 services across 9 categories.
 
-### RAG Pipeline Feature Count
+### RAG Pipeline Summary
 
-The system implements **21+ distinct RAG techniques** organized by quality mode:
+The system implements a **23-step end-to-end pipeline** powered by **51 services**:
 
-| Category                  | Features | Examples                                                                                                                                                                                                                                                           |
-| ------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Ingestion (Always On)** | 5        | Contextual embeddings, smart table extraction, entity extraction, section detection, content-adaptive chunking                                                                                                                                                     |
-| **Retrieval (Always On)** | 5        | Hybrid search + RRF, cross-encoder reranking, MMR diversification, lost-in-middle mitigation, parent document expansion                                                                                                                                            |
-| **Standard Mode**         | +2       | HyDE query expansion, contextual compression                                                                                                                                                                                                                       |
-| **Deep Think Mode**       | +11      | Intent routing, multi-query decomposition, 2-hop graph expansion, recursive research, verification gates A-D, confidence calibration, extractive summarization, graph context packing, agentic orchestrator (4-8 sessions), 8 @Tool functions, iterative retrieval |
-| **Maximum Mode**          | +3       | Unlimited reasoning (50 sessions), exhaustive synthesis, 200K+ token budget                                                                                                                                                                                        |
+| Phase              | Steps | Key Services                                                         |
+| ------------------ | ----- | -------------------------------------------------------------------- |
+| **Ingestion**      | 6     | DocumentProcessor, SemanticChunker, EntityIndexService, EmbeddingService |
+| **Query Processing** | 7   | QueryEnhancementService, HyDEService, QueryRouterService, HybridSearchService |
+| **Post-Retrieval** | 7     | VerificationGateService, ContextPackingService, ParentDocumentService |
+| **Generation**     | 3     | ExtractiveSummarizationService, LLMService, AgenticOrchestrator      |
+| **Post-Generation**| 4     | QualityAssuranceService, ConfidenceCalibrationService                |
+
+> **Complete inventory**: See "Complete Service Inventory (51 Services)" below.
 
 ### Key Architectural Principles
 

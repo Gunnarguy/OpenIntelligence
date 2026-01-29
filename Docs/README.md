@@ -8,7 +8,7 @@ Quick reference documentation for the OpenIntelligence project.
 
 | Document | Description | Last Updated |
 |----------|-------------|--------------|
-| [ARCHITECTURE.md](reference/ARCHITECTURE.md) | Full technical architecture, patterns, and data flow | Jan 2026 |
+| [ARCHITECTURE.md](reference/ARCHITECTURE.md) | Full technical architecture, 51 services, 23-step pipeline | Jan 29, 2026 |
 | [ADVANCED_RAG.md](reference/ADVANCED_RAG.md) | Advanced RAG techniques (HyDE, compression, agentic) | Jan 2026 |
 | [APPLE_API.md](reference/APPLE_API.md) | Apple framework API reference (FoundationModels, NL) | Jan 2026 |
 | [RELEASE.md](reference/RELEASE.md) | Release checklist, smoke tests, StoreKit testing | Jan 2026 |
