@@ -233,6 +233,118 @@ User Query Input
 
 ## Core Services
 
+### Complete Service Inventory (51 Services)
+
+OpenIntelligence is composed of **51 distinct services** organized into 9 categories. This inventory provides a complete reference.
+
+#### RAG Pipeline Services (14 services)
+
+| Service                          | Type        | Purpose                                                                     | File                                       |
+| -------------------------------- | ----------- | --------------------------------------------------------------------------- | ------------------------------------------ |
+| `RAGService`                     | class       | Main `@MainActor` orchestrator: ingestion, retrieval, UI state              | `RAG/RAGService.swift`                     |
+| `RAGEngine`                      | actor       | Background math: MMR, BM25, RRF, reranking (no UI)                          | `RAG/RAGEngine.swift`                      |
+| `HybridSearchService`            | class       | Vector k-NN + BM25 keyword with RRF fusion (k=60)                           | `RAG/HybridSearchService.swift`            |
+| `IterativeRetrievalService`      | final class | Multi-pass retrieval with self-correction loops                             | `RAG/IterativeRetrievalService.swift`      |
+| `VerificationGateService`        | actor       | Anti-hallucination gates A-D (confidence, coverage, numeric, contradiction) | `RAG/VerificationGateService.swift`        |
+| `ContextPackingService`          | actor       | Graph context packing within token budget                                   | `RAG/ContextPackingService.swift`          |
+| `GraphIndexService`              | actor       | Cross-reference detection (page refs, table refs, neighbors)                | `RAG/GraphIndexService.swift`              |
+| `ContainerVocabularyService`     | actor       | Per-container domain vocabulary for query expansion                         | `RAG/ContainerVocabularyService.swift`     |
+| `ExtractiveSummarizationService` | actor       | Sentence selection via bi-encoder + MMR for extractive summaries            | `RAG/ExtractiveSummarizationService.swift` |
+| `ExtractiveQAService`            | protocol    | Span extraction interface (CoreML, Heuristic, Placeholder impls)            | `RAG/ExtractiveQAService.swift`            |
+| `ParentDocumentService`          | final class | Sibling chunk expansion (±5 chunks) for paragraph context                   | `RAG/ParentDocumentService.swift`          |
+| `QualityAssuranceService`        | actor       | Accuracy metrics: Recall@K, MRR, F1, faithfulness scoring                   | `RAG/QualityAssuranceService.swift`        |
+| `ConfidenceCalibrationService`   | final class | Platt scaling for calibrated confidence (0.0-1.0)                           | `RAG/ConfidenceCalibrationService.swift`   |
+
+#### Query Services (6 services)
+
+| Service                        | Type        | Purpose                                                   | File                                       |
+| ------------------------------ | ----------- | --------------------------------------------------------- | ------------------------------------------ |
+| `QueryEnhancementService`      | final class | Query expansion, intent classification, weight adjustment | `Query/QueryEnhancementService.swift`      |
+| `QueryRewriterService`         | final class | Pronoun resolution, follow-up handling, NER extraction    | `Query/QueryRewriterService.swift`         |
+| `QueryRouterService`           | actor       | RAPTOR-lite routing: overview queries → L1 summaries      | `Query/QueryRouterService.swift`           |
+| `HyDEService`                  | final class | Hypothetical Document Embeddings for better recall        | `Query/HyDEService.swift`                  |
+| `ContextualCompressionService` | final class | LLM-based sentence filtering from retrieved chunks        | `Query/ContextualCompressionService.swift` |
+| `SuggestedQuestionsService`    | actor       | Generates contextual starter questions from documents     | `Query/SuggestedQuestionsService.swift`    |
+
+#### Document Processing Services (10 services)
+
+| Service                     | Type        | Purpose                                                         | File                                       |
+| --------------------------- | ----------- | --------------------------------------------------------------- | ------------------------------------------ |
+| `DocumentProcessor`         | struct      | Universal parsing: PDF, Office, OCR (360 DPI), GPU acceleration | `Document/DocumentProcessor.swift`         |
+| `SemanticChunker`           | struct      | Content-adaptive chunking with section detection (≤310w)        | `Document/SemanticChunker.swift`           |
+| `EntityIndexService`        | actor       | Global entity→chunk inverted index for GraphRAG                 | `Document/EntityIndexService.swift`        |
+| `AudioTranscriptionService` | final class | Audio/video transcription via Speech.framework                  | `Document/AudioTranscriptionService.swift` |
+| `ContentTaggingService`     | final class | Apple Intelligence content tagging (topics, actions, emotions)  | `Document/ContentTaggingService.swift`     |
+| `LanguageDetectionService`  | final class | Multi-language detection via NLLanguageRecognizer               | `Document/LanguageDetectionService.swift`  |
+| `ImageUnderstandingService` | class       | Vision-based image classification and description               | `Document/ImageUnderstandingService.swift` |
+| `ImageDescriptionService`   | class       | Apple Intelligence image descriptions for live camera           | `Document/ImageUnderstandingService.swift` |
+| `YOLODetectionService`      | actor       | YOLO v3 object detection (80 classes) for intelligent capture   | `Document/YOLODetectionService.swift`      |
+| `DocumentSummaryService`    | actor       | L1 summary generation at ingestion for RAPTOR-lite              | `Document/DocumentSummaryService.swift`    |
+
+#### Embedding Services (2 services)
+
+| Service                           | Type  | Purpose                                          | File                                              |
+| --------------------------------- | ----- | ------------------------------------------------ | ------------------------------------------------- |
+| `EmbeddingService`                | class | 384-dim embeddings via provider pattern          | `Embedding/EmbeddingService.swift`                |
+| `CoreMLSentenceEmbeddingProvider` | class | CoreML MiniLM-L6-v2 with BertTokenizer (510 max) | `Embedding/CoreMLSentenceEmbeddingProvider.swift` |
+
+#### Storage Services (3 services)
+
+| Service                     | Type  | Purpose                                              | File                                      |
+| --------------------------- | ----- | ---------------------------------------------------- | ----------------------------------------- |
+| `FullTextStorageService`    | actor | Complete original document storage for exact queries | `Storage/FullTextStorageService.swift`    |
+| `SQLiteFullTextService`     | actor | FTS5-powered BM25 keyword search (10-100x faster)    | `Storage/SQLiteFullTextService.swift`     |
+| `DocumentationCacheService` | actor | Caches fetched web content for offline access        | `Storage/DocumentationCacheService.swift` |
+
+#### VectorStore Services (4 services)
+
+| Service                  | Type        | Purpose                                              | File                                   |
+| ------------------------ | ----------- | ---------------------------------------------------- | -------------------------------------- |
+| `VectorDatabase`         | protocol    | Interface for vector store implementations           | `VectorStore/VectorDatabase.swift`     |
+| `InMemoryVectorDatabase` | class       | In-memory HNSW with norm caching + LRU cache         | `VectorStore/VectorDatabase.swift`     |
+| `BNNSVectorDatabase`     | actor       | Accelerate BNNS brute-force with GPU batching        | `VectorStore/BNNSVectorDatabase.swift` |
+| `VectorStoreRouter`      | final class | Per-container routing with multi-container RRF merge | `VectorStore/VectorStoreRouter.swift`  |
+
+#### LLM Services (7 services)
+
+| Service                       | Type        | Purpose                                                      | File                                    |
+| ----------------------------- | ----------- | ------------------------------------------------------------ | --------------------------------------- |
+| `LLMService`                  | protocol    | Interface for LLM inference (generate, isAvailable, tools)   | `LLM/LLMService.swift`                  |
+| `AppleFoundationLLMService`   | class       | Apple FM + PCC with 8 @Tool functions                        | `LLM/LLMService.swift`                  |
+| `OnDeviceAnalysisService`     | class       | NaturalLanguage-based extractive QA fallback                 | `LLM/LLMService.swift`                  |
+| `ScreenshotMockLLMService`    | class       | Mock responses for App Store screenshot generation           | `LLM/LLMService.swift`                  |
+| `LocalOpenAIServerLLMService` | final class | OpenAI-compatible local server client (MLX/llama.cpp/Ollama) | `LLM/LocalOpenAIServerLLMService.swift` |
+| `OpenAIResponsesAPIService`   | class       | GPT-5 Responses API client (disabled, `#if false`)           | `LLM/OpenAIResponsesAPIService.swift`   |
+| `ModelResolutionService`      | final class | Model selection transparency layer                           | `LLM/ModelResolutionService.swift`      |
+
+#### Agentic Services (3 services)
+
+| Service                     | Type        | Purpose                                             | File                                      |
+| --------------------------- | ----------- | --------------------------------------------------- | ----------------------------------------- |
+| `AgenticOrchestrator`       | class       | Multi-session reasoning with Self-RAG 2.0 prompting | `Agentic/AgenticOrchestrator.swift`       |
+| `ConversationMemoryService` | final class | Persistent conversation memory with summarization   | `Agentic/ConversationMemoryService.swift` |
+| `WritingToolsService`       | class       | Apple Writing Tools (proofread, rewrite, summarize) | `Agentic/WritingToolsService.swift`       |
+
+#### Infrastructure Services (7 services)
+
+| Service                        | Type        | Purpose                                                         | File                                                |
+| ------------------------------ | ----------- | --------------------------------------------------------------- | --------------------------------------------------- |
+| `ContainerService`             | final class | KnowledgeContainer management (CRUD, selection, persistence)    | `Infrastructure/ContainerService.swift`             |
+| `DeviceCapabilityService`      | final class | Device tier detection (A-series vs M-series, NPU TOPS)          | `Infrastructure/DeviceCapabilityService.swift`      |
+| `GPUComputeService`            | final class | Metal Performance Shaders for batch vector ops (10-50x speedup) | `Infrastructure/GPUComputeService.swift`            |
+| `ProjectionService`            | final class | 3D projection: PCA, Random Projection, t-SNE, UMAP              | `Infrastructure/ProjectionService.swift`            |
+| `ClusterLabelService`          | actor       | LLM-generated intelligent labels for Atlas clusters             | `Infrastructure/ClusterLabelService.swift`          |
+| `TranscriptPersistenceService` | final class | Apple FM session transcript persistence for resume              | `Infrastructure/TranscriptPersistenceService.swift` |
+| `SettingsStore`                | final class | Centralized settings with UserDefaults persistence              | `Infrastructure/SettingsStore.swift`                |
+
+#### Billing Services (1 service)
+
+| Service                  | Type        | Purpose                                       | File                                   |
+| ------------------------ | ----------- | --------------------------------------------- | -------------------------------------- |
+| `StoreKitBillingService` | final class | StoreKit 2 in-app purchases and subscriptions | `Billing/StoreKitBillingService.swift` |
+
+---
+
 ### DocumentProcessor
 
 **Purpose**: Universal document parsing and semantic chunking
