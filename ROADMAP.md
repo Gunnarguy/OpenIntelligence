@@ -1,6 +1,6 @@
 # OpenIntelligence Roadmap
 
-**Last Updated**: January 26, 2026
+**Last Updated**: January 29, 2026
 **Version**: 1.0.0 (Build 10)
 **Status**: App Store Ready
 **Maturity**: Production-ready RAG pipeline with 8 agentic tools
@@ -12,9 +12,19 @@
 **What OpenIntelligence Does:**
 Import any document. Ask questions. Get cited answers. All on-device.
 
+**RAG Pipeline: 21+ Distinct Techniques**
+
+| Category           | Count | Techniques                                                                                                                                                                                                                                          |
+| ------------------ | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Ingestion          | 5     | Contextual embeddings, smart table extraction, entity extraction, section detection, content-adaptive chunking                                                                                                                                      |
+| Retrieval (Always) | 5     | Hybrid Search + RRF, cross-encoder rerank, MMR diversification, lost-in-middle mitigation, parent doc expansion                                                                                                                                     |
+| Standard Mode      | +2    | HyDE query expansion, contextual compression                                                                                                                                                                                                        |
+| Deep Think         | +11   | Intent routing, multi-query decomposition, 2-hop graph expansion, recursive research, verification gates A-D, confidence calibration, extractive summarization, graph context packing, agentic orchestrator, 8 @Tool functions, iterative retrieval |
+| Maximum Mode       | +3    | Unlimited reasoning (50 sessions), exhaustive synthesis, 200K+ token budget                                                                                                                                                                         |
+
 **Core Features Shipped:**
 
-- ✅ Full RAG pipeline (hybrid search, neural reranking, MMR diversification)
+- ✅ Full RAG pipeline (21+ techniques: hybrid search, neural reranking, MMR, verification gates)
 - ✅ Apple Intelligence integration (iOS 26 Foundation Models)
 - ✅ Multi-format support: PDF, DOCX, XLSX, PPTX, TXT, MD, CSV, RTF, images
 - ✅ 8 agentic @Tool functions for intelligent document analysis

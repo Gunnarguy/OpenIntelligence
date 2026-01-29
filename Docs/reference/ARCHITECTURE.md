@@ -1,7 +1,7 @@
 # OpenIntelligence Technical Architecture
 
-**Version**: 2.7
-**Date**: January 26, 2026
+**Version**: 2.8
+**Date**: January 29, 2026
 **Status**: Production (App Store Ready)
 
 ## Executive Summary
@@ -10,7 +10,19 @@ OpenIntelligence is a native iOS 26 application implementing a complete Retrieva
 
 **Simple Concept:** Import any document. Ask questions in plain English. Get cited answers powered by on-device AI.
 
-**Latest (v2.7)**: Device-tier-aware Vision concurrency, platform-specific Metal optimizations, Mac compatibility via iPad mode.
+**Latest (v2.8)**: Device-tier-aware Vision concurrency, platform-specific Metal optimizations, Mac compatibility via iPad mode, 4-gate verification pipeline.
+
+### RAG Pipeline Feature Count
+
+The system implements **21+ distinct RAG techniques** organized by quality mode:
+
+| Category                  | Features | Examples                                                                                                                                                                                                                                                           |
+| ------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Ingestion (Always On)** | 5        | Contextual embeddings, smart table extraction, entity extraction, section detection, content-adaptive chunking                                                                                                                                                     |
+| **Retrieval (Always On)** | 5        | Hybrid search + RRF, cross-encoder reranking, MMR diversification, lost-in-middle mitigation, parent document expansion                                                                                                                                            |
+| **Standard Mode**         | +2       | HyDE query expansion, contextual compression                                                                                                                                                                                                                       |
+| **Deep Think Mode**       | +11      | Intent routing, multi-query decomposition, 2-hop graph expansion, recursive research, verification gates A-D, confidence calibration, extractive summarization, graph context packing, agentic orchestrator (4-8 sessions), 8 @Tool functions, iterative retrieval |
+| **Maximum Mode**          | +3       | Unlimited reasoning (50 sessions), exhaustive synthesis, 200K+ token budget                                                                                                                                                                                        |
 
 ### Key Architectural Principles
 
@@ -108,13 +120,25 @@ User Query Input
          │
          ▼
 ┌─────────────────┐
+│ Query Rewriting │  ← Pronoun resolution, follow-up handling
+│ & Understanding │    NLTagger NER entity extraction
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
 │ Adjust Search   │  ← Dynamic vector/keyword weights
 │ Weights         │    per-query ±15%
 └────────┬────────┘
          │
          ▼
 ┌─────────────────┐
-│ Embed Query     │  ← Same embedding model
+│ HyDE Expansion  │  ← Generate hypothetical answer doc
+│ (if factual)    │    Embed THAT for better recall
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ Embed Query     │  ← Same embedding model (384-dim)
 └────────┬────────┘
          │
          ▼
@@ -137,6 +161,24 @@ User Query Input
          │
          ▼
 ┌─────────────────┐
+│ Entity-Based    │  ← 2-hop graph expansion via
+│ Graph Expansion │    EntityIndexService
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ Parent Document │  ← Expand ±5 sibling chunks
+│ Retrieval       │    for paragraph context
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ Contextual      │  ← LLM filters irrelevant
+│ Compression     │    sentences from chunks
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
 │ MMR Diversity   │  ← λ=0.6 diversity/relevance
 └────────┬────────┘
          │
@@ -148,8 +190,8 @@ User Query Input
          │
          ▼
 ┌─────────────────┐
-│ Format Context  │  ← Build prompt with
-│ for LLM         │    retrieved chunks
+│ Graph Context   │  ← Optimal token budget
+│ Packing         │    allocation across evidence
 └────────┬────────┘
          │
          ▼
@@ -160,8 +202,32 @@ User Query Input
          │
          ▼
 ┌─────────────────┐
-│ Return Response │  ← With metadata and
-│ + Metrics       │    performance stats
+│ Quality         │  ← Confidence scoring based on
+│ Assessment      │    source coverage + consistency
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ Verification    │  ← Gates A-D anti-hallucination
+│ Gates           │    (confidence, coverage, numeric, contradiction)
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ Package Results │  ← Build RAGResult with sources,
+│                 │    timing, and metrics
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ Calibrated      │  ← Platt scaling for confidence
+│ Confidence      │    (0.0-1.0 normalized)
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ Response        │  ← Final metadata: latency,
+│ Metadata        │    token counts, source URIs
 └─────────────────┘
 ```
 
@@ -1741,19 +1807,19 @@ The system is designed to be domain-agnostic—able to understand any document t
 
 **Current Implementation Status**:
 
-| Component                | Status         | Location                                    |
-| ------------------------ | -------------- | ------------------------------------------- |
-| Bi-Encoder Embedder      | ✅ Implemented | `CoreMLSentenceEmbeddingProvider` (384-dim) |
-| Cross-Encoder Reranker   | ✅ Implemented | `ReRankerModel.mlpackage` in RAGEngine      |
-| Dense Vector Index       | ✅ Implemented | `VectorDatabase` protocol implementations   |
-| Lexical Index (BM25)     | ✅ Implemented | `BM25Service` with corpus vocabulary        |
-| Structure Index          | ✅ Implemented | `structureType` field + structure boost     |
-| Structure-Aware Chunking | ✅ Implemented | Tables/lists preserved as atomic chunks     |
-| Extractive QA Span Model | ❌ Planned     | TinyBERT + start/end heads (Phase 2.06)     |
-| Graph Index              | ❌ Planned     | Cross-reference traversal (Phase 2.06)      |
-| Verification Gates       | ❌ Planned     | Anti-hallucination checks (Phase 2.06)      |
-| Bounding Box Metadata    | ❌ Planned     | `bbox: CGRect` per chunk (Phase 2.06)       |
-| Section Path Hierarchy   | ❌ Planned     | `section_path: [String]` (Phase 2.06)       |
+| Component                | Status         | Location                                         |
+| ------------------------ | -------------- | ------------------------------------------------ |
+| Bi-Encoder Embedder      | ✅ Implemented | `CoreMLSentenceEmbeddingProvider` (384-dim)      |
+| Cross-Encoder Reranker   | ✅ Implemented | `ReRankerModel.mlpackage` in RAGEngine           |
+| Dense Vector Index       | ✅ Implemented | `VectorDatabase` protocol implementations        |
+| Lexical Index (BM25)     | ✅ Implemented | `BM25Service` with corpus vocabulary             |
+| Structure Index          | ✅ Implemented | `structureType` field + structure boost          |
+| Structure-Aware Chunking | ✅ Implemented | Tables/lists preserved as atomic chunks          |
+| Verification Gates       | ✅ Implemented | `VerificationGateService` (4-gate pipeline)      |
+| Bounding Box Metadata    | ✅ Implemented | `ChunkMetadata.bboxArray` with computed `bbox`   |
+| Section Path Hierarchy   | ✅ Implemented | `ChunkMetadata.sectionPath` + `buildSectionPath` |
+| Extractive QA Span Model | ❌ Planned     | TinyBERT + start/end heads (Phase 2.06)          |
+| Graph Index              | ❌ Planned     | Cross-reference traversal (Phase 2.06)           |
 
 ---
 
@@ -1932,16 +1998,16 @@ Query: "What is the recommended oil viscosity?"
          └─── confidence < 0.7 ──→ Escalate to LLM generation
 ```
 
-**Planned Verification Gates**:
+**Implemented Verification Gates** (via `VerificationGateService.swift`):
 
-| Gate   | Check                              | Action                                           |
-| ------ | ---------------------------------- | ------------------------------------------------ |
-| Gate A | `max(chunk_scores) < 0.3`          | Abstain: "No relevant information found"         |
-| Gate B | `extractive_confidence < 0.7`      | Escalate to LLM with retrieval context           |
-| Gate C | `entropy(3_responses) > threshold` | Flag as "uncertain" in UI                        |
-| Gate D | Response contradicts corpus        | Show: "Response mentions X, but document says Y" |
+| Gate   | Check                       | Action                                           |
+| ------ | --------------------------- | ------------------------------------------------ |
+| Gate A | `max(chunk_scores) < τ`     | Abstain: "No relevant information found"         |
+| Gate B | Evidence coverage < 70%     | Flag unsupported claims                          |
+| Gate C | Numbers not in source       | Catch hallucinated specifications                |
+| Gate D | Response contradicts corpus | Show: "Response mentions X, but document says Y" |
 
-See [ROADMAP.md](../../ROADMAP.md) Phase 2.06 for full implementation plan.
+See [ROADMAP.md](../../ROADMAP.md) Phase 2.06 for implementation details.
 
 ## Advanced RAG Intelligence (v2.0)
 
