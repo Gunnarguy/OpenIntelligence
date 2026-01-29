@@ -88,16 +88,24 @@ QUERY → RESPONSE (17 steps):
 
 ---
 
-## Key Files
+## Service Inventory (51 Services)
 
-| File                                                       | Purpose                                 |
-| ---------------------------------------------------------- | --------------------------------------- |
-| `Services/RAG/RAGService.swift`                            | Main orchestrator, token validate       |
-| `Services/Agentic/AgenticOrchestrator.swift`               | Multi-session reasoning (~6000 lines)   |
-| `Services/Document/SemanticChunker.swift`                  | Chunking (310w max, 50000 limit)        |
-| `Services/Document/DocumentProcessor.swift`                | OCR (360 DPI), Office extraction        |
-| `Services/Storage/FullTextStorageService.swift`            | Complete text storage for exact queries |
-| `Services/Embedding/CoreMLSentenceEmbeddingProvider.swift` | 384-dim embeddings + BertTokenizer      |
+| Category           | Count | Key Services                                                                               |
+| ------------------ | ----- | ------------------------------------------------------------------------------------------ |
+| **RAG Pipeline**   | 14    | RAGService, RAGEngine, HybridSearchService, VerificationGateService, ContextPackingService |
+| **Query**          | 6     | QueryEnhancementService, HyDEService, ContextualCompressionService, QueryRouterService     |
+| **Document**       | 10    | DocumentProcessor, SemanticChunker, EntityIndexService, AudioTranscriptionService          |
+| **Embedding**      | 2     | EmbeddingService, CoreMLSentenceEmbeddingProvider                                          |
+| **Storage**        | 3     | FullTextStorageService, SQLiteFullTextService, DocumentationCacheService                   |
+| **VectorStore**    | 4     | VectorDatabase (protocol), InMemoryVectorDatabase, BNNSVectorDatabase, VectorStoreRouter   |
+| **LLM**            | 7     | AppleFoundationLLMService, OnDeviceAnalysisService, LocalOpenAIServerLLMService            |
+| **Agentic**        | 3     | AgenticOrchestrator, ConversationMemoryService, WritingToolsService                        |
+| **Infrastructure** | 7     | ContainerService, GPUComputeService, DeviceCapabilityService, ProjectionService            |
+| **Billing**        | 1     | StoreKitBillingService                                                                     |
+
+**Full inventory**: See `Docs/reference/ARCHITECTURE.md` → "Complete Service Inventory"
+
+---
 
 ---
 
