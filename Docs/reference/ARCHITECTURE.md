@@ -16,13 +16,13 @@ OpenIntelligence is a native iOS 26 application implementing a complete Retrieva
 
 The system implements a **23-step end-to-end pipeline** powered by **51 services**:
 
-| Phase              | Steps | Key Services                                                         |
-| ------------------ | ----- | -------------------------------------------------------------------- |
-| **Ingestion**      | 6     | DocumentProcessor, SemanticChunker, EntityIndexService, EmbeddingService |
-| **Query Processing** | 7   | QueryEnhancementService, HyDEService, QueryRouterService, HybridSearchService |
-| **Post-Retrieval** | 7     | VerificationGateService, ContextPackingService, ParentDocumentService |
-| **Generation**     | 3     | ExtractiveSummarizationService, LLMService, AgenticOrchestrator      |
-| **Post-Generation**| 4     | QualityAssuranceService, ConfidenceCalibrationService                |
+| Phase                | Steps | Key Services                                                                  |
+| -------------------- | ----- | ----------------------------------------------------------------------------- |
+| **Ingestion**        | 6     | DocumentProcessor, SemanticChunker, EntityIndexService, EmbeddingService      |
+| **Query Processing** | 7     | QueryEnhancementService, HyDEService, QueryRouterService, HybridSearchService |
+| **Post-Retrieval**   | 7     | VerificationGateService, ContextPackingService, ParentDocumentService         |
+| **Generation**       | 3     | ExtractiveSummarizationService, LLMService, AgenticOrchestrator               |
+| **Post-Generation**  | 4     | QualityAssuranceService, ConfidenceCalibrationService                         |
 
 > **Complete inventory**: See "Complete Service Inventory (51 Services)" below.
 
