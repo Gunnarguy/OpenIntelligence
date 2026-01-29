@@ -14,13 +14,13 @@ Import any document. Ask questions. Get cited answers. All on-device.
 
 **RAG Pipeline: 23 Steps End-to-End (51 Services)**
 
-| Phase              | Steps | Details                                                                                                                                                                                                                                             |
-| ------------------ | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Ingestion          | 6     | Parse → SemanticChunker → Entity Extraction → Token Validation → Embedding → Store (HNSW + FTS5 + EntityIndex)                                                                                                                                      |
-| Query Processing   | 7     | Corpus Analysis → Query Understanding → Query Expansion → Intent Classification → Query Embedding → RAPTOR-lite Routing → Hybrid Search                                                                                                            |
-| Post-Retrieval     | 7     | Cross-Encoder Rerank → Low-Confidence Filter → Multi-Doc Representation → MMR → Parent Doc Retrieval → Contextual Compression → Graph Context Packing                                                                                              |
-| Generation         | 3     | Context Assembly (Lost-in-Middle) → Extractive Summarization/QA → LLM Generation                                                                                                                                                                    |
-| Post-Generation    | 4     | Quality Assessment → Verification Gates A-D → Calibrated Confidence → Response Metadata                                                                                                                                                            |
+| Phase            | Steps | Details                                                                                                                                               |
+| ---------------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Ingestion        | 6     | Parse → SemanticChunker → Entity Extraction → Token Validation → Embedding → Store (HNSW + FTS5 + EntityIndex)                                        |
+| Query Processing | 7     | Corpus Analysis → Query Understanding → Query Expansion → Intent Classification → Query Embedding → RAPTOR-lite Routing → Hybrid Search               |
+| Post-Retrieval   | 7     | Cross-Encoder Rerank → Low-Confidence Filter → Multi-Doc Representation → MMR → Parent Doc Retrieval → Contextual Compression → Graph Context Packing |
+| Generation       | 3     | Context Assembly (Lost-in-Middle) → Extractive Summarization/QA → LLM Generation                                                                      |
+| Post-Generation  | 4     | Quality Assessment → Verification Gates A-D → Calibrated Confidence → Response Metadata                                                               |
 
 **51 Services across 9 categories**: See [ARCHITECTURE.md](Docs/reference/ARCHITECTURE.md) → "Complete Service Inventory"
 
