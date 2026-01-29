@@ -91,7 +91,7 @@ graph TD
 | **`RAGService`**        | Orchestration  | `@MainActor` singleton. Manages state, ingestion, and routing.             |
 | **`RAGEngine`**         | Math & Logic   | `actor`. Offloads BM25 scoring, RRF fusion, and MMR to background threads. |
 | **`VectorStoreRouter`** | Storage Access | Manages container-isolated `PersistentVectorDatabase` instances.           |
-| **`LLMService`**        | Generation     | Protocol with 6 implementations (Apple FM, GGUF, OpenAI, etc.).            |
+| **`LLMService`**        | Generation     | Protocol with Apple FM + On-Device Analysis implementations.               |
 | **`SemanticChunker`**   | Pre-processing | Intelligent splitting with topic boundary detection and overlap.           |
 
 ---

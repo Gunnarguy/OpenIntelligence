@@ -39,15 +39,41 @@ Ingest ANY document, ANY size. Answer questions using Apple Intelligence. **ZERO
 - **FullTextStorageService** (`actor`): Complete original document storage for exact queries
 - **AgenticOrchestrator**: Multi-session reasoning with Self-RAG 2.0 enrichment prompting
 
-### Pipeline
+### Pipeline (23 Steps End-to-End)
 
 ```
-Ingestion: Vision (360 DPI) / Office ZIP → SemanticChunker (≤310w) → Token Validate → Embed → HNSW
-                                          ↓
-                            FullTextStorageService.store() ← Complete original text
-Retrieval: HyDE → Hybrid Search → RRF → MMR → ReRank → Context Pack
-           countPatternInCorpus() → exact count across ALL text (no chunking)
-Generation: LLMService + 14 @Tool functions for agentic search
+INGESTION (6 steps):
+  1. Parse (PDFKit/Vision OCR 360 DPI/Office ZIP)
+  2. SemanticChunker (≤310w, section detection)
+  3. Entity Extraction (NLTagger NER + PascalCase)
+  4. Token Validation (BertTokenizer ≤510)
+  5. Embedding (384-dim MiniLM)
+  6. Store (HNSW index + FullTextStorage + EntityIndex)
+
+QUERY → RESPONSE (17 steps):
+  Step 0:   Corpus Analysis (vocabulary cache)
+  Step 1:   Query Understanding (pronoun resolution, NER)
+  Step 1.5: Query Expansion (corpus + container vocab)
+  Step 1.6: Intent Classification (lookup/procedure/compare/summarize)
+  Step 2:   Query Embedding (384-dim)
+  Step 2.5: RAPTOR-lite Routing (overview → L1 summaries)
+  Step 3:   Hybrid Search (Vector + BM25 + RRF) or Iterative Retrieval
+  Step 4:   Cross-Encoder Rerank (TinyBERT)
+  Step 4.3: Low-Confidence Filtering
+  Step 4.4: Multi-Document Representation (source diversity)
+  Step 4.5: MMR Diversification (λ=0.6)
+  Step 4.6: Parent Document Retrieval (±5 siblings)
+  Step 4.7: Contextual Compression (LLM filters)
+  Step 4.9: Graph Context Packing (token budget)
+  Step 5:   Context Assembly (Lost-in-Middle reorder)
+  Step 5.9: Extractive Summarization (for summarize intent)
+  Step 5.10: Extractive QA (for lookup intent)
+  Step 6:   LLM Generation (Apple FM / PCC)
+  Step 7:   Quality Assessment (confidence scoring)
+  Step 7.5: Verification Gates A-D (anti-hallucination)
+  Step 8:   Package Results
+  Step 8.1: Calibrated Confidence (Platt scaling)
+  Step 9:   Response Metadata (timing, sources, metrics)
 ```
 
 ### Multi-Session Reasoning
