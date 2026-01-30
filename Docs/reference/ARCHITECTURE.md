@@ -2379,8 +2379,7 @@ OpenIntelligence/
 Docs/
 ├── reference/                     # Architecture & API docs
 │   ├── ARCHITECTURE.md            # Full technical reference
-│   ├── RELEASE.md                 # Release checklist, smoke tests
-│   └── PRICING_STRATEGY.md        # Business docs
+│   └── RELEASE.md                 # Release checklist, smoke tests
 └── TestDocuments/                 # Sample files for testing
 
 OpenIntelligenceTests/             # Unit tests + TestDoubles.swift for mocks
