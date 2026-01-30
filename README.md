@@ -179,49 +179,55 @@ If any gate fails, the system either abstains or triggers iterative retrieval.
 
 ### Data Flow
 
-```text
-INGESTION:
-┌──────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│ User Document│───▶│ DocumentProcessor│───▶│ SemanticChunker │
-│ (PDF, DOCX,  │    │ • PDFKit        │    │ • ≤310 words    │
-│  M4A, PNG)   │    │ • Vision OCR    │    │ • Section detect│
-└──────────────┘    │ • Speech.framework   │ • ~17% overlap  │
-                    │ • Office ZIP    │    └────────┬────────┘
-                    └─────────────────┘             │
-                                           ┌───────▼────────┐
-                    ┌─────────────────┐    │EmbeddingService│
-                    │  VectorDatabase │◀───│ • 384-dim      │
-                    │ • HNSW index    │    │ • BertTokenizer│
-                    │ • SQLite FTS5   │    │ • ≤510 tokens  │
-                    └────────┬────────┘    └────────────────┘
-                             │
-RETRIEVAL:                   ▼
-┌──────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│  User Query  │───▶│QueryEnhancement │───▶│ HybridSearch    │
-│              │    │ • Intent detect │    │ • Vector k-NN   │
-│              │    │ • HyDE expansion│    │ • BM25 keyword  │
-│              │    │ • Query rewrite │    │ • RRF (k=60)    │
-└──────────────┘    └─────────────────┘    └────────┬────────┘
-                                                    │
-┌─────────────────┐    ┌─────────────────┐    ┌─────▼─────────┐
-│ ContextPacking  │◀───│ ParentDocument  │◀───│  RAGEngine    │
-│ • Graph context │    │ • ±5 siblings   │    │ • Cross-encode│
-│ • Token budget  │    │ • Section merge │    │ • MMR (λ=0.6) │
-└────────┬────────┘    └─────────────────┘    └───────────────┘
-         │
-         ▼
-┌─────────────────┐    ┌─────────────────┐    ┌───────────────┐
-│ Context Assembly│───▶│   LLMService    │───▶│ Verification  │
-│ • Lost-in-middle│    │ • Apple FM      │    │ Gates A-D     │
-│ • 5,500 char max│    │ • 8 @Tools      │    │ • Anti-halluc │
-└─────────────────┘    └─────────────────┘    └───────┬───────┘
-                                                      │
-                                              ┌───────▼───────┐
-                                              │ Chat Interface│
-                                              │ • Cited answer│
-                                              │ • Source links│
-                                              │ • Confidence % │
-                                              └───────────────┘
+```
+INGESTION (when you add a document):
+
+┌──────────────┐     ┌──────────────────┐     ┌──────────────────┐
+│   Document   │────▶│ DocumentProcessor│────▶│  SemanticChunker │
+│  PDF, DOCX,  │     │  • PDFKit        │     │  • ≤310 words    │
+│  M4A, PNG    │     │  • Vision OCR    │     │  • Section detect│
+└──────────────┘     │  • Speech.framework    │  • ~17% overlap  │
+                     │  • Office ZIP    │     └────────┬─────────┘
+                     └──────────────────┘              │
+                                                       ▼
+                     ┌──────────────────┐     ┌──────────────────┐
+                     │   VectorDatabase │◀────│ EmbeddingService │
+                     │  • HNSW index    │     │  • 384-dim       │
+                     │  • SQLite FTS5   │     │  • BertTokenizer │
+                     └────────┬─────────┘     │  • ≤510 tokens   │
+                              │               └──────────────────┘
+                              ▼
+RETRIEVAL (when you ask a question):
+
+┌──────────────┐     ┌──────────────────┐     ┌──────────────────┐
+│  User Query  │────▶│ QueryEnhancement │────▶│   HybridSearch   │
+│              │     │  • Intent detect │     │  • Vector k-NN   │
+│              │     │  • HyDE expansion│     │  • BM25 keyword  │
+│              │     │  • Query rewrite │     │  • RRF (k=60)    │
+└──────────────┘     └──────────────────┘     └────────┬─────────┘
+                                                       │
+┌──────────────────┐     ┌──────────────────┐          │
+│  ContextPacking  │◀────│  ParentDocument  │◀────┬────┘
+│  • Graph context │     │  • ±5 siblings   │     │
+│  • Token budget  │     │  • Section merge │     ▼
+└────────┬─────────┘     └──────────────────┘  ┌──────────────────┐
+         │                                     │    RAGEngine     │
+         ▼                                     │  • Cross-encoder │
+GENERATION (producing the answer):             │  • MMR (λ=0.6)   │
+                                               └──────────────────┘
+┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
+│ Context Assembly │────▶│    LLMService    │────▶│   Verification   │
+│  • Lost-in-middle│     │  • Apple FM      │     │   Gates A-D      │
+│  • 5,500 char max│     │  • 8 @Tools      │     │  • Anti-halluc   │
+└──────────────────┘     └──────────────────┘     └────────┬─────────┘
+                                                           │
+                                                           ▼
+                                                  ┌──────────────────┐
+                                                  │  Chat Interface  │
+                                                  │  • Cited answer  │
+                                                  │  • Source links  │
+                                                  │  • Confidence %  │
+                                                  └──────────────────┘
 ```
 
 ---
