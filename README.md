@@ -197,10 +197,9 @@ The app will:
 Go to the **Chat** tab. Ask questions about your documents.
 
 - **Telemetry Badges**:
-  - 📱 **On-Device**: Inference ran locally.
-  - ☁️ **PCC**: Private Cloud Compute was used.
-  - 🔑 **API**: External API (e.g., OpenAI) was used.
-  - 🔧 **Tools**: Shows how many agent tools were called.
+  - 📱 **On-Device**: Inference ran locally on your device's Neural Engine.
+  - ☁️ **PCC**: Apple Private Cloud Compute was used (encrypted, zero-retention).
+  - 🔧 **Tools**: Shows how many agentic @Tool functions were called.
 - **Citations**: Tap any citation to view the source chunk.
 
 ### 3. Model Configuration
