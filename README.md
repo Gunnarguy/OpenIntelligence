@@ -179,55 +179,30 @@ If any gate fails, the system either abstains or triggers iterative retrieval.
 
 ### Data Flow
 
-```
-INGESTION (when you add a document):
+```mermaid
+flowchart TD
+    subgraph INGESTION["INGESTION (when you add a document)"]
+        A[Document<br/>PDF, DOCX, M4A, PNG] --> B[DocumentProcessor<br/>PDFKit / Vision OCR / Speech]
+        B --> C[SemanticChunker<br/>≤310 words, section detect]
+        C --> D[EmbeddingService<br/>384-dim, BertTokenizer]
+        D --> E[(VectorDatabase<br/>HNSW + SQLite FTS5)]
+    end
 
-┌──────────────┐     ┌──────────────────┐     ┌──────────────────┐
-│   Document   │────▶│ DocumentProcessor│────▶│  SemanticChunker │
-│  PDF, DOCX,  │     │  • PDFKit        │     │  • ≤310 words    │
-│  M4A, PNG    │     │  • Vision OCR    │     │  • Section detect│
-└──────────────┘     │  • Speech.framework    │  • ~17% overlap  │
-                     │  • Office ZIP    │     └────────┬─────────┘
-                     └──────────────────┘              │
-                                                       ▼
-                     ┌──────────────────┐     ┌──────────────────┐
-                     │   VectorDatabase │◀────│ EmbeddingService │
-                     │  • HNSW index    │     │  • 384-dim       │
-                     │  • SQLite FTS5   │     │  • BertTokenizer │
-                     └────────┬─────────┘     │  • ≤510 tokens   │
-                              │               └──────────────────┘
-                              ▼
-RETRIEVAL (when you ask a question):
+    subgraph RETRIEVAL["RETRIEVAL (when you ask a question)"]
+        F[User Query] --> G[QueryEnhancement<br/>Intent detect, HyDE, rewrite]
+        G --> H[HybridSearch<br/>Vector k-NN + BM25 + RRF]
+        E --> H
+        H --> I[RAGEngine<br/>Cross-encoder rerank, MMR]
+        I --> J[ParentDocument<br/>±5 siblings, section merge]
+        J --> K[ContextPacking<br/>Graph context, token budget]
+    end
 
-┌──────────────┐     ┌──────────────────┐     ┌──────────────────┐
-│  User Query  │────▶│ QueryEnhancement │────▶│   HybridSearch   │
-│              │     │  • Intent detect │     │  • Vector k-NN   │
-│              │     │  • HyDE expansion│     │  • BM25 keyword  │
-│              │     │  • Query rewrite │     │  • RRF (k=60)    │
-└──────────────┘     └──────────────────┘     └────────┬─────────┘
-                                                       │
-┌──────────────────┐     ┌──────────────────┐          │
-│  ContextPacking  │◀────│  ParentDocument  │◀────┬────┘
-│  • Graph context │     │  • ±5 siblings   │     │
-│  • Token budget  │     │  • Section merge │     ▼
-└────────┬─────────┘     └──────────────────┘  ┌──────────────────┐
-         │                                     │    RAGEngine     │
-         ▼                                     │  • Cross-encoder │
-GENERATION (producing the answer):             │  • MMR (λ=0.6)   │
-                                               └──────────────────┘
-┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
-│ Context Assembly │────▶│    LLMService    │────▶│   Verification   │
-│  • Lost-in-middle│     │  • Apple FM      │     │   Gates A-D      │
-│  • 5,500 char max│     │  • 8 @Tools      │     │  • Anti-halluc   │
-└──────────────────┘     └──────────────────┘     └────────┬─────────┘
-                                                           │
-                                                           ▼
-                                                  ┌──────────────────┐
-                                                  │  Chat Interface  │
-                                                  │  • Cited answer  │
-                                                  │  • Source links  │
-                                                  │  • Confidence %  │
-                                                  └──────────────────┘
+    subgraph GENERATION["GENERATION (producing the answer)"]
+        K --> L[Context Assembly<br/>Lost-in-middle, 5500 char max]
+        L --> M[LLMService<br/>Apple FM, 8 @Tools]
+        M --> N[Verification Gates A-D<br/>Anti-hallucination]
+        N --> O[Chat Interface<br/>Cited answer, sources, confidence]
+    end
 ```
 
 ---
