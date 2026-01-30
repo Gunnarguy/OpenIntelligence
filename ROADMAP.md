@@ -540,6 +540,56 @@ _These FoundationModels framework features have been fully integrated:_
 
 ---
 
+## 2.5. Retrieval Quality Improvements (Future)
+
+_Known limitations in current implementation with paths to improvement._
+
+> **Current Rating**: 75-85% of enterprise RAG quality. See [ARCHITECTURE.md → Retrieval Quality Assessment](Docs/reference/ARCHITECTURE.md) for full analysis.
+
+### What's Solid ✅
+
+| Component             | Status              | Notes                                                               |
+| --------------------- | ------------------- | ------------------------------------------------------------------- |
+| **BM25 Scoring**      | ✅ Correct          | k1=1.5, b=0.75, proper IDF. Textbook implementation.                |
+| **RRF Fusion**        | ✅ Correct          | k=60 per Cormack et al. 2009. Proper reciprocal rank summation.     |
+| **Cross-Encoder**     | ✅ Production-grade | `ms-marco-TinyBERT-L-2-v2`, proper token type IDs, softmax scoring. |
+| **MMR**               | ✅ Good             | GPU-accelerated pairwise similarities, λ-weighted tradeoff.         |
+| **Lost-in-Middle**    | ✅ Implemented      | Liu et al. 2023 reordering in `RAGEngine`.                          |
+| **vDSP Acceleration** | ✅ Hardware-native  | Neural Engine/AMX via `vDSP_dotpr`, `vDSP.sumOfSquares`.            |
+
+### Known Limitations ⚠️
+
+| Issue                           | Current Behavior                                                      | Impact                            | Fix                                              |
+| ------------------------------- | --------------------------------------------------------------------- | --------------------------------- | ------------------------------------------------ |
+| **Hybrid not truly parallel**   | Vector search runs first, BM25 re-scores same candidates              | BM25-only matches missed          | Run FTS5 independently, merge two result sets    |
+| **BM25 IDF is local**           | `snapshot(from: candidates)` computes IDF from ~50 chunks, not corpus | Rare terms not properly weighted  | Persist global IDF stats at ingestion            |
+| **FTS5 not used at query time** | In-memory `BM25Scorer` instead of SQLite `bm25()`                     | Duplicated logic, potential drift | `SELECT ... ORDER BY bm25(fts)`                  |
+| **Cross-encoder cap at 50**     | `prefix(50)` before reranking                                         | Chunk #51 never seen              | Two-stage: fast filter → 100, cross-encoder → 50 |
+
+### Improvement Priorities
+
+- [ ] **True Hybrid Search**: Parallel vector + FTS5 searches, merge distinct result sets
+      _Impact_: Catches BM25-only matches currently missed
+      _Location_: `HybridSearchService.performHybridSearch()`
+      _Effort_: Medium
+
+- [ ] **Global IDF Persistence**: Compute document frequencies at ingestion, persist in SQLite
+      _Impact_: More accurate term weighting for rare/common words
+      _Location_: `BM25Scorer`, `FullTextStorageService`
+      _Effort_: Medium
+
+- [ ] **Native FTS5 Scoring**: Use SQLite's `bm25()` function instead of in-memory scorer
+      _Impact_: Leverages SQLite's optimized implementation
+      _Location_: `HybridSearchService.searchWithFTS5()`
+      _Effort_: Low
+
+- [ ] **Expanded Rerank Pool**: Filter to 100 candidates, then cross-encoder to 50
+      _Impact_: Reduces risk of missing relevant chunk just outside top 50
+      _Location_: `RAGEngine.rerankCandidates()`
+      _Effort_: Low
+
+---
+
 ## 3. Project: Silicon-Native Intelligence (Q1 2026)
 
 _Refactoring OpenIntelligence to align with Apple's "Native Intelligence" Benchmark._
