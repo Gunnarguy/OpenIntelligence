@@ -207,6 +207,24 @@ flowchart TD
     K --> L
 ```
 
+<details>
+<summary><strong>📖 Glossary</strong> (click to expand)</summary>
+
+| Term               | What It Means                                                                             |
+| ------------------ | ----------------------------------------------------------------------------------------- |
+| **HNSW**           | Hierarchical Navigable Small World — fast approximate nearest neighbor search for vectors |
+| **FTS5**           | SQLite Full-Text Search 5 — keyword search with BM25 scoring                              |
+| **BM25**           | Best Match 25 — ranking algorithm that scores documents by term frequency                 |
+| **HyDE**           | Hypothetical Document Embeddings — generates a fake answer to improve search              |
+| **RRF**            | Reciprocal Rank Fusion — combines vector + keyword results (k=60 smoothing)               |
+| **MMR**            | Maximal Marginal Relevance — balances relevance vs diversity (λ=0.6)                      |
+| **k-NN**           | k-Nearest Neighbors — finds the k most similar vectors                                    |
+| **Cross-encoder**  | Neural model that scores query-document pairs for reranking                               |
+| **Lost-in-middle** | Reordering trick — puts best evidence at start AND end (LLMs forget the middle)           |
+| **PCC**            | Private Cloud Compute — Apple's encrypted cloud with zero data retention                  |
+
+</details>
+
 ---
 
 ## Telemetry Badges
