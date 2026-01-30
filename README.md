@@ -29,16 +29,16 @@ OpenIntelligence is a document question-answering app powered by Apple Intellige
 
 ## Supported File Formats
 
-| Category | Formats | Notes |
-|----------|---------|-------|
-| **Documents** | PDF | Native PDFKit + Vision OCR @ 360 DPI for scanned pages |
-| **Office** | DOCX, XLSX, PPTX | Native ZIP-based XML extraction (no dependencies) |
-| **Text** | TXT, MD, RTF | Direct text extraction |
-| **Code** | Swift, Python, JS, TS, Java, C/C++, Go, Rust, Ruby, PHP, HTML, CSS, JSON, XML, YAML, SQL, Shell | Syntax-aware chunking |
-| **Data** | CSV, JSON | Unlimited rows, handles special characters |
-| **Images** | PNG, JPEG, HEIC, TIFF, GIF | Vision OCR extracts text from images |
-| **Audio/Video** | M4A, MP3, WAV, MP4, MOV | Speech.framework transcription to text |
-| **Apple** | Pages, Numbers, Keynote | Supported via export or direct extraction |
+| Category        | Formats                                                                                         | Notes                                                  |
+| --------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| **Documents**   | PDF                                                                                             | Native PDFKit + Vision OCR @ 360 DPI for scanned pages |
+| **Office**      | DOCX, XLSX, PPTX                                                                                | Native ZIP-based XML extraction (no dependencies)      |
+| **Text**        | TXT, MD, RTF                                                                                    | Direct text extraction                                 |
+| **Code**        | Swift, Python, JS, TS, Java, C/C++, Go, Rust, Ruby, PHP, HTML, CSS, JSON, XML, YAML, SQL, Shell | Syntax-aware chunking                                  |
+| **Data**        | CSV, JSON                                                                                       | Unlimited rows, handles special characters             |
+| **Images**      | PNG, JPEG, HEIC, TIFF, GIF                                                                      | Vision OCR extracts text from images                   |
+| **Audio/Video** | M4A, MP3, WAV, MP4, MOV                                                                         | Speech.framework transcription to text                 |
+| **Apple**       | Pages, Numbers, Keynote                                                                         | Supported via export or direct extraction              |
 
 ---
 
@@ -46,31 +46,31 @@ OpenIntelligence is a document question-answering app powered by Apple Intellige
 
 ### Embedding Pipeline
 
-| Component | Technology | Specification |
-|-----------|------------|---------------|
-| **Embedding Model** | CoreML MiniLM-L6-v2 | 384 dimensions, bundled in app |
-| **Tokenizer** | BertTokenizer | 510 token max (512 - CLS/SEP) |
-| **Chunk Size** | SemanticChunker | ≤310 words + 30-word contextual prefix |
-| **Vector Index** | HNSW (in-memory) | Cosine similarity, LRU cache |
-| **Keyword Index** | SQLite FTS5 | BM25 scoring, Porter stemmer |
+| Component           | Technology          | Specification                          |
+| ------------------- | ------------------- | -------------------------------------- |
+| **Embedding Model** | CoreML MiniLM-L6-v2 | 384 dimensions, bundled in app         |
+| **Tokenizer**       | BertTokenizer       | 510 token max (512 - CLS/SEP)          |
+| **Chunk Size**      | SemanticChunker     | ≤310 words + 30-word contextual prefix |
+| **Vector Index**    | HNSW (in-memory)    | Cosine similarity, LRU cache           |
+| **Keyword Index**   | SQLite FTS5         | BM25 scoring, Porter stemmer           |
 
 ### Search & Retrieval
 
-| Component | Technology | Specification |
-|-----------|------------|---------------|
-| **Hybrid Search** | Vector + BM25 | Reciprocal Rank Fusion (k=60) |
-| **Reranker** | CoreML Cross-Encoder | `ReRankerModel.mlpackage` bundled |
-| **Diversification** | MMR | λ=0.6 relevance/diversity balance |
-| **Context Window** | Lost-in-Middle | Best chunks at start AND end |
+| Component           | Technology           | Specification                     |
+| ------------------- | -------------------- | --------------------------------- |
+| **Hybrid Search**   | Vector + BM25        | Reciprocal Rank Fusion (k=60)     |
+| **Reranker**        | CoreML Cross-Encoder | `ReRankerModel.mlpackage` bundled |
+| **Diversification** | MMR                  | λ=0.6 relevance/diversity balance |
+| **Context Window**  | Lost-in-Middle       | Best chunks at start AND end      |
 
 ### LLM Generation
 
-| Component | Technology | Specification |
-|-----------|------------|---------------|
-| **Primary** | Apple Foundation Models | iOS 26 FoundationModels framework |
-| **Fallback** | Private Cloud Compute | Apple PCC with zero-retention guarantee |
-| **Context Limit** | 4,096 tokens | ~5,500 characters with margin |
-| **Agentic Tools** | 8 @Tool functions | Search, summarize, compare, analyze |
+| Component         | Technology              | Specification                           |
+| ----------------- | ----------------------- | --------------------------------------- |
+| **Primary**       | Apple Foundation Models | iOS 26 FoundationModels framework       |
+| **Fallback**      | Private Cloud Compute   | Apple PCC with zero-retention guarantee |
+| **Context Limit** | 4,096 tokens            | ~5,500 characters with margin           |
+| **Agentic Tools** | 8 @Tool functions       | Search, summarize, compare, analyze     |
 
 ---
 
@@ -78,26 +78,26 @@ OpenIntelligence is a document question-answering app powered by Apple Intellige
 
 The LLM can call these tools autonomously during reasoning:
 
-| Tool | Purpose | Example Use |
-|------|---------|-------------|
-| `SearchDocumentsTool` | Semantic search across all chunks | "Find sections about safety" |
-| `ListDocumentsTool` | List all ingested documents | "What documents do I have?" |
-| `GetDocumentSummaryTool` | Get/generate document summary | "Summarize the contract" |
-| `CountPatternTool` | Count pattern occurrences | "How many times is 'revenue' mentioned?" |
-| `SearchExactPatternTool` | Find exact text matches | "Find all phone numbers" |
-| `GetCorpusStatsTool` | Library-wide statistics | "How many pages total?" |
-| `FindRelatedDocumentsTool` | Find similar documents | "What's related to this memo?" |
-| `CompareDocumentsTool` | Compare two documents | "How do these contracts differ?" |
+| Tool                       | Purpose                           | Example Use                              |
+| -------------------------- | --------------------------------- | ---------------------------------------- |
+| `SearchDocumentsTool`      | Semantic search across all chunks | "Find sections about safety"             |
+| `ListDocumentsTool`        | List all ingested documents       | "What documents do I have?"              |
+| `GetDocumentSummaryTool`   | Get/generate document summary     | "Summarize the contract"                 |
+| `CountPatternTool`         | Count pattern occurrences         | "How many times is 'revenue' mentioned?" |
+| `SearchExactPatternTool`   | Find exact text matches           | "Find all phone numbers"                 |
+| `GetCorpusStatsTool`       | Library-wide statistics           | "How many pages total?"                  |
+| `FindRelatedDocumentsTool` | Find similar documents            | "What's related to this memo?"           |
+| `CompareDocumentsTool`     | Compare two documents             | "How do these contracts differ?"         |
 
 ---
 
 ## Quality Modes
 
-| Mode | Sessions | Use Case | Response Time |
-|------|----------|----------|---------------|
-| **Standard** | 1-3 | Quick factual questions | 2-3 seconds |
-| **Deep Think** | 4-8 | Complex analysis, multi-step reasoning | 5-15 seconds |
-| **Maximum** | 8-50 | Exhaustive research, document comparison | 15-60 seconds |
+| Mode           | Sessions | Use Case                                 | Response Time |
+| -------------- | -------- | ---------------------------------------- | ------------- |
+| **Standard**   | 1-3      | Quick factual questions                  | 2-3 seconds   |
+| **Deep Think** | 4-8      | Complex analysis, multi-step reasoning   | 5-15 seconds  |
+| **Maximum**    | 8-50     | Exhaustive research, document comparison | 15-60 seconds |
 
 Deep Think and Maximum modes use **Self-RAG 2.0**: multiple reasoning sessions that enrich (not verify) answers, adding details from different evidence chains.
 
@@ -148,12 +148,12 @@ RETRIEVAL (17 steps):
 
 Every response passes through 4 verification gates:
 
-| Gate | Name | What It Checks |
-|------|------|----------------|
-| **A** | Retrieval Confidence | `max(score) ≥ τ` AND `margin ≥ μ` between top results |
-| **B** | Evidence Coverage | All claims must cite `evidence_ids` from retrieved chunks |
-| **C** | Numeric Sanity | Numbers in response must match source documents |
-| **D** | Contradiction Sweep | Detect conflicting evidence across chunks |
+| Gate  | Name                 | What It Checks                                            |
+| ----- | -------------------- | --------------------------------------------------------- |
+| **A** | Retrieval Confidence | `max(score) ≥ τ` AND `margin ≥ μ` between top results     |
+| **B** | Evidence Coverage    | All claims must cite `evidence_ids` from retrieved chunks |
+| **C** | Numeric Sanity       | Numbers in response must match source documents           |
+| **D** | Contradiction Sweep  | Detect conflicting evidence across chunks                 |
 
 If any gate fails, the system either abstains or triggers iterative retrieval.
 
@@ -163,17 +163,17 @@ If any gate fails, the system either abstains or triggers iterative retrieval.
 
 **51 services** organized into **9 categories**:
 
-| Category | Count | Key Services |
-|----------|-------|--------------|
-| **RAG Pipeline** | 14 | RAGService, RAGEngine, HybridSearchService, VerificationGateService |
-| **Query** | 6 | QueryEnhancementService, HyDEService, ContextualCompressionService |
-| **Document** | 10 | DocumentProcessor, SemanticChunker, AudioTranscriptionService |
-| **Embedding** | 2 | EmbeddingService, CoreMLSentenceEmbeddingProvider |
-| **Storage** | 3 | FullTextStorageService, SQLiteFullTextService |
-| **VectorStore** | 4 | VectorDatabase, InMemoryVectorDatabase, BNNSVectorDatabase |
-| **LLM** | 7 | AppleFoundationLLMService, OnDeviceAnalysisService |
-| **Agentic** | 3 | AgenticOrchestrator, ConversationMemoryService, WritingToolsService |
-| **Infrastructure** | 7 | ContainerService, GPUComputeService, DeviceCapabilityService |
+| Category           | Count | Key Services                                                        |
+| ------------------ | ----- | ------------------------------------------------------------------- |
+| **RAG Pipeline**   | 14    | RAGService, RAGEngine, HybridSearchService, VerificationGateService |
+| **Query**          | 6     | QueryEnhancementService, HyDEService, ContextualCompressionService  |
+| **Document**       | 10    | DocumentProcessor, SemanticChunker, AudioTranscriptionService       |
+| **Embedding**      | 2     | EmbeddingService, CoreMLSentenceEmbeddingProvider                   |
+| **Storage**        | 3     | FullTextStorageService, SQLiteFullTextService                       |
+| **VectorStore**    | 4     | VectorDatabase, InMemoryVectorDatabase, BNNSVectorDatabase          |
+| **LLM**            | 7     | AppleFoundationLLMService, OnDeviceAnalysisService                  |
+| **Agentic**        | 3     | AgenticOrchestrator, ConversationMemoryService, WritingToolsService |
+| **Infrastructure** | 7     | ContainerService, GPUComputeService, DeviceCapabilityService        |
 
 **Full inventory**: See [ARCHITECTURE.md](Docs/reference/ARCHITECTURE.md) → "Complete Service Inventory (51 Services)"
 
@@ -230,12 +230,12 @@ RETRIEVAL:                   ▼
 
 Every response shows execution metadata:
 
-| Badge | Meaning |
-|-------|---------|
-| 📱 **On-Device** | Inference ran locally on Neural Engine |
-| ☁️ **PCC** | Apple Private Cloud Compute (encrypted, zero-retention) |
-| 🔧 **Tools: N** | Number of @Tool functions called during reasoning |
-| ⏱️ **X.Xs** | Total response time |
+| Badge            | Meaning                                                 |
+| ---------------- | ------------------------------------------------------- |
+| 📱 **On-Device** | Inference ran locally on Neural Engine                  |
+| ☁️ **PCC**       | Apple Private Cloud Compute (encrypted, zero-retention) |
+| 🔧 **Tools: N**  | Number of @Tool functions called during reasoning       |
+| ⏱️ **X.Xs**      | Total response time                                     |
 
 ---
 
@@ -324,13 +324,13 @@ OpenIntelligence/
 
 ## Reference Documentation
 
-| Document | Description |
-|----------|-------------|
-| [ARCHITECTURE.md](Docs/reference/ARCHITECTURE.md) | Complete technical architecture, 51-service inventory |
+| Document                                          | Description                                            |
+| ------------------------------------------------- | ------------------------------------------------------ |
+| [ARCHITECTURE.md](Docs/reference/ARCHITECTURE.md) | Complete technical architecture, 51-service inventory  |
 | [ADVANCED_RAG.md](Docs/reference/ADVANCED_RAG.md) | RAG technique reference (HyDE, compression, reranking) |
-| [AFW.md](Docs/reference/AFW.md) | Apple Intelligence deep dive (Foundation Models, PCC) |
-| [PRIVACY.md](PRIVACY.md) | Privacy policy and data handling |
-| [ROADMAP.md](ROADMAP.md) | Feature roadmap and version history |
+| [AFW.md](Docs/reference/AFW.md)                   | Apple Intelligence deep dive (Foundation Models, PCC)  |
+| [PRIVACY.md](PRIVACY.md)                          | Privacy policy and data handling                       |
+| [ROADMAP.md](ROADMAP.md)                          | Feature roadmap and version history                    |
 
 ---
 

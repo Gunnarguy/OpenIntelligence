@@ -10,11 +10,11 @@ Last updated: January 2026
 
 ## Model Pathways
 
-| Pathway | Execution Location | What Leaves the Device | User Action Required |
-| --- | --- | --- | --- |
-| On-Device Analysis | Local Neural Engine / CPU | Nothing | Default state |
-| Apple Foundation Models | On-device Neural Engine | Nothing | None (automatic) |
-| Private Cloud Compute | Apple PCC servers | Query + context (encrypted, zero-retention) | Allow PCC toggle in Settings |
+| Pathway                 | Execution Location        | What Leaves the Device                      | User Action Required         |
+| ----------------------- | ------------------------- | ------------------------------------------- | ---------------------------- |
+| On-Device Analysis      | Local Neural Engine / CPU | Nothing                                     | Default state                |
+| Apple Foundation Models | On-device Neural Engine   | Nothing                                     | None (automatic)             |
+| Private Cloud Compute   | Apple PCC servers         | Query + context (encrypted, zero-retention) | Allow PCC toggle in Settings |
 
 ## Keys & Credentials
 
