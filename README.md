@@ -208,20 +208,27 @@ flowchart TD
 ```
 
 <details>
-<summary><strong>📖 Glossary</strong> (click to expand)</summary>
+<summary><strong>📖 Glossary — Why Each Piece Is In OpenIntelligence</strong> (click to expand)</summary>
 
-| Term               | What It Means                                                                             |
-| ------------------ | ----------------------------------------------------------------------------------------- |
-| **HNSW**           | Hierarchical Navigable Small World — fast approximate nearest neighbor search for vectors |
-| **FTS5**           | SQLite Full-Text Search 5 — keyword search with BM25 scoring                              |
-| **BM25**           | Best Match 25 — ranking algorithm that scores documents by term frequency                 |
-| **HyDE**           | Hypothetical Document Embeddings — generates a fake answer to improve search              |
-| **RRF**            | Reciprocal Rank Fusion — combines vector + keyword results (k=60 smoothing)               |
-| **MMR**            | Maximal Marginal Relevance — balances relevance vs diversity (λ=0.6)                      |
-| **k-NN**           | k-Nearest Neighbors — finds the k most similar vectors                                    |
-| **Cross-encoder**  | Neural model that scores query-document pairs for reranking                               |
-| **Lost-in-middle** | Reordering trick — puts best evidence at start AND end (LLMs forget the middle)           |
-| **PCC**            | Private Cloud Compute — Apple's encrypted cloud with zero data retention                  |
+| Term                       | Why It's Here                                                                                                                                                                                                                |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **HNSW**                   | Our `InMemoryVectorDatabase` uses HNSW to search 50,000 chunks in ~5ms. Without it, finding relevant chunks would take seconds instead of milliseconds. This is what makes instant answers possible.                                               |
+| **SQLite FTS5**            | Our `SQLiteFullTextService` uses FTS5 for keyword search. When you search for "VIN 1HGCM82633A004352", vector search won't find it — but FTS5 matches the exact string instantly.                                                                  |
+| **BM25**                   | FTS5's ranking algorithm. When 10 chunks mention "oil change", BM25 ranks the one that mentions it 8 times (the actual procedure) above the one that mentions it once (a passing reference).                                                       |
+| **BertTokenizer**          | MiniLM uses WordPiece tokenization — "unbelievable" becomes ["un", "##believ", "##able"]. `CoreMLSentenceEmbeddingProvider` counts actual tokens (max 510) to prevent truncation. NLTokenizer counts words wrong for technical text.               |
+| **Contextual Prefix**      | `SemanticChunker` prepends ~30 words of section context to each chunk ("Chapter 5: Maintenance > Oil Change Procedure:"). So the embedding knows WHERE in the document this chunk lives.                                                           |
+| **HyDE**                   | `HyDEService.swift` generates a hypothetical answer before searching. Query: "how to reset" → HyDE generates "To reset the system, press and hold..." → we search for chunks similar to THAT, not your vague question. Enabled in Deep Think mode. |
+| **RRF (k=60)**             | `HybridSearchService` fuses vector and keyword results using Reciprocal Rank Fusion. k=60 is the smoothing constant (per Cormack et al. 2009). Ensures a chunk ranked #1 in keywords and #10 in vectors still surfaces.                            |
+| **MMR (λ=0.6)**            | `RAGEngine.applyMMR()` diversifies results. λ=0.6 means 60% weight on relevance, 40% on diversity. Prevents 5 chunks from the same paragraph drowning out other sources. Configurable per query intent.                                            |
+| **k-NN**                   | k-Nearest Neighbors via HNSW. `EmbeddingService` converts your query to a 384-dim vector, then we find the k=20 chunks with the closest vectors. This is semantic search — "car maintenance" matches "vehicle servicing".                          |
+| **Cross-encoder**          | `ReRankerModel.mlpackage` (TinyBERT, 4.5MB) scores query+chunk pairs together. Bi-encoders (used for initial search) are fast but miss nuances. Cross-encoder is slow but precise — so we only run it on top ~20 candidates.                       |
+| **Parent Document**        | `ParentDocumentService` expands matched chunks with ±5 siblings from the same section. If chunk #47 matches, we also grab #42-46 and #48-52 for full paragraph context.                                                                            |
+| **Contextual Compression** | `ContextualCompressionService` uses Apple FM to strip irrelevant sentences from chunks BEFORE generation. A 300-word chunk might compress to 80 words of query-relevant content. Saves ~40-60% tokens.                                             |
+| **RAPTOR-lite**            | `QueryRouterService` detects "overview" queries ("what is this document about?") and routes them to L1 summary chunks instead of searching all L0 detail chunks. 80% of RAPTOR benefit at 20% complexity.                                          |
+| **Lost-in-middle**         | `RAGEngine.applyLostInMiddleReordering()` reorders chunks. Research (Liu et al. 2023) shows LLMs forget middle context. We put best chunks at positions 1, 2 AND n-1, n — so Apple FM sees them even with 5,500 chars of context.                  |
+| **Verification Gates**     | 4 anti-hallucination checks: (A) retrieval confidence, (B) evidence coverage, (C) numeric sanity, (D) contradiction sweep. If any gate fails → abstain or retry with different chunks.                                                             |
+| **Entity Index**           | `EntityIndexService` extracts named entities (people, orgs, places) and technical terms (PascalCase) at ingestion. Query "John Smith" → instantly find all chunks mentioning him across all documents.                                             |
+| **PCC**                    | `AppleFoundationLLMService` falls back to Private Cloud Compute when on-device limits are exceeded. Apple's Secure Enclave-based cloud with cryptographic attestation that your data is deleted after each response. Zero-retention guarantee.     |
 
 </details>
 
