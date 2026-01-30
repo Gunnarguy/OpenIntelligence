@@ -15,14 +15,14 @@ OpenIntelligence is a document question-answering app powered by Apple Intellige
 
 ```
 ┌─────────────┐      ┌─────────────┐      ┌─────────────┐      ┌─────────────┐
-│  1. IMPORT  │ ───▶ │  2. INDEX   │ ───▶ │   3. ASK    │ ───▶ │ 4. ANSWER   │
-│ Any document│      │ Chunk+Embed │      │ Your query  │      │ With sources│
+│  1. ADD     │ ───▶ │  2. INDEX   │ ───▶ │   3. ASK    │ ───▶ │ 4. ANSWER   │
+│  Documents  │      │ Chunk+Embed │      │ Your query  │      │ With sources│
 └─────────────┘      └─────────────┘      └─────────────┘      └─────────────┘
 ```
 
-1. **Import** - Drag PDFs, Office docs, code files, CSVs, audio recordings, or images
+1. **Add** - Tap "+" in the Documents tab, select files from the picker (PDF, Office, audio, images, code)
 2. **Index** - App chunks text (≤310 words), generates 384-dim embeddings, builds vector + keyword indexes
-3. **Ask** - Type a question; app retrieves relevant chunks via hybrid search
+3. **Ask** - Go to Chat tab, type a question; app retrieves relevant chunks via hybrid search
 4. **Answer** - Apple Intelligence generates a response citing exact source passages
 
 ---
