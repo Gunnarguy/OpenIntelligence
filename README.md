@@ -181,28 +181,30 @@ If any gate fails, the system either abstains or triggers iterative retrieval.
 
 ```mermaid
 flowchart TD
-    subgraph INGESTION["INGESTION (when you add a document)"]
+    subgraph ING[" 📥 INGESTION "]
         A[Document<br/>PDF, DOCX, M4A, PNG] --> B[DocumentProcessor<br/>PDFKit / Vision OCR / Speech]
         B --> C[SemanticChunker<br/>≤310 words, section detect]
-        C --> D[EmbeddingService<br/>384-dim, BertTokenizer]
+        C --> D[EmbeddingService<br/>384-dim, BertTokenizer ≤510]
         D --> E[(VectorDatabase<br/>HNSW + SQLite FTS5)]
     end
 
-    subgraph RETRIEVAL["RETRIEVAL (when you ask a question)"]
+    subgraph RET[" 🔍 RETRIEVAL "]
         F[User Query] --> G[QueryEnhancement<br/>Intent detect, HyDE, rewrite]
-        G --> H[HybridSearch<br/>Vector k-NN + BM25 + RRF]
-        E --> H
-        H --> I[RAGEngine<br/>Cross-encoder rerank, MMR]
+        G --> H[HybridSearch<br/>Vector k-NN + BM25 + RRF k=60]
+        H --> I[RAGEngine<br/>Cross-encoder rerank, MMR λ=0.6]
         I --> J[ParentDocument<br/>±5 siblings, section merge]
         J --> K[ContextPacking<br/>Graph context, token budget]
     end
 
-    subgraph GENERATION["GENERATION (producing the answer)"]
-        K --> L[Context Assembly<br/>Lost-in-middle, 5500 char max]
-        L --> M[LLMService<br/>Apple FM, 8 @Tools]
-        M --> N[Verification Gates A-D<br/>Anti-hallucination]
-        N --> O[Chat Interface<br/>Cited answer, sources, confidence]
+    subgraph GEN[" 💬 GENERATION "]
+        L[Context Assembly<br/>Lost-in-middle, 5500 char max] --> M[LLMService<br/>Apple FM, 8 @Tools]
+        M --> N{Verification<br/>Gates A-D}
+        N -->|Pass| O[✅ Cited Answer<br/>Sources, confidence %]
+        N -->|Fail| P[🔄 Retry or Abstain]
     end
+
+    E --> H
+    K --> L
 ```
 
 ---
