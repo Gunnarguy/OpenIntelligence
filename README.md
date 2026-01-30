@@ -67,23 +67,45 @@ OpenIntelligence uses a **Protocol-First** architecture with strict **Actor Isol
 
 ### Data Flow Pipeline
 
-```mermaid
-graph TD
-    User[User Document] -->|Ingest| DP[DocumentProcessor]
-    DP -->|Extract Text| PDF[PDFKit / Vision]
-    DP -->|Chunk| SC[SemanticChunker]
-    SC -->|≤310w Chunks| ES[EmbeddingService]
-    ES -->|384-dim Vector| VSR[VectorStoreRouter]
-    VSR -->|Persist| DB[(VectorDatabase)]
-
-    Query[User Query] -->|Expand| QE[QueryEnhancement]
-    QE -->|Embed| ES
-    ES -->|Vector Search| HS[HybridSearchService]
-    DB -->|BM25 Score| HS
-    HS -->|RRF Fusion| RE[RAGEngine Actor]
-    RE -->|MMR Diversification| Context[Final Context]
-    Context -->|Prompt| LLM[LLMService]
-    LLM -->|Stream| UI[Chat Interface]
+```text
+INGESTION (6 steps):
+┌──────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│ User Document│───▶│ DocumentProcessor│───▶│ SemanticChunker │
+│ (PDF, DOCX,  │    │ (PDFKit, Vision │    │ (≤310 words,    │
+│  TXT, etc.)  │    │  OCR @ 360 DPI) │    │  section detect)│
+└──────────────┘    └─────────────────┘    └────────┬────────┘
+                                                    │
+                    ┌─────────────────┐    ┌────────▼────────┐
+                    │  VectorDatabase │◀───│ EmbeddingService│
+                    │ (HNSW + FTS5    │    │ (384-dim MiniLM │
+                    │  BM25 index)    │    │  + BertTokenizer)│
+                    └────────┬────────┘    └─────────────────┘
+                             │
+RETRIEVAL (17 steps):        ▼
+┌──────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│  User Query  │───▶│ QueryEnhancement│───▶│ HybridSearch    │
+│              │    │ (intent, expand,│    │ (Vector k-NN +  │
+│              │    │  HyDE, rewrite) │    │  BM25 + RRF)    │
+└──────────────┘    └─────────────────┘    └────────┬────────┘
+                                                    │
+┌─────────────────┐    ┌─────────────────┐    ┌─────▼─────────┐
+│ ContextPacking  │◀───│ ParentDocument  │◀───│  RAGEngine    │
+│ (graph context, │    │ (±5 siblings,   │    │ (cross-encoder│
+│  token budget)  │    │  section expand)│    │  rerank, MMR) │
+└────────┬────────┘    └─────────────────┘    └───────────────┘
+         │
+         ▼
+┌─────────────────┐    ┌─────────────────┐    ┌───────────────┐
+│ Context Assembly│───▶│   LLMService    │───▶│ Verification  │
+│ (lost-in-middle │    │ (Apple FM / PCC │    │ Gates A-D     │
+│  reordering)    │    │  + 8 @Tools)    │    │ (anti-halluc.)│
+└─────────────────┘    └─────────────────┘    └───────┬───────┘
+                                                      │
+                                              ┌───────▼───────┐
+                                              │ Chat Interface│
+                                              │ (cited answer │
+                                              │  + sources)   │
+                                              └───────────────┘
 ```
 
 ### Core Components
