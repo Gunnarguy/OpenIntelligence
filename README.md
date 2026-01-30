@@ -5,6 +5,7 @@
 [![Swift](https://img.shields.io/badge/Swift-6.0-orange.svg)](https://swift.org)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Services](https://img.shields.io/badge/services-51-purple.svg)](Docs/reference/ARCHITECTURE.md)
+[![How It Works](https://img.shields.io/badge/Deep%20Dive-HOW%20IT%20WORKS-orange.svg)](HOW_IT_WORKS.md)
 
 **Ask your documents anything. Get cited answers.**
 
@@ -396,15 +397,15 @@ OpenIntelligence/
 
 ---
 
-## Reference Documentation
+## Documentation
 
-| Document                                          | Description                                            |
-| ------------------------------------------------- | ------------------------------------------------------ |
-| [ARCHITECTURE.md](Docs/reference/ARCHITECTURE.md) | Complete technical architecture, 51-service inventory  |
-| [ADVANCED_RAG.md](Docs/reference/ADVANCED_RAG.md) | RAG technique reference (HyDE, compression, reranking) |
-| [AFW.md](Docs/reference/AFW.md)                   | Apple Intelligence deep dive (Foundation Models, PCC)  |
-| [PRIVACY.md](PRIVACY.md)                          | Privacy policy and data handling                       |
-| [ROADMAP.md](ROADMAP.md)                          | Feature roadmap and version history                    |
+| Document                                          | Description                                                     |
+| ------------------------------------------------- | --------------------------------------------------------------- |
+| **[HOW_IT_WORKS.md](HOW_IT_WORKS.md)**            | 🔥 Plain-English deep dive: 5 gears, token budget, orchestrator |
+| [ARCHITECTURE.md](Docs/reference/ARCHITECTURE.md) | Complete technical architecture, 51-service inventory           |
+| [ADVANCED_RAG.md](Docs/reference/ADVANCED_RAG.md) | RAG technique reference (HyDE, compression, reranking)          |
+| [ROADMAP.md](ROADMAP.md)                          | Feature roadmap and version history                             |
+| [PRIVACY.md](PRIVACY.md)                          | Privacy policy and data handling                                |
 
 ---
 

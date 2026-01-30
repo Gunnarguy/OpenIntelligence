@@ -24,7 +24,7 @@ Ingest ANY document, ANY size. Answer questions using Apple Intelligence. **ZERO
 
 ## Directives
 
-1. Read `ROADMAP.md` + `Docs/reference/ARCHITECTURE.md` first
+1. Read `HOW_IT_WORKS.md` + `Docs/reference/ARCHITECTURE.md` first
 2. NO new markdown files for plans/logs
 3. Tasks tracked in `ROADMAP.md` only
 4. Use iOS 26.0+ APIs (`FoundationModels`, `@Tool`, Vision structured parsing)

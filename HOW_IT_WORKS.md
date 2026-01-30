@@ -382,7 +382,7 @@ The code in `AgenticOrchestrator.swift` shows the REAL budget allocation:
 ├────────────────────────────────────────────────────────────────┤
 │  System prompt:         ~370-610 tokens    (mode-dependent)    │
 │  User query:            ~50 tokens                             │
-│  Context (chunks):      ~2200 tokens max   ≈ 2800 chars        │
+│  Context (chunks):      ~1800-4000 tokens  ≈ 2500-5500 chars   │
 │  Response generation:   ~800 tokens                            │
 │  Safety margin:         ~100 tokens                            │
 ├────────────────────────────────────────────────────────────────┤
@@ -394,11 +394,11 @@ The code in `AgenticOrchestrator.swift` shows the REAL budget allocation:
 
 - Standard mode system prompt: ~370 tokens
 - Deep Think system prompt: ~610 tokens (enhanced for detail extraction)
-- Max context characters: **2800** (reduced when using enhanced prompts)
+- Max context characters: **2500-5500** (trivial queries get 2500, complex queries up to 5500)
 - Max response tokens: **800** (conservative to stay within 4096)
 - Conversion ratio: **1.4 chars/token** (Apple FM)
 
-**Translation:** You get roughly **2800 characters of document context**. At ~300 chars per chunk, that's about **5-8 chunks**. The enhanced Deep Think prompt eats into this budget.
+**Translation:** You get roughly **2500-5500 characters of document context** depending on query complexity. Simple queries get ~2500 chars ("trivial cap"), complex queries get up to 5500 chars. At ~300 chars per chunk, that's **5-18 chunks**. The enhanced Deep Think prompt eats into this budget.
 
 ---
 
@@ -494,7 +494,7 @@ USER ASKS QUESTION
 │  STEP 4: CONTEXT PACKING (Token Tetris)                       │
 │                                                               │
 │  ContextPackingService:                                       │
-│    Budget: 5500 characters (~1800 tokens for chunks)          │
+│    Budget: 2500-5500 chars (trivial/complex queries)          │
 │                                                               │
 │    For each chunk:                                            │
 │      - If full chunk fits → add it                            │
@@ -1104,14 +1104,14 @@ Per Apple's documentation, the on-device model excels at:
 │   1. LanguageModelSession — streaming text generation           │
 │                                                                 │
 │   2. @Tool functions — 8 agentic tools:                         │
-│      • searchDocuments() — RAG retrieval                        │
-│      • reformulateQuery() — query rewriting                     │
-│      • expandSearch() — broaden search terms                    │
-│      • synthesizeAnswer() — combine evidence                    │
-│      • countPatterns() — find recurring themes                  │
-│      • extractEntities() — pull names/dates/values              │
-│      • compareDocuments() — cross-document analysis             │
-│      • summarizeSection() — condense long passages              │
+│      • search_documents — semantic RAG retrieval                │
+│      • list_documents — enumerate library contents              │
+│      • get_document_summary — metadata + stats for a doc        │
+│      • count_pattern — exact string occurrence counts           │
+│      • search_exact_pattern — full-text search with context     │
+│      • get_corpus_stats — library-wide statistics               │
+│      • find_related_documents — topic-based doc discovery       │
+│      • compare_documents — cross-document topic analysis        │
 │                                                                 │
 │   3. @Generable structs — structured JSON output                │
 │                                                                 │

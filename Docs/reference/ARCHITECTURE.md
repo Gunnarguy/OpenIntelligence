@@ -978,7 +978,7 @@ for try await event in session.streamResponse(to: userQuery) {
 - **Pre-stuffed context**: Single pass, lower latency, but context may not be optimal
 - **Pure agentic**: Model searches dynamically, multiple passes, better accuracy for complex queries
 
-**Deep Dive**: See [`Docs/reference/AFW.md`](Docs/reference/AFW.md) for the full Apple Intelligence architecture report (on-device 3B model, PCC PT-MoE server, routing, and privacy guarantees).
+**Deep Dive**: See [`HOW_IT_WORKS.md`](../../HOW_IT_WORKS.md) for a plain-English explanation of the pipeline, token budget, and orchestrator internals.
 
 **File**: `OpenIntelligence/Services/LLMService.swift` (933 lines)
 
