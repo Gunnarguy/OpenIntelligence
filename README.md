@@ -3,258 +3,353 @@
 [![Platform](https://img.shields.io/badge/platform-iOS%2026.0%2B-blue.svg)](https://developer.apple.com/ios/)
 [![Swift](https://img.shields.io/badge/Swift-6.0-orange.svg)](https://swift.org)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Architecture](https://img.shields.io/badge/architecture-RAG%20%2B%20Actors-purple.svg)](Docs/reference/ARCHITECTURE.md)
+[![Services](https://img.shields.io/badge/services-51-purple.svg)](Docs/reference/ARCHITECTURE.md)
 
 **Ask your documents anything. Get cited answers.**
 
-OpenIntelligence is a document question-answering app that runs entirely on your iOS device. Import PDFs, Word documents, spreadsheets, or any text file. Ask questions in plain English. Get accurate answers with citations powered by Apple Intelligence.
+OpenIntelligence is a document question-answering app powered by Apple Intelligence. Import any document—PDFs, Office files, audio, images—ask questions in plain English, and get accurate answers with citations. All processing happens on your device.
 
 ---
 
 ## What It Does
 
-1. **Import documents** - PDFs, Office files (DOCX/XLSX/PPTX), text files, images with text
-2. **Ask questions** - "What's the main topic?" "Find the revenue figures" "Summarize section 3"
-3. **Get cited answers** - Every response includes citations to the exact source passages
-4. **Verify sources** - Tap any citation to see the original text in context
+```
+┌─────────────┐      ┌─────────────┐      ┌─────────────┐      ┌─────────────┐
+│  1. IMPORT  │ ───▶ │  2. INDEX   │ ───▶ │   3. ASK    │ ───▶ │ 4. ANSWER   │
+│ Any document│      │ Chunk+Embed │      │ Your query  │      │ With sources│
+└─────────────┘      └─────────────┘      └─────────────┘      └─────────────┘
+```
 
-All processing happens on-device by default. Your files never leave your iPhone or iPad unless you explicitly enable Private Cloud Compute for complex queries.
-
----
-
-## 🚀 Key Features
-
-- **Privacy by Design**: All processing happens on-device by default. Optional Private Cloud Compute (PCC) with Apple's zero-retention guarantee.
-- **Hybrid Search**: Combines BM25 keyword matching with vector semantic search using Reciprocal Rank Fusion (RRF).
-- **Apple Intelligence**: Powered by iOS 26 Foundation Models running on your device's Neural Engine.
-- **CoreML Embeddings**: 384-dimensional sentence embeddings via bundled all-MiniLM-L6-v2 model.
-- **Neural Reranking**: Cross-encoder CoreML model for precision relevance scoring.
-- **Enhanced OCR**: 360 DPI rendering with device-tier-aware concurrency (A17-A19 Pro, M-series optimized).
-- **Platform Optimized**: Tuned for iPhone, iPad, and Mac (via iPad compatibility mode).
-- **Office Support**: Native extraction for DOCX, XLSX, PPTX (no external dependencies).
-- **8 Agentic Tools**: `@Tool` functions let the AI search, summarize, count patterns, compare documents, and analyze your library.
-- **Multi-Session Reasoning**: Deep Think mode uses 4-8 parallel reasoning sessions with Self-RAG 2.0 enrichment.
-- **Quality Modes**: Standard (fast), Deep Think (thorough), Maximum (multi-chain parallel reasoning).
-- **Observability**: Real-time telemetry badges (📱 On-Device / ☁️ PCC), execution timers, retrieval scores.
-
-### 📷 Coming Soon (v1.2.0)
-
-- **Apple CoreML Vision Models**: Integrate FastViT (8MB), DETR (43MB), and DeepLabV3 for intelligent document understanding. Classify content types, detect tables/figures/text regions, and route to optimized processors.
-- **Camera Vision Overlay**: Point your camera at documents, whiteboards, or receipts. Live bounding boxes show detected text, tables, and documents. One-tap capture to ingest directly into RAG.
-- **Documentation Cache**: Automatically save fetched web documentation locally for offline access. Browse, search, and ingest cached docs.
-- **Enhanced Image Understanding**: Apple Intelligence describes images in natural language—"This flowchart shows 5 steps..." instead of just classifying as "diagram".
-
-### 🔮 v2.0 Model Catalog
-
-Full integration of Apple's CoreML model library:
-
-| Model           | Size  | Use Case                      |
-| --------------- | ----- | ----------------------------- |
-| BERT-SQuAD      | 217MB | Extractive QA for all devices |
-| DepthAnythingV2 | 49MB  | 3D document scanning          |
-| YOLOv3 Tiny     | 17MB  | Real-time camera detection    |
-| ResNet-50       | 51MB  | High-accuracy classification  |
-
-All models from [Apple Machine Learning](https://developer.apple.com/machine-learning/models/).
+1. **Import** - Drag PDFs, Office docs, code files, CSVs, audio recordings, or images
+2. **Index** - App chunks text (≤310 words), generates 384-dim embeddings, builds vector + keyword indexes
+3. **Ask** - Type a question; app retrieves relevant chunks via hybrid search
+4. **Answer** - Apple Intelligence generates a response citing exact source passages
 
 ---
 
-## 🏗 Architecture
+## Supported File Formats
 
-OpenIntelligence uses a **Protocol-First** architecture with strict **Actor Isolation** to handle heavy RAG workloads without blocking the main thread.
+| Category | Formats | Notes |
+|----------|---------|-------|
+| **Documents** | PDF | Native PDFKit + Vision OCR @ 360 DPI for scanned pages |
+| **Office** | DOCX, XLSX, PPTX | Native ZIP-based XML extraction (no dependencies) |
+| **Text** | TXT, MD, RTF | Direct text extraction |
+| **Code** | Swift, Python, JS, TS, Java, C/C++, Go, Rust, Ruby, PHP, HTML, CSS, JSON, XML, YAML, SQL, Shell | Syntax-aware chunking |
+| **Data** | CSV, JSON | Unlimited rows, handles special characters |
+| **Images** | PNG, JPEG, HEIC, TIFF, GIF | Vision OCR extracts text from images |
+| **Audio/Video** | M4A, MP3, WAV, MP4, MOV | Speech.framework transcription to text |
+| **Apple** | Pages, Numbers, Keynote | Supported via export or direct extraction |
 
-**51 services** organized into 9 categories power a **23-step end-to-end pipeline** from document ingestion to cited response generation. See [ARCHITECTURE.md](Docs/reference/ARCHITECTURE.md) for the complete service inventory.
+---
 
-### Data Flow Pipeline
+## Core Technology
+
+### Embedding Pipeline
+
+| Component | Technology | Specification |
+|-----------|------------|---------------|
+| **Embedding Model** | CoreML MiniLM-L6-v2 | 384 dimensions, bundled in app |
+| **Tokenizer** | BertTokenizer | 510 token max (512 - CLS/SEP) |
+| **Chunk Size** | SemanticChunker | ≤310 words + 30-word contextual prefix |
+| **Vector Index** | HNSW (in-memory) | Cosine similarity, LRU cache |
+| **Keyword Index** | SQLite FTS5 | BM25 scoring, Porter stemmer |
+
+### Search & Retrieval
+
+| Component | Technology | Specification |
+|-----------|------------|---------------|
+| **Hybrid Search** | Vector + BM25 | Reciprocal Rank Fusion (k=60) |
+| **Reranker** | CoreML Cross-Encoder | `ReRankerModel.mlpackage` bundled |
+| **Diversification** | MMR | λ=0.6 relevance/diversity balance |
+| **Context Window** | Lost-in-Middle | Best chunks at start AND end |
+
+### LLM Generation
+
+| Component | Technology | Specification |
+|-----------|------------|---------------|
+| **Primary** | Apple Foundation Models | iOS 26 FoundationModels framework |
+| **Fallback** | Private Cloud Compute | Apple PCC with zero-retention guarantee |
+| **Context Limit** | 4,096 tokens | ~5,500 characters with margin |
+| **Agentic Tools** | 8 @Tool functions | Search, summarize, compare, analyze |
+
+---
+
+## 8 Agentic @Tool Functions
+
+The LLM can call these tools autonomously during reasoning:
+
+| Tool | Purpose | Example Use |
+|------|---------|-------------|
+| `SearchDocumentsTool` | Semantic search across all chunks | "Find sections about safety" |
+| `ListDocumentsTool` | List all ingested documents | "What documents do I have?" |
+| `GetDocumentSummaryTool` | Get/generate document summary | "Summarize the contract" |
+| `CountPatternTool` | Count pattern occurrences | "How many times is 'revenue' mentioned?" |
+| `SearchExactPatternTool` | Find exact text matches | "Find all phone numbers" |
+| `GetCorpusStatsTool` | Library-wide statistics | "How many pages total?" |
+| `FindRelatedDocumentsTool` | Find similar documents | "What's related to this memo?" |
+| `CompareDocumentsTool` | Compare two documents | "How do these contracts differ?" |
+
+---
+
+## Quality Modes
+
+| Mode | Sessions | Use Case | Response Time |
+|------|----------|----------|---------------|
+| **Standard** | 1-3 | Quick factual questions | 2-3 seconds |
+| **Deep Think** | 4-8 | Complex analysis, multi-step reasoning | 5-15 seconds |
+| **Maximum** | 8-50 | Exhaustive research, document comparison | 15-60 seconds |
+
+Deep Think and Maximum modes use **Self-RAG 2.0**: multiple reasoning sessions that enrich (not verify) answers, adding details from different evidence chains.
+
+---
+
+## 23-Step Pipeline
+
+OpenIntelligence processes every query through 23 distinct steps:
+
+```
+INGESTION (6 steps):
+  1. Parse         → PDFKit / Vision OCR @ 360 DPI / Office ZIP extraction
+  2. Chunk         → SemanticChunker (≤310 words, section boundary detection)
+  3. Extract       → Entity extraction (NLTagger NER + PascalCase detection)
+  4. Validate      → Token validation (BertTokenizer, truncate if >510)
+  5. Embed         → CoreML MiniLM-L6-v2 (384-dim vectors)
+  6. Store         → HNSW index + SQLite FTS5 + EntityIndex
+
+RETRIEVAL (17 steps):
+  Step 0    Corpus Analysis        → Build vocabulary cache per container
+  Step 1    Query Understanding    → Pronoun resolution, NER extraction
+  Step 1.5  Query Expansion        → Corpus-aware synonym expansion
+  Step 1.6  Intent Classification  → lookup / procedure / compare / summarize
+  Step 2    Query Embedding        → 384-dim vector from same model
+  Step 2.5  RAPTOR-lite Routing    → Overview queries → L1 summaries
+  Step 3    Hybrid Search          → Vector k-NN + BM25 + RRF fusion
+  Step 4    Cross-Encoder Rerank   → CoreML ReRankerModel.mlpackage
+  Step 4.3  Low-Confidence Filter  → Drop chunks below threshold
+  Step 4.4  Multi-Doc Representation → Ensure source diversity
+  Step 4.5  MMR Diversification    → λ=0.6 relevance/diversity
+  Step 4.6  Parent Document        → Expand ±5 sibling chunks
+  Step 4.7  Contextual Compression → LLM filters irrelevant sentences
+  Step 4.9  Graph Context Packing  → Optimal token budget allocation
+  Step 5    Context Assembly       → Lost-in-middle reordering
+  Step 5.9  Extractive Summary     → For summarize intent
+  Step 5.10 Extractive QA          → For lookup intent
+  Step 6    LLM Generation         → Apple FM / Private Cloud Compute
+  Step 7    Quality Assessment     → Confidence scoring
+  Step 7.5  Verification Gates     → Gates A-D (see below)
+  Step 8    Package Results        → Build response with sources
+  Step 8.1  Calibrated Confidence  → Platt scaling (0.0-1.0)
+  Step 9    Response Metadata      → Timing, token counts, source URIs
+```
+
+---
+
+## Verification Gates (Anti-Hallucination)
+
+Every response passes through 4 verification gates:
+
+| Gate | Name | What It Checks |
+|------|------|----------------|
+| **A** | Retrieval Confidence | `max(score) ≥ τ` AND `margin ≥ μ` between top results |
+| **B** | Evidence Coverage | All claims must cite `evidence_ids` from retrieved chunks |
+| **C** | Numeric Sanity | Numbers in response must match source documents |
+| **D** | Contradiction Sweep | Detect conflicting evidence across chunks |
+
+If any gate fails, the system either abstains or triggers iterative retrieval.
+
+---
+
+## Architecture
+
+**51 services** organized into **9 categories**:
+
+| Category | Count | Key Services |
+|----------|-------|--------------|
+| **RAG Pipeline** | 14 | RAGService, RAGEngine, HybridSearchService, VerificationGateService |
+| **Query** | 6 | QueryEnhancementService, HyDEService, ContextualCompressionService |
+| **Document** | 10 | DocumentProcessor, SemanticChunker, AudioTranscriptionService |
+| **Embedding** | 2 | EmbeddingService, CoreMLSentenceEmbeddingProvider |
+| **Storage** | 3 | FullTextStorageService, SQLiteFullTextService |
+| **VectorStore** | 4 | VectorDatabase, InMemoryVectorDatabase, BNNSVectorDatabase |
+| **LLM** | 7 | AppleFoundationLLMService, OnDeviceAnalysisService |
+| **Agentic** | 3 | AgenticOrchestrator, ConversationMemoryService, WritingToolsService |
+| **Infrastructure** | 7 | ContainerService, GPUComputeService, DeviceCapabilityService |
+
+**Full inventory**: See [ARCHITECTURE.md](Docs/reference/ARCHITECTURE.md) → "Complete Service Inventory (51 Services)"
+
+### Data Flow
 
 ```text
-INGESTION (6 steps):
+INGESTION:
 ┌──────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │ User Document│───▶│ DocumentProcessor│───▶│ SemanticChunker │
-│ (PDF, DOCX,  │    │ (PDFKit, Vision │    │ (≤310 words,    │
-│  TXT, etc.)  │    │  OCR @ 360 DPI) │    │  section detect)│
-└──────────────┘    └─────────────────┘    └────────┬────────┘
-                                                    │
-                    ┌─────────────────┐    ┌────────▼────────┐
-                    │  VectorDatabase │◀───│ EmbeddingService│
-                    │ (HNSW + FTS5    │    │ (384-dim MiniLM │
-                    │  BM25 index)    │    │  + BertTokenizer)│
-                    └────────┬────────┘    └─────────────────┘
+│ (PDF, DOCX,  │    │ • PDFKit        │    │ • ≤310 words    │
+│  M4A, PNG)   │    │ • Vision OCR    │    │ • Section detect│
+└──────────────┘    │ • Speech.framework   │ • ~17% overlap  │
+                    │ • Office ZIP    │    └────────┬────────┘
+                    └─────────────────┘             │
+                                           ┌───────▼────────┐
+                    ┌─────────────────┐    │EmbeddingService│
+                    │  VectorDatabase │◀───│ • 384-dim      │
+                    │ • HNSW index    │    │ • BertTokenizer│
+                    │ • SQLite FTS5   │    │ • ≤510 tokens  │
+                    └────────┬────────┘    └────────────────┘
                              │
-RETRIEVAL (17 steps):        ▼
+RETRIEVAL:                   ▼
 ┌──────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│  User Query  │───▶│ QueryEnhancement│───▶│ HybridSearch    │
-│              │    │ (intent, expand,│    │ (Vector k-NN +  │
-│              │    │  HyDE, rewrite) │    │  BM25 + RRF)    │
+│  User Query  │───▶│QueryEnhancement │───▶│ HybridSearch    │
+│              │    │ • Intent detect │    │ • Vector k-NN   │
+│              │    │ • HyDE expansion│    │ • BM25 keyword  │
+│              │    │ • Query rewrite │    │ • RRF (k=60)    │
 └──────────────┘    └─────────────────┘    └────────┬────────┘
                                                     │
 ┌─────────────────┐    ┌─────────────────┐    ┌─────▼─────────┐
 │ ContextPacking  │◀───│ ParentDocument  │◀───│  RAGEngine    │
-│ (graph context, │    │ (±5 siblings,   │    │ (cross-encoder│
-│  token budget)  │    │  section expand)│    │  rerank, MMR) │
+│ • Graph context │    │ • ±5 siblings   │    │ • Cross-encode│
+│ • Token budget  │    │ • Section merge │    │ • MMR (λ=0.6) │
 └────────┬────────┘    └─────────────────┘    └───────────────┘
          │
          ▼
 ┌─────────────────┐    ┌─────────────────┐    ┌───────────────┐
 │ Context Assembly│───▶│   LLMService    │───▶│ Verification  │
-│ (lost-in-middle │    │ (Apple FM / PCC │    │ Gates A-D     │
-│  reordering)    │    │  + 8 @Tools)    │    │ (anti-halluc.)│
+│ • Lost-in-middle│    │ • Apple FM      │    │ Gates A-D     │
+│ • 5,500 char max│    │ • 8 @Tools      │    │ • Anti-halluc │
 └─────────────────┘    └─────────────────┘    └───────┬───────┘
                                                       │
                                               ┌───────▼───────┐
                                               │ Chat Interface│
-                                              │ (cited answer │
-                                              │  + sources)   │
+                                              │ • Cited answer│
+                                              │ • Source links│
+                                              │ • Confidence % │
                                               └───────────────┘
 ```
 
-### Core Components
+---
 
-| Component               | Responsibility | Implementation Details                                                     |
-| ----------------------- | -------------- | -------------------------------------------------------------------------- |
-| **`RAGService`**        | Orchestration  | `@MainActor` singleton. Manages state, ingestion, and routing.             |
-| **`RAGEngine`**         | Math & Logic   | `actor`. Offloads BM25 scoring, RRF fusion, and MMR to background threads. |
-| **`VectorStoreRouter`** | Storage Access | Manages container-isolated `PersistentVectorDatabase` instances.           |
-| **`LLMService`**        | Generation     | Protocol with Apple FM + On-Device Analysis implementations.               |
-| **`SemanticChunker`**   | Pre-processing | Intelligent splitting with topic boundary detection and overlap.           |
+## Telemetry Badges
+
+Every response shows execution metadata:
+
+| Badge | Meaning |
+|-------|---------|
+| 📱 **On-Device** | Inference ran locally on Neural Engine |
+| ☁️ **PCC** | Apple Private Cloud Compute (encrypted, zero-retention) |
+| 🔧 **Tools: N** | Number of @Tool functions called during reasoning |
+| ⏱️ **X.Xs** | Total response time |
 
 ---
 
-## 📚 Reference Docs
+## Privacy
 
-- Architecture overview: [`Docs/reference/ARCHITECTURE.md`](Docs/reference/ARCHITECTURE.md)
-- Apple Intelligence deep dive: [`Docs/reference/AFW.md`](Docs/reference/AFW.md)
+- **On-device by default**: All parsing, embedding, and retrieval runs locally
+- **Optional PCC**: Private Cloud Compute uses Apple's end-to-end encryption with cryptographic deletion after response
+- **No third-party APIs**: No OpenAI, no external cloud services
+- **No telemetry**: No analytics sent anywhere
+
+See [PRIVACY.md](PRIVACY.md) for full details.
 
 ---
 
-## 🛠 Getting Started
+## Getting Started
 
-### Prerequisites
+### Requirements
 
-- **Xcode 26+** (Required for Swift 6)
-- **iOS 26.0+** (Minimum deployment)
-- **Device**: iPhone 15 Pro or newer recommended for local inference.
+- **iOS 26.0+** (required for FoundationModels framework)
+- **Xcode 26+** (required for Swift 6)
+- **Device**: iPhone 15 Pro or newer recommended (A17+ for best performance)
 
 ### Installation
 
-1. **Clone the repository**:
+```bash
+# Clone
+git clone https://github.com/Gunnarguy/OpenIntelligence.git
+cd OpenIntelligence
 
-   ```bash
-   git clone https://github.com/yourusername/OpenIntelligence.git
-   cd OpenIntelligence
-   ```
+# Fetch submodules (swift-transformers)
+git submodule update --init --recursive
 
-2. **Fetch git submodules** (required for the local `swift-transformers` package):
+# Open in Xcode
+open OpenIntelligence.xcodeproj
 
-   ```bash
-   git submodule update --init --recursive
-   ```
-
-3. **Open in Xcode**:
-
-   ```bash
-   open OpenIntelligence.xcodeproj
-   ```
-
-4. **Build & Run**:
-   - Select the **OpenIntelligence** scheme.
-   - Destination: **iPhone 17 Pro Max** (Simulator) or physical device.
-   - Press `Cmd+R`.
+# Build & Run
+# Select OpenIntelligence scheme → iPhone 17 Pro → Cmd+R
+```
 
 ### Troubleshooting
 
-If you encounter build issues or UI glitches, run the clean script:
-
 ```bash
+# Clean build if you see stale UI or build errors
 ./clean_and_rebuild.sh
 ```
 
 ---
 
-## 📖 Usage Guide
-
-### 1. Ingestion
-
-Navigate to the **Documents** tab. Drag and drop files. Supported formats:
-
-- **PDFs**: Native parsing + 360 DPI OCR for scanned pages
-- **Office Docs**: .docx, .xlsx, .pptx (native ZIP-based extraction)
-- **Text**: .txt, .md, .rtf, code files
-- **Data**: .csv, .json (unlimited rows)
-
-The app will:
-
-- **Parse** text using PDFKit, Vision OCR (360 DPI), or native Office extractors.
-- **Chunk** content into optimized ≤310 word segments with ~17% overlap.
-- **Embed** chunks using on-device CoreML (384-dim all-MiniLM-L6-v2).
-- **Index** for both vector (HNSW) and BM25 keyword search.
-- **Store** complete original text for exact pattern queries.
-
-> 💡 **Tip**: Enable high-accuracy mode in Library Settings → Embedding Model for technical or complex documents.
-
-### 2. Chat & Retrieval
-
-Go to the **Chat** tab. Ask questions about your documents.
-
-- **Telemetry Badges**:
-  - 📱 **On-Device**: Inference ran locally on your device's Neural Engine.
-  - ☁️ **PCC**: Apple Private Cloud Compute was used (encrypted, zero-retention).
-  - 🔧 **Tools**: Shows how many agentic @Tool functions were called.
-- **Citations**: Tap any citation to view the source chunk.
-
-### 3. Model Configuration
-
-In **Settings**, configure your AI preferences:
-
-- **Quality Mode**:
-  - **Standard**: Fast single-pass retrieval + generation (~2-3 seconds)
-  - **Deep Think**: 4-8 session multi-step reasoning with Self-RAG 2.0 enrichment
-  - **Maximum**: Parallel multi-chain reasoning across document clusters (breaks 4096 token ceiling)
-- **Privacy Settings**: Control Private Cloud Compute usage and view execution location.
-- **Intelligence Layer**: Enable/disable query understanding, multi-pass retrieval, conversation memory.
-
----
-
-## 📂 Project Structure
+## Project Structure
 
 ```text
 OpenIntelligence/
-├── App/                    # Entry point and configuration
-├── Models/                 # Shared data structures (RAGQuery, Chunk)
-├── Services/               # Core business logic
-│   ├── RAG/                # RAGService, RAGEngine, HybridSearch
-│   ├── LLM/                # LLMService implementations
-│   ├── Ingestion/          # DocumentProcessor, SemanticChunker
-│   └── Storage/            # VectorDatabase, ModelRegistry
-├── Views/                  # SwiftUI Views
-│   ├── Chat/               # Chat interface components
-│   ├── Documents/          # Document management
-│   └── Telemetry/          # Debug dashboards
-└── Resources/              # Assets and Localizations
+├── App/                        # Entry point, ContentView
+├── Core/
+│   ├── Extensions/             # Swift extensions
+│   ├── Models/                 # DocumentChunk, RAGResponse, etc.
+│   └── Protocols/              # Service protocols
+├── Features/
+│   ├── Billing/                # StoreKit subscription UI
+│   ├── Camera/                 # Vision camera overlay (v2.0)
+│   ├── Chat/                   # Chat interface, message bubbles
+│   ├── Database/               # Container management UI
+│   ├── Diagnostics/            # Debug dashboards
+│   ├── Documents/              # Document picker, ingestion UI
+│   ├── Onboarding/             # First-launch experience
+│   ├── Settings/               # Settings views
+│   └── Telemetry/              # Execution metrics display
+├── Resources/
+│   ├── MLModels/               # EmbeddingModel + ReRankerModel
+│   └── StoreKit/               # Subscription configuration
+├── Services/
+│   ├── Agentic/                # AgenticOrchestrator, ConversationMemory
+│   ├── Billing/                # StoreKitBillingService
+│   ├── Document/               # DocumentProcessor, SemanticChunker, OCR
+│   ├── Embedding/              # EmbeddingService, CoreMLProvider
+│   ├── Infrastructure/         # ContainerService, GPUCompute, Settings
+│   ├── LLM/                    # AppleFoundationLLMService, tools
+│   ├── Query/                  # QueryEnhancement, HyDE, Compression
+│   ├── RAG/                    # RAGService, RAGEngine, HybridSearch
+│   ├── Storage/                # FullTextStorage, SQLiteFTS5
+│   └── VectorStore/            # VectorDatabase, BNNS, Router
+└── UI/                         # Shared UI components
 ```
 
 ---
 
-## 🤝 Contributing
+## Reference Documentation
 
-Contributions are welcome! Please follow these steps:
-
-1. **Fork & Clone**: Create your own fork of the repository.
-2. **Branch**: Create a feature branch (`git checkout -b feature/amazing-feature`).
-3. **Implement**: Write clean, Swift 6 compliant code. Prefer `actor` isolation for heavy tasks.
-4. **Test**:
-   - Run the **Smoke Test** procedure outlined in [`smoke_test.md`](smoke_test.md).
-   - Verify no regressions in the Telemetry Dashboard.
-5. **Pull Request**: Submit a PR with a clear description of changes.
-
-### Coding Standards
-
-- **Concurrency**: Use `Task`, `actor`, and `await`. Avoid GCD (`DispatchQueue`) unless absolutely necessary.
-- **Privacy**: Never send user data to the cloud without explicit, logged consent.
-- **Documentation**: Update `Docs/reference/` if changing architecture.
+| Document | Description |
+|----------|-------------|
+| [ARCHITECTURE.md](Docs/reference/ARCHITECTURE.md) | Complete technical architecture, 51-service inventory |
+| [ADVANCED_RAG.md](Docs/reference/ADVANCED_RAG.md) | RAG technique reference (HyDE, compression, reranking) |
+| [AFW.md](Docs/reference/AFW.md) | Apple Intelligence deep dive (Foundation Models, PCC) |
+| [PRIVACY.md](PRIVACY.md) | Privacy policy and data handling |
+| [ROADMAP.md](ROADMAP.md) | Feature roadmap and version history |
 
 ---
 
-## 📄 License
+## Contributing
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/your-feature`
+3. Write Swift 6 compliant code with `actor` isolation for heavy tasks
+4. Test on device (Simulator lacks Apple FM)
+5. Submit a PR with clear description
+
+### Coding Standards
+
+- Use `async/await` and `actor` for concurrency (no GCD)
+- Never send data to cloud without explicit consent
+- Update `Docs/reference/` when changing architecture
+
+---
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
