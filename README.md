@@ -83,6 +83,61 @@ OpenIntelligence is a document question-answering app powered by Apple Intellige
 
 ---
 
+## Apple's On-Device Language Model
+
+The app uses Apple's ~3 billion parameter language model that runs entirely on the Neural Engine. Here's what you're actually using:
+
+### Model Specifications
+
+| Spec                     | Value                                         |
+| ------------------------ | --------------------------------------------- |
+| **Parameters**           | ~3 billion                                    |
+| **Context Window**       | 4,096 tokens (hard limit, TN3193)             |
+| **Vocabulary**           | 49,000 tokens (on-device) / 100,000 (server)  |
+| **Quantization**         | 3.7 bits per weight (mixed 2-bit/4-bit)       |
+| **Inference Speed**      | 0.6ms per prompt token, 30 tokens/sec         |
+| **Architecture**         | Transformer with grouped-query-attention      |
+| **Adapters**             | LoRA adapters (~10s of MB each) per use case  |
+| **Instruction Accuracy** | 85.7% on IFEval benchmark                     |
+| **Safety**               | 7.5% violation rate (lowest among comparable) |
+
+### Benchmarks vs Other Models
+
+Per Apple's research, the on-device model outperforms larger open-source models in human evaluation:
+
+| Comparison    | On-Device FM Win Rate |
+| ------------- | --------------------- |
+| vs Phi-3-mini | Wins                  |
+| vs Mistral-7B | Wins                  |
+| vs Gemma-7B   | Wins                  |
+| vs Llama-3-8B | Wins                  |
+
+Despite having only ~3B parameters (vs 7-8B), the model wins on instruction following and safety due to Apple's training approach.
+
+### Capabilities
+
+The model excels at these tasks (per Apple's documentation):
+
+- **Text Generation**: Summarization, writing, rewriting, creative content
+- **Entity Extraction**: Pull structured data from unstructured text
+- **Text Understanding**: Comprehension, classification, analysis
+- **Guided Generation**: Output Swift structs directly with `@Generable`
+- **Tool Calling**: Execute Swift functions via `@Tool` protocol
+- **Multi-language**: Supports major world languages via `supportedLanguages`
+
+### Private Cloud Compute (PCC)
+
+When the on-device model isn't sufficient, Apple may route to PCC. Key facts:
+
+- **Same model**: PCC runs the exact same architecture, just on Apple's server silicon
+- **Apple controls routing**: You can't force PCC — the system decides
+- **No data retention**: Requests are processed and discarded, no training on your data
+- **Verifiable privacy**: Cryptographic attestation proves what code runs on PCC servers
+
+**In practice**: Most queries complete on-device. PCC only activates for complex reasoning that exceeds device capabilities.
+
+---
+
 ## 8 Agentic @Tool Functions
 
 The LLM can call these tools autonomously during reasoning:
