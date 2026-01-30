@@ -109,3 +109,4 @@ __pycache__/
 *.pyc
 OpenIntelligence.app.dSYM.zip
 *.ipa
+Docs/reference/PRICING_STRATEGY.md
