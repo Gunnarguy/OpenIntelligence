@@ -1,8 +1,8 @@
-Version 1.0 — Initial Release
+Version 1.0.1
 
-Ask your documents anything and get cited answers.
-
-• Import PDFs, Word docs, Excel spreadsheets, PowerPoint, and more
+• Updated descriptions and metadata to accurately reflect the 23-step RAG pipeline.
+• Clarified on-device storage and privacy guarantees.
+• Documentation improvements.
 • Ask questions in plain English
 • Get accurate answers with citations to exact source passages
 • Powered by on-device AI using your device's Neural Engine

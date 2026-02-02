@@ -170,7 +170,7 @@
 
     // MARK: - Reasoning Chain Types (Apple FM Best Practice)
     // Per TN3193: Reasoning field FIRST lets the model think before answering
-    // See: Docs/reference/FOUNDATION_MODELS_API.md
+    // See: Docs/reference/APPLE_MODELS.md
 
     /// Reasoned answer - model thinks through the problem before answering
     /// The reasoning field MUST be first so the model reasons BEFORE outputting answer

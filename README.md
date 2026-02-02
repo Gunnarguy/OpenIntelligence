@@ -4,10 +4,22 @@
 [![Platform](https://img.shields.io/badge/platform-iOS%2026.0%2B-blue.svg)](https://developer.apple.com/ios/)
 [![Swift](https://img.shields.io/badge/Swift-6.0-orange.svg)](https://swift.org)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Services](https://img.shields.io/badge/services-51-purple.svg)](Docs/reference/ARCHITECTURE.md)
+[![Services](https://img.shields.io/badge/services-78-purple.svg)](ARCHITECTURE.md)
 [![How It Works](https://img.shields.io/badge/Deep%20Dive-HOW%20IT%20WORKS-orange.svg)](HOW_IT_WORKS.md)
 
 **Ask your documents anything. Get cited answers.**
+
+## Table of Contents
+
+1. [What It Does](#what-it-does)
+2. [Supported File Formats](#supported-file-formats)
+3. [Core Technology](#core-technology)
+4. [Apple's On-Device Language Model](#apples-on-device-language-model)
+5. [Quality Modes](#quality-modes)
+6. [23-Step Pipeline](#23-step-pipeline)
+7. [Verification Gates](#verification-gates-anti-hallucination)
+8. [Architecture](#architecture)
+9. [Documentation](#documentation)
 
 <p align="center">
   <a href="https://apps.apple.com/us/app/openintelligence/id6756559175">
@@ -59,7 +71,7 @@ OpenIntelligence is a document question-answering app powered by Apple Intellige
 | **Embedding Model** | CoreML MiniLM-L6-v2 | 384 dimensions, bundled in app         |
 | **Tokenizer**       | BertTokenizer       | 510 token max (512 - CLS/SEP)          |
 | **Chunk Size**      | SemanticChunker     | ≤310 words + 30-word contextual prefix |
-| **Vector Index**    | HNSW (in-memory)    | Cosine similarity, LRU cache           |
+| **Vector Index**    | BNNS Optimized      | Hardware-accelerated brute force       |
 | **Keyword Index**   | SQLite FTS5         | BM25 scoring, Porter stemmer           |
 
 ### Search & Retrieval
@@ -226,21 +238,22 @@ If any gate fails, the system either abstains or triggers iterative retrieval.
 
 ## Architecture
 
-**51 services** organized into **9 categories**:
+**78 services** organized into **10 categories**:
 
 | Category           | Count | Key Services                                                        |
 | ------------------ | ----- | ------------------------------------------------------------------- |
-| **RAG Pipeline**   | 14    | RAGService, RAGEngine, HybridSearchService, VerificationGateService |
-| **Query**          | 6     | QueryEnhancementService, HyDEService, ContextualCompressionService  |
-| **Document**       | 10    | DocumentProcessor, SemanticChunker, AudioTranscriptionService       |
+| **RAG Pipeline**   | 14    | RAGService, RAGEngine, VerifiedGateService, AutoTuneService         |
+| **Query**          | 8     | QueryEnhancementService, HyDEService, ContextualCompressionService  |
+| **Document**       | 19    | IntelligentDocumentProcessor, StructuredDocumentParser, VisionOCR   |
 | **Embedding**      | 2     | EmbeddingService, CoreMLSentenceEmbeddingProvider                   |
 | **Storage**        | 3     | FullTextStorageService, SQLiteFullTextService                       |
-| **VectorStore**    | 4     | VectorDatabase, InMemoryVectorDatabase, BNNSVectorDatabase          |
+| **VectorStore**    | 4     | VectorDatabase, BNNSVectorDatabase, VectorStoreRouter               |
 | **LLM**            | 7     | AppleFoundationLLMService, OnDeviceAnalysisService                  |
 | **Agentic**        | 3     | AgenticOrchestrator, ConversationMemoryService, WritingToolsService |
-| **Infrastructure** | 7     | ContainerService, GPUComputeService, DeviceCapabilityService        |
+| **Infrastructure** | 17    | ContainerService, GPUComputeService, AdaptivePipelineOptimizer      |
+| **Billing**        | 1     | StoreKitBillingService                                              |
 
-**Full inventory**: See [ARCHITECTURE.md](Docs/reference/ARCHITECTURE.md) → "Complete Service Inventory (51 Services)"
+**Full inventory**: See [ARCHITECTURE.md](ARCHITECTURE.md) → "Complete Service Inventory (78 Services)"
 
 ### Data Flow
 
@@ -399,13 +412,14 @@ OpenIntelligence/
 
 ## Documentation
 
-| Document                                          | Description                                                     |
-| ------------------------------------------------- | --------------------------------------------------------------- |
-| **[HOW_IT_WORKS.md](HOW_IT_WORKS.md)**            | 🔥 Plain-English deep dive: 5 gears, token budget, orchestrator |
-| [ARCHITECTURE.md](Docs/reference/ARCHITECTURE.md) | Complete technical architecture, 51-service inventory           |
-| [ADVANCED_RAG.md](Docs/reference/ADVANCED_RAG.md) | RAG technique reference (HyDE, compression, reranking)          |
-| [ROADMAP.md](ROADMAP.md)                          | Feature roadmap and version history                             |
-| [PRIVACY.md](PRIVACY.md)                          | Privacy policy and data handling                                |
+| Document                                            | Description                                                     |
+| --------------------------------------------------- | --------------------------------------------------------------- |
+| **[HOW_IT_WORKS.md](HOW_IT_WORKS.md)**              | 🔥 Plain-English deep dive: 5 gears, token budget, orchestrator |
+| [ARCHITECTURE.md](ARCHITECTURE.md)                  | Complete technical architecture, 78-service inventory           |
+| [RAG_TECHNICAL.md](Docs/reference/RAG_TECHNICAL.md) | Technical specs: HyDE, math, formulas, & algorithms             |
+| [APPLE_MODELS.md](Docs/reference/APPLE_MODELS.md)   | Apple Intelligence specs: Context limits & token economics      |
+| [ROADMAP.md](ROADMAP.md)                            | Feature roadmap and version history                             |
+| [PRIVACY.md](PRIVACY.md)                            | Privacy policy and data handling                                |
 
 ---
 
