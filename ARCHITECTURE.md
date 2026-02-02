@@ -4,17 +4,36 @@
 **Date**: January 29, 2026
 **Status**: Production (App Store Ready)
 
+## Table of Contents
+
+1. [Executive Summary](#executive-summary)
+2. [System Architecture](#system-architecture)
+3. [Core Services Inventory](#core-services)
+   - [RAG Pipeline Services](#rag-pipeline-services-14-services)
+   - [Query Services](#query-services-8-services)
+   - [Document Processing Services](#document-processing-services-19-services)
+   - [Embedding Services](#embedding-services-2-services)
+   - [Storage Services](#storage-services-3-services)
+   - [VectorStore Services](#vectorstore-services-4-services)
+   - [LLM Services](#llm-services-7-services)
+   - [Agentic Services](#agentic-services-3-services)
+   - [Infrastructure Services](#infrastructure-services-17-services)
+   - [Billing Services](#billing-services-1-service)
+4. [DocumentProcessor Deep Dive](#documentprocessor)
+5. [Token Budget Management](#token-budget-management)
+6. [Data Structures](#data-structures)
+
 ## Executive Summary
 
 OpenIntelligence is a native iOS 26 application implementing a complete Retrieval-Augmented Generation (RAG) pipeline. The architecture leverages Apple Intelligence (Foundation Models + Private Cloud Compute) while maintaining a protocol-based design.
 
 **Simple Concept:** Import any document. Ask questions in plain English. Get cited answers powered by on-device AI.
 
-**Latest (v2.8)**: Device-tier-aware Vision concurrency, platform-specific Metal optimizations, Mac compatibility via iPad mode, 4-gate verification pipeline, 51 services across 9 categories.
+**Latest (v2.8)**: Device-tier-aware Vision concurrency, platform-specific Metal optimizations, Mac compatibility via iPad mode, 4-gate verification pipeline, 78 services across 10 categories.
 
 ### RAG Pipeline Summary
 
-The system implements a **23-step end-to-end pipeline** powered by **51 services**:
+The system implements a **23-step end-to-end pipeline** powered by **78 services**:
 
 | Phase                | Steps | Key Services                                                                  |
 | -------------------- | ----- | ----------------------------------------------------------------------------- |
@@ -24,7 +43,7 @@ The system implements a **23-step end-to-end pipeline** powered by **51 services
 | **Generation**       | 3     | ExtractiveSummarizationService, LLMService, AgenticOrchestrator               |
 | **Post-Generation**  | 4     | QualityAssuranceService, ConfidenceCalibrationService                         |
 
-> **Complete inventory**: See "Complete Service Inventory (51 Services)" below.
+> **Complete inventory**: See "Complete Service Inventory (78 Services)" below.
 
 ### Key Architectural Principles
 
@@ -235,9 +254,9 @@ User Query Input
 
 ## Core Services
 
-### Complete Service Inventory (51 Services)
+### Complete Service Inventory (78 Services)
 
-OpenIntelligence is composed of **51 distinct services** organized into 9 categories. This inventory provides a complete reference.
+OpenIntelligence is composed of **78 distinct services** organized into 9 categories. This inventory provides a complete reference.
 
 #### RAG Pipeline Services (14 services)
 
@@ -256,8 +275,9 @@ OpenIntelligence is composed of **51 distinct services** organized into 9 catego
 | `ParentDocumentService`          | final class | Sibling chunk expansion (±5 chunks) for paragraph context                   | `RAG/ParentDocumentService.swift`          |
 | `QualityAssuranceService`        | actor       | Accuracy metrics: Recall@K, MRR, F1, faithfulness scoring                   | `RAG/QualityAssuranceService.swift`        |
 | `ConfidenceCalibrationService`   | final class | Platt scaling for calibrated confidence (0.0-1.0)                           | `RAG/ConfidenceCalibrationService.swift`   |
+| `AutoTuneService`                | class       | Optimizes retrieval parameters based on feedback                            | `RAG/AutoTuneService.swift`                |
 
-#### Query Services (6 services)
+#### Query Services (8 services)
 
 | Service                        | Type        | Purpose                                                   | File                                       |
 | ------------------------------ | ----------- | --------------------------------------------------------- | ------------------------------------------ |
@@ -267,21 +287,32 @@ OpenIntelligence is composed of **51 distinct services** organized into 9 catego
 | `HyDEService`                  | final class | Hypothetical Document Embeddings for better recall        | `Query/HyDEService.swift`                  |
 | `ContextualCompressionService` | final class | LLM-based sentence filtering from retrieved chunks        | `Query/ContextualCompressionService.swift` |
 | `SuggestedQuestionsService`    | actor       | Generates contextual starter questions from documents     | `Query/SuggestedQuestionsService.swift`    |
+| `QueryComplexityAnalyzer`      | final class | Analyzes query structure to determine optimal routing     | `Query/QueryComplexityAnalyzer.swift`      |
+| `SpecificationExtractor`       | struct      | Extracts technical specs (dimensions, tolerances)         | `Query/SpecificationExtractor.swift`       |
 
-#### Document Processing Services (10 services)
+#### Document Processing Services (19 services)
 
-| Service                     | Type        | Purpose                                                         | File                                       |
-| --------------------------- | ----------- | --------------------------------------------------------------- | ------------------------------------------ |
-| `DocumentProcessor`         | struct      | Universal parsing: PDF, Office, OCR (360 DPI), GPU acceleration | `Document/DocumentProcessor.swift`         |
-| `SemanticChunker`           | struct      | Content-adaptive chunking with section detection (≤310w)        | `Document/SemanticChunker.swift`           |
-| `EntityIndexService`        | actor       | Global entity→chunk inverted index for GraphRAG                 | `Document/EntityIndexService.swift`        |
-| `AudioTranscriptionService` | final class | Audio/video transcription via Speech.framework                  | `Document/AudioTranscriptionService.swift` |
-| `ContentTaggingService`     | final class | Apple Intelligence content tagging (topics, actions, emotions)  | `Document/ContentTaggingService.swift`     |
-| `LanguageDetectionService`  | final class | Multi-language detection via NLLanguageRecognizer               | `Document/LanguageDetectionService.swift`  |
-| `ImageUnderstandingService` | class       | Vision-based image classification and description               | `Document/ImageUnderstandingService.swift` |
-| `ImageDescriptionService`   | class       | Apple Intelligence image descriptions for live camera           | `Document/ImageUnderstandingService.swift` |
-| `YOLODetectionService`      | actor       | YOLO v3 object detection (80 classes) for intelligent capture   | `Document/YOLODetectionService.swift`      |
-| `DocumentSummaryService`    | actor       | L1 summary generation at ingestion for RAPTOR-lite              | `Document/DocumentSummaryService.swift`    |
+| Service                        | Type        | Purpose                                                         | File                                          |
+| ------------------------------ | ----------- | --------------------------------------------------------------- | --------------------------------------------- |
+| `DocumentProcessor`            | struct      | Universal parsing: PDF, Office, OCR (360 DPI), GPU acceleration | `Document/DocumentProcessor.swift`            |
+| `IntelligentDocumentProcessor` | actor       | Orchestrates AI-enhanced parsing (layout, region, semantics)    | `Document/IntelligentDocumentProcessor.swift` |
+| `SemanticChunker`              | struct      | Content-adaptive chunking with section detection (≤310w)        | `Document/SemanticChunker.swift`              |
+| `EntityIndexService`           | actor       | Global entity→chunk inverted index for GraphRAG                 | `Document/EntityIndexService.swift`           |
+| `AudioTranscriptionService`    | final class | Audio/video transcription via Speech.framework                  | `Document/AudioTranscriptionService.swift`    |
+| `ContentTaggingService`        | final class | Apple Intelligence content tagging (topics, actions, emotions)  | `Document/ContentTaggingService.swift`        |
+| `LanguageDetectionService`     | final class | Multi-language detection via NLLanguageRecognizer               | `Document/LanguageDetectionService.swift`     |
+| `ImageUnderstandingService`    | class       | Vision-based image classification and description               | `Document/ImageUnderstandingService.swift`    |
+| `ImageDescriptionService`      | class       | Apple Intelligence image descriptions for live camera           | `Document/ImageUnderstandingService.swift`    |
+| `YOLODetectionService`         | actor       | YOLO v3 object detection (80 classes) for intelligent capture   | `Document/YOLODetectionService.swift`         |
+| `DocumentSummaryService`       | actor       | L1 summary generation at ingestion for RAPTOR-lite              | `Document/DocumentSummaryService.swift`       |
+| `VisionOCRThrottle`            | actor       | Controls concurrent Vision requests based on device thermal     | `Document/VisionOCRThrottle.swift`            |
+| `CoreMLDocumentClassifier`     | class       | ML-based document type classification (invoice vs manual)       | `Document/CoreMLDocumentClassifier.swift`     |
+| `CoreMLRegionDetector`         | class       | Detects layout regions (header, footer, sidebar) via Vision     | `Document/CoreMLRegionDetector.swift`         |
+| `LayoutAwareExtractor`         | struct      | Extracts text while preserving 2D spatial relationships         | `Document/LayoutAwareExtractor.swift`         |
+| `PageComplexityAnalyzer`       | struct      | Scores page layout density to adjust OCR parameters             | `Document/PageComplexityAnalyzer.swift`       |
+| `SpatialDocumentAnalyzer`      | class       | Analyzes spatial relationships between document elements        | `Document/SpatialDocumentAnalyzer.swift`      |
+| `SpecificationDetector`        | struct      | Regex/ML detection of specification tables and key-value pairs  | `Document/SpecificationDetector.swift`        |
+| `StructuredDocumentParser`     | actor       | Parses hierarchy (Section > Subsection > Paragraph)             | `Document/StructuredDocumentParser.swift`     |
 
 #### Embedding Services (2 services)
 
@@ -327,7 +358,7 @@ OpenIntelligence is composed of **51 distinct services** organized into 9 catego
 | `ConversationMemoryService` | final class | Persistent conversation memory with summarization   | `Agentic/ConversationMemoryService.swift` |
 | `WritingToolsService`       | class       | Apple Writing Tools (proofread, rewrite, summarize) | `Agentic/WritingToolsService.swift`       |
 
-#### Infrastructure Services (7 services)
+#### Infrastructure Services (17 services)
 
 | Service                        | Type        | Purpose                                                         | File                                                |
 | ------------------------------ | ----------- | --------------------------------------------------------------- | --------------------------------------------------- |
@@ -338,6 +369,15 @@ OpenIntelligence is composed of **51 distinct services** organized into 9 catego
 | `ClusterLabelService`          | actor       | LLM-generated intelligent labels for Atlas clusters             | `Infrastructure/ClusterLabelService.swift`          |
 | `TranscriptPersistenceService` | final class | Apple FM session transcript persistence for resume              | `Infrastructure/TranscriptPersistenceService.swift` |
 | `SettingsStore`                | final class | Centralized settings with UserDefaults persistence              | `Infrastructure/SettingsStore.swift`                |
+| `AdaptivePipelineOptimizer`    | actor       | Dynamically adjusts pipeline parameters based on load/battery   | `Infrastructure/AdaptivePipelineOptimizer.swift`    |
+| `LibraryIconSuggestionService` | actor       | Suggests SF Symbols for document containers based on contents   | `Infrastructure/LibraryIconSuggestionService.swift` |
+| `LibraryVisualizationEngine`   | class       | Renders 3D document atlas visualizations                        | `Infrastructure/LibraryVisualizationEngine.swift`   |
+| `LoggingConfiguration`         | struct      | Centralized OSLog subsystem configuration                       | `Infrastructure/LoggingConfiguration.swift`         |
+| `ProjectionCache`              | actor       | Caches expensive UMAP/t-SNE projections                         | `Infrastructure/ProjectionCache.swift`              |
+| `QuotaPolicy`                  | struct      | Enforces usage limits for free tier users                       | `Infrastructure/QuotaPolicy.swift`                  |
+| `SystemStateMonitor`           | class       | Monitors thermal state, memory, and battery for degradation     | `Infrastructure/SystemStateMonitor.swift`           |
+| `TelemetryCenter`              | actor       | Aggregates performance metrics (TTFT, TPS, ingest speed)        | `Infrastructure/TelemetryCenter.swift`              |
+| `LLMStreamingContext`          | actor       | Manages state for streaming LLM responses                       | `LLM/LLMStreamingContext.swift`                     |
 
 #### Billing Services (1 service)
 

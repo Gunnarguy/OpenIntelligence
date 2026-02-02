@@ -1,1 +1,1 @@
-12 RAG techniques. On-device AI. Ask your documents anything—get cited answers in seconds. No cloud, no accounts, just answers that prove themselves.
+23-step RAG pipeline. 100% On-Device. Ask PDFs, get cited answers. HyDE, Reranking, & Graph Packing. No cloud, no accounts. Native iOS Performance.

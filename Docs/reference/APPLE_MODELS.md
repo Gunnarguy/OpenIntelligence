@@ -1,5 +1,6 @@
-# Apple Foundation Models Framework Reference
+# Apple Intelligence Models & Specs
 
+> **Scope**: Token limits, context rules, and integration constraints for iOS 26+ Foundation Models.
 > **Source**: Official Apple Developer Documentation (iOS 26.0+)
 > **Last Updated**: January 2026
 > **Tech Note**: [TN3193: Managing the on-device foundation model's context window](https://developer.apple.com/documentation/Technotes/tn3193-managing-the-on-device-foundation-model-s-context-window)
@@ -38,21 +39,21 @@ This is a **hard limit**. There is NO 65K extended context for PCC (Private Clou
 
 Everything in a session contributes to the 4096 token budget:
 
-| Component | Token Impact |
-|-----------|--------------|
-| Instructions | Yes |
-| All prompts (multi-turn) | Yes |
-| All model responses | Yes |
-| Tool schemas (name, description, parameters) | Yes |
-| Generable type schemas | Yes |
-| @Guide descriptions | Yes |
+| Component                                    | Token Impact |
+| -------------------------------------------- | ------------ |
+| Instructions                                 | Yes          |
+| All prompts (multi-turn)                     | Yes          |
+| All model responses                          | Yes          |
+| Tool schemas (name, description, parameters) | Yes          |
+| Generable type schemas                       | Yes          |
+| @Guide descriptions                          | Yes          |
 
 ### Character-to-Token Ratio
 
-| Language | Ratio |
-|----------|-------|
+| Language                                  | Ratio            |
+| ----------------------------------------- | ---------------- |
 | English, Spanish, German (Latin alphabet) | ~3-4 chars/token |
-| Chinese, Japanese, Korean | ~1 char/token |
+| Chinese, Japanese, Korean                 | ~1 char/token    |
 
 **Practical math for English**: 4096 tokens × 3.5 chars ≈ **14,336 characters max** for entire session.
 
@@ -129,10 +130,10 @@ case .unavailable(let other):
 
 ### Session Properties
 
-| Property | Description |
-|----------|-------------|
+| Property       | Description                             |
+| -------------- | --------------------------------------- |
 | `isResponding` | Bool - check before sending new request |
-| `transcript` | Full history of interactions |
+| `transcript`   | Full history of interactions            |
 
 ### Transcript Rehydration
 
@@ -197,11 +198,11 @@ struct FindContacts: Tool {
 
 ### Tool Best Practices
 
-| Do | Don't |
-|----|-------|
-| 3-5 tools maximum | 10+ tools |
-| Short descriptions (one phrase) | Long explanatory descriptions |
-| Simple argument types | Complex nested structures |
+| Do                                       | Don't                              |
+| ---------------------------------------- | ---------------------------------- |
+| 3-5 tools maximum                        | 10+ tools                          |
+| Short descriptions (one phrase)          | Long explanatory descriptions      |
+| Simple argument types                    | Complex nested structures          |
 | Run essential tools BEFORE calling model | Always rely on model to call tools |
 
 ### Creating Session with Tools
@@ -291,6 +292,7 @@ struct ReasonedAnswer {
 ```
 
 Prompt pattern:
+
 ```swift
 let instructions = """
     1. Begin with a plan to solve this question.
@@ -374,6 +376,7 @@ do {
 For string responses, refusals start with "Sorry, I can't help with..."
 
 For Generable responses:
+
 ```swift
 do {
     let response = try await session.respond(to: prompt, generating: MyType.self)
@@ -407,22 +410,24 @@ let session = LanguageModelSession(model: model)
 
 ### Keep It Simple
 
-| Do | Don't |
-|----|-------|
-| Single, well-defined goal | Multiple unrelated requests |
-| Direct imperatives: "List", "Create", "Generate" | Passive voice, hedging |
-| 1-3 paragraphs max | Long rambling instructions |
-| "using three sentences" | Open-ended length |
+| Do                                               | Don't                       |
+| ------------------------------------------------ | --------------------------- |
+| Single, well-defined goal                        | Multiple unrelated requests |
+| Direct imperatives: "List", "Create", "Generate" | Passive voice, hedging      |
+| 1-3 paragraphs max                               | Long rambling instructions  |
+| "using three sentences"                          | Open-ended length           |
 
 ### Example: Good vs Bad
 
 ✅ **Good**:
+
 ```
 Given a person's home-decor transactions, generate three relevant
 categories starting with the most relevant.
 ```
 
 ❌ **Bad**:
+
 ```
 The person's input contains their recent home-decor transaction history
 along with their recent search history. The response should be a list of
@@ -445,6 +450,7 @@ let instructions = """
 ### Emphasis for Important Rules
 
 Use UPPERCASE for critical instructions:
+
 ```swift
 let instructions = """
     ALWAYS respond in a respectful way.
@@ -456,12 +462,14 @@ let instructions = """
 ### Conditional Logic: Code > Prompts
 
 Instead of:
+
 ```
 IF the guest is a bard, ask about music.
 IF the guest is a soldier, ask about danger.
 ```
 
 Do this:
+
 ```swift
 let customGreeting = switch role {
 case .bard: "Ask if they'll play music."
@@ -478,6 +486,7 @@ let instructions = """
 ### Few-Shot Prompting
 
 Provide 2-15 simple examples:
+
 ```swift
 let instructions = """
     Create an NPC customer. Examples:
@@ -529,11 +538,11 @@ session.prewarm(promptPrefix: "Based on the following documents...")
 
 ### Response Time Factors
 
-| Factor | Impact |
-|--------|--------|
-| Prompt length | Longer = slower |
-| Response length | Longer = slower |
-| Tool count | More tools = slower |
+| Factor               | Impact               |
+| -------------------- | -------------------- |
+| Prompt length        | Longer = slower      |
+| Response length      | Longer = slower      |
+| Tool count           | More tools = slower  |
 | Generable complexity | More fields = slower |
 
 ### Generation Options
@@ -607,13 +616,13 @@ let feedbackData = session.logFeedbackAttachment(
 
 ### Current Architecture Alignment
 
-| Apple Recommendation | OpenIntelligence Implementation |
-|---------------------|--------------------------------|
-| RAG for large knowledge bases | ✅ VectorStoreRouter + HybridSearchService |
-| 3-5 tools max | ⚠️ We have 12+ @Tool functions - OPTIMIZE |
-| Multi-session for complex tasks | ✅ Deep Think uses parallel sessions |
-| Chunking + embedding | ✅ SemanticChunker + NLEmbedding |
-| Short instructions | ⚠️ May need optimization |
+| Apple Recommendation            | OpenIntelligence Implementation            |
+| ------------------------------- | ------------------------------------------ |
+| RAG for large knowledge bases   | ✅ VectorStoreRouter + HybridSearchService |
+| 3-5 tools max                   | ⚠️ We have 12+ @Tool functions - OPTIMIZE  |
+| Multi-session for complex tasks | ✅ Deep Think uses parallel sessions       |
+| Chunking + embedding            | ✅ SemanticChunker + NLEmbedding           |
+| Short instructions              | ⚠️ May need optimization                   |
 
 ### Optimization Opportunities
 
@@ -626,6 +635,7 @@ let feedbackData = session.logFeedbackAttachment(
 ### Token Budget for RAG Context
 
 With 4096 total tokens:
+
 - ~500 tokens for instructions + tool schemas
 - ~500 tokens for prompt
 - ~1000-1500 tokens for model response

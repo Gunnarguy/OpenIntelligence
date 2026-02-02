@@ -1,39 +1,38 @@
-Your documents. Your questions. Answers that cite their sources.
+Turn your documents into an offline neural knowledge base.
 
-Stop digging through PDFs. OpenIntelligence brings research-grade retrieval to your iPhone—the same techniques powering enterprise AI search, running entirely on your device.
+Stop digging through PDFs. OpenIntelligence brings enterprise-grade RAG (Retrieval-Augmented Generation) to your iPhone—running entirely on your device.
 
-12 ADVANCED RAG TECHNIQUES. ZERO CLOUD DEPENDENCY.
+23-STEP RETRIEVAL PIPELINE. ZERO CLOUD DEPENDENCY.
 
-This isn't keyword search. OpenIntelligence uses a full retrieval-augmented generation pipeline:
+This is not simple keyword search. OpenIntelligence orchestrates a rigorous 23-step pipeline used by high-end research systems:
 
-• HyDE (Hypothetical Document Embeddings) — Bridges vocabulary gaps between your question and the answer
-• Hybrid Search — BM25 keyword matching fused with 384-dim neural embeddings
-• Reciprocal Rank Fusion — Merges multiple retrieval strategies for better recall
-• MMR Diversification — Reduces redundant results, surfaces broader context
-• Cross-Encoder Reranking — Neural model re-scores every candidate for precision
-• Parent Document Retrieval — Expands matches to include surrounding paragraphs
-• Contextual Compression — Strips irrelevant sentences, keeps only what matters
-• Lost-in-Middle Mitigation — Reorders context so the AI attends to key passages
-• Query Rewriting — Clarifies ambiguous questions before retrieval
-• Semantic Chunking — Splits documents at natural boundaries, not arbitrary limits
-• Multi-Column OCR — Correctly reads complex PDF layouts at 360 DPI
-• Agentic Tool Use — AI calls search, summarize, and compare tools autonomously
+• HyDE (Hypothetical Document Embeddings) — Hallucinates an answer to find better semantic matches.
+• Hybrid Search — Fuses BM25 keywords with 384-dim neural embeddings for maximum recall.
+• Reciprocal Rank Fusion — Mathematically combines retrieval strategies to surface the best hits.
+• MMR Diversification — Filters redundant chunks to maximize information gain.
+• Cross-Encoder Reranking — Scores every candidate with a dedicated neural model for precision.
+• Graph Context Packing — Optimizes the limited token budget using graph theory.
+• Parent Document Retrieval — Expands matched sentences to their full paragraph context.
+• Lost-in-Middle Mitigation — Reorders context to ensure the AI sees the most critical evidence.
+• Semantic Chunking — Splits documents by logic and structure, not just character counts.
+• Multi-Column OCR — Metal-accelerated vision processing for complex PDF layouts (360 DPI).
+• Agentic Tool Use — Autonomous search, summarization, and comparison capabilities.
 
 THE RESULT?
 
-Ask "What oil does my car take?" and get "SAE 0W-20 synthetic, 5.3 quarts"—with a citation you can tap to verify.
+Ask "What oil does my car take?" and get "SAE 0W-20 synthetic, 5.3 quarts"—with a direct citation you can tap to verify.
 
 DEEP THINK MODE
 
-Standard mode answers in seconds. Deep Think spawns multiple reasoning sessions, cross-validates evidence, and synthesizes a thorough response. Perfect for research, legal review, or technical documentation.
+Standard mode answers in seconds. Deep Think spawns multiple reasoning sessions (Self-RAG), cross-validates evidence, and synthesizes a thorough response. Perfect for legal, medical, or academic research.
 
 100% PRIVATE BY DEFAULT
 
-Everything runs on-device. Your documents never leave your iPhone unless you enable Private Cloud Compute—Apple's zero-retention fallback for complex queries. No accounts. No uploads. No tracking.
+Everything runs on-device. Your documents never leave your iPhone unless you enable Private Cloud Compute—Apple's zero-retention fallback. No accounts. No uploads. No tracking.
 
 SUPPORTED FORMATS
 
-PDF (native + OCR), Word, Excel, PowerPoint, Markdown, CSV, RTF, TXT, and images with text extraction.
+PDF (native + OCR), Word, Excel, PowerPoint, Markdown, CSV, RTF, TXT, and images.
 
 SUBSCRIPTION OPTIONS
 

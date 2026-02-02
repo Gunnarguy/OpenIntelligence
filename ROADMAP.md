@@ -1,6 +1,6 @@
 # OpenIntelligence Roadmap
 
-**Last Updated**: January 29, 2026
+**Last Updated**: February 1, 2026
 **Version**: 1.0.0 (Build 10)
 **Status**: App Store Ready
 **Maturity**: Production-ready RAG pipeline with 8 agentic tools
@@ -12,7 +12,32 @@
 **What OpenIntelligence Does:**
 Import any document. Ask questions. Get cited answers. All on-device.
 
-**RAG Pipeline: 23 Steps End-to-End (51 Services)**
+### RAG Pattern Coverage (16 Industry Patterns)
+
+OpenIntelligence implements **13 of 16** recognized RAG architectural patterns:
+
+| #   | Pattern                      | Status | Implementation                                                      |
+| --- | ---------------------------- | ------ | ------------------------------------------------------------------- |
+| 1   | **Standard RAG**             | ✅     | Foundation - 23-step pipeline                                       |
+| 2   | **Agentic RAG**              | ✅     | `AgenticOrchestrator`, 8 @Tool functions, recursive research loops  |
+| 3   | **Graph RAG**                | ✅     | `EntityIndexService` + 2-hop entity expansion (GraphRAG-Lite)       |
+| 4   | **Modular RAG**              | ✅     | Protocol-oriented design, 78 swappable services                     |
+| 5   | **Memory-Augmented RAG**     | 🟡     | `ConversationMemoryService` (session-scoped, not persistent prefs)  |
+| 6   | **Multi-Modal RAG**          | ✅     | Image classification, OCR, audio transcription, caption association |
+| 7   | **Federated RAG**            | ⬜     | N/A - 100% on-device architecture                                   |
+| 8   | **Streaming RAG**            | ⬜     | N/A - Document-based, not real-time feeds                           |
+| 9   | **ODQA RAG**                 | ⬜     | N/A - Scoped to user's documents, not open-domain                   |
+| 10  | **Contextual Retrieval RAG** | ✅     | Query rewriting, pronoun resolution, follow-up handling             |
+| 11  | **Knowledge Enhanced RAG**   | ✅     | Entity extraction, EntityIndexService, structured ChunkMetadata     |
+| 12  | **Domain-Specific RAG**      | 🟡     | Content-type configs exist; domain profiles planned                 |
+| 13  | **Hybrid RAG**               | ✅     | `HybridSearchService` - BM25 + Vector + RRF fusion                  |
+| 14  | **Self-RAG**                 | ✅     | Self-RAG 2.0 with 4 Verification Gates, multi-session enrichment    |
+| 15  | **HyDE RAG**                 | ✅     | `HyDEService` - Hypothetical Document Embedding                     |
+| 16  | **Recursive/Multi-Step RAG** | ✅     | Recursive research loops, multi-chain maximum mode                  |
+
+**Legend**: ✅ Implemented | 🟡 Partial | ⬜ Not Applicable
+
+**RAG Pipeline: 23 Steps End-to-End (78 Services)**
 
 | Phase            | Steps | Details                                                                                                                                               |
 | ---------------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -22,11 +47,11 @@ Import any document. Ask questions. Get cited answers. All on-device.
 | Generation       | 3     | Context Assembly (Lost-in-Middle) → Extractive Summarization/QA → LLM Generation                                                                      |
 | Post-Generation  | 4     | Quality Assessment → Verification Gates A-D → Calibrated Confidence → Response Metadata                                                               |
 
-**51 Services across 9 categories**: See [ARCHITECTURE.md](Docs/reference/ARCHITECTURE.md) → "Complete Service Inventory"
+**78 Services across 10 categories**: See [ARCHITECTURE.md](ARCHITECTURE.md) → "Complete Service Inventory"
 
 **Core Features Shipped:**
 
-- ✅ Full RAG pipeline (23-step, 51 services: hybrid search, neural reranking, MMR, verification gates)
+- ✅ Full RAG pipeline (23-step, 78 services: hybrid search, neural reranking, MMR, verification gates)
 - ✅ Apple Intelligence integration (iOS 26 Foundation Models)
 - ✅ Multi-format support: PDF, DOCX, XLSX, PPTX, TXT, MD, CSV, RTF, images
 - ✅ 8 agentic @Tool functions for intelligent document analysis
@@ -544,7 +569,7 @@ _These FoundationModels framework features have been fully integrated:_
 
 _Known limitations in current implementation with paths to improvement._
 
-> **Current Rating**: 75-85% of enterprise RAG quality. See [ARCHITECTURE.md → Retrieval Quality Assessment](Docs/reference/ARCHITECTURE.md) for full analysis.
+> **Current Rating**: 75-85% of enterprise RAG quality. See [ARCHITECTURE.md → Retrieval Quality Assessment](ARCHITECTURE.md) for full analysis.
 
 ### What's Solid ✅
 

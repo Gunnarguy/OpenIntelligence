@@ -1,12 +1,14 @@
-# Advanced RAG Techniques Reference
+# RAG Technical Specifications
 
 **Version**: 1.3
 **Updated**: January 29, 2026
 **Compatibility**: iOS 26+ / Apple Intelligence
 
-This document provides quick reference for all advanced RAG (Retrieval-Augmented Generation) techniques implemented in OpenIntelligence. The full system comprises **51 services** executing a **23-step end-to-end pipeline**.
+This document provides the technical formulas, algorithms, and deep dive specifications for the RAG pipeline.
 
-> **Full Architecture**: See [ARCHITECTURE.md](ARCHITECTURE.md) → "Complete Service Inventory (51 Services)"
+> **For the High-Level Flow**: See [HOW_IT_WORKS.md](../../HOW_IT_WORKS.md)
+
+> **Full Architecture**: See [ARCHITECTURE.md](../../ARCHITECTURE.md) → "Complete Service Inventory (78 Services)"
 
 ---
 

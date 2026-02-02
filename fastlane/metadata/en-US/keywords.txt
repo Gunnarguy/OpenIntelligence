@@ -1,1 +1,1 @@
-ai,documents,pdf,search,chat,private,apple,ocr,office,question,answer,local,intelligence,reader
+rag,pdf,ai,chat,research,summary,ocr,private,docs,citations,study,local,agent,analysis,fast
