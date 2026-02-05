@@ -203,6 +203,9 @@ class EmbeddingService {
     /// Generate a semantic embedding for a text chunk
     /// Returns a vector representing the semantic meaning
     func generateEmbedding(for text: String) async throws -> [Float] {
+        // Report ANE activity - single embedding
+        HardwareTelemetryReporter.pulse(.embeddingGeneration, intensity: 0.8, duration: 0.15)
+
         do {
             let vec = try await provider.embed(text: text)
             let adjusted = adjustDimension(vec)
@@ -218,6 +221,11 @@ class EmbeddingService {
         for texts: [String],
         progressHandler: ((Int, Int) -> Void)? = nil
     ) async throws -> [[Float]] {
+        // Report ANE activity - batch embedding (sustained while processing)
+        let intensity = min(1.0, 0.5 + Double(texts.count) * 0.05)
+        HardwareTelemetryReporter.sustain(.embeddingGeneration, active: true, intensity: intensity)
+        defer { HardwareTelemetryReporter.sustain(.embeddingGeneration, active: false) }
+
         do {
             Log.debug("Generating embeddings for \(texts.count) chunks", category: .embedding)
             let startTime = Date()

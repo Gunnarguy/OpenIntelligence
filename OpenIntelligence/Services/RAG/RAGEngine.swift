@@ -104,6 +104,9 @@ actor RAGEngine {
         topK: Int,
         lambda: Float = 0.7
     ) async -> [RetrievedChunk] {
+        // Report CPU activity for MMR computation
+        HardwareTelemetryReporter.pulse(.ragOrchestration, intensity: 0.7, duration: 0.3)
+
         #if DEBUG
             let log = OSLog(subsystem: "OpenIntelligence", category: "RAGEngine")
             let spid = OSSignpostID(log: log)
@@ -120,6 +123,9 @@ actor RAGEngine {
 
         var diversityMatrix: [[Float]]? = nil
         if useGPU {
+            // Report GPU activity for MMR diversity matrix computation
+            HardwareTelemetryReporter.pulse(.mmrComputation, intensity: 0.9, duration: 0.4)
+
             let embeddings = candidates.map { $0.chunk.embedding }
             diversityMatrix = gpuCompute.mmrDiversityMatrix(embeddings: embeddings)
             Log.debug("[RAGEngine] 🚀 GPU MMR diversity matrix for \(candidates.count) candidates", category: .retrieval)
@@ -242,6 +248,9 @@ actor RAGEngine {
         query: String,
         topK: Int
     ) async -> [RetrievedChunk] {
+        // Report Neural Engine/CPU activity for reranking
+        HardwareTelemetryReporter.pulse(.reranking, intensity: 0.85, duration: 0.3)
+
         #if DEBUG
             let log = OSLog(subsystem: "OpenIntelligence", category: "RAGEngine")
             let spid = OSSignpostID(log: log)
@@ -733,6 +742,9 @@ actor RAGEngine {
         candidates: [RetrievedChunk],
         snapshot: BM25Snapshot
     ) async -> [(chunk: RetrievedChunk, score: Float)] {
+        // Report CPU activity for BM25 lexical scoring
+        HardwareTelemetryReporter.pulse(.bm25Scoring, intensity: 0.6, duration: 0.2)
+
         #if DEBUG
             let log = OSLog(subsystem: "OpenIntelligence", category: "RAGEngine")
             let spid = OSSignpostID(log: log)

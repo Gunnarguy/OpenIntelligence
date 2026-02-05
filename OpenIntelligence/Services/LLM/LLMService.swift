@@ -1065,6 +1065,9 @@ struct LLMResponse {
             var guardrailViolation = false
             var unsupportedLanguage = false
 
+            // Report Neural Engine activity - LLM inference starting
+            HardwareTelemetryReporter.sustain(.llmInference, active: true, intensity: 0.9)
+
             do {
                 for try await snapshot in responseStream {
                     snapshotCount += 1
@@ -1146,6 +1149,9 @@ struct LLMResponse {
                     }
                 }
             } catch let error as LanguageModelSession.GenerationError {
+                // Stop Neural Engine activity on error
+                HardwareTelemetryReporter.sustain(.llmInference, active: false)
+
                 // ✅ Handle iOS 26 FoundationModels-specific errors (exhaustive)
                 switch error {
                 case let .exceededContextWindowSize(context):
@@ -1205,6 +1211,9 @@ struct LLMResponse {
                     throw error
                 }
             }
+
+            // Stop Neural Engine activity indicator
+            HardwareTelemetryReporter.sustain(.llmInference, active: false)
 
             // Handle generation errors with user-friendly messages
             if guardrailViolation {

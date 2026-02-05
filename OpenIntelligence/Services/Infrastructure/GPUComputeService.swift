@@ -303,6 +303,9 @@ final class GPUComputeService: @unchecked Sendable {
         // Use GPU for large batches (> 100 vectors), CPU for small batches
         // GPU has overhead for buffer creation, so CPU is faster for small work
         if docCount > 100, let device = device, let queue = commandQueue {
+            // Report GPU activity for vector similarity
+            HardwareTelemetryReporter.pulse(.vectorSimilarity, intensity: 0.85, duration: 0.3)
+
             // Prefer SIMD pipeline (4x faster), fall back to standard
             if let simdPipeline = cosineSimilaritySIMDPipeline {
                 return gpuBatchCosineSimilaritySIMD(query: query, documents: documents, device: device, queue: queue, pipeline: simdPipeline)
