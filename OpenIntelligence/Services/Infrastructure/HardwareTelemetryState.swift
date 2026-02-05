@@ -181,10 +181,10 @@ final class HardwareTelemetryState: ObservableObject {
         decayTimers[component] = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(Int(duration * 1000)))
             guard !Task.isCancelled else { return }
-            await self?.decay(component)
+            self?.decay(component)
         }
 
-        Log.verbose("[HardwareTelemetry] Pulse \(activity.rawValue) @ \(Int(clampedIntensity * 100))%", category: .diagnostics)
+        Log.verbose("[HardwareTelemetry] Pulse \(activity.rawValue) @ \(Int(clampedIntensity * 100))%", category: .telemetry)
     }
 
     /// Report a sustained hardware activity (stays active until explicitly stopped)
@@ -210,7 +210,7 @@ final class HardwareTelemetryState: ObservableObject {
                 isActive = true
             }
 
-            Log.verbose("[HardwareTelemetry] Sustain START \(activity.rawValue)", category: .diagnostics)
+            Log.verbose("[HardwareTelemetry] Sustain START \(activity.rawValue)", category: .telemetry)
         } else {
             sustainedActivities.remove(activity)
 
@@ -220,11 +220,11 @@ final class HardwareTelemetryState: ObservableObject {
                 decayTimers[component] = Task { [weak self] in
                     try? await Task.sleep(for: .milliseconds(200))
                     guard !Task.isCancelled else { return }
-                    await self?.decay(component)
+                    self?.decay(component)
                 }
             }
 
-            Log.verbose("[HardwareTelemetry] Sustain STOP \(activity.rawValue)", category: .diagnostics)
+            Log.verbose("[HardwareTelemetry] Sustain STOP \(activity.rawValue)", category: .telemetry)
         }
     }
 
@@ -250,7 +250,7 @@ final class HardwareTelemetryState: ObservableObject {
             decayTimers[component] = Task { [weak self] in
                 try? await Task.sleep(for: .milliseconds(300))
                 guard !Task.isCancelled else { return }
-                await self?.decay(component)
+                self?.decay(component)
             }
         } else {
             // Pulsing effect based on progress
@@ -336,7 +336,7 @@ final class HardwareTelemetryState: ObservableObject {
         historyTimer = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(200))
-                await self?.recordHistory()
+                self?.recordHistory()
             }
         }
     }
