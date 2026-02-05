@@ -107,6 +107,11 @@ venv/
 env/
 __pycache__/
 *.pyc
+.pytest_cache/
+
+# Build artifacts
 OpenIntelligence.app.dSYM.zip
 *.ipa
+
+# Sensitive pricing docs (kept local only)
 Docs/reference/PRICING_STRATEGY.md
