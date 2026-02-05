@@ -407,6 +407,22 @@ struct ChatScreen: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 88)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+
+            // Motherboard HUD - Hardware activity visualization
+            // Shows Neural Engine, GPU, and CPU activity during processing
+            if isProcessing || HardwareTelemetryState.shared.isActive {
+                MotherboardHUDView(
+                    size: CGSize(width: 120, height: 75),
+                    showActivityLabel: true,
+                    showLegend: false,
+                    idleOpacity: 0.3
+                )
+                .padding(12)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                .allowsHitTesting(false) // Don't block touches
+                .transition(.opacity.combined(with: .scale(scale: 0.8)))
+                .animation(.easeInOut(duration: 0.3), value: isProcessing)
+            }
         }
         // MARK: - Vision Capture (v2 feature - disabled for v1 App Store release)
         // .fullScreenCover(isPresented: $showVisionCapture) {
