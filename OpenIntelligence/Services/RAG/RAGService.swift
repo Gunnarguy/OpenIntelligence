@@ -3857,6 +3857,11 @@ class RAGService: ObservableObject {
     private func queryInternal(
         _ question: String, topK: Int, config: InferenceConfig?, containerId: UUID?
     ) async throws -> RAGResponse {
+        // Report CPU activity for RAG pipeline orchestration
+        await MainActor.run {
+            HardwareTelemetryState.shared.reportRAGPipeline(stage: "Query Processing")
+        }
+
         var inferenceConfig = config ?? InferenceConfig()
         let networkAvailable = NetworkMonitor.shared.isConnected
         // Reliability mode always enabled — UI toggle removed for simplicity

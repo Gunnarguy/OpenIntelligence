@@ -1,0 +1,65 @@
+# Google Ads Keyword Themes for OpenIntelligence
+# These are "keyword themes" for App campaigns (not exact match keywords)
+# Google will automatically expand to related searches
+# ===========================================================
+
+# TIER 1: High Intent - RAG/Technical Users
+RAG app iOS
+retrieval augmented generation
+vector search app
+embedding search
+semantic search documents
+
+# TIER 2: Problem-Based
+search inside PDF
+find in PDF app
+question answer PDF
+document Q&A
+ask PDF questions
+
+# TIER 3: Technical Professional
+cross encoder reranking
+BM25 search
+hybrid search documents
+local LLM iOS
+on-device AI app
+
+# TIER 4: Privacy Focused
+offline AI app
+private document search
+no cloud AI
+local AI assistant
+on-device document AI
+
+# TIER 5: Use Case Specific
+legal document search
+research paper assistant
+technical manual search
+car manual search
+medical document AI
+
+# ===========================================================
+# NEGATIVE KEYWORD SUGGESTIONS (exclude these):
+# ===========================================================
+# PDF editor
+# PDF converter
+# scan documents
+# sign PDF
+# merge PDF
+# compress PDF
+# PDF to Word
+# ChatGPT (generic)
+# free AI (low intent)
+
+# ===========================================================
+# COPY-PASTE READY - PRIMARY THEMES:
+# ===========================================================
+
+RAG app iOS
+search inside PDF
+document question answering
+on-device AI
+private document search
+semantic search app
+hybrid search documents
+offline AI assistant

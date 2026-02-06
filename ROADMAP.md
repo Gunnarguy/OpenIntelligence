@@ -1,6 +1,6 @@
 # OpenIntelligence Roadmap
 
-**Last Updated**: February 1, 2026
+**Last Updated**: February 5, 2026
 **Version**: 1.0.0 (Build 10)
 **Status**: App Store Ready
 **Maturity**: Production-ready RAG pipeline with 8 agentic tools
@@ -15,6 +15,8 @@ Import any document. Ask questions. Get cited answers. All on-device.
 ### RAG Pattern Coverage (16 Industry Patterns)
 
 OpenIntelligence implements **13 of 16** recognized RAG architectural patterns:
+
+> **Note**: 3 patterns (Federated, Streaming, ODQA) are N/A by design—not gaps but architectural decisions for privacy-first, document-scoped use case.
 
 | #   | Pattern                      | Status | Implementation                                                      |
 | --- | ---------------------------- | ------ | ------------------------------------------------------------------- |
@@ -65,7 +67,66 @@ OpenIntelligence implements **13 of 16** recognized RAG architectural patterns:
 
 ---
 
-### 🎯 NEXT FEATURES (v1.2.0)
+### � Apple Technology Integration Assessment
+
+**Summary**: OpenIntelligence leverages **8 major Apple frameworks** extensively. We've identified **6 additional framework opportunities** for future phases.
+
+> **Reference**: See [Docs/reference/APPLE_DOCUMENT_INTELLIGENCE.md](Docs/reference/APPLE_DOCUMENT_INTELLIGENCE.md) for comprehensive Apple framework documentation.
+
+#### ✅ Fully Integrated Apple Frameworks (8)
+
+| Framework            | Services Using It                                                          | Key APIs                                                                                              |
+| -------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| **FoundationModels** | `AppleFoundationLLMService`, `AgenticOrchestrator`, all @Tool functions    | `LanguageModelSession`, `@Generable`, `@Guide`, `@Tool`, `prewarm()`, `LanguageModelFeedback`, TN3193 |
+| **Vision**           | `VisionOCRService`, `YOLODetectionService`, `IntelligentDocumentProcessor` | `VNRecognizeTextRequest`, `VNClassifyImageRequest`, `VNDetectDocumentSegmentationRequest`             |
+| **NaturalLanguage**  | `QueryEnhancementService`, `EntityIndexService`, `SemanticChunker`         | `NLTagger` (NER, POS), `NLTokenizer`, `NLLanguageRecognizer`, `NLEmbedding` (512D fallback)           |
+| **CoreML**           | `EmbeddingService`, `ReRankerService`, `CoreMLDocumentClassifier`          | MiniLM-L6-v2 embeddings (384D), TinyBERT reranker, FastViT classifier (optional)                      |
+| **PDFKit**           | `DocumentProcessor`                                                        | `PDFDocument`, `PDFPage`, page-by-page text extraction                                                |
+| **Speech**           | `AudioTranscriptionService`                                                | `SFSpeechRecognizer`, on-device transcription for M4A/MP3/WAV/MP4                                     |
+| **Metal**            | `GPUComputeService`, `VisionOCRService`                                    | GPU-accelerated matrix operations, parallel OCR concurrency                                           |
+| **StoreKit 2**       | `StoreKitBillingService`                                                   | `Product`, `Transaction`, `StoreKit.Transaction.updates`, subscription management                     |
+
+#### ✅ Ready But Deferred (Code Complete, UI Disabled)
+
+| Feature                 | Framework        | Status                                                              | Target |
+| ----------------------- | ---------------- | ------------------------------------------------------------------- | ------ |
+| Camera Vision Overlay   | Vision + FM      | `/Features/Camera/` complete; RecognizeDocumentsRequest implemented | v2.0   |
+| Live Document Detection | VisionKit        | `DataScannerViewController` not yet wired; code ready               | v2.0   |
+| Image Description       | FoundationModels | Image prompts work; awaiting Apple Intelligence image support GA    | v2.0   |
+
+#### 🟡 Partial Integration (Opportunities Identified)
+
+| Opportunity              | Framework             | Current State                                 | Planned Enhancement                      | Target |
+| ------------------------ | --------------------- | --------------------------------------------- | ---------------------------------------- | ------ |
+| Custom Entity Extraction | NLGazetteer           | Using NLTagger NER (persons, places, orgs)    | Train gazetteer on product names, SKUs   | v1.3   |
+| Multi-Language Docs      | Translation.framework | Language detection works; no auto-translation | Translate foreign docs before embedding  | v1.3   |
+| Domain Classifiers       | CreateMLComponents    | Static content-type configs                   | Train classifiers on user's doc patterns | v2.0   |
+
+#### ⬜ Not Yet Leveraged (Phase 2+)
+
+| Framework/API                 | Use Case                                  | Priority | Notes                                        |
+| ----------------------------- | ----------------------------------------- | -------- | -------------------------------------------- |
+| **DataScannerViewController** | Live camera scanning UX (VisionKit)       | High     | More polished than raw AVCaptureSession      |
+| **SpeechAnalyzer** (iOS 26)   | Real-time speech metrics, pause detection | Medium   | Could enhance audio transcription quality    |
+| **MetricKit**                 | Device performance telemetry              | Medium   | Optimize pipeline for real user hardware     |
+| **OSSignposter**              | Instruments-visible profiling             | Low      | Developer debugging, not user-facing         |
+| **SoundAnalysis**             | Audio content classification              | Low      | Classify speech/music/ambient in audio files |
+| **WritingTools** (iOS 26)     | System-wide text improvement integration  | Medium   | Already have WritingToolsService stub        |
+
+#### iOS 26+ New APIs Status
+
+| API                                     | Status        | Location                                              |
+| --------------------------------------- | ------------- | ----------------------------------------------------- |
+| `FoundationModels.LanguageModelSession` | ✅ Production  | `AppleFoundationLLMService`, `AgenticOrchestrator`    |
+| `@Generable`, `@Guide`, `@Tool`         | ✅ Production  | 8 agentic tools, RAGAnswer/RAGSearchResults responses |
+| `LanguageModelFeedback`                 | ✅ Production  | Thumbs up/down feedback in ChatView                   |
+| `prewarm()`                             | ✅ Production  | App launch prewarming in OpenIntelligenceApp          |
+| `RecognizeDocumentsRequest`             | ⏸️ Deferred    | `/Features/Camera/` ready, awaiting v2.0              |
+| `SpeechAnalyzer`                        | ⬜ Not Started | Planned for v1.3 audio enhancement                    |
+
+---
+
+### �🎯 NEXT FEATURES (v1.2.0)
 
 #### 1. Apple CoreML Vision Models Integration
 

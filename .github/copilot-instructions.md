@@ -88,19 +88,25 @@ QUERY → RESPONSE (17 steps):
 
 ---
 
-## Service Inventory (51 Services)
+## Apple Framework Stack
+
+**100% Native—No Third-Party AI**: FoundationModels, Vision, NaturalLanguage, CoreML, PDFKit, Speech, Metal, StoreKit 2
+
+> **Full Reference**: See `Docs/reference/APPLE_DOCUMENT_INTELLIGENCE.md`
+
+## Service Inventory (78 Services)
 
 | Category           | Count | Key Services                                                                               |
 | ------------------ | ----- | ------------------------------------------------------------------------------------------ |
 | **RAG Pipeline**   | 14    | RAGService, RAGEngine, HybridSearchService, VerificationGateService, ContextPackingService |
-| **Query**          | 6     | QueryEnhancementService, HyDEService, ContextualCompressionService, QueryRouterService     |
-| **Document**       | 10    | DocumentProcessor, SemanticChunker, EntityIndexService, AudioTranscriptionService          |
+| **Query**          | 8     | QueryEnhancementService, HyDEService, ContextualCompressionService, QueryRouterService     |
+| **Document**       | 19    | DocumentProcessor, SemanticChunker, EntityIndexService, AudioTranscriptionService          |
 | **Embedding**      | 2     | EmbeddingService, CoreMLSentenceEmbeddingProvider                                          |
 | **Storage**        | 3     | FullTextStorageService, SQLiteFullTextService, DocumentationCacheService                   |
 | **VectorStore**    | 4     | VectorDatabase (protocol), InMemoryVectorDatabase, BNNSVectorDatabase, VectorStoreRouter   |
 | **LLM**            | 7     | AppleFoundationLLMService, OnDeviceAnalysisService, LocalOpenAIServerLLMService            |
 | **Agentic**        | 3     | AgenticOrchestrator, ConversationMemoryService, WritingToolsService                        |
-| **Infrastructure** | 7     | ContainerService, GPUComputeService, DeviceCapabilityService, ProjectionService            |
+| **Infrastructure** | 17    | ContainerService, GPUComputeService, DeviceCapabilityService, SystemStateMonitor           |
 | **Billing**        | 1     | StoreKitBillingService                                                                     |
 
 **Full inventory**: See `ARCHITECTURE.md` → "Complete Service Inventory"

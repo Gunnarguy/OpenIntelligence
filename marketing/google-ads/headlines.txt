@@ -1,0 +1,28 @@
+# Google Ads Headlines for OpenIntelligence
+# Max 30 characters each | Provide 4-5 variations
+# ============================================
+
+# Headline 1: Core Value (What it does)
+Turn PDFs Into Answers
+
+# Headline 2: Technology Differentiator
+23-Step RAG Pipeline
+
+# Headline 3: Privacy (Key Selling Point)
+100% On-Device AI
+
+# Headline 4: Use Case
+Ask Documents Anything
+
+# Headline 5: Feature
+Deep Think Mode
+
+# ============================================
+# COPY-PASTE READY (no comments):
+# ============================================
+
+Turn PDFs Into Answers
+23-Step RAG Pipeline
+100% On-Device AI
+Ask Documents Anything
+Deep Think Mode

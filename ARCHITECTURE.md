@@ -1,14 +1,15 @@
 # OpenIntelligence Technical Architecture
 
-**Version**: 2.8
-**Date**: January 29, 2026
+**Version**: 2.9
+**Date**: February 5, 2026
 **Status**: Production (App Store Ready)
 
 ## Table of Contents
 
 1. [Executive Summary](#executive-summary)
-2. [System Architecture](#system-architecture)
-3. [Core Services Inventory](#core-services)
+2. [Apple Framework Dependencies](#apple-framework-dependencies)
+3. [System Architecture](#system-architecture)
+4. [Core Services Inventory](#core-services)
    - [RAG Pipeline Services](#rag-pipeline-services-14-services)
    - [Query Services](#query-services-8-services)
    - [Document Processing Services](#document-processing-services-19-services)
@@ -19,9 +20,9 @@
    - [Agentic Services](#agentic-services-3-services)
    - [Infrastructure Services](#infrastructure-services-17-services)
    - [Billing Services](#billing-services-1-service)
-4. [DocumentProcessor Deep Dive](#documentprocessor)
-5. [Token Budget Management](#token-budget-management)
-6. [Data Structures](#data-structures)
+5. [DocumentProcessor Deep Dive](#documentprocessor)
+6. [Token Budget Management](#token-budget-management)
+7. [Data Structures](#data-structures)
 
 ## Executive Summary
 
@@ -29,7 +30,7 @@ OpenIntelligence is a native iOS 26 application implementing a complete Retrieva
 
 **Simple Concept:** Import any document. Ask questions in plain English. Get cited answers powered by on-device AI.
 
-**Latest (v2.8)**: Device-tier-aware Vision concurrency, platform-specific Metal optimizations, Mac compatibility via iPad mode, 4-gate verification pipeline, 78 services across 10 categories.
+**Latest (v2.9)**: Device-tier-aware Vision concurrency, platform-specific Metal optimizations, Mac compatibility via iPad mode, 4-gate verification pipeline, 78 services across 10 categories. Updated Apple framework integration assessment.
 
 ### RAG Pipeline Summary
 
@@ -52,6 +53,45 @@ The system implements a **23-step end-to-end pipeline** powered by **78 services
 3. **Async/Await**: Modern Swift concurrency throughout
 4. **Adaptive Retrieval**: Query-intent-aware weight tuning and content-type-optimized configurations
 5. **Simple**: 10 core files implement complete functionality
+
+## Apple Framework Dependencies
+
+OpenIntelligence is built entirely on Apple's native frameworks—**no third-party AI dependencies**.
+
+> **Complete Reference**: See [Docs/reference/APPLE_DOCUMENT_INTELLIGENCE.md](Docs/reference/APPLE_DOCUMENT_INTELLIGENCE.md) for detailed API documentation.
+
+### Production Frameworks (8 Integrated)
+
+| Framework            | Primary Use                   | Key Services                                                       |
+| -------------------- | ----------------------------- | ------------------------------------------------------------------ |
+| **FoundationModels** | LLM generation (iOS 26)       | `AppleFoundationLLMService`, `AgenticOrchestrator`, 8 @Tools       |
+| **Vision**           | OCR, document detection       | `VisionOCRService`, `IntelligentDocumentProcessor`                 |
+| **NaturalLanguage**  | NER, tokenization, embeddings | `QueryEnhancementService`, `EntityIndexService`, `SemanticChunker` |
+| **CoreML**           | Neural embeddings, reranking  | `EmbeddingService` (MiniLM-L6), `ReRankerService` (TinyBERT)       |
+| **PDFKit**           | PDF parsing                   | `DocumentProcessor`                                                |
+| **Speech**           | Audio transcription           | `AudioTranscriptionService`                                        |
+| **Metal**            | GPU acceleration              | `GPUComputeService`, `VisionOCRThrottle`                           |
+| **StoreKit 2**       | Subscription billing          | `StoreKitBillingService`                                           |
+
+### iOS 26+ APIs in Production
+
+| API                             | Usage                                        |
+| ------------------------------- | -------------------------------------------- |
+| `LanguageModelSession`          | All LLM queries via Apple Intelligence       |
+| `@Generable`, `@Guide`, `@Tool` | 8 agentic tools + structured response types  |
+| `LanguageModelFeedback`         | User feedback submission from chat UI        |
+| `prewarm()`                     | App launch prewarming for faster first query |
+
+### Framework Opportunities (Phase 2+)
+
+| Framework                   | Planned Use                                  | Target |
+| --------------------------- | -------------------------------------------- | ------ |
+| **VisionKit** (DataScanner) | Live camera document scanning                | v2.0   |
+| **Translation.framework**   | Multi-language document translation          | v1.3   |
+| **NLGazetteer**             | Custom entity training (product names, SKUs) | v1.3   |
+| **CreateMLComponents**      | On-device classifier training                | v2.0   |
+| **MetricKit**               | Production performance telemetry             | v2.0   |
+| **SpeechAnalyzer** (iOS 26) | Enhanced audio quality metrics               | v1.3   |
 
 ## System Architecture
 

@@ -2,6 +2,8 @@
 
 **A chronological walkthrough of the pipeline: Ingestion → Retrieval → Reasoning → Output.**
 
+> **Built on Apple's AI Stack**: 100% native—FoundationModels (iOS 26), Vision OCR, NaturalLanguage NER, CoreML embeddings. No third-party AI dependencies. See [ARCHITECTURE.md](ARCHITECTURE.md#apple-framework-dependencies) for complete framework inventory.
+
 ## Table of Contents
 
 - [How OpenIntelligence Actually Works](#how-openintelligence-actually-works)
