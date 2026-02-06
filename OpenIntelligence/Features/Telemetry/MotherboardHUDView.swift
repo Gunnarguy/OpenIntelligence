@@ -412,10 +412,11 @@ struct HardwareXRayOverlay_Previews: PreviewProvider {
         }
         .ignoresSafeArea()
         .onAppear {
-            // Simulate activity for preview
-            HardwareTelemetryState.shared.aneIntensity = 0.8
-            HardwareTelemetryState.shared.gpuIntensity = 0.4
-            HardwareTelemetryState.shared.cpuIntensity = 0.3
+            // Simulate activity for preview using public API
+            HardwareTelemetryState.shared.sustain(.embeddingGeneration, active: true, intensity: 0.8)
+            HardwareTelemetryState.shared.sustain(.vectorSimilarity, active: true, intensity: 0.4)
+            HardwareTelemetryState.shared.sustain(.ragOrchestration, active: true, intensity: 0.3)
+            HardwareTelemetryState.shared.reportHaptic(style: "preview")
         }
         .previewDisplayName("SoC @ \(DeviceComponentLayout.current.displayName)")
     }
