@@ -91,30 +91,39 @@ enum DeviceComponentLayout {
     // MARK: - SoC Position (ONE chip, ONE location)
 
     /// The actual position of the SoC die behind the screen.
-    /// VERIFIED via Vision AI analysis of teardown images:
-    /// - A18 Pro text label detected at x:13-14%, y:32-37%
-    /// - Rectangle detected at x:8%, y:33%, w:23%, h:8.6%
+    /// VERIFIED via Vision AI analysis of X-ray images (Feb 2026):
+    /// - iPhone 15 Pro Max: A17 @ x:17%, y:37%
+    /// - iPhone 16 Pro: A18 @ x:13%, y:32%
+    /// - iPhone 16 Pro Max: A18 @ x:14%, y:35%
+    /// - iPhone 17 Pro Max: A19 @ x:38%, y:31% (MORE CENTERED!)
     var socRect: CGRect {
         switch self {
         case .iPhone15Pro, .iPhone15ProMax:
-            // A17 Pro: Similar left-side position to A18
-            return CGRect(x: 0.08, y: 0.32, width: 0.24, height: 0.10)
+            // Vision AI: A17 label at x:17.3%, y:36.6%
+            // Rectangle [6]: x:8.2%, y:33.7%, w:28.3%, h:13.7%
+            return CGRect(x: 0.08, y: 0.33, width: 0.28, height: 0.12)
 
         case .iPhone16, .iPhone16Plus:
-            // A18: Same general area
-            return CGRect(x: 0.08, y: 0.33, width: 0.24, height: 0.10)
+            // A18: Similar to 16 Pro
+            return CGRect(x: 0.08, y: 0.30, width: 0.26, height: 0.10)
 
-        case .iPhone16Pro, .iPhone16ProMax:
-            // A18 Pro: Vision AI detected at x:8-15%, y:32-37%
-            // Using rectangle [6]: x:8.2%, y:32.9%, w:22.8%, h:8.6%
+        case .iPhone16Pro:
+            // Vision AI: A18 label at x:13.3%, y:32.0%
+            return CGRect(x: 0.08, y: 0.30, width: 0.26, height: 0.10)
+
+        case .iPhone16ProMax:
+            // Vision AI: A18 label at x:14.3%, y:34.9%
+            // Rectangle [6]: x:8.2%, y:32.9%, w:22.8%, h:8.6%
             return CGRect(x: 0.08, y: 0.32, width: 0.24, height: 0.10)
 
         case .iPhone17Pro, .iPhone17ProMax:
-            // A19 Pro: Expected similar to 16 Pro
-            return CGRect(x: 0.08, y: 0.32, width: 0.24, height: 0.10)
+            // Vision AI: A19 label at x:37.5%, y:30.7% - DIFFERENT LAYOUT!
+            // Rectangle [5]: x:35.5%, y:27.5%, w:14.8%, h:9.6%
+            // SoC moved to CENTER of device
+            return CGRect(x: 0.32, y: 0.26, width: 0.20, height: 0.12)
 
         case .unknown:
-            // Default to detected position
+            // Default to iPhone 16 Pro Max position
             return CGRect(x: 0.08, y: 0.32, width: 0.24, height: 0.10)
         }
     }
@@ -122,26 +131,34 @@ enum DeviceComponentLayout {
     // MARK: - Taptic Engine Position
 
     /// The Taptic Engine (haptic motor) position at the bottom of the device.
-    /// VERIFIED via Vision AI: "TAPTIC ENGINE" label at x:16-18%, y:90-91%
-    /// Rectangle detected at x:65%, y:88% suggests the actual component area
+    /// VERIFIED via Vision AI X-ray analysis:
+    /// - iPhone 15/16: LEFT side (x:14-18%, y:90-91%)
+    /// - iPhone 17: RIGHT side (x:63%, y:91%) - ARCHITECTURE CHANGE!
     var tapticRect: CGRect {
         switch self {
         case .iPhone15Pro, .iPhone15ProMax:
-            // Vision detected label at x:18%, y:91%
-            return CGRect(x: 0.12, y: 0.88, width: 0.24, height: 0.06)
+            // Vision AI: "TAPTIC ENGINE" at x:13.8%, y:90.7%
+            return CGRect(x: 0.10, y: 0.88, width: 0.24, height: 0.06)
 
         case .iPhone16, .iPhone16Plus:
-            // Vision detected label at x:16%, y:90%
+            // Similar to 16 Pro
             return CGRect(x: 0.12, y: 0.88, width: 0.24, height: 0.06)
 
-        case .iPhone16Pro, .iPhone16ProMax:
-            // Vision detected: "TAPTIC ENGINE" at x:16-18%, y:90-91%
+        case .iPhone16Pro:
+            // Vision AI: "TAPTIC ENGINE" at x:17.9%, y:91.0%
             return CGRect(x: 0.12, y: 0.88, width: 0.24, height: 0.06)
+
+        case .iPhone16ProMax:
+            // Vision AI: "TAPTIC ENGINE" at x:15.9%, y:89.9%
+            return CGRect(x: 0.12, y: 0.87, width: 0.24, height: 0.06)
 
         case .iPhone17Pro, .iPhone17ProMax:
-            return CGRect(x: 0.12, y: 0.88, width: 0.24, height: 0.06)
+            // Vision AI: "TAPTIC ENGINE" at x:62.8%, y:90.7% - MOVED TO RIGHT!
+            // Rectangle [6]: x:61.0%, y:88.5%, w:26.6%, h:4.7%
+            return CGRect(x: 0.58, y: 0.87, width: 0.28, height: 0.06)
 
         case .unknown:
+            // Default to left-side position
             return CGRect(x: 0.12, y: 0.88, width: 0.24, height: 0.06)
         }
     }
