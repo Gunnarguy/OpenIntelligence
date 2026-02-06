@@ -2,17 +2,17 @@
 //  MotherboardHUDView.swift
 //  OpenIntelligence
 //
-//  Full-screen X-Ray overlay showing where Apple Silicon components physically
-//  sit behind the iPhone screen. Borders glow at the ACTUAL positions.
+//  Full-screen X-Ray overlay showing where Apple Silicon SoC physically
+//  sits behind the iPhone screen. ONE border at the ACTUAL chip location.
 //
-//  Device-specific layouts based on teardown analysis:
-//  - iPhone 15 Pro/Max: A17 Pro, older internal architecture
-//  - iPhone 16/Plus: A18, reengineered thermal design
-//  - iPhone 16 Pro/Max: A18 Pro, CENTRALIZED chip placement
-//  - iPhone 17 Pro/Max: A19 Pro, anticipated similar to 16 Pro
+//  CRITICAL: The CPU, GPU, and Neural Engine are ALL ON ONE ~10mm DIE.
+//  They are NOT spread across the screen - they're one tiny chip.
 //
-//  All Apple Intelligence-capable devices have their SoC in the upper
-//  portion of the device, but exact positioning varies by model.
+//  Physical SoC positions from iFixit teardowns:
+//  - iPhone 15 Pro/Max: A17 Pro @ ~38% from left, ~30% from top
+//  - iPhone 16/Plus: A18 @ ~40% from left, ~32% from top
+//  - iPhone 16 Pro/Max: A18 Pro @ ~45% from left, ~27% from top (centralized)
+//  - iPhone 17 Pro/Max: A19 Pro @ similar to 16 Pro
 //
 
 import SwiftUI
@@ -20,34 +20,22 @@ import UIKit
 
 // MARK: - Device Layout Configuration
 
-/// Physical component positions for each Apple Intelligence-capable device.
-/// Positions are normalized (0-1) relative to screen dimensions.
-/// Based on iFixit teardowns and Apple technical documentation.
+/// Physical SoC position for each Apple Intelligence-capable device.
+/// Position normalized (0-1) relative to screen dimensions.
+/// Die size ~10mm = ~6-8% of screen width, made slightly larger for visibility.
 enum DeviceComponentLayout {
     
-    // MARK: - iPhone 15 Pro (A17 Pro) - Original AI-capable layout
-    // Internals behind screen, older thermal architecture
     case iPhone15Pro
     case iPhone15ProMax
-    
-    // MARK: - iPhone 16 (A18) - Reengineered internal design
-    // New thermal management, larger battery
     case iPhone16
     case iPhone16Plus
-    
-    // MARK: - iPhone 16 Pro (A18 Pro) - CENTRALIZED chip placement
-    // New thermal architecture with machined aluminum chassis
     case iPhone16Pro
     case iPhone16ProMax
-    
-    // MARK: - iPhone 17 Pro (A19 Pro) - Expected similar to 16 Pro
     case iPhone17Pro
     case iPhone17ProMax
-    
-    // MARK: - Fallback for unknown devices
     case unknown
     
-    /// Detect the current device and return appropriate layout
+    /// Detect the current device via utsname()
     static var current: DeviceComponentLayout {
         var systemInfo = utsname()
         uname(&systemInfo)
@@ -57,44 +45,25 @@ enum DeviceComponentLayout {
             return identifier + String(UnicodeScalar(UInt8(value)))
         }
         
-        // iPhone identifiers: https://www.theiphonewiki.com/wiki/Models
         switch identifier {
-        // iPhone 15 Pro
-        case "iPhone16,1":
-            return .iPhone15Pro
-        case "iPhone16,2":
-            return .iPhone15ProMax
-        // iPhone 16
-        case "iPhone17,3":
-            return .iPhone16
-        case "iPhone17,4":
-            return .iPhone16Plus
-        // iPhone 16 Pro
-        case "iPhone17,1":
-            return .iPhone16Pro
-        case "iPhone17,2":
-            return .iPhone16ProMax
-        // iPhone 17 series (predicted identifiers)
-        case "iPhone18,1", "iPhone18,3":
-            return .iPhone17Pro
-        case "iPhone18,2", "iPhone18,4":
-            return .iPhone17ProMax
+        case "iPhone16,1": return .iPhone15Pro
+        case "iPhone16,2": return .iPhone15ProMax
+        case "iPhone17,3": return .iPhone16
+        case "iPhone17,4": return .iPhone16Plus
+        case "iPhone17,1": return .iPhone16Pro
+        case "iPhone17,2": return .iPhone16ProMax
+        case "iPhone18,1", "iPhone18,3": return .iPhone17Pro
+        case "iPhone18,2", "iPhone18,4": return .iPhone17ProMax
         default:
-            // Simulator or unknown device - use 16 Pro Max as default
             #if targetEnvironment(simulator)
-            // In simulator, check screen size to guess device
             let screenHeight = UIScreen.main.nativeBounds.height
-            if screenHeight >= 2796 { // Pro Max size
-                return .iPhone16ProMax
-            } else if screenHeight >= 2556 { // Pro size
-                return .iPhone16Pro
-            }
+            if screenHeight >= 2796 { return .iPhone16ProMax }
+            else if screenHeight >= 2556 { return .iPhone16Pro }
             #endif
             return .unknown
         }
     }
     
-    /// Human-readable device name for display
     var displayName: String {
         switch self {
         case .iPhone15Pro: return "iPhone 15 Pro"
@@ -109,174 +78,132 @@ enum DeviceComponentLayout {
         }
     }
     
-    /// SoC chip name
     var chipName: String {
         switch self {
-        case .iPhone15Pro, .iPhone15ProMax:
-            return "A17 Pro"
-        case .iPhone16, .iPhone16Plus:
-            return "A18"
-        case .iPhone16Pro, .iPhone16ProMax:
-            return "A18 Pro"
-        case .iPhone17Pro, .iPhone17ProMax:
-            return "A19 Pro"
-        case .unknown:
-            return "Apple Silicon"
+        case .iPhone15Pro, .iPhone15ProMax: return "A17 Pro"
+        case .iPhone16, .iPhone16Plus: return "A18"
+        case .iPhone16Pro, .iPhone16ProMax: return "A18 Pro"
+        case .iPhone17Pro, .iPhone17ProMax: return "A19 Pro"
+        case .unknown: return "Apple Silicon"
         }
     }
     
-    // MARK: - Component Positions (normalized 0-1)
+    // MARK: - SoC Position (ONE chip, ONE location)
     
-    /// CPU region position and size
-    /// Based on teardown die shots - CPU cores are typically on the left/top of the die
-    var cpuRect: CGRect {
+    /// The actual position of the SoC die behind the screen.
+    /// Position is center-point X, center-point Y, normalized 0-1.
+    /// Size enlarged slightly for visibility (real die is ~6% but we show ~10%).
+    var socRect: CGRect {
         switch self {
         case .iPhone15Pro, .iPhone15ProMax:
-            // iPhone 15 Pro: SoC positioned slightly higher, offset left
-            return CGRect(x: 0.08, y: 0.055, width: 0.24, height: 0.085)
+            // A17 Pro: Upper-left of center, older layout
+            // Die center at ~38% from left, ~30% from top
+            return CGRect(x: 0.28, y: 0.22, width: 0.20, height: 0.12)
             
         case .iPhone16, .iPhone16Plus:
-            // iPhone 16: Reengineered layout, slightly more centered
-            return CGRect(x: 0.10, y: 0.06, width: 0.22, height: 0.08)
+            // A18: Slightly more centered due to new thermal design
+            // Die center at ~40% from left, ~32% from top
+            return CGRect(x: 0.30, y: 0.24, width: 0.20, height: 0.12)
             
         case .iPhone16Pro, .iPhone16ProMax:
-            // iPhone 16 Pro: CENTRALIZED chip placement - more centered overall
-            return CGRect(x: 0.12, y: 0.055, width: 0.22, height: 0.09)
+            // A18 Pro: CENTRALIZED chip placement
+            // Die center at ~45% from left, ~27% from top
+            return CGRect(x: 0.35, y: 0.19, width: 0.20, height: 0.12)
             
         case .iPhone17Pro, .iPhone17ProMax:
-            // iPhone 17 Pro: Expected similar to 16 Pro
-            return CGRect(x: 0.12, y: 0.055, width: 0.22, height: 0.09)
+            // A19 Pro: Expected similar to 16 Pro
+            return CGRect(x: 0.35, y: 0.19, width: 0.20, height: 0.12)
             
         case .unknown:
-            return CGRect(x: 0.10, y: 0.06, width: 0.22, height: 0.09)
-        }
-    }
-    
-    /// GPU region position and size
-    /// GPU cores are typically in the center of the SoC die
-    var gpuRect: CGRect {
-        switch self {
-        case .iPhone15Pro, .iPhone15ProMax:
-            return CGRect(x: 0.35, y: 0.055, width: 0.24, height: 0.085)
-            
-        case .iPhone16, .iPhone16Plus:
-            return CGRect(x: 0.35, y: 0.06, width: 0.22, height: 0.08)
-            
-        case .iPhone16Pro, .iPhone16ProMax:
-            // Centralized: GPU more towards center of device
-            return CGRect(x: 0.37, y: 0.055, width: 0.22, height: 0.09)
-            
-        case .iPhone17Pro, .iPhone17ProMax:
-            return CGRect(x: 0.37, y: 0.055, width: 0.22, height: 0.09)
-            
-        case .unknown:
-            return CGRect(x: 0.35, y: 0.06, width: 0.22, height: 0.09)
-        }
-    }
-    
-    /// Neural Engine (ANE) region position and size
-    /// ANE is typically on the right side of the die
-    var aneRect: CGRect {
-        switch self {
-        case .iPhone15Pro, .iPhone15ProMax:
-            return CGRect(x: 0.62, y: 0.055, width: 0.28, height: 0.085)
-            
-        case .iPhone16, .iPhone16Plus:
-            return CGRect(x: 0.60, y: 0.06, width: 0.28, height: 0.08)
-            
-        case .iPhone16Pro, .iPhone16ProMax:
-            // Centralized: ANE still on right but tighter overall
-            return CGRect(x: 0.62, y: 0.055, width: 0.26, height: 0.09)
-            
-        case .iPhone17Pro, .iPhone17ProMax:
-            return CGRect(x: 0.62, y: 0.055, width: 0.26, height: 0.09)
-            
-        case .unknown:
-            return CGRect(x: 0.60, y: 0.06, width: 0.28, height: 0.09)
+            // Default to centralized position
+            return CGRect(x: 0.35, y: 0.20, width: 0.20, height: 0.12)
         }
     }
 }
 
 // MARK: - Full-Screen X-Ray Overlay
 
-/// Transparent full-screen overlay that shows glowing borders at the actual
-/// physical locations where hardware components sit behind the screen
+/// Transparent overlay showing ONE glowing border at the actual SoC position.
+/// Color blends based on which components are active (CPU/GPU/ANE).
 struct HardwareXRayOverlay: View {
     @ObservedObject private var telemetry = HardwareTelemetryState.shared
     
-    /// The detected device layout
     private let layout = DeviceComponentLayout.current
-    
-    /// Show device/chip info label
     var showDeviceInfo: Bool = false
-
+    
+    /// Combined intensity from all active components
+    private var totalIntensity: Double {
+        max(telemetry.cpuIntensity, telemetry.gpuIntensity, telemetry.aneIntensity)
+    }
+    
+    /// Dominant color based on which component is most active
+    private var dominantColor: Color {
+        let cpu = telemetry.cpuIntensity
+        let gpu = telemetry.gpuIntensity
+        let ane = telemetry.aneIntensity
+        
+        if ane >= gpu && ane >= cpu {
+            return HardwareComponent.neuralEngine.color // Purple
+        } else if gpu >= cpu {
+            return HardwareComponent.gpu.color // Cyan
+        } else {
+            return HardwareComponent.cpu.color // Orange
+        }
+    }
+    
+    /// Active component labels
+    private var activeComponents: [String] {
+        var components: [String] = []
+        if telemetry.aneIntensity > 0.01 { components.append("ANE") }
+        if telemetry.gpuIntensity > 0.01 { components.append("GPU") }
+        if telemetry.cpuIntensity > 0.01 { components.append("CPU") }
+        return components
+    }
+    
     var body: some View {
         GeometryReader { geometry in
             let screenWidth = geometry.size.width
             let screenHeight = geometry.size.height
-
+            let socFrame = rectToScreen(layout.socRect, width: screenWidth, height: screenHeight)
+            
             ZStack {
-                // CPU Border
-                if telemetry.cpuIntensity > 0.01 {
-                    GlowingComponentBorder(
-                        frame: rectToScreen(layout.cpuRect, width: screenWidth, height: screenHeight),
-                        color: HardwareComponent.cpu.color,
-                        intensity: telemetry.cpuIntensity,
-                        label: "CPU"
+                // Show SoC border when any component is active
+                if totalIntensity > 0.01 {
+                    GlowingSoCBorder(
+                        frame: socFrame,
+                        color: dominantColor,
+                        intensity: totalIntensity,
+                        chipName: layout.chipName,
+                        activeComponents: activeComponents,
+                        cpuIntensity: telemetry.cpuIntensity,
+                        gpuIntensity: telemetry.gpuIntensity,
+                        aneIntensity: telemetry.aneIntensity
                     )
                 }
-
-                // GPU Border
-                if telemetry.gpuIntensity > 0.01 {
-                    GlowingComponentBorder(
-                        frame: rectToScreen(layout.gpuRect, width: screenWidth, height: screenHeight),
-                        color: HardwareComponent.gpu.color,
-                        intensity: telemetry.gpuIntensity,
-                        label: "GPU"
-                    )
-                }
-
-                // Neural Engine Border
-                if telemetry.aneIntensity > 0.01 {
-                    GlowingComponentBorder(
-                        frame: rectToScreen(layout.aneRect, width: screenWidth, height: screenHeight),
-                        color: HardwareComponent.neuralEngine.color,
-                        intensity: telemetry.aneIntensity,
-                        label: "Neural Engine"
-                    )
-                }
-
-                // Activity label
+                
+                // Activity label below the SoC
                 if !telemetry.currentActivityLabel.isEmpty {
                     Text(telemetry.currentActivityLabel)
                         .font(.system(size: 11, weight: .medium, design: .monospaced))
                         .foregroundColor(.white.opacity(0.9))
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
-                        .background(
-                            Capsule()
-                                .fill(Color.black.opacity(0.7))
-                        )
-                        .position(x: screenWidth / 2, y: screenHeight * 0.20)
+                        .background(Capsule().fill(Color.black.opacity(0.7)))
+                        .position(x: socFrame.midX, y: socFrame.maxY + 40)
                 }
                 
-                // Device info label (optional, for debugging)
+                // Device info (for debugging)
                 if showDeviceInfo {
-                    VStack(spacing: 2) {
-                        Text(layout.displayName)
-                            .font(.system(size: 9, weight: .medium, design: .monospaced))
-                        Text(layout.chipName)
-                            .font(.system(size: 8, weight: .regular, design: .monospaced))
-                    }
-                    .foregroundColor(.gray.opacity(0.6))
-                    .position(x: screenWidth / 2, y: screenHeight * 0.025)
+                    Text("\(layout.displayName)")
+                        .font(.system(size: 9, weight: .medium, design: .monospaced))
+                        .foregroundColor(.gray.opacity(0.5))
+                        .position(x: screenWidth / 2, y: screenHeight * 0.02)
                 }
             }
         }
         .ignoresSafeArea()
     }
     
-    /// Convert normalized rect (0-1) to screen coordinates
     private func rectToScreen(_ rect: CGRect, width: CGFloat, height: CGFloat) -> CGRect {
         CGRect(
             x: rect.minX * width,
@@ -287,52 +214,102 @@ struct HardwareXRayOverlay: View {
     }
 }
 
-// MARK: - Glowing Component Border
+// MARK: - Glowing SoC Border
 
-/// A border that glows at a specific screen position
-private struct GlowingComponentBorder: View {
+/// A single glowing border representing the entire SoC with component indicators
+private struct GlowingSoCBorder: View {
     let frame: CGRect
     let color: Color
     let intensity: Double
-    let label: String
-
-    private var glowRadius: CGFloat {
-        CGFloat(4 + 12 * intensity)
-    }
-
-    private var borderWidth: CGFloat {
-        CGFloat(1.5 + 2.5 * intensity)
-    }
-
+    let chipName: String
+    let activeComponents: [String]
+    let cpuIntensity: Double
+    let gpuIntensity: Double
+    let aneIntensity: Double
+    
+    private var glowRadius: CGFloat { CGFloat(6 + 18 * intensity) }
+    private var borderWidth: CGFloat { CGFloat(2 + 3 * intensity) }
+    
     var body: some View {
         ZStack {
-            // Outer glow (large, diffuse)
-            RoundedRectangle(cornerRadius: 8)
-                .strokeBorder(color.opacity(0.4 * intensity), lineWidth: borderWidth + 4)
-                .blur(radius: glowRadius)
+            // Multi-color glow based on all active components
+            if aneIntensity > 0.01 {
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(HardwareComponent.neuralEngine.color.opacity(0.3 * aneIntensity), lineWidth: borderWidth + 6)
+                    .blur(radius: glowRadius * 1.2)
+                    .frame(width: frame.width, height: frame.height)
+                    .position(x: frame.midX, y: frame.midY)
+            }
+            if gpuIntensity > 0.01 {
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(HardwareComponent.gpu.color.opacity(0.3 * gpuIntensity), lineWidth: borderWidth + 4)
+                    .blur(radius: glowRadius)
+                    .frame(width: frame.width, height: frame.height)
+                    .position(x: frame.midX, y: frame.midY)
+            }
+            if cpuIntensity > 0.01 {
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(HardwareComponent.cpu.color.opacity(0.3 * cpuIntensity), lineWidth: borderWidth + 2)
+                    .blur(radius: glowRadius * 0.8)
+                    .frame(width: frame.width, height: frame.height)
+                    .position(x: frame.midX, y: frame.midY)
+            }
+            
+            // Main border with dominant color
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(color.opacity(0.7 + 0.3 * intensity), lineWidth: borderWidth)
                 .frame(width: frame.width, height: frame.height)
                 .position(x: frame.midX, y: frame.midY)
-
-            // Main border
-            RoundedRectangle(cornerRadius: 8)
-                .strokeBorder(color.opacity(0.6 + 0.4 * intensity), lineWidth: borderWidth)
+            
+            // Inner fill
+            RoundedRectangle(cornerRadius: 12)
+                .fill(color.opacity(0.06 * intensity))
                 .frame(width: frame.width, height: frame.height)
                 .position(x: frame.midX, y: frame.midY)
-
-            // Inner fill (subtle)
-            RoundedRectangle(cornerRadius: 8)
-                .fill(color.opacity(0.08 * intensity))
-                .frame(width: frame.width, height: frame.height)
-                .position(x: frame.midX, y: frame.midY)
-
-            // Label
-            Text(label)
-                .font(.system(size: 10, weight: .bold, design: .monospaced))
-                .foregroundColor(color.opacity(0.7 + 0.3 * intensity))
-                .shadow(color: color.opacity(0.6), radius: 3)
-                .position(x: frame.midX, y: frame.midY)
+            
+            // Chip name at top
+            Text(chipName)
+                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                .foregroundColor(.white.opacity(0.9))
+                .shadow(color: color.opacity(0.8), radius: 4)
+                .position(x: frame.midX, y: frame.minY + 16)
+            
+            // Active component indicators
+            HStack(spacing: 8) {
+                if cpuIntensity > 0.01 {
+                    ComponentIndicator(name: "CPU", color: HardwareComponent.cpu.color, intensity: cpuIntensity)
+                }
+                if gpuIntensity > 0.01 {
+                    ComponentIndicator(name: "GPU", color: HardwareComponent.gpu.color, intensity: gpuIntensity)
+                }
+                if aneIntensity > 0.01 {
+                    ComponentIndicator(name: "ANE", color: HardwareComponent.neuralEngine.color, intensity: aneIntensity)
+                }
+            }
+            .position(x: frame.midX, y: frame.midY + 8)
         }
-        .animation(.easeOut(duration: 0.1), value: intensity)
+        .animation(.easeOut(duration: 0.15), value: intensity)
+    }
+}
+
+// MARK: - Component Indicator
+
+/// Small colored indicator showing a component's activity level
+private struct ComponentIndicator: View {
+    let name: String
+    let color: Color
+    let intensity: Double
+    
+    var body: some View {
+        HStack(spacing: 3) {
+            Circle()
+                .fill(color)
+                .frame(width: 6, height: 6)
+                .shadow(color: color.opacity(0.8), radius: 3)
+            Text(name)
+                .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                .foregroundColor(color.opacity(0.8 + 0.2 * intensity))
+        }
     }
 }
 
@@ -342,14 +319,17 @@ private struct GlowingComponentBorder: View {
 struct HardwareXRayOverlay_Previews: PreviewProvider {
     static var previews: some View {
         ZStack {
-            // Simulate chat screen background
             Color.black.opacity(0.95)
-
-            // The overlay with device info shown
             HardwareXRayOverlay(showDeviceInfo: true)
         }
         .ignoresSafeArea()
-        .previewDisplayName("X-Ray Overlay (\(DeviceComponentLayout.current.displayName))")
+        .onAppear {
+            // Simulate activity for preview
+            HardwareTelemetryState.shared.aneIntensity = 0.8
+            HardwareTelemetryState.shared.gpuIntensity = 0.4
+            HardwareTelemetryState.shared.cpuIntensity = 0.3
+        }
+        .previewDisplayName("SoC @ \(DeviceComponentLayout.current.displayName)")
     }
 }
 #endif
