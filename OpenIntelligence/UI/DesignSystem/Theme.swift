@@ -74,7 +74,7 @@ public enum DSColors {
     public static var success: Color { Color.green }
     public static var warning: Color { Color.orange }
     public static var danger: Color { Color.red }
-    
+
     // Borders & Separators
     public static var border: Color {
         Color.primary.opacity(0.15)

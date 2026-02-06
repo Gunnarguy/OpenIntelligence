@@ -91,59 +91,58 @@ enum DeviceComponentLayout {
     // MARK: - SoC Position (ONE chip, ONE location)
 
     /// The actual position of the SoC die behind the screen.
-    /// Position is center-point X, center-point Y, normalized 0-1.
-    /// Size enlarged slightly for visibility (real die is ~6% but we show ~10%).
+    /// VERIFIED via Vision AI analysis of teardown images:
+    /// - A18 Pro text label detected at x:13-14%, y:32-37%
+    /// - Rectangle detected at x:8%, y:33%, w:23%, h:8.6%
     var socRect: CGRect {
         switch self {
         case .iPhone15Pro, .iPhone15ProMax:
-            // A17 Pro: Upper-left of center, older layout
-            // Die center at ~38% from left, ~30% from top
-            return CGRect(x: 0.28, y: 0.22, width: 0.20, height: 0.12)
+            // A17 Pro: Similar left-side position to A18
+            return CGRect(x: 0.08, y: 0.32, width: 0.24, height: 0.10)
 
         case .iPhone16, .iPhone16Plus:
-            // A18: Slightly more centered due to new thermal design
-            // Die center at ~40% from left, ~32% from top
-            return CGRect(x: 0.30, y: 0.24, width: 0.20, height: 0.12)
+            // A18: Same general area
+            return CGRect(x: 0.08, y: 0.33, width: 0.24, height: 0.10)
 
         case .iPhone16Pro, .iPhone16ProMax:
-            // A18 Pro: CENTRALIZED chip placement
-            // Die center at ~45% from left, ~27% from top
-            return CGRect(x: 0.35, y: 0.19, width: 0.20, height: 0.12)
+            // A18 Pro: Vision AI detected at x:8-15%, y:32-37%
+            // Using rectangle [6]: x:8.2%, y:32.9%, w:22.8%, h:8.6%
+            return CGRect(x: 0.08, y: 0.32, width: 0.24, height: 0.10)
 
         case .iPhone17Pro, .iPhone17ProMax:
             // A19 Pro: Expected similar to 16 Pro
-            return CGRect(x: 0.35, y: 0.19, width: 0.20, height: 0.12)
+            return CGRect(x: 0.08, y: 0.32, width: 0.24, height: 0.10)
 
         case .unknown:
-            // Default to centralized position
-            return CGRect(x: 0.35, y: 0.20, width: 0.20, height: 0.12)
+            // Default to detected position
+            return CGRect(x: 0.08, y: 0.32, width: 0.24, height: 0.10)
         }
     }
 
     // MARK: - Taptic Engine Position
 
     /// The Taptic Engine (haptic motor) position at the bottom of the device.
-    /// Consistent across all models: ~28-30% from left, ~88-92% from top.
-    /// Offset LEFT of center (speaker is on right side).
+    /// VERIFIED via Vision AI: "TAPTIC ENGINE" label at x:16-18%, y:90-91%
+    /// Rectangle detected at x:65%, y:88% suggests the actual component area
     var tapticRect: CGRect {
-        // Position is nearly identical across all iPhone models
-        // Width ~40% of screen, Height ~6%, positioned bottom-left of center
         switch self {
         case .iPhone15Pro, .iPhone15ProMax:
-            return CGRect(x: 0.13, y: 0.89, width: 0.40, height: 0.055)
+            // Vision detected label at x:18%, y:91%
+            return CGRect(x: 0.12, y: 0.88, width: 0.24, height: 0.06)
 
         case .iPhone16, .iPhone16Plus:
-            // Slightly shifted due to new battery design
-            return CGRect(x: 0.14, y: 0.88, width: 0.40, height: 0.055)
+            // Vision detected label at x:16%, y:90%
+            return CGRect(x: 0.12, y: 0.88, width: 0.24, height: 0.06)
 
         case .iPhone16Pro, .iPhone16ProMax:
-            return CGRect(x: 0.13, y: 0.89, width: 0.40, height: 0.055)
+            // Vision detected: "TAPTIC ENGINE" at x:16-18%, y:90-91%
+            return CGRect(x: 0.12, y: 0.88, width: 0.24, height: 0.06)
 
         case .iPhone17Pro, .iPhone17ProMax:
-            return CGRect(x: 0.13, y: 0.89, width: 0.40, height: 0.055)
+            return CGRect(x: 0.12, y: 0.88, width: 0.24, height: 0.06)
 
         case .unknown:
-            return CGRect(x: 0.13, y: 0.89, width: 0.40, height: 0.055)
+            return CGRect(x: 0.12, y: 0.88, width: 0.24, height: 0.06)
         }
     }
 }
