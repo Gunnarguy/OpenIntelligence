@@ -219,6 +219,13 @@ public enum DSHaptics {
         guard isHapticCapable else { return }
         action()
     }
+
+    /// Report haptic to telemetry for HUD visualization
+    private static func reportToTelemetry(style: String) {
+        Task { @MainActor in
+            HardwareTelemetryState.shared.reportHaptic(style: style)
+        }
+    }
     #endif
 
     public static func selection() {
@@ -228,9 +235,10 @@ public enum DSHaptics {
             gen.prepare()
             gen.selectionChanged()
         }
+        reportToTelemetry(style: "selection")
         #endif
     }
-    
+
     public static func light() {
         #if canImport(UIKit)
         perform {
@@ -238,9 +246,10 @@ public enum DSHaptics {
             gen.prepare()
             gen.impactOccurred()
         }
+        reportToTelemetry(style: "light")
         #endif
     }
-    
+
     public static func medium() {
         #if canImport(UIKit)
         perform {
@@ -248,6 +257,7 @@ public enum DSHaptics {
             gen.prepare()
             gen.impactOccurred()
         }
+        reportToTelemetry(style: "medium")
         #endif
     }
 
@@ -258,6 +268,7 @@ public enum DSHaptics {
             gen.prepare()
             gen.notificationOccurred(.success)
         }
+        reportToTelemetry(style: "success")
         #endif
     }
 
@@ -268,6 +279,7 @@ public enum DSHaptics {
             gen.prepare()
             gen.notificationOccurred(.warning)
         }
+        reportToTelemetry(style: "warning")
         #endif
     }
 }

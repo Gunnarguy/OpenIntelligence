@@ -27,11 +27,12 @@ import Combine
 
 // MARK: - Hardware Component Types
 
-/// Represents different hardware components in the SoC
+/// Represents different hardware components in the device
 enum HardwareComponent: String, CaseIterable, Sendable {
     case neuralEngine = "Neural Engine"
     case gpu = "GPU"
     case cpu = "CPU"
+    case haptic = "Taptic Engine"
 
     /// The signature color for this component
     var color: Color {
@@ -42,6 +43,8 @@ enum HardwareComponent: String, CaseIterable, Sendable {
             return Color(red: 0.20, green: 0.68, blue: 0.90) // Neon Cyan #32ADE6
         case .cpu:
             return Color(red: 1.0, green: 0.58, blue: 0.0)   // Electric Orange #FF9500
+        case .haptic:
+            return Color(red: 1.0, green: 0.84, blue: 0.88)  // Soft Pink #FFD6E0
         }
     }
 
@@ -58,6 +61,9 @@ enum HardwareComponent: String, CaseIterable, Sendable {
         case .cpu:
             // CPU cores are typically in the top portion
             return CGPoint(x: 0.50, y: 0.30)
+        case .haptic:
+            // Taptic Engine at bottom of device, left of center
+            return CGPoint(x: 0.40, y: 0.90)
         }
     }
 }
@@ -120,6 +126,9 @@ final class HardwareTelemetryState: ObservableObject {
     /// CPU activity intensity
     @Published private(set) var cpuIntensity: Double = 0.0
 
+    /// Haptic (Taptic Engine) activity intensity
+    @Published private(set) var hapticIntensity: Double = 0.0
+
     /// Current activity label for display
     @Published private(set) var currentActivityLabel: String = ""
 
@@ -130,6 +139,7 @@ final class HardwareTelemetryState: ObservableObject {
     @Published private(set) var aneHistory: [Double] = []
     @Published private(set) var gpuHistory: [Double] = []
     @Published private(set) var cpuHistory: [Double] = []
+    @Published private(set) var hapticHistory: [Double] = []
 
     // MARK: - Internal State
 
@@ -273,9 +283,38 @@ final class HardwareTelemetryState: ObservableObject {
             aneIntensity = 0.0
             gpuIntensity = 0.0
             cpuIntensity = 0.0
+            hapticIntensity = 0.0
             currentActivityLabel = ""
             isActive = false
         }
+    }
+
+    // MARK: - Haptic Feedback Reporting
+
+    /// Report haptic feedback activity (Taptic Engine)
+    /// Called by DSHaptics when haptic feedback is triggered
+    /// - Parameter style: The style of haptic (light, medium, selection, etc.)
+    func reportHaptic(style: String = "impact") {
+        // Haptic feedback is very brief - short pulse
+        decayTimers[.haptic]?.cancel()
+
+        withAnimation(.easeOut(duration: 0.05)) {
+            hapticIntensity = 1.0
+            isActive = true
+        }
+
+        // Very fast decay - haptics are instantaneous
+        decayTimers[.haptic] = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(80))
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                withAnimation(.easeIn(duration: 0.15)) {
+                    self?.hapticIntensity = 0.0
+                }
+            }
+        }
+
+        Log.verbose("[HardwareTelemetry] Haptic pulse: \(style)", category: .telemetry)
     }
 
     // MARK: - Convenience Methods for Common Operations
@@ -312,6 +351,8 @@ final class HardwareTelemetryState: ObservableObject {
             gpuIntensity = value
         case .cpu:
             cpuIntensity = value
+        case .haptic:
+            hapticIntensity = value
         }
     }
 
@@ -323,7 +364,7 @@ final class HardwareTelemetryState: ObservableObject {
         // Check if all components are now idle
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(100))
-            if aneIntensity < 0.01 && gpuIntensity < 0.01 && cpuIntensity < 0.01 {
+            if aneIntensity < 0.01 && gpuIntensity < 0.01 && cpuIntensity < 0.01 && hapticIntensity < 0.01 {
                 withAnimation {
                     isActive = false
                     currentActivityLabel = ""
@@ -346,6 +387,7 @@ final class HardwareTelemetryState: ObservableObject {
         aneHistory.append(aneIntensity)
         gpuHistory.append(gpuIntensity)
         cpuHistory.append(cpuIntensity)
+        hapticHistory.append(hapticIntensity)
 
         // Trim to max entries
         if aneHistory.count > maxHistoryEntries {
@@ -356,6 +398,9 @@ final class HardwareTelemetryState: ObservableObject {
         }
         if cpuHistory.count > maxHistoryEntries {
             cpuHistory.removeFirst(cpuHistory.count - maxHistoryEntries)
+        }
+        if hapticHistory.count > maxHistoryEntries {
+            hapticHistory.removeFirst(hapticHistory.count - maxHistoryEntries)
         }
     }
 

@@ -24,7 +24,7 @@ import UIKit
 /// Position normalized (0-1) relative to screen dimensions.
 /// Die size ~10mm = ~6-8% of screen width, made slightly larger for visibility.
 enum DeviceComponentLayout {
-    
+
     case iPhone15Pro
     case iPhone15ProMax
     case iPhone16
@@ -34,7 +34,7 @@ enum DeviceComponentLayout {
     case iPhone17Pro
     case iPhone17ProMax
     case unknown
-    
+
     /// Detect the current device via utsname()
     static var current: DeviceComponentLayout {
         var systemInfo = utsname()
@@ -44,7 +44,7 @@ enum DeviceComponentLayout {
             guard let value = element.value as? Int8, value != 0 else { return identifier }
             return identifier + String(UnicodeScalar(UInt8(value)))
         }
-        
+
         switch identifier {
         case "iPhone16,1": return .iPhone15Pro
         case "iPhone16,2": return .iPhone15ProMax
@@ -63,7 +63,7 @@ enum DeviceComponentLayout {
             return .unknown
         }
     }
-    
+
     var displayName: String {
         switch self {
         case .iPhone15Pro: return "iPhone 15 Pro"
@@ -77,7 +77,7 @@ enum DeviceComponentLayout {
         case .unknown: return "Unknown Device"
         }
     }
-    
+
     var chipName: String {
         switch self {
         case .iPhone15Pro, .iPhone15ProMax: return "A17 Pro"
@@ -87,9 +87,9 @@ enum DeviceComponentLayout {
         case .unknown: return "Apple Silicon"
         }
     }
-    
+
     // MARK: - SoC Position (ONE chip, ONE location)
-    
+
     /// The actual position of the SoC die behind the screen.
     /// Position is center-point X, center-point Y, normalized 0-1.
     /// Size enlarged slightly for visibility (real die is ~6% but we show ~10%).
@@ -99,24 +99,51 @@ enum DeviceComponentLayout {
             // A17 Pro: Upper-left of center, older layout
             // Die center at ~38% from left, ~30% from top
             return CGRect(x: 0.28, y: 0.22, width: 0.20, height: 0.12)
-            
+
         case .iPhone16, .iPhone16Plus:
             // A18: Slightly more centered due to new thermal design
             // Die center at ~40% from left, ~32% from top
             return CGRect(x: 0.30, y: 0.24, width: 0.20, height: 0.12)
-            
+
         case .iPhone16Pro, .iPhone16ProMax:
             // A18 Pro: CENTRALIZED chip placement
             // Die center at ~45% from left, ~27% from top
             return CGRect(x: 0.35, y: 0.19, width: 0.20, height: 0.12)
-            
+
         case .iPhone17Pro, .iPhone17ProMax:
             // A19 Pro: Expected similar to 16 Pro
             return CGRect(x: 0.35, y: 0.19, width: 0.20, height: 0.12)
-            
+
         case .unknown:
             // Default to centralized position
             return CGRect(x: 0.35, y: 0.20, width: 0.20, height: 0.12)
+        }
+    }
+
+    // MARK: - Taptic Engine Position
+
+    /// The Taptic Engine (haptic motor) position at the bottom of the device.
+    /// Consistent across all models: ~28-30% from left, ~88-92% from top.
+    /// Offset LEFT of center (speaker is on right side).
+    var tapticRect: CGRect {
+        // Position is nearly identical across all iPhone models
+        // Width ~40% of screen, Height ~6%, positioned bottom-left of center
+        switch self {
+        case .iPhone15Pro, .iPhone15ProMax:
+            return CGRect(x: 0.13, y: 0.89, width: 0.40, height: 0.055)
+
+        case .iPhone16, .iPhone16Plus:
+            // Slightly shifted due to new battery design
+            return CGRect(x: 0.14, y: 0.88, width: 0.40, height: 0.055)
+
+        case .iPhone16Pro, .iPhone16ProMax:
+            return CGRect(x: 0.13, y: 0.89, width: 0.40, height: 0.055)
+
+        case .iPhone17Pro, .iPhone17ProMax:
+            return CGRect(x: 0.13, y: 0.89, width: 0.40, height: 0.055)
+
+        case .unknown:
+            return CGRect(x: 0.13, y: 0.89, width: 0.40, height: 0.055)
         }
     }
 }
@@ -127,21 +154,21 @@ enum DeviceComponentLayout {
 /// Color blends based on which components are active (CPU/GPU/ANE).
 struct HardwareXRayOverlay: View {
     @ObservedObject private var telemetry = HardwareTelemetryState.shared
-    
+
     private let layout = DeviceComponentLayout.current
     var showDeviceInfo: Bool = false
-    
+
     /// Combined intensity from all active components
     private var totalIntensity: Double {
         max(telemetry.cpuIntensity, telemetry.gpuIntensity, telemetry.aneIntensity)
     }
-    
+
     /// Dominant color based on which component is most active
     private var dominantColor: Color {
         let cpu = telemetry.cpuIntensity
         let gpu = telemetry.gpuIntensity
         let ane = telemetry.aneIntensity
-        
+
         if ane >= gpu && ane >= cpu {
             return HardwareComponent.neuralEngine.color // Purple
         } else if gpu >= cpu {
@@ -150,7 +177,7 @@ struct HardwareXRayOverlay: View {
             return HardwareComponent.cpu.color // Orange
         }
     }
-    
+
     /// Active component labels
     private var activeComponents: [String] {
         var components: [String] = []
@@ -159,15 +186,16 @@ struct HardwareXRayOverlay: View {
         if telemetry.cpuIntensity > 0.01 { components.append("CPU") }
         return components
     }
-    
+
     var body: some View {
         GeometryReader { geometry in
             let screenWidth = geometry.size.width
             let screenHeight = geometry.size.height
             let socFrame = rectToScreen(layout.socRect, width: screenWidth, height: screenHeight)
-            
+            let tapticFrame = rectToScreen(layout.tapticRect, width: screenWidth, height: screenHeight)
+
             ZStack {
-                // Show SoC border when any component is active
+                // Show SoC border when any compute component is active
                 if totalIntensity > 0.01 {
                     GlowingSoCBorder(
                         frame: socFrame,
@@ -180,7 +208,15 @@ struct HardwareXRayOverlay: View {
                         aneIntensity: telemetry.aneIntensity
                     )
                 }
-                
+
+                // Show Taptic Engine border when haptics fire
+                if telemetry.hapticIntensity > 0.01 {
+                    GlowingTapticBorder(
+                        frame: tapticFrame,
+                        intensity: telemetry.hapticIntensity
+                    )
+                }
+
                 // Activity label below the SoC
                 if !telemetry.currentActivityLabel.isEmpty {
                     Text(telemetry.currentActivityLabel)
@@ -191,7 +227,7 @@ struct HardwareXRayOverlay: View {
                         .background(Capsule().fill(Color.black.opacity(0.7)))
                         .position(x: socFrame.midX, y: socFrame.maxY + 40)
                 }
-                
+
                 // Device info (for debugging)
                 if showDeviceInfo {
                     Text("\(layout.displayName)")
@@ -203,7 +239,7 @@ struct HardwareXRayOverlay: View {
         }
         .ignoresSafeArea()
     }
-    
+
     private func rectToScreen(_ rect: CGRect, width: CGFloat, height: CGFloat) -> CGRect {
         CGRect(
             x: rect.minX * width,
@@ -226,10 +262,10 @@ private struct GlowingSoCBorder: View {
     let cpuIntensity: Double
     let gpuIntensity: Double
     let aneIntensity: Double
-    
+
     private var glowRadius: CGFloat { CGFloat(6 + 18 * intensity) }
     private var borderWidth: CGFloat { CGFloat(2 + 3 * intensity) }
-    
+
     var body: some View {
         ZStack {
             // Multi-color glow based on all active components
@@ -254,26 +290,26 @@ private struct GlowingSoCBorder: View {
                     .frame(width: frame.width, height: frame.height)
                     .position(x: frame.midX, y: frame.midY)
             }
-            
+
             // Main border with dominant color
             RoundedRectangle(cornerRadius: 12)
                 .strokeBorder(color.opacity(0.7 + 0.3 * intensity), lineWidth: borderWidth)
                 .frame(width: frame.width, height: frame.height)
                 .position(x: frame.midX, y: frame.midY)
-            
+
             // Inner fill
             RoundedRectangle(cornerRadius: 12)
                 .fill(color.opacity(0.06 * intensity))
                 .frame(width: frame.width, height: frame.height)
                 .position(x: frame.midX, y: frame.midY)
-            
+
             // Chip name at top
             Text(chipName)
                 .font(.system(size: 11, weight: .bold, design: .monospaced))
                 .foregroundColor(.white.opacity(0.9))
                 .shadow(color: color.opacity(0.8), radius: 4)
                 .position(x: frame.midX, y: frame.minY + 16)
-            
+
             // Active component indicators
             HStack(spacing: 8) {
                 if cpuIntensity > 0.01 {
@@ -292,6 +328,58 @@ private struct GlowingSoCBorder: View {
     }
 }
 
+// MARK: - Glowing Taptic Engine Border
+
+/// A border representing the Taptic Engine at the bottom of the device
+private struct GlowingTapticBorder: View {
+    let frame: CGRect
+    let intensity: Double
+
+    private let hapticColor = HardwareComponent.haptic.color
+
+    private var glowRadius: CGFloat { CGFloat(8 + 20 * intensity) }
+    private var borderWidth: CGFloat { CGFloat(2 + 3 * intensity) }
+
+    var body: some View {
+        ZStack {
+            // Ripple effect glow (haptics create vibrations)
+            RoundedRectangle(cornerRadius: 6)
+                .strokeBorder(hapticColor.opacity(0.5 * intensity), lineWidth: borderWidth + 8)
+                .blur(radius: glowRadius * 1.5)
+                .frame(width: frame.width, height: frame.height)
+                .position(x: frame.midX, y: frame.midY)
+                .scaleEffect(1.0 + 0.1 * intensity) // Subtle pulse
+
+            // Inner glow
+            RoundedRectangle(cornerRadius: 6)
+                .strokeBorder(hapticColor.opacity(0.7 * intensity), lineWidth: borderWidth + 2)
+                .blur(radius: glowRadius * 0.6)
+                .frame(width: frame.width, height: frame.height)
+                .position(x: frame.midX, y: frame.midY)
+
+            // Main border
+            RoundedRectangle(cornerRadius: 6)
+                .strokeBorder(hapticColor.opacity(0.8 + 0.2 * intensity), lineWidth: borderWidth)
+                .frame(width: frame.width, height: frame.height)
+                .position(x: frame.midX, y: frame.midY)
+
+            // Inner fill
+            RoundedRectangle(cornerRadius: 6)
+                .fill(hapticColor.opacity(0.1 * intensity))
+                .frame(width: frame.width, height: frame.height)
+                .position(x: frame.midX, y: frame.midY)
+
+            // Label
+            Text("TAPTIC")
+                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                .foregroundColor(hapticColor.opacity(0.9))
+                .shadow(color: hapticColor.opacity(0.8), radius: 4)
+                .position(x: frame.midX, y: frame.midY)
+        }
+        .animation(.easeOut(duration: 0.08), value: intensity)
+    }
+}
+
 // MARK: - Component Indicator
 
 /// Small colored indicator showing a component's activity level
@@ -299,7 +387,7 @@ private struct ComponentIndicator: View {
     let name: String
     let color: Color
     let intensity: Double
-    
+
     var body: some View {
         HStack(spacing: 3) {
             Circle()
