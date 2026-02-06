@@ -411,7 +411,7 @@ struct ChatScreen: View {
             // Motherboard HUD - Full-screen X-ray overlay
             // Shows glowing borders at the ACTUAL physical locations where
             // the Neural Engine, GPU, and CPU sit behind the screen
-            if isProcessing || HardwareTelemetryState.shared.isActive {
+            if settings.showSiliconHUD && (isProcessing || HardwareTelemetryState.shared.isActive) {
                 HardwareXRayOverlay()
                     .allowsHitTesting(false) // Don't block touches
                     .transition(.opacity)

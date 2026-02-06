@@ -1273,6 +1273,28 @@ Text(mode.description)
                 AccentColorSettingsRow(accentColorHex: $settings.appAccentColorHex)
                     .padding(.horizontal)
                     .padding(.vertical, 12)
+
+                Divider()
+                    .padding(.horizontal)
+
+                // Silicon HUD Toggle
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Silicon HUD")
+                            .font(.subheadline.weight(.medium))
+                        Text("X-ray view of \(DeviceComponentLayout.current.chipName) activity")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+
+                    Spacer()
+
+                    Toggle("", isOn: $settings.showSiliconHUD)
+                        .labelsHidden()
+                        .tint(.purple)
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 12)
             }
         }
         .background(DSColors.surface)

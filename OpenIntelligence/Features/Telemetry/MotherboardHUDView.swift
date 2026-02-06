@@ -233,22 +233,23 @@ struct HardwareXRayOverlay: View {
                     )
                 }
 
-                // Activity label below the SoC
-                if !telemetry.currentActivityLabel.isEmpty {
-                    Text(telemetry.currentActivityLabel)
-                        .font(.system(size: 11, weight: .medium, design: .monospaced))
-                        .foregroundColor(.white.opacity(0.9))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Capsule().fill(Color.black.opacity(0.7)))
-                        .position(x: socFrame.midX, y: socFrame.maxY + 40)
+                // REMOVED: Activity label - too distracting
+
+                // Mini legend in top-right safe area (unobtrusive)
+                // Only shows when HUD is active, fades with activity
+                if totalIntensity > 0.01 || telemetry.hapticIntensity > 0.01 {
+                    SiliconLegend(
+                        chipName: layout.chipName,
+                        intensity: max(totalIntensity, telemetry.hapticIntensity)
+                    )
+                    .position(x: screenWidth - 50, y: geometry.safeAreaInsets.top + 50)
                 }
 
-                // Device info (for debugging)
+                // Device info (for debugging only)
                 if showDeviceInfo {
                     Text("\(layout.displayName)")
                         .font(.system(size: 9, weight: .medium, design: .monospaced))
-                        .foregroundColor(.gray.opacity(0.5))
+                        .foregroundColor(.gray.opacity(0.3))
                         .position(x: screenWidth / 2, y: screenHeight * 0.02)
                 }
             }
@@ -268,7 +269,12 @@ struct HardwareXRayOverlay: View {
 
 // MARK: - Glowing SoC Border
 
-/// A single glowing border representing the entire SoC with component indicators
+/// ULTRA-SUBTLE border showing the actual SoC location.
+/// Design principles:
+/// - Thin, barely-visible border (not distracting)
+/// - Minimal glow (just enough to notice)
+/// - NO text labels inside (clean, unobtrusive)
+/// - Color-coded by dominant component
 private struct GlowingSoCBorder: View {
     let frame: CGRect
     let color: Color
@@ -279,141 +285,138 @@ private struct GlowingSoCBorder: View {
     let gpuIntensity: Double
     let aneIntensity: Double
 
-    private var glowRadius: CGFloat { CGFloat(6 + 18 * intensity) }
-    private var borderWidth: CGFloat { CGFloat(2 + 3 * intensity) }
+    // SUBTLE: Much smaller glow radius
+    private var glowRadius: CGFloat { CGFloat(3 + 6 * intensity) }
+    // SUBTLE: Thinner borders
+    private var borderWidth: CGFloat { CGFloat(1 + 1.5 * intensity) }
+    // SUBTLE: Lower base opacity
+    private var baseOpacity: Double { 0.25 + 0.35 * intensity }
 
     var body: some View {
         ZStack {
-            // Multi-color glow based on all active components
-            if aneIntensity > 0.01 {
-                RoundedRectangle(cornerRadius: 12)
-                    .strokeBorder(HardwareComponent.neuralEngine.color.opacity(0.3 * aneIntensity), lineWidth: borderWidth + 6)
-                    .blur(radius: glowRadius * 1.2)
-                    .frame(width: frame.width, height: frame.height)
-                    .position(x: frame.midX, y: frame.midY)
-            }
-            if gpuIntensity > 0.01 {
-                RoundedRectangle(cornerRadius: 12)
-                    .strokeBorder(HardwareComponent.gpu.color.opacity(0.3 * gpuIntensity), lineWidth: borderWidth + 4)
-                    .blur(radius: glowRadius)
-                    .frame(width: frame.width, height: frame.height)
-                    .position(x: frame.midX, y: frame.midY)
-            }
-            if cpuIntensity > 0.01 {
-                RoundedRectangle(cornerRadius: 12)
-                    .strokeBorder(HardwareComponent.cpu.color.opacity(0.3 * cpuIntensity), lineWidth: borderWidth + 2)
-                    .blur(radius: glowRadius * 0.8)
-                    .frame(width: frame.width, height: frame.height)
-                    .position(x: frame.midX, y: frame.midY)
-            }
-
-            // Main border with dominant color
-            RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(color.opacity(0.7 + 0.3 * intensity), lineWidth: borderWidth)
+            // Single soft glow layer (not 3 separate ones)
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(color.opacity(baseOpacity * 0.4), lineWidth: borderWidth + 3)
+                .blur(radius: glowRadius)
                 .frame(width: frame.width, height: frame.height)
                 .position(x: frame.midX, y: frame.midY)
 
-            // Inner fill
-            RoundedRectangle(cornerRadius: 12)
-                .fill(color.opacity(0.06 * intensity))
+            // Main border - thin and subtle
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(color.opacity(baseOpacity), lineWidth: borderWidth)
                 .frame(width: frame.width, height: frame.height)
                 .position(x: frame.midX, y: frame.midY)
 
-            // Chip name at top
-            Text(chipName)
-                .font(.system(size: 11, weight: .bold, design: .monospaced))
-                .foregroundColor(.white.opacity(0.9))
-                .shadow(color: color.opacity(0.8), radius: 4)
-                .position(x: frame.midX, y: frame.minY + 16)
+            // Very subtle inner tint
+            RoundedRectangle(cornerRadius: 8)
+                .fill(color.opacity(0.02 * intensity))
+                .frame(width: frame.width, height: frame.height)
+                .position(x: frame.midX, y: frame.midY)
 
-            // Active component indicators
-            HStack(spacing: 8) {
+            // Corner activity dots (instead of labels)
+            // Three tiny dots at top-right showing which components are active
+            HStack(spacing: 2) {
                 if cpuIntensity > 0.01 {
-                    ComponentIndicator(name: "CPU", color: HardwareComponent.cpu.color, intensity: cpuIntensity)
+                    Circle()
+                        .fill(HardwareComponent.cpu.color.opacity(0.6 + 0.4 * cpuIntensity))
+                        .frame(width: 4, height: 4)
                 }
                 if gpuIntensity > 0.01 {
-                    ComponentIndicator(name: "GPU", color: HardwareComponent.gpu.color, intensity: gpuIntensity)
+                    Circle()
+                        .fill(HardwareComponent.gpu.color.opacity(0.6 + 0.4 * gpuIntensity))
+                        .frame(width: 4, height: 4)
                 }
                 if aneIntensity > 0.01 {
-                    ComponentIndicator(name: "ANE", color: HardwareComponent.neuralEngine.color, intensity: aneIntensity)
+                    Circle()
+                        .fill(HardwareComponent.neuralEngine.color.opacity(0.6 + 0.4 * aneIntensity))
+                        .frame(width: 4, height: 4)
                 }
             }
-            .position(x: frame.midX, y: frame.midY + 8)
+            .position(x: frame.maxX - 12, y: frame.minY + 8)
         }
-        .animation(.easeOut(duration: 0.15), value: intensity)
+        .animation(.easeOut(duration: 0.2), value: intensity)
     }
 }
 
 // MARK: - Glowing Taptic Engine Border
 
-/// A border representing the Taptic Engine at the bottom of the device
+/// ULTRA-SUBTLE border for the Taptic Engine.
+/// Appears briefly when haptics fire, then fades.
 private struct GlowingTapticBorder: View {
     let frame: CGRect
     let intensity: Double
 
     private let hapticColor = HardwareComponent.haptic.color
 
-    private var glowRadius: CGFloat { CGFloat(8 + 20 * intensity) }
-    private var borderWidth: CGFloat { CGFloat(2 + 3 * intensity) }
+    // SUBTLE: Much smaller glow
+    private var glowRadius: CGFloat { CGFloat(4 + 8 * intensity) }
+    private var borderWidth: CGFloat { CGFloat(1 + 1.5 * intensity) }
+    private var baseOpacity: Double { 0.3 + 0.4 * intensity }
 
     var body: some View {
         ZStack {
-            // Ripple effect glow (haptics create vibrations)
-            RoundedRectangle(cornerRadius: 6)
-                .strokeBorder(hapticColor.opacity(0.5 * intensity), lineWidth: borderWidth + 8)
-                .blur(radius: glowRadius * 1.5)
-                .frame(width: frame.width, height: frame.height)
-                .position(x: frame.midX, y: frame.midY)
-                .scaleEffect(1.0 + 0.1 * intensity) // Subtle pulse
-
-            // Inner glow
-            RoundedRectangle(cornerRadius: 6)
-                .strokeBorder(hapticColor.opacity(0.7 * intensity), lineWidth: borderWidth + 2)
-                .blur(radius: glowRadius * 0.6)
+            // Single soft glow
+            RoundedRectangle(cornerRadius: 4)
+                .strokeBorder(hapticColor.opacity(baseOpacity * 0.5), lineWidth: borderWidth + 2)
+                .blur(radius: glowRadius)
                 .frame(width: frame.width, height: frame.height)
                 .position(x: frame.midX, y: frame.midY)
 
-            // Main border
-            RoundedRectangle(cornerRadius: 6)
-                .strokeBorder(hapticColor.opacity(0.8 + 0.2 * intensity), lineWidth: borderWidth)
+            // Main border - thin
+            RoundedRectangle(cornerRadius: 4)
+                .strokeBorder(hapticColor.opacity(baseOpacity), lineWidth: borderWidth)
                 .frame(width: frame.width, height: frame.height)
                 .position(x: frame.midX, y: frame.midY)
 
-            // Inner fill
-            RoundedRectangle(cornerRadius: 6)
-                .fill(hapticColor.opacity(0.1 * intensity))
+            // Subtle inner fill
+            RoundedRectangle(cornerRadius: 4)
+                .fill(hapticColor.opacity(0.03 * intensity))
                 .frame(width: frame.width, height: frame.height)
                 .position(x: frame.midX, y: frame.midY)
 
-            // Label
-            Text("TAPTIC")
-                .font(.system(size: 9, weight: .bold, design: .monospaced))
-                .foregroundColor(hapticColor.opacity(0.9))
-                .shadow(color: hapticColor.opacity(0.8), radius: 4)
+            // No text label - just a tiny indicator dot
+            Circle()
+                .fill(hapticColor.opacity(0.7 + 0.3 * intensity))
+                .frame(width: 4, height: 4)
                 .position(x: frame.midX, y: frame.midY)
         }
-        .animation(.easeOut(duration: 0.08), value: intensity)
+        .animation(.easeOut(duration: 0.1), value: intensity)
     }
 }
 
-// MARK: - Component Indicator
+// MARK: - Silicon Legend
 
-/// Small colored indicator showing a component's activity level
-private struct ComponentIndicator: View {
-    let name: String
-    let color: Color
+/// Tiny, unobtrusive indicator showing users what the HUD represents.
+/// Positioned in a corner, ultra-minimal, helps answer "wtf is this?"
+private struct SiliconLegend: View {
+    let chipName: String
     let intensity: Double
 
+    private var opacity: Double { 0.4 + 0.3 * intensity }
+
     var body: some View {
-        HStack(spacing: 3) {
-            Circle()
-                .fill(color)
-                .frame(width: 6, height: 6)
-                .shadow(color: color.opacity(0.8), radius: 3)
-            Text(name)
-                .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                .foregroundColor(color.opacity(0.8 + 0.2 * intensity))
+        VStack(alignment: .trailing, spacing: 2) {
+            // Tiny chip icon + name
+            HStack(spacing: 4) {
+                Image(systemName: "cpu")
+                    .font(.system(size: 8, weight: .medium))
+                Text(chipName)
+                    .font(.system(size: 8, weight: .semibold, design: .monospaced))
+            }
+            .foregroundColor(.white.opacity(opacity))
+
+            // "Silicon Activity" hint
+            Text("activity")
+                .font(.system(size: 7, weight: .regular, design: .monospaced))
+                .foregroundColor(.gray.opacity(opacity * 0.7))
         }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
+        .background(
+            RoundedRectangle(cornerRadius: 4)
+                .fill(Color.black.opacity(0.3))
+        )
+        .animation(.easeOut(duration: 0.3), value: intensity)
     }
 }
 

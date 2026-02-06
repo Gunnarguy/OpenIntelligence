@@ -73,6 +73,7 @@ final class SettingsStore: ObservableObject {
 
         // Appearance
         static let appAccentColorHex = "appAccentColorHex" // nil = system default
+        static let showSiliconHUD = "showSiliconHUD" // Bool - Show hardware activity overlay
     }
 
     // MARK: - Published Settings (bind from UI)
@@ -201,6 +202,10 @@ final class SettingsStore: ObservableObject {
     /// App-wide accent color. nil = use system default.
     /// When set, overrides the tint color throughout the app.
     @Published var appAccentColorHex: String?
+
+    /// Show the Silicon HUD overlay during processing.
+    /// Displays subtle borders at the physical SoC and Taptic Engine locations.
+    @Published var showSiliconHUD: Bool
 
     // MARK: - Infra
 
@@ -394,6 +399,8 @@ final class SettingsStore: ObservableObject {
         // Appearance settings
         // Accent color - nil means use system default
         appAccentColorHex = defaults.string(forKey: Keys.appAccentColorHex)
+        // Silicon HUD - defaults to true (show the X-ray overlay)
+        showSiliconHUD = defaults.object(forKey: Keys.showSiliconHUD) as? Bool ?? true
 
         // Quality mode - load from UserDefaults or default to standard
         if let savedMode = defaults.string(forKey: Keys.ragQualityMode),
@@ -467,6 +474,7 @@ final class SettingsStore: ObservableObject {
             $enableParentDocumentRetrieval.map { _ in () }.eraseToAnyPublisher(),
             $enableConversationMemory.map { _ in () }.eraseToAnyPublisher(),
             $appAccentColorHex.map { _ in () }.eraseToAnyPublisher(),
+            $showSiliconHUD.map { _ in () }.eraseToAnyPublisher(),
         ]
         Publishers.MergeMany(publishers)
             .sink { [weak self] in
@@ -596,6 +604,7 @@ final class SettingsStore: ObservableObject {
 
         // Appearance
         defaults.set(appAccentColorHex, forKey: Keys.appAccentColorHex)
+        defaults.set(showSiliconHUD, forKey: Keys.showSiliconHUD)
     }
 
     // MARK: - Side Effects (Debounced)
