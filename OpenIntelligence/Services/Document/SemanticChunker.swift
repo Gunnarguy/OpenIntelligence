@@ -64,13 +64,23 @@ class SemanticChunker {
 
     // Notification posted when diagnostics are updated (see global Notification.Name extension)
 
+    // MARK: - Cached NLP Instances (avoid per-chunk allocation)
+    // NLTagger and NLTokenizer creation is ~0.5-1ms each.
+    // With 200 chunks × 3 taggers + 2 tokenizers = 1000+ allocations → ~0.5-1s wasted.
+    // Caching and reusing via .string reassignment eliminates this overhead entirely.
+
+    private let cachedWordTokenizer = NLTokenizer(unit: .word)
+    private let cachedSentenceTokenizer = NLTokenizer(unit: .sentence)
+    private let cachedNERTagger = NLTagger(tagSchemes: [.nameType])
+    private let cachedLexicalTagger = NLTagger(tagSchemes: [.lexicalClass])
+    private let cachedKeywordTagger = NLTagger(tagSchemes: [.lemma, .lexicalClass, .language])
+
     // MARK: - Token/Language helpers
 
     private func tokenWordCount(_ text: String) -> Int {
-        let tokenizer = NLTokenizer(unit: .word)
-        tokenizer.string = text
+        cachedWordTokenizer.string = text
         var count = 0
-        tokenizer.enumerateTokens(in: text.startIndex..<text.endIndex) { _, _ in
+        cachedWordTokenizer.enumerateTokens(in: text.startIndex..<text.endIndex) { _, _ in
             count += 1
             return true
         }
@@ -78,10 +88,9 @@ class SemanticChunker {
     }
 
     private func estimateSentenceCount(for text: String) -> Int {
-        let tokenizer = NLTokenizer(unit: .sentence)
-        tokenizer.string = text
+        cachedSentenceTokenizer.string = text
         var count = 0
-        tokenizer.enumerateTokens(in: text.startIndex..<text.endIndex) { _, _ in
+        cachedSentenceTokenizer.enumerateTokens(in: text.startIndex..<text.endIndex) { _, _ in
             count += 1
             return true
         }
@@ -89,12 +98,11 @@ class SemanticChunker {
     }
 
     private func averageSentenceLength(for text: String) -> Double {
-        let sentenceTokenizer = NLTokenizer(unit: .sentence)
-        sentenceTokenizer.string = text
+        cachedSentenceTokenizer.string = text
         var totalWords = 0
         var sentenceCount = 0
 
-        sentenceTokenizer.enumerateTokens(in: text.startIndex..<text.endIndex) { range, _ in
+        cachedSentenceTokenizer.enumerateTokens(in: text.startIndex..<text.endIndex) { range, _ in
             let sentence = String(text[range])
             totalWords += tokenWordCount(sentence)
             sentenceCount += 1
@@ -279,6 +287,9 @@ class SemanticChunker {
         let topicBoundaries = config.useTopicDetection ? detectTopicBoundaries(text) : []
         Log.debug("[SemanticChunker] Detected \(topicBoundaries.count) linguistic topic boundaries", category: .ingestion)
 
+        // 2.5. Detect table blocks for atomic preservation
+        let tableBlocks = detectTableBlocks(text)
+
         // 3. Chunk with semantic awareness
         var chunks: [EnhancedChunk] = []
         var currentPosition = text.startIndex
@@ -329,7 +340,8 @@ class SemanticChunker {
                 from: currentPosition,
                 config: config,
                 topicBoundaries: topicBoundaries,
-                sections: sections
+                sections: sections,
+                tableBlocks: tableBlocks
             )
 
             // Safety check: ensure range is valid and not empty
@@ -346,13 +358,12 @@ class SemanticChunker {
             if wordCount > config.maxSize {
                 Log.warning("[SemanticChunker] HARD LIMIT: Chunk \(chunkIndex + 1) has \(wordCount) words, truncating to \(config.maxSize)", category: .ingestion)
 
-                // Use NLTokenizer to properly count words (handles tabs, special chars)
+                // Use cached NLTokenizer to properly count words (handles tabs, special chars)
                 // This matches how tokenWordCount() works
-                let tokenizer = NLTokenizer(unit: .word)
-                tokenizer.string = chunkText
+                cachedWordTokenizer.string = chunkText
 
                 var wordRanges: [Range<String.Index>] = []
-                tokenizer.enumerateTokens(in: chunkText.startIndex..<chunkText.endIndex) { range, _ in
+                cachedWordTokenizer.enumerateTokens(in: chunkText.startIndex..<chunkText.endIndex) { range, _ in
                     wordRanges.append(range)
                     return wordRanges.count < config.maxSize  // Stop after maxSize words
                 }
@@ -518,6 +529,7 @@ class SemanticChunker {
         }
 
         let sections = detectSections(text)
+        let tableBlocks = detectTableBlocks(text)
 
         var chunks: [EnhancedChunk] = []
         var currentPosition = text.startIndex
@@ -561,7 +573,8 @@ class SemanticChunker {
                 from: currentPosition,
                 config: config,
                 topicBoundaries: topicBoundaries,
-                sections: sections
+                sections: sections,
+                tableBlocks: tableBlocks
             )
 
             guard chunkRange.lowerBound < chunkRange.upperBound else { break }
@@ -612,6 +625,105 @@ class SemanticChunker {
         let title: String
         let range: Range<String.Index>
         let level: Int  // 1 = top-level, 2 = subsection, 3 = sub-subsection
+    }
+
+    // MARK: - Table Block Detection (Atomic Preservation)
+
+    /// A contiguous block of table data that should not be split during chunking.
+    /// Tables (spec sheets, data grids, markdown tables) lose meaning when split
+    /// across chunk boundaries. Detected as a pre-pass and treated as atomic units.
+    struct TableBlock {
+        let range: Range<String.Index>
+        let lineCount: Int
+    }
+
+    /// Detect contiguous table blocks in text.
+    ///
+    /// Scans line-by-line for table patterns:
+    /// - **Markdown tables**: Lines with 2+ `|` characters (including separator rows like `|---|---|`)
+    /// - **Tab-separated data**: Lines with 2+ tab characters and non-whitespace content
+    ///
+    /// Requires at least 2 consecutive matching lines to form a table block.
+    /// Single matching lines are ignored (likely coincidental pipe usage).
+    private func detectTableBlocks(_ text: String) -> [TableBlock] {
+        var blocks: [TableBlock] = []
+        var tableStartLine: String.Index?
+        var lastTableLineEnd: String.Index?
+        var consecutiveTableLines = 0
+
+        var lineStart = text.startIndex
+        while lineStart < text.endIndex {
+            // Find line end
+            let lineEnd = text[lineStart...].firstIndex(of: "\n") ?? text.endIndex
+            let line = String(text[lineStart..<lineEnd])
+
+            if isTableLine(line) {
+                if tableStartLine == nil {
+                    tableStartLine = lineStart
+                }
+                // Include the newline in the range so the table block covers full lines
+                lastTableLineEnd = lineEnd < text.endIndex ? text.index(after: lineEnd) : lineEnd
+                consecutiveTableLines += 1
+            } else {
+                // End of potential table block
+                if consecutiveTableLines >= 2, let start = tableStartLine, let end = lastTableLineEnd {
+                    blocks.append(TableBlock(range: start..<end, lineCount: consecutiveTableLines))
+                }
+                tableStartLine = nil
+                lastTableLineEnd = nil
+                consecutiveTableLines = 0
+            }
+
+            // Move to next line
+            if lineEnd < text.endIndex {
+                lineStart = text.index(after: lineEnd)
+            } else {
+                break
+            }
+        }
+
+        // Handle table at end of text
+        if consecutiveTableLines >= 2, let start = tableStartLine, let end = lastTableLineEnd {
+            blocks.append(TableBlock(range: start..<end, lineCount: consecutiveTableLines))
+        }
+
+        if !blocks.isEmpty {
+            Log.debug("[SemanticChunker] Detected \(blocks.count) table blocks (\(blocks.map { $0.lineCount }.reduce(0, +)) total lines)", category: .ingestion)
+        }
+        return blocks
+    }
+
+    /// Check if a line matches table patterns (markdown pipes or tab-separated columns).
+    private func isTableLine(_ line: String) -> Bool {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return false }
+
+        // Markdown table: line has 2+ pipe characters
+        let pipeCount = trimmed.filter { $0 == "|" }.count
+        if pipeCount >= 2 { return true }
+
+        // Markdown separator row: |---|---| or +---+---+
+        if (trimmed.hasPrefix("|") || trimmed.hasPrefix("+")) &&
+            trimmed.contains("-") && pipeCount >= 1 {
+            return true
+        }
+
+        // Tab-separated data: 2+ tabs with actual content between them
+        let tabCount = trimmed.filter { $0 == "\t" }.count
+        if tabCount >= 2 {
+            // Verify there's actual content (not just whitespace with tabs)
+            let segments = trimmed.split(separator: "\t", omittingEmptySubsequences: false)
+            let nonEmptySegments = segments.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+            if nonEmptySegments.count >= 2 { return true }
+        }
+
+        return false
+    }
+
+    /// Check if a position falls within any detected table block.
+    /// Returns the containing table block, or nil if the position is not inside a table.
+    private func tableBlockContaining(_ index: String.Index, in tableBlocks: [TableBlock]) -> TableBlock? {
+        return tableBlocks.first { $0.range.contains(index) }
     }
 
     /// Detect section headers and boundaries with hierarchical levels
@@ -760,12 +872,11 @@ class SemanticChunker {
 
         let actualThreshold = threshold ?? embeddingSimilarityThreshold
 
-        // 1. Split into sentences
-        let sentenceTokenizer = NLTokenizer(unit: .sentence)
-        sentenceTokenizer.string = text
+        // 1. Split into sentences (reuse cached tokenizer)
+        cachedSentenceTokenizer.string = text
 
         var sentences: [(text: String, range: Range<String.Index>)] = []
-        sentenceTokenizer.enumerateTokens(in: text.startIndex ..< text.endIndex) { range, _ in
+        cachedSentenceTokenizer.enumerateTokens(in: text.startIndex ..< text.endIndex) { range, _ in
             let sentenceText = String(text[range]).trimmingCharacters(in: .whitespacesAndNewlines)
             if sentenceText.count > 10 { // Filter out very short fragments
                 sentences.append((sentenceText, range))
@@ -833,7 +944,8 @@ class SemanticChunker {
         from start: String.Index,
         config: ChunkingConfig,
         topicBoundaries: [String.Index],
-        sections: [DetectedSection]
+        sections: [DetectedSection],
+        tableBlocks: [TableBlock] = []
     ) -> Range<String.Index> {
         // 1. Calculate permissible range based on word count
         // convert min/max/target words to approximate character offsets
@@ -845,11 +957,13 @@ class SemanticChunker {
 
         // 2. Check for strong semantic boundaries (Sections) within range
         // We prefer to break *before* a new section starts
+        // Skip boundaries that fall inside a table block (splitting tables destroys meaning)
         for section in sections {
             let sectionStart = section.range.lowerBound
             if sectionStart > minIndex && sectionStart <= maxIndex {
-                // Found a section start within permissible range.
-                // Verify word count is reasonable (closer to target is better, but structure wins)
+                // Don't split inside a table
+                if tableBlockContaining(sectionStart, in: tableBlocks) != nil { continue }
+
                 let chunkText = text[start..<sectionStart]
                 let count = tokenWordCount(String(chunkText))
 
@@ -860,9 +974,27 @@ class SemanticChunker {
             }
         }
 
+        // 2.5. Check for table block ends within range (natural break after table completion)
+        for table in tableBlocks {
+            let tableEnd = table.range.upperBound
+            if tableEnd > minIndex && tableEnd <= maxIndex {
+                let chunkText = text[start..<tableEnd]
+                let count = tokenWordCount(String(chunkText))
+
+                if count >= config.minSize && count <= config.maxSize {
+                    Log.verbose("[SemanticChunker] Snapping to table end (\(table.lineCount) lines)", category: .ingestion)
+                    return start..<tableEnd
+                }
+            }
+        }
+
         // 3. Check for topic boundaries within range
+        // Skip boundaries inside table blocks
         for boundary in topicBoundaries {
             if boundary > minIndex && boundary <= maxIndex {
+                // Don't split inside a table
+                if tableBlockContaining(boundary, in: tableBlocks) != nil { continue }
+
                 let chunkText = text[start..<boundary]
                 let count = tokenWordCount(String(chunkText))
 
@@ -914,6 +1046,35 @@ class SemanticChunker {
         // Adjust to nearest sentence boundary
         if let sentenceEnd = findNearestSentenceEnd(in: text, near: targetIndex, within: 100) {
             targetIndex = sentenceEnd
+        }
+
+        // 5. Table block protection: if the proposed end falls within a table, adjust
+        if let table = tableBlockContaining(targetIndex, in: tableBlocks) {
+            // Option A: Extend to include the full table (if within word limit)
+            let extendedText = String(text[start..<table.range.upperBound])
+            let extendedWordCount = tokenWordCount(extendedText)
+
+            if extendedWordCount <= config.maxSize {
+                Log.info("[SemanticChunker] Table protection: extended chunk to include \(table.lineCount)-line table (\(extendedWordCount) words)", category: .ingestion)
+                targetIndex = table.range.upperBound
+            } else if table.range.lowerBound > start {
+                // Option B: Snap back to before the table starts
+                let truncatedText = String(text[start..<table.range.lowerBound])
+                let truncatedWordCount = tokenWordCount(truncatedText)
+                if truncatedWordCount >= config.minSize {
+                    Log.info("[SemanticChunker] Table protection: snapped chunk end before \(table.lineCount)-line table", category: .ingestion)
+                    targetIndex = table.range.lowerBound
+                } else {
+                    // Option C: Table starts too close to chunk start — include it as oversized
+                    // The hard-limit enforcement after findOptimalChunkRange will truncate if needed
+                    Log.info("[SemanticChunker] Table protection: including oversized \(table.lineCount)-line table (\(extendedWordCount) words)", category: .ingestion)
+                    targetIndex = table.range.upperBound
+                }
+            } else {
+                // Table starts at chunk start — include the whole table
+                Log.info("[SemanticChunker] Table protection: table spans from chunk start (\(table.lineCount) lines)", category: .ingestion)
+                targetIndex = table.range.upperBound
+            }
         }
 
         return start..<targetIndex
@@ -1070,11 +1231,10 @@ class SemanticChunker {
         var entities: [String] = []
         var seen = Set<String>()
 
-        // Pass 1: NLTagger Named Entity Recognition
-        let nerTagger = NLTagger(tagSchemes: [.nameType])
-        nerTagger.string = text
+        // Pass 1: NLTagger Named Entity Recognition (reuse cached instance)
+        cachedNERTagger.string = text
 
-        nerTagger.enumerateTags(
+        cachedNERTagger.enumerateTags(
             in: text.startIndex ..< text.endIndex,
             unit: .word,
             scheme: .nameType,
@@ -1118,10 +1278,9 @@ class SemanticChunker {
 
         // Pass 3: Capitalized Nouns (important domain terms not caught by NER)
         // Only add if they look like proper nouns (start with capital, not ALL CAPS)
-        let nounTagger = NLTagger(tagSchemes: [.lexicalClass])
-        nounTagger.string = text
+        cachedLexicalTagger.string = text
 
-        nounTagger.enumerateTags(
+        cachedLexicalTagger.enumerateTags(
             in: text.startIndex ..< text.endIndex,
             unit: .word,
             scheme: .lexicalClass,
@@ -1156,18 +1315,17 @@ class SemanticChunker {
     /// Also extracts capitalized multi-word phrases (e.g., "Record Button", "Note Recording")
     /// ENHANCED: Also extracts specification values (SAE 0W-20, API SN, etc.) via SpecificationDetector
     private func extractKeywords(_ text: String, topN: Int) -> [String] {
-        // Prefer lemma-based counting to normalize inflections
-        let tagger = NLTagger(tagSchemes: [.lemma, .lexicalClass, .language])
-        tagger.string = text
+        // Prefer lemma-based counting to normalize inflections (reuse cached instance)
+        cachedKeywordTagger.string = text
 
         var counts: [String: Int] = [:]
 
-        tagger.enumerateTags(in: text.startIndex..<text.endIndex,
+        cachedKeywordTagger.enumerateTags(in: text.startIndex..<text.endIndex,
                              unit: .word,
                              scheme: .lemma,
                              options: [.omitPunctuation, .omitWhitespace, .joinNames]) { lemmaTag, range in
             // Determine POS for filtering
-            let pos = tagger.tag(at: range.lowerBound, unit: .word, scheme: .lexicalClass).0
+            let pos = cachedKeywordTagger.tag(at: range.lowerBound, unit: .word, scheme: .lexicalClass).0
             guard pos == .noun || pos == .verb || pos == .adjective else {
                 return true
             }

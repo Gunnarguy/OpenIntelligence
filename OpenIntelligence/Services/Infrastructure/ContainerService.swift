@@ -44,8 +44,13 @@ final class ContainerService: ObservableObject {
 
     func setActive(_ id: UUID) {
         guard containers.contains(where: { $0.id == id }) else { return }
+        let wasChanged = activeContainerId != id
         activeContainerId = id
         UserDefaults.standard.set(id.uuidString, forKey: "activeContainerId")
+        // Haptic feedback when switching containers
+        if wasChanged {
+            DSHaptics.selection()
+        }
     }
 
     func createContainer(

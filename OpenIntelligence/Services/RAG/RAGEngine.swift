@@ -105,7 +105,10 @@ actor RAGEngine {
         lambda: Float = 0.7
     ) async -> [RetrievedChunk] {
         // Report CPU activity for MMR computation
-        HardwareTelemetryReporter.pulse(.ragOrchestration, intensity: 0.7, duration: 0.3)
+        Task { @MainActor in
+            HardwareTelemetryReporter.pulse(.ragOrchestration, intensity: 0.7, duration: 0.3)
+            HardwareTelemetryReporter.reportCPUOperation()
+        }
 
         #if DEBUG
             let log = OSLog(subsystem: "OpenIntelligence", category: "RAGEngine")
@@ -124,7 +127,10 @@ actor RAGEngine {
         var diversityMatrix: [[Float]]? = nil
         if useGPU {
             // Report GPU activity for MMR diversity matrix computation
-            HardwareTelemetryReporter.pulse(.mmrComputation, intensity: 0.9, duration: 0.4)
+            Task { @MainActor in
+                HardwareTelemetryReporter.pulse(.mmrComputation, intensity: 0.9, duration: 0.4)
+                HardwareTelemetryReporter.reportGPUCompute()
+            }
 
             let embeddings = candidates.map { $0.chunk.embedding }
             diversityMatrix = gpuCompute.mmrDiversityMatrix(embeddings: embeddings)
@@ -248,8 +254,11 @@ actor RAGEngine {
         query: String,
         topK: Int
     ) async -> [RetrievedChunk] {
-        // Report Neural Engine/CPU activity for reranking
-        HardwareTelemetryReporter.pulse(.reranking, intensity: 0.85, duration: 0.3)
+        // Report Neural Engine activity for reranking (cross-encoder runs on ANE)
+        Task { @MainActor in
+            HardwareTelemetryReporter.pulse(.reranking, intensity: 0.85, duration: 0.3)
+            HardwareTelemetryState.shared.incrementANECounter()
+        }
 
         #if DEBUG
             let log = OSLog(subsystem: "OpenIntelligence", category: "RAGEngine")
@@ -380,6 +389,11 @@ actor RAGEngine {
         compact: Bool = false,
         useLostInMiddleMitigation: Bool = true
     ) async -> (context: String, used: Int) {
+        // Report CPU activity for context assembly
+        Task { @MainActor in
+            HardwareTelemetryReporter.pulse(.ragOrchestration, intensity: 0.5, duration: 0.2)
+            HardwareTelemetryReporter.reportCPUOperation()
+        }
         #if DEBUG
             let log = OSLog(subsystem: "OpenIntelligence", category: "RAGEngine")
             let spid = OSSignpostID(log: log)
@@ -743,7 +757,10 @@ actor RAGEngine {
         snapshot: BM25Snapshot
     ) async -> [(chunk: RetrievedChunk, score: Float)] {
         // Report CPU activity for BM25 lexical scoring
-        HardwareTelemetryReporter.pulse(.bm25Scoring, intensity: 0.6, duration: 0.2)
+        Task { @MainActor in
+            HardwareTelemetryReporter.pulse(.bm25Scoring, intensity: 0.6, duration: 0.2)
+            HardwareTelemetryReporter.reportCPUOperation()
+        }
 
         #if DEBUG
             let log = OSLog(subsystem: "OpenIntelligence", category: "RAGEngine")
@@ -856,12 +873,15 @@ actor RAGEngine {
         cosineSimilarityAccelerated(a, b)
     }
 
+    // OPTIMIZED: Cached tokenizer instance to avoid allocation per tokenize() call.
+    // NLTokenizer is lightweight but ~30-300 allocations per query adds up.
+    private let cachedTokenizer = NLTokenizer(unit: .word)
+
     // Tokenizer used for BM25 scoring
     private func tokenize(_ text: String) -> [String] {
-        let tokenizer = NLTokenizer(unit: .word)
         let normalized = text.lowercased()
-        tokenizer.string = normalized
-        return tokenizer.tokens(for: normalized.startIndex ..< normalized.endIndex).compactMap { range in
+        cachedTokenizer.string = normalized
+        return cachedTokenizer.tokens(for: normalized.startIndex ..< normalized.endIndex).compactMap { range in
             let token = String(normalized[range]).trimmingCharacters(in: .punctuationCharacters)
             return token.isEmpty ? nil : token
         }

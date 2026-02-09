@@ -17,6 +17,7 @@
 
 import SwiftUI
 import UIKit
+import Combine
 
 // MARK: - Device Layout Configuration
 
@@ -164,12 +165,58 @@ enum DeviceComponentLayout {
     }
 }
 
+// MARK: - Keyboard Height Observer
+
+/// Tracks keyboard height for floating indicator positioning
+final class KeyboardHeightObserver: ObservableObject {
+    @Published var keyboardHeight: CGFloat = 0
+    @Published var isKeyboardVisible: Bool = false
+
+    init() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(keyboardWillShow),
+            name: UIResponder.keyboardWillShowNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(keyboardWillHide),
+            name: UIResponder.keyboardWillHideNotification,
+            object: nil
+        )
+    }
+
+    @objc private func keyboardWillShow(_ notification: Notification) {
+        if let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect {
+            DispatchQueue.main.async {
+                withAnimation(.easeOut(duration: 0.25)) {
+                    self.keyboardHeight = frame.height
+                    self.isKeyboardVisible = true
+                }
+            }
+        }
+    }
+
+    @objc private func keyboardWillHide(_ notification: Notification) {
+        DispatchQueue.main.async {
+            withAnimation(.easeOut(duration: 0.25)) {
+                self.keyboardHeight = 0
+                self.isKeyboardVisible = false
+            }
+        }
+    }
+}
+
 // MARK: - Full-Screen X-Ray Overlay
 
 /// Transparent overlay showing ONE glowing border at the actual SoC position.
+/// DESIGN: Ultra-subtle background visualization - present but not distracting.
 /// Color blends based on which components are active (CPU/GPU/ANE).
 struct HardwareXRayOverlay: View {
     @ObservedObject private var telemetry = HardwareTelemetryState.shared
+    @StateObject private var keyboardObserver = KeyboardHeightObserver()
+    @EnvironmentObject private var settings: SettingsStore
 
     private let layout = DeviceComponentLayout.current
     var showDeviceInfo: Bool = false
@@ -212,11 +259,13 @@ struct HardwareXRayOverlay: View {
 
             ZStack {
                 // Show SoC border when any compute component is active
+                // DESIGN: Ultra-subtle background presence - not distracting
                 if totalIntensity > 0.01 {
                     GlowingSoCBorder(
                         frame: socFrame,
                         color: dominantColor,
                         intensity: totalIntensity,
+                        glowMultiplier: settings.hudGlowIntensity, // User-controlled
                         chipName: layout.chipName,
                         activeComponents: activeComponents,
                         cpuIntensity: telemetry.cpuIntensity,
@@ -225,25 +274,30 @@ struct HardwareXRayOverlay: View {
                     )
                 }
 
-                // Show Taptic Engine border when haptics fire
-                if telemetry.hapticIntensity > 0.01 {
+                // Show Taptic Engine border when haptics fire (if enabled)
+                // Shows at the physical Taptic Engine location
+                if settings.hudShowTaptic && telemetry.hapticIntensity > 0.01 {
                     GlowingTapticBorder(
                         frame: tapticFrame,
-                        intensity: telemetry.hapticIntensity
+                        intensity: telemetry.hapticIntensity,
+                        glowMultiplier: settings.hudGlowIntensity
                     )
                 }
+
+                // REMOVED: FloatingTapticIndicator - users want Taptic in HUD legend only
 
                 // REMOVED: Activity label - too distracting
 
-                // Mini legend in top-right safe area (unobtrusive)
-                // Only shows when HUD is active, fades with activity
-                if totalIntensity > 0.01 || telemetry.hapticIntensity > 0.01 {
-                    SiliconLegend(
-                        chipName: layout.chipName,
-                        intensity: max(totalIntensity, telemetry.hapticIntensity)
-                    )
-                    .position(x: screenWidth - 50, y: geometry.safeAreaInsets.top + 50)
-                }
+                // Mini legend on LEFT side, below nav bar area
+                // Persists as long as HUD is enabled; shows triggered components
+                // COMPACT: Positioned tighter to corner to minimize interference
+                SiliconLegend(
+                    chipName: layout.chipName,
+                    intensity: max(totalIntensity, telemetry.hapticIntensity),
+                    metricsSummary: settings.hudShowMetrics ? telemetry.compactMetricsSummary : "",
+                    activities: settings.hudShowMetrics ? telemetry.componentActivities : []
+                )
+                .position(x: 45, y: geometry.safeAreaInsets.top + 85)
 
                 // Device info (for debugging only)
                 if showDeviceInfo {
@@ -271,70 +325,73 @@ struct HardwareXRayOverlay: View {
 
 /// ULTRA-SUBTLE border showing the actual SoC location.
 /// Design principles:
-/// - Thin, barely-visible border (not distracting)
-/// - Minimal glow (just enough to notice)
+/// - Thin, barely-visible border (background presence, not distracting)
+/// - Minimal glow (just enough to notice if you're looking)
 /// - NO text labels inside (clean, unobtrusive)
 /// - Color-coded by dominant component
+/// - Should NOT take over screen real estate
 private struct GlowingSoCBorder: View {
     let frame: CGRect
     let color: Color
     let intensity: Double
+    var glowMultiplier: Double = 0.6
     let chipName: String
     let activeComponents: [String]
     let cpuIntensity: Double
     let gpuIntensity: Double
     let aneIntensity: Double
 
-    // SUBTLE: Much smaller glow radius
-    private var glowRadius: CGFloat { CGFloat(3 + 6 * intensity) }
-    // SUBTLE: Thinner borders
-    private var borderWidth: CGFloat { CGFloat(1 + 1.5 * intensity) }
-    // SUBTLE: Lower base opacity
-    private var baseOpacity: Double { 0.25 + 0.35 * intensity }
+    // MORE VISIBLE: Increased glow for better visibility
+    private var glowRadius: CGFloat { CGFloat((4 + 8 * intensity) * glowMultiplier) }
+    // MORE VISIBLE: Thicker borders
+    private var borderWidth: CGFloat { CGFloat((1.0 + 2.0 * intensity) * max(0.5, glowMultiplier)) }
+    // MORE VISIBLE: Higher base opacity so users can actually see it
+    private var baseOpacity: Double { (0.35 + 0.45 * intensity) * glowMultiplier }
 
     var body: some View {
         ZStack {
             // Single soft glow layer (not 3 separate ones)
             RoundedRectangle(cornerRadius: 8)
-                .strokeBorder(color.opacity(baseOpacity * 0.4), lineWidth: borderWidth + 3)
+                .strokeBorder(color.opacity(baseOpacity * 0.3), lineWidth: borderWidth + 2)
                 .blur(radius: glowRadius)
                 .frame(width: frame.width, height: frame.height)
                 .position(x: frame.midX, y: frame.midY)
 
-            // Main border - thin and subtle
+            // Main border - more visible
             RoundedRectangle(cornerRadius: 8)
                 .strokeBorder(color.opacity(baseOpacity), lineWidth: borderWidth)
                 .frame(width: frame.width, height: frame.height)
                 .position(x: frame.midX, y: frame.midY)
 
-            // Very subtle inner tint
+            // Inner tint - more visible fill
             RoundedRectangle(cornerRadius: 8)
-                .fill(color.opacity(0.02 * intensity))
+                .fill(color.opacity(0.05 * intensity))
                 .frame(width: frame.width, height: frame.height)
                 .position(x: frame.midX, y: frame.midY)
 
             // Corner activity dots (instead of labels)
             // Three tiny dots at top-right showing which components are active
-            HStack(spacing: 2) {
+            HStack(spacing: 3) {
                 if cpuIntensity > 0.01 {
                     Circle()
-                        .fill(HardwareComponent.cpu.color.opacity(0.6 + 0.4 * cpuIntensity))
-                        .frame(width: 4, height: 4)
+                        .fill(HardwareComponent.cpu.color.opacity(0.7 + 0.3 * cpuIntensity))
+                        .frame(width: 6, height: 6)
                 }
                 if gpuIntensity > 0.01 {
                     Circle()
-                        .fill(HardwareComponent.gpu.color.opacity(0.6 + 0.4 * gpuIntensity))
-                        .frame(width: 4, height: 4)
+                        .fill(HardwareComponent.gpu.color.opacity(0.7 + 0.3 * gpuIntensity))
+                        .frame(width: 6, height: 6)
                 }
                 if aneIntensity > 0.01 {
                     Circle()
-                        .fill(HardwareComponent.neuralEngine.color.opacity(0.6 + 0.4 * aneIntensity))
-                        .frame(width: 4, height: 4)
+                        .fill(HardwareComponent.neuralEngine.color.opacity(0.7 + 0.3 * aneIntensity))
+                        .frame(width: 6, height: 6)
                 }
             }
-            .position(x: frame.maxX - 12, y: frame.minY + 8)
+            .position(x: frame.maxX - 14, y: frame.minY + 10)
         }
-        .animation(.easeOut(duration: 0.2), value: intensity)
+        // FAST animation for real-time profiler feel
+        .animation(.linear(duration: 0.03), value: intensity)
     }
 }
 
@@ -345,13 +402,14 @@ private struct GlowingSoCBorder: View {
 private struct GlowingTapticBorder: View {
     let frame: CGRect
     let intensity: Double
+    var glowMultiplier: Double = 0.6
 
     private let hapticColor = HardwareComponent.haptic.color
 
-    // SUBTLE: Much smaller glow
-    private var glowRadius: CGFloat { CGFloat(4 + 8 * intensity) }
-    private var borderWidth: CGFloat { CGFloat(1 + 1.5 * intensity) }
-    private var baseOpacity: Double { 0.3 + 0.4 * intensity }
+    // Glow scaled by user preference — boosted so it's actually visible
+    private var glowRadius: CGFloat { CGFloat((6 + 14 * intensity) * max(0.5, glowMultiplier)) }
+    private var borderWidth: CGFloat { CGFloat((1.5 + 2.0 * intensity) * max(0.5, glowMultiplier)) }
+    private var baseOpacity: Double { (0.5 + 0.5 * intensity) * max(0.5, glowMultiplier) }
 
     var body: some View {
         ZStack {
@@ -368,55 +426,176 @@ private struct GlowingTapticBorder: View {
                 .frame(width: frame.width, height: frame.height)
                 .position(x: frame.midX, y: frame.midY)
 
-            // Subtle inner fill
+            // Inner fill — visible flash on fire
             RoundedRectangle(cornerRadius: 4)
-                .fill(hapticColor.opacity(0.03 * intensity))
+                .fill(hapticColor.opacity(0.08 * intensity))
                 .frame(width: frame.width, height: frame.height)
                 .position(x: frame.midX, y: frame.midY)
 
-            // No text label - just a tiny indicator dot
+            // Center indicator dot — bright so it's unmissable
             Circle()
-                .fill(hapticColor.opacity(0.7 + 0.3 * intensity))
-                .frame(width: 4, height: 4)
+                .fill(hapticColor.opacity(0.8 + 0.2 * intensity))
+                .frame(width: 5, height: 5)
                 .position(x: frame.midX, y: frame.midY)
         }
-        .animation(.easeOut(duration: 0.1), value: intensity)
+        // FAST animation for real-time profiler feel
+        .animation(.linear(duration: 0.02), value: intensity)
+    }
+}
+
+// MARK: - Floating Taptic Indicator (Above Keyboard)
+
+/// Compact floating indicator that appears above the keyboard when typing.
+/// Shows Taptic Engine activity without being blocked by keyboard.
+private struct FloatingTapticIndicator: View {
+    let intensity: Double
+    var glowMultiplier: Double = 0.6
+
+    private let hapticColor = HardwareComponent.haptic.color
+
+    var body: some View {
+        HStack(spacing: 6) {
+            // Pulsing dot
+            Circle()
+                .fill(hapticColor.opacity(0.6 + 0.4 * intensity))
+                .frame(width: 6, height: 6)
+                .scaleEffect(0.8 + 0.4 * intensity)
+
+            // Label
+            Text("Taptic")
+                .font(.system(size: 9, weight: .medium, design: .monospaced))
+                .foregroundColor(hapticColor.opacity(0.7))
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(
+            Capsule()
+                .fill(Color.black.opacity(0.4))
+                .overlay(
+                    Capsule()
+                        .strokeBorder(hapticColor.opacity(0.3 * glowMultiplier), lineWidth: 1)
+                )
+        )
+        .shadow(color: hapticColor.opacity(0.3 * intensity * glowMultiplier), radius: 8)
+        // FAST animation for real-time profiler feel
+        .animation(.linear(duration: 0.02), value: intensity)
     }
 }
 
 // MARK: - Silicon Legend
 
 /// Tiny, unobtrusive indicator showing users what the HUD represents.
-/// Positioned in a corner, ultra-minimal, helps answer "wtf is this?"
+/// Shows each triggered component with % contribution bar.
+/// COMPACT: Minimal footprint to avoid interfering with app content.
 private struct SiliconLegend: View {
     let chipName: String
     let intensity: Double
+    let metricsSummary: String
+    var activities: [HardwareTelemetryState.ComponentActivity] = []
 
-    private var opacity: Double { 0.4 + 0.3 * intensity }
+    private var opacity: Double { 0.45 + 0.15 * min(intensity, 1.0) }
 
     var body: some View {
-        VStack(alignment: .trailing, spacing: 2) {
-            // Tiny chip icon + name
-            HStack(spacing: 4) {
+        VStack(alignment: .leading, spacing: 2) {
+            // Chip header - compact single line
+            HStack(spacing: 3) {
                 Image(systemName: "cpu")
-                    .font(.system(size: 8, weight: .medium))
+                    .font(.system(size: 7, weight: .medium))
                 Text(chipName)
-                    .font(.system(size: 8, weight: .semibold, design: .monospaced))
+                    .font(.system(size: 7, weight: .semibold, design: .monospaced))
             }
             .foregroundColor(.white.opacity(opacity))
 
-            // "Silicon Activity" hint
-            Text("activity")
-                .font(.system(size: 7, weight: .regular, design: .monospaced))
-                .foregroundColor(.gray.opacity(opacity * 0.7))
+            // Per-component breakdown with % contribution bars
+            if !activities.isEmpty {
+                // Compute components (ANE/GPU/CPU) — show % contribution
+                ForEach(activities.filter { $0.percentage >= 0 }, id: \.name) { activity in
+                    HStack(spacing: 3) {
+                        // Active indicator dot (glows when firing)
+                        Circle()
+                            .fill(componentColor(activity.color).opacity(activity.isActive ? 0.85 : 0.3))
+                            .frame(width: 3, height: 3)
+
+                        // Component name — compact fixed width
+                        Text(activity.name)
+                            .font(.system(size: 6, weight: .semibold, design: .monospaced))
+                            .foregroundColor(componentColor(activity.color).opacity(0.65))
+                            .frame(width: 24, alignment: .leading)
+
+                        // Mini percentage bar - narrower
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                // Track
+                                RoundedRectangle(cornerRadius: 1)
+                                    .fill(Color.white.opacity(0.06))
+                                    .frame(height: 2)
+
+                                // Fill
+                                RoundedRectangle(cornerRadius: 1)
+                                    .fill(componentColor(activity.color).opacity(activity.isActive ? 0.65 : 0.35))
+                                    .frame(width: max(1, geo.size.width * CGFloat(activity.percentage / 100.0)), height: 2)
+                            }
+                            .frame(height: geo.size.height)
+                        }
+                        .frame(width: 22, height: 4)
+
+                        // Percentage text
+                        Text("\(Int(activity.percentage))%")
+                            .font(.system(size: 6, weight: .medium, design: .monospaced))
+                            .foregroundColor(.white.opacity(0.45))
+                            .frame(width: 18, alignment: .trailing)
+                    }
+                }
+
+                // Taptic Engine — separate indicator, not competing with compute %
+                if let taptic = activities.first(where: { $0.name == "Taptic" }) {
+                    HStack(spacing: 3) {
+                        Circle()
+                            .fill(componentColor(taptic.color).opacity(taptic.isActive ? 0.85 : 0.3))
+                            .frame(width: 3, height: 3)
+
+                        Text("Tap")
+                            .font(.system(size: 6, weight: .semibold, design: .monospaced))
+                            .foregroundColor(componentColor(taptic.color).opacity(0.65))
+                            .frame(width: 24, alignment: .leading)
+
+                        // Show fire count instead of % — it's an output device
+                        Text("×\(taptic.opsCount)")
+                            .font(.system(size: 6, weight: .regular, design: .monospaced))
+                            .foregroundColor(.white.opacity(0.35))
+                            .frame(width: 40, alignment: .trailing)
+                    }
+                }
+            } else if !metricsSummary.isEmpty {
+                // Fallback to compact summary
+                Text(metricsSummary)
+                    .font(.system(size: 6, weight: .regular, design: .monospaced))
+                    .foregroundColor(.cyan.opacity(opacity * 0.7))
+                    .lineLimit(2)
+            } else {
+                Text("idle")
+                    .font(.system(size: 6, weight: .regular, design: .monospaced))
+                    .foregroundColor(.gray.opacity(0.4))
+            }
         }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 4)
+        .padding(.vertical, 3)
         .background(
-            RoundedRectangle(cornerRadius: 4)
-                .fill(Color.black.opacity(0.3))
+            RoundedRectangle(cornerRadius: 3)
+                .fill(Color.black.opacity(0.25))
         )
-        .animation(.easeOut(duration: 0.3), value: intensity)
+        // Only animate structural changes (new rows appearing), not every tick
+        .animation(.easeOut(duration: 0.4), value: activities.count)
+    }
+
+    private func componentColor(_ name: String) -> Color {
+        switch name {
+        case "purple": return HardwareComponent.neuralEngine.color
+        case "cyan": return HardwareComponent.gpu.color
+        case "orange": return HardwareComponent.cpu.color
+        case "pink": return HardwareComponent.haptic.color
+        default: return .white
+        }
     }
 }
 

@@ -457,6 +457,7 @@ struct ChunkDetailSheet: View {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
                         UIPasteboard.general.string = chunk.content
+                        DSHaptics.copy()
                     } label: {
                         Image(systemName: "doc.on.doc")
                     }

@@ -1,7 +1,7 @@
 # OpenIntelligence Roadmap
 
-**Last Updated**: February 5, 2026
-**Version**: 1.0.0 (Build 10)
+**Last Updated**: February 7, 2026
+**Version**: 1.0.1 (Build 11)
 **Status**: App Store Ready
 **Maturity**: Production-ready RAG pipeline with 8 agentic tools
 
@@ -115,8 +115,8 @@ OpenIntelligence implements **13 of 16** recognized RAG architectural patterns:
 
 #### iOS 26+ New APIs Status
 
-| API                                     | Status        | Location                                              |
-| --------------------------------------- | ------------- | ----------------------------------------------------- |
+| API                                     | Status         | Location                                              |
+| --------------------------------------- | -------------- | ----------------------------------------------------- |
 | `FoundationModels.LanguageModelSession` | ✅ Production  | `AppleFoundationLLMService`, `AgenticOrchestrator`    |
 | `@Generable`, `@Guide`, `@Tool`         | ✅ Production  | 8 agentic tools, RAGAnswer/RAGSearchResults responses |
 | `LanguageModelFeedback`                 | ✅ Production  | Thumbs up/down feedback in ChatView                   |
@@ -405,6 +405,8 @@ _Native SQLite FTS5 integration for 10-100X faster keyword search and pattern co
 - **Semantic Boundary Chunking**: Sentence embedding similarity detection for topic-aware chunks
 - **Cross-Container Search**: Unified search across all knowledge containers with RRF fusion
 - **3D Embedding Visualization Overhaul**: Intuitive spatial metaphors, ground plane grid, semantic axis labels, cluster badges, and gesture hints
+- **10x RAG Pipeline Optimization (v1.0.1)**: Expert-level end-to-end audit with 20+ fixes across token budget, hybrid search, extractive QA, SpecificationDetector, verification gates, query expansion, and system prompts. Standard mode now achieves 78%+ calibrated confidence on specification lookups with 94% verification gate pass rate.
+- **Research-Grade Retrieval Audit (v1.0.1)**: 10-area audit (B+/A-) with 4 critical fixes: FTS5 AND-first queries (was OR-only), chunk-level BM25 scoring in FTS5 path (was document-level), iterative retrieval auto-enable for multi-hop intents, and atomic table preservation in SemanticChunker. Deep Think/Maximum parity ensured via `originalQuery` passthrough, corpus vocabulary build/cache, and ExtractiveQA pre-check in AgenticOrchestrator.
 
 ---
 

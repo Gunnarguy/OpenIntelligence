@@ -159,6 +159,11 @@ struct AnswerIntelligenceView: View {
         Button {
             withAnimation {
                 isExpanded.toggle()
+                if isExpanded {
+                    DSHaptics.expand()
+                } else {
+                    DSHaptics.collapse()
+                }
             }
         } label: {
             HStack(spacing: DSSpacing.sm) {

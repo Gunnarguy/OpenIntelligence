@@ -14,6 +14,7 @@ import SwiftUI
 struct AdaptiveVisualizationsView: View {
     @EnvironmentObject private var ragService: RAGService
     @EnvironmentObject private var containerService: ContainerService
+    @EnvironmentObject private var settings: SettingsStore
     @StateObject private var engine = LibraryVisualizationEngine.shared
 
     @State private var selectedInsight: VisualizationInsight?
@@ -99,40 +100,51 @@ struct AdaptiveVisualizationsView: View {
     }
 
     var body: some View {
-        ScrollView {
-            LazyVStack(spacing: 20) {
-                // HERO: 3D Atlas (always visible for libraries with content)
-                if let profile = engine.currentProfile, profile.chunkCount >= 10 {
-                    hero3DAtlasSection(profile: profile)
+        ZStack {
+            ScrollView {
+                LazyVStack(spacing: 20) {
+                    // HERO: 3D Atlas (always visible for libraries with content)
+                    if let profile = engine.currentProfile, profile.chunkCount >= 10 {
+                        hero3DAtlasSection(profile: profile)
+                    }
+
+                    libraryHeader
+
+                    if engine.isAnalyzing {
+                        analyzeLoadingCard
+                    } else if let profile = engine.currentProfile {
+                        // Insights row (horizontal scroll for space efficiency)
+                        if !engine.insights.isEmpty {
+                            insightsHorizontalSection
+                        }
+
+                        // Dynamic views grid
+                        if !engine.recommendedViews.isEmpty {
+                            recommendedViewsSection
+                        }
+
+                        if let expanded = expandedView, expanded != .embedding3D {
+                            expandedViewSection(type: expanded, profile: profile)
+                        }
+
+                        libraryStatsSection(profile: profile)
+                    } else {
+                        emptyStateCard
+                    }
                 }
-
-                libraryHeader
-
-                if engine.isAnalyzing {
-                    analyzeLoadingCard
-                } else if let profile = engine.currentProfile {
-                    // Insights row (horizontal scroll for space efficiency)
-                    if !engine.insights.isEmpty {
-                        insightsHorizontalSection
-                    }
-
-                    // Dynamic views grid
-                    if !engine.recommendedViews.isEmpty {
-                        recommendedViewsSection
-                    }
-
-                    if let expanded = expandedView, expanded != .embedding3D {
-                        expandedViewSection(type: expanded, profile: profile)
-                    }
-
-                    libraryStatsSection(profile: profile)
-                } else {
-                    emptyStateCard
-                }
+                .padding()
             }
-            .padding()
+            .background(DSColors.background)
+
+            // Motherboard HUD - Full-screen X-ray overlay
+            // Shows glowing borders at the ACTUAL physical locations where
+            // the Neural Engine, GPU, and CPU sit behind the screen
+            if settings.showSiliconHUD {
+                HardwareXRayOverlay()
+                    .allowsHitTesting(false) // Don't block touches
+                    .transition(.opacity)
+            }
         }
-        .background(DSColors.background)
         .navigationTitle("Knowledge Atlas")
         .navigationBarTitleDisplayMode(.large)
         .fullScreenCover(isPresented: $show3DFullscreen) {
@@ -147,6 +159,7 @@ struct AdaptiveVisualizationsView: View {
             await refreshAnalysis()
         }
         .refreshable {
+            DSHaptics.refresh()
             await refreshAnalysis()
         }
     }

@@ -152,6 +152,10 @@ struct AgenticResult: Sendable {
 final class AgenticOrchestrator: Sendable {
     private weak var ragService: RAGService?
     private let config: AgenticConfig
+    /// Quality mode from user settings — controls retrieval parameters (topK, minSimilarity,
+    /// mmrLambda, parent doc retrieval, compression, etc.) across all pipeline steps.
+    /// Without this, Deep Think/Maximum use hardcoded defaults that ignore user's mode selection.
+    let qualityMode: RAGQualityMode
 
     /// Common stop words to exclude from repetition detection
     /// These inflate overlap ratios without indicating actual semantic repetition
@@ -167,9 +171,10 @@ final class AgenticOrchestrator: Sendable {
         "according", "evidence", "results", "effects", "impact", "review", "analysis",
     ]
 
-    init(ragService: RAGService, config: AgenticConfig = .defaultConfig) {
+    init(ragService: RAGService, config: AgenticConfig = .defaultConfig, qualityMode: RAGQualityMode = .deepThink) {
         self.ragService = ragService
         self.config = config
+        self.qualityMode = qualityMode
     }
 
     /// Get the appropriate ReasoningChainConfig based on AgenticConfig
@@ -394,6 +399,76 @@ final class AgenticOrchestrator: Sendable {
         )
         steps.append(evalStep)
         await onStep?(evalStep)
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // STEP 2.1: ExtractiveQA Pre-Check for Lookup Queries
+        // For simple specification lookups (e.g., "what oil does this car take?"),
+        // try to extract the answer directly from retrieved chunks BEFORE entering
+        // the expensive multi-session reasoning pipeline. This saves 4-8 LLM sessions.
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        if retrievalQuality == .excellent || retrievalQuality == .good {
+            let intentClassifier = QueryEnhancementService()
+            let answerIntent = intentClassifier.classifyAnswerIntent(query)
+
+            if answerIntent == .lookup || answerIntent == .tableLookup {
+                Log.info("[Agentic] ExtractiveQA pre-check: intent=\(answerIntent.rawValue), trying direct extraction", category: .llm)
+
+                let extractiveStart = Date()
+                let specExtractor = SpecificationExtractor()
+
+                // Sort chunks by similarity and take top 8 for extraction
+                let sortedForExtraction = initialChunks.sorted { $0.similarityScore > $1.similarityScore }
+                let extractiveChunks = Array(sortedForExtraction.prefix(8))
+
+                let extractionResult = await specExtractor.extract(
+                    query: query,
+                    chunks: extractiveChunks,
+                    answerIntent: answerIntent
+                )
+
+                switch extractionResult {
+                case .success(let extraction):
+                    let extractiveTime = Date().timeIntervalSince(extractiveStart)
+                    Log.info("[Agentic] ExtractiveQA SUCCESS: '\(extraction.answerSpan)' (confidence: \(String(format: "%.0f", extraction.confidence * 100))%) in \(String(format: "%.0f", extractiveTime * 1000))ms — skipping multi-session reasoning", category: .llm)
+
+                    let extractStep = ThinkingStep(
+                        id: UUID(),
+                        type: .synthesizing,
+                        input: "Extractive QA",
+                        output: "Found specification directly: \(extraction.answerSpan) (\(String(format: "%.0f%%", extraction.confidence * 100)) confidence)",
+                        tokensUsed: 0,
+                        duration: extractiveTime,
+                        timestamp: Date(),
+                        confidence: extraction.confidence
+                    )
+                    steps.append(extractStep)
+                    await onStep?(extractStep)
+
+                    // Return immediately — no need for multi-session reasoning
+                    let formattedAnswer = "**\(extraction.answerSpan)**\n\n_\(extraction.citation)_"
+                    return AgenticResult(
+                        finalAnswer: formattedAnswer,
+                        steps: steps,
+                        totalTokens: totalTokens,
+                        totalDuration: Date().timeIntervalSince(startTime),
+                        confidence: extraction.confidence,
+                        sourcesUsed: extractiveChunks.count,
+                        retrievedChunks: allRetrievedChunks
+                    )
+
+                case .failure(let failure):
+                    let failureReason: String
+                    switch failure {
+                    case .noSpecsFound: failureReason = "no specifications found"
+                    case .noKeywordMatch: failureReason = "no keyword matches"
+                    case .lowConfidence(let match, let conf): failureReason = "low confidence (\(String(format: "%.0f%%", conf * 100))) for '\(match)'"
+                    case .ambiguousMultiple(let candidates): failureReason = "ambiguous: \(candidates.joined(separator: ", "))"
+                    case .notLookupQuery: failureReason = "not a lookup query"
+                    }
+                    Log.info("[Agentic] ExtractiveQA pre-check failed: \(failureReason) — proceeding to multi-session reasoning", category: .llm)
+                }
+            }
+        }
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         // STEP 2.5: Graph Expansion (GraphRAG-lite)
@@ -911,6 +986,7 @@ final class AgenticOrchestrator: Sendable {
                     query: query,
                     topK: 20,
                     minSimilarity: 0.08, // Much lower threshold
+                    qualityMode: qualityMode,
                     onDetailedEvent: detailedForwarder
                 )
 
@@ -1172,13 +1248,12 @@ final class AgenticOrchestrator: Sendable {
         let systemPrompt = """
         Answer using ONLY the provided excerpts [S1], [S2], etc.
         Rules:
-        1) Use ONLY information from excerpts - cite [S1], [S2] etc. (NOT URLs!)
-        2) Look for SPECIFIC VALUES: numbers, measurements, specifications, ratings
-        3) Include exact steps, durations, technical specs when present
-        4) Include FEEDBACK indicators: lights, sounds, vibrations, visual cues
-        5) Provide STEP-BY-STEP procedures when applicable
-        6) Be THOROUGH - extract every relevant detail, especially specific values
-        7) Read OCR'd text carefully - look for model numbers, specifications, capacities
+        1) Cite sources as [S1], [S2] etc. (NOT URLs)
+        2) Extract specific values: numbers, measurements, specs, ratings when present
+        3) Be thorough — pull every relevant detail from the excerpts
+        4) Write naturally and intelligently — match your format to what the user actually asked
+        5) Read OCR'd text carefully for model numbers, specs, and data
+        6) NEVER say "I don't have information" — always provide what IS there
         """
 
         // Generate using the main RAGService pipeline which handles:
@@ -1281,22 +1356,16 @@ final class AgenticOrchestrator: Sendable {
         let systemPrompt = """
         Expert research analyst synthesizing multiple document sources.
 
-        EXTRACTION REQUIREMENTS:
-        - Find SPECIFIC VALUES: numbers, specifications, ratings, capacities, measurements
-        - Specific ACTIONS: exact steps, button presses, durations
-        - Feedback INDICATORS: lights, sounds, vibrations, on-screen messages
-        - STEP-BY-STEP procedures with numbered steps
-        - Technical SPECIFICATIONS: voltages, capacities, dimensions, ranges
-        - Read OCR'd text carefully - extract values even if formatting is imperfect
+        Answer intelligently using the excerpts provided ([S1], [S2], etc.):
+        - Extract specific values: numbers, specs, ratings, measurements when present
+        - Read OCR'd text carefully — extract data even if formatting is imperfect
+        - Cite sources as [S1], [S2] (bracket notation only, NOT URLs)
+        - Write naturally — match your response format to what the user actually asked
+        - Only use step-by-step formatting when the user explicitly asks for instructions
+        - Be thorough but conversational
 
-        FORMAT:
-        - Cite sources as [S1], [S2], etc. (bracket notation only, NOT URLs!)
-        - Use headers for major sections
-        - Use bullet points for lists
-        - Quote exact values/specs when you find them
-
-        NEVER say "I don't have information" - always provide what IS in the documents.
-        If the question is vague, interpret it based on document topics and provide all relevant findings.
+        NEVER say "I don't have information" — always provide what IS in the documents.
+        If the question is vague, interpret it based on document topics and provide relevant findings.
         """
 
         // Generate using the main RAGService pipeline which handles:
@@ -1536,6 +1605,7 @@ final class AgenticOrchestrator: Sendable {
             query: subQuery,
             topK: 20,
             minSimilarity: 0.08, // Low threshold - let re-ranker decide quality
+            qualityMode: qualityMode,
             onDetailedEvent: onDetailedEvent
         )
 
@@ -1650,6 +1720,7 @@ final class AgenticOrchestrator: Sendable {
                 query: query,
                 topK: 15,
                 minSimilarity: 0.05, // Very low - we'll use RRF to rank
+                qualityMode: qualityMode,
                 onDetailedEvent: onDetailedEvent  // Always forward events
             )
             allResults.append(chunks)
@@ -1856,6 +1927,7 @@ final class AgenticOrchestrator: Sendable {
                 query: entity,
                 topK: 4,
                 minSimilarity: 0.2,
+                qualityMode: qualityMode,
                 onDetailedEvent: onDetailedEvent
             )
             for chunk in hopChunks where !expandedChunks.contains(where: { $0.chunk.id == chunk.chunk.id }) {
@@ -4418,6 +4490,7 @@ extension AgenticOrchestrator {
                             query: expQuery,
                             topK: 20,
                             minSimilarity: 0.15, // Lower threshold for exploration
+                            qualityMode: qualityMode,
                             onDetailedEvent: detailedForwarder
                         ) {
                             for chunk in chunks where !usedChunkIds.contains(chunk.chunk.id) {
@@ -5331,22 +5404,15 @@ extension AgenticOrchestrator {
         You are an academic research assistant synthesizing document findings.
         This is document summarization from the user's personal knowledge library - NOT advice generation.
 
-        MAXIMUM QUALITY REQUIREMENTS:
-        1. COMPLETENESS: Extract every detail - procedures, specifications, warnings, tips
-        2. SPECIFICITY: Include exact values ("5V/2A", "hold 3 seconds", "blue LED blinks twice")
-        3. ACTIONABLE: Provide step-by-step instructions with feedback indicators
-        4. TECHNICAL: Include all specifications, tolerances, and technical parameters
-        5. STRUCTURED: Use headers, bullet points, and numbered steps for clarity
+        QUALITY REQUIREMENTS:
+        1. COMPLETENESS: Extract every relevant detail from the sources
+        2. SPECIFICITY: Include exact values, numbers, specs, and data points when present
+        3. INTELLIGENT: Understand the domain and write like an expert in that field
+        4. TECHNICAL: Include specifications and technical parameters when relevant
+        5. NATURAL: Write conversationally — use formatting that suits the content, not forced structure
 
-        FORMATTING:
-        - Use **bold** for key findings, terms, and actions
-        - Use *italic* for emphasis and technical terms
-        - Use numbered lists for procedures
-        - Use bullet points for features and specifications
-        - Include section headers for major topics
-
-        Be exhaustive - aim for 1000+ words. Include ALL relevant details from EVERY document.
-        Never repeat the same information - each paragraph must add new content.
+        Be thorough — aim for comprehensive coverage. Include ALL relevant details from EVERY document.
+        Never repeat the same information — each paragraph must add new content.
         Cross-reference and synthesize findings that appear in multiple sources.
         """
 
@@ -5408,6 +5474,7 @@ extension AgenticOrchestrator {
             query: query,
             topK: 50,
             minSimilarity: 0.20, // Lower threshold to catch more relevant content
+            qualityMode: qualityMode,
             onDetailedEvent: onDetailedEvent
         )
 
@@ -5428,6 +5495,7 @@ extension AgenticOrchestrator {
                 query: variation,
                 topK: 20,
                 minSimilarity: 0.25,
+                qualityMode: qualityMode,
                 onDetailedEvent: onDetailedEvent
             )
             for chunk in variantChunks {
@@ -5970,7 +6038,7 @@ extension RAGService {
         chunks: [RetrievedChunk],
         onProgress: ((String, String) async -> Void)? = nil  // (title, detail)
     ) async throws -> ReasoningChainResult {
-        let orchestrator = AgenticOrchestrator(ragService: self, config: .fast)
+        let orchestrator = AgenticOrchestrator(ragService: self, config: .fast, qualityMode: .standard)
         let totalSessions = ReasoningChainConfig.light.sessionCount
 
         // Track session number for UI

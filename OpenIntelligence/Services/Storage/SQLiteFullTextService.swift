@@ -360,6 +360,73 @@ actor SQLiteFullTextService {
         return results
     }
 
+    /// Search using OR-based broad query (fallback when AND-first returns nothing)
+    func searchBroad(query: String, containerId: UUID? = nil, limit: Int = 20) async -> [FTS5SearchResult] {
+        ensureInitialized()
+        guard let db = database else { return [] }
+
+        let escapedQuery = escapeFTS5QueryBroad(query)
+
+        var sql: String
+        if containerId != nil {
+            sql = """
+                SELECT document_id, content, bm25(documents) as score,
+                       snippet(documents, 2, '<b>', '</b>', '...', 32) as snip
+                FROM documents
+                WHERE documents MATCH ? AND container_id = ?
+                ORDER BY bm25(documents)
+                LIMIT ?
+            """
+        } else {
+            sql = """
+                SELECT document_id, content, bm25(documents) as score,
+                       snippet(documents, 2, '<b>', '</b>', '...', 32) as snip
+                FROM documents
+                WHERE documents MATCH ?
+                ORDER BY bm25(documents)
+                LIMIT ?
+            """
+        }
+
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
+            return []
+        }
+
+        defer { sqlite3_finalize(statement) }
+
+        sqlite3_bind_text(statement, 1, escapedQuery, -1, SQLITE_TRANSIENT)
+        if let cId = containerId {
+            sqlite3_bind_text(statement, 2, cId.uuidString, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_int(statement, 3, Int32(limit))
+        } else {
+            sqlite3_bind_int(statement, 2, Int32(limit))
+        }
+
+        var results: [FTS5SearchResult] = []
+
+        while sqlite3_step(statement) == SQLITE_ROW {
+            guard let docIdPtr = sqlite3_column_text(statement, 0),
+                  let docId = UUID(uuidString: String(cString: docIdPtr)) else {
+                continue
+            }
+
+            let content = sqlite3_column_text(statement, 1).map { String(cString: $0) } ?? ""
+            let score = sqlite3_column_double(statement, 2)
+            let snippet = sqlite3_column_text(statement, 3).map { String(cString: $0) }
+
+            results.append(FTS5SearchResult(
+                documentId: docId,
+                content: content,
+                bm25Score: score,
+                snippet: snippet,
+                highlightedContent: nil
+            ))
+        }
+
+        return results
+    }
+
     /// Count exact pattern occurrences across all documents (or in specific container)
     /// Uses FTS5 MATCH for fast filtering, then exact count for precision
     func countPatternInCorpus(pattern: String, containerId: UUID? = nil) async -> [UUID: Int] {
@@ -425,8 +492,20 @@ actor SQLiteFullTextService {
     /// Get BM25 scores for documents matching a query
     /// This replaces the in-memory BM25Scorer with FTS5's native implementation
     func bm25Scores(query: String, containerId: UUID? = nil) async -> [UUID: Double] {
+        // Try AND-first (precise) query
         let results = await search(query: query, containerId: containerId, limit: 1000)
-        return Dictionary(uniqueKeysWithValues: results.map { ($0.documentId, -$0.bm25Score) })
+
+        if !results.isEmpty {
+            return Dictionary(uniqueKeysWithValues: results.map { ($0.documentId, -$0.bm25Score) })
+        }
+
+        // AND returned nothing — fall back to OR for broader recall
+        // This handles cases where no single document contains ALL query terms
+        let broadResults = await searchBroad(query: query, containerId: containerId, limit: 1000)
+        if !broadResults.isEmpty {
+            Log.debug("[SQLiteFTS5] AND query returned 0 results, OR fallback found \(broadResults.count)", category: .retrieval)
+        }
+        return Dictionary(uniqueKeysWithValues: broadResults.map { ($0.documentId, -$0.bm25Score) })
     }
 
     /// Search corpus and return matches with context snippets
@@ -1481,20 +1560,73 @@ actor SQLiteFullTextService {
         return true
     }
 
-    /// Escape special FTS5 query characters
+    /// Escape and construct FTS5 query from natural language input.
+    /// OPTIMIZED: Uses AND-first (implicit) for precision, OR fallback for recall.
+    /// Previous OR-only behavior matched ANY term, so "engine oil capacity" hit
+    /// every chunk containing "engine" OR "oil" OR "capacity" — ~90% of a car manual.
+    /// AND-first ensures all content terms must co-occur, dramatically improving
+    /// needle-in-haystack precision for BM25 scoring.
     private func escapeFTS5Query(_ query: String) -> String {
-        // FTS5 special characters that need escaping: " ^ * ( ) -
-        // For a basic word search, wrap in quotes for exact phrase or just return as-is
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return trimmed }
 
-        // If query contains spaces, treat as phrase search
-        if trimmed.contains(" ") && !trimmed.contains("\"") {
-            return "\"\(trimmed)\""
+        // FTS5 stopwords to skip (common words that add noise)
+        let ftsStop: Set<String> = [
+            "the", "a", "an", "is", "are", "was", "were", "be", "been",
+            "do", "does", "did", "will", "would", "could", "should", "can",
+            "to", "of", "in", "for", "on", "with", "at", "by", "from",
+            "this", "that", "what", "which", "who", "how", "it", "its",
+            "i", "me", "my", "we", "you", "your", "he", "she", "they",
+            // Domain-aware stopwords (match HybridSearchService keyword boost)
+            "kind", "type", "car", "take", "use", "need", "vehicle", "much"
+        ]
+
+        // Split into content words, escape each
+        let words = trimmed.lowercased()
+            .split(whereSeparator: { $0.isWhitespace || $0.isNewline })
+            .map { String($0).replacingOccurrences(of: "\"", with: "\"\"") }
+            .filter { $0.count >= 2 && !ftsStop.contains($0) }
+
+        guard !words.isEmpty else {
+            // Fallback: return original as quoted phrase
+            return "\"\(trimmed.replacingOccurrences(of: "\"", with: "\"\""))\""
         }
 
-        // Escape special characters
-        return trimmed
-            .replacingOccurrences(of: "\"", with: "\"\"")
+        // AND-first strategy: FTS5 implicit AND (space-separated) requires ALL terms
+        // to appear in the document. This is far more precise for needle-in-haystack.
+        // For single-term queries, AND and OR are equivalent.
+        // For multi-term queries, AND dramatically reduces false positives.
+        //
+        // Note: FTS5 porter stemmer handles morphological variants automatically
+        // ("running" → "run", "oils" → "oil"), so AND won't miss inflected forms.
+        return words.map { "\"\($0)\"" }.joined(separator: " ")
+    }
+
+    /// Build an OR-based FTS5 query for broad recall (fallback when AND returns nothing)
+    private func escapeFTS5QueryBroad(_ query: String) -> String {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return trimmed }
+
+        let ftsStop: Set<String> = [
+            "the", "a", "an", "is", "are", "was", "were", "be", "been",
+            "do", "does", "did", "will", "would", "could", "should", "can",
+            "to", "of", "in", "for", "on", "with", "at", "by", "from",
+            "this", "that", "what", "which", "who", "how", "it", "its",
+            "i", "me", "my", "we", "you", "your", "he", "she", "they",
+            "kind", "type", "car", "take", "use", "need", "vehicle", "much"
+        ]
+
+        let words = trimmed.lowercased()
+            .split(whereSeparator: { $0.isWhitespace || $0.isNewline })
+            .map { String($0).replacingOccurrences(of: "\"", with: "\"\"") }
+            .filter { $0.count >= 2 && !ftsStop.contains($0) }
+
+        guard !words.isEmpty else {
+            return "\"\(trimmed.replacingOccurrences(of: "\"", with: "\"\""))\""
+        }
+
+        // OR-based: any term matches (broad recall fallback)
+        return words.map { "\"\($0)\"" }.joined(separator: " OR ")
     }
 
     /// Count words using simple whitespace split (for metadata)

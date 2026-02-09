@@ -98,6 +98,9 @@ struct ChatScreen: View {
     // Vision Capture overlay
     @State private var showVisionCapture: Bool = false
 
+    // Hardware telemetry for Motherboard HUD visibility
+    @ObservedObject private var hardwareTelemetry = HardwareTelemetryState.shared
+
     // Dynamic suggested questions
     @State private var dynamicSuggestedQuestions: [String] = []
     @State private var suggestedQuestionsTask: Task<Void, Never>? = nil
@@ -411,11 +414,10 @@ struct ChatScreen: View {
             // Motherboard HUD - Full-screen X-ray overlay
             // Shows glowing borders at the ACTUAL physical locations where
             // the Neural Engine, GPU, and CPU sit behind the screen
-            if settings.showSiliconHUD && (isProcessing || HardwareTelemetryState.shared.isActive) {
+            if settings.showSiliconHUD {
                 HardwareXRayOverlay()
                     .allowsHitTesting(false) // Don't block touches
                     .transition(.opacity)
-                    .animation(.easeInOut(duration: 0.3), value: isProcessing)
             }
         }
         // MARK: - Vision Capture (v2 feature - disabled for v1 App Store release)
@@ -1559,6 +1561,9 @@ struct ChatScreen: View {
         let query = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return }
 
+        // Haptic feedback for sending a message
+        DSHaptics.messageSent()
+
         // Cancel any existing query - "cancel and replace" strategy
         // This prevents memory leaks from orphaned tasks on back-to-back queries
         if let existingTask = currentQueryTask {
@@ -1664,6 +1669,7 @@ struct ChatScreen: View {
                     self.generatingStartTS = nil
                     self.generatingElapsedFinal = nil
                     // StatusPillV2 shows stage - no toast needed
+                    DSHaptics.processingPulse() // Feel the pipeline starting
                 }
                 try? await Task.sleep(nanoseconds: 250_000_000)
 
@@ -1678,6 +1684,7 @@ struct ChatScreen: View {
                         self.embeddingElapsedFinal = Date().timeIntervalSince(embStart)
                     }
                     // StatusPillV2 shows stage - no toast needed
+                    DSHaptics.processingPulse() // Feel the search starting
                 }
 
                 let config = InferenceConfig(
@@ -1708,6 +1715,7 @@ struct ChatScreen: View {
                         self.searchingElapsedFinal = genStart.timeIntervalSince(searchStart)
                     }
                     // StatusPillV2 shows stage - no toast needed
+                    DSHaptics.messageReceived() // Feel the response starting
                 }
 
                 let response = try await capturedService.query(

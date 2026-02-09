@@ -81,7 +81,8 @@ We cannot feed a 50-page PDF into the model at once. We must slice it.
 
 - **Rule:** Max 310 words per chunk.
 - **Why?** The embedding model has a hard limit of 510 tokens. 310 words + overhead ensures we never crash the tokenizer.
-- **Result:** A 50-page document becomes ~200 individual chunks.
+- **Table Preservation:** Tables (markdown `|` tables, tab-separated data) are detected as a pre-pass and treated as atomic units. The chunker never splits through a table — it snaps boundaries to table edges or includes a table as one oversized chunk rather than destroying its row structure.
+- **Result:** A 50-page document becomes ~200 individual chunks, with spec tables kept intact.
 
 ### 2. The Core Concept: Embeddings
 
@@ -113,7 +114,7 @@ When a user asks a question, we need to find the "needle in the haystack" (the r
 We don't rely on just one method. We use two:
 
 1.  **Vector Search (Semantic):** Finds concepts (e.g., matching "oil" to "lubricant").
-2.  **BM25 (Keyword):** Finds exact matches (e.g., matching part number "XYZ-123").
+2.  **BM25 (Keyword):** Finds exact matches (e.g., matching part number "XYZ-123"). Uses AND-first FTS5 queries (all terms must co-occur) with automatic OR fallback. Scoring is per-chunk, not per-document.
 
 We fuse these results using **RRF (Reciprocal Rank Fusion)** to get the top ~50 candidates.
 
@@ -168,13 +169,14 @@ Now that we have the context, **RAGService** decides how to run the generation. 
 **"Search, answer, search better, enrich, repeat"**
 
 - **Process:**
-  1. Initial Retrieval.
-  2. LLM analyzes: "What is missing?"
-  3. Generate _new_ search queries.
-  4. Retrieve again.
-  5. Repeat 4-8 times.
-  6. Synthesize final answer.
-- **Speed:** 10-30 seconds.
+  1. Initial Retrieval (same hybrid search as Standard).
+  2. **ExtractiveQA Pre-Check:** For simple lookups, try to extract the answer directly before entering multi-session reasoning. Saves 4-8 LLM sessions when a spec is directly extractable.
+  3. LLM analyzes: "What is missing?"
+  4. Generate _new_ search queries.
+  5. Retrieve again (auto-enables **iterative retrieval** for multi-hop intents like compare/investigate).
+  6. Repeat 4-8 times.
+  7. Synthesize final answer.
+- **Speed:** 10-30 seconds (or 2-5s if ExtractiveQA short-circuits).
 - **Use Case:** Complex research, multi-part questions.
 
 ### Maximum Mode (8-50 Passes)

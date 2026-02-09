@@ -178,13 +178,13 @@ final class QueryRewriterService: @unchecked Sendable {
         // Pronoun ambiguity (only if we have context to resolve from)
         // CRITICAL: "this/that" + noun is NOT ambiguous ("this button" is clear)
         // Only flag demonstratives that stand alone ("what is this?")
-        if !conversationContext.isEmpty { 
+        if !conversationContext.isEmpty {
             let queryWords = lower.split(separator: " ").map { String($0).trimmingCharacters(in: .punctuationCharacters) }
 
             // These are always ambiguous when present
             let alwaysAmbiguous = ["it", "they", "them"]
             for pronoun in alwaysAmbiguous {
-                
+
                 if queryWords.contains(pronoun) {
                     return .pronouns
                 }
@@ -207,9 +207,16 @@ final class QueryRewriterService: @unchecked Sendable {
             }
         }
 
-        // Very short queries might be missing context
+        // Very short queries ONLY need rewriting if they look like follow-ups
+        // A short content query like "Test", "oil weight", "summary" is perfectly valid
+        // Only flag if the short query is pure stop-words with no content
         if words.count <= 2 && !conversationContext.isEmpty {
-            return .tooShort
+            let contentWords = words.filter { !isStopWord(String($0)) }
+            if contentWords.isEmpty {
+                // Pure stop-words like "and?" or "so?" — genuinely needs context
+                return .tooShort
+            }
+            // Has content words (e.g., "Test", "oil specs") — this is a valid query, don't rewrite
         }
 
         return .none
@@ -295,12 +302,14 @@ final class QueryRewriterService: @unchecked Sendable {
             """
         case .tooShort:
             prompt += """
-            This question is very brief. If it relates to the conversation, make it more complete.
-            If it's already clear, output it unchanged.
-            Keep it natural. Output only the question.
+            This question is very brief and appears to lack context.
+            If it CLEARLY refers to something specific in the conversation above, incorporate that context.
+            Otherwise, output it EXACTLY as-is — do NOT guess, rephrase, or add meaning.
+            Never ask if the user made a mistake. Never question the query itself.
+            Output only the question.
 
             CRITICAL: Do NOT introduce any nouns, entities, or concepts not explicitly present in the conversation.
-                If the pronoun has no clear referent in the context above, leave the original wording unchanged.
+                If the meaning is unclear, return the original query unchanged.
             """
         case .none:
             return query

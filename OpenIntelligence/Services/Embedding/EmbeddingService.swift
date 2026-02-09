@@ -205,6 +205,7 @@ class EmbeddingService {
     func generateEmbedding(for text: String) async throws -> [Float] {
         // Report ANE activity - single embedding
         HardwareTelemetryReporter.pulse(.embeddingGeneration, intensity: 0.8, duration: 0.15)
+        HardwareTelemetryReporter.reportEmbedding(count: 1)
 
         do {
             let vec = try await provider.embed(text: text)
@@ -224,6 +225,7 @@ class EmbeddingService {
         // Report ANE activity - batch embedding (sustained while processing)
         let intensity = min(1.0, 0.5 + Double(texts.count) * 0.05)
         HardwareTelemetryReporter.sustain(.embeddingGeneration, active: true, intensity: intensity)
+        HardwareTelemetryReporter.reportEmbedding(count: texts.count)
         defer { HardwareTelemetryReporter.sustain(.embeddingGeneration, active: false) }
 
         do {

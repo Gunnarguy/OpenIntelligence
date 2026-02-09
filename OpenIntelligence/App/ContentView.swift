@@ -113,6 +113,9 @@ struct ContentView: View {
 .onChange(of: scenePhase) { oldPhase, newPhase in
     handleScenePhaseChange(from: oldPhase, to: newPhase)
 }
+        .onChange(of: selectedTab) { _, _ in
+            DSHaptics.tabChanged()
+        }
         .onReceive(settingsStore.$hasUserPrimaryOverride) { hasOverride in
             guard hasOverride else { return }
             onboardingStore.markModelSelectionAcknowledged()

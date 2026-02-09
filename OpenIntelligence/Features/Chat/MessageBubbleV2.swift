@@ -72,6 +72,11 @@ struct MessageBubbleV2: View {
                             Button {
                                 withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                                     showReasoningTrace.toggle()
+                                    if showReasoningTrace {
+                                        DSHaptics.expand()
+                                    } else {
+                                        DSHaptics.collapse()
+                                    }
                                 }
                             } label: {
                                 HStack(spacing: 6) {
@@ -108,6 +113,7 @@ struct MessageBubbleV2: View {
                 .onTapGesture {
                     withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
                         showActions.toggle()
+                        DSHaptics.soft()
                     }
                 }
 

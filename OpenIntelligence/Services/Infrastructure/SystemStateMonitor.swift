@@ -5,10 +5,13 @@
 //  Centralized real-time monitoring of all device state metrics.
 //  Exposes every relevant Apple API metric for transparency.
 //
+//  NOW WITH REAL CPU UTILIZATION via Mach APIs (same as Xcode Energy Impact)
+//
 
 import Combine
 import Foundation
 import UIKit
+import Darwin.Mach
 
 // MARK: - System State Snapshot
 
@@ -34,6 +37,10 @@ struct SystemStateSnapshot: Sendable, Equatable {
     let processorCount: Int
     let activeProcessorCount: Int
     let isLowPowerModeEnabled: Bool
+
+    // REAL CPU Utilization (via Mach APIs - same as Xcode Energy Impact)
+    let systemCpuUsage: Double      // System-wide CPU % (0.0-100.0)
+    let processCpuUsage: Double     // Our app's CPU % (0.0-100.0)
 
     // System
     let systemUptime: TimeInterval
@@ -64,6 +71,16 @@ struct SystemStateSnapshot: Sendable, Equatable {
 
     var memoryUsagePercent: Int {
         Int(memoryUsageRatio * 100)
+    }
+
+    /// System CPU usage as integer percent (0-100)
+    var systemCpuPercent: Int {
+        Int(systemCpuUsage.rounded())
+    }
+
+    /// Process (our app) CPU usage as integer percent (0-100)
+    var processCpuPercent: Int {
+        Int(processCpuUsage.rounded())
     }
 
     /// Human-readable summary
@@ -98,6 +115,113 @@ struct SystemStateSnapshot: Sendable, Equatable {
         thermalState == .critical ||
             memoryPressure == .critical ||
             (batteryLevel >= 0 && batteryLevel < 0.05 && !isCharging)
+    }
+}
+
+// MARK: - Real CPU Monitoring via Mach APIs
+
+/// Measures REAL CPU utilization using the same APIs Xcode Energy Impact uses
+/// This is NOT simulated - it's actual kernel-level CPU accounting
+enum MachCPUMonitor {
+
+    // Track previous CPU ticks for delta calculation
+    private static var previousSystemTicks: (user: UInt64, system: UInt64, idle: UInt64, nice: UInt64)?
+    private static var previousProcessTime: UInt64?
+    private static var previousMeasureTime: CFAbsoluteTime?
+
+    /// Get system-wide CPU usage (0.0-100.0) - same metric as Xcode shows
+    /// Uses host_statistics to get CPU ticks across all cores
+    static func getSystemCPUUsage() -> Double {
+        var cpuInfo = host_cpu_load_info_data_t()
+        // HOST_CPU_LOAD_INFO_COUNT macro not available in Swift - calculate manually
+        var count = mach_msg_type_number_t(MemoryLayout<host_cpu_load_info_data_t>.size / MemoryLayout<integer_t>.size)
+
+        let result = withUnsafeMutablePointer(to: &cpuInfo) { ptr in
+            ptr.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { intPtr in
+                host_statistics(mach_host_self(), HOST_CPU_LOAD_INFO, intPtr, &count)
+            }
+        }
+
+        guard result == KERN_SUCCESS else { return 0.0 }
+
+        let userTicks = UInt64(cpuInfo.cpu_ticks.0)    // CPU_STATE_USER
+        let systemTicks = UInt64(cpuInfo.cpu_ticks.1)  // CPU_STATE_SYSTEM
+        let idleTicks = UInt64(cpuInfo.cpu_ticks.2)    // CPU_STATE_IDLE
+        let niceTicks = UInt64(cpuInfo.cpu_ticks.3)    // CPU_STATE_NICE
+
+        guard let prev = previousSystemTicks else {
+            // First call - store baseline and return 0
+            previousSystemTicks = (userTicks, systemTicks, idleTicks, niceTicks)
+            return 0.0
+        }
+
+        let userDelta = userTicks - prev.user
+        let systemDelta = systemTicks - prev.system
+        let idleDelta = idleTicks - prev.idle
+        let niceDelta = niceTicks - prev.nice
+
+        let totalDelta = userDelta + systemDelta + idleDelta + niceDelta
+        guard totalDelta > 0 else { return 0.0 }
+
+        let usedDelta = userDelta + systemDelta + niceDelta
+        let usage = (Double(usedDelta) / Double(totalDelta)) * 100.0
+
+        // Update baseline for next call
+        previousSystemTicks = (userTicks, systemTicks, idleTicks, niceTicks)
+
+        return min(100.0, max(0.0, usage))
+    }
+
+    /// Get this app's process CPU usage (0.0-100.0)
+    /// Uses task_info to get actual CPU time consumed by our process
+    static func getProcessCPUUsage() -> Double {
+        var taskInfo = task_basic_info()
+        // TASK_BASIC_INFO_COUNT macro not available in Swift - calculate manually
+        var count = mach_msg_type_number_t(MemoryLayout<task_basic_info>.size / MemoryLayout<natural_t>.size)
+
+        let result = withUnsafeMutablePointer(to: &taskInfo) { ptr in
+            ptr.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { intPtr in
+                task_info(mach_task_self_, task_flavor_t(TASK_BASIC_INFO), intPtr, &count)
+            }
+        }
+
+        guard result == KERN_SUCCESS else { return 0.0 }
+
+        // CPU time = user time + system time (in microseconds)
+        let userTimeUs = UInt64(taskInfo.user_time.seconds) * 1_000_000 + UInt64(taskInfo.user_time.microseconds)
+        let systemTimeUs = UInt64(taskInfo.system_time.seconds) * 1_000_000 + UInt64(taskInfo.system_time.microseconds)
+        let totalCPUTimeUs = userTimeUs + systemTimeUs
+
+        let now = CFAbsoluteTimeGetCurrent()
+
+        guard let prevTime = previousProcessTime, let prevMeasure = previousMeasureTime else {
+            // First call - store baseline
+            previousProcessTime = totalCPUTimeUs
+            previousMeasureTime = now
+            return 0.0
+        }
+
+        let cpuDeltaUs = Double(totalCPUTimeUs - prevTime)
+        let wallDeltaUs = (now - prevMeasure) * 1_000_000  // Convert to microseconds
+
+        guard wallDeltaUs > 0 else { return 0.0 }
+
+        // CPU% = (CPU time used / wall time) * 100, divided by core count for single-core equivalent
+        let processorCount = ProcessInfo.processInfo.activeProcessorCount
+        let usage = (cpuDeltaUs / wallDeltaUs) * 100.0 / Double(processorCount)
+
+        // Update baseline
+        previousProcessTime = totalCPUTimeUs
+        previousMeasureTime = now
+
+        return min(100.0, max(0.0, usage))
+    }
+
+    /// Reset baselines (call when app comes to foreground)
+    static func reset() {
+        previousSystemTicks = nil
+        previousProcessTime = nil
+        previousMeasureTime = nil
     }
 }
 
@@ -311,6 +435,10 @@ final class SystemStateMonitor: ObservableObject {
         let optimizationLevel = optimizer.currentOptimizationLevel
         let isConstrained = optimizer.currentState.isConstrained
 
+        // REAL CPU Utilization via Mach APIs (same as Xcode Energy Impact)
+        let systemCpuUsage = MachCPUMonitor.getSystemCPUUsage()
+        let processCpuUsage = MachCPUMonitor.getProcessCPUUsage()
+
         return SystemStateSnapshot(
             thermalState: thermal,
             thermalStateName: thermalName,
@@ -325,6 +453,8 @@ final class SystemStateMonitor: ObservableObject {
             processorCount: processorCount,
             activeProcessorCount: activeProcessorCount,
             isLowPowerModeEnabled: isLowPowerMode,
+            systemCpuUsage: systemCpuUsage,
+            processCpuUsage: processCpuUsage,
             systemUptime: uptime,
             osVersion: osVersion,
             deviceModel: deviceModel,
@@ -352,7 +482,12 @@ final class SystemStateMonitor: ObservableObject {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
+                let oldThermal = self?.currentState.thermalState
                 self?.updateState()
+                // Haptic feedback for thermal state changes
+                if let newThermal = self?.currentState.thermalState, oldThermal != newThermal {
+                    self?.triggerThermalHaptic(for: newThermal)
+                }
             }
         }
 
@@ -363,7 +498,16 @@ final class SystemStateMonitor: ObservableObject {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
+                let oldLevel = self?.currentState.batteryLevel ?? 0
                 self?.updateState()
+                // Haptic for battery milestones (every 10%)
+                if let newLevel = self?.currentState.batteryLevel {
+                    let oldTens = Int(oldLevel * 10)
+                    let newTens = Int(newLevel * 10)
+                    if oldTens != newTens && newLevel >= 0 {
+                        DSHaptics.tick()
+                    }
+                }
             }
         }
 
@@ -374,7 +518,16 @@ final class SystemStateMonitor: ObservableObject {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
+                let oldCharging = self?.currentState.isCharging ?? false
                 self?.updateState()
+                // Haptic for charger connect/disconnect
+                if let newCharging = self?.currentState.isCharging, oldCharging != newCharging {
+                    if newCharging {
+                        DSHaptics.success() // Connected
+                    } else {
+                        DSHaptics.soft() // Disconnected
+                    }
+                }
             }
         }
 
@@ -385,7 +538,12 @@ final class SystemStateMonitor: ObservableObject {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
+                let wasLPM = self?.currentState.isLowPowerModeEnabled ?? false
                 self?.updateState()
+                // Haptic for low power mode toggle
+                if let isLPM = self?.currentState.isLowPowerModeEnabled, wasLPM != isLPM {
+                    DSHaptics.toggle()
+                }
             }
         }
 
@@ -397,7 +555,25 @@ final class SystemStateMonitor: ObservableObject {
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.updateState()
+                // Distinct warning haptic for memory pressure
+                DSHaptics.warning()
             }
+        }
+    }
+
+    /// Haptic feedback based on thermal state
+    private func triggerThermalHaptic(for state: ProcessInfo.ThermalState) {
+        switch state {
+        case .nominal:
+            DSHaptics.soft() // Cooling down - gentle
+        case .fair:
+            DSHaptics.thermalPulse(intensity: 0.4) // Getting warm
+        case .serious:
+            DSHaptics.thermalPulse(intensity: 0.7) // Hot
+        case .critical:
+            DSHaptics.warning() // Critical warning
+        @unknown default:
+            break
         }
     }
 

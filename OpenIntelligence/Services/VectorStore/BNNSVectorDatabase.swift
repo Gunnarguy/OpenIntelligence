@@ -204,9 +204,23 @@ actor BNNSVectorDatabase: VectorDatabase {
             let norm = computeNormAccelerated(chunk.embedding)
             embeddingNorms.append(norm)
         }
-        Log.debug("[BNNSVectorDatabase] Batch stored \(validChunks.count) chunks (norms cached)", category: .vectorDB)
+        Log.debug("[BNNSVectorDatabase] Batch stored \(validChunks.count) chunks (norms cached, persist deferred)", category: .vectorDB)
 
+        // OPTIMIZATION: Disk save is deferred to persist() call
+        // Avoids redundant full-JSON serialization after every batch
+        // Caller MUST call persist() when done with all storeBatch operations
+        isDirty = true
+    }
+
+    /// Flag indicating unsaved changes exist
+    private var isDirty = false
+
+    /// Persist all in-memory data to disk (call after storeBatch operations are complete)
+    func persist() async throws {
+        guard isDirty else { return }
         try saveToDisk()
+        isDirty = false
+        Log.debug("[BNNSVectorDatabase] Persisted \(chunks.count) chunks to disk", category: .vectorDB)
     }
 
     func search(embedding: [Float], topK: Int) async throws -> [RetrievedChunk] {

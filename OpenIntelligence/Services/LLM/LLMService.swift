@@ -929,6 +929,56 @@ struct LLMResponse {
                 session = nil
             }
 
+            // AUTO-TRIM TRANSCRIPT: Context gets priority, transcript gets whatever's left.
+            // Estimate how many tokens the actual content (context + prompt + overhead) will use,
+            // then trim the transcript from oldest entries to fit within the 4096 window.
+            // This ensures document context is NEVER starved by conversation history.
+            if let transcript = pendingTranscript, !transcript.isEmpty {
+                let contextChars = context?.count ?? 0
+                let promptChars = prompt.count
+                let systemChars = (config.systemPrompt ?? "").count
+                // Conservative: instructions + system + prompt + context + output reserve
+                let contentTokens = Int(ceil(Double(contextChars + promptChars + systemChars + 200) / 1.4))
+                let outputReserve = max(150, min(config.maxTokens, 300))
+                let toolSchemaTokens = config.disableTools ? 0 : 1000
+                let budgetForContent = contentTokens + outputReserve + toolSchemaTokens
+
+                let maxTranscriptTokens = max(0, 4096 - budgetForContent)
+                let currentTranscriptTokens = Self.estimateTranscriptTokens(transcript)
+
+                if currentTranscriptTokens > maxTranscriptTokens {
+                    // Trim oldest entries, keeping instructions (first entry) + most recent
+                    let allEntries = Array(transcript)
+                    let firstEntry = allEntries.first  // Usually instructions — always keep
+
+                    // Binary-search-style trim: keep removing oldest non-instruction entries
+                    var keepCount = allEntries.count
+                    while keepCount > 1 {
+                        let candidateEntries: [Transcript.Entry]
+                        if let first = firstEntry {
+                            candidateEntries = [first] + Array(allEntries.suffix(keepCount - 1))
+                        } else {
+                            candidateEntries = Array(allEntries.suffix(keepCount))
+                        }
+                        let candidateTranscript = Transcript(entries: candidateEntries)
+                        let tokens = Self.estimateTranscriptTokens(candidateTranscript)
+                        if tokens <= maxTranscriptTokens {
+                            let dropped = allEntries.count - candidateEntries.count
+                            Log.info("[FM] Auto-trimmed transcript: \(currentTranscriptTokens)→\(tokens) tokens (dropped \(dropped) oldest entries, preserving \(contentTokens) tokens for context)", category: .llm)
+                            pendingTranscript = candidateTranscript
+                            break
+                        }
+                        keepCount -= 1
+                    }
+
+                    // If even 1 entry is too large, drop transcript entirely
+                    if keepCount <= 1 {
+                        Log.warning("[FM] Transcript (\(currentTranscriptTokens) tokens) too large even after trimming, dropping to preserve context (\(contentTokens) tokens)", category: .llm)
+                        pendingTranscript = nil
+                    }
+                }
+            }
+
             // Ensure session is created (now guaranteed to be on main thread via @MainActor)
             try ensureSession(systemPrompt: config.systemPrompt, disableTools: config.disableTools)
 
@@ -980,10 +1030,11 @@ struct LLMResponse {
                     \(sanitizedPrompt)
 
                     Answer comprehensively based on the context above. Include:
-                    • Specific actions (press, hold, toggle, etc.) and their exact durations
-                    • Feedback indicators (vibrations, lights, sounds) and what they mean
-                    • Step-by-step procedures when relevant
-                    • All specifications, measurements, and technical details mentioned
+                    • All specific details, values, and data points mentioned
+                    • Step-by-step procedures when the content describes a process
+                    • Technical details, specifications, and measurements when present
+                    • Causes, effects, and relationships between concepts
+                    Use EXACT values from the excerpts — never substitute similar numbers or names.
                     Do not call any tools - the context is already provided.
                     """
                 } else {
@@ -992,11 +1043,12 @@ struct LLMResponse {
                     fullPrompt = """
                     Answer the question thoroughly using the document excerpts below.
                     Extract ALL specific details from the text including:
-                    - Exact procedures (press for X seconds, toggle Y, etc.)
-                    - Feedback indicators (vibrations, lights, beeps) and their meanings
-                    - Step-by-step instructions when available
-                    - Technical specifications and measurements
+                    - Procedures and step-by-step instructions
+                    - Data points, specifications, and measurements
+                    - Key terms, definitions, and their descriptions
+                    - Relationships, causes, and effects
                     Be comprehensive - include everything the documents say about the topic.
+                    Use EXACT values from the excerpts — never substitute similar numbers or names.
                     Cite sources like [Document Name, p.X] when referencing specific information.
                     Do NOT call search_documents - the relevant context is already provided below.
 
@@ -1066,7 +1118,7 @@ struct LLMResponse {
             var unsupportedLanguage = false
 
             // Report Neural Engine activity - LLM inference starting
-            HardwareTelemetryReporter.sustain(.llmInference, active: true, intensity: 0.9)
+            HardwareTelemetryReporter.reportLLMInference(active: true)
 
             do {
                 for try await snapshot in responseStream {
@@ -1074,6 +1126,9 @@ struct LLMResponse {
 
                     if firstTokenTime == nil {
                         firstTokenTime = Date().timeIntervalSince(startTime)
+
+                        // Haptic: first token arrived — the "brain lit up" moment
+                        await MainActor.run { DSHaptics.generationStarted() }
 
                         // Detect actual execution location from first token latency
                         // On-device: ~0.1-0.5s, PCC: ~2-4s (includes network roundtrip)
@@ -1147,6 +1202,11 @@ struct LLMResponse {
                         let chunk = String(responseText.suffix(newChars))
                         LLMStreamingContext.emit(text: chunk, isFinal: false)
                     }
+
+                    // Subtle haptic tick every 8 snapshots — "feel the thinking"
+                    if snapshotCount % 8 == 0 {
+                        await MainActor.run { DSHaptics.generationTick() }
+                    }
                 }
             } catch let error as LanguageModelSession.GenerationError {
                 // Stop Neural Engine activity on error
@@ -1214,6 +1274,9 @@ struct LLMResponse {
 
             // Stop Neural Engine activity indicator
             HardwareTelemetryReporter.sustain(.llmInference, active: false)
+
+            // Haptic: generation complete — satisfying finish tap
+            await MainActor.run { DSHaptics.generationComplete() }
 
             // Handle generation errors with user-friendly messages
             if guardrailViolation {

@@ -305,6 +305,7 @@ final class GPUComputeService: @unchecked Sendable {
         if docCount > 100, let device = device, let queue = commandQueue {
             // Report GPU activity for vector similarity
             HardwareTelemetryReporter.pulse(.vectorSimilarity, intensity: 0.85, duration: 0.3)
+            HardwareTelemetryReporter.reportGPUCompute()
 
             // Prefer SIMD pipeline (4x faster), fall back to standard
             if let simdPipeline = cosineSimilaritySIMDPipeline {

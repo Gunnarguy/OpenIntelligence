@@ -13,13 +13,13 @@ import UIKit
 struct EnhancedCodeBlock: View {
     let code: String
     let language: String?
-    
+
     @State private var copied = false
-    
+
     private var displayLanguage: String {
         language?.lowercased() ?? "code"
     }
-    
+
     private var languageInfo: (icon: String, color: Color) {
         switch displayLanguage {
         case "swift":
@@ -46,11 +46,11 @@ struct EnhancedCodeBlock: View {
             return ("doc.text", .secondary)
         }
     }
-    
+
     private var lines: [String] {
         code.components(separatedBy: .newlines)
     }
-    
+
     var body: some View {
         VStack(spacing: 0) {
             // Header bar
@@ -58,13 +58,13 @@ struct EnhancedCodeBlock: View {
                 Image(systemName: languageInfo.icon)
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(languageInfo.color)
-                
+
                 Text(displayLanguage.uppercased())
                     .font(.system(size: 10, weight: .bold, design: .monospaced))
                     .foregroundStyle(.secondary)
-                
+
                 Spacer()
-                
+
                 // Copy button
                 Button {
                     copyCode()
@@ -86,9 +86,9 @@ struct EnhancedCodeBlock: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(Color(uiColor: .tertiarySystemBackground))
-            
+
             Divider()
-            
+
             // Code content with line numbers
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(alignment: .top, spacing: 0) {
@@ -104,12 +104,12 @@ struct EnhancedCodeBlock: View {
                     .padding(.horizontal, 8)
                     .padding(.vertical, 10)
                     .background(Color(uiColor: .tertiarySystemBackground).opacity(0.5))
-                    
+
                     // Separator
                     Rectangle()
                         .fill(Color(uiColor: .separator).opacity(0.3))
                         .frame(width: 1)
-                    
+
                     // Code content
                     VStack(alignment: .leading, spacing: 0) {
                         ForEach(lines.indices, id: \.self) { index in
@@ -132,17 +132,17 @@ struct EnhancedCodeBlock: View {
                 .stroke(Color(uiColor: .separator).opacity(0.3), lineWidth: 1)
         )
     }
-    
+
     private func copyCode() {
         #if canImport(UIKit)
         UIPasteboard.general.string = code
         #endif
-        
+
         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
             copied = true
         }
-        DSHaptics.selection()
-        
+        DSHaptics.copy()
+
         // Reset after delay
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
             withAnimation {
@@ -157,29 +157,29 @@ struct EnhancedCodeBlock: View {
 private struct SyntaxHighlightedLine: View {
     let text: String
     let language: String
-    
+
     var body: some View {
         // Simple syntax highlighting using AttributedString
         Text(highlightedText)
             .font(.system(size: 12, weight: .regular, design: .monospaced))
     }
-    
+
     private var highlightedText: AttributedString {
         var result = AttributedString(text)
-        
+
         // Apply basic highlighting based on language
         applyHighlighting(to: &result)
-        
+
         return result
     }
-    
+
     private func applyHighlighting(to text: inout AttributedString) {
         let plainText = String(text.characters)
-        
+
         // Keywords by language
         let keywords: [String]
         let types: [String]
-        
+
         switch language {
         case "swift":
             keywords = ["func", "var", "let", "if", "else", "for", "while", "return", "guard", "import", "struct", "class", "enum", "protocol", "extension", "private", "public", "internal", "fileprivate", "static", "override", "mutating", "async", "await", "throws", "try", "catch", "do", "switch", "case", "default", "break", "continue", "self", "Self", "nil", "true", "false", "init", "deinit", "where", "in", "as", "is", "@State", "@Binding", "@Published", "@MainActor", "@Environment"]
@@ -194,7 +194,7 @@ private struct SyntaxHighlightedLine: View {
             keywords = []
             types = []
         }
-        
+
         // Highlight keywords
         for keyword in keywords {
             let pattern = "\\b\(keyword)\\b"
@@ -207,7 +207,7 @@ private struct SyntaxHighlightedLine: View {
                 }
             }
         }
-        
+
         // Highlight types
         for type in types {
             let pattern = "\\b\(type)\\b"
@@ -219,7 +219,7 @@ private struct SyntaxHighlightedLine: View {
                 }
             }
         }
-        
+
         // Highlight strings (simple approach)
         let stringPattern = #"\"[^\"]*\"|'[^']*'"#
         if let regex = try? Regex(stringPattern) {
@@ -229,7 +229,7 @@ private struct SyntaxHighlightedLine: View {
                 }
             }
         }
-        
+
         // Highlight comments
         let commentPatterns = ["//.*$", "#.*$"]
         for pattern in commentPatterns {
@@ -242,7 +242,7 @@ private struct SyntaxHighlightedLine: View {
                 }
             }
         }
-        
+
         // Highlight numbers
         let numberPattern = #"\b\d+\.?\d*\b"#
         if let regex = try? Regex(numberPattern) {
@@ -261,18 +261,18 @@ private struct SyntaxHighlightedLine: View {
 struct CompactCodeBlock: View {
     let code: String
     let language: String?
-    
+
     @State private var copied = false
-    
+
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
             Text(code)
                 .font(.system(size: 12, design: .monospaced))
                 .foregroundStyle(DSColors.primaryText)
                 .padding(10)
-            
+
             Spacer(minLength: 0)
-            
+
             Button {
                 #if canImport(UIKit)
                 UIPasteboard.general.string = code
@@ -301,7 +301,7 @@ struct CompactCodeBlock: View {
             code: """
             struct ContentView: View {
                 @State private var count = 0
-                
+
                 var body: some View {
                     VStack {
                         Text("Count: \\(count)")
@@ -314,7 +314,7 @@ struct CompactCodeBlock: View {
             """,
             language: "swift"
         )
-        
+
         EnhancedCodeBlock(
             code: """
             def hello_world():

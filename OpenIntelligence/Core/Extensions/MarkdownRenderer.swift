@@ -19,13 +19,13 @@ public struct MarkdownText: View {
     public let text: String
     public let font: Font
     public let foregroundColor: Color
-    
+
     public init(_ text: String, font: Font = .body, foregroundColor: Color = .primary) {
         self.text = text
         self.font = font
         self.foregroundColor = foregroundColor
     }
-    
+
     public var body: some View {
         if let attributed = try? AttributedString(
             markdown: text,
@@ -51,11 +51,11 @@ public struct MarkdownText: View {
 public struct CodeBlockView: View {
     public let code: String
     @State private var copied = false
-    
+
     public init(code: String) {
         self.code = code
     }
-    
+
     public var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             ScrollView(.horizontal, showsIndicators: true) {
@@ -64,12 +64,13 @@ public struct CodeBlockView: View {
                     .textSelection(.enabled)
                     .padding(.vertical, 4)
             }
-            
+
             HStack(spacing: 8) {
                 Spacer()
                 Button {
                     #if canImport(UIKit)
                     UIPasteboard.general.string = code
+                    DSHaptics.copy()
                     #elseif canImport(AppKit)
                     let pb = NSPasteboard.general
                     pb.clearContents()

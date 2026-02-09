@@ -39,7 +39,7 @@ enum QueryIntent: String, Sendable {
         case .keyword:
             return (vectorDelta: -0.15, keywordDelta: +0.15) // Boost BM25 significantly
         case .conceptual:
-            return (vectorDelta: +0.15, keywordDelta: -0.15) // Boost vector similarity
+            return (vectorDelta: +0.20, keywordDelta: -0.20) // Boost vector similarity for semantic/behavioral questions
         case .balanced:
             return (vectorDelta: 0, keywordDelta: 0) // Use default weights
         }
@@ -98,13 +98,16 @@ enum AnswerIntent: String, Sendable, CaseIterable {
         }
     }
 
-    /// Whether this intent should use extractive-first answering (no LLM generation)
+    /// Whether this intent should use extractive-first answering (spec rescue, HyDE disabled)
+    /// Only for lookup/tableLookup where the answer is a literal value in a spec table.
+    /// Procedure is NOT extractive — "what does pressing the button do?" needs behavioral
+    /// descriptions, not specification tables.
     var isExtractiveFirst: Bool {
         switch self {
-        case .lookup, .tableLookup, .procedure:
-            return true  // Direct extraction from source
-        case .compare, .summarize, .investigate, .compute, .findings:
-            return false  // May need synthesis
+        case .lookup, .tableLookup:
+            return true  // Direct extraction from source (e.g., "SAE 0W-20")
+        case .procedure, .compare, .summarize, .investigate, .compute, .findings:
+            return false  // Needs synthesis or behavioral descriptions
         }
     }
 
@@ -172,7 +175,25 @@ final class QueryEnhancementService {
     /// - **Balanced**: Mix of both
     func classifyIntent(_ query: String) -> QueryIntent {
         let lower = query.lowercased()
-        let words = lower.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).map(String.init)
+        let rawWords = lower.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).map(String.init)
+
+        // Normalize words: strip punctuation, expand contractions
+        // "what's" → "what", "do?" → "do", "it's" → "it"
+        let words = rawWords.map { word -> String in
+            var w = word.trimmingCharacters(in: .punctuationCharacters)
+            // Handle 's contractions with ANY apostrophe variant:
+            // U+0027 ' (straight), U+2019 ' (curly/smart from iOS keyboard),
+            // U+2018 ' (left single), U+FF07 (fullwidth)
+            // Character-agnostic: check if word ends in (non-letter)(s)
+            if w.count >= 3 && w.hasSuffix("s") {
+                let idx = w.index(w.endIndex, offsetBy: -2)
+                let charBeforeS = w[idx]
+                if !charBeforeS.isLetter && !charBeforeS.isNumber {
+                    w = String(w.dropLast(2))
+                }
+            }
+            return w
+        }.filter { !$0.isEmpty }
 
         // Signals for keyword-heavy queries
         var keywordSignals = 0
@@ -238,6 +259,18 @@ final class QueryEnhancementService {
         // 3. Longer queries with context (usually more conceptual)
         if words.count >= 8 {
             conceptualSignals += 1
+        }
+
+        // 4. Behavioral question patterns: "what does X do", "what happens when"
+        // These ask about function/behavior → strongly conceptual
+        let firstWord = words.first ?? ""
+        let lastWord = words.last ?? ""
+        if firstWord == "what" && (lastWord == "do" || lastWord == "does" || lastWord == "happen" || lastWord == "happens") {
+            conceptualSignals += 2
+        }
+        // "how does X work", "what does X do" mid-sentence patterns
+        if lower.contains("what does") || lower.contains("what do") || lower.contains("how does") || lower.contains("what happens") {
+            conceptualSignals += 2
         }
 
         // Classify based on signal balance
@@ -358,18 +391,82 @@ final class QueryEnhancementService {
             if lower.contains(pattern) { return .summarize }
         }
 
-        // Priority 5: Investigate (multi-hop research)
+        // Priority 5a: Behavioral/functional → procedure (action-reaction answers)
+        // "What does pressing the button do?" / "What's X do?" / "X does what?"
+        // These ask "when I do X, what happens?" — sequential procedural answers,
+        // NOT multi-hop research. Routing to .investigate would trigger iterative
+        // retrieval passes that fragment the answer across unrelated chunks.
+        let behavioralPatterns: [String] = [
+            // "pressing button does what", "the switch does what"
+            "does what", "do what",
+            // "what happens if/when I press X"
+            "happens if", "happens when",
+            // "function of X", "purpose of X", "X is used for"
+            "function of", "purpose of", "used for",
+            // Regex: "what does X do", "what's X do", "what will X do", "what can X do"
+            "what does .* do", "what will .* do", "what can .* do",
+            "what's .* do"
+        ]
+        for pattern in behavioralPatterns {
+            if pattern.contains(".*"), let _ = lower.range(of: pattern, options: .regularExpression) {
+                Log.debug("[QueryEnhancement] Behavioral regex → procedure: '\(pattern)'", category: .retrieval)
+                return .procedure
+            }
+            if lower.contains(pattern) {
+                Log.debug("[QueryEnhancement] Behavioral pattern → procedure: '\(pattern)'", category: .retrieval)
+                return .procedure
+            }
+        }
+
+        // Priority 5c: Enumeration queries → summarize (NOT lookup)
+        // "List all X", "List every X", "What are all the X", "Name every X"
+        // These require LLM synthesis across multiple chunks, not single-value extraction.
+        // MUST be checked BEFORE lookup/tableLookup/embedded patterns, which would
+        // short-circuit to ExtractiveQA and return a single value like "SPY-PHI"
+        // when the user wants a comprehensive listing of ALL matching values.
+        let enumerationPatterns: [String] = [
+            "list all", "list every", "list the", "list each",
+            "name all", "name every", "name each",
+            "what are all", "what are every",
+            "show all", "show every", "show each",
+            "give me all", "give me every",
+            "enumerate", "all the .* numbers", "all .* reference",
+        ]
+        for pattern in enumerationPatterns {
+            if pattern.contains(".*"), let _ = lower.range(of: pattern, options: .regularExpression) {
+                Log.debug("[QueryEnhancement] Enumeration regex → summarize: '\(pattern)'", category: .retrieval)
+                return .summarize
+            }
+            if lower.contains(pattern) {
+                Log.debug("[QueryEnhancement] Enumeration pattern → summarize: '\(pattern)'", category: .retrieval)
+                return .summarize
+            }
+        }
+
+        // Priority 5b: Investigate (multi-hop research requiring iterative retrieval)
         let investigatePatterns: [String] = [
             "factors", "causes", "reasons", "why does", "why is", "why are",
             "what affects", "what influences", "implications", "consequences",
             "relationship between", "how does .* affect", "what happens when"
         ]
         for pattern in investigatePatterns {
-            if lower.contains(pattern) { return .investigate }
-            // Regex pattern check
             if pattern.contains(".*"), let _ = lower.range(of: pattern, options: .regularExpression) {
+                Log.debug("[QueryEnhancement] Matched investigate regex: '\(pattern)'", category: .retrieval)
                 return .investigate
             }
+            if lower.contains(pattern) { return .investigate }
+        }
+
+        // BEHAVIORAL CATCH-ALL: Any query starting with "what" and ending with "do"
+        // (optionally with trailing punctuation) is asking about behavior/function.
+        // Examples: "What's pressing the button do?", "What does the power button do"
+        // Routes to .procedure because these ask "what happens when I do X" — sequential
+        // action-reaction answers, NOT multi-hop research (.investigate would trigger
+        // iterative retrieval and fragment the answer across multiple search passes).
+        let trimmedLower = lower.trimmingCharacters(in: .punctuationCharacters).trimmingCharacters(in: .whitespaces)
+        if trimmedLower.hasPrefix("what") && trimmedLower.hasSuffix(" do") {
+            Log.debug("[QueryEnhancement] Behavioral catch-all: starts with 'what', ends with 'do' → procedure", category: .retrieval)
+            return .procedure
         }
 
         // Priority 6: Table lookup (table-specific queries)
@@ -399,6 +496,20 @@ final class QueryEnhancementService {
         let lookupStarters = ["what", "which", "when", "where", "who", "how much", "how many", "wat"]  // Include common typo "wat"
         for starter in lookupStarters {
             if lower.hasPrefix(starter) { return .lookup }
+        }
+
+        // CRITICAL: Detect "what is the X" patterns ANYWHERE in the query (not just at start)
+        // Queries like "1688 Stryker camera head what is the reference number?" should be LOOKUP
+        let embeddedLookupPatterns: [String] = [
+            "what is the", "what are the", "what's the",
+            "reference number", "part number", "model number", "serial number",
+            "catalog number", "item number", "product code", "sku"
+        ]
+        for pattern in embeddedLookupPatterns {
+            if lower.contains(pattern) {
+                Log.debug("[QueryEnhancement] Detected embedded lookup pattern: '\(pattern)'", category: .retrieval)
+                return .lookup
+            }
         }
 
         // CRITICAL FIX: Detect specification lookup patterns that may not start with lookup words
@@ -455,13 +566,13 @@ final class QueryEnhancementService {
             "test", "help", "hello", "hi", "hey", "ok", "okay", "thanks", "thank you",
         ]
         if tokenCount <= 1 || keyTerms.isEmpty || trivialSet.contains(lower) {
+            // OPTIMIZED: Only add query-prefixed expansions — bare "overview"/"summary"
+            // matched unrelated chunks across the entire corpus, diluting precision
             variations.append("\(original) overview")
             variations.append("\(original) summary")
-            variations.append("\(original) introduction")
-            variations.append("overview")
-            variations.append("summary")
-            Log.debug("[QueryEnhancement] Trivial input detected; added generic boost terms", category: .retrieval)
-            return uniquePreservingOrder(variations, max: 8)
+            variations.append("\(original) details")
+            Log.debug("[QueryEnhancement] Trivial input detected; added scoped boost terms", category: .retrieval)
+            return uniquePreservingOrder(variations, max: 6)
         }
 
         // 3) Synonym-based expansions.
@@ -626,9 +737,21 @@ final class QueryEnhancementService {
         var expansions: [String] = []
         let queryLower = query.lowercased()
 
+        // OPTIMIZED: Filter key terms through question-framing stopwords before
+        // corpus lookup. "type", "does", "car", "take" produce massive co-occurrence
+        // sets that pull in irrelevant terms ("indicator lights", "lamp", "fuse").
+        // Only look up substantive content words.
+        let corpusStopwords: Set<String> = [
+            "type", "kind", "sort", "take", "use", "does", "car", "vehicle",
+            "get", "find", "tell", "know", "look", "want", "like", "make",
+            "put", "give", "help", "work", "come", "thing", "much", "many",
+            "way", "long", "need", "require"
+        ]
+        let substantiveTerms = keyTerms.filter { !corpusStopwords.contains($0.lowercased()) }
+
         // 1) Find corpus terms that co-occur with query terms
         var relatedTerms: [String: Int] = [:] // term → frequency boost
-        for term in keyTerms {
+        for term in substantiveTerms {
             let termLower = term.lowercased()
             if let coTerms = vocabulary.coOccurrences[termLower] {
                 for coTerm in coTerms {
@@ -659,7 +782,9 @@ final class QueryEnhancementService {
 
         // 3) Find multi-word phrases in the corpus that contain query terms
         // e.g., "button" → "Record Button", "Recording Mode Switch"
-        let phraseExpansions = findCorpusPhrases(keyTerms: keyTerms, vocabulary: vocabulary)
+        // OPTIMIZED: Use substantiveTerms, not raw keyTerms. Previously "type" matched
+        // "lamp (LED type" and "car" matched unrelated phrases.
+        let phraseExpansions = findCorpusPhrases(keyTerms: substantiveTerms, vocabulary: vocabulary)
         for phrase in phraseExpansions.prefix(4) {
             // Replace the generic term with the specific phrase
             expansions.append(phrase)
@@ -757,6 +882,25 @@ final class QueryEnhancementService {
         // Reject if majority is non-alphanumeric
         let alphanumericCount = trimmed.filter { $0.isLetter || $0.isNumber }.count
         if Float(alphanumericCount) / Float(trimmed.count) < 0.6 {
+            return false
+        }
+
+        // OPTIMIZED: Reject non-Latin script characters (OCR artifacts like CJK, Arabic, etc.)
+        // These come from noisy PDF extraction and pollute expansions (e.g., "notice 僅")
+        let latinCount = trimmed.filter { $0.isASCII && $0.isLetter }.count
+        let letterCount = trimmed.filter { $0.isLetter }.count
+        if letterCount > 0 && Float(latinCount) / Float(letterCount) < 0.8 {
+            return false
+        }
+
+        // Reject terms with embedded digits that look like OCR noise (e.g., "SENSOR4", "10A")
+        // But allow known spec patterns like "SAE" or "API"
+        let knownSpecPrefixes: Set<String> = ["sae", "api", "iso", "dot", "fmvss", "acea", "ilsac"]
+        if !knownSpecPrefixes.contains(trimmed.lowercased()),
+           trimmed.contains(where: { $0.isNumber }),
+           trimmed.contains(where: { $0.isLetter }),
+           trimmed.count <= 8 {
+            // Short alphanumeric tokens like "SENSOR4", "10A" are likely noise
             return false
         }
 

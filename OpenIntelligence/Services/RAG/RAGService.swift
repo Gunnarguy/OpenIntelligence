@@ -1969,6 +1969,13 @@ class RAGService: ObservableObject {
     ) {
         processingStatus = "\(filename) • \(detail)"
         guard let id, let index = ingestionItems.firstIndex(where: { $0.id == id }) else { return }
+
+        // Haptic feedback for stage transitions
+        let oldStage = ingestionItems[index].stage
+        if oldStage != stage {
+            triggerIngestionHaptic(for: stage)
+        }
+
         var item = ingestionItems[index]
         item.stage = stage
         item.detail = detail
@@ -1989,6 +1996,31 @@ class RAGService: ObservableObject {
             metricsUpdate(&item.metrics)
         }
         ingestionItems[index] = item
+    }
+
+    /// Haptic feedback based on ingestion stage
+    @MainActor
+    private func triggerIngestionHaptic(for stage: IngestionStage) {
+        switch stage {
+        case .loading, .extracting:
+            DSHaptics.soft() // Just starting
+        case .transcribing:
+            DSHaptics.processingPulse() // Audio/video processing
+        case .chunking, .analyzing, .adapting:
+            DSHaptics.tick() // Processing ticks
+        case .embedding:
+            DSHaptics.processingPulse() // Neural processing
+        case .indexing:
+            DSHaptics.tick()
+        case .storing:
+            DSHaptics.soft()
+        case .complete:
+            DSHaptics.documentIngested() // Success!
+        case .failed:
+            DSHaptics.warning() // Something went wrong
+        case .reindexing, .queued:
+            break // No haptic for these
+        }
     }
 
     @MainActor
@@ -2028,7 +2060,7 @@ class RAGService: ObservableObject {
                     completedIds: snapshot.map { $0.id }
                 )
             }
-            try? await Task.sleep(nanoseconds: 200_000_000)
+            try? await Task.sleep(nanoseconds: 50_000_000) // 50ms poll interval (was 200ms)
         }
     }
 
@@ -2169,8 +2201,8 @@ class RAGService: ObservableObject {
             updateIngestionItem(id: trackingId, filename: filename, stage: .loading, detail: "Loading")
         }
 
-        // Give UI time to show the overlay (short, user-visible)
-        try? await Task.sleep(nanoseconds: 200_000_000) // 0.2s
+        // Yield to let SwiftUI render the overlay (@Published updates propagate on next run loop)
+        await Task.yield()
 
         // Set up progress handler for real-time updates (legacy string-based)
         documentProcessor.progressHandler = { [weak self] progress in
@@ -2281,8 +2313,8 @@ class RAGService: ObservableObject {
                 }
             }
 
-            // Small delay to show the chunking message
-            try? await Task.sleep(nanoseconds: 200_000_000) // 0.2s
+            // Yield to let SwiftUI render chunking status
+            await Task.yield()
 
             // Step 1.5: Auto-adapt configuration if enabled
             if context.allowsSelfTuningScheduling,
@@ -2449,7 +2481,7 @@ class RAGService: ObservableObject {
                                 detail: "Config adapted to \(updatedContainer.embeddingDim)D"
                             )
                         }
-                        try? await Task.sleep(nanoseconds: 500_000_000)
+                        try? await Task.sleep(nanoseconds: 50_000_000) // 50ms flash
                     }
 
                     container = updatedContainer
@@ -2757,6 +2789,10 @@ class RAGService: ObservableObject {
                 Log.debug("[RAGService] Document summaries disabled in settings, skipping", category: .ingestion)
             }
 
+            // Step 4.9: Persist vector store to disk (single write after all batch stores)
+            // Deferred persistence avoids redundant JSON serialization after each storeBatch call
+            try await db.persist()
+
             // Step 5: Generate content tags using Apple's content tagging model (iOS 26+)
             await MainActor.run {
                 updateIngestionItem(
@@ -2906,8 +2942,8 @@ class RAGService: ObservableObject {
             // Save documents metadata to disk
             saveDocumentsToDisk()
 
-            // Small success flash
-            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1s
+            // Brief yield for UI to catch up before marking complete
+            await Task.yield()
 
             await MainActor.run {
                 updateIngestionItem(
@@ -3582,7 +3618,7 @@ class RAGService: ObservableObject {
             detail: modeDetail
         )
 
-        let orchestrator = AgenticOrchestrator(ragService: self, config: optimizedConfig)
+        let orchestrator = AgenticOrchestrator(ragService: self, config: optimizedConfig, qualityMode: qualityMode)
         let startTime = Date()
 
         // Reset live counters at start of Deep Think / Maximum
@@ -4022,13 +4058,14 @@ class RAGService: ObservableObject {
 
         let allowUngroundedFallback = reliabilityModeEnabled || developerTuningEnabled
 
-        // Always use default retrieval config — per-container presets removed for simplicity
-        // AdaptivePipelineOptimizer handles auto-tuning based on query patterns
-        let retrievalConfig: RetrievalConfig = .default
-
         let selectedContainer = await MainActor.run {
             self.containerService.containers.first { $0.id == selectedId }
         }
+
+        // OPTIMIZED: Use container's retrievalConfig if available, otherwise default.
+        // Previous behavior hardcoded `.default` ignoring user-customized per-container weights.
+        // Container settings UI lets users tune vector vs lexical weight — now those actually propagate.
+        let retrievalConfig: RetrievalConfig = selectedContainer?.retrievalConfig ?? .default
 
         let vdb = await dbFor(selectedId)
 
@@ -4208,6 +4245,7 @@ class RAGService: ObservableObject {
 
                 // Step 0: Build or retrieve cached Corpus Vocabulary (for context-aware understanding)
                 Log.section("Step 0: Corpus Analysis", level: .info, category: .pipeline)
+                HardwareTelemetryState.shared.reportRAGPipeline(stage: "Corpus Analysis")
                 let corpusStartTime = Date()
 
                 // Pipeline Trace: Step 0
@@ -4247,11 +4285,13 @@ class RAGService: ObservableObject {
                     finalCorpusVocabulary = corpusVocabulary
                     Log.debug("Using cached corpus vocabulary (0ms)", category: .pipeline)
 
-                    // Even with cached vocabulary, run viscosity scan if pipeline trace is on
-                    // This helps diagnose retrieval issues
+                    // Always load allChunks — needed for parent doc expansion, lexical recall,
+                    // document summary, and multi-hop even when vocabulary is cached.
+                    // Previously only loaded when pipelineTraceEnabled, which silently broke
+                    // parent doc expansion on repeat queries to the same container.
+                    let allChunks = try await vdb.allChunks()
+                    cachedAllChunks = allChunks
                     if Log.pipelineTraceEnabled {
-                        let allChunks = try await vdb.allChunks()
-                        cachedAllChunks = allChunks
                         await runViscosityScan(allChunks, query: question)
                     }
                 }
@@ -4311,8 +4351,8 @@ class RAGService: ObservableObject {
 
                 // Check advanced RAG settings
                 let useQueryRewriting = settingsStore?.enableQueryRewriting ?? qualityModeUsesQueryRewriting
-                // Note: Iterative retrieval is a future enhancement, capturing setting for later use
-                _ = settingsStore?.enableIterativeRetrieval ?? qualityModeUsesIterativeRetrieval
+                // Note: Iterative retrieval is auto-enabled for multi-hop intents (investigate/compare/findings)
+                // and can be force-enabled via settings toggle. See Step 3 below.
 
                 // Step 1: LLM-Powered Query Understanding (if enabled)
                 var effectiveQuery = question
@@ -4321,6 +4361,7 @@ class RAGService: ObservableObject {
 
                 if useQueryRewriting {
                     Log.section("Step 1: Query Understanding", level: .info, category: .pipeline)
+                    HardwareTelemetryState.shared.reportRAGPipeline(stage: "Query Understanding")
                     let rewriteStartTime = Date()
 
                     // Pipeline Trace: Step 1
@@ -4507,11 +4548,15 @@ class RAGService: ObservableObject {
 
                 // HyDE: Combine quality mode toggle with user settings and service availability
                 let hydeEnabledBySettings = settingsStore?.enableHyDE ?? true
-                let hydeEnabledForMode = qualityModeUsesHyDE && hydeEnabledBySettings && HyDEService.isAvailable
+                let hydeIsAvailable = HyDEService.isAvailable
+                let hydeEnabledForMode = qualityModeUsesHyDE && hydeEnabledBySettings && hydeIsAvailable
+                // ALWAYS log HyDE gate status so we can diagnose silent failures
+                Log.info("[HyDE] Gates: qualityMode=\(qualityModeUsesHyDE), settings=\(hydeEnabledBySettings), available=\(hydeIsAvailable) → enabled=\(hydeEnabledForMode)", category: .retrieval)
 
                 // CRITICAL: Disable HyDE for extractive/lookup queries to avoid hallucinated specifics biasing retrieval
                 // HyDE can guess wrong values (e.g., "5W-40" when answer is "0W-20") and pull wrong chunks
-                // Extractive-first intents (lookup, tableLookup, procedure) work better with keyword matching
+                // Extractive-first intents (lookup, tableLookup) work better with keyword matching
+                // Procedure intents need HyDE for semantic behavioral matching ("what does the button do?")
                 let hydeDisabledForIntent = answerIntent.isExtractiveFirst
                 if hydeDisabledForIntent && hydeEnabledForMode {
                     Log.debug("[HyDE] Disabled for extractive intent '\(answerIntent.rawValue)' - keyword matching preferred", category: .retrieval)
@@ -4612,7 +4657,12 @@ class RAGService: ObservableObject {
 
                 // Step 3: Hybrid Search (vector + BM25 keyword search with RRF fusion)
                 // With optional iterative retrieval for multi-pass refinement
-                let useIterative = settingsStore?.enableIterativeRetrieval ?? false
+                HardwareTelemetryState.shared.reportRAGPipeline(stage: "Hybrid Search")
+                // UPGRADED: Auto-enable iterative retrieval for multi-hop intents
+                // (compare, investigate, findings) even if user hasn't toggled the setting.
+                // The infrastructure is fully built — this just activates it where it matters.
+                let userEnabledIterative = settingsStore?.enableIterativeRetrieval ?? false
+                let useIterative = userEnabledIterative || (answerIntent.benefitsFromMultiHop && qualityModeUsesIterativeRetrieval)
                 let iterativeConfig = IterativeRetrievalConfig.default
 
                 let retrievalStartTime = Date()
@@ -4769,11 +4819,12 @@ class RAGService: ObservableObject {
                     // For RAPTOR-lite: filteredCachedChunks may be limited to summaries for overview queries
                     // Pass containerId to enable FTS5-accelerated BM25 (10-100X faster than in-memory)
                     retrievedChunks = try await hybridSearch.search(
-                        query: expandedQueries.joined(separator: " "), // Combine expansions
+                        query: expandedQueries.joined(separator: " "),
+                        originalQuery: effectiveQuery,  // Original query for FTS5 + keyword boost
                         embedding: queryEmbedding,
-                        topK: effectiveTopK * 3, // Retrieve 3x for better coverage on large docs
+                        topK: effectiveTopK * 3,
                         cachedChunks: filteredCachedChunks,
-                        containerId: selectedId // Enable SQLite FTS5 for this container
+                        containerId: selectedId
                     )
                 }
 
@@ -5235,9 +5286,9 @@ class RAGService: ObservableObject {
                         metadata: ["dropped": "\(dropped)"]
                     )
 
-                    // SPEC PRESERVATION: For extractive queries, rescue chunks with actual specification values
+                    // SPEC PRESERVATION: For extractive queries, rescue chunks with actual specification values.
                     // Cross-encoders often score table/spec chunks lower (sparse text, dense data)
-                    // But these are exactly the chunks that contain the answer (e.g., "0W-20")
+                    // but these are exactly the chunks that contain the answer.
                     if answerIntent.isExtractiveFirst {
                         let filteredIds = Set(filteredChunks.map { $0.chunk.id })
                         let droppedChunks = rerankedChunks.filter { !filteredIds.contains($0.chunk.id) }
@@ -5245,26 +5296,6 @@ class RAGService: ObservableObject {
                         // Find dropped chunks with high spec scores
                         var rescuedChunks: [RetrievedChunk] = []
                         let specThreshold = 5  // Minimum spec pattern score to rescue
-
-                        // Also scan ALL candidates for viscosity patterns (critical for oil queries)
-                        let viscosityPattern = #"\d+[Ww]-\d+"#
-                        var foundViscosityChunk = false
-
-                        for chunk in rerankedChunks {
-                            let content = chunk.chunk.parentContent ?? chunk.chunk.content
-                            if let _ = content.range(of: viscosityPattern, options: .regularExpression) {
-                                foundViscosityChunk = true
-                                // If this chunk was filtered out, force rescue it
-                                if !filteredIds.contains(chunk.chunk.id) {
-                                    Log.info("   🔧 Viscosity spec found in filtered chunk: \(String(content.prefix(80)))...", category: .retrieval)
-                                    rescuedChunks.insert(chunk, at: 0)  // Priority position
-                                }
-                            }
-                        }
-
-                        if !foundViscosityChunk && Log.pipelineTraceEnabled {
-                            Log.warning("   ⚠️ No viscosity specs (e.g., 0W-20) found in ANY of \(rerankedChunks.count) reranked chunks!", category: .retrieval)
-                        }
 
                         for chunk in droppedChunks {
                             let content = chunk.chunk.parentContent ?? chunk.chunk.content
@@ -5281,33 +5312,31 @@ class RAGService: ObservableObject {
                         }
 
                         if !rescuedChunks.isEmpty {
-                            // Limit rescued chunks to prevent flooding
                             let maxRescue = min(5, rescuedChunks.count)
                             let topRescued = Array(rescuedChunks.prefix(maxRescue))
 
-                            // CRITICAL FIX (Jan 27, 2026): Boost rescued chunk scores!
-                            // Cross-encoders score spec/table chunks LOW because they're data-dense.
-                            // But these chunks contain THE ANSWER (e.g., "0W-20").
-                            // Without boosting, MMR will pick the "relevant-looking" chunks first
-                            // (like EVIC messages with "car" in them) and skip the specs.
-                            //
-                            // Strategy: Boost to match top chunk score + 0.05 so they're selected first
+                            // OPTIMIZED: Boost rescued chunks to topScore - 0.02 instead of + 0.05.
+                            // Previous behavior made rescued chunks rank HIGHER than the best RRF result,
+                            // which could pollute results if spec detection misfires.
+                            // Now: rescued chunks rank just below the top result — included in context
+                            // but won't displace genuinely high-relevance content.
                             let topScore = filteredChunks.first?.similarityScore ?? 0.8
+                            let rescueScore = max(topScore - 0.02, 0.5)  // Floor at 0.5 to ensure inclusion
                             let boostedRescued = topRescued.map { chunk -> RetrievedChunk in
                                 RetrievedChunk(
                                     chunk: chunk.chunk,
-                                    similarityScore: topScore + 0.05,  // Slightly higher than top
-                                    rank: 0,  // Top rank
+                                    similarityScore: rescueScore,
+                                    rank: 1,
                                     sourceDocument: chunk.sourceDocument,
                                     pageNumber: chunk.pageNumber
                                 )
                             }
 
-                            // Insert at FRONT so MMR picks them first
+                            // Insert at front so they're available for MMR selection
                             filteredChunks.insert(contentsOf: boostedRescued, at: 0)
 
                             Log.info(
-                                "   🔧 Spec preservation: rescued \(topRescued.count) spec-containing chunks for extractive query (boosted to \(String(format: "%.2f", topScore + 0.05)))",
+                                "   🔧 Spec preservation: rescued \(topRescued.count) spec chunks (score=\(String(format: "%.2f", rescueScore)))",
                                 category: .retrieval
                             )
                             TelemetryCenter.emit(
@@ -5316,7 +5345,7 @@ class RAGService: ObservableObject {
                                 metadata: [
                                     "rescued": "\(topRescued.count)",
                                     "intent": answerIntent.rawValue,
-                                    "boostedScore": String(format: "%.2f", topScore + 0.05)
+                                    "boostedScore": String(format: "%.2f", rescueScore)
                                 ]
                             )
                         }
@@ -5851,7 +5880,7 @@ class RAGService: ObservableObject {
                         )
 
                         emitThinkingEvent(
-                            .context,
+                            .parentDoc,
                             title: "Parent context expanded",
                             detail: "+\(expansionResult.addedSiblings) siblings • \(expansionResult.expandedChunks.count) total chunks"
                         )
@@ -5885,19 +5914,50 @@ class RAGService: ObservableObject {
 
                 if skipCompressionForProcedural {
                     Log.info("[RAG] Skipping compression for procedural query - preserving contiguous spans", category: .retrieval)
+                    emitThinkingEvent(.compression, title: "Compression skipped", detail: "Procedural query — preserving step ordering")
                 }
 
                 if skipCompressionForVocabMismatch {
                     Log.info("[RAG] Skipping compression for vocabulary mismatch - compressor can't judge relevance", category: .retrieval)
+                    emitThinkingEvent(.compression, title: "Compression skipped", detail: "Vocabulary mismatch — compressor can't judge relevance")
                 }
 
                 if skipCompressionForParentExpansion {
                     Log.info("[RAG] Skipping compression for parent-expanded content - chunks exceed compression model capacity", category: .retrieval)
+                    emitThinkingEvent(.compression, title: "Compression skipped", detail: "Parent-expanded chunks exceed model capacity")
                 }
 
                 if useContextualCompression, HyDEService.isAvailable, contextCandidates.count > 0 {
+                    // SMART COMPRESSION BUDGET: Estimate how many chunks will fit in context
+                    // before wasting time compressing all candidates. Context budget typically
+                    // fits 3-5 chunks, so compressing 18 at ~3s each = 54s wasted.
+                    // Only compress top-N where N = estimated fit + small buffer.
+                    // Use conservative inline estimates (exact budget is computed later):
+                    //   4096 window - ~1500 overhead/prompt - ~50 question - 300 output = ~2246 tokens
+                    let estQuestionTokens = max(20, question.count / 4)
+                    let estimatedAvailableTokens = 4096 - 1500 - estQuestionTokens - 300
+                    let estimatedCharsAvailable = Int(Double(estimatedAvailableTokens) * 1.4 * 0.88)
+                    var totalChars = 0
+                    var estimatedFit = 0
+                    for candidate in contextCandidates {
+                        totalChars += candidate.chunk.text.count
+                        if totalChars <= max(estimatedCharsAvailable, 3500) {
+                            estimatedFit += 1
+                        }
+                    }
+                    // Add buffer of 2 so compression can potentially include slightly more
+                    let compressionLimit = min(contextCandidates.count, max(estimatedFit + 2, 5))
+
+                    // Skip compression entirely if only 3 or fewer chunks fit — ROI is negative
+                    // (3 chunks × 3s = 9s for negligible token savings)
+                    if compressionLimit <= 3 {
+                        Log.info("[RAG] Skipping compression - only \(estimatedFit) chunks fit in context budget (ROI negative)", category: .retrieval)
+                        emitThinkingEvent(.compression, title: "Compression skipped", detail: "Only \(estimatedFit) chunks fit — ROI negative")
+                    }
+
+                    let chunksToCompress = compressionLimit <= 3 ? [] : Array(contextCandidates.prefix(compressionLimit))
                     let compressionService = ContextualCompressionService()
-                    let chunkTexts = contextCandidates.map { $0.chunk.text }
+                    let chunkTexts = chunksToCompress.map { $0.chunk.text }
 
                     // Select compression config based on query type
                     // "exactly", "detail", "comprehensive", "all about" → verbose (minimal compression)
@@ -5928,10 +5988,10 @@ class RAGService: ObservableObject {
                         )
                         let compressionTime = Date().timeIntervalSince(compressionStartTime)
 
-                        // Update chunk texts with compressed content
+                        // Update only the compressed chunks; leave remaining candidates untouched
                         var updatedCandidates: [RetrievedChunk] = []
-                        for (index, result) in compressionResults.enumerated() where index < contextCandidates.count {
-                            let original = contextCandidates[index]
+                        for (index, result) in compressionResults.enumerated() where index < chunksToCompress.count {
+                            let original = chunksToCompress[index]
                             let effectiveText = result.effectiveContent
 
                             // Log if compression marked chunk as low-relevance (but we keep a fallback)
@@ -5957,11 +6017,13 @@ class RAGService: ObservableObject {
                         compressionSavings = originalTokens - compressedTokens
 
                         if updatedCandidates.count > 0 {
-                            contextCandidates = updatedCandidates
+                            // Merge: compressed chunks replace front, uncompressed remain at tail
+                            let remaining = Array(contextCandidates.dropFirst(updatedCandidates.count))
+                            contextCandidates = updatedCandidates + remaining
                             let lowRelNote = lowRelevanceCount > 0 ? " (\(lowRelevanceCount) fallback)" : ""
                             Log.info("[Compression] \(originalTokens)→\(compressedTokens) tokens saved \(compressionSavings) in \(String(format: "%.0f", compressionTime * 1000))ms\(lowRelNote)", category: .retrieval)
                             emitThinkingEvent(
-                                .context,
+                                .compression,
                                 title: "Context compressed",
                                 detail: "Saved \(compressionSavings) tokens • \(contextCandidates.count) chunks"
                             )
@@ -6051,6 +6113,7 @@ class RAGService: ObservableObject {
 
                 // Step 5: Construct context from retrieved chunks (off-main)
                 // Note: rawContext assembly is handled via engine.assembleContext with size limits
+                HardwareTelemetryState.shared.reportRAGPipeline(stage: "Context Assembly")
 
                 // Smart context assembly: Use as many chunks as fit within the model's context window.
                 // Apple Intelligence on-device context is 4,096 tokens (TN3193). PCC behavior may vary.
@@ -6127,71 +6190,65 @@ class RAGService: ObservableObject {
                 let allowLargeContext = pccEligible && (cloudConsentAllowed || hasTransientGrant)
                 let applyTrivialCaps = isTrivial && !allowLargeContext
 
-                // CRITICAL: Token estimation was off by ~2x (estimated 3056, actual 5994)
-                // Apple FM tokenizer is more aggressive than typical 2.5 chars/token
-                // Using 1.4 chars/token for Apple FM (empirically observed ratio)
-                // Safety is applied ONCE at the end, not per-component (avoids compound paranoia)
+                // Apple FM tokenizer ratio: empirically ~1.4 chars/token (observed 3056 estimated → 5994 actual)
+                // This is conservative — compound safety removed; single 12% haircut applied at end
                 let conservativeCharsPerToken: Double = isAppleFMOnDevice ? 1.4 : 2.5
 
-                func estimateTokens(chars: Int) -> Int {
+                func estimateTokensConservative(chars: Int) -> Int {
                     max(1, Int(ceil(Double(chars) / conservativeCharsPerToken)))
                 }
 
                 // CRITICAL: Apple FM (both on-device AND PCC) has a hard 4096 token limit.
-                // Despite documentation suggesting PCC supports 65k, real-world testing shows
                 // PCC fails with "Context length of 4096 was exceeded" when input exceeds 4096 tokens.
-                // ALWAYS use 4096 as the base window to avoid overflow-then-retry loops.
                 let baseWindowTokens: Int = {
                     if llmService is AppleFoundationLLMService {
-                        // Always use 4096 - PCC does NOT reliably support larger contexts
                         return 4096
                     }
                     return inferenceConfig.contextLength ?? 4096
                 }()
 
-                // Token estimation for budget calculation (no compound safety factors)
-                func estimateTokensConservative(chars: Int) -> Int {
-                    max(1, Int(ceil(Double(chars) / conservativeCharsPerToken)))
-                }
+                // OPTIMIZED: Only reserve tool schema tokens when tools are actually attached.
+                // Tools are disabled for reasoning chains (Deep Think sub-sessions) and pure LLM mode.
+                // This reclaims ~1000 tokens (24% of window) for context when tools aren't used.
+                let toolSchemaTokens: Int = {
+                    if inferenceConfig.disableTools {
+                        return 0  // No tools → no schema overhead
+                    }
+                    return isAppleFMOnDevice ? 1000 : 800
+                }()
 
-                // Single safety margin: 15% of window + 200 flat buffer
-                // This replaces the previous compound safety (1.6x factor + 800 buffer)
-                let safetyTokens = isAppleFMOnDevice ? 400 : 300
                 let systemPromptTokens = estimateTokensConservative(chars: (inferenceConfig.systemPrompt ?? "").count)
-
-                // CRITICAL (Jan 27, 2026): Account for @Tool schema tokens!
-                // Each of the 8 tools (SearchDocuments, ListDocuments, GetSummary, CountPattern,
-                // ExactSearch, Stats, Related, Compare) includes description + parameter schema.
-                // Empirically, this adds ~800-1200 tokens total. Use 1000 as conservative estimate.
-                // Without this, we overflow: estimated 1655 tokens but actual was 4440!
-                let toolSchemaTokens = isAppleFMOnDevice ? 1000 : 800
-
-                let promptOverheadTokens = 120 + systemPromptTokens + toolSchemaTokens // Template + system + tools
+                let promptOverheadTokens = 120 + systemPromptTokens + toolSchemaTokens
                 let questionTokens = estimateTokensConservative(chars: question.count)
 
-                // CRITICAL: Account for transcript history tokens (Jan 26, 2026)
-                // The session transcript contains all previous prompts/responses and consumes context window.
-                // Without accounting for this, we overflow with "5180 tokens" when estimated "1629 tokens".
-                let transcriptTokens: Int
+                // Transcript tokens NO LONGER deducted from context budget.
+                // Context gets FULL priority — document chunks are the most important input.
+                // Instead, LLMService.generate() auto-trims the transcript to fit whatever
+                // space remains after context + prompt + overhead. This means:
+                //   - Short conversations: full transcript preserved
+                //   - Long conversations: oldest turns trimmed, context never starved
+                // This eliminates the failure mode where transcript > window → 0 context.
+                let rawTranscriptTokens: Int
                 if let appleFMService = llmService as? AppleFoundationLLMService {
-                    transcriptTokens = appleFMService.estimatedTranscriptTokens
-                    if transcriptTokens > 0 {
-                        Log.debug("[RAG] Transcript history: ~\(transcriptTokens) tokens reserved", category: .pipeline)
-                    }
+                    rawTranscriptTokens = appleFMService.estimatedTranscriptTokens
                 } else {
-                    transcriptTokens = 0
+                    rawTranscriptTokens = 0
+                }
+                if rawTranscriptTokens > 0 {
+                    Log.debug("[RAG] Transcript history: ~\(rawTranscriptTokens) tokens (auto-trimmed by LLM service, not deducted from context)", category: .pipeline)
                 }
 
                 // Reserve room for output
                 let reservedOutputTokens = max(150, min(inferenceConfig.maxTokens, 300))
 
-                // Calculate available tokens, then apply ONE 15% safety haircut at the end
-                // Now includes transcript tokens in the budget calculation
-                let rawAvailableTokens = baseWindowTokens - promptOverheadTokens - questionTokens - reservedOutputTokens - transcriptTokens
-                let globalSafetyFactor: Double = isAppleFMOnDevice ? 0.85 : 0.90 // 15% or 10% safety margin
+                // OPTIMIZED: Single 12% safety margin replaces compound (15% × factor + 400 flat).
+                // Previous: rawAvailable × 0.85 - 400 → effective ~28% waste
+                // Now:      rawAvailable × 0.88       → 12% safety, reclaims ~650 tokens
+                let rawAvailableTokens = baseWindowTokens - promptOverheadTokens - questionTokens - reservedOutputTokens
+                let globalSafetyFactor: Double = isAppleFMOnDevice ? 0.88 : 0.90
                 let availableForContextTokens = max(
                     0,
-                    Int(Double(rawAvailableTokens) * globalSafetyFactor) - safetyTokens
+                    Int(Double(rawAvailableTokens) * globalSafetyFactor)
                 )
                 let cappedContextTokens = applyTrivialCaps
                     ? min(availableForContextTokens, 2600)
@@ -6214,7 +6271,7 @@ class RAGService: ObservableObject {
                     Log.info("[RAG] Simulator mode: using on-device context budget (4096 tokens, \(maxContextChars) chars)", category: .pipeline)
                 #endif
 
-                Log.debug("Context budget: base=\(baseWindowTokens), question=\(questionTokens), transcript=\(transcriptTokens), available=\(availableForContextTokens) tokens → \(maxContextChars) chars, compact=\(useCompactMode)", category: .pipeline)
+                Log.debug("Context budget: base=\(baseWindowTokens), question=\(questionTokens), transcript=\(rawTranscriptTokens)(not deducted), available=\(availableForContextTokens) tokens → \(maxContextChars) chars, compact=\(useCompactMode)", category: .pipeline)
 
                 // For procedural queries, preserve document order instead of relevance order
                 // This prevents sequence inversions (e.g., "dry before disinfect" errors)
@@ -6298,7 +6355,10 @@ class RAGService: ObservableObject {
 
                 let contextSize = context.count
                 let contextWords = context.split(separator: " ").count
-                let includedRetrievedChunks = Array(contextCandidates.prefix(actualChunksUsed))
+                // BUGFIX: Use orderedCandidates (post-sort) not contextCandidates (pre-sort).
+                // Previously, spec prioritization sorted candidates but the slicing used the
+                // original unsorted array, so fuse-box tables could be selected over oil specs.
+                let includedRetrievedChunks = Array(orderedCandidates.prefix(actualChunksUsed))
                 let includedChunks = includedRetrievedChunks.map { $0.chunk }
                 recoveryRetrievedChunks = includedRetrievedChunks
 
@@ -6372,7 +6432,7 @@ class RAGService: ObservableObject {
                     contextChunksUsed: actualChunksUsed,
                     maxContextChars: maxContextChars,
                     baseWindowTokens: baseWindowTokens,
-                    safetyTokens: safetyTokens,
+                    safetyTokens: 0,  // Unified into globalSafetyFactor (no separate flat buffer)
                     promptOverheadTokens: promptOverheadTokens,
                     questionTokens: questionTokens,
                     reservedOutputTokens: reservedOutputTokens,
@@ -6599,9 +6659,15 @@ class RAGService: ObservableObject {
                     Log.section("Step 5.10: Extractive QA", level: .info, category: .pipeline)
                     let extractiveQAStart = Date()
 
+                    // OPTIMIZED: Pass spec-prioritized chunks (orderedCandidates) to ExtractiveQA,
+                    // not just the 3 budget-constrained ones. Cap at 8 to avoid noise explosion
+                    // (23 chunks → 2785 candidates, almost all false positives from maintenance text).
+                    // orderedCandidates is sorted by countSpecPatterns(), so oil spec chunks
+                    // (with viscosity patterns) rank above fuse box tables.
+                    let extractiveChunks = Array(orderedCandidates.prefix(min(8, orderedCandidates.count)))
                     let extractionResult = await specificationExtractor.extract(
                         query: effectiveQuery,
-                        chunks: includedRetrievedChunks,
+                        chunks: extractiveChunks,
                         answerIntent: answerIntent
                     )
 
@@ -6706,16 +6772,19 @@ class RAGService: ObservableObject {
                 case .lookup, .tableLookup:
                     intentSpecificInstructions = """
                     EXTRACTION MODE: The user wants a specific value, specification, or fact.
-                    - Extract the EXACT value (numbers, units, product names, specifications)
-                    - Example: If asked "what oil?" answer "5W-30 synthetic" NOT "engine oil"
+                    - Extract the EXACT value (numbers, units, names, specifications)
+                    - Give the precise answer, not a paraphrase (e.g., answer with the specific value, not the category)
                     - Include the specific measurement, rating, or identifier from the source
+                    - NEVER substitute similar-looking numbers (e.g., 1688 ≠ 1788)
+                    - Codes, reference numbers, and specs must be copied VERBATIM
                     """
                 case .procedure:
                     intentSpecificInstructions = """
                     PROCEDURE MODE: The user wants step-by-step instructions.
                     - List ALL steps in the EXACT order from the source
-                    - Include warnings, prerequisites, and tools needed
+                    - Include warnings, prerequisites, and conditions noted
                     - Number each step clearly
+                    - Include any feedback indicators, confirmations, or expected outcomes mentioned
                     """
                 case .compare:
                     intentSpecificInstructions = """
@@ -6723,6 +6792,7 @@ class RAGService: ObservableObject {
                     - Create a clear comparison of the options found
                     - Highlight differences and similarities
                     - Use a structured format (bullets or table-style)
+                    - Use EXACT product codes, model numbers, and specs from the excerpts
                     """
                 case .summarize:
                     intentSpecificInstructions = """
@@ -6735,6 +6805,9 @@ class RAGService: ObservableObject {
                     ANALYSIS MODE: The user needs deeper investigation.
                     - Synthesize information across sources
                     - Show your reasoning and connections
+                    - Include specific actions, behaviors, and outcomes from the excerpts
+                    - When referencing specific values (model numbers, product codes, specs),
+                      copy them EXACTLY from the excerpts — never substitute similar numbers
                     """
                 case .findings:
                     intentSpecificInstructions = """
@@ -6742,7 +6815,6 @@ class RAGService: ObservableObject {
                     - Summarize the KEY FINDINGS, conclusions, and contributions
                     - Explain the main thesis, arguments, and evidence presented
                     - Include methodology and results if relevant
-                    - Connect specific claims to the document summary and detail excerpts
                     - Name the researchers and their specific contributions
                     """
                 }
@@ -6755,11 +6827,12 @@ class RAGService: ObservableObject {
                 Rules:
                 1. Base answers on the excerpts provided
                 2. Cite sources: [S1], [S2] (cite at least one)
-                3. Connect user terms to related concepts in excerpts (e.g., "button" may mean switch, toggle, control)
-                4. For procedures: preserve the exact sequence and include all steps
-                5. Be thorough - provide as much relevant detail as excerpts contain
-                6. If the question is vague, INTERPRET it based on document topics and provide relevant findings
-                7. NEVER say "I don't have information" or "documents don't contain" - always provide what IS there
+                3. Connect user terms to synonyms and related concepts found in the excerpts
+                4. EXACT VALUES: Copy product codes, reference numbers, model numbers, and specs VERBATIM — NEVER substitute similar-looking numbers
+                5. For procedures: preserve the exact sequence and include all steps
+                6. Be thorough - provide as much relevant detail as excerpts contain
+                7. If the question is vague, INTERPRET it based on document topics and provide relevant findings
+                8. NEVER say "I don't have information" or "documents don't contain" - always provide what IS there
                 """
 
                 // Evidence-First mode: use detailed cautious prompt with full procedural rules
@@ -6767,21 +6840,22 @@ class RAGService: ObservableObject {
                     genConfig.systemPrompt = """
                     You are an expert research analyst in EVIDENCE-FIRST MODE due to low retrieval confidence.
 
-                        CRITICAL: Use ONLY the provided excerpts labeled[S1], [S2], etc.
-                        Do NOT search for additional information.
+                    CRITICAL: Use ONLY the provided excerpts labeled [S1], [S2], etc.
+                    Do NOT search for additional information.
 
-                        EVIDENCE RULES:
-                        1.ONLY state what is DIRECTLY quoted or clearly supported by excerpts
-                    2.Cite every claim with[S1], [S2], etc.
-                        3.Explicitly list what excerpts do NOT contain(gaps in evidence)
-                    4.Do NOT fill gaps with assumptions or general knowledge
-                    5.Keep response focused - only supported facts, not speculation
+                    EVIDENCE RULES:
+                    1. ONLY state what is DIRECTLY quoted or clearly supported by excerpts
+                    2. Cite every claim with [S1], [S2], etc.
+                    3. EXACT VALUES: Copy product codes, reference numbers, model numbers VERBATIM — never substitute similar numbers
+                    4. Explicitly list what excerpts do NOT contain (gaps in evidence)
+                    5. Do NOT fill gaps with assumptions or general knowledge
+                    6. Keep response focused - only supported facts, not speculation
 
-                        FOR PROCEDURES:
-                            - NEVER INVERT TEMPORAL ORDER: If source says "A then B then C", output A → B → C
-                            - PRESERVE PHASE BOUNDARIES: Don't merge distinct phases
-                            - NEVER OMIT MAJOR STEPS: Include every action verb(clean, disinfect, rinse, etc.)
-                            - DISTINGUISH PRECONDITIONS FROM STEPS
+                    FOR PROCEDURES:
+                    - NEVER INVERT TEMPORAL ORDER: If source says "A then B then C", output A → B → C
+                    - PRESERVE PHASE BOUNDARIES: Don't merge distinct phases
+                    - NEVER OMIT MAJOR STEPS: Include every action verb (press, hold, toggle, etc.)
+                    - Include feedback indicators (vibrations, lights, sounds) and their meanings
 
                     FORMAT:
                     ## What the sources show:
@@ -6810,7 +6884,7 @@ class RAGService: ObservableObject {
                 let contextTokens = estimateTokensConservative(chars: context.count)
                 let availableForOutput = max(
                     128,
-                    baseWindowTokens - safetyTokens - promptOverheadTokens - questionTokens - contextTokens
+                    Int(Double(baseWindowTokens - promptOverheadTokens - questionTokens - contextTokens) * globalSafetyFactor)
                 )
                 if genConfig.maxTokens > availableForOutput {
                     genConfig.maxTokens = availableForOutput
@@ -6894,10 +6968,10 @@ class RAGService: ObservableObject {
                 var reasoningTraceForMetadata: [String]? = nil
 
                 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                // REASONING CHAIN: Reserved for Deep Think and Maximum modes
-                // Standard mode uses single-session generation for speed
-                // Deep Think: 3 sessions (Fact → Analysis → Synthesis)
-                // Maximum: 8-20+ sessions until 98% confident
+                // REASONING CHAIN: Developer override only in Standard pipeline.
+                // Deep Think/Maximum use the agentic path (returned early at L4022).
+                // This code path is only reachable when forceReasoningChain is ON,
+                // which lets developers test multi-session reasoning from Standard mode.
                 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                 let forceChain = settingsStore?.forceReasoningChain ?? false
                 let useReasoningChain: Bool = {
@@ -7321,6 +7395,7 @@ class RAGService: ObservableObject {
 
                     // Step 7: Calculate confidence score and quality warnings
                     Log.section("Step 7: Quality Assessment", level: .info, category: .pipeline)
+                    HardwareTelemetryState.shared.reportRAGPipeline(stage: "Quality Assessment")
 
                     // Pipeline Trace: Step 7
                     Log.pipelineStep("7", title: "Quality Assessment", details: [
@@ -7373,7 +7448,8 @@ class RAGService: ObservableObject {
                             response: responseText,
                             query: question,
                             retrievedChunks: generationRetrievedChunks,
-                            topScores: topScores
+                            topScores: topScores,
+                            allCandidateChunks: contextCandidates
                         )
                         verificationTime = Date().timeIntervalSince(verificationStartTime)
 
@@ -9551,13 +9627,22 @@ extension RAGService: RAGToolHandler {
     /// Execute the FULL retrieval pipeline (HyDE, hybrid search, AI re-ranking, MMR)
     /// This gives Deep Think mode the same quality retrieval as Standard mode
     /// Used by AgenticOrchestrator for high-quality chunk retrieval with reasoning on top
+    /// - Parameter qualityMode: Controls retrieval parameters (mmrLambda, parent doc, etc.)
     /// - Parameter onDetailedEvent: Optional callback for verbose thinking events (for Deep Think/Maximum)
     func executeFullRetrievalPipeline(
         query: String,
         topK: Int = 20,
         minSimilarity: Float = 0.08,
+        qualityMode: RAGQualityMode? = nil,
         onDetailedEvent: DetailedThinkingCallback? = nil
     ) async throws -> [RetrievedChunk] {
+        // Resolve quality mode from parameter or settings
+        let mode: RAGQualityMode
+        if let explicit = qualityMode {
+            mode = explicit
+        } else {
+            mode = await MainActor.run { self.settingsStore?.ragQualityMode ?? .standard }
+        }
         let embeddingContext = await resolveEmbeddingContext()
         let db = await dbFor(embeddingContext.containerId)
         let allChunks = try await db.allChunks()
@@ -9597,7 +9682,23 @@ extension RAGService: RAGToolHandler {
         await onDetailedEvent?(.vectorSearch, "Vector ready", "Query encoded for semantic search")
 
         // Step 3: Classify query intent for adaptive weights AND expand query
-        let queryEnhancer = QueryEnhancementService()
+        // Fetch corpus vocabulary from cache (built during Standard mode or prior queries)
+        let cachedVocab: CorpusVocabulary? = await MainActor.run {
+            self.corpusVocabularyCache[embeddingContext.containerId]
+        }
+        // If not cached yet, build it now from available chunks (ensures DT/Max gets corpus-aware expansion)
+        let agenticVocab: CorpusVocabulary?
+        if let cached = cachedVocab {
+            agenticVocab = cached
+        } else if !allChunks.isEmpty {
+            let built = CorpusVocabulary.build(from: allChunks)
+            await MainActor.run { self.corpusVocabularyCache[embeddingContext.containerId] = built }
+            agenticVocab = built
+        } else {
+            agenticVocab = nil
+        }
+
+        let queryEnhancer = QueryEnhancementService(corpusVocabulary: agenticVocab)
         let queryIntent = queryEnhancer.classifyIntent(query)
         let adjustment = queryIntent.weightAdjustment
         let vectorWeight = max(0.1, min(0.9, 0.5 + adjustment.vectorDelta))
@@ -9627,6 +9728,7 @@ extension RAGService: RAGToolHandler {
 
         var retrievedChunks = try await hybridSearch.search(
             query: expandedQueryString, // Use expanded query for better keyword matching
+            originalQuery: query, // Pass clean original query for FTS5 + keyword boost (Round 3 fix)
             embedding: queryEmbedding,
             topK: topK * 2, // Get extra for re-ranking
             cachedChunks: effectiveChunks, // Use RAPTOR-lite filtered chunks
@@ -9643,10 +9745,9 @@ extension RAGService: RAGToolHandler {
 
         await onDetailedEvent?(.rerank, "Re-ranking complete", "Top scores: \(retrievedChunks.prefix(3).map { String(format: "%.0f%%", $0.similarityScore * 100) }.joined(separator: ", "))")
 
-        // Step 6: MMR Diversification
-        await onDetailedEvent?(.mmr, "MMR diversification", "Optimizing for coverage (λ=0.6)")
-
-        let mmrLambda: Float = 0.6
+        // Step 6: MMR Diversification (uses quality mode lambda)
+        let mmrLambda: Float = mode.mmrLambda
+        await onDetailedEvent?(.mmr, "MMR diversification", "Optimizing for coverage (λ=\(String(format: "%.2f", mmrLambda)))")
         retrievedChunks = await engine.applyMMR(
             candidates: retrievedChunks,
             queryEmbedding: queryEmbedding,
@@ -9662,6 +9763,62 @@ extension RAGService: RAGToolHandler {
 
         if preFilterCount > retrievedChunks.count {
             await onDetailedEvent?(.context, "Quality filter", "Kept \(retrievedChunks.count)/\(preFilterCount) (≥\(Int(minSimilarity * 100))% threshold)")
+        }
+
+        // Step 7.5: Parent Document Retrieval (expand with sibling chunks for context)
+        if mode.usesParentDocumentRetrieval && !retrievedChunks.isEmpty {
+            let maxSiblings = mode.maxSiblingChunks
+            await onDetailedEvent?(.parentDoc, "Parent doc retrieval", "Expanding with ±\(maxSiblings) sibling chunks")
+
+            var expandedChunks: [RetrievedChunk] = []
+            var seenChunkIds = Set<UUID>()
+
+            for chunk in retrievedChunks {
+                // Add the original chunk
+                if seenChunkIds.insert(chunk.chunk.id).inserted {
+                    expandedChunks.append(chunk)
+                }
+
+                // Find sibling chunks from the same document
+                let siblings = allChunks.filter { candidate in
+                    candidate.documentId == chunk.chunk.documentId &&
+                    candidate.id != chunk.chunk.id &&
+                    abs(candidate.metadata.chunkIndex - chunk.chunk.metadata.chunkIndex) <= maxSiblings
+                }.sorted { $0.metadata.chunkIndex < $1.metadata.chunkIndex }
+
+                for sibling in siblings {
+                    if seenChunkIds.insert(sibling.id).inserted {
+                        // Siblings get a discounted score
+                        expandedChunks.append(RetrievedChunk(
+                            chunk: sibling,
+                            similarityScore: chunk.similarityScore * 0.85,
+                            rank: expandedChunks.count + 1,
+                            sourceDocument: chunk.sourceDocument,
+                            pageNumber: sibling.metadata.pageNumber
+                        ))
+                    }
+                }
+            }
+
+            if expandedChunks.count > retrievedChunks.count {
+                await onDetailedEvent?(.parentDoc, "Context expanded", "\(retrievedChunks.count) → \(expandedChunks.count) chunks with siblings")
+                retrievedChunks = expandedChunks
+            }
+        }
+
+        // Step 8: Lost-in-Middle reorder (place best chunks at start and end)
+        if retrievedChunks.count >= 4 {
+            var reordered: [RetrievedChunk] = []
+            let sorted = retrievedChunks.sorted { $0.similarityScore > $1.similarityScore }
+            for (index, chunk) in sorted.enumerated() {
+                if index % 2 == 0 {
+                    reordered.append(chunk) // Even indices go to front
+                } else {
+                    reordered.insert(chunk, at: reordered.count / 2) // Odd go to middle
+                }
+            }
+            retrievedChunks = reordered
+            await onDetailedEvent?(.lostInMiddle, "Lost-in-Middle reorder", "Best evidence at start/end of context")
         }
 
         // Enrich with document names

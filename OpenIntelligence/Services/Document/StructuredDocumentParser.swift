@@ -377,6 +377,11 @@ actor StructuredDocumentParser {
     func parsePageImage(_ image: CIImage, pageNumber: Int) async throws -> StructuredPageContent {
         let startTime = Date()
 
+        // Report ANE activity to HUD (RecognizeDocumentsRequest uses Neural Engine)
+        Task { @MainActor in
+            HardwareTelemetryState.shared.pulse(.llmInference, intensity: 0.8, duration: 0.5)  // Use llmInference for "structure analysis"
+        }
+
         // Convert CIImage to Data for Vision request
         guard let imageData = imageToData(image) else {
             Log.warning("[StructuredDocumentParser] Failed to convert image to data, falling back to OCR", category: .ingestion)

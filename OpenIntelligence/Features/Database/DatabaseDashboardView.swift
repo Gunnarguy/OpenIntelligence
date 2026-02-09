@@ -13,6 +13,7 @@ import SwiftUI
 struct DatabaseDashboardView: View {
     @EnvironmentObject private var ragService: RAGService
     @EnvironmentObject private var containerService: ContainerService
+    @EnvironmentObject private var settings: SettingsStore
 
     @State private var selectedSection: DatabaseSection = .overview
     @State private var stats: SQLiteFullTextService.FTS5Statistics?
@@ -109,37 +110,48 @@ struct DatabaseDashboardView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 20) {
-                // Header
-                headerSection
+        ZStack {
+            ScrollView {
+                VStack(spacing: 20) {
+                    // Header
+                    headerSection
 
-                // Section picker
-                sectionPicker
+                    // Section picker
+                    sectionPicker
 
-                // Content based on selection
-                switch selectedSection {
-                case .overview:
-                    overviewSection
-                case .intelligence:
-                    intelligenceSection
-                case .documents:
-                    documentsSection
-                case .vocabulary:
-                    vocabularySection
-                case .index:
-                    indexSection
-                case .performance:
-                    performanceSection
-                case .maintenance:
-                    maintenanceSection
-                case .search:
-                    searchSection
+                    // Content based on selection
+                    switch selectedSection {
+                    case .overview:
+                        overviewSection
+                    case .intelligence:
+                        intelligenceSection
+                    case .documents:
+                        documentsSection
+                    case .vocabulary:
+                        vocabularySection
+                    case .index:
+                        indexSection
+                    case .performance:
+                        performanceSection
+                    case .maintenance:
+                        maintenanceSection
+                    case .search:
+                        searchSection
+                    }
                 }
+                .padding()
             }
-            .padding()
+            .background(DSColors.background.ignoresSafeArea())
+
+            // Motherboard HUD - Full-screen X-ray overlay
+            // Shows glowing borders at the ACTUAL physical locations where
+            // the Neural Engine, GPU, and CPU sit behind the screen
+            if settings.showSiliconHUD {
+                HardwareXRayOverlay()
+                    .allowsHitTesting(false) // Don't block touches
+                    .transition(.opacity)
+            }
         }
-        .background(DSColors.background.ignoresSafeArea())
         .navigationTitle("Database")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.large)

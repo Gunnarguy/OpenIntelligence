@@ -306,7 +306,7 @@ class DocumentProcessor {
 
         // Extract text based on document type
         progressHandler?("reading file")
-        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s to show loading (increased for visibility)
+        await Task.yield() // Yield to UI without blocking (was 0.5s sleep)
 
         let extractedText: String
         let pageInfo: PageInfo
@@ -357,7 +357,7 @@ class DocumentProcessor {
 
         // Chunk the text using semantic chunker
         emitProgress(stage: "chunking", detail: "✂️ Semantic chunking text...", page: nil, totalPages: nil)
-        try? await Task.sleep(nanoseconds: 300_000_000) // 0.3s to show chunking
+        await Task.yield() // Yield to UI without blocking (was 0.3s sleep)
         let chunkingStartTime = Date()
 
         // Create semantic chunker configuration
@@ -390,6 +390,10 @@ class DocumentProcessor {
 
         // Structure-aware chunking: Tables and lists become atomic chunks, paragraphs get semantic chunking
         if usedStructuredParsing && !structuredElements.isEmpty {
+            // HUD telemetry: Chunking is CPU-intensive NaturalLanguage processing
+            Task { @MainActor in
+                HardwareTelemetryState.shared.pulse(.textChunking, intensity: 0.75, duration: 0.4)
+            }
             emitProgress(stage: "chunking", detail: "🧩 Structure-aware chunking \(structuredElements.count) elements...", page: nil, totalPages: nil)
             processedChunks = createStructureAwareChunks(
                 elements: structuredElements,
@@ -402,6 +406,10 @@ class DocumentProcessor {
             Log.info("[DocumentProcessor] Created \(processedChunks.count) structure-aware chunks", category: .ingestion)
         } else {
             // Standard semantic chunking for non-PDF or iOS < 26
+            // HUD telemetry: Chunking is CPU-intensive NaturalLanguage processing
+            Task { @MainActor in
+                HardwareTelemetryState.shared.pulse(.textChunking, intensity: 0.75, duration: 0.4)
+            }
             let semanticChunker = SemanticChunker()
             let pageMapping = pageInfo.pageTextRanges.isEmpty ? nil : pageInfo.pageTextRanges
             let enhancedChunks = semanticChunker.chunkText(
@@ -1805,14 +1813,38 @@ class DocumentProcessor {
 
             // Combine paragraphs for semantic chunking
             let combinedText = paragraphBuffer.map { $0.text }.joined(separator: "\n\n")
-            let primaryPage = paragraphBuffer.first?.page
+
+            // Build per-page text ranges from the buffer so SemanticChunker
+            // can assign the correct page number to each sub-chunk.
+            // Each paragraph knows its source page; we track where it lands
+            // in the combined string and build a [pageNum: Range<String.Index>] map.
+            var localPageRanges: [Int: Range<String.Index>] = [:]
+            var currentOffset = combinedText.startIndex
+            for (i, entry) in paragraphBuffer.enumerated() {
+                let textEnd = combinedText.index(currentOffset, offsetBy: entry.text.count, limitedBy: combinedText.endIndex) ?? combinedText.endIndex
+                let entryRange = currentOffset..<textEnd
+
+                if let existing = localPageRanges[entry.page] {
+                    // Extend the range for this page (non-contiguous paragraphs on same page)
+                    localPageRanges[entry.page] = existing.lowerBound..<textEnd
+                } else {
+                    localPageRanges[entry.page] = entryRange
+                }
+
+                // Skip past the "\n\n" separator between paragraphs
+                if i < paragraphBuffer.count - 1 {
+                    currentOffset = combinedText.index(textEnd, offsetBy: 2, limitedBy: combinedText.endIndex) ?? combinedText.endIndex
+                } else {
+                    currentOffset = textEnd
+                }
+            }
 
             let semanticChunker = SemanticChunker()
             let subChunks = semanticChunker.chunkText(
                 combinedText,
                 documentId: documentId,
                 config: config,
-                pageNumbers: nil
+                pageNumbers: localPageRanges
             )
 
             for subChunk in subChunks {
@@ -1820,7 +1852,7 @@ class DocumentProcessor {
                     chunkIndex: chunkIndex,
                     startPosition: subChunk.metadata.startOffset,
                     endPosition: subChunk.metadata.endOffset,
-                    pageNumber: primaryPage ?? subChunk.metadata.pageNumber,
+                    pageNumber: subChunk.metadata.pageNumber,
                     sectionTitle: subChunk.metadata.sectionTitle,
                     keywords: subChunk.metadata.topKeywords,
                     semanticDensity: subChunk.metadata.semanticDensity,
@@ -2426,8 +2458,7 @@ class DocumentProcessor {
 
             if hasText && textQualityOK {
                 progressHandler?("page \(pageIndex + 1)/\(pageCount)")
-                // Delay to ensure UI updates (increased for visibility)
-                try? await Task.sleep(nanoseconds: 300_000_000) // 0.3s
+                await Task.yield()
 
                 fullText += pageText! + "\n\n"
 
@@ -2459,8 +2490,7 @@ class DocumentProcessor {
 
                 // Update progress for OCR
                 progressHandler?("page \(pageIndex + 1)/\(pageCount), OCR")
-                // Small delay to ensure UI updates
-                try? await Task.sleep(nanoseconds: 50_000_000) // 0.05s
+                await Task.yield()
 
                 // Render page as image and apply OCR
                 if let pageImage = renderPDFPageAsImage(page: page),
@@ -2538,6 +2568,11 @@ class DocumentProcessor {
         // This offloads sharpening/contrast enhancement to GPU
         if DeviceCapabilityService.shared.useGPUForPDFRendering {
             guard let ciImage = CIImage(image: uiImage) else { return nil }
+
+            // Report GPU activity to HUD
+            Task { @MainActor in
+                HardwareTelemetryState.shared.reportGPUCompute(operation: .imageProcessing)
+            }
 
             // Apply GPU-accelerated preprocessing for better OCR
             let processedImage = preprocessImageForOCR(ciImage)
@@ -2927,6 +2962,11 @@ class DocumentProcessor {
     /// Uses same bulletproof configuration as performOCR()
     /// GPU-accelerated via Metal-backed CGImage conversion
     private func performOCRWithObservations(on image: CIImage) async throws -> [VNRecognizedTextObservation] {
+        // Report ANE activity to HUD (Vision OCR uses Neural Engine)
+        Task { @MainActor in
+            HardwareTelemetryState.shared.pulse(.reranking, intensity: 0.8, duration: 0.3)  // Reuse reranking as "Vision OCR" activity
+        }
+
         // Convert CIImage to CGImage using GPU-accelerated context with serial queue
         var cgImageResult: CGImage?
         Self.gpuQueue.sync {
@@ -2997,7 +3037,7 @@ class DocumentProcessor {
     /// Enhanced for standalone image files: includes classification, AI description, and OCR
     private func extractTextFromImage(url: URL) async throws -> String {
         progressHandler?("Analyzing image")
-        try? await Task.sleep(nanoseconds: 100_000_000) // 0.1s to show status
+        await Task.yield()
 
         let startTime = Date()
 

@@ -43,6 +43,16 @@ protocol VectorDatabase {
 
     /// Return health/usage statistics for diagnostics.
     func statistics() async -> VectorDatabaseStats
+
+    /// Persist in-memory data to disk (if applicable).
+    /// Call after storeBatch() when you want to control when disk I/O happens.
+    /// The default implementation is a no-op for in-memory databases.
+    func persist() async throws
+}
+
+// Default no-op for databases that don't need explicit persistence
+extension VectorDatabase {
+    func persist() async throws { /* no-op */ }
 }
 
 /// Statistics for vector database health monitoring
