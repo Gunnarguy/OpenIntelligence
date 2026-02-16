@@ -410,7 +410,14 @@ actor CoreMLRegionDetector {
         var regions: [DocumentDetectedRegion] = []
 
         do {
-            let request = RecognizeDocumentsRequest()
+            var request = RecognizeDocumentsRequest()
+            // Configure text recognition for maximum accuracy
+            request.textRecognitionOptions.useLanguageCorrection = true
+            request.textRecognitionOptions.automaticallyDetectLanguage = true
+            request.textRecognitionOptions.minimumTextHeightFraction = 0.0
+            request.textRecognitionOptions.recognitionLanguages = OCRConfiguration.recognitionLanguages.compactMap {
+                Locale.Language(identifier: $0)
+            }
             // Throttle Vision operations to prevent Metal GPU race conditions
             let observations = try await VisionOCRThrottle.performAsync {
                 try await request.perform(on: image)

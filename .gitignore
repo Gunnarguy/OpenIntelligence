@@ -23,6 +23,10 @@ Build/
 *.dSYM
 *.ipa
 
+# Pipeline trace dumps (pulled from device for debugging)
+Xrays/*.log
+Xrays/*.txt
+
 # Swift Package Manager
 .swiftpm/
 .build/

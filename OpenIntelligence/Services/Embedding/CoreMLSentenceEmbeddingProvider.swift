@@ -93,17 +93,60 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
         setup()
     }
 
-    // MARK: - Ingestion Mode (No-op)
-    // NOTE: Dual-model GPU+ANE parallelism caused Metal synchronizeResource crashes.
-    // Vision OCR + GPU embeddings + PDF rendering overwhelms Metal command buffer queue.
-    // Keeping as no-op for API compatibility.
+    // MARK: - Ingestion Mode (GPU ↔ ANE Parallelism)
+    // During ingestion, Vision OCR saturates the Neural Engine (16-core ANE).
+    // Reloading the embedding model with .cpuAndGPU compute units forces embeddings
+    // to run on GPU, creating TRUE parallelism: ANE → Vision OCR, GPU → Embeddings.
+    //
+    // This is NOT the dual-model approach that caused MTLDebugBlitCommandEncoder crashes.
+    // We reload the SINGLE model with different compute units — no two models competing
+    // for Metal command buffers simultaneously.
+
+    private var isIngestionMode = false
 
     func enableIngestionMode() {
-        // No-op: Dual-model approach caused MTLDebugBlitCommandEncoder crashes
+        guard !isIngestionMode else { return }
+        isIngestionMode = true
+        #if canImport(CoreML)
+            let modelName = "EmbeddingModel"
+            guard let url = Bundle.main.url(forResource: modelName, withExtension: "mlmodelc") else {
+                Log.warning("[CoreMLSentenceEmbeddingProvider] Cannot enable ingestion mode: model not found", category: .embedding)
+                return
+            }
+            do {
+                let config = MLModelConfiguration()
+                config.computeUnits = DeviceCapabilityService.shared.embeddingComputeUnitsDuringIngestion
+                model = try MLModel(contentsOf: url, configuration: config)
+                let computeDesc: String
+                switch config.computeUnits {
+                case .cpuAndGPU: computeDesc = "GPU+CPU (ingestion: ANE free for Vision)"
+                case .cpuAndNeuralEngine: computeDesc = "ANE+CPU"
+                case .all: computeDesc = "All"
+                default: computeDesc = "default"
+                }
+                Log.info("[CoreMLSentenceEmbeddingProvider] ⚡ Ingestion mode ON → \(computeDesc)", category: .embedding)
+            } catch {
+                Log.error("[CoreMLSentenceEmbeddingProvider] Failed to reload model for ingestion: \(error)", category: .embedding)
+                isIngestionMode = false
+            }
+        #endif
     }
 
     func disableIngestionMode() {
-        // No-op
+        guard isIngestionMode else { return }
+        isIngestionMode = false
+        #if canImport(CoreML)
+            let modelName = "EmbeddingModel"
+            guard let url = Bundle.main.url(forResource: modelName, withExtension: "mlmodelc") else { return }
+            do {
+                let config = MLModelConfiguration()
+                config.computeUnits = DeviceCapabilityService.shared.preferredComputeUnits
+                model = try MLModel(contentsOf: url, configuration: config)
+                Log.info("[CoreMLSentenceEmbeddingProvider] Ingestion mode OFF → restored default compute units", category: .embedding)
+            } catch {
+                Log.error("[CoreMLSentenceEmbeddingProvider] Failed to restore default model: \(error)", category: .embedding)
+            }
+        #endif
     }
 
     private func setup() {

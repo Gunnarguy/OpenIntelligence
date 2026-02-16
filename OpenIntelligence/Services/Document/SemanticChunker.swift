@@ -425,12 +425,54 @@ class SemanticChunker {
         }
 
         Log.debug("[SemanticChunker] Created \(chunks.count) semantically-aware chunks", category: .ingestion)
-        printChunkStatistics(chunks)
+
+        // Post-processing: merge micro-chunks (< 15 words) into their preceding sibling
+        // These waste embedding computation and pollute the vector store with useless entries
+        let minChunkWords = 15
+        var mergedChunks: [EnhancedChunk] = []
+        for chunk in chunks {
+            if chunk.metadata.wordCount < minChunkWords && !mergedChunks.isEmpty {
+                // Merge into the last chunk
+                let prev = mergedChunks.removeLast()
+                let mergedContent = prev.content + "\n" + chunk.content
+                let mergedParent = prev.parentContent.map { p in
+                    chunk.parentContent.map { p + "\n" + $0 } ?? p
+                } ?? chunk.parentContent
+                let mergedMeta = EnhancedChunk.ChunkMetadata(
+                    documentId: prev.metadata.documentId,
+                    chunkIndex: prev.metadata.chunkIndex,
+                    totalChunks: prev.metadata.totalChunks,
+                    pageNumber: prev.metadata.pageNumber,
+                    sectionTitle: prev.metadata.sectionTitle ?? chunk.metadata.sectionTitle,
+                    sectionPath: prev.metadata.sectionPath.isEmpty ? chunk.metadata.sectionPath : prev.metadata.sectionPath,
+                    wordCount: prev.metadata.wordCount + chunk.metadata.wordCount,
+                    characterCount: prev.metadata.characterCount + chunk.metadata.characterCount,
+                    topKeywords: Array(Set(prev.metadata.topKeywords + chunk.metadata.topKeywords)),
+                    semanticDensity: (prev.metadata.semanticDensity + chunk.metadata.semanticDensity) / 2.0,
+                    hasNumericData: prev.metadata.hasNumericData || chunk.metadata.hasNumericData,
+                    hasListStructure: prev.metadata.hasListStructure || chunk.metadata.hasListStructure,
+                    startOffset: prev.metadata.startOffset,
+                    endOffset: chunk.metadata.endOffset,
+                    entities: Array(Set(prev.metadata.entities + chunk.metadata.entities))
+                )
+                mergedChunks.append(EnhancedChunk(content: mergedContent, parentContent: mergedParent, metadata: mergedMeta, embedding: nil))
+                Log.debug("[SemanticChunker] Merged micro-chunk (\(chunk.metadata.wordCount) words) into previous", category: .ingestion)
+            } else {
+                mergedChunks.append(chunk)
+            }
+        }
+
+        if mergedChunks.count < chunks.count {
+            Log.info("[SemanticChunker] Merged \(chunks.count - mergedChunks.count) micro-chunks (<\(minChunkWords) words)", category: .ingestion)
+        }
+
+        let finalChunks = mergedChunks
+        printChunkStatistics(finalChunks)
 
         // Update diagnostics for UI/telemetry
-        let avgWordsPerChunk = chunks.isEmpty
+        let avgWordsPerChunk = finalChunks.isEmpty
             ? 0.0
-            : Double(chunks.map { $0.metadata.wordCount }.reduce(0, +)) / Double(chunks.count)
+            : Double(finalChunks.map { $0.metadata.wordCount }.reduce(0, +)) / Double(finalChunks.count)
 
         self.lastDiagnostics = ChunkingDiagnostics(
             language: detectLanguage(for: text),
@@ -446,7 +488,7 @@ class SemanticChunker {
         )
         NotificationCenter.default.post(name: .semanticChunkerDiagnosticsUpdated, object: self.lastDiagnostics)
 
-        return chunks
+        return finalChunks
     }
 
     // MARK: - Async Chunking with Embedding Boundaries (Late Chunking)
@@ -726,13 +768,20 @@ class SemanticChunker {
         return tableBlocks.first { $0.range.contains(index) }
     }
 
-    /// Detect section headers and boundaries with hierarchical levels
+    /// Detect section headers and boundaries with hierarchical levels.
+    ///
+    /// Handles 3 categories of headings:
+    /// 1. **Explicit markup**: Markdown `#`, numbered `1.1`, roman numerals
+    /// 2. **ALL CAPS**: `SPECIFICATIONS`, `ENGINE OIL`
+    /// 3. **Title Case short lines** (PDF-critical): `Engine Oil`, `Coolant System`
+    ///    These are the headings that PDFKit extracts as plain text from bold/large PDF fonts.
+    ///    Without detecting these, spec tables lose their parent context entirely.
     private func detectSections(_ text: String) -> [DetectedSection] {
         var sections: [DetectedSection] = []
 
         // Patterns with associated hierarchy levels
         // Level 1: Major sections (ALL CAPS, #, single digit like "1.")
-        // Level 2: Subsections (##, "1.1", "1.1.")
+        // Level 2: Subsections (##, "1.1", "1.1.", Title Case short lines)
         // Level 3: Sub-subsections (###, "1.1.1")
         let leveledPatterns: [(pattern: String, level: Int)] = [
             // Markdown headers - level determined by # count
@@ -745,14 +794,24 @@ class SemanticChunker {
             (#"^\d+\.?\s+([A-Z].+)$"#, 1),       // 1. Section or 1 Section
             // Roman numerals (typically top-level)
             (#"^[IVX]+\.\s+(.+)$"#, 1),
-            // ALL CAPS (typically top-level)
+            // ALL CAPS (typically top-level) — 4+ uppercase chars
             (#"^([A-Z][A-Z\s]{3,}):?\s*$"#, 1),
+        ]
+
+        // Common non-heading short phrases that happen to be Title Case
+        // These MUST NOT be mistaken for section headings
+        let titleCaseBlacklist: Set<String> = [
+            "yes", "no", "n/a", "none", "see above", "see below", "total",
+            "note", "notes", "warning", "caution", "important", "tip",
+            "page", "figure", "table", "appendix", "index", "contents",
+            "rear", "front", "left", "right", "top", "bottom", "inside",
+            "outside", "upper", "lower", "other", "manual", "automatic"
         ]
 
         let lines = text.components(separatedBy: .newlines)
         var currentIndex = text.startIndex
 
-        for line in lines {
+        for (lineIdx, line) in lines.enumerated() {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             guard !trimmed.isEmpty else {
                 // Still advance past empty lines
@@ -762,6 +821,9 @@ class SemanticChunker {
                 continue
             }
 
+            var matched = false
+
+            // Pass 1: Try explicit patterns (markdown, numbered, ALL CAPS)
             for (pattern, level) in leveledPatterns {
                 if let regex = try? NSRegularExpression(pattern: pattern, options: [.anchorsMatchLines]),
                    let _ = regex.firstMatch(in: trimmed, range: NSRange(trimmed.startIndex..., in: trimmed)) {
@@ -778,7 +840,108 @@ class SemanticChunker {
                             range: lineRange,
                             level: level
                         ))
+                        matched = true
                         break
+                    }
+                }
+            }
+
+            // Pass 2: Title Case heuristic for PDF-extracted headings
+            // Catches: "Engine Oil", "Coolant System", "Differential Gear Oil", "Brake Fluid"
+            // These are the sub-headings that PDFKit extracts as plain text from bold/large fonts.
+            // Criteria: short line (2-8 words), most words capitalized, no trailing punctuation,
+            //           not a data line (no digits/units), next line exists and is different.
+            if !matched {
+                let words = trimmed.split(separator: " ")
+                let wordCount = words.count
+
+                if wordCount >= 2 && wordCount <= 8
+                    && !titleCaseBlacklist.contains(trimmed.lowercased())
+                {
+                    // Check: most words start with uppercase (Title Case)
+                    let capitalizedWords = words.filter { $0.first?.isUppercase == true }
+                    let capitalRatio = Float(capitalizedWords.count) / Float(wordCount)
+
+                    // Allow small words like "of", "and", "the" to be lowercase
+                    let isTitleCase = capitalRatio >= 0.6
+
+                    // Must NOT contain digits, units, or data-like patterns
+                    let hasDigits = trimmed.rangeOfCharacter(from: .decimalDigits) != nil
+                    let hasDataPatterns = trimmed.contains(":") && hasDigits  // "Type: SAE 0W-20"
+                    let hasUnits = trimmed.range(of: #"\b(mm|cm|in|ft|qt|gal|kg|lb|psi|kPa|°[CF])\b"#,
+                                                  options: .regularExpression) != nil
+
+                    // Must NOT end with sentence-ending punctuation (headings don't)
+                    let lastChar = trimmed.last
+                    let endsWithPunctuation = lastChar == "." || lastChar == "!" || lastChar == "?"
+                                              || lastChar == "," || lastChar == ";"
+
+                    // Must NOT look like a table row or key-value pair
+                    let hasTabSeparation = trimmed.contains("\t")
+                    let colonCount = trimmed.filter { $0 == ":" }.count
+                    let isKeyValue = colonCount == 1 && hasDigits
+
+                    if isTitleCase && !hasDigits && !hasDataPatterns && !hasUnits
+                       && !endsWithPunctuation && !hasTabSeparation && !isKeyValue
+                    {
+                        // Contextual validation: check if next non-empty line looks like data/content
+                        // (indented, has numbers, has colons, or is significantly longer)
+                        var looksLikeHeading = true
+
+                        // Check next non-empty line
+                        if lineIdx + 1 < lines.count {
+                            let nextLines = lines[(lineIdx + 1)...].prefix(3)
+                            for nextLine in nextLines {
+                                let nextTrimmed = nextLine.trimmingCharacters(in: .whitespaces)
+                                guard !nextTrimmed.isEmpty else { continue }
+
+                                // If next line is indented relative to this line, it's a heading
+                                let thisIndent = line.prefix(while: { $0 == " " || $0 == "\t" }).count
+                                let nextIndent = nextLine.prefix(while: { $0 == " " || $0 == "\t" }).count
+                                if nextIndent > thisIndent {
+                                    looksLikeHeading = true
+                                    break
+                                }
+
+                                // If next line has numbers/data, this is probably a heading
+                                let nextHasDigits = nextTrimmed.rangeOfCharacter(from: .decimalDigits) != nil
+                                let nextHasColon = nextTrimmed.contains(":")
+                                if nextHasDigits || nextHasColon {
+                                    looksLikeHeading = true
+                                    break
+                                }
+
+                                // If next line is much longer, this short line is likely a heading
+                                if nextTrimmed.count > trimmed.count * 2 {
+                                    looksLikeHeading = true
+                                    break
+                                }
+
+                                // If next line is also short Title Case, this might be a list, not headings
+                                let nextWords = nextTrimmed.split(separator: " ")
+                                let nextCapRatio = Float(nextWords.filter { $0.first?.isUppercase == true }.count) / Float(max(nextWords.count, 1))
+                                if nextWords.count <= 8 && nextCapRatio >= 0.6 && !nextHasDigits {
+                                    // Both lines are similar - could be a heading list (like a TOC)
+                                    // Still treat as heading since those are useful section markers
+                                    looksLikeHeading = true
+                                    break
+                                }
+
+                                break  // Only check first non-empty line
+                            }
+                        }
+
+                        if looksLikeHeading {
+                            if let lineRange = text.range(of: line, range: currentIndex..<text.endIndex) {
+                                // Title Case headings are Level 2 (sub-section) by default
+                                // If a Level 1 ALL CAPS section precedes this, it becomes a proper subsection
+                                sections.append(DetectedSection(
+                                    title: trimmed,
+                                    range: lineRange,
+                                    level: 2
+                                ))
+                            }
+                        }
                     }
                 }
             }
@@ -1080,58 +1243,77 @@ class SemanticChunker {
         return start..<targetIndex
     }
 
-    /// Find nearest sentence boundary
+    /// Find nearest sentence boundary using NLTokenizer for robust detection.
+    /// NLTokenizer correctly handles abbreviations ("Dr.", "U.S.A."), decimal numbers ("3.14"),
+    /// URLs, and other cases where period ≠ sentence end.
     private func findNearestSentenceEnd(in text: String, near index: String.Index, within distance: Int) -> String.Index? {
         let searchStart = text.index(index, offsetBy: -distance, limitedBy: text.startIndex) ?? text.startIndex
         let searchEnd = text.index(index, offsetBy: distance, limitedBy: text.endIndex) ?? text.endIndex
 
         // Validate range before creating it
         guard searchStart < searchEnd else {
-            // Invalid range - return nil or the index itself
             return nil
         }
 
         let searchRange = searchStart..<searchEnd
+        let substring = String(text[searchRange])
 
-        // Look for sentence endings
-        let sentenceEnders = CharacterSet(charactersIn: ".!?")
+        // Use NLTokenizer for robust sentence boundary detection
+        let sentenceTokenizer = NLTokenizer(unit: .sentence)
+        sentenceTokenizer.string = substring
+
         var nearestDistance = Int.max
         var nearestIndex: String.Index?
 
-        for i in text[searchRange].indices {
-            if sentenceEnders.contains(text[i].unicodeScalars.first!) {
-                let dist = text.distance(from: index, to: i)
-                if abs(dist) < nearestDistance {
-                    nearestDistance = abs(dist)
-                    nearestIndex = text.index(after: i)
-                }
+        sentenceTokenizer.enumerateTokens(in: substring.startIndex..<substring.endIndex) { tokenRange, _ in
+            // The end of each sentence token is a sentence boundary
+            let boundaryInSubstring = tokenRange.upperBound
+            // Map back to the original text index
+            let offset = substring.distance(from: substring.startIndex, to: boundaryInSubstring)
+            guard let originalIndex = text.index(searchStart, offsetBy: offset, limitedBy: text.endIndex) else {
+                return true
             }
+
+            let dist = abs(text.distance(from: index, to: originalIndex))
+            if dist < nearestDistance {
+                nearestDistance = dist
+                nearestIndex = originalIndex
+            }
+            return true
         }
 
         return nearestIndex
     }
 
-    /// Find nearest sentence start by scanning backwards for sentence endings.
+    /// Find nearest sentence start using NLTokenizer for robust detection.
+    /// Handles abbreviations, decimals, URLs correctly.
     private func findNearestSentenceStart(in text: String, near index: String.Index, within distance: Int) -> String.Index? {
         let searchStart = text.index(index, offsetBy: -distance, limitedBy: text.startIndex) ?? text.startIndex
         let searchEnd = text.index(index, offsetBy: distance, limitedBy: text.endIndex) ?? text.endIndex
 
         guard searchStart < searchEnd else { return nil }
 
-        let searchRange = searchStart ..< searchEnd
-        let sentenceEnders = CharacterSet(charactersIn: ".!?")
+        let substring = String(text[searchStart..<searchEnd])
+        let sentenceTokenizer = NLTokenizer(unit: .sentence)
+        sentenceTokenizer.string = substring
+
         var nearestDistance = Int.max
         var nearestIndex: String.Index?
 
-        for i in text[searchRange].indices {
-            if sentenceEnders.contains(text[i].unicodeScalars.first!) {
-                let candidate = text.index(after: i)
-                let dist = text.distance(from: candidate, to: index)
-                if dist >= 0, dist < nearestDistance {
-                    nearestDistance = dist
-                    nearestIndex = candidate
-                }
+        sentenceTokenizer.enumerateTokens(in: substring.startIndex..<substring.endIndex) { tokenRange, _ in
+            // The start of each sentence token is a sentence boundary
+            let boundaryInSubstring = tokenRange.lowerBound
+            let offset = substring.distance(from: substring.startIndex, to: boundaryInSubstring)
+            guard let originalIndex = text.index(searchStart, offsetBy: offset, limitedBy: text.endIndex) else {
+                return true
             }
+
+            let dist = text.distance(from: originalIndex, to: index)
+            if dist >= 0, dist < nearestDistance {
+                nearestDistance = dist
+                nearestIndex = originalIndex
+            }
+            return true
         }
 
         return nearestIndex
@@ -1174,7 +1356,8 @@ class SemanticChunker {
         let endOffset = fullText.distance(from: fullText.startIndex, to: range.upperBound)
 
         // Find section title (immediate parent section)
-        let sectionTitle = sections.first { $0.range.lowerBound <= range.lowerBound }?.title
+        // CRITICAL: Must use .last to get the NEAREST preceding section, not the first one in the document
+        let sectionTitle = sections.last { $0.range.lowerBound <= range.lowerBound }?.title
 
         // Build hierarchical section path
         let sectionPath = buildSectionPath(at: range.lowerBound, sections: sections)
@@ -1369,7 +1552,9 @@ class SemanticChunker {
             .map { $0.key }
     }
 
-    /// Advance position with intelligent overlap
+    /// Advance position with intelligent overlap that snaps to sentence boundaries.
+    /// Instead of splitting overlap mid-sentence by raw word count, we find the
+    /// nearest sentence boundary within the overlap region.
     private func advancePosition(
         from start: String.Index,
         chunkEnd: String.Index,
@@ -1384,6 +1569,14 @@ class SemanticChunker {
             let overlapWords = words.suffix(overlap)
             let overlapText = overlapWords.joined(separator: " ")
             if let overlapStart = text.range(of: overlapText, range: start..<chunkEnd) {
+                // Snap to nearest sentence boundary within ±30 chars of the overlap point
+                // This ensures overlap regions start at clean sentence boundaries
+                if let sentenceStart = findNearestSentenceStart(in: text, near: overlapStart.lowerBound, within: 30) {
+                    // Only use sentence boundary if it's still within the overlap region
+                    if sentenceStart >= start && sentenceStart < chunkEnd {
+                        return sentenceStart
+                    }
+                }
                 return overlapStart.lowerBound
             }
         }

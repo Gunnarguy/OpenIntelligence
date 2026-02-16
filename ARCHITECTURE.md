@@ -1,8 +1,8 @@
 # OpenIntelligence Technical Architecture
 
-**Version**: 2.9
-**Date**: February 5, 2026
-**Status**: Production (App Store Ready)
+**Version**: 3.2
+**Date**: February 14, 2026
+**Status**: Production (App Store v1.2)
 
 ## Table of Contents
 
@@ -12,13 +12,13 @@
 4. [Core Services Inventory](#core-services)
    - [RAG Pipeline Services](#rag-pipeline-services-14-services)
    - [Query Services](#query-services-8-services)
-   - [Document Processing Services](#document-processing-services-19-services)
+   - [Document Processing Services](#document-processing-services-20-services)
    - [Embedding Services](#embedding-services-2-services)
    - [Storage Services](#storage-services-3-services)
    - [VectorStore Services](#vectorstore-services-4-services)
    - [LLM Services](#llm-services-7-services)
    - [Agentic Services](#agentic-services-3-services)
-   - [Infrastructure Services](#infrastructure-services-17-services)
+   - [Infrastructure Services](#infrastructure-services-18-services)
    - [Billing Services](#billing-services-1-service)
 5. [DocumentProcessor Deep Dive](#documentprocessor)
 6. [Token Budget Management](#token-budget-management)
@@ -30,11 +30,11 @@ OpenIntelligence is a native iOS 26 application implementing a complete Retrieva
 
 **Simple Concept:** Import any document. Ask questions in plain English. Get cited answers powered by on-device AI.
 
-**Latest (v2.9)**: Device-tier-aware Vision concurrency, platform-specific Metal optimizations, Mac compatibility via iPad mode, 4-gate verification pipeline, 78 services across 10 categories. Updated Apple framework integration assessment.
+**Latest (v3.2)**: Device-Optimized Performance Engine (3-tier Metal shader selection, device-specific OCR concurrency, concurrent cross-encoder predictions, GPU embedding ingestion mode, concurrent CIFilter rendering). Motherboard HUD (real-time Apple Silicon X-ray overlay), Universal Retrieval (8 fixes for needle-in-haystack accuracy), Adaptive Document Intelligence Engine, multi-candidate confidence OCR, 5-strategy adaptive preprocessing, language-agnostic quality detection, centralized OCR configuration factory. 80 services across 10 categories.
 
 ### RAG Pipeline Summary
 
-The system implements a **23-step end-to-end pipeline** powered by **78 services**:
+The system implements a **23-step end-to-end pipeline** powered by **80 services**:
 
 | Phase                | Steps | Key Services                                                                           |
 | -------------------- | ----- | -------------------------------------------------------------------------------------- |
@@ -44,7 +44,7 @@ The system implements a **23-step end-to-end pipeline** powered by **78 services
 | **Generation**       | 3     | ExtractiveSummarizationService, LLMService, AgenticOrchestrator                        |
 | **Post-Generation**  | 4     | QualityAssuranceService, ConfidenceCalibrationService                                  |
 
-> **Complete inventory**: See "Complete Service Inventory (78 Services)" below.
+> **Complete inventory**: See "Complete Service Inventory (80 Services)" below.
 
 ### Key Architectural Principles
 
@@ -62,16 +62,16 @@ OpenIntelligence is built entirely on Apple's native frameworks—**no third-par
 
 ### Production Frameworks (8 Integrated)
 
-| Framework            | Primary Use                   | Key Services                                                       |
-| -------------------- | ----------------------------- | ------------------------------------------------------------------ |
-| **FoundationModels** | LLM generation (iOS 26)       | `AppleFoundationLLMService`, `AgenticOrchestrator`, 8 @Tools       |
-| **Vision**           | OCR, document detection       | `VisionOCRService`, `IntelligentDocumentProcessor`                 |
-| **NaturalLanguage**  | NER, tokenization, embeddings | `QueryEnhancementService`, `EntityIndexService`, `SemanticChunker` |
-| **CoreML**           | Neural embeddings, reranking  | `EmbeddingService` (MiniLM-L6), `ReRankerService` (TinyBERT)       |
-| **PDFKit**           | PDF parsing                   | `DocumentProcessor`                                                |
-| **Speech**           | Audio transcription           | `AudioTranscriptionService`                                        |
-| **Metal**            | GPU acceleration              | `GPUComputeService`, `VisionOCRThrottle`                           |
-| **StoreKit 2**       | Subscription billing          | `StoreKitBillingService`                                           |
+| Framework            | Primary Use                   | Key Services                                                                   |
+| -------------------- | ----------------------------- | ------------------------------------------------------------------------------ |
+| **FoundationModels** | LLM generation (iOS 26)       | `AppleFoundationLLMService`, `AgenticOrchestrator`, 8 @Tools                   |
+| **Vision**           | OCR, document detection       | `VisionOCRService`, `IntelligentDocumentProcessor`                             |
+| **NaturalLanguage**  | NER, tokenization, embeddings | `QueryEnhancementService`, `EntityIndexService`, `SemanticChunker`             |
+| **CoreML**           | Neural embeddings, reranking  | `EmbeddingService` (MiniLM-L6), `ReRankerService` (TinyBERT)                   |
+| **PDFKit**           | PDF parsing                   | `DocumentProcessor`                                                            |
+| **Speech**           | Audio transcription           | `AudioTranscriptionService`                                                    |
+| **Metal**            | GPU acceleration              | `GPUComputeService` (3-tier shaders), `VisionOCRThrottle`, `DocumentProcessor` |
+| **StoreKit 2**       | Subscription billing          | `StoreKitBillingService`                                                       |
 
 ### iOS 26+ APIs in Production
 
@@ -295,9 +295,9 @@ User Query Input
 
 ## Core Services
 
-### Complete Service Inventory (78 Services)
+### Complete Service Inventory (80 Services)
 
-OpenIntelligence is composed of **78 distinct services** organized into 9 categories. This inventory provides a complete reference.
+OpenIntelligence is composed of **80 distinct services** organized into 10 categories. This inventory provides a complete reference.
 
 #### RAG Pipeline Services (14 services)
 
@@ -331,7 +331,7 @@ OpenIntelligence is composed of **78 distinct services** organized into 9 catego
 | `QueryComplexityAnalyzer`      | final class | Analyzes query structure to determine optimal routing     | `Query/QueryComplexityAnalyzer.swift`      |
 | `SpecificationExtractor`       | struct      | Extracts technical specs (dimensions, tolerances)         | `Query/SpecificationExtractor.swift`       |
 
-#### Document Processing Services (19 services)
+#### Document Processing Services (20 services)
 
 | Service                        | Type        | Purpose                                                          | File                                          |
 | ------------------------------ | ----------- | ---------------------------------------------------------------- | --------------------------------------------- |
@@ -354,6 +354,7 @@ OpenIntelligence is composed of **78 distinct services** organized into 9 catego
 | `SpatialDocumentAnalyzer`      | class       | Analyzes spatial relationships between document elements         | `Document/SpatialDocumentAnalyzer.swift`      |
 | `SpecificationDetector`        | struct      | Regex/ML detection of specification tables and key-value pairs   | `Document/SpecificationDetector.swift`        |
 | `StructuredDocumentParser`     | actor       | Parses hierarchy (Section > Subsection > Paragraph)              | `Document/StructuredDocumentParser.swift`     |
+| `OCRConfiguration`             | enum        | Central OCR config factory, adaptive preprocessing, confidence   | `Document/OCRConfiguration.swift`             |
 
 #### Embedding Services (2 services)
 
@@ -399,26 +400,27 @@ OpenIntelligence is composed of **78 distinct services** organized into 9 catego
 | `ConversationMemoryService` | final class | Persistent conversation memory with summarization   | `Agentic/ConversationMemoryService.swift` |
 | `WritingToolsService`       | class       | Apple Writing Tools (proofread, rewrite, summarize) | `Agentic/WritingToolsService.swift`       |
 
-#### Infrastructure Services (17 services)
+#### Infrastructure Services (18 services)
 
-| Service                        | Type        | Purpose                                                         | File                                                |
-| ------------------------------ | ----------- | --------------------------------------------------------------- | --------------------------------------------------- |
-| `ContainerService`             | final class | KnowledgeContainer management (CRUD, selection, persistence)    | `Infrastructure/ContainerService.swift`             |
-| `DeviceCapabilityService`      | final class | Device tier detection (A-series vs M-series, NPU TOPS)          | `Infrastructure/DeviceCapabilityService.swift`      |
-| `GPUComputeService`            | final class | Metal Performance Shaders for batch vector ops (10-50x speedup) | `Infrastructure/GPUComputeService.swift`            |
-| `ProjectionService`            | final class | 3D projection: PCA, Random Projection, t-SNE, UMAP              | `Infrastructure/ProjectionService.swift`            |
-| `ClusterLabelService`          | actor       | LLM-generated intelligent labels for Atlas clusters             | `Infrastructure/ClusterLabelService.swift`          |
-| `TranscriptPersistenceService` | final class | Apple FM session transcript persistence for resume              | `Infrastructure/TranscriptPersistenceService.swift` |
-| `SettingsStore`                | final class | Centralized settings with UserDefaults persistence              | `Infrastructure/SettingsStore.swift`                |
-| `AdaptivePipelineOptimizer`    | actor       | Dynamically adjusts pipeline parameters based on load/battery   | `Infrastructure/AdaptivePipelineOptimizer.swift`    |
-| `LibraryIconSuggestionService` | actor       | Suggests SF Symbols for document containers based on contents   | `Infrastructure/LibraryIconSuggestionService.swift` |
-| `LibraryVisualizationEngine`   | class       | Renders 3D document atlas visualizations                        | `Infrastructure/LibraryVisualizationEngine.swift`   |
-| `LoggingConfiguration`         | struct      | Centralized OSLog subsystem configuration                       | `Infrastructure/LoggingConfiguration.swift`         |
-| `ProjectionCache`              | actor       | Caches expensive UMAP/t-SNE projections                         | `Infrastructure/ProjectionCache.swift`              |
-| `QuotaPolicy`                  | struct      | Enforces usage limits for free tier users                       | `Infrastructure/QuotaPolicy.swift`                  |
-| `SystemStateMonitor`           | class       | Monitors thermal state, memory, and battery for degradation     | `Infrastructure/SystemStateMonitor.swift`           |
-| `TelemetryCenter`              | actor       | Aggregates performance metrics (TTFT, TPS, ingest speed)        | `Infrastructure/TelemetryCenter.swift`              |
-| `LLMStreamingContext`          | actor       | Manages state for streaming LLM responses                       | `LLM/LLMStreamingContext.swift`                     |
+| Service                        | Type        | Purpose                                                                                            | File                                                |
+| ------------------------------ | ----------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| `ContainerService`             | final class | KnowledgeContainer management (CRUD, selection, persistence)                                       | `Infrastructure/ContainerService.swift`             |
+| `DeviceCapabilityService`      | final class | Device tier detection, hardware-aware pipeline tuning (OCR, embedding, reranking concurrency)      | `Infrastructure/DeviceCapabilityService.swift`      |
+| `GPUComputeService`            | final class | Metal GPU compute: 3-tier shader selection (threadgroup/SIMD4/scalar), buffer pool, MPS matrix ops | `Infrastructure/GPUComputeService.swift`            |
+| `ProjectionService`            | final class | 3D projection: PCA, Random Projection, t-SNE, UMAP                                                 | `Infrastructure/ProjectionService.swift`            |
+| `ClusterLabelService`          | actor       | LLM-generated intelligent labels for Atlas clusters                                                | `Infrastructure/ClusterLabelService.swift`          |
+| `TranscriptPersistenceService` | final class | Apple FM session transcript persistence for resume                                                 | `Infrastructure/TranscriptPersistenceService.swift` |
+| `SettingsStore`                | final class | Centralized settings with UserDefaults persistence                                                 | `Infrastructure/SettingsStore.swift`                |
+| `AdaptivePipelineOptimizer`    | actor       | Dynamically adjusts pipeline parameters based on load/battery                                      | `Infrastructure/AdaptivePipelineOptimizer.swift`    |
+| `LibraryIconSuggestionService` | actor       | Suggests SF Symbols for document containers based on contents                                      | `Infrastructure/LibraryIconSuggestionService.swift` |
+| `LibraryVisualizationEngine`   | class       | Renders 3D document atlas visualizations                                                           | `Infrastructure/LibraryVisualizationEngine.swift`   |
+| `LoggingConfiguration`         | struct      | Centralized OSLog subsystem configuration                                                          | `Infrastructure/LoggingConfiguration.swift`         |
+| `ProjectionCache`              | actor       | Caches expensive UMAP/t-SNE projections                                                            | `Infrastructure/ProjectionCache.swift`              |
+| `QuotaPolicy`                  | struct      | Enforces usage limits for free tier users                                                          | `Infrastructure/QuotaPolicy.swift`                  |
+| `SystemStateMonitor`           | class       | Monitors thermal state, memory, and battery for degradation                                        | `Infrastructure/SystemStateMonitor.swift`           |
+| `HardwareTelemetryState`       | class       | Real-time CPU/GPU/Neural Engine/thermal/battery telemetry                                          | `Infrastructure/HardwareTelemetryState.swift`       |
+| `TelemetryCenter`              | actor       | Aggregates performance metrics (TTFT, TPS, ingest speed)                                           | `Infrastructure/TelemetryCenter.swift`              |
+| `LLMStreamingContext`          | actor       | Manages state for streaming LLM responses                                                          | `LLM/LLMStreamingContext.swift`                     |
 
 #### Billing Services (1 service)
 
@@ -455,47 +457,110 @@ OpenIntelligence is composed of **78 distinct services** organized into 9 catego
 
 **Current Implementation** (Jan 2026 - Enhanced):
 
-| Capability           | API Used                         | Status          |
-| -------------------- | -------------------------------- | --------------- |
-| OCR Text Recognition | `VNRecognizeTextRequest`         | ✅ Implemented  |
-| High-DPI Rendering   | 360 DPI (5x scale factor)        | ✅ Enhanced     |
-| Multi-language OCR   | Recognition languages config     | ✅ 10 languages |
-| Accurate Mode        | `.recognitionLevel = .accurate`  | ✅ Enabled      |
-| Language Correction  | `.usesLanguageCorrection = true` | ✅ Enabled      |
-| Image Upscaling      | CIFilter.lanczosScaleTransform   | ✅ New          |
-| Contrast Enhancement | CIColorControls                  | ✅ New          |
+| Capability                      | API Used                                  | Status         |
+| ------------------------------- | ----------------------------------------- | -------------- |
+| OCR Text Recognition            | `VNRecognizeTextRequest` Rev3             | ✅ Implemented  |
+| High-DPI Rendering              | 360 DPI (5x scale factor)                 | ✅ Enhanced     |
+| Multi-language OCR              | 13 languages via centralized config       | ✅ 13 languages |
+| Accurate Mode                   | `.recognitionLevel = .accurate`           | ✅ Enabled      |
+| Language Correction             | `.usesLanguageCorrection = true`          | ✅ Enabled      |
+| Auto Language Detection         | `.automaticallyDetectsLanguage = true`    | ✅ Enabled      |
+| Adaptive Preprocessing          | 5-strategy CIFilter pipeline              | ✅ New          |
+| Multi-Candidate Confidence OCR  | `topCandidates(5)` + ConfidenceVerifier   | ✅ New          |
+| Dynamic Vocabulary Extraction   | PDFKit text mining → customWords          | ✅ New          |
+| Centralized OCR Factory         | `OCRConfiguration.configureRequest()`     | ✅ New          |
+| Language-Agnostic Quality Check | NLLanguageRecognizer + Unicode categories | ✅ New          |
 
 **Device-Tier-Aware Vision Concurrency** (Jan 26, 2026):
 
 `VisionOCRThrottle` controls concurrent Vision OCR operations with device-specific tuning:
 
-| Device Tier    | Chip     | Vision Ops | Cooldown | Notes                        |
-| -------------- | -------- | ---------- | -------- | ---------------------------- |
-| Enhanced       | A18 Pro  | 5          | 5ms      | Neural Engine optimized      |
-| Advanced       | A19 Pro  | 6          | 3ms      | Next-gen ANE                 |
-| Ultra-Advanced | M-series | 6          | 3ms      | Active cooling (iPad Pro)    |
-| Mac Compatible | M-series | 3          | 10ms     | Conservative for macOS Metal |
-| Baseline       | A17 Pro  | 4          | 8ms      | Conservative for thermal     |
+| Device Tier    | Chip     | Vision Ops | Cooldown | Notes                                |
+| -------------- | -------- | ---------- | -------- | ------------------------------------ |
+| Ultra-Advanced | A19 Pro  | 8          | 1ms      | 16-core ANE @ 45 TOPS, Apple10 Metal |
+| Enhanced       | A18 Pro  | 6          | 2ms      | 16-core ANE @ 38 TOPS, Apple9 Metal  |
+| Standard       | A17 Pro  | 4          | 3ms      | 16-core ANE @ 35 TOPS                |
+| Mac Compatible | M-series | 4          | 3ms      | Active cooling, improved scheduling  |
+| Baseline       | Older    | 2          | 6ms      | Conservative for thermal             |
 
 **Platform Detection**: On Mac (via "Designed for iPad"), Metal command buffer scheduling differs from iOS. The system automatically detects `ProcessInfo.processInfo.isiOSAppOnMac` and uses conservative concurrency to prevent Metal validation errors in Apple's Vision framework.
 
-**OCR Quality Improvements** (Jan 24, 2026):
+**GPU Compute Architecture** (`GPUComputeService.swift`, Feb 14, 2026):
+
+The Metal compute service provides 7 inline GPU kernels with automatic tiered shader selection:
+
+| Kernel                             | Variant             | Description                                             | When Used                              |
+| ---------------------------------- | ------------------- | ------------------------------------------------------- | -------------------------------------- |
+| `batchCosineSimilarity`            | Scalar              | Per-element float ops                                   | Fallback (non-SIMD-aligned dimensions) |
+| `batchCosineSimilaritySIMD`        | SIMD4               | `float4` vector ops, 4× scalar throughput               | 100-999 docs, dimension % 4 == 0       |
+| `batchCosineSimilarityThreadgroup` | Threadgroup + SIMD4 | Query cached in shared memory + `float4`                | ≥1000 docs, dimension/4 ≤ 96           |
+| `batchNormalize`                   | Scalar              | Vector L2 normalization                                 | Fallback                               |
+| `batchNormalizeSIMD`               | SIMD4               | `float4` normalization                                  | SIMD-aligned dimensions                |
+| `mmrDiversityMatrix`               | Scalar              | Pairwise similarity matrix (compiled, MPS used instead) | Reserved                               |
+
+**Shader Selection Logic**: Both `batchCosineSimilarityFlat` (heap arrays) and `batchCosineSimilarityFlatBuffer` (mmap'd `UnsafeBufferPointer`) use identical tiered selection. MiniLM-L6-v2 (384-dim / 4 = 96 float4s) fits exactly within the threadgroup `sharedQuery[96]` limit, so all searches ≥1000 vectors use the fastest path.
+
+**Zero-Copy mmap**: For mmap'd vector databases, `makeBuffer(bytesNoCopy:)` lets the GPU read directly from mmap'd pages on Apple Silicon unified memory — no 73MB heap copy.
+
+**Cross-Encoder Concurrent Reranking** (`RAGEngine.swift`, Feb 14, 2026):
+
+Cross-encoder prediction now uses `TaskGroup` with device-tier-aware concurrency:
+
+- Pre-tokenization: All query-chunk pairs tokenized before the TaskGroup starts
+- Bulk `dataPointer` writes: `MLMultiArray` populated via pointer (3× faster than `NSNumber` subscript)
+- Bounded concurrency: Seed + feed pattern maintains `maxConcurrentPredictions` in flight
+- Per-task isolation: Each task creates its own `MLMultiArray` buffers (no sharing)
+
+**Concurrent CIFilter Rendering** (`DocumentProcessor.swift`, Feb 14, 2026):
+
+`DocumentProcessor.gpuQueue` upgraded from `DispatchQueue(label:)` (serial) to `DispatchQueue(label:, attributes: .concurrent)`. CIContext is documented thread-safe by Apple — each `.sync` call writes to its own local variable with no shared mutable state. This eliminates the bottleneck that serialized ALL CIFilter preprocessing.
+
+**GPU Embedding Ingestion Mode** (`CoreMLSentenceEmbeddingProvider.swift`, Feb 14, 2026):
+
+During document ingestion, `enableIngestionMode()` reloads the MiniLM CoreML model with `.cpuAndGPU` compute units (instead of default `.all` which prefers ANE). This frees the Neural Engine for concurrent Vision OCR operations. `disableIngestionMode()` reverts to default after ingestion completes.
+
+**Adaptive Document Intelligence Engine** (Feb 10, 2026):
+
+The `OCRConfiguration` enum is the single source of truth for ALL Vision OCR configuration across the codebase. Every `VNRecognizeTextRequest` uses `OCRConfiguration.configureRequest()` instead of manual setup, eliminating 3 duplicate config blocks.
+
+**Adaptive Preprocessing** (`AdaptivePreprocessor`):
+
+Selects from 5 CIFilter strategies based on page characteristics (text quality, scan type, degradation):
+
+| Strategy   | Use Case                            | Sharpen | Contrast | Extras                 |
+| ---------- | ----------------------------------- | ------- | -------- | ---------------------- |
+| minimal    | Clean digital PDFs, born-digital    | 0.3/0.5 | 1.02     | —                      |
+| standard   | Good quality scans, modern printers | 0.5/0.8 | 1.05     | —                      |
+| enhanced   | Older scans, slightly degraded      | 0.8/1.2 | 1.15     | Noise reduction        |
+| aggressive | Very poor quality, faded, blurry    | 1.2/1.5 | 1.25     | Exposure + noise       |
+| maximum    | Microfiche, bad phone photos        | 1.5/2.0 | 1.40     | Heavy exposure + noise |
+
+**Multi-Candidate Confidence OCR** (`ConfidenceVerifier`):
+
+All text assembly now uses `topCandidates(5)` instead of `topCandidates(1)`. Numeric data in tables uses a higher confidence threshold (90% vs 85% for text) to catch OCR errors like "15.5" vs "14.3" gallons.
+
+**Dynamic Vocabulary Extraction**:
+
+PDFKit's text layer is mined BEFORE Vision OCR runs to extract domain vocabulary (acronyms, alphanumeric codes, CamelCase terms, compound units). These are fed as `customWords` to Vision so it doesn't autocorrect legitimate technical terms.
 
 ```swift
-// 360 DPI rendering for better text recognition (was 216 DPI)
-let scale: CGFloat = 5.0  // 72 DPI × 5 = 360 DPI
-let scaledSize = CGSize(width: pageRect.width * scale, height: pageRect.height * scale)
+// Centralized OCR configuration (replaces 3 duplicate blocks)
+OCRConfiguration.configureRequest(request, customWords: documentCustomWords)
 
-// Upscale low-res images before OCR
-if imageSize.width < 1000 || imageSize.height < 1000 {
-    let upscaleFilter = CIFilter.lanczosScaleTransform()
-    upscaleFilter.scale = 1.5  // 50% larger
+// Adaptive preprocessing based on page quality
+let strategy = AdaptivePreprocessor.selectStrategy(
+    textQuality: complexity.textQuality,
+    hasNativeTextLayer: hasText,
+    isScanned: isScanned,
+    imagePresence: 0.0
+)
+let processed = AdaptivePreprocessor.apply(strategy, to: image, ...)
+
+// Confidence-verified text assembly (critical for table data)
+let result = ConfidenceVerifier.assembleVerifiedText(from: observations)
+if result.uncertainCount > 0 {
+    Log.warning("\(result.uncertainCount) uncertain values detected")
 }
-
-// Enhance contrast for faded/scanned documents
-let colorControls = CIFilter.colorControls()
-colorControls.contrast = 1.1
-colorControls.brightness = 0.02
 ```
 
 #### Office Document Extraction
@@ -1120,6 +1185,47 @@ func query(_ text: String, topK: Int) async {
 
 ---
 
+## v3.1 Architecture Changes (February 2026)
+
+### Motherboard HUD — Real-Time Hardware Telemetry Overlay
+
+A full-screen X-ray overlay rendered on the chat screen showing real Apple Silicon component positions with live telemetry.
+
+**New Services:**
+
+- `HardwareTelemetryState` — Centralized real-time hardware telemetry (CPU/GPU/Neural Engine usage, memory pressure, thermal state, battery level)
+- `MotherboardHUDView` — Transparent SwiftUI overlay rendering SoC, NAND, DRAM, modem, PMIC, WiFi/BT, and Taptic Engine at Vision AI-verified teardown positions
+
+**Device Support:**
+
+- iPhone 15 Pro / Pro Max (A17 Pro)
+- iPhone 16 / Plus (A18)
+- iPhone 16 Pro / Pro Max (A18 Pro)
+- iPhone 17 Pro / Pro Max (A19 Pro)
+
+**Integration Points:**
+
+- `ChatScreen.swift` — HUD overlays as ZStack layer
+- `SettingsView.swift` — Toggle for enable/disable
+- `ContentView.swift` — State binding for global HUD visibility
+
+### Universal Retrieval Improvements (8 Fixes)
+
+Eight research-grade fixes applied to the RAG pipeline for near-universal needle-in-haystack accuracy:
+
+| Fix | Service                        | Change                                                                                   |
+| --- | ------------------------------ | ---------------------------------------------------------------------------------------- |
+| 1   | `HybridSearchService`          | BM25 lexical search always contributes to results, even when vector search dominates     |
+| 2   | `HybridSearchService`          | RRF fusion weights adjusted proportionally based on each method's hit count              |
+| 3   | `HyDEService`                  | HyDE embedding blended 70/30 with original query embedding instead of replacing it       |
+| 4   | `VerificationGateService`      | Gate C exempts years 1900-2100 and small integers 1-10 from numeric hallucination checks |
+| 5   | `ContextualCompressionService` | Sentence-level scoring fallback when LLM compression fails                               |
+| 6   | `QueryEnhancementService`      | Rare corpus terms that exactly match query words included in expansion                   |
+| 7   | `QueryEnhancementService`      | Dynamic synonym generation from document co-occurrence data                              |
+| 8   | `RAGEngine`                    | Cross-encoder candidate pool scales adaptively: `min(count, max(100, topK×5))`           |
+
+---
+
 ## Advanced RAG Techniques (Jan 2026)
 
 OpenIntelligence implements state-of-the-art RAG techniques from 2024-2026 research, optimized for Apple's 4,096-token context window constraint.
@@ -1288,18 +1394,19 @@ Turn 3: "And its towing capacity?"  ← "its" = Telluride
 
 `DeviceCapabilityService` detects device tier, chip, form factor, and NPU TOPS at runtime:
 
-| Property                   | Purpose                                            |
-| -------------------------- | -------------------------------------------------- |
-| `tier`                     | Capability tier (baseline/enhanced/advanced/ultra) |
-| `chipName`                 | Chip identifier (A17 Pro, A18 Pro, M3, etc.)       |
-| `npuTops`                  | Neural Engine TOPS (35-45 for A17-A19 Pro)         |
-| `isMac`                    | Mac detection (native or iPad app on Mac)          |
-| `visionParsingConcurrency` | Concurrent Vision parsing pages (6-12)             |
-| `ocrExtractionConcurrency` | Concurrent OCR extraction pages (6-14)             |
-| `embeddingConcurrency`     | Concurrent embedding requests (8-16)               |
-| `gpuConcurrency`           | Concurrent GPU operations (4-12)                   |
+| Property                               | Purpose                                                                             |
+| -------------------------------------- | ----------------------------------------------------------------------------------- |
+| `tier`                                 | Capability tier (baseline/enhanced/advanced/ultra)                                  |
+| `chipName`                             | Chip identifier (A17 Pro, A18 Pro, M3, etc.)                                        |
+| `npuTops`                              | Neural Engine TOPS (35-45 for A17-A19 Pro)                                          |
+| `isMac`                                | Mac detection (native or iPad app on Mac)                                           |
+| `visionParsingConcurrency`             | Concurrent Vision parsing pages (6-12)                                              |
+| `ocrExtractionConcurrency`             | Concurrent OCR extraction pages (6-14)                                              |
+| `embeddingConcurrency`                 | Concurrent embedding requests (8-16)                                                |
+| `gpuConcurrency`                       | Concurrent GPU operations (4-12)                                                    |
+| `embeddingComputeUnitsDuringIngestion` | CoreML compute units for embedding during ingestion (`.cpuAndGPU` for modern tiers) |
 
-**Platform-Specific Tuning**: Mac (via "Designed for iPad") receives more conservative concurrency values due to differences in macOS Metal command buffer scheduling.
+**Platform-Specific Tuning**: Mac (via "Designed for iPad") receives more conservative concurrency values due to differences in macOS Metal command buffer scheduling. All tier values are cranked to maximum safe limits — `DeviceCapabilityService` drives concurrency for OCR, embedding, cross-encoder reranking, and GPU compute across the entire pipeline.
 
 ### SystemStateMonitor
 
@@ -2433,7 +2540,7 @@ OpenIntelligence/
 │   ├── Billing/                   # StoreKit/subscription UI
 │   ├── Onboarding/                # First-run experience
 │   ├── Diagnostics/               # Debug views
-│   └── Telemetry/                 # Visualization & analytics views
+│   └── Telemetry/                 # Motherboard HUD, execution metrics, analytics
 │
 ├── Services/                      # ALL business logic (organized by domain)
 │   ├── RAG/                       # Core RAG pipeline (RAGService, RAGEngine, HybridSearch)

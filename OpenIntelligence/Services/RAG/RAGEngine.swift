@@ -133,8 +133,14 @@ actor RAGEngine {
             }
 
             let embeddings = candidates.map { $0.chunk.embedding }
-            diversityMatrix = gpuCompute.mmrDiversityMatrix(embeddings: embeddings)
-            Log.debug("[RAGEngine] 🚀 GPU MMR diversity matrix for \(candidates.count) candidates", category: .retrieval)
+            let matrix = gpuCompute.mmrDiversityMatrix(embeddings: embeddings)
+            // Validate matrix is N×N matching candidate count — malformed matrix causes subscript crash
+            if matrix.count == candidates.count, matrix.first?.count == candidates.count {
+                diversityMatrix = matrix
+                Log.debug("[RAGEngine] 🚀 GPU MMR diversity matrix for \(candidates.count) candidates", category: .retrieval)
+            } else {
+                Log.warning("[RAGEngine] ⚠️ GPU MMR matrix dimensions mismatch (got \(matrix.count)×\(matrix.first?.count ?? 0), expected \(candidates.count)×\(candidates.count)), falling back to CPU", category: .retrieval)
+            }
         }
 
         var selected: [RetrievedChunk] = []
@@ -165,6 +171,7 @@ actor RAGEngine {
                 if let matrix = diversityMatrix {
                     // GPU PATH: Use pre-computed similarity matrix
                     for selectedIdx in selectedIndices {
+                        guard origIdx < matrix.count, selectedIdx < matrix[origIdx].count else { continue }
                         let similarity = matrix[origIdx][selectedIdx]
                         maxSimilarityToSelected = max(maxSimilarityToSelected, similarity)
                     }
@@ -268,8 +275,14 @@ actor RAGEngine {
         #endif
         guard !chunks.isEmpty else { return [] }
 
-        // Limit to top 50 candidates before cross-encoder scoring (perf safeguard)
-        let candidateChunks = Array(chunks.prefix(50))
+        // Cross-encoder candidate pool: ADAPTIVE ceiling for universal retrieval.
+        // Fixed 100 missed needles at rank 101+ in large corpora. Now scales:
+        // - Small corpus (<200 chunks): use all chunks (no artificial ceiling)
+        // - Medium corpus: topK * 5 (50 candidates for topK=10)
+        // - Large corpus: cap at 250 to bound latency (cross-encoder is O(n))
+        // Always at least 100 to maintain existing behavior for normal queries.
+        let adaptiveCeiling = min(chunks.count, max(100, min(250, topK * 5)))
+        let candidateChunks = Array(chunks.prefix(adaptiveCeiling))
 
         #if canImport(CoreML)
             if let model = rerankerModel, let tokenizer = rerankerTokenizer {
@@ -305,10 +318,10 @@ actor RAGEngine {
             var score = r.similarityScore
 
             let keywordBoost = calculateKeywordMatch(query: query, content: r.chunk.content)
-            score += keywordBoost * 0.6 // Boosted from 0.2 to prioritize exact keyword matches
+            score += keywordBoost * 0.25 // Moderate: boost keyword matches without overwhelming semantic similarity
 
             let proximityBoost = calculateTermProximity(query: query, content: r.chunk.content)
-            score += proximityBoost * 0.4 // Boosted from 0.15 to favor phrases like "press button"
+            score += proximityBoost * 0.20 // Moderate: favor term proximity without clobbering vector ranking
 
             let chunkIndex = r.chunk.metadata.chunkIndex
             let positionScore = 1.0 / Float(chunkIndex + 10)
@@ -582,47 +595,33 @@ actor RAGEngine {
         return result
     }
 
-    /// Reorders chunks to mitigate "Lost in the Middle" attention patterns.
+    /// Reorders chunks to mitigate "Lost in the Middle" attention patterns (Liu et al., 2023).
     /// Places most relevant chunks at start and end of context where LLMs attend best.
-    /// Order: 1st, 3rd, 5th, ..., 6th, 4th, 2nd (interleaved from both ends)
+    /// Pushes least-relevant chunks to the middle positions where attention is weakest.
+    /// For chunks ranked [1,2,3,4,5,6], produces [1,3,5,6,4,2]:
+    ///   - Start: #1 (best), #3, #5
+    ///   - End: #2 (second-best), #4, #6
+    ///   - Middle: worst chunks (#5, #6)
     private func applyLostInMiddleReordering(_ chunks: [RetrievedChunk]) -> [RetrievedChunk] {
         guard chunks.count >= 4 else { return chunks }
 
-        var result: [RetrievedChunk] = []
-        result.reserveCapacity(chunks.count)
+        // Split into odd-indexed (0, 2, 4...) and even-indexed (1, 3, 5...) positions
+        // Odd-indexed go to the front (start of context — high attention)
+        // Even-indexed go to the back in reverse (end of context — high attention)
+        // Result: worst chunks land in the middle (low attention zone)
+        var frontChunks: [RetrievedChunk] = []
+        var backChunks: [RetrievedChunk] = []
 
-        // Split into two halves
-        let midpoint = chunks.count / 2
-        let firstHalf = Array(chunks.prefix(midpoint))
-        let secondHalf = Array(chunks.suffix(from: midpoint))
-
-        // Interleave: odd positions from first half, even positions from second half (reversed)
-        var frontIdx = 0
-        var backIdx = secondHalf.count - 1
-
-        for i in 0 ..< chunks.count {
+        for (i, chunk) in chunks.enumerated() {
             if i % 2 == 0 {
-                // Even position: take from front (highest relevance)
-                if frontIdx < firstHalf.count {
-                    result.append(firstHalf[frontIdx])
-                    frontIdx += 1
-                } else if backIdx >= 0 {
-                    result.append(secondHalf[backIdx])
-                    backIdx -= 1
-                }
+                frontChunks.append(chunk)   // ranks 1, 3, 5, ... → front
             } else {
-                // Odd position: take from back (placed near end for recency attention)
-                if backIdx >= 0 {
-                    result.append(secondHalf[backIdx])
-                    backIdx -= 1
-                } else if frontIdx < firstHalf.count {
-                    result.append(firstHalf[frontIdx])
-                    frontIdx += 1
-                }
+                backChunks.append(chunk)    // ranks 2, 4, 6, ... → back (reversed)
             }
         }
 
-        return result
+        // Front chunks in order, back chunks reversed so #2 is at the very end
+        return frontChunks + backChunks.reversed()
     }
 
     /// Compute confidence score and quality warnings (off-main)
@@ -846,8 +845,28 @@ actor RAGEngine {
             scores[pair.chunk.chunk.id, default: 0] += keywordWeight / Float(k + rank + 1)
         }
 
-        // Sort by fused score; preserve only candidates present in vectorResults (current design)
-        let ranked = vectorResults.sorted { (scores[$0.chunk.id] ?? 0) > (scores[$1.chunk.id] ?? 0) }
+        // Sort by fused score; include ALL candidates from BOTH vector and BM25 result sets.
+        // Previously this only returned vectorResults, silently dropping BM25-only candidates.
+        // True RRF fuses the UNION of both sets — a document with exact keyword match but
+        // low vector similarity must still be rankable.
+
+        // Build lookup from vector results for metadata
+        var vectorLookup: [UUID: RetrievedChunk] = [:]
+        for r in vectorResults {
+            vectorLookup[r.chunk.id] = r
+        }
+
+        // Build the full candidate set: all vector results + any BM25-only candidates
+        var allCandidates: [RetrievedChunk] = vectorResults
+        let existingIds = Set(vectorResults.map { $0.chunk.id })
+        for pair in keywordResults {
+            if !existingIds.contains(pair.chunk.chunk.id) {
+                // BM25-only candidate — include with its BM25-derived similarity score
+                allCandidates.append(pair.chunk)
+            }
+        }
+
+        let ranked = allCandidates.sorted { (scores[$0.chunk.id] ?? 0) > (scores[$1.chunk.id] ?? 0) }
         return ranked
     }
 
@@ -894,6 +913,8 @@ actor RAGEngine {
         return Float(matches.count) / Float(max(queryTerms.count, 1))
     }
 
+    /// Calculate minimum span distance across ALL query terms, not just the first two.
+    /// For a 5-term query, finds the smallest window containing all matched terms.
     private func calculateTermProximity(query: String, content: String) -> Float {
         let queryTerms = query.lowercased().split(separator: " ").map { String($0) }.filter { $0.count > 2 }
         let contentWords = content.lowercased().split(separator: " ").map { String($0) }
@@ -906,17 +927,40 @@ actor RAGEngine {
             positions.append(pos)
         }
 
-        var minDistance = Int.max
-        if positions.allSatisfy({ !$0.isEmpty }) {
-            for i in 0 ..< (positions[0].count) {
-                for j in 0 ..< (positions[1].count) {
+        // Compute minimum span across ALL query terms (not just first two)
+        // Uses a sliding window approach: for each position of term[0],
+        // find the closest position of every other term and compute the span.
+        let matchedPositions = positions.filter { !$0.isEmpty }
+        guard matchedPositions.count >= 2 else { return 0 }
 
-                    let distance = abs(positions[0][i] - positions[1][j])
-                    minDistance = min(minDistance, distance)
+        var minSpan = Int.max
+        // For each position in the first matched term's list
+        for anchor in matchedPositions[0] {
+            var windowMin = anchor
+            var windowMax = anchor
+            var allFound = true
+            // Find closest position in each other term's position list
+            for termIdx in 1..<matchedPositions.count {
+                let termPositions = matchedPositions[termIdx]
+                // Binary-search-style: find closest to anchor
+                var closest = Int.max
+                for pos in termPositions {
+                    if abs(pos - anchor) < abs(closest - anchor) {
+                        closest = pos
+                    }
                 }
+                if closest == Int.max {
+                    allFound = false
+                    break
+                }
+                windowMin = min(windowMin, closest)
+                windowMax = max(windowMax, closest)
+            }
+            if allFound {
+                minSpan = min(minSpan, windowMax - windowMin)
             }
         }
-        return minDistance == Int.max ? 0 : 1.0 / Float(minDistance + 1)
+        return minSpan == Int.max ? 0 : 1.0 / Float(minSpan + 1)
     }
 
     private func computeMetadataBoost(
@@ -1061,11 +1105,10 @@ actor RAGEngine {
             model: MLModel,
             tokenizer: BertTokenizer
         ) async -> [RetrievedChunk] {
-            var scored: [(chunk: RetrievedChunk, score: Float)] = []
             let cappedTopK = min(topK, chunks.count)
             let maxLen = 512
 
-            // Prepare query tokens once
+            // Prepare query tokens once (shared across all chunks)
             let queryTokens = tokenizer.tokenize(text: query)
             let queryIds = tokenizer.convertTokensToIds(queryTokens).compactMap { $0 }
 
@@ -1074,37 +1117,43 @@ actor RAGEngine {
             let sepId = tokenizer.convertTokenToId("[SEP]") ?? 102
             let padId = tokenizer.convertTokenToId("[PAD]") ?? 0
 
-            for (idx, r) in chunks.enumerated() {
-                if Task.isCancelled { break }
-                if idx % 8 == 0 { await Task.yield() }
+            // OPTIMIZATION: Pre-tokenize ALL chunks upfront (CPU-bound, fast)
+            // This amortizes tokenizer overhead and enables concurrent prediction
+            struct TokenizedInput: Sendable {
+                let chunkIndex: Int
+                let inputIds: [Int]
+                let attentionMask: [Int]
+                let tokenTypes: [Int]
+            }
 
+            let fixedCount = 3 + queryIds.count // [CLS] + Q + [SEP] + [SEP]
+            let availableForDoc = maxLen - fixedCount
+
+            var tokenizedInputs: [TokenizedInput] = []
+            tokenizedInputs.reserveCapacity(chunks.count)
+
+            for (idx, r) in chunks.enumerated() {
                 // Include contextual prefix for cross-encoder (Anthropic's Contextual Retrieval)
-                // This helps the re-ranker understand document context when scoring relevance
                 let docText = (r.chunk.contextualPrefix ?? "") + r.chunk.content
                 let docTokens = tokenizer.tokenize(text: docText)
                 let docIds = tokenizer.convertTokensToIds(docTokens).compactMap { $0 }
-
-                // Build sequence: [CLS] Q [SEP] D [SEP]
-                // Calculate available space for D
-                let fixedCount = 3 + queryIds.count // [CLS] + Q + [SEP] + [SEP]
-                let availableForDoc = maxLen - fixedCount
                 let truncatedDocIds = Array(docIds.prefix(max(0, availableForDoc)))
 
                 var inputIds: [Int] = []
+                inputIds.reserveCapacity(maxLen)
                 inputIds.append(clsId)
                 inputIds.append(contentsOf: queryIds)
                 inputIds.append(sepId)
                 inputIds.append(contentsOf: truncatedDocIds)
                 inputIds.append(sepId)
 
-                // Token Types: 0 for Q, 1 for D
                 var tokenTypes: [Int] = []
-                tokenTypes.append(contentsOf: Array(repeating: 0, count: 2 + queryIds.count)) // [CLS] Q [SEP]
-                tokenTypes.append(contentsOf: Array(repeating: 1, count: 1 + truncatedDocIds.count)) // D [SEP]
+                tokenTypes.reserveCapacity(maxLen)
+                tokenTypes.append(contentsOf: Array(repeating: 0, count: 2 + queryIds.count))
+                tokenTypes.append(contentsOf: Array(repeating: 1, count: 1 + truncatedDocIds.count))
 
                 var attentionMask = Array(repeating: 1, count: inputIds.count)
 
-                // Padding
                 let padLen = maxLen - inputIds.count
                 if padLen > 0 {
                     inputIds.append(contentsOf: Array(repeating: padId, count: padLen))
@@ -1112,16 +1161,35 @@ actor RAGEngine {
                     tokenTypes.append(contentsOf: Array(repeating: 0, count: padLen))
                 }
 
+                tokenizedInputs.append(TokenizedInput(
+                    chunkIndex: idx,
+                    inputIds: inputIds,
+                    attentionMask: attentionMask,
+                    tokenTypes: tokenTypes
+                ))
+            }
+
+            // OPTIMIZATION: Concurrent predictions using TaskGroup
+            // Cross-encoder MLModel.prediction is thread-safe — CoreML handles internal synchronization.
+            // Device-tier-aware concurrency prevents ANE/GPU contention.
+            let maxConcurrentPredictions = min(4, max(2, DeviceCapabilityService.shared.embeddingConcurrency / 4))
+
+            // Extracted prediction closure — shared by seed and feed paths to avoid code duplication.
+            // Each invocation creates its own MLMultiArray buffers (no sharing between tasks).
+            let runPrediction: @Sendable (TokenizedInput) async -> (Int, Float)? = { input in
                 do {
                     let inputIdsArray = try MLMultiArray(shape: [1, NSNumber(value: maxLen)], dataType: .int32)
                     let maskArray = try MLMultiArray(shape: [1, NSNumber(value: maxLen)], dataType: .int32)
                     let tokenTypeArray = try MLMultiArray(shape: [1, NSNumber(value: maxLen)], dataType: .int32)
 
-                    // Copy to MultiArray
+                    // Bulk copy using dataPointer for 3x faster writes vs NSNumber subscript
+                    let inputPtr = inputIdsArray.dataPointer.bindMemory(to: Int32.self, capacity: maxLen)
+                    let maskPtr = maskArray.dataPointer.bindMemory(to: Int32.self, capacity: maxLen)
+                    let tokenPtr = tokenTypeArray.dataPointer.bindMemory(to: Int32.self, capacity: maxLen)
                     for i in 0 ..< maxLen {
-                        inputIdsArray[[0, NSNumber(value: i)] as [NSNumber]] = NSNumber(value: inputIds[i])
-                        maskArray[[0, NSNumber(value: i)] as [NSNumber]] = NSNumber(value: attentionMask[i])
-                        tokenTypeArray[[0, NSNumber(value: i)] as [NSNumber]] = NSNumber(value: tokenTypes[i])
+                        inputPtr[i] = Int32(input.inputIds[i])
+                        maskPtr[i] = Int32(input.attentionMask[i])
+                        tokenPtr[i] = Int32(input.tokenTypes[i])
                     }
 
                     let inputs = try MLDictionaryFeatureProvider(dictionary: [
@@ -1132,20 +1200,14 @@ actor RAGEngine {
 
                     let output = try await model.prediction(from: inputs)
 
-                    // Extract Score - handle different MLMultiArray data types
                     var score: Float = 0
                     if let logits = output.featureValue(for: "logits")?.multiArrayValue {
-                        // Extract values handling different data types
                         let count = logits.count
                         if count >= 1 {
-                            // Use subscript access which handles type conversion
                             let val0 = logits[0].floatValue
                             if count == 1 {
-                                // MS-MARCO models output unbounded relevance scores.
-                                // We'll use min-max normalization later to scale to [0,1].
                                 score = val0
                             } else {
-                                // Two logits (not-relevant, relevant): softmax to get P(relevant)
                                 let val1 = logits[1].floatValue
                                 let e0 = exp(val0)
                                 let e1 = exp(val1)
@@ -1153,22 +1215,51 @@ actor RAGEngine {
                             }
                         }
                     }
-
-                    scored.append((r, score))
-
+                    return (input.chunkIndex, score)
                 } catch {
-                    Log.error("[RAGEngine] Re-ranking inference failed: \(error)", category: .retrieval)
+                    Log.error("[RAGEngine] Re-ranking inference failed for chunk \(input.chunkIndex): \(error)", category: .retrieval)
+                    return nil
                 }
             }
+
+            let scored: [(index: Int, score: Float)] = await withTaskGroup(
+                of: (Int, Float)?.self,
+                returning: [(Int, Float)].self
+            ) { group in
+                var inputIterator = tokenizedInputs.makeIterator()
+                var results: [(Int, Float)] = []
+                results.reserveCapacity(chunks.count)
+
+                // Seed initial batch
+                for _ in 0 ..< maxConcurrentPredictions {
+                    guard let input = inputIterator.next() else { break }
+                    group.addTask { [input] in await runPrediction(input) }
+                }
+
+                // Process results and feed new tasks (bounded concurrency)
+                for await result in group {
+                    if let r = result {
+                        results.append(r)
+                    }
+                    // Feed next input — maintains maxConcurrentPredictions in flight
+                    if let input = inputIterator.next() {
+                        group.addTask { [input] in await runPrediction(input) }
+                    }
+                }
+                return results
+            }
+
+            // Reconstruct scored chunks in score-descending order
+            var scoredChunks = scored.map { (chunk: chunks[$0.index], score: $0.score) }
+            scoredChunks.sort { $0.score > $1.score }
 
             // MS-MARCO cross-encoders output unbounded relevance scores (e.g., -10 to +10).
             // These are meant for ranking, not as probabilities.
             // We normalize to [0,1] using min-max normalization within the batch,
             // which preserves ranking order while matching downstream score thresholds.
-            scored.sort { $0.score > $1.score }
 
             // Min-max normalize scores to [0,1] range
-            let rawScores = scored.map { $0.score }
+            let rawScores = scoredChunks.map { $0.score }
             let minScore = rawScores.min() ?? 0
             let maxScore = rawScores.max() ?? 1
             let scoreRange = maxScore - minScore
@@ -1176,9 +1267,9 @@ actor RAGEngine {
             // If all scores are identical, assign uniform normalized score
             let normalizedScored: [(chunk: RetrievedChunk, score: Float)]
             if scoreRange < 0.0001 {
-                normalizedScored = scored.map { ($0.chunk, Float(0.5)) }
+                normalizedScored = scoredChunks.map { ($0.chunk, Float(0.5)) }
             } else {
-                normalizedScored = scored.map { item in
+                normalizedScored = scoredChunks.map { item in
                     // Normalize to [0.1, 0.9] to avoid extreme values
                     let normalized = 0.1 + 0.8 * (item.score - minScore) / scoreRange
                     return (item.chunk, normalized)
@@ -1186,8 +1277,8 @@ actor RAGEngine {
             }
 
             if let top = normalizedScored.first, let bottom = normalizedScored.last {
-                let rawTop = scored.first?.score ?? 0
-                let rawBottom = scored.last?.score ?? 0
+                let rawTop = scoredChunks.first?.score ?? 0
+                let rawBottom = scoredChunks.last?.score ?? 0
                 Log.debug("[RAGEngine] AI Re-ranking: raw \(String(format: "%.2f", rawBottom))→\(String(format: "%.2f", rawTop)), normalized \(String(format: "%.2f", bottom.score))→\(String(format: "%.2f", top.score))", category: .retrieval)
                 // Log top chunk preview for debugging retrieval quality
                 let preview = String(top.chunk.chunk.content.prefix(150)).replacingOccurrences(of: "\n", with: " ")

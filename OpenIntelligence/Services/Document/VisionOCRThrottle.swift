@@ -128,16 +128,17 @@ nonisolated(unsafe) private let maxConcurrentVisionOps: Int = {
     // Mac needs LOWER concurrency despite more powerful hardware!
 
     if isRunningOnMac {
-        // Mac (M-series): Conservative for macOS Metal stability
-        return 3   // Increased from 2 - fewer pages need OCR now
+        // Mac (M-series): Active cooling + unified memory = can sustain more parallel Vision ops
+        // M4 Pro/Max have improved Metal command buffer scheduling
+        return 4   // Boosted: active cooling handles the thermal load
     } else if machine.contains("iPhone18") || machine.contains("iPad16") {
-        return 5   // A19 Pro - more aggressive with adaptive filtering
+        return 8   // A19 Pro/M4 iPad: 16-core ANE @ 45 TOPS, aggressive with adaptive filtering
     } else if machine.contains("iPhone17") || machine.contains("iPad15") {
-        return 4   // A18 Pro - increased with adaptive filtering
+        return 6   // A18 Pro/M3 iPad: 16-core ANE @ 38 TOPS, elevated with adaptive filtering
     } else if machine.contains("iPhone16") || machine.contains("iPad14") {
-        return 3   // A17 Pro - safe
+        return 4   // A17 Pro/M2: 16-core ANE @ 35 TOPS, boosted
     } else if machine.contains("iPad13") {
-        return 3   // M-series iPad - safe
+        return 4   // M1 iPad Pro: active cooling, boosted
     } else {
         return 2   // Older devices - safe (was 1, now 2 with fewer OCR pages)
     }
@@ -168,19 +169,23 @@ nonisolated(unsafe) private let gpuCooldownSeconds: TimeInterval = {
     //
     // IMPORTANT: Mac requires slightly longer cooldown due to different Metal lifecycle.
 
+    // CRANKED: Adaptive OCR filtering means fewer total Vision calls per document.
+    // With 50-80% skip rate from PageComplexityAnalyzer, actual concurrent load is lower
+    // than maxConcurrentVisionOps suggests. Cooldowns are pure waste on modern ANE.
+    // Apple9+ (A18/M3) has improved command buffer scheduling + 64-bit atomics.
     if isRunningOnMac {
-        // Mac: Moderate cooldown for stability
-        return 0.008  // 8ms - reduced with adaptive filtering
+        // Mac: Active cooling eliminates thermal concern; minimal cooldown for Metal lifecycle
+        return 0.003  // 3ms - active cooling, improved Metal scheduling
     } else if machine.contains("iPhone18") || machine.contains("iPad16") {
-        return 0.004  // 4ms - A19/M4: fast with adaptive filtering
+        return 0.001  // 1ms - A19/M4: Apple10 Metal feature set, near-zero cooldown
     } else if machine.contains("iPhone17") || machine.contains("iPad15") {
-        return 0.005  // 5ms - A18/M3: fast with adaptive filtering
+        return 0.002  // 2ms - A18/M3: Apple9 Metal, very fast scheduling
     } else if machine.contains("iPhone16") || machine.contains("iPad14") {
-        return 0.006  // 6ms - A17/M2: moderate
+        return 0.003  // 3ms - A17/M2: still fast with adaptive filtering
     } else if machine.contains("iPad13") {
-        return 0.005  // 5ms - M-series iPad
+        return 0.003  // 3ms - M1 iPad Pro: active cooling
     } else {
-        return 0.010  // 10ms - older devices: safe
+        return 0.006  // 6ms - older devices: reduced from 10ms, still safe
     }
 }()
 

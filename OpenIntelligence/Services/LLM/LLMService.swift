@@ -248,7 +248,7 @@ enum LLMStreamingContext {
                 description: """
                     The exact text pattern to search for. Case-insensitive.
                     Will return surrounding context for each match.
-                    Examples: "VIN number", "torque specification", "error code P0420"
+                    Examples: "serial number", "model specification", "error code 404"
                     """
             )
             var pattern: String
@@ -578,9 +578,11 @@ struct LLMResponse {
         /// Context window size for on-device model (4096 tokens per TN3193)
         static let contextWindowSize: Int = 4096
 
-        /// Approximate token count for a string (use conservative 2.5 chars/token to avoid overflow)
+        /// Approximate token count for a string.
+        /// Uses empirically validated 1.4 chars/token for Apple FM (observed across real prompts).
+        /// Previous 2.5 ratio underestimated by ~44%, causing context overflow retries.
         static func estimateTokens(for text: String) -> Int {
-            let charsPerToken = 2.5
+            let charsPerToken = 1.4
             return max(1, Int(ceil(Double(text.count) / charsPerToken)))
         }
 
@@ -843,22 +845,26 @@ struct LLMResponse {
                     Log.debug("Tools disabled for this session (pure reasoning mode)", category: .llm)
                 }
 
-                // Create language model session with hybrid RAG+LLM instructions
-                // This enables BOTH document-based RAG and general conversational AI
-                let defaultInstructions = """
-                You are OpenIntelligence, a helpful privacy - first assistant.
-
-                    IMPORTANT: When document context is provided in the prompt, answer directly from that context.
-                    Do NOT call search_documents if context is already given - that wastes time.
-
-                Only use tools when NO context is provided and you need to look something up:
-                    - search_documents: Find relevant passages(only if no context given)
+                // Session instructions — context-aware to avoid wasting tokens on tool guidance
+                // when tools aren't attached. Every word counts at ~1.4 chars/token.
+                let defaultInstructions: String
+                if disableTools {
+                    // Pure context/reasoning mode — no tool instructions needed
+                    defaultInstructions = """
+                    You are OpenIntelligence, a helpful assistant. Answer from the provided document context. Be thorough, cite sources, and copy values exactly.
+                    """
+                } else {
+                    // Agentic mode — tools attached, need usage guidance
+                    defaultInstructions = """
+                    You are OpenIntelligence, a helpful assistant.
+                    When document context is provided, answer directly from it — do NOT call tools.
+                    Only use tools when NO context is provided:
+                    - search_documents: Find relevant passages
                     - list_documents: Show available documents
                     - get_document_summary: Get document overview
-
-                Answer confidently based on available information.Extract and synthesize key details.
-                    Cite document names and page numbers when available.
-                """
+                    Cite sources and copy values exactly.
+                    """
+                }
 
                 let instructionsText = systemPrompt ?? defaultInstructions
                 currentSystemPrompt = systemPrompt
@@ -1007,9 +1013,9 @@ struct LLMResponse {
             if let context = sanitizedContext, !context.isEmpty {
                 Log.debug("RAG mode: context=\(context.count) chars, prompt=\(sanitizedPrompt.prefix(50))...", category: .llm)
 
-                // Estimate if we're approaching context window limit (4096 tokens ≈ 10K chars, conservative)
+                // Estimate if we're approaching context window limit (4096 tokens, ~1.4 chars/token for Apple FM)
                 let totalInputLength = context.count + sanitizedPrompt.count + 200 // Buffer for instructions
-                let charsPerToken = 2.5
+                let charsPerToken = 1.4
                 let estimatedInputTokens = max(
                     1,
                     Int(ceil(Double(totalInputLength) / charsPerToken))
@@ -1020,44 +1026,26 @@ struct LLMResponse {
                 }
 
                 if config.systemPrompt != nil {
-                    // System instructions are already set in the session via config.systemPrompt.
-                    // Provide the context and question, reinforcing comprehensive answer expectations.
+                    // System instructions already set. Provide context + question concisely.
+                    // BUDGET-CONSCIOUS: Save ~150 tokens vs verbose template.
                     fullPrompt = """
-                    CONTEXT FROM DOCUMENTS:
-                    \(context)
-
-                    USER QUESTION:
-                    \(sanitizedPrompt)
-
-                    Answer comprehensively based on the context above. Include:
-                    • All specific details, values, and data points mentioned
-                    • Step-by-step procedures when the content describes a process
-                    • Technical details, specifications, and measurements when present
-                    • Causes, effects, and relationships between concepts
-                    Use EXACT values from the excerpts — never substitute similar numbers or names.
-                    Do not call any tools - the context is already provided.
-                    """
-                } else {
-                    // No system prompt provided. Embed instructions directly in user prompt.
-                    // Conversational RAG prompt - Direct answer mode (context already retrieved)
-                    fullPrompt = """
-                    Answer the question thoroughly using the document excerpts below.
-                    Extract ALL specific details from the text including:
-                    - Procedures and step-by-step instructions
-                    - Data points, specifications, and measurements
-                    - Key terms, definitions, and their descriptions
-                    - Relationships, causes, and effects
-                    Be comprehensive - include everything the documents say about the topic.
-                    Use EXACT values from the excerpts — never substitute similar numbers or names.
-                    Cite sources like [Document Name, p.X] when referencing specific information.
-                    Do NOT call search_documents - the relevant context is already provided below.
-
-                    DOCUMENT EXCERPTS:
+                    CONTEXT:
                     \(context)
 
                     QUESTION: \(sanitizedPrompt)
 
-                    ANSWER:
+                    Answer thoroughly from context. Use EXACT values — never substitute. NEVER invent numbers or measurements not in context.
+                    """
+                } else {
+                    // No system prompt — embed minimal instructions in prompt.
+                    fullPrompt = """
+                    Answer from the excerpts below. Be thorough. Copy values VERBATIM.
+                    Cite sources [Document Name, p.X].
+
+                    EXCERPTS:
+                    \(context)
+
+                    QUESTION: \(sanitizedPrompt)
                     """
                 }
             } else {
@@ -1080,9 +1068,9 @@ struct LLMResponse {
                 }
             }
 
-            // Estimate token count for routing decisions
+            // Estimate token count for routing decisions (1.4 chars/token, empirically validated)
             let promptLength = fullPrompt.count
-            let estimatedTokens = max(1, Int(ceil(Double(promptLength) / 2.5)))
+            let estimatedTokens = max(1, Int(ceil(Double(promptLength) / 1.4)))
             Log.debug("Generation: ~\(estimatedTokens) tokens, exec=\(config.executionContext)", category: .llm)
 
             // Generate response using streaming API with execution context
@@ -1343,6 +1331,9 @@ struct LLMResponse {
                 }
             }
 
+            // Post-processing: strip any repetitive content from the final response
+            responseText = deduplicateResponse(responseText)
+
             LLMStreamingContext.emit(text: "", isFinal: true)
 
             // Update token count after potential continuation
@@ -1364,20 +1355,31 @@ struct LLMResponse {
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { return false }
 
+            // Short responses are always considered complete — the LLM said what it wanted
+            let wordCount = trimmed.split(separator: " ").count
+            if wordCount < 15 { return false }
+
+            // Long responses (>150 words) are almost certainly complete — the LLM
+            // chose to stop, not hit a hard cutoff. Continuation just causes repetition.
+            if wordCount > 150 { return false }
+
+            // If response contains repetition already, do NOT continue — it'll only get worse
+            if containsRepetition(trimmed) { return false }
+
             // Check for obvious truncation indicators
             let lastChar = trimmed.last!
 
             // Response ends mid-sentence (no terminal punctuation)
             let terminalPunctuation: Set<Character> = [".", "!", "?", ":", ";", "\"", "'", ")", "]", "}"]
             if !terminalPunctuation.contains(lastChar) {
-                // But not if it's a code block or list item
-                if !trimmed.hasSuffix("```") && !trimmed.hasSuffix("-") {
+                // But not if it's a code block, list item, or ends with newline
+                if !trimmed.hasSuffix("```") && !trimmed.hasSuffix("-") && !trimmed.hasSuffix("\n") {
                     return true
                 }
             }
 
-            // Response ends with incomplete markers
-            let incompleteMarkers = ["...", "—", "–", ",", "and", "or", "but", "the", "a", "an", "to", "of"]
+            // Response ends with incomplete conjunction/article (genuine mid-sentence cutoff)
+            let incompleteMarkers: Set<String> = ["and", "or", "but", "the", "a", "an", "to", "of"]
             let lastWord = String(trimmed.split(separator: " ").last ?? "").lowercased()
             if incompleteMarkers.contains(lastWord) {
                 return true
@@ -1386,10 +1388,50 @@ struct LLMResponse {
             return false
         }
 
+        /// Detects if text contains significant repetition (same phrase appearing multiple times)
+        private func containsRepetition(_ text: String) -> Bool {
+            let sentences = text.components(separatedBy: CharacterSet(charactersIn: ".!?\n"))
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+                .filter { $0.count > 20 }
+
+            guard sentences.count >= 3 else { return false }
+
+            // Check if any sentence appears more than twice
+            var seen: [String: Int] = [:]
+            for sentence in sentences {
+                // Normalize whitespace for comparison
+                let normalized = sentence.split(separator: " ").joined(separator: " ")
+                seen[normalized, default: 0] += 1
+                if seen[normalized, default: 0] >= 3 {
+                    return true
+                }
+            }
+
+            // Check for high substring overlap: take 40-char windows and look for repeats
+            let flat = text.lowercased()
+            if flat.count > 200 {
+                let windowSize = 40
+                var windows: [String: Int] = [:]
+                let chars = Array(flat)
+                let stride = 20
+                for i in Swift.stride(from: 0, to: max(0, chars.count - windowSize), by: stride) {
+                    let window = String(chars[i..<min(i + windowSize, chars.count)])
+                    windows[window, default: 0] += 1
+                }
+                let repeatedWindows = windows.values.filter { $0 >= 3 }.count
+                let totalWindows = max(1, windows.count)
+                if Double(repeatedWindows) / Double(totalWindows) > 0.3 {
+                    return true
+                }
+            }
+
+            return false
+        }
+
         /// Continues generation from where it left off using the session's context
         private func continueGeneration(
             session: LanguageModelSession,
-            currentResponse _: String,
+            currentResponse: String,
             options: GenerationOptions,
             config _: InferenceConfig
         ) async throws -> String {
@@ -1397,8 +1439,9 @@ struct LLMResponse {
             let continuationPrompt = "Please continue your response from where you left off."
 
             var continuedText = ""
-            let maxContinuations = 3 // Prevent infinite loops
+            let maxContinuations = 2 // Reduced from 3 — fewer chances to loop
             var continuationCount = 0
+            let maxContinuationChars = 800 // Hard cap on total continuation length
 
             while continuationCount < maxContinuations {
                 continuationCount += 1
@@ -1414,13 +1457,32 @@ struct LLMResponse {
                             LLMStreamingContext.emit(text: delta, isFinal: false)
                         }
                         chunkText = newContent
+
+                        // Bail early if continuation is getting too long
+                        if (continuedText.count + chunkText.count) > maxContinuationChars {
+                            Log.info("[FM] Continuation hit char cap (\(maxContinuationChars))", category: .llm)
+                            break
+                        }
                     }
 
                     if chunkText.isEmpty {
                         break // No more content
                     }
 
+                    // CRITICAL: Check if continuation is just repeating the original response
+                    let combinedSoFar = currentResponse + continuedText
+                    if isRepetitiveContent(newText: chunkText, existingText: combinedSoFar) {
+                        Log.warning("[FM] Continuation detected as repetitive - stopping", category: .llm)
+                        break
+                    }
+
                     continuedText += chunkText
+
+                    // Hard cap on total continuation length
+                    if continuedText.count > maxContinuationChars {
+                        Log.info("[FM] Continuation reached max chars (\(maxContinuationChars))", category: .llm)
+                        break
+                    }
 
                     // Check if this continuation is complete
                     if !responseNeedsContinuation(continuedText) {
@@ -1436,6 +1498,219 @@ struct LLMResponse {
             }
 
             return continuedText
+        }
+
+        /// Checks if new text is substantially repeating content from existing text
+        private func isRepetitiveContent(newText: String, existingText: String) -> Bool {
+            let newLower = newText.lowercased()
+            let existingLower = existingText.lowercased()
+
+            // Quick check: if >50% of the new text's 30-char windows exist in the original, it's repetitive
+            let windowSize = 30
+            let newChars = Array(newLower)
+            guard newChars.count >= windowSize else { return false }
+
+            var matchCount = 0
+            var totalWindows = 0
+            let stride = 15
+
+            for i in Swift.stride(from: 0, to: max(0, newChars.count - windowSize), by: stride) {
+                let window = String(newChars[i..<min(i + windowSize, newChars.count)])
+                totalWindows += 1
+                if existingLower.contains(window) {
+                    matchCount += 1
+                }
+            }
+
+            guard totalWindows > 0 else { return false }
+            let overlapRatio = Double(matchCount) / Double(totalWindows)
+
+            if overlapRatio > 0.5 {
+                Log.debug("[FM] Repetition ratio: \(String(format: "%.1f%%", overlapRatio * 100))", category: .llm)
+                return true
+            }
+
+            return false
+        }
+
+        /// Removes repeated sentences/lines from LLM output.
+        /// LLMs sometimes enter degenerate repetition loops where the same fact
+        /// is stated 5-20 times. This strips duplicates while preserving order.
+        private func deduplicateResponse(_ text: String) -> String {
+            let lines = text.components(separatedBy: CharacterSet.newlines)
+            let sentencePieces = text.components(separatedBy: CharacterSet(charactersIn: ".!?\n"))
+            let hasEnoughStructure = lines.count > 3 || sentencePieces.count > 6
+            guard hasEnoughStructure else { return text }
+
+            var seen: Set<String> = []
+            var result: [String] = []
+            var dedupCount = 0
+            let totalNonEmpty = lines.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.count
+
+            for line in lines {
+                let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed.isEmpty {
+                    result.append(line)
+                    continue
+                }
+
+                // Only dedup lines that are EXACTLY identical (case-insensitive + whitespace-collapsed)
+                // Short lines (<20 chars) like bullet markers, headers get exact match only
+                let key: String
+                if trimmed.count < 20 {
+                    // Very short lines: exact match only (case-insensitive)
+                    key = trimmed.lowercased()
+                } else {
+                    // Longer lines: collapse whitespace but keep ALL words
+                    key = trimmed.lowercased()
+                        .split(separator: " ")
+                        .joined(separator: " ")
+                }
+
+                if seen.contains(key) {
+                    dedupCount += 1
+                    continue
+                }
+
+                seen.insert(key)
+                result.append(line)
+            }
+
+            // Safety: if dedup would remove >60% of content, it's too aggressive
+            // (the LLM probably generated varied content that just looks similar)
+            let keptNonEmpty = result.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.count
+            let linePassTooAggressive = totalNonEmpty > 5 && keptNonEmpty < totalNonEmpty / 3
+            if linePassTooAggressive {
+                Log.warning("[FM] Deduplication line-pass aggressive (\(dedupCount) of \(totalNonEmpty) lines) — using sentence-pass cleanup", category: .llm)
+            }
+
+            if dedupCount > 0 {
+                Log.info("[FM] Deduplication removed \(dedupCount) repeated lines from response", category: .llm)
+            }
+
+            var normalized = linePassTooAggressive ? text : result.joined(separator: "\n")
+            normalized = collapseRepeatedSentenceRuns(in: normalized)
+            normalized = trimDominantRepeatedSentence(in: normalized)
+            normalized = cleanMalformedListArtifacts(in: normalized)
+            return normalized
+        }
+
+        /// Removes degenerate numbered-list artifacts like "2. . 3. ." left by unstable generations.
+        private func cleanMalformedListArtifacts(in text: String) -> String {
+            var output = text
+
+            // Remove standalone empty numbered lines: "2." or "2. ."
+            let lines = output.components(separatedBy: .newlines)
+            let filteredLines = lines.filter { line in
+                let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { return true }
+                if trimmed.range(of: #"^\d+\.\s*(\.)?$"#, options: .regularExpression) != nil {
+                    return false
+                }
+                return true
+            }
+            output = filteredLines.joined(separator: "\n")
+
+            // Remove inline placeholder runs: "2. . 3. . 4. ."
+            output = output.replacingOccurrences(
+                of: #"(?:\b\d+\.\s*\.\s*){2,}"#,
+                with: "",
+                options: .regularExpression
+            )
+
+            // Remove leading/trailing quote wrappers that can appear around truncated fragments
+            output = output.trimmingCharacters(in: .whitespacesAndNewlines)
+            if output.hasPrefix("\"") && output.hasSuffix("\"") && output.count >= 2 {
+                output.removeFirst()
+                output.removeLast()
+            }
+
+            // Drop dangling markdown tail fragments from truncated headings, e.g., "**Expected"
+            output = output.replacingOccurrences(
+                of: #"\*\*[A-Za-z][A-Za-z\s]{0,30}$"#,
+                with: "",
+                options: .regularExpression
+            )
+
+            // Normalize excessive whitespace/newlines after cleanup
+            output = output.replacingOccurrences(of: #"\n{3,}"#, with: "\n\n", options: .regularExpression)
+            output = output.replacingOccurrences(of: #"[ \t]{2,}"#, with: " ", options: .regularExpression)
+            return output.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        /// Collapses contiguous repeated sentence runs (e.g., same sentence repeated 10x).
+        private func collapseRepeatedSentenceRuns(in text: String) -> String {
+            let sentenceRegex = try? NSRegularExpression(pattern: #"[^.!?\n]+[.!?]?"#)
+            guard let sentenceRegex else { return text }
+
+            let fullRange = NSRange(text.startIndex..<text.endIndex, in: text)
+            let matches = sentenceRegex.matches(in: text, options: [], range: fullRange)
+
+            var rebuilt: [String] = []
+            rebuilt.reserveCapacity(matches.count)
+
+            var lastKey: String?
+            for match in matches {
+                guard let range = Range(match.range, in: text) else { continue }
+                let sentence = String(text[range]).trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !sentence.isEmpty else { continue }
+
+                let key = normalizedSentenceKey(sentence)
+                if key == lastKey {
+                    continue
+                }
+
+                rebuilt.append(sentence)
+                lastKey = key
+            }
+
+            guard !rebuilt.isEmpty else { return text }
+            return rebuilt.joined(separator: " ")
+        }
+
+        /// If one sentence dominates the response by heavy repetition, keep first occurrence only.
+        private func trimDominantRepeatedSentence(in text: String) -> String {
+            let rawSentences = text.components(separatedBy: CharacterSet(charactersIn: ".!?\n"))
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { $0.count >= 20 }
+
+            guard rawSentences.count >= 4 else { return text }
+
+            var counts: [String: Int] = [:]
+            var representative: [String: String] = [:]
+            for sentence in rawSentences {
+                let key = normalizedSentenceKey(sentence)
+                counts[key, default: 0] += 1
+                representative[key] = sentence
+            }
+
+            guard let (dominantKey, dominantCount) = counts.max(by: { $0.value < $1.value }) else {
+                return text
+            }
+
+            let dominance = Double(dominantCount) / Double(rawSentences.count)
+            guard dominantCount >= 4, dominance >= 0.5 else { return text }
+
+            let dominantSentence = representative[dominantKey] ?? ""
+            guard !dominantSentence.isEmpty else { return text }
+
+            var output = text.replacingOccurrences(of: dominantSentence, with: "", options: [.caseInsensitive, .diacriticInsensitive])
+            output = output.replacingOccurrences(of: "\n\n\n", with: "\n\n")
+            output = output.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            if output.isEmpty {
+                return dominantSentence + "."
+            }
+
+            return dominantSentence + ".\n\n" + output
+        }
+
+        private func normalizedSentenceKey(_ sentence: String) -> String {
+            sentence
+                .lowercased()
+                .replacingOccurrences(of: #"[^a-z0-9\s]"#, with: "", options: .regularExpression)
+                .split(separator: " ")
+                .joined(separator: " ")
         }
     }
 

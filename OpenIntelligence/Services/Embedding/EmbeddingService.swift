@@ -5,6 +5,7 @@
 //  Created by Gunnar Hostetler on 10/9/25.
 //
 
+import Accelerate
 import Foundation
 import NaturalLanguage
 
@@ -332,73 +333,37 @@ class EmbeddingService {
         return averaged.map { Float($0) }
     }
 
-    /// Create a fallback embedding for text with no word vectors
-    /// Uses character-level and structural features to create a synthetic embedding
+    /// Create a fallback embedding when the model fails to embed the text.
+    /// Returns a ZERO VECTOR instead of the previous Unicode-hash approach which
+    /// produced vectors in a completely different space than the model's output,
+    /// causing meaningless cosine similarities and polluting search results.
+    ///
+    /// A zero vector has cosine similarity 0.0 with everything, which means:
+    /// - It won't be retrieved by vector search (correctly)
+    /// - It won't incorrectly match any query
+    /// - BM25/FTS5 keyword search can still find the chunk via text matching
     private func createFallbackEmbedding(for text: String) -> [Float] {
-        var embedding = Array(repeating: Float(0.0), count: targetDimension)
-
-        // Use a simple hash-based approach to create a deterministic embedding
-        // This ensures the same text always gets the same embedding
-        let normalized = text.lowercased()
-
-        // Populate embedding with character frequency features (first 256 dimensions)
-        for (index, char) in normalized.unicodeScalars.prefix(256).enumerated() {
-            if index < targetDimension {
-                // Use Unicode value normalized to [-1, 1] range
-                embedding[index] = Float(char.value % 256) / 128.0 - 1.0
-            }
-        }
-
-        // Add text length feature (dimension 256-260)
-        if targetDimension > 256 {
-            embedding[256] = Float(min(text.count, 1000)) / 1000.0
-        }
-
-        // Add word count feature (dimension 261-265)
-        if targetDimension > 261 {
-            let wordCount = text.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }.count
-            embedding[261] = Float(min(wordCount, 100)) / 100.0
-        }
-
-        // Add numeric content indicator (dimension 266-270)
-        if targetDimension > 266 {
-            let hasNumbers = text.rangeOfCharacter(from: .decimalDigits) != nil
-            embedding[266] = hasNumbers ? 1.0 : -1.0
-        }
-
-        // Normalize to unit length (standard for embeddings)
-        let magnitude = sqrt(embedding.map { $0 * $0 }.reduce(0, +))
-        if magnitude > 0 {
-            embedding = embedding.map { $0 / magnitude }
-        }
-
-        return embedding
+        Log.warning("[EmbeddingService] Creating zero-vector fallback for text (\(text.prefix(50))...). This chunk will only be findable via keyword/BM25 search.", category: .embedding)
+        return Array(repeating: Float(0.0), count: targetDimension)
     }
 
-    /// Calculate cosine similarity between two embedding vectors
-    /// Returns a value between -1 (opposite) and 1 (identical)
+    /// Calculate cosine similarity between two embedding vectors using Accelerate.
+    /// Returns a value between -1 (opposite) and 1 (identical).
+    /// Uses vDSP_dotpr + vDSP_svesq for hardware-accelerated computation.
     func cosineSimilarity(_ a: [Float], _ b: [Float]) -> Float {
-        guard a.count == b.count else {
+        guard a.count == b.count, !a.isEmpty else {
             Log.warning("Embedding dimension mismatch in cosine similarity", category: .embedding)
             return 0.0
         }
 
-        var dotProduct: Float = 0.0
-        var magnitudeA: Float = 0.0
-        var magnitudeB: Float = 0.0
+        var dotProduct: Float = 0
+        vDSP_dotpr(a, 1, b, 1, &dotProduct, vDSP_Length(a.count))
 
-        for i in 0 ..< a.count {
-            dotProduct += a[i] * b[i]
-            magnitudeA += a[i] * a[i]
-            magnitudeB += b[i] * b[i]
-        }
+        let magnitudeA = sqrt(vDSP.sumOfSquares(a))
+        let magnitudeB = sqrt(vDSP.sumOfSquares(b))
+        let magnitude = magnitudeA * magnitudeB
 
-        let magnitude = sqrt(magnitudeA) * sqrt(magnitudeB)
-
-        guard magnitude > 0 else {
-            return 0.0
-        }
-
+        guard magnitude > 1e-9 else { return 0.0 }
         return dotProduct / magnitude
     }
 

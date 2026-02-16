@@ -4,7 +4,7 @@
 //
 //  Extractive Question Answering for lookup-style queries.
 //
-//  DESIGN: For factual lookup queries ("What oil does this car take?"), we should
+//  DESIGN: For factual lookup queries ("What type does this use?"), we should
 //  EXTRACT the answer span from the source text, not GENERATE it. This eliminates
 //  hallucination risk - we can only return values that actually exist in the documents.
 //
@@ -189,7 +189,6 @@ actor SpecificationExtractor {
             .sorted { $0.1 > $1.1 }
 
         // Step 3.5: OPTIMIZED — Filter out irrelevant categories before ambiguity check.
-        // For oil/fluid queries, fuse box codes (HEATER3, PUMP 20A) are noise.
         // If we have Grade candidates, suppress Code candidates that don't match query context.
         let hasGradeCandidate = scoredCandidates.contains { $0.0.category == "Grade" }
         let relevantCandidates: [(AnswerCandidate, Float)]
@@ -532,7 +531,8 @@ actor SpecificationExtractor {
         queryEntities: QueryEntities
     ) -> SpecificationExtractionResult? {
         // Part number regex - matches codes like 1688-020-122
-        let partNumberPattern = #"[A-Z0-9]{2,}[-\.][A-Z0-9]{2,}(?:[-\.][A-Z0-9]{2,})*"#
+        // REQUIRES at least one digit to avoid matching English words ("three-quarters")
+        let partNumberPattern = #"(?=[A-Z0-9.-]*\d)[A-Z0-9]{2,}[-\.][A-Z0-9]{2,}(?:[-\.][A-Z0-9]{2,})*"#
         guard let partNumberRegex = try? NSRegularExpression(pattern: partNumberPattern, options: .caseInsensitive) else {
             return nil
         }
@@ -610,12 +610,23 @@ actor SpecificationExtractor {
         // Return if we found a confident match
         // With entity: 0.50 (entity) + keywords = easy pass
         // Without entity: need 3+ keywords (0.45 + 0.30 = 0.75) or 2 keywords (0.30 + 0.20 = 0.50)
-        if let match = bestMatch, match.score >= 0.45 {
+        if let match = bestMatch, match.score >= 0.55 {
+            // Validate: for measurement/capacity queries, answer should contain
+            // a digit (not just an English word that happened to match the pattern)
+            let hasDigit = match.value.contains(where: { $0.isNumber })
+            let isMeasurementQuery = queryEntities.descriptiveKeywords.contains(where: {
+                ["capacity", "volume", "liters", "gallons", "quarts", "size", "weight", "length", "width", "height", "diameter", "pressure", "temperature"].contains($0)
+            })
+            if isMeasurementQuery && !hasDigit {
+                Log.debug("[ExtractiveQA] Rejected proximity match '\(match.value)' — measurement query requires numeric answer", category: .retrieval)
+                return nil
+            }
+
             Log.info("[ExtractiveQA] ✓ Proximity match: '\(match.value)' (score: \(String(format: "%.2f", match.score)))", category: .retrieval)
 
             return SpecificationExtractionResult(
                 answerSpan: match.value,
-                confidence: min(0.95, match.score + 0.40), // High confidence for proximity match
+                confidence: min(0.90, match.score * 0.8 + 0.25), // Conservative: 0.55→0.69, 0.75→0.85, 0.95→0.90
                 sourceChunk: match.chunk,
                 surroundingContext: match.context,
                 specificationType: "ProximityMatch",
@@ -703,10 +714,7 @@ actor SpecificationExtractor {
             }
         }
 
-        // Add domain-specific expansions to descriptive keywords
-        if tokens.contains("oil") {
-            descriptiveKeywords.append(contentsOf: ["engine", "motor", "viscosity", "grade", "sae", "recommended"])
-        }
+        // Add domain-aware expansions to descriptive keywords based on context
         if tokens.contains("capacity") || tokens.contains("much") || tokens.contains("many") {
             descriptiveKeywords.append(contentsOf: ["liters", "quarts", "gallons", "capacity", "volume"])
         }

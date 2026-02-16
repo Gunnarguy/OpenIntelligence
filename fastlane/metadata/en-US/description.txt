@@ -17,6 +17,7 @@ This is not simple keyword search. OpenIntelligence orchestrates a rigorous 23-s
 • Semantic Chunking — Splits documents by logic and structure, not just character counts.
 • Multi-Column OCR — Metal-accelerated vision processing for complex PDF layouts (360 DPI).
 • Agentic Tool Use — Autonomous search, summarization, and comparison capabilities.
+• Motherboard HUD — Real-time X-ray overlay showing Apple Silicon chip positions with live telemetry.
 
 THE RESULT?
 

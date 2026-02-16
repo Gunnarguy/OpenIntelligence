@@ -61,8 +61,8 @@ enum LibraryIconSuggestionService {
                         "algorithm", "debug", "compile", "runtime", "framework", "library", "sdk"]
             case .automotive:
                 return ["car", "vehicle", "automotive", "engine", "transmission", "brake", "tire",
-                        "suspension", "steering", "fuel", "oil", "maintenance", "repair", "model",
-                        "sedan", "suv", "truck", "sportage", "toyota", "honda", "ford", "bmw", "audi"]
+                        "suspension", "steering", "fuel", "maintenance", "repair",
+                        "sedan", "suv", "truck", "motorcycle", "drivetrain"]
             case .education:
                 return ["education", "school", "university", "college", "course", "curriculum", "student",
                         "teacher", "professor", "lecture", "exam", "grade", "homework", "assignment",

@@ -251,17 +251,57 @@ struct CompressionResult: Sendable {
     }
 
     /// Returns the content to use
-    /// If compression found nothing relevant, returns a truncated version of original
-    /// (the chunk passed retrieval so it likely has SOME value)
+    /// If compression found nothing relevant, extracts high-value sentences (with numbers,
+    /// entities, or technical terms) rather than blindly taking the first 400 chars.
+    /// The chunk passed retrieval so it likely has SOME value — the needle might be in
+    /// the middle or end, not the beginning.
     nonisolated var effectiveContent: String {
         if compressedContent.contains("NO_RELEVANT_CONTENT") || compressedContent.isEmpty {
-            // Don't drop entirely - keep first 200 chars as fallback
-            // The chunk passed hybrid search + reranking so it has some relevance
-            let fallback = String(originalContent.prefix(400))
-            if fallback.count < originalContent.count {
-                return fallback + "..."
+            // UNIVERSAL FIX: Extract sentences likely to contain the needle.
+            // Previously took first 400 chars — a needle at char 450 was lost forever.
+            // Now: score each sentence by information density (numbers, capitalized terms,
+            // colons, units) and take the highest-scoring ones up to 400 chars.
+            let sentences = originalContent.components(separatedBy: CharacterSet(charactersIn: ".!?\n"))
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { $0.count >= 10 }
+
+            if sentences.count <= 2 {
+                // Very short content — return as-is
+                return originalContent
             }
-            return originalContent
+
+            // Score each sentence by information density
+            let scored = sentences.map { sentence -> (String, Int) in
+                var score = 0
+                // Numbers (specs, measurements, dates, values)
+                if sentence.rangeOfCharacter(from: .decimalDigits) != nil { score += 3 }
+                // Capitalized words (entities, proper nouns, acronyms)
+                let capitalWords = sentence.split(separator: " ").filter { word in
+                    guard let first = word.first else { return false }
+                    return first.isUppercase && word.count > 1
+                }
+                score += min(capitalWords.count, 3)
+                // Colons (definitions, key-value pairs: "Capacity: 5L")
+                if sentence.contains(":") { score += 2 }
+                // Technical patterns (units, codes)
+                if sentence.range(of: #"[A-Z]{2,}[\s-]?\d+"#, options: .regularExpression) != nil { score += 2 }
+                return (sentence, score)
+            }
+            .sorted { $0.1 > $1.1 }
+
+            // Take top-scoring sentences up to 400 chars
+            var fallback = ""
+            for (sentence, _) in scored {
+                if fallback.count + sentence.count + 2 > 400 { break }
+                if !fallback.isEmpty { fallback += ". " }
+                fallback += sentence
+            }
+
+            if fallback.isEmpty {
+                fallback = String(originalContent.prefix(400))
+            }
+
+            return fallback.count < originalContent.count ? fallback + "..." : fallback
         }
         return compressedContent
     }

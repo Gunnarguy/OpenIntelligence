@@ -1,12 +1,13 @@
 # OpenIntelligence Privacy Summary
 
-Last updated: January 2026
+Last updated: February 2026
 
 ## Data Processing Overview
 
 - **Local-first by design**: Document ingestion, chunking, embedding, vector search, and answer synthesis all execute on-device using Apple's Neural Engine. No document text or telemetry leaves your device unless you explicitly enable Private Cloud Compute.
 - **Cloud fallback**: When the user opts into Apple Private Cloud Compute, only the active query and selected context snippets are transmitted via Apple's encrypted PCC protocol. Raw document archives, file metadata, analytics, or device identifiers are never sent. Apple guarantees cryptographic deletion after response completion.
 - **Telemetry**: The app does not ship third-party analytics. TelemetryCenter events stay on-device unless the user enables optional export within Reviewer/Developer mode.
+- **Motherboard HUD**: The hardware telemetry overlay (CPU, GPU, memory, thermal, battery data) reads system metrics locally via Darwin/sysctl APIs. No telemetry data is transmitted, stored persistently, or shared. The HUD is purely visual and ephemeral.
 
 ## Model Pathways
 

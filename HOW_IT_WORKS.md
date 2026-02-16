@@ -73,6 +73,17 @@ Before diving into the steps, here is the high-level map of the machine.
 
 The process begins with converting human-readable documents into machine-understandable math.
 
+### 0. Adaptive Document Intelligence
+
+**"Understand the document BEFORE reading it"**
+
+Before OCR even runs, the engine analyzes each page:
+
+1. **Page Complexity Analysis**: `PageComplexityAnalyzer` scores every page for text quality, table presence, numeric density, and visual complexity. Pages with tables/numbers are FORCED through Vision OCR even if PDFKit text looks acceptable (because PDFKit scrambles table cell values).
+2. **Dynamic Vocabulary Extraction**: PDFKit's rough text layer is mined for acronyms, alphanumeric codes (e.g., "0W-20", "R-134a"), CamelCase terms, and compound units. These become Vision's `customWords` so it doesn't autocorrect legitimate technical terms.
+3. **Adaptive Preprocessing**: Based on page quality, one of 5 GPU-accelerated CIFilter strategies is selected — from "minimal" (clean digital PDFs) to "maximum" (faded microfiche/bad phone photos) — applying appropriate sharpening, contrast, denoising, and exposure correction. CIFilter rendering runs on a **concurrent** `DispatchQueue` — CIContext is thread-safe, so multiple pages preprocess in parallel.
+4. **Multi-Candidate Confidence OCR**: Vision returns up to **5** alternative transcriptions per text line. Numeric data requires 90% confidence (vs 85% for text). When a table cell reads "15.5" at 82% confidence but "14.3" at 78%, both alternatives are flagged for verification rather than blindly trusting the first guess.
+
 ### 1. Chunking
 
 **"Break documents into pieces small enough to embed"**
@@ -99,9 +110,15 @@ Text → [384 numbers] → Math becomes possible
 
 Even though the words are different, the _vectors_ are mathematically close in 384-dimensional space. This allows us to find answers based on _meaning_, not just keywords.
 
-### 3. Storage (BNNS Optimized)
+### 3. Storage (BNNS + Metal GPU Optimized)
 
-Once embedded, we store these vectors in a **BNNS-accelerated index** (Basic Neural Network Subroutines). This allows the Neural Engine to brute-force compare a query against thousands of chunks in milliseconds.
+Once embedded, we store these vectors in a **BNNS-accelerated index** backed by **Metal GPU compute**. The GPU search path uses a 3-tier shader selection:
+
+1. **Threadgroup** (≥1000 vectors): Caches the query in fast shared memory + SIMD4 vector ops — the fastest path. MiniLM's 384 dimensions fit exactly (384/4 = 96 float4s).
+2. **SIMD4** (100-999 vectors): Processes 4 floats per hardware cycle — 4× scalar throughput.
+3. **Scalar** (fallback): Works with any dimension.
+
+For mmap'd vector databases, `makeBuffer(bytesNoCopy:)` lets the GPU read directly from memory-mapped pages on Apple Silicon unified memory — no heap copy for the document vectors.
 
 ---
 
@@ -122,8 +139,8 @@ We fuse these results using **RRF (Reciprocal Rank Fusion)** to get the top ~50 
 
 The top 50 candidates are "statistically" close, but maybe not "logically" relevant.
 
-- **Tool:** Cross-Encoder (TinyBERT).
-- **Action:** Looks at the specific [Query + Chunk] pair together.
+- **Tool:** Cross-Encoder (TinyBERT) with **concurrent predictions**.
+- **Action:** All query-chunk pairs are pre-tokenized, then scored in parallel using a `TaskGroup` (2-4 concurrent predictions based on device tier). `MLMultiArray` buffers are filled via bulk `dataPointer` writes — 3× faster than per-element subscripts.
 - **Result:** Reorders the top 50 by actual relevance, discarding the noise. We keep only the top 5-10.
 
 ---
@@ -236,3 +253,81 @@ The system is `Search Engine` + `Logic Controller` + `Writer`.
 1.  **Search Engine:** Finds the raw data (Ingestion/Retrieval).
 2.  **Logic Controller:** Fits data into constraints and iterates (Orchestration).
 3.  **Writer:** Formats the final text (Generation).
+
+---
+
+## Bonus: Device-Optimized Performance (v1.2)
+
+Every pipeline stage adapts to the specific Apple Silicon in your device. The system detects your chip at launch and configures concurrency, compute units, and shader selection accordingly.
+
+### Hardware-Aware Pipeline
+
+| Stage             | What Adapts                      | How                                                                                           |
+| ----------------- | -------------------------------- | --------------------------------------------------------------------------------------------- |
+| **OCR**           | Concurrent Vision ops + cooldown | A19: 8 ops / 1ms. A18: 6 / 2ms. A17: 4 / 3ms. Adaptive filtering skips 50-80% of clean pages. |
+| **Preprocessing** | CIFilter rendering queue         | Concurrent (was serial) — CIContext is thread-safe per Apple docs                             |
+| **Embedding**     | CoreML compute units             | GPU (`.cpuAndGPU`) during ingestion, freeing ANE for Vision OCR                               |
+| **Vector Search** | Metal shader tier                | Threadgroup (≥1000 docs) → SIMD4 (100+) → scalar fallback                                     |
+| **Reranking**     | TaskGroup concurrency            | 2-4 parallel cross-encoder predictions based on device tier                                   |
+
+### Metal Shader Selection
+
+The GPU vector search automatically picks the fastest compatible kernel:
+
+```
+Query arrives → check dimension alignment → check corpus size
+  │
+  ├── dimension % 4 == 0 AND dimension/4 ≤ 96 AND docs ≥ 1000
+  │   └── THREADGROUP: Query cached in shared memory + SIMD4 (fastest)
+  │
+  ├── dimension % 4 == 0 AND docs ≥ 100
+  │   └── SIMD4: float4 vector ops (4× scalar)
+  │
+  └── else
+      └── SCALAR: Per-element float ops (always works)
+```
+
+MiniLM-L6-v2 (384 dimensions) → 384/4 = 96 float4s → fits exactly in `sharedQuery[96]`, so all searches ≥1000 vectors take the threadgroup fast path.
+
+---
+
+## Bonus: Motherboard HUD (v1.1)
+
+While the RAG pipeline handles the intelligence, the **Motherboard HUD** shows you what's happening inside the device in real-time.
+
+### What It Shows
+
+A translucent X-ray overlay on the chat screen renders the physical positions of Apple Silicon components — exactly where they sit behind the glass. Each component pulses with live telemetry:
+
+| Component   | Telemetry                        | Visual                              |
+| ----------- | -------------------------------- | ----------------------------------- |
+| **SoC**     | CPU + GPU + Neural Engine load   | Pulsing glow at the A-series chip   |
+| **NAND**    | Storage activity                 | Activity indicator at flash storage |
+| **DRAM**    | Memory pressure (normal/warning) | Color-coded at the RAM position     |
+| **Modem**   | Network state                    | Signal indicator at Qualcomm modem  |
+| **PMIC**    | Battery + thermal state          | Power management chip activity      |
+| **WiFi/BT** | Wireless activity                | Radio module indicator              |
+| **Taptic**  | Haptic feedback                  | Animated pulse at Taptic Engine     |
+
+### How Positions Are Determined
+
+Component positions come from iFixit teardown photographs analyzed with Apple Vision AI. Each device model has its own layout map — an iPhone 15 Pro has components in different positions than an iPhone 17 Pro. The HUD normalizes these positions to screen coordinates.
+
+### Design Philosophy
+
+**Ultra-subtle**: Components render as barely-visible ghost outlines. You can read chat messages through them. They only become noticeable when activity spikes — exactly when you'd want to see them.
+
+---
+
+## Bonus: Universal Retrieval (v1.1)
+
+Eight targeted fixes to the retrieval pipeline that collectively ensure near-perfect needle-in-haystack accuracy across any document type:
+
+1. **Lexical Always-On** — BM25 keyword search always contributes to hybrid results, even when vector search dominates. Previously, high vector scores could suppress lexical matches entirely.
+2. **Proportional Hit-Rate** — RRF fusion weights scale with each method's hit count. If BM25 finds 50 matches and vector finds 10, BM25 gets proportionally more influence.
+3. **HyDE Blending** — The hypothetical document embedding is blended 70/30 with the original query embedding instead of replacing it. This preserves the user's exact terminology.
+4. **Year/Integer Exemption** — Verification Gate C no longer flags years (1900-2100) or small integers (1-10) as potential hallucinations. "Chapter 3" and "2024" aren't fabricated numbers.
+5. **Sentence-Scored Fallback** — When LLM-based contextual compression fails, individual sentences are scored by query-term overlap and information density. This preserves critical data.
+6. **Rare Term Preservation** — Query expansion includes rare corpus terms that exactly match query words, even if they don't appear in the synonym dictionary.
+7. **Corpus-Learned Synonyms** — Dynamic synonym generation from document word co-occurrence data. If "viscosity" always appears near "SAE" in your documents, they become synonyms.
+8. **Adaptive Reranking** — Cross-encoder candidate pool scales with corpus size: `min(count, max(100, topK×5))`. Large corpora get more candidates evaluated.

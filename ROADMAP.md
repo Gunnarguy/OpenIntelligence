@@ -1,9 +1,9 @@
 # OpenIntelligence Roadmap
 
-**Last Updated**: February 7, 2026
-**Version**: 1.0.1 (Build 11)
-**Status**: App Store Ready
-**Maturity**: Production-ready RAG pipeline with 8 agentic tools
+**Last Updated**: February 14, 2026
+**Version**: 1.2.0 (Build 13)
+**Status**: App Store Live
+**Maturity**: Production RAG pipeline with 8 agentic tools + Motherboard HUD + Device-Optimized Performance Engine
 
 ---
 
@@ -23,7 +23,7 @@ OpenIntelligence implements **13 of 16** recognized RAG architectural patterns:
 | 1   | **Standard RAG**             | ✅     | Foundation - 23-step pipeline                                       |
 | 2   | **Agentic RAG**              | ✅     | `AgenticOrchestrator`, 8 @Tool functions, recursive research loops  |
 | 3   | **Graph RAG**                | ✅     | `EntityIndexService` + 2-hop entity expansion (GraphRAG-Lite)       |
-| 4   | **Modular RAG**              | ✅     | Protocol-oriented design, 78 swappable services                     |
+| 4   | **Modular RAG**              | ✅     | Protocol-oriented design, 80 swappable services                     |
 | 5   | **Memory-Augmented RAG**     | 🟡     | `ConversationMemoryService` (session-scoped, not persistent prefs)  |
 | 6   | **Multi-Modal RAG**          | ✅     | Image classification, OCR, audio transcription, caption association |
 | 7   | **Federated RAG**            | ⬜     | N/A - 100% on-device architecture                                   |
@@ -39,7 +39,7 @@ OpenIntelligence implements **13 of 16** recognized RAG architectural patterns:
 
 **Legend**: ✅ Implemented | 🟡 Partial | ⬜ Not Applicable
 
-**RAG Pipeline: 23 Steps End-to-End (78 Services)**
+**RAG Pipeline: 23 Steps End-to-End (80 Services)**
 
 | Phase            | Steps | Details                                                                                                                                               |
 | ---------------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -49,21 +49,25 @@ OpenIntelligence implements **13 of 16** recognized RAG architectural patterns:
 | Generation       | 3     | Context Assembly (Lost-in-Middle) → Extractive Summarization/QA → LLM Generation                                                                      |
 | Post-Generation  | 4     | Quality Assessment → Verification Gates A-D → Calibrated Confidence → Response Metadata                                                               |
 
-**78 Services across 10 categories**: See [ARCHITECTURE.md](ARCHITECTURE.md) → "Complete Service Inventory"
+**80 Services across 10 categories**: See [ARCHITECTURE.md](ARCHITECTURE.md) → "Complete Service Inventory"
 
 **Core Features Shipped:**
 
-- ✅ Full RAG pipeline (23-step, 78 services: hybrid search, neural reranking, MMR, verification gates)
+- ✅ Full RAG pipeline (23-step, 80 services: hybrid search, neural reranking, MMR, verification gates)
 - ✅ Apple Intelligence integration (iOS 26 Foundation Models)
 - ✅ Multi-format support: PDF, DOCX, XLSX, PPTX, TXT, MD, CSV, RTF, images
 - ✅ 8 agentic @Tool functions for intelligent document analysis
 - ✅ Self-RAG 2.0 multi-session reasoning with enrichment prompting
 - ✅ Metal GPU-accelerated OCR (360 DPI, device-tier-aware concurrency)
+- ✅ **Adaptive Document Intelligence Engine** (5-strategy preprocessing, multi-candidate confidence OCR, dynamic vocabulary extraction, language-agnostic quality detection)
+- ✅ **Motherboard HUD** — Real-time Apple Silicon X-ray overlay with device-specific component positions, live CPU/GPU/Neural Engine telemetry
+- ✅ **Universal Retrieval** — 8 research-grade fixes for near-perfect needle-in-haystack accuracy (lexical always-on, HyDE blending, corpus-learned synonyms, adaptive reranking)
 - ✅ Platform-aware Vision throttling (iOS/iPadOS optimized, Mac compatible)
 - ✅ TOC-aware reranking (demotes table-of-contents chunks)
 - ✅ Container-based knowledge organization
 - ✅ StoreKit 2 subscription billing
 - ✅ Swift 6 strict concurrency compliance
+- ✅ **Device-Optimized Performance Engine** — 3-tier Metal GPU shaders (threadgroup/SIMD4/scalar), device-specific OCR concurrency (A19: 8 ops/1ms), concurrent cross-encoder reranking (pre-tokenized TaskGroup), GPU embedding ingestion mode, concurrent CIFilter rendering
 
 ---
 
@@ -75,16 +79,16 @@ OpenIntelligence implements **13 of 16** recognized RAG architectural patterns:
 
 #### ✅ Fully Integrated Apple Frameworks (8)
 
-| Framework            | Services Using It                                                          | Key APIs                                                                                              |
-| -------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| **FoundationModels** | `AppleFoundationLLMService`, `AgenticOrchestrator`, all @Tool functions    | `LanguageModelSession`, `@Generable`, `@Guide`, `@Tool`, `prewarm()`, `LanguageModelFeedback`, TN3193 |
-| **Vision**           | `VisionOCRService`, `YOLODetectionService`, `IntelligentDocumentProcessor` | `VNRecognizeTextRequest`, `VNClassifyImageRequest`, `VNDetectDocumentSegmentationRequest`             |
-| **NaturalLanguage**  | `QueryEnhancementService`, `EntityIndexService`, `SemanticChunker`         | `NLTagger` (NER, POS), `NLTokenizer`, `NLLanguageRecognizer`, `NLEmbedding` (512D fallback)           |
-| **CoreML**           | `EmbeddingService`, `ReRankerService`, `CoreMLDocumentClassifier`          | MiniLM-L6-v2 embeddings (384D), TinyBERT reranker, FastViT classifier (optional)                      |
-| **PDFKit**           | `DocumentProcessor`                                                        | `PDFDocument`, `PDFPage`, page-by-page text extraction                                                |
-| **Speech**           | `AudioTranscriptionService`                                                | `SFSpeechRecognizer`, on-device transcription for M4A/MP3/WAV/MP4                                     |
-| **Metal**            | `GPUComputeService`, `VisionOCRService`                                    | GPU-accelerated matrix operations, parallel OCR concurrency                                           |
-| **StoreKit 2**       | `StoreKitBillingService`                                                   | `Product`, `Transaction`, `StoreKit.Transaction.updates`, subscription management                     |
+| Framework            | Services Using It                                                       | Key APIs                                                                                               |
+| -------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| **FoundationModels** | `AppleFoundationLLMService`, `AgenticOrchestrator`, all @Tool functions | `LanguageModelSession`, `@Generable`, `@Guide`, `@Tool`, `prewarm()`, `LanguageModelFeedback`, TN3193  |
+| **Vision**           | `OCRConfiguration`, `DocumentProcessor`, `StructuredDocumentParser`     | `VNRecognizeTextRequest` Rev3, `RecognizeDocumentsRequest`, `topCandidates(5)`, adaptive preprocessing |
+| **NaturalLanguage**  | `QueryEnhancementService`, `EntityIndexService`, `SemanticChunker`      | `NLTagger` (NER, POS), `NLTokenizer`, `NLLanguageRecognizer`, `NLEmbedding` (512D fallback)            |
+| **CoreML**           | `EmbeddingService`, `ReRankerService`, `CoreMLDocumentClassifier`       | MiniLM-L6-v2 embeddings (384D), TinyBERT reranker, FastViT classifier (optional)                       |
+| **PDFKit**           | `DocumentProcessor`                                                     | `PDFDocument`, `PDFPage`, page-by-page text extraction                                                 |
+| **Speech**           | `AudioTranscriptionService`                                             | `SFSpeechRecognizer`, on-device transcription for M4A/MP3/WAV/MP4                                      |
+| **Metal**            | `GPUComputeService`, `VisionOCRService`                                 | GPU-accelerated matrix operations, parallel OCR concurrency                                            |
+| **StoreKit 2**       | `StoreKitBillingService`                                                | `Product`, `Transaction`, `StoreKit.Transaction.updates`, subscription management                      |
 
 #### ✅ Ready But Deferred (Code Complete, UI Disabled)
 
@@ -115,14 +119,14 @@ OpenIntelligence implements **13 of 16** recognized RAG architectural patterns:
 
 #### iOS 26+ New APIs Status
 
-| API                                     | Status         | Location                                              |
-| --------------------------------------- | -------------- | ----------------------------------------------------- |
-| `FoundationModels.LanguageModelSession` | ✅ Production  | `AppleFoundationLLMService`, `AgenticOrchestrator`    |
-| `@Generable`, `@Guide`, `@Tool`         | ✅ Production  | 8 agentic tools, RAGAnswer/RAGSearchResults responses |
-| `LanguageModelFeedback`                 | ✅ Production  | Thumbs up/down feedback in ChatView                   |
-| `prewarm()`                             | ✅ Production  | App launch prewarming in OpenIntelligenceApp          |
-| `RecognizeDocumentsRequest`             | ⏸️ Deferred    | `/Features/Camera/` ready, awaiting v2.0              |
-| `SpeechAnalyzer`                        | ⬜ Not Started | Planned for v1.3 audio enhancement                    |
+| API                                     | Status        | Location                                                       |
+| --------------------------------------- | ------------- | -------------------------------------------------------------- |
+| `FoundationModels.LanguageModelSession` | ✅ Production  | `AppleFoundationLLMService`, `AgenticOrchestrator`             |
+| `@Generable`, `@Guide`, `@Tool`         | ✅ Production  | 8 agentic tools, RAGAnswer/RAGSearchResults responses          |
+| `LanguageModelFeedback`                 | ✅ Production  | Thumbs up/down feedback in ChatView                            |
+| `prewarm()`                             | ✅ Production  | App launch prewarming in OpenIntelligenceApp                   |
+| `RecognizeDocumentsRequest`             | ✅ Production  | `StructuredDocumentParser`, centralized via `OCRConfiguration` |
+| `SpeechAnalyzer`                        | ⬜ Not Started | Planned for v1.3 audio enhancement                             |
 
 ---
 
@@ -326,6 +330,29 @@ _Native SQLite FTS5 integration for 10-100X faster keyword search and pattern co
 
 ---
 
+### Critical Ingestion Pipeline Fixes (February 2026 - Zero Data Loss)
+
+- **CRITICAL: Document-Level Text Layer Validation (PHASE -1)**
+  - Root Cause: Font substitution cipher PDFs (Kia, Hyundai, many Asian-publisher manuals) have text layers where every character is shifted (e.g., Caesar +1: `GPSFXPSE` = "FOREWORD", `'03&803%` = "FOREWORD"). This garbled text passes ALL per-page quality checks: 100% printable ASCII, normal 5.5 avg word length, NLLanguageRecognizer detects "Dutch" at 56% confidence, entropy 4.29 bits/char — all within normal bounds. Result: `PageComplexityAnalyzer` classifies pages as `.trivial`/`.simple`, skips image rendering and OCR entirely. **93% of content silently lost** (only ~7% captured from pages that happened to trigger OCR for table/image reasons).
+  - Detection: PHASE -1 runs ONCE per document (~200-500ms): renders 1 sample page, OCRs it with Vision, compares OCR words to PDFKit words via Jaccard similarity. Threshold < 0.15 = garbled text layer detected.
+  - Fix: When garbled flag is set: (1) ALL pages force image rendering regardless of complexity strategy, (2) `textQualityOK` forced false so PDFKit text is never trusted, (3) dynamic vocabulary mining skips garbled text layer. Every page routes through Vision OCR.
+  - Impact: 542-page Kia Sportage manual goes from ~7% to ~100% content capture. Applies to ANY font-encoded PDF automatically.
+  - Files: `DocumentProcessor.swift` — `extractTextFromPDFWithPages()` PHASE -1 block (lines ~1114-1213), per-page loop modifications (image rendering guard, textQualityOK override, vocab skip).
+
+- **CRITICAL: Raw String Regex Silent Failure**
+  - Root Cause: In Swift raw strings (`#"..."#`), `\u{HHHH}` is **literal text**, NOT a Unicode escape. ICU regex (used by `NSRegularExpression`) requires `\x{HHHH}` with braces or `\uHHHH` without braces. All 5 affected regex patterns in `OCRConfiguration.normalizeExtractedText()` silently failed — `replacingOccurrences` swallowed the regex error and returned text **unchanged**.
+  - Impact: CJK bullet artifacts (僅, 一, etc.) leaked through to chunks and FTS5 storage. En-dash/em-dash normalization between alphanumeric characters was a no-op. CJK numeral-as-dash replacement never triggered.
+  - Fix: Changed all `\u{HHHH}` → `\x{HHHH}` in 5 regex patterns (OCRConfiguration.swift lines ~474-599). Added no-space CJK bullet variant handler (`僅How` → `- How`).
+  - Lesson: **NEVER use `\u{HHHH}` in Swift raw strings for regex.** Use `\x{HHHH}` (ICU) or interpolate the literal character via `\u{HHHH}` outside the raw string.
+
+- **Garbled Text Layer Detection for Image Extraction**
+  - Root Cause: `extractImagesFromPDFPage()` used `page.string` emptiness as a proxy for "page is visual content." Font-encoded PDFs (Kia, Hyundai, many Asian-publisher manuals) have garbled text on EVERY page (e.g., `'03&803%` = "FOREWORD"), so the function thought every page had usable text, **skipping image extraction for ALL pages with diagrams and figures**.
+  - Fix: Now uses `isTextQualityAcceptable(rawPageText)` quality gate. Garbled text layers fail the quality check → page is treated as visual content → full-page image is rendered and analyzed by `ImageUnderstandingService`.
+  - Impact: Figures, diagrams, warning icons, dashboard layouts, and technical drawings in font-encoded PDFs are now captured and described.
+
+- **Dynamic Image Text Budget**
+  - Changed from hardcoded `maxImageTextPerDoc = 3000` to `min(30000, max(3000, extractedImages.count * 500))` — scales with document visual complexity for large manuals.
+
 ### Recent Improvements (January 26, 2026 - Mac Platform Stability)
 
 - **Mac Metal Compatibility Fix**: Fixed Vision framework crash on Mac (via "Designed for iPad")
@@ -407,6 +434,9 @@ _Native SQLite FTS5 integration for 10-100X faster keyword search and pattern co
 - **3D Embedding Visualization Overhaul**: Intuitive spatial metaphors, ground plane grid, semantic axis labels, cluster badges, and gesture hints
 - **10x RAG Pipeline Optimization (v1.0.1)**: Expert-level end-to-end audit with 20+ fixes across token budget, hybrid search, extractive QA, SpecificationDetector, verification gates, query expansion, and system prompts. Standard mode now achieves 78%+ calibrated confidence on specification lookups with 94% verification gate pass rate.
 - **Research-Grade Retrieval Audit (v1.0.1)**: 10-area audit (B+/A-) with 4 critical fixes: FTS5 AND-first queries (was OR-only), chunk-level BM25 scoring in FTS5 path (was document-level), iterative retrieval auto-enable for multi-hop intents, and atomic table preservation in SemanticChunker. Deep Think/Maximum parity ensured via `originalQuery` passthrough, corpus vocabulary build/cache, and ExtractiveQA pre-check in AgenticOrchestrator.
+- **Adaptive Document Intelligence Engine (v1.0.1)**: Complete overhaul of OCR ingestion pipeline for universal document handling. `OCRConfiguration` centralizes all Vision OCR configuration (eliminated 3 duplicate config blocks). `AdaptivePreprocessor` selects from 5 CIFilter strategies (minimal→maximum) based on page quality, scan type, and degradation level. `ConfidenceVerifier` uses `topCandidates(5)` with per-character confidence analysis — numeric data requires 90% confidence (vs 85% for text) to catch OCR errors in table values. Dynamic vocabulary extracted from PDFKit text layer feeds Vision `customWords`. `isTextQualityAcceptable` rewritten from English-centric (vowel ratios, common English words) to language-agnostic (Unicode categories, NLLanguageRecognizer, entropy). Per-document state properly reset between ingestions. Camera OCR pipeline upgraded to centralized config.
+- **Motherboard HUD (v1.1.0)**: Real-time Apple Silicon X-ray overlay on the chat screen. `MotherboardHUDView` (622 lines) renders SoC, NAND, DRAM, modem, PMIC, WiFi/BT, and Taptic Engine at Vision AI-verified teardown positions for iPhone 15 Pro through iPhone 17 Pro series. `HardwareTelemetryState` (1,014 lines) provides live CPU/GPU/Neural Engine usage, memory pressure, thermal state, and battery telemetry. Ultra-subtle ghost outlines pulse with real activity. User toggle in Settings.
+- **Universal Retrieval (v1.1.0)**: 8 research-grade fixes for near-universal needle-in-haystack accuracy: (1) BM25 lexical always-on in hybrid search, (2) proportional RRF hit-rate weighting, (3) HyDE 70/30 embedding blend, (4) year/integer exemption in Verification Gate C, (5) sentence-scored fallback in contextual compression, (6) rare corpus terms in query expansion, (7) corpus-learned dynamic synonyms from co-occurrence data, (8) adaptive cross-encoder candidate pool scaling `min(count, max(100, topK×5))`.
 
 ---
 

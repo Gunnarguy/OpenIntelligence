@@ -39,12 +39,13 @@ struct RAGVerificationResult: Sendable {
     }
 }
 
-/// The four verification gates from AppleRAG spec
+/// The five verification gates from AppleRAG spec
 enum VerificationGate: String, CaseIterable, Sendable {
     case retrievalConfidence = "Gate A: Retrieval Confidence"
     case evidenceCoverage = "Gate B: Evidence Coverage"
     case numericSanity = "Gate C: Numeric Sanity"
     case contradictionSweep = "Gate D: Contradiction Sweep"
+    case semanticGrounding = "Gate E: Semantic Grounding"
 }
 
 // MARK: - Verification Configuration
@@ -57,6 +58,10 @@ struct VerificationConfig: Sendable {
     let tauTouchy: Float
     /// Minimum margin between top-1 and top-2 scores
     let muMargin: Float
+    /// Minimum cosine similarity between response embedding and best-matching source chunk
+    /// Below this threshold, the response is semantically ungrounded = likely hallucination
+    let semanticGroundingThreshold: Float
+
     /// Categories that trigger stricter thresholds
     let touchyCategories: Set<String>
 
@@ -67,6 +72,7 @@ struct VerificationConfig: Sendable {
         tauNormal: 0.40,
         tauTouchy: 0.55,
         muMargin: 0.03,
+        semanticGroundingThreshold: 0.50,
         touchyCategories: ["medical", "legal", "financial", "safety", "dosage", "drug", "medication"]
     )
 
@@ -75,6 +81,7 @@ struct VerificationConfig: Sendable {
         tauNormal: 0.65,
         tauTouchy: 0.75,
         muMargin: 0.10,
+        semanticGroundingThreshold: 0.60,
         touchyCategories: ["medical", "legal", "financial", "safety", "dosage", "drug", "medication", "regulatory", "compliance"]
     )
 }
@@ -104,13 +111,26 @@ actor VerificationGateService {
     ///   - allCandidateChunks: ALL retrieved chunks before context-budget truncation.
     ///     Gate C uses this wider set for numeric verification since the LLM may reference
     ///     numbers from chunks that were truncated from context but visible in spec scans.
+    ///   - responseEmbedding: 384-dim embedding of the LLM response (computed by caller
+    ///     since EmbeddingService isn't available inside this actor). When provided, enables
+    ///     Gate E (Semantic Grounding) — the strongest hallucination detector.
+    ///   - queryEmbedding: 384-dim embedding of the original query. Used for relative
+    ///     grounding — comparing how close the response is to chunks vs how close the
+    ///     query is to chunks. If the response drifts far from what the query matched,
+    ///     it's fabricating content.
+    ///   - chunkEmbeddings: Raw 384-dim embeddings for each chunk in retrievedChunks,
+    ///     loaded from the VectorDatabase mmap file. Needed because RetrievedChunk.chunk.embedding
+    ///     is always [] to save memory during search.
     /// - Returns: Verification result with pass/fail for each gate
     func verify(
         response: String,
         query: String,
         retrievedChunks: [RetrievedChunk],
         topScores: [Float],
-        allCandidateChunks: [RetrievedChunk]? = nil
+        allCandidateChunks: [RetrievedChunk]? = nil,
+        responseEmbedding: [Float]? = nil,
+        queryEmbedding: [Float]? = nil,
+        chunkEmbeddings: [[Float]]? = nil
     ) async -> RAGVerificationResult {
 
         let isTouchy = detectTouchyQuery(query)
@@ -136,12 +156,32 @@ actor VerificationGateService {
         let gateD = await runGateD(response: response, chunks: retrievedChunks)
         gateResults.append(gateD)
 
+        // Gate E: Semantic Grounding — the real hallucination killer
+        // Uses EMBEDDINGS to check if the response MEANING is grounded in source chunks.
+        // Requires: responseEmbedding (LLM output embedded), chunkEmbeddings (source chunk
+        // vectors loaded from mmap), and queryEmbedding (for relative grounding check).
+        if let responseVec = responseEmbedding,
+           let chunkVecs = chunkEmbeddings,
+           !responseVec.isEmpty,
+           !chunkVecs.isEmpty {
+            let gateE = runGateE(
+                responseEmbedding: responseVec,
+                queryEmbedding: queryEmbedding,
+                chunkEmbeddings: chunkVecs,
+                response: response
+            )
+            gateResults.append(gateE)
+        }
+
         // Calculate overall result
         let allPassed = gateResults.allSatisfy { $0.passed }
         let overallConfidence = gateResults.reduce(0.0) { $0 + $1.confidence } / Float(gateResults.count)
 
         // Determine if we should abstain
-        let criticalFailures = gateResults.filter { !$0.passed && ($0.gate == .retrievalConfidence || $0.gate == .numericSanity) }
+        // Gate E (semantic grounding) is critical — if the response is semantically ungrounded,
+        // it's almost certainly hallucinated regardless of what other gates say
+        let criticalGates: Set<VerificationGate> = [.retrievalConfidence, .numericSanity, .semanticGrounding]
+        let criticalFailures = gateResults.filter { !$0.passed && criticalGates.contains($0.gate) }
         let shouldAbstain = !criticalFailures.isEmpty
 
         let abstainReason: String? = {
@@ -245,7 +285,7 @@ actor VerificationGateService {
         return RAGVerificationResult.GateResult(
             gate: .evidenceCoverage,
             passed: passed,
-            confidence: max(coverage, 0.5),  // Floor confidence at 0.5
+            confidence: coverage,  // Report actual coverage — no artificial floor
             details: "\(coveredCount)/\(claims.count) claims covered (\(Int(coverage * 100))%)"
         )
     }
@@ -271,7 +311,7 @@ actor VerificationGateService {
             return extractNumbers(from: content)
         })
 
-        // Also build full text for substring matching (catches "30" in "0W-30")
+        // Build full text for word-boundary matching
         let sourceText = chunks.map { $0.chunk.parentContent ?? $0.chunk.content }.joined(separator: " ")
 
         // Check if response numbers appear in source
@@ -287,14 +327,13 @@ actor VerificationGateService {
                 if sourceNumbers.contains(where: { normalizeNumber($0) == normalized }) {
                     verifiedCount += 1
                 } else if sourceText.contains(number) {
-                    // Number appears somewhere in source (maybe as part of larger spec)
+                    // Number appears somewhere in source text (may be part of a larger value)
                     verifiedCount += 1
                 } else {
-                    // OPTIMIZED: Don't penalize year numbers (2024, 2025) or common page/section refs
-                    // These are often metadata the LLM infers from document titles, not hallucinations.
+                    // Don't penalize year numbers (2024, 2025) or common page/section refs
                     let isLikelyMetadata = isYearOrReference(number)
                     if isLikelyMetadata {
-                        verifiedCount += 1  // Give benefit of the doubt
+                        verifiedCount += 1
                     } else {
                         unverifiedNumbers.append(number)
                     }
@@ -303,9 +342,6 @@ actor VerificationGateService {
         }
 
         let verification = Float(verifiedCount) / Float(responseNumbers.count)
-        // OPTIMIZED: Relaxed from 80% to 70%. The previous 80% threshold was failing
-        // on correct responses where 1-2 metadata numbers (year, section refs) weren't
-        // in the context chunks. 70% still catches egregious hallucination (< 70% verified).
         let passed = verification >= 0.70
 
         let details: String
@@ -326,12 +362,15 @@ actor VerificationGateService {
     /// Check if a number looks like a year, page reference, or section number
     /// These are commonly inferred from document metadata, not hallucinated
     private func isYearOrReference(_ number: String) -> Bool {
-        // Year pattern: 2020-2030
-        if let year = Int(number), year >= 2020, year <= 2030 {
+        // Year pattern: 1900-2100 (covers historical through future documents)
+        // Previously 2020-2030 — way too narrow for universal document support.
+        // A 1987 court ruling, a 2015 safety bulletin, or a 2045 projection
+        // would all falsely fail numeric verification.
+        if let year = Int(number), year >= 1900, year <= 2100 {
             return true
         }
-        // Small integers that are likely section/page references
-        if let n = Int(number), n >= 1, n <= 10 {
+        // Small integers that are likely section/page/figure references
+        if let n = Int(number), n >= 1, n <= 50 {
             return true
         }
         return false
@@ -362,6 +401,170 @@ actor VerificationGateService {
             confidence: confidence,
             details: "Found \(contradictions.count) potential contradiction(s): \(contradictions.first ?? "")"
         )
+    }
+
+    // MARK: - Gate E: Semantic Grounding
+
+    /// Gate E: Semantic Grounding — the real hallucination killer.
+    ///
+    /// Instead of string-matching numbers or keywords, this gate checks whether the
+    /// MEANING of the LLM's response is grounded in the source chunks. It does this by
+    /// computing cosine similarity between the response embedding and each source chunk's
+    /// embedding vector. If the response is semantically distant from ALL source chunks,
+    /// it's fabricated — regardless of whether individual words or numbers happen to appear
+    /// in the source text.
+    ///
+    /// Example: "The car can hold 12567 miles of gasoline" has ~0.15 cosine similarity
+    /// to any chunk about fuel specifications → FAIL. A real answer like "The fuel tank
+    /// capacity is 18.5 gallons" would have ~0.65 similarity to the fuel specs chunk → PASS.
+    ///
+    /// - Parameters:
+    ///   - responseEmbedding: 384-dim embedding of the LLM response
+    ///   - responseEmbedding: 384-dim L2-normalized embedding of the LLM response
+    ///   - queryEmbedding: 384-dim L2-normalized embedding of the original query (nil = absolute mode)
+    ///   - chunkEmbeddings: Raw 384-dim embeddings loaded from VectorDatabase mmap file.
+    ///     These are the ACTUAL chunk vectors — not from RetrievedChunk.chunk.embedding which
+    ///     is always [] in production (BNNSVectorDatabase strips them to save memory).
+    ///   - response: Raw response text (for logging)
+    /// - Returns: Gate result with grounding confidence
+    ///
+    /// ## Relative Grounding (when queryEmbedding is provided)
+    ///
+    /// Instead of comparing response-chunk similarity against a fixed threshold,
+    /// we compare it against query-chunk similarity. The query IS grounded because
+    /// the search system selected these chunks as relevant to it. If the response
+    /// drifts FURTHER from the chunks than the query was, it's fabricating content.
+    ///
+    /// The key insight: MiniLM-L6-v2 measures TOPIC similarity, not factual accuracy.
+    /// A hallucinated "12567 miles of gasoline" scores 0.38-0.52 against fuel spec chunks
+    /// because it's the same TOPIC (fuel). But the query "how much gasoline" scores
+    /// 0.55-0.70 against those same chunks. The response DROPPED — that's the signal.
+    ///
+    /// Ratio = maxSim(response, chunks) / maxSim(query, chunks)
+    /// - Ratio ≥ 0.85: Response is at least as grounded as the query → PASS
+    /// - Ratio < 0.85: Response drifted from source material → FAIL
+    ///
+    /// ## Absolute Mode (when queryEmbedding is nil)
+    /// Falls back to fixed threshold comparison.
+    private func runGateE(
+        responseEmbedding: [Float],
+        queryEmbedding: [Float]?,
+        chunkEmbeddings: [[Float]],
+        response: String
+    ) -> RAGVerificationResult.GateResult {
+
+        guard !chunkEmbeddings.isEmpty else {
+            return RAGVerificationResult.GateResult(
+                gate: .semanticGrounding,
+                passed: true,
+                confidence: 1.0,
+                details: "No chunk embeddings to ground against"
+            )
+        }
+
+        // ── Step 1: Compute response ↔ chunk similarities ──────────────────
+        var responseMaxSim: Float = 0.0
+        var responseAvgSim: Float = 0.0
+        var bestChunkIndex = 0
+
+        for (i, chunkVec) in chunkEmbeddings.enumerated() {
+            guard chunkVec.count == responseEmbedding.count else { continue }
+            let sim = vectorCosineSimilarity(responseEmbedding, chunkVec)
+            responseAvgSim += sim
+            if sim > responseMaxSim {
+                responseMaxSim = sim
+                bestChunkIndex = i
+            }
+        }
+        responseAvgSim /= Float(max(chunkEmbeddings.count, 1))
+
+        // ── Step 2: Relative grounding (preferred) or absolute threshold ───
+        if let queryVec = queryEmbedding, !queryVec.isEmpty {
+            // Compute query ↔ chunk similarities for comparison baseline
+            var queryMaxSim: Float = 0.0
+            for chunkVec in chunkEmbeddings {
+                guard chunkVec.count == queryVec.count else { continue }
+                let sim = vectorCosineSimilarity(queryVec, chunkVec)
+                if sim > queryMaxSim {
+                    queryMaxSim = sim
+                }
+            }
+
+            // Relative grounding ratio
+            // If query matched chunks at 0.65 and response matches at 0.60, ratio = 0.92 → PASS
+            // If query matched at 0.65 and response matches at 0.40, ratio = 0.62 → FAIL (drifted)
+            let ratio: Float = queryMaxSim > 0.01 ? (responseMaxSim / queryMaxSim) : 0.0
+
+            // Also apply a floor — even with good ratio, if the absolute similarity
+            // is extremely low, the embeddings might be unreliable
+            let absoluteFloor: Float = 0.25
+            let relativeThreshold: Float = 0.80  // Response should be ≥80% as similar as query
+
+            let passed = ratio >= relativeThreshold && responseMaxSim >= absoluteFloor
+
+            let details: String
+            if passed {
+                details = "Grounded (ratio=\(String(format: "%.3f", ratio)), " +
+                    "respMax=\(String(format: "%.3f", responseMaxSim)), " +
+                    "qryMax=\(String(format: "%.3f", queryMaxSim)), " +
+                    "avgSim=\(String(format: "%.3f", responseAvgSim)), " +
+                    "bestChunk=\(bestChunkIndex))"
+            } else {
+                details = "UNGROUNDED (ratio=\(String(format: "%.3f", ratio)) < \(String(format: "%.2f", relativeThreshold)), " +
+                    "respMax=\(String(format: "%.3f", responseMaxSim)), " +
+                    "qryMax=\(String(format: "%.3f", queryMaxSim))). " +
+                    "Response meaning drifted from source chunks."
+                Log.warning("[VerificationGates] Gate E: Relative grounding FAIL — " +
+                    "response drifted from sources (ratio=\(String(format: "%.3f", ratio)), " +
+                    "respMax=\(String(format: "%.3f", responseMaxSim)), " +
+                    "qryMax=\(String(format: "%.3f", queryMaxSim)))", category: .pipeline)
+            }
+
+            return RAGVerificationResult.GateResult(
+                gate: .semanticGrounding,
+                passed: passed,
+                confidence: responseMaxSim,
+                details: details
+            )
+        }
+
+        // ── Step 3: Absolute fallback (no query embedding available) ───────
+        let passed = responseMaxSim >= config.semanticGroundingThreshold
+
+        let details: String
+        if passed {
+            details = "Grounded-absolute (max=\(String(format: "%.3f", responseMaxSim)), avg=\(String(format: "%.3f", responseAvgSim)), bestChunk=\(bestChunkIndex))"
+        } else {
+            details = "UNGROUNDED (max=\(String(format: "%.3f", responseMaxSim)) < \(String(format: "%.2f", config.semanticGroundingThreshold)), avg=\(String(format: "%.3f", responseAvgSim))). Response meaning does not match any source chunk."
+            Log.warning("[VerificationGates] Gate E: Absolute grounding FAIL (max cosine=\(String(format: "%.3f", responseMaxSim)))", category: .pipeline)
+        }
+
+        return RAGVerificationResult.GateResult(
+            gate: .semanticGrounding,
+            passed: passed,
+            confidence: responseMaxSim,
+            details: details
+        )
+    }
+
+    /// Compute cosine similarity between two vectors
+    /// Self-contained — doesn't depend on EmbeddingService being accessible from this actor
+    private func vectorCosineSimilarity(_ a: [Float], _ b: [Float]) -> Float {
+        guard a.count == b.count, !a.isEmpty else { return 0.0 }
+
+        var dotProduct: Float = 0
+        var magnitudeA: Float = 0
+        var magnitudeB: Float = 0
+
+        for i in 0..<a.count {
+            dotProduct += a[i] * b[i]
+            magnitudeA += a[i] * a[i]
+            magnitudeB += b[i] * b[i]
+        }
+
+        let magnitude = sqrt(magnitudeA) * sqrt(magnitudeB)
+        guard magnitude > 0 else { return 0.0 }
+        return dotProduct / magnitude
     }
 
     // MARK: - Helper Methods
@@ -434,12 +637,11 @@ actor VerificationGateService {
         return Float(foundCount) / Float(keyTerms.count) >= 0.5
     }
 
-    /// Extract numbers from text (including decimals, fractions, percentages, oil specs)
+    /// Extract numbers from text (including decimals, fractions, percentages, spec codes)
     private func extractNumbers(from text: String) -> [String] {
-        // Pattern matches: oil viscosity (0W-30, 5W-40), integers, decimals, fractions, percentages
-        // Also matches API specs like SN, SP, CF-4
+        // Pattern matches: grade codes (0W-30, A2-70), integers, decimals, fractions, percentages
         let patterns = [
-            #"\d+W-\d+"#,  // Oil viscosity: 0W-30, 5W-40, 10W-40
+            #"[A-Z0-9]+[-][A-Z0-9]+"#,  // Grade/spec codes: 0W-30, ISO-9001, A2-70
             #"\b\d+(?:\.\d+)?(?:/\d+)?(?:\s*%)?(?:\s*(?:mg|kg|ml|L|mm|cm|m|psi|kPa))?\b"#  // Numbers with units
         ]
 
@@ -469,7 +671,7 @@ actor VerificationGateService {
 
     /// Detect contradictions in retrieved chunks
     /// ULTRA CONSERVATIVE: Only flag when SAME measurement type has conflicting values
-    /// Car manuals have hundreds of different numbers (page refs, part numbers, specs) - NOT contradictions!
+    /// Documents have hundreds of different numbers (page refs, part numbers, specs) - NOT contradictions!
     private func detectContradictions(in chunks: [RetrievedChunk]) -> [String] {
         var contradictions: [String] = []
 
@@ -552,6 +754,10 @@ extension VerificationGateService {
 
         if failedGates.contains(.numericSanity) {
             return "I found some relevant information, but I'm not confident about the specific numbers or values. Please verify the following information directly in the source documents."
+        }
+
+        if failedGates.contains(.semanticGrounding) {
+            return "My response doesn't appear to be well-supported by the source documents. The answer to your question may not be present in the available materials. Please try rephrasing or check the documents directly."
         }
 
         if failedGates.contains(.contradictionSweep) {

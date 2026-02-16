@@ -29,15 +29,29 @@ class DocumentProcessor {
         let metadata: ChunkMetadata
     }
 
+    // MARK: - Page Break Sentinel
+
+    /// Unique sentinel inserted between PDF pages during text extraction.
+    /// Survives text normalization and enables per-page FTS5 storage.
+    /// Must never appear naturally in any document.
+    static let pageBreakSentinel = "⊕⊕⊕PAGE_BREAK⊕⊕⊕"
+
     // MARK: - GPU Acceleration
 
     /// Shared Metal device for GPU-accelerated image processing
     private static let metalDevice: MTLDevice? = MTLCreateSystemDefaultDevice()
 
-    /// Serial queue for GPU context access to prevent Metal synchronization issues
-    /// CIContext is thread-safe for rendering, but concurrent Metal command buffer
-    /// submissions during VNRecognizeTextRequest can cause race conditions
-    private static let gpuQueue = DispatchQueue(label: "com.openintelligence.gpu-context", qos: .userInitiated)
+    /// Concurrent queue for GPU context access with bounded parallelism.
+    /// CIContext IS thread-safe for rendering (Apple docs). The previous serial queue
+    /// was overly conservative — it serialized ALL CIFilter renders, creating a bottleneck.
+    /// Metal command buffer contention is handled by the VisionOCRThrottle semaphore,
+    /// not by serializing preprocessing. Concurrency is naturally bounded by
+    /// pdfRenderingConcurrency (TaskGroup) which limits how many pages render simultaneously.
+    private static let gpuQueue = DispatchQueue(
+        label: "com.openintelligence.gpu-context",
+        qos: .userInitiated,
+        attributes: .concurrent
+    )
 
     /// GPU-accelerated CIContext for image operations (PDF rendering, OCR prep)
     /// Using Metal backend provides 5-10x speedup over CPU for image processing
@@ -58,54 +72,82 @@ class DocumentProcessor {
     /// Check if GPU acceleration is available
     static var isGPUAccelerated: Bool { metalDevice != nil }
 
-    /// GPU-accelerated image preprocessing for improved OCR accuracy
-    /// Applies sharpening and contrast enhancement using Metal-backed Core Image filters
-    /// - Parameter image: Input CIImage from PDF rendering
+    /// Adaptive GPU-accelerated image preprocessing for improved OCR accuracy.
+    /// Selects preprocessing strategy based on page characteristics, then applies
+    /// the appropriate CIFilter chain using Metal-backed Core Image.
+    ///
+    /// - Parameters:
+    ///   - image: Input CIImage from PDF rendering
+    ///   - textQuality: 0.0-1.0 quality score from PageComplexityAnalyzer (default: 0.7)
+    ///   - hasNativeTextLayer: Whether PDFKit extracted text for this page
+    ///   - isScanned: Whether this appears to be a scanned image
     /// - Returns: Enhanced CIImage optimized for text recognition (eagerly rendered to prevent Metal races)
-    private func preprocessImageForOCR(_ image: CIImage) -> CIImage {
+    private func preprocessImageForOCR(
+        _ image: CIImage,
+        textQuality: Double = 0.7,
+        hasNativeTextLayer: Bool = true,
+        isScanned: Bool = false
+    ) -> CIImage {
         // Skip if GPU not available
         guard Self.metalDevice != nil else { return image }
 
-        var processedImage = image
+        let strategy = AdaptivePreprocessor.selectStrategy(
+            textQuality: textQuality,
+            hasNativeTextLayer: hasNativeTextLayer,
+            isScanned: isScanned,
+            imagePresence: 0.0
+        )
 
-        // 1. Unsharp Mask - enhances text edges for better OCR
-        if let unsharpMask = CIFilter(name: "CIUnsharpMask") {
-            unsharpMask.setValue(processedImage, forKey: kCIInputImageKey)
-            unsharpMask.setValue(0.5, forKey: kCIInputRadiusKey)     // Subtle sharpening
-            unsharpMask.setValue(0.8, forKey: kCIInputIntensityKey)  // Moderate intensity
-            if let output = unsharpMask.outputImage {
-                processedImage = output
-            }
-        }
+        Log.debug("[DocumentProcessor] Adaptive preprocessing: using '\(strategy.name)' strategy (quality=\(String(format: "%.1f", textQuality)), scanned=\(isScanned))", category: .ingestion)
 
-        // 2. Contrast boost - improves text/background separation
-        if let colorControls = CIFilter(name: "CIColorControls") {
-            colorControls.setValue(processedImage, forKey: kCIInputImageKey)
-            colorControls.setValue(1.05, forKey: kCIInputContrastKey)    // Slight boost
-            colorControls.setValue(1.0, forKey: kCIInputSaturationKey)   // Preserve colors
-            colorControls.setValue(0.0, forKey: kCIInputBrightnessKey)   // No change
-            if let output = colorControls.outputImage {
-                processedImage = output
-            }
-        }
+        return AdaptivePreprocessor.apply(
+            strategy,
+            to: image,
+            gpuContext: Self.gpuContext,
+            gpuQueue: Self.gpuQueue
+        )
+    }
 
-        let croppedImage = processedImage.cropped(to: image.extent)
+    // MARK: - Pipeline Trace Helpers (Per-Page Ingestion)
 
-        // CRITICAL: Eagerly render to CGImage using our controlled context
-        // This prevents Metal command buffer race conditions when Vision
-        // tries to render the lazy CIImage with its own Metal resources
-        // The gpuQueue serializes access to prevent concurrent Metal submissions
-        var renderedCGImage: CGImage?
-        Self.gpuQueue.sync {
-            renderedCGImage = Self.gpuContext.createCGImage(croppedImage, from: croppedImage.extent)
-        }
+    private func traceIngestionDecision(
+        pageNumber: Int,
+        strategy: String,
+        hasText: Bool,
+        textQualityOK: Bool,
+        requiresTableOCR: Bool,
+        mode: String
+    ) {
+        guard Log.pipelineTraceEnabled else { return }
+        Log.pipelineStep(
+            "ING\(pageNumber)",
+            title: "Ingestion Decision",
+            details: [
+                ("mode", mode),
+                ("strategy", strategy),
+                ("hasText", hasText ? "yes" : "no"),
+                ("quality", textQualityOK ? "good" : "poor"),
+                ("tableOCR", requiresTableOCR ? "forced" : "no")
+            ]
+        )
+    }
 
-        if let cgImage = renderedCGImage {
-            return CIImage(cgImage: cgImage)
-        }
-
-        // Fallback to lazy evaluation if rendering fails
-        return croppedImage
+    private func traceIngestionOutcome(
+        pageNumber: Int,
+        path: String,
+        chars: Int,
+        duration: TimeInterval? = nil,
+        extra: [(String, String)] = []
+    ) {
+        guard Log.pipelineTraceEnabled else { return }
+        var details: [(String, String)] = [("path", path), ("chars", "\(chars)")]
+        details.append(contentsOf: extra)
+        Log.pipelineStep(
+            "ING\(pageNumber)",
+            title: "Ingestion Outcome",
+            details: details,
+            duration: duration
+        )
     }
 
     struct ChunkingOverride: Sendable {
@@ -183,6 +225,12 @@ class DocumentProcessor {
     /// CRITICAL: NLTokenizer word count ≠ BertTokenizer tokens for technical content
     /// Example: "VHA21\VHAPALGarciG1" = 1 NL word but 10+ embedding tokens
     private var embeddingTokenizer: BertTokenizer?
+
+    /// Dynamic custom words for the current document being processed.
+    /// Extracted from PDFKit's text layer BEFORE Vision OCR runs, so Vision
+    /// knows the document's domain vocabulary ("document teaches Vision").
+    /// Reset on each processDocument() call.
+    private var currentDocumentCustomWords: [String] = OCRConfiguration.universalCustomWords
 
     init(targetChunkSize: Int = 350, chunkOverlap: Int = 60) {
         self.targetChunkSize = targetChunkSize
@@ -283,8 +331,14 @@ class DocumentProcessor {
     /// - SQLiteFullTextService (FTS5) when containerId is provided (10-100X faster search)
     /// - FullTextStorageService (file-based) as fallback when containerId is nil
     func processDocument(at url: URL, chunkOverride: ChunkingOverride? = nil, containerId: UUID? = nil) async throws -> (Document, [ProcessedChunk]) {
-        // Reset detected entities for this document
+        // Reset ALL per-document state to prevent vocabulary/entity leaks between documents
         lastDetectedEntities = []
+        currentDocumentCustomWords = OCRConfiguration.universalCustomWords
+        // Reset StructuredDocumentParser singleton state
+        if #available(iOS 26.0, *) {
+            await StructuredDocumentParser.shared.setDocumentCustomWords(OCRConfiguration.universalCustomWords)
+        }
+
         let filename = url.lastPathComponent
         let fileSize = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int64) ?? 0
         let fileSizeMB = Double(fileSize) / 1_048_576.0
@@ -342,18 +396,81 @@ class DocumentProcessor {
             category: .ingestion
         )
 
-        // CRITICAL: Store full original text for exact queries
-        // This enables queries like "count word 'X' in all documents"
-        // FTS5 (SQLite) is 10-100X faster than file-based storage for search
+        // POST-OCR GARBAGE TEXT FILTER
+        // Parts diagrams, rotated text, and noisy scans produce OCR garbage:
+        // Cyrillic substitutions, backwards text, consonant noise, etc.
+        // Filter per-line to remove garbage while preserving valid text.
+        let filteredText: String
+        if ocrPagesCount ?? 0 > 0 {
+            // Only filter OCR'd pages — PDFKit text extraction is clean
+            let (cleaned, removedCount) = OCRConfiguration.filterGarbageText(extractedText)
+            if removedCount > 0 {
+                Log.info("[DocumentProcessor] Garbage filter: removed \(removedCount) garbage lines from OCR output", category: .ingestion)
+            }
+            if cleaned.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && charCount > 50 {
+                Log.warning("[DocumentProcessor] Entire page was garbage OCR — likely a diagram/image page", category: .ingestion)
+            }
+            filteredText = cleaned
+        } else {
+            filteredText = extractedText
+        }
+
+        // UNIVERSAL TEXT NORMALIZATION
+        // Runs on ALL extracted text — PDFKit and OCR alike — to fix:
+        // ligatures, broken hyphens, smart quotes, zero-width chars, multi-spaces.
+        // This is the single quality gate between raw extraction and chunking/embedding.
+        let normalizedText = OCRConfiguration.normalizeExtractedText(filteredText)
+        if normalizedText.count != filteredText.count {
+            let delta = filteredText.count - normalizedText.count
+            Log.info(
+                "[DocumentProcessor] Text normalization: cleaned \(delta) chars (\(filteredText.count)→\(normalizedText.count))",
+                category: .ingestion
+            )
+        }
+
+        // CRITICAL: Store NORMALIZED text for full-text search and exact queries
+        // Normalized text has CJK bullet artifacts replaced, ll-ligature errors repaired,
+        // and encoding garbage cleaned — so FTS5 search actually finds the right words.
+        // Raw extractedText with font encoding errors ("colision", "wil") breaks search.
+
+        // Step A: Split normalized text by page break sentinel to get per-page content
+        let pageTextsFromSentinel = normalizedText.components(separatedBy: Self.pageBreakSentinel)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        // Step B: Build human-readable full-doc text with page markers for FTS5
+        let storedText: String
+        if pageTextsFromSentinel.count > 1 {
+            storedText = pageTextsFromSentinel.enumerated().map { (index, pageContent) in
+                "--- Page \(index + 1) ---\n\(pageContent)"
+            }.joined(separator: "\n\n")
+        } else {
+            // Single page or no sentinels (non-PDF) — store as-is without markers
+            storedText = normalizedText.replacingOccurrences(of: Self.pageBreakSentinel, with: "\n\n")
+        }
+        let storedCharCount = storedText.count
+
         if let containerId = containerId {
             // Primary path: SQLite FTS5 with container isolation (v1.1.0+)
-            await SQLiteFullTextService.shared.store(text: extractedText, for: documentId, containerId: containerId)
-            Log.debug("[DocumentProcessor] Stored full text (\(charCount) chars) to FTS5 for exact query support", category: .ingestion)
+            await SQLiteFullTextService.shared.store(text: storedText, for: documentId, containerId: containerId)
+            Log.debug("[DocumentProcessor] Stored normalized text (\(storedCharCount) chars) to FTS5 for exact query support", category: .ingestion)
+
+            // Step C: Store per-page content for page-level search and context isolation
+            if pageTextsFromSentinel.count > 1 {
+                let pageEntries = pageTextsFromSentinel.enumerated().map { (index, content) in
+                    (pageNumber: index + 1, content: content)
+                }
+                await SQLiteFullTextService.shared.storePages(pages: pageEntries, for: documentId, containerId: containerId)
+                Log.info("[DocumentProcessor] Stored \(pageEntries.count) individual pages to FTS5 for page-level context", category: .ingestion)
+            }
         } else {
             // Fallback path: File-based storage (legacy, no container context)
-            await FullTextStorageService.shared.store(text: extractedText, for: documentId)
-            Log.debug("[DocumentProcessor] Stored full text (\(charCount) chars) to file storage (legacy path)", category: .ingestion)
+            await FullTextStorageService.shared.store(text: storedText, for: documentId)
+            Log.debug("[DocumentProcessor] Stored normalized text (\(storedCharCount) chars) to file storage (legacy path)", category: .ingestion)
         }
+
+        // Step D: Strip page break sentinels for chunking — chunker must see continuous text
+        let chunkableText = normalizedText.replacingOccurrences(of: Self.pageBreakSentinel, with: "\n\n")
 
         // Chunk the text using semantic chunker
         emitProgress(stage: "chunking", detail: "✂️ Semantic chunking text...", page: nil, totalPages: nil)
@@ -397,7 +514,7 @@ class DocumentProcessor {
             emitProgress(stage: "chunking", detail: "🧩 Structure-aware chunking \(structuredElements.count) elements...", page: nil, totalPages: nil)
             processedChunks = createStructureAwareChunks(
                 elements: structuredElements,
-                fullText: extractedText,
+                fullText: chunkableText,
                 config: chunkerConfig,
                 documentId: documentId,
                 pageInfo: pageInfo
@@ -413,7 +530,7 @@ class DocumentProcessor {
             let semanticChunker = SemanticChunker()
             let pageMapping = pageInfo.pageTextRanges.isEmpty ? nil : pageInfo.pageTextRanges
             let enhancedChunks = semanticChunker.chunkText(
-                extractedText,
+                chunkableText,
                 documentId: documentId,
                 config: chunkerConfig,
                 pageNumbers: pageMapping
@@ -691,6 +808,11 @@ class DocumentProcessor {
     ///
     /// This function is CRITICAL for bulletproof PDF ingestion. PDFs often have
     /// invisible/garbage text layers that PDFKit returns, but the visual content
+    /// Checks if extracted text appears to be legitimate human-readable content
+    /// vs. garbled/corrupt PDF text layer garbage.
+    ///
+    /// LANGUAGE-AGNOSTIC: Works for English, CJK, Arabic, Cyrillic, and mixed scripts.
+    /// Uses NaturalLanguage framework for script detection instead of English-specific heuristics.
     /// is completely different. We must detect this and fall back to OCR.
     private func isTextQualityAcceptable(_ text: String) -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -699,17 +821,34 @@ class DocumentProcessor {
             return false
         }
 
-        // === CHECK 1: Alphanumeric ratio (should be > 65%) ===
-        // Garbage text often has many special characters, ligature placeholders, etc.
-        let alphanumericCount = trimmed.filter { $0.isLetter || $0.isNumber }.count
-        let alphanumericRatio = Double(alphanumericCount) / Double(trimmed.count)
-        if alphanumericRatio < 0.60 {
-            Log.debug("[DocumentProcessor] ❌ FAIL: Low alphanumeric ratio: \(String(format: "%.1f", alphanumericRatio * 100))% (need 60%+)", category: .ingestion)
+        // === CHECK 1: Printable character ratio ===
+        // Garbage text often has control characters, private use area, etc.
+        // This works for ALL scripts — letters, digits, punctuation, CJK, Arabic, etc.
+        let printableCount = trimmed.unicodeScalars.filter { scalar in
+            // Accept: letters (any script), numbers, punctuation, symbols, spaces
+            let category = scalar.properties.generalCategory
+            switch category {
+            case .uppercaseLetter, .lowercaseLetter, .titlecaseLetter, .modifierLetter, .otherLetter,
+                 .decimalNumber, .letterNumber, .otherNumber,
+                 .spaceSeparator, .lineSeparator, .paragraphSeparator,
+                 .connectorPunctuation, .dashPunctuation, .openPunctuation, .closePunctuation,
+                 .initialPunctuation, .finalPunctuation, .otherPunctuation,
+                 .mathSymbol, .currencySymbol, .modifierSymbol, .otherSymbol,
+                 .nonspacingMark, .spacingMark, .enclosingMark:
+                return true
+            default:
+                return false
+            }
+        }.count
+        let printableRatio = Double(printableCount) / Double(trimmed.unicodeScalars.count)
+        if printableRatio < 0.60 {
+            Log.debug("[DocumentProcessor] ❌ FAIL: Low printable ratio: \(String(format: "%.1f", printableRatio * 100))% (need 60%+)", category: .ingestion)
             return false
         }
 
-        // === CHECK 2: Word length distribution ===
-        // Garbage text often has very short or very long "words"
+        // === CHECK 2: Word length distribution (language-agnostic) ===
+        // Garbage text often has very long "words" (no spaces in random bytes)
+        // CJK is fine — even single chars are separated by whitespace in PDFKit output
         let words = trimmed.split(whereSeparator: { $0.isWhitespace })
         guard words.count >= 3 else {
             Log.debug("[DocumentProcessor] ❌ FAIL: Too few words to assess (\(words.count))", category: .ingestion)
@@ -717,58 +856,60 @@ class DocumentProcessor {
         }
 
         let avgWordLength = Double(words.reduce(0) { $0 + $1.count }) / Double(words.count)
-        if avgWordLength < 2.5 || avgWordLength > 18.0 {
+        if avgWordLength < 1.0 || avgWordLength > 25.0 {
             Log.debug("[DocumentProcessor] ❌ FAIL: Abnormal avg word length: \(String(format: "%.1f", avgWordLength))", category: .ingestion)
             return false
         }
 
-        // === CHECK 3: Gibberish detector (consecutive non-letter sequences) ===
-        let consecutiveNonLetterPattern = try? NSRegularExpression(pattern: "[^a-zA-Z0-9\\s]{4,}", options: [])
-        let gibberishMatches = consecutiveNonLetterPattern?.numberOfMatches(
-            in: trimmed,
-            options: [],
-            range: NSRange(trimmed.startIndex..., in: trimmed)
-        ) ?? 0
-        let gibberishRatio = Double(gibberishMatches) / Double(max(1, trimmed.count / 80))
-        if gibberishRatio > 2.5 {
-            Log.debug("[DocumentProcessor] ❌ FAIL: High gibberish ratio: \(String(format: "%.1f", gibberishRatio))", category: .ingestion)
+        // === CHECK 3: Gibberish detector (consecutive non-printable sequences) ===
+        // Look for runs of 4+ characters that aren't letters, digits, or common punctuation
+        let controlChars = trimmed.unicodeScalars.filter { scalar in
+            scalar.properties.generalCategory == .control ||
+            scalar.properties.generalCategory == .privateUse ||
+            scalar.properties.generalCategory == .surrogate ||
+            scalar.properties.generalCategory == .unassigned
+        }.count
+        let controlRatio = Double(controlChars) / Double(max(1, trimmed.unicodeScalars.count))
+        if controlRatio > 0.05 {
+            Log.debug("[DocumentProcessor] ❌ FAIL: High control character ratio: \(String(format: "%.1f", controlRatio * 100))%", category: .ingestion)
             return false
         }
 
-        // === CHECK 4: Vowel/consonant balance ===
-        // Real English text has ~38% vowels, garbage is often wildly different
-        let letters = trimmed.lowercased().filter { $0.isLetter }
-        let vowels = letters.filter { "aeiou".contains($0) }
-        let vowelRatio = Double(vowels.count) / Double(max(1, letters.count))
-        if vowelRatio < 0.15 || vowelRatio > 0.65 {
-            Log.debug("[DocumentProcessor] ❌ FAIL: Abnormal vowel ratio: \(String(format: "%.1f", vowelRatio * 100))% (need 15-65%)", category: .ingestion)
+        // === CHECK 4: NaturalLanguage script/language detection ===
+        // Use Apple's NLLanguageRecognizer to check if the text is recognizable as ANY language
+        let recognizer = NLLanguageRecognizer()
+        recognizer.processString(trimmed)
+        let languageHypotheses = recognizer.languageHypotheses(withMaximum: 3)
+
+        // If NL can't identify ANY language with >10% confidence, it's likely garbage
+        let bestConfidence = languageHypotheses.values.max() ?? 0
+        if bestConfidence < 0.10 && trimmed.count > 50 {
+            Log.debug("[DocumentProcessor] ❌ FAIL: NLLanguageRecognizer can't identify language (best conf: \(String(format: "%.1f%%", bestConfidence * 100)))", category: .ingestion)
             return false
         }
 
         // === CHECK 5: Character entropy (randomness detection) ===
-        // Real text has lower entropy than random garbage
+        // Works for all scripts — random bytes have high entropy regardless of language
         let entropy = calculateCharacterEntropy(trimmed)
-        if entropy > 5.5 {  // English text is typically 4.0-5.0 bits/char
+        if entropy > 6.0 {  // Raised from 5.5 to accommodate CJK (larger alphabet = higher natural entropy)
             Log.debug("[DocumentProcessor] ❌ FAIL: High entropy (random-looking): \(String(format: "%.2f", entropy)) bits/char", category: .ingestion)
             return false
         }
 
-        // === CHECK 6: Common English words ===
-        // At least some common words should be present
-        let commonPatterns = ["the ", "and ", "is ", "to ", "of ", "a ", "in ", "for ", "that ", "with ", "this ", "are ", "be ", "at ", "or "]
-        let matchCount = commonPatterns.filter { trimmed.lowercased().contains($0) }.count
-        let hasEnoughCommonWords = matchCount >= 2
-
-        // If no common words AND metrics are borderline, prefer OCR
-        if !hasEnoughCommonWords && (alphanumericRatio < 0.70 || vowelRatio < 0.25 || vowelRatio > 0.50) {
-            Log.debug("[DocumentProcessor] ❌ FAIL: Only \(matchCount) common words found + borderline metrics", category: .ingestion)
+        // === CHECK 6: Repeated character detection ===
+        // Garbage often has the same character repeated many times
+        let charCounts = Dictionary(trimmed.map { ($0, 1) }, uniquingKeysWith: +)
+        let maxCharFreq = Double(charCounts.values.max() ?? 0) / Double(trimmed.count)
+        if maxCharFreq > 0.4 && trimmed.count > 30 {
+            Log.debug("[DocumentProcessor] ❌ FAIL: Dominant character frequency: \(String(format: "%.1f%%", maxCharFreq * 100))", category: .ingestion)
             return false
         }
 
-        // === CHECK 7: Sample the text for diagnostic logging ===
+        // === Diagnostic logging ===
         let sampleLength = min(100, trimmed.count)
         let sample = String(trimmed.prefix(sampleLength)).replacingOccurrences(of: "\n", with: "↵")
-        Log.debug("[DocumentProcessor] ✓ PASS: Text quality OK (alpha=\(String(format: "%.0f", alphanumericRatio * 100))%, vowel=\(String(format: "%.0f", vowelRatio * 100))%, entropy=\(String(format: "%.1f", entropy)), words=\(matchCount)) Sample: \"\(sample)...\"", category: .ingestion)
+        let detectedLang = languageHypotheses.max(by: { $0.value < $1.value })?.key.rawValue ?? "?"
+        Log.debug("[DocumentProcessor] ✓ PASS: Text quality OK (printable=\(String(format: "%.0f", printableRatio * 100))%, entropy=\(String(format: "%.1f", entropy)), lang=\(detectedLang)) Sample: \"\(sample)...\"", category: .ingestion)
 
         return true
     }
@@ -915,7 +1056,9 @@ class DocumentProcessor {
             "^\\d+\\s*of\\s*\\d+$",             // "5 of 42"
             "^-\\s*\\d+\\s*-$",                 // "- 5 -"
             "^\\[\\d+\\]$",                     // "[5]"
-            "^\\(\\d+\\)$"                      // "(5)"
+            "^\\(\\d+\\)$",                     // "(5)"
+            "^\\d{1,3}\\s+\\d{1,3}$",           // "2 2" (doubled page number from dual columns)
+            "^\\d{1,3}\\s*[-—–]\\s*\\d{0,3}$",  // "3 - 5", "2-", "2 — 7" (section-page)
         ]
 
         for pattern in patterns {
@@ -928,14 +1071,42 @@ class DocumentProcessor {
         return false
     }
 
+    // MARK: - PDF Loading with Encryption Detection
+
+    /// Load a PDF document with encryption/password detection.
+    /// Attempts empty-password unlock for owner-encrypted PDFs.
+    /// - Parameters:
+    ///   - url: Path to the PDF file
+    ///   - context: Calling function name for logging
+    /// - Returns: Loaded and unlocked PDFDocument
+    /// - Throws: `pdfEncrypted` if password-locked, `pdfLoadFailed` if corrupt/unreadable
+    private func loadPDF(url: URL, context: String = "PDF") throws -> PDFDocument {
+        guard let pdfDocument = PDFDocument(url: url) else {
+            Log.error("[DocumentProcessor] \(context) load failed: \(url.lastPathComponent)", category: .ingestion)
+            throw DocumentProcessingError.pdfLoadFailed
+        }
+
+        if pdfDocument.isEncrypted {
+            if pdfDocument.isLocked {
+                // Try empty password — many "encrypted" PDFs have no user password
+                if !pdfDocument.unlock(withPassword: "") {
+                    Log.error("[DocumentProcessor] \(context) is password-protected: \(url.lastPathComponent)", category: .ingestion)
+                    throw DocumentProcessingError.pdfEncrypted
+                }
+                Log.info("[DocumentProcessor] \(context) unlocked with empty password", category: .ingestion)
+            } else {
+                Log.debug("[DocumentProcessor] \(context) has owner encryption (restrictions only)", category: .ingestion)
+            }
+        }
+
+        return pdfDocument
+    }
+
     /// Extract text from PDF with page tracking for semantic chunking
     /// Uses spatial-aware extraction to handle multi-column layouts correctly
     /// ADAPTIVE OCR: Pre-scans pages to classify complexity, skips OCR for simple pages
     private func extractTextFromPDFWithPages(url: URL) async throws -> (text: String, pageInfo: PageInfo) {
-        guard let pdfDocument = PDFDocument(url: url) else {
-            Log.error("[DocumentProcessor] PDF load failed: \(url.lastPathComponent)", category: .ingestion)
-            throw DocumentProcessingError.pdfLoadFailed
-        }
+        let pdfDocument = try loadPDF(url: url, context: "PDF")
 
         let pageCount = pdfDocument.pageCount
         Log.debug("[DocumentProcessor] PDF pages: \(pageCount)", category: .ingestion)
@@ -944,6 +1115,106 @@ class DocumentProcessor {
         guard pageCount > 0 else {
             Log.warning("[DocumentProcessor] PDF has zero pages", category: .ingestion)
             throw DocumentProcessingError.emptyDocument
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // PHASE -1: DOCUMENT-LEVEL TEXT LAYER VALIDATION
+        // ═══════════════════════════════════════════════════════════════════════
+        // Many PDFs (Kia, Hyundai, Asian-publisher manuals) use font substitution
+        // ciphers: the text layer is a character-shifted encoding that LOOKS like
+        // normal text to naive analysis (printable ASCII, normal word lengths,
+        // NLLanguageRecognizer detects "Dutch" at 56% confidence) but is completely
+        // garbled. The ONLY reliable detection is to OCR a sample page and compare
+        // the result to PDFKit's text layer. If they don't match, the entire
+        // document's text layer is unusable and ALL pages must go through Vision OCR.
+        //
+        // This runs ONCE per document (~200-500ms) and prevents the catastrophic
+        // failure where 93% of content is silently lost to garbled text acceptance.
+        // ═══════════════════════════════════════════════════════════════════════
+        let documentTextLayerGarbled: Bool
+        textLayerValidation: do {
+            // Sample 3 spread-out pages to get representative PDFKit text
+            let sampleIndices = pageCount <= 3
+                ? Array(0..<pageCount)
+                : [0, pageCount / 3, 2 * pageCount / 3]
+
+            var bestSampleText = ""
+            var bestSamplePage: PDFPage?
+
+            for idx in sampleIndices {
+                guard let page = pdfDocument.page(at: idx) else { continue }
+                let text = page.string?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                if text.count > bestSampleText.count {
+                    bestSampleText = text
+                    bestSamplePage = page
+                }
+            }
+
+            // If no text layer at all, not garbled — just needs OCR (handled by existing flow)
+            guard bestSampleText.count >= 50, let samplePage = bestSamplePage else {
+                documentTextLayerGarbled = false
+                Log.debug("[DocumentProcessor] Text layer validation: no/minimal text layer, skipping validation", category: .ingestion)
+                break textLayerValidation
+            }
+
+            // Render the best sample page and run quick OCR
+            emitProgress(stage: "validating", detail: "🔍 Validating text layer...", page: nil, totalPages: pageCount)
+            guard let sampleImage = renderPDFPageAsImage(page: samplePage) else {
+                documentTextLayerGarbled = false
+                Log.warning("[DocumentProcessor] Text layer validation: failed to render sample page", category: .ingestion)
+                break textLayerValidation
+            }
+
+            let ocrObservations: [VNRecognizedTextObservation]
+            do {
+                ocrObservations = try await performOCRWithObservationsAsync(on: sampleImage)
+            } catch {
+                documentTextLayerGarbled = false
+                Log.warning("[DocumentProcessor] Text layer validation: OCR failed on sample page (\(error.localizedDescription)), assuming text layer OK", category: .ingestion)
+                break textLayerValidation
+            }
+            let ocrWords: Set<String> = Set(
+                ocrObservations
+                    .compactMap { $0.topCandidates(1).first?.string }
+                    .flatMap { $0.lowercased().split(whereSeparator: { !$0.isLetter }) }
+                    .map { String($0) }
+                    .filter { $0.count >= 3 }
+            )
+
+            let pdfKitWords: Set<String> = Set(
+                bestSampleText.lowercased()
+                    .split(whereSeparator: { !$0.isLetter })
+                    .map { String($0) }
+                    .filter { $0.count >= 3 }
+            )
+
+            // Jaccard similarity: |intersection| / |union|
+            guard !ocrWords.isEmpty && !pdfKitWords.isEmpty else {
+                documentTextLayerGarbled = false
+                Log.debug("[DocumentProcessor] Text layer validation: insufficient words for comparison (OCR: \(ocrWords.count), PDFKit: \(pdfKitWords.count))", category: .ingestion)
+                break textLayerValidation
+            }
+
+            let intersection = ocrWords.intersection(pdfKitWords).count
+            let union = ocrWords.union(pdfKitWords).count
+            let jaccard = Double(intersection) / Double(union)
+
+            Log.info("[DocumentProcessor] Text layer validation: Jaccard similarity = \(String(format: "%.3f", jaccard)) (OCR words: \(ocrWords.count), PDFKit words: \(pdfKitWords.count), shared: \(intersection))", category: .ingestion)
+
+            if jaccard < 0.15 {
+                // Text layer does NOT match what's visually on the page
+                // This is a font substitution cipher — text layer is USELESS
+                documentTextLayerGarbled = true
+                Log.warning("[DocumentProcessor] ⚠️ GARBLED TEXT LAYER DETECTED (Jaccard=\(String(format: "%.3f", jaccard))). Font substitution cipher suspected. ALL pages will use Vision OCR.", category: .ingestion)
+
+                // Log sample comparison for debugging
+                let ocrSample = Array(ocrWords.prefix(5)).joined(separator: ", ")
+                let pdfSample = Array(pdfKitWords.prefix(5)).joined(separator: ", ")
+                Log.info("[DocumentProcessor] OCR sample: [\(ocrSample)] vs PDFKit sample: [\(pdfSample)]", category: .ingestion)
+            } else {
+                documentTextLayerGarbled = false
+                Log.debug("[DocumentProcessor] ✓ Text layer validated: matches OCR output (Jaccard=\(String(format: "%.3f", jaccard)))", category: .ingestion)
+            }
         }
 
         // PHASE 0: ADAPTIVE COMPLEXITY PRE-SCAN (~5-10ms per page)
@@ -977,6 +1248,28 @@ class DocumentProcessor {
         let maxConcurrentPages = DeviceCapabilityService.shared.ocrExtractionConcurrency
         Log.debug("[DocumentProcessor] Using \(maxConcurrentPages) concurrent pages for OCR (tier: \(DeviceCapabilityService.shared.tier.rawValue))", category: .ingestion)
 
+        // PHASE 1.5: DYNAMIC VOCABULARY EXTRACTION
+        // Extract domain-specific terms from PDFKit's rough text layer BEFORE Vision OCR.
+        // This implements the "document teaches Vision what to look for" approach:
+        //   1. PDFKit gives us fast, rough text (free — no Neural Engine needed)
+        //   2. We mine it for acronyms, codes, technical terms, compound units
+        //   3. Feed those as customWords to Vision, so its neural network knows
+        //      "these ARE real words, don't autocorrect them"
+        // This scales to ANY domain without hardcoding domain-specific vocabulary.
+        let roughDocumentText: String
+        if documentTextLayerGarbled {
+            roughDocumentText = "" // PDFKit text is garbled — don't mine it for vocab
+            Log.debug("[DocumentProcessor] Skipping dynamic vocabulary extraction (garbled text layer)", category: .ingestion)
+        } else {
+            roughDocumentText = (0..<min(pageCount, 50)).compactMap { i in
+                pdfDocument.page(at: i)?.string
+            }.joined(separator: "\n")
+        }
+
+        let documentCustomWords = OCRConfiguration.customWords(forDocumentText: roughDocumentText)
+        self.currentDocumentCustomWords = documentCustomWords
+        Log.debug("[DocumentProcessor] Dynamic vocabulary: \(documentCustomWords.count - OCRConfiguration.universalCustomWords.count) document-specific terms extracted", category: .ingestion)
+
         // Result container for parallel extraction
         struct PageExtractionResult: Sendable {
             let pageIndex: Int
@@ -996,24 +1289,42 @@ class DocumentProcessor {
             let pageImage: CIImage?
             let hasText: Bool
             let textQualityOK: Bool
+            /// True when complexity analysis detected table or dense numeric content.
+            /// Forces Vision OCR even when PDFKit text quality looks acceptable,
+            /// because PDFKit scrambles table cell values and column alignment.
+            let requiresOCRForAccuracy: Bool
         }
 
         // Parallel extraction using TaskGroup with controlled concurrency
         var results: [PageExtractionResult] = []
 
-        // Process pages in batches to control memory pressure
+        // MEMORY-SAFE RENDERING: Limit how many full-resolution page images are alive at once.
+        // At 360 DPI, each page = 6210×11040px ≈ 206 MB (opaque RGB).
+        // Previous code rendered maxConcurrentPages (10) images at once = 2+ GB → OOM crash.
+        // Now we sub-batch: render pdfRenderingConcurrency (3) images → OCR them → release → next.
+        // Quality is UNCHANGED: same 360 DPI, same preprocessing, same Vision accuracy.
+        let maxRenderConcurrency = DeviceCapabilityService.shared.pdfRenderingConcurrency
+        Log.info("[DocumentProcessor] Memory-safe rendering: max \(maxRenderConcurrency) page images alive at once (\(maxRenderConcurrency) × ~206 MB = ~\(maxRenderConcurrency * 206) MB)", category: .ingestion)
+
+        // Process pages in render-safe sub-batches
+        // Outer stride: groups pages for progress reporting (keeps maxConcurrentPages for ANE pipeline)
+        // Inner stride: limits concurrent full-res images to pdfRenderingConcurrency
         for batchStart in stride(from: 0, to: pageCount, by: maxConcurrentPages) {
             let batchEnd = min(batchStart + maxConcurrentPages, pageCount)
-            let batchIndices = batchStart..<batchEnd
 
-            // MEMORY OPTIMIZATION: Render only this batch's pages
+            // Sub-batch rendering: render only maxRenderConcurrency pages at a time
+            for renderStart in stride(from: batchStart, to: batchEnd, by: maxRenderConcurrency) {
+                let renderEnd = min(renderStart + maxRenderConcurrency, batchEnd)
+                let subBatchIndices = renderStart..<renderEnd
+
+            // MEMORY-SAFE: Render only this sub-batch's pages (maxRenderConcurrency at a time)
             // GPU ACCELERATION: Apply preprocessing filters for better OCR accuracy
             // ADAPTIVE OCR: Only render images for pages that need OCR based on complexity analysis
             var batchPageData: [PageData] = []
-            for pageIndex in batchIndices {
+            for pageIndex in subBatchIndices {
                 autoreleasepool {
                     guard let page = pdfDocument.page(at: pageIndex) else {
-                        batchPageData.append(PageData(pageIndex: pageIndex, pageString: nil, pageImage: nil, hasText: false, textQualityOK: false))
+                        batchPageData.append(PageData(pageIndex: pageIndex, pageString: nil, pageImage: nil, hasText: false, textQualityOK: false, requiresOCRForAccuracy: false))
                         return
                     }
 
@@ -1023,36 +1334,64 @@ class DocumentProcessor {
 
                     let pageString = page.string
 
+                    // Detect if this page has table/numeric content that REQUIRES Vision OCR
+                    // even when PDFKit text quality looks acceptable.
+                    // PDFKit text extraction scrambles table cell values and column alignment.
+                    let requiresOCRForAccuracy: Bool = {
+                        guard let c = complexity else { return false }
+                        return c.tablePresence > 0.2 || c.numericDensity > 0.3
+                    }()
+
                     // ADAPTIVE: Only render image if this page actually needs OCR
                     // Simple pages (.directText, .spatialText) skip expensive image rendering entirely!
+                    // EXCEPTION: If text layer is garbled (font substitution cipher), ALL pages need OCR
                     var pageImage: CIImage? = nil
-                    if strategy == .basicOCR || strategy == .enhancedOCR || strategy == .fullOCR {
-                        // Complex page - render and preprocess image
+                    if documentTextLayerGarbled || strategy == .basicOCR || strategy == .enhancedOCR || strategy == .fullOCR {
+                        // Complex page - render and preprocess image with adaptive strategy
                         pageImage = renderPDFPageAsImage(page: page)
                         if let image = pageImage {
-                            pageImage = preprocessImageForOCR(image)
+                            let textQuality = complexity?.textQuality ?? 0.7
+                            let isScanned = complexity?.processingStrategy == .fullOCR
+                            let hasText = (pageString?.trimmingCharacters(in: .whitespacesAndNewlines).count ?? 0) > 10
+                            pageImage = preprocessImageForOCR(
+                                image,
+                                textQuality: textQuality,
+                                hasNativeTextLayer: hasText,
+                                isScanned: isScanned
+                            )
                         }
                     }
                     // else: Skip image rendering - saves ~50-100ms per simple page!
 
                     // Pre-compute text presence and quality checks
                     let hasText = pageString != nil && !pageString!.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    let textQualityOK = hasText && isTextQualityAcceptable(pageString!)
+                    // When text layer is garbled (font substitution cipher), NEVER trust PDFKit text
+                    let textQualityOK = !documentTextLayerGarbled && hasText && isTextQualityAcceptable(pageString!)
 
-                    // For pages with good text quality, also try spatial extraction synchronously
+                    traceIngestionDecision(
+                        pageNumber: pageNumber,
+                        strategy: strategy.description,
+                        hasText: hasText,
+                        textQualityOK: textQualityOK,
+                        requiresTableOCR: requiresOCRForAccuracy,
+                        mode: "ocr-extraction"
+                    )
+
+                    // For pages with good text quality that DON'T have tables, try spatial extraction
+                    // Table pages skip spatial — their text will come from Vision OCR instead
                     var effectiveString = pageString
-                    if hasText && textQualityOK {
+                    if hasText && textQualityOK && !requiresOCRForAccuracy {
                         if let spatialText = extractTextWithSpatialOrdering(from: page), !spatialText.isEmpty {
                             effectiveString = spatialText
                         }
                     }
 
-                    batchPageData.append(PageData(pageIndex: pageIndex, pageString: effectiveString, pageImage: pageImage, hasText: hasText, textQualityOK: textQualityOK))
+                    batchPageData.append(PageData(pageIndex: pageIndex, pageString: effectiveString, pageImage: pageImage, hasText: hasText, textQualityOK: textQualityOK, requiresOCRForAccuracy: requiresOCRForAccuracy))
                 }
             }
 
             let batchResults = await withTaskGroup(of: PageExtractionResult.self) { group in
-                for (batchOffset, pageIndex) in batchIndices.enumerated() {
+                for (batchOffset, pageIndex) in subBatchIndices.enumerated() {
                     let pageData = batchPageData[batchOffset]
 
                     group.addTask {
@@ -1063,6 +1402,65 @@ class DocumentProcessor {
                         // Use pre-computed values to avoid MainActor calls
                         let hasText = pageData.hasText
                         let textQualityOK = pageData.textQualityOK
+                        let requiresOCRForAccuracy = pageData.requiresOCRForAccuracy
+
+                        if requiresOCRForAccuracy && pageData.pageImage != nil {
+                            // ═══════════════════════════════════════════════════════════
+                            // TABLE/NUMERIC PAGE: Force Vision OCR for accurate data
+                            // PDFKit text extraction DESTROYS table structure —
+                            // column values get scrambled, decimals get misread,
+                            // and cell boundaries are lost. Vision OCR with
+                            // RecognizeDocumentsRequest preserves exact numeric values.
+                            // ═══════════════════════════════════════════════════════════
+                            Log.debug("   🔬 Page \(pageNumber): Table/numeric content detected, forcing Vision OCR for accuracy", category: .ingestion)
+                            await MainActor.run {
+                                self.progressHandler?("page \(pageNumber)/\(pageCount), OCR (table accuracy)")
+                            }
+
+                            if let pageImage = pageData.pageImage,
+                               let (ocrText, _) = try? await self.performEnhancedSpatialOCR(on: pageImage, pageNumber: pageNumber),
+                               !ocrText.isEmpty {
+                                let pageTime = Date().timeIntervalSince(pageStartTime)
+                                // Log comparison for debugging
+                                let pdfKitChars = pageText?.count ?? 0
+                                Log.debug("   ✓ Page \(pageNumber): Vision OCR \(ocrText.count) chars vs PDFKit \(pdfKitChars) chars (\(String(format: "%.2f", pageTime))s)", category: .ingestion)
+                                self.traceIngestionOutcome(
+                                    pageNumber: pageNumber,
+                                    path: "table-forced-ocr",
+                                    chars: ocrText.count,
+                                    duration: pageTime,
+                                    extra: [("pdfkitChars", "\(pdfKitChars)")]
+                                )
+
+                                return PageExtractionResult(
+                                    pageIndex: pageIndex,
+                                    text: ocrText,
+                                    usedOCR: true,
+                                    usedSpatial: false,
+                                    ocrCharCount: ocrText.count,
+                                    noTextLayer: false
+                                )
+                            }
+
+                            // Vision OCR failed — fall through to PDFKit text if available
+                            if hasText, let fallback = pageText {
+                                Log.warning("   ⚠️ Page \(pageNumber): Vision OCR failed on table page, using PDFKit fallback", category: .ingestion)
+                                self.traceIngestionOutcome(
+                                    pageNumber: pageNumber,
+                                    path: "table-fallback-pdfkit",
+                                    chars: fallback.count,
+                                    duration: Date().timeIntervalSince(pageStartTime)
+                                )
+                                return PageExtractionResult(
+                                    pageIndex: pageIndex,
+                                    text: fallback,
+                                    usedOCR: false,
+                                    usedSpatial: false,
+                                    ocrCharCount: 0,
+                                    noTextLayer: false
+                                )
+                            }
+                        }
 
                         if hasText && textQualityOK {
                             // Good text layer - use it (spatial extraction already applied above)
@@ -1073,6 +1471,12 @@ class DocumentProcessor {
                             let pageTime = Date().timeIntervalSince(pageStartTime)
                             let method = isSpatial ? "spatial" : "text"
                             Log.debug("   ✓ Page \(pageNumber): \(pageText!.count) chars (\(method), \(String(format: "%.2f", pageTime))s)", category: .ingestion)
+                            self.traceIngestionOutcome(
+                                pageNumber: pageNumber,
+                                path: isSpatial ? "spatial-ordering" : "native-text",
+                                chars: pageText!.count,
+                                duration: pageTime
+                            )
 
                             return PageExtractionResult(
                                 pageIndex: pageIndex,
@@ -1097,6 +1501,12 @@ class DocumentProcessor {
                                     if ocrQualityOK {
                                         let pageTime = Date().timeIntervalSince(pageStartTime)
                                         Log.debug("   ✓ Page \(pageNumber): Enhanced OCR replaced garbage text (\(ocrText.count) chars, \(String(format: "%.2f", pageTime))s)", category: .ingestion)
+                                        self.traceIngestionOutcome(
+                                            pageNumber: pageNumber,
+                                            path: "quality-repair-ocr",
+                                            chars: ocrText.count,
+                                            duration: pageTime
+                                        )
 
                                         return PageExtractionResult(
                                             pageIndex: pageIndex,
@@ -1112,6 +1522,12 @@ class DocumentProcessor {
 
                             // Fallback to original text
                             Log.warning("   ⚠️ Page \(pageNumber): Using original text despite quality concerns", category: .ingestion)
+                            self.traceIngestionOutcome(
+                                pageNumber: pageNumber,
+                                path: "quality-fallback-native",
+                                chars: pageText?.count ?? 0,
+                                duration: Date().timeIntervalSince(pageStartTime)
+                            )
                             return PageExtractionResult(
                                 pageIndex: pageIndex,
                                 text: pageText!,
@@ -1131,6 +1547,12 @@ class DocumentProcessor {
                                    !ocrText.isEmpty {
                                     let pageTime = Date().timeIntervalSince(pageStartTime)
                                     Log.debug("   ✓ Page \(pageNumber): Enhanced OCR extracted \(ocrText.count) chars (\(String(format: "%.2f", pageTime))s)", category: .ingestion)
+                                    self.traceIngestionOutcome(
+                                        pageNumber: pageNumber,
+                                        path: "no-text-ocr",
+                                        chars: ocrText.count,
+                                        duration: pageTime
+                                    )
 
                                     return PageExtractionResult(
                                         pageIndex: pageIndex,
@@ -1143,6 +1565,12 @@ class DocumentProcessor {
                                 }
                             }
 
+                            self.traceIngestionOutcome(
+                                pageNumber: pageNumber,
+                                path: "no-text-ocr-empty",
+                                chars: 0,
+                                duration: Date().timeIntervalSince(pageStartTime)
+                            )
                             return PageExtractionResult(
                                 pageIndex: pageIndex,
                                 text: "",
@@ -1163,9 +1591,11 @@ class DocumentProcessor {
             }
 
             results.append(contentsOf: batchResults)
-            // MEMORY OPTIMIZATION: batchPageData goes out of scope here, releasing CIImages
-            // This keeps peak memory to ~36MB (4 pages) instead of ~4.8GB (542 pages)
-        }
+            // MEMORY-SAFE: batchPageData goes out of scope here, releasing CIImages
+            // Only maxRenderConcurrency (3) page images were alive at once
+            // At 360 DPI: 3 × 206 MB = ~618 MB peak vs previous 10 × 206 MB = 2+ GB
+            } // end inner sub-batch (render-safe)
+        } // end outer batch (progress reporting)
 
         // Sort results by page index and compute statistics
         results.sort { $0.pageIndex < $1.pageIndex }
@@ -1180,7 +1610,8 @@ class DocumentProcessor {
         progressHandler?("cleaning headers/footers")
         let cleanedPageTexts = removeRepeatedHeadersFooters(from: pageTexts)
 
-        // PASS 3: Assemble final text with page mappings
+        // PASS 3: Assemble final text with page mappings AND page break sentinels
+        // The sentinel survives normalization and lets us split per-page later for FTS5 storage.
         var fullText = ""
         var pageTextRanges: PageTextMapping = [:]
 
@@ -1189,7 +1620,11 @@ class DocumentProcessor {
             let pageStartIndex = fullText.endIndex
 
             if !cleanedText.isEmpty {
-                fullText += cleanedText + "\n\n"
+                // Insert page break sentinel between pages (not before first page)
+                if !fullText.isEmpty {
+                    fullText += "\n\n\(Self.pageBreakSentinel)\n\n"
+                }
+                fullText += cleanedText
                 let pageEndIndex = fullText.endIndex
                 pageTextRanges[pageNumber] = pageStartIndex..<pageEndIndex
             }
@@ -1228,10 +1663,7 @@ class DocumentProcessor {
     /// On iOS 26+, uses Vision's RecognizeDocumentsRequest for structure-aware parsing.
     /// This preserves tabular data integrity - specs in one table won't mix with unrelated data.
     private func extractStructuredPDFContent(url: URL) async throws -> StructuredExtractionResult {
-        guard let pdfDocument = PDFDocument(url: url) else {
-            Log.error("[DocumentProcessor] PDF load failed for structured parsing: \(url.lastPathComponent)", category: .ingestion)
-            throw DocumentProcessingError.pdfLoadFailed
-        }
+        let pdfDocument = try loadPDF(url: url, context: "Structured PDF")
 
         let pageCount = pdfDocument.pageCount
         guard pageCount > 0 else {
@@ -1288,8 +1720,103 @@ class DocumentProcessor {
         let parser = StructuredDocumentParser.shared
         let layoutExtractor = LayoutAwareExtractor.shared
 
+        // Pass dynamic vocabulary to the structured document parser
+        // so RecognizeDocumentsRequest knows the document's domain terms
+        await parser.setDocumentCustomWords(currentDocumentCustomWords)
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // PHASE -1: DOCUMENT-LEVEL TEXT LAYER VALIDATION
+        // ═══════════════════════════════════════════════════════════════════════
+        // Font substitution cipher PDFs (Kia, Hyundai, Asian-publisher manuals)
+        // have text layers that pass ALL quality checks (printable ASCII, normal
+        // word lengths, NLLanguageRecognizer detects "Dutch") but are completely
+        // garbled. OCR a sample page and compare via Jaccard similarity.
+        // If < 0.15, text layer is unusable → force ALL pages through Vision OCR.
+        // Runs ONCE per document (~200-500ms).
+        // ═══════════════════════════════════════════════════════════════════════
+        let documentTextLayerGarbled: Bool
+        textLayerValidation: do {
+            let sampleIndices = pageCount <= 3
+                ? Array(0..<pageCount)
+                : [0, pageCount / 3, 2 * pageCount / 3]
+
+            var bestSampleText = ""
+            var bestSamplePage: PDFPage?
+
+            for idx in sampleIndices {
+                guard let page = pdfDocument.page(at: idx) else { continue }
+                let text = page.string?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                if text.count > bestSampleText.count {
+                    bestSampleText = text
+                    bestSamplePage = page
+                }
+            }
+
+            // No text layer at all → not garbled, just needs OCR
+            guard bestSampleText.count >= 50, let samplePage = bestSamplePage else {
+                documentTextLayerGarbled = false
+                Log.debug("[DocumentProcessor] [iOS26] Text layer validation: no/minimal text layer, skipping", category: .ingestion)
+                break textLayerValidation
+            }
+
+            emitProgress(stage: "validating", detail: "🔍 Validating text layer...", page: nil, totalPages: pageCount)
+            guard let sampleImage = renderPDFPageAsImage(page: samplePage) else {
+                documentTextLayerGarbled = false
+                Log.warning("[DocumentProcessor] [iOS26] Text layer validation: failed to render sample page", category: .ingestion)
+                break textLayerValidation
+            }
+
+            let ocrObservations: [VNRecognizedTextObservation]
+            do {
+                ocrObservations = try await performOCRWithObservationsAsync(on: sampleImage)
+            } catch {
+                documentTextLayerGarbled = false
+                Log.warning("[DocumentProcessor] [iOS26] Text layer validation: OCR failed (\(error.localizedDescription)), assuming OK", category: .ingestion)
+                break textLayerValidation
+            }
+
+            let ocrWords: Set<String> = Set(
+                ocrObservations
+                    .compactMap { $0.topCandidates(1).first?.string }
+                    .flatMap { $0.lowercased().split(whereSeparator: { !$0.isLetter }) }
+                    .map { String($0) }
+                    .filter { $0.count >= 3 }
+            )
+
+            let pdfKitWords: Set<String> = Set(
+                bestSampleText.lowercased()
+                    .split(whereSeparator: { !$0.isLetter })
+                    .map { String($0) }
+                    .filter { $0.count >= 3 }
+            )
+
+            guard !ocrWords.isEmpty && !pdfKitWords.isEmpty else {
+                documentTextLayerGarbled = false
+                Log.debug("[DocumentProcessor] [iOS26] Text layer validation: insufficient words (OCR: \(ocrWords.count), PDFKit: \(pdfKitWords.count))", category: .ingestion)
+                break textLayerValidation
+            }
+
+            let intersection = ocrWords.intersection(pdfKitWords).count
+            let union = ocrWords.union(pdfKitWords).count
+            let jaccard = Double(intersection) / Double(union)
+
+            Log.info("[DocumentProcessor] [iOS26] Text layer Jaccard = \(String(format: "%.3f", jaccard)) (OCR: \(ocrWords.count) words, PDFKit: \(pdfKitWords.count) words, shared: \(intersection))", category: .ingestion)
+
+            if jaccard < 0.15 {
+                documentTextLayerGarbled = true
+                Log.warning("[DocumentProcessor] ⚠️ [iOS26] GARBLED TEXT LAYER (Jaccard=\(String(format: "%.3f", jaccard))). Font substitution cipher. ALL pages → Vision OCR.", category: .ingestion)
+                let ocrSample = Array(ocrWords.prefix(5)).joined(separator: ", ")
+                let pdfSample = Array(pdfKitWords.prefix(5)).joined(separator: ", ")
+                Log.info("[DocumentProcessor] [iOS26] OCR sample: [\(ocrSample)] vs PDFKit sample: [\(pdfSample)]", category: .ingestion)
+            } else {
+                documentTextLayerGarbled = false
+                Log.debug("[DocumentProcessor] [iOS26] ✓ Text layer validated (Jaccard=\(String(format: "%.3f", jaccard)))", category: .ingestion)
+            }
+        }
+
         // Check if this is a digital PDF with good native text
-        let useHybridMode = pdfHasGoodNativeText(pdfDocument)
+        // PHASE -1 override: if text layer is garbled, NEVER use hybrid mode
+        let useHybridMode = !documentTextLayerGarbled && pdfHasGoodNativeText(pdfDocument)
         if useHybridMode {
             Log.info("[DocumentProcessor] � LAYOUT-AWARE HYBRID MODE enabled (digital PDF with good text)", category: .ingestion)
             Log.info("[DocumentProcessor] 📐 Multi-column layouts will be detected and read in proper order", category: .ingestion)
@@ -1363,9 +1890,16 @@ class DocumentProcessor {
         let visionRequired = pageCount - skipVisionCount
         Log.info("[DocumentProcessor] 🚀 ADAPTIVE: \(skipVisionCount) pages skip Vision OCR, \(visionRequired) need layout detection", category: .ingestion)
 
+        // MEMORY-SAFE RENDERING: Limit concurrent full-res page images.
+        // At 360 DPI, each page = 6210×11040px ≈ 206 MB (opaque RGB).
+        // Previous code rendered maxConcurrentPages (10) images = 2+ GB → OOM crash.
+        // Now sub-batch: render pdfRenderingConcurrency (3) → analyze → OCR → release → next.
+        // Quality is UNCHANGED: same 360 DPI, same preprocessing, same Vision accuracy.
+        let maxRenderConcurrency = DeviceCapabilityService.shared.pdfRenderingConcurrency
+        Log.info("[DocumentProcessor] Memory-safe Vision rendering: max \(maxRenderConcurrency) page images alive at once (~\(maxRenderConcurrency * 206) MB)", category: .ingestion)
+
         for batchStart in stride(from: 0, to: pageCount, by: maxConcurrentPages) {
             let batchEnd = min(batchStart + maxConcurrentPages, pageCount)
-            let batchIndices = batchStart..<batchEnd
 
             // Emit rich progress with current metrics
             await MainActor.run {
@@ -1379,8 +1913,13 @@ class DocumentProcessor {
                 )
             }
 
-            // MEMORY OPTIMIZATION: Render only this batch's pages (not all pages upfront)
-            // This keeps peak memory to ~27MB (3 pages) instead of ~4.8GB (542 pages)
+            // Sub-batch rendering: render only maxRenderConcurrency pages at a time
+            // Each sub-batch goes through render → layout → structured parsing → release
+            for renderStart in stride(from: batchStart, to: batchEnd, by: maxRenderConcurrency) {
+                let renderEnd = min(renderStart + maxRenderConcurrency, batchEnd)
+                let subBatchIndices = renderStart..<renderEnd
+
+            // MEMORY-SAFE: Render only this sub-batch's pages
             // GPU ACCELERATION: Apply preprocessing filters for better OCR accuracy
             // ADAPTIVE: Only render images for pages that need Vision layout detection
 
@@ -1390,14 +1929,14 @@ class DocumentProcessor {
             await MainActor.run {
                 self.emitProgress(
                     stage: "render",
-                    detail: "🎨 \(gpuLabel) Rendering pages \(batchStart + 1)-\(batchEnd)/\(pageCount)",
-                    page: batchStart,
+                    detail: "🎨 \(gpuLabel) Rendering pages \(renderStart + 1)-\(renderEnd)/\(pageCount)",
+                    page: renderStart,
                     totalPages: pageCount
                 )
             }
 
             var batchRenderData: [PageRenderData] = []
-            for pageIndex in batchIndices {
+            for pageIndex in subBatchIndices {
                 autoreleasepool {
                     guard let page = pdfDocument.page(at: pageIndex) else {
                         batchRenderData.append(PageRenderData(pageIndex: pageIndex, pageImage: nil, plainText: nil, layoutText: nil))
@@ -1407,23 +1946,46 @@ class DocumentProcessor {
                     let pageNumber = pageIndex + 1
                     let complexity = pageComplexity[pageNumber]
                     let strategy = complexity?.processingStrategy ?? .enhancedOCR  // Safe default
-                    let needsVision = strategy == .basicOCR || strategy == .enhancedOCR || strategy == .fullOCR
+                    // PHASE -1 override: garbled text layer → ALL pages need Vision OCR
+                    let needsVision = documentTextLayerGarbled || strategy == .basicOCR || strategy == .enhancedOCR || strategy == .fullOCR
+                    let plainText = page.string
+                    let hasText = (plainText?.trimmingCharacters(in: .whitespacesAndNewlines).count ?? 0) > 0
+                    let requiresTableOCR = (complexity?.tablePresence ?? 0) > 0.2 || (complexity?.numericDensity ?? 0) > 0.3
+
+                    traceIngestionDecision(
+                        pageNumber: pageNumber,
+                        strategy: documentTextLayerGarbled ? "garbled-force-ocr" : strategy.description,
+                        hasText: hasText,
+                        textQualityOK: !documentTextLayerGarbled && (complexity?.textQuality ?? 0) > 0.65,
+                        requiresTableOCR: requiresTableOCR,
+                        mode: documentTextLayerGarbled ? "structured-garbled-ocr" : "structured-hybrid"
+                    )
 
                     // ADAPTIVE: Only render image if this page needs Vision layout detection
                     // Simple pages with good text skip image rendering entirely!
+                    // PHASE -1 override: garbled text → ALWAYS render image for OCR
                     var pageImage: CIImage? = nil
                     if needsVision {
                         pageImage = renderPDFPageAsImage(page: page)
                         if let image = pageImage {
-                            pageImage = preprocessImageForOCR(image)
+                            let textQuality = documentTextLayerGarbled ? 0.0 : (complexity?.textQuality ?? 0.7)
+                            let isScanned = documentTextLayerGarbled || strategy == .fullOCR
+                            let plainText = page.string
+                            // Garbled text layer → tell preprocessor there's NO usable native text
+                            let hasText = !documentTextLayerGarbled && (plainText?.trimmingCharacters(in: .whitespacesAndNewlines).count ?? 0) > 10
+                            pageImage = preprocessImageForOCR(
+                                image,
+                                textQuality: textQuality,
+                                hasNativeTextLayer: hasText,
+                                isScanned: isScanned
+                            )
                         }
                     }
 
-                    let plainText = page.string
-
                     // For simple pages, try spatial extraction right away
+                    // PHASE -1 override: NEVER use PDFKit text when text layer is garbled
                     var layoutText: String? = nil
-                    if !needsVision, let text = plainText, !text.isEmpty {
+                    if !documentTextLayerGarbled && !needsVision, let text = plainText, !text.isEmpty {
                         // Use PDFKit spatial extraction (no Vision needed)
                         layoutText = extractTextWithSpatialOrdering(from: page) ?? text
                         Log.debug("[DocumentProcessor] Page \(pageNumber): Using PDFKit spatial extraction (skipped Vision)", category: .ingestion)
@@ -1450,7 +2012,7 @@ class DocumentProcessor {
 
                 var layoutResults: [Int: String] = [:]
                 await withTaskGroup(of: (Int, String).self) { group in
-                    for (batchOffset, pageIndex) in batchIndices.enumerated() {
+                    for (batchOffset, pageIndex) in subBatchIndices.enumerated() {
                         let renderData = batchRenderData[batchOffset]
                         // ADAPTIVE: Skip pages that already have layoutText (PDFKit extraction)
                         // Only run Vision on pages with images that need layout detection
@@ -1512,16 +2074,23 @@ class DocumentProcessor {
             }
 
             let batchResults = await withTaskGroup(of: PageParseResult.self) { group in
-                for (batchOffset, pageIndex) in batchIndices.enumerated() {
+                for (batchOffset, pageIndex) in subBatchIndices.enumerated() {
                     let renderData = batchRenderData[batchOffset]
                     let isHybridMode = useHybridMode  // Capture for sendable closure
+                    let isGarbled = documentTextLayerGarbled  // Capture for sendable closure
 
                     group.addTask {
                         let pageNumber = pageIndex + 1
 
                         // No page data available
                         guard let pageImage = renderData.pageImage else {
-                            if let plainText = renderData.plainText, !plainText.isEmpty {
+                            // PHASE -1: when text layer is garbled, don't use PDFKit fallback
+                            if !isGarbled, let plainText = renderData.plainText, !plainText.isEmpty {
+                                self.traceIngestionOutcome(
+                                    pageNumber: pageNumber,
+                                    path: "structured-skip-vision-native",
+                                    chars: plainText.count
+                                )
                                 return PageParseResult(
                                     pageIndex: pageIndex,
                                     elements: [StructuredElementWrapper(
@@ -1538,6 +2107,11 @@ class DocumentProcessor {
                                     headersFound: 0
                                 )
                             }
+                            self.traceIngestionOutcome(
+                                pageNumber: pageNumber,
+                                path: "structured-empty-no-image",
+                                chars: 0
+                            )
                             return PageParseResult(pageIndex: pageIndex, elements: [], pageText: "", hasStructure: false, usedOCR: false, tablesFound: 0, listsFound: 0, headersFound: 0)
                         }
 
@@ -1629,10 +2203,49 @@ class DocumentProcessor {
                                 ))
                             }
 
-                            // Use layout text for pageText in hybrid mode (correct column order)
-                            let pageTextOutput = (isHybridMode && layoutText != nil && !layoutText!.isEmpty)
-                                ? layoutText!
-                                : structuredContent.rawText
+                            // Build structured pageText from elements with proper formatting
+                            // Each element type gets appropriate visual separation
+                            let pageTextOutput: String
+                            if !elements.isEmpty {
+                                var textParts: [String] = []
+                                for elem in elements {
+                                    let trimmed = elem.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                                    guard !trimmed.isEmpty else { continue }
+                                    switch elem.elementType {
+                                    case "title":
+                                        // Section headers get emphasis
+                                        textParts.append("\n\(trimmed)")
+                                    case "table":
+                                        // Tables get clear boundaries
+                                        textParts.append("\n\(trimmed)\n")
+                                    case "list":
+                                        // Lists get a blank line before
+                                        textParts.append("\n\(trimmed)")
+                                    case "figure":
+                                        // Figures get brackets
+                                        textParts.append("\n\(trimmed)\n")
+                                    default:
+                                        // Paragraphs: standard double-newline separation
+                                        textParts.append(trimmed)
+                                    }
+                                }
+                                pageTextOutput = textParts.joined(separator: "\n\n")
+                            } else if isHybridMode, let layout = layoutText, !layout.isEmpty {
+                                pageTextOutput = layout
+                            } else {
+                                pageTextOutput = structuredContent.rawText
+                            }
+
+                            self.traceIngestionOutcome(
+                                pageNumber: pageNumber,
+                                path: isHybridMode ? "structured-hybrid" : "structured-vision",
+                                chars: pageTextOutput.count,
+                                extra: [
+                                    ("tables", "\(pageTablesCount)"),
+                                    ("lists", "\(pageListsCount)"),
+                                    ("headers", "\(pageHeadersCount)")
+                                ]
+                            )
 
                             return PageParseResult(
                                 pageIndex: pageIndex,
@@ -1648,6 +2261,11 @@ class DocumentProcessor {
                         } catch StructuredParsingError.noDocumentDetected {
                             // No document content - try OCR fallback
                             if let ocrText = try? await self.performOCR(on: pageImage), !ocrText.isEmpty {
+                                self.traceIngestionOutcome(
+                                    pageNumber: pageNumber,
+                                    path: "structured-fallback-ocr",
+                                    chars: ocrText.count
+                                )
                                 return PageParseResult(
                                     pageIndex: pageIndex,
                                     elements: [StructuredElementWrapper(
@@ -1664,12 +2282,22 @@ class DocumentProcessor {
                                     headersFound: 0
                                 )
                             }
+                            self.traceIngestionOutcome(
+                                pageNumber: pageNumber,
+                                path: "structured-no-document-empty",
+                                chars: 0
+                            )
                             return PageParseResult(pageIndex: pageIndex, elements: [], pageText: "", hasStructure: false, usedOCR: false, tablesFound: 0, listsFound: 0, headersFound: 0)
 
                         } catch {
                             Log.warning("[DocumentProcessor] Structured parsing failed for page \(pageNumber): \(error.localizedDescription)", category: .ingestion)
-                            // Fallback to plain text
-                            if let plainText = renderData.plainText, !plainText.isEmpty {
+                            // Fallback to plain text — but NOT if text layer is garbled
+                            if !isGarbled, let plainText = renderData.plainText, !plainText.isEmpty {
+                                self.traceIngestionOutcome(
+                                    pageNumber: pageNumber,
+                                    path: "structured-error-fallback-native",
+                                    chars: plainText.count
+                                )
                                 return PageParseResult(
                                     pageIndex: pageIndex,
                                     elements: [],
@@ -1681,6 +2309,11 @@ class DocumentProcessor {
                                     headersFound: 0
                                 )
                             }
+                            self.traceIngestionOutcome(
+                                pageNumber: pageNumber,
+                                path: "structured-error-empty",
+                                chars: 0
+                            )
                             return PageParseResult(pageIndex: pageIndex, elements: [], pageText: "", hasStructure: false, usedOCR: false, tablesFound: 0, listsFound: 0, headersFound: 0)
                         }
                     }
@@ -1693,7 +2326,7 @@ class DocumentProcessor {
                 return collected
             }
 
-            // Aggregate metrics from this batch and emit live progress
+            // Aggregate metrics from this sub-batch and emit live progress
             var batchTables = 0, batchLists = 0, batchHeaders = 0, batchOCR = 0
             for r in batchResults {
                 batchTables += r.tablesFound
@@ -1703,7 +2336,12 @@ class DocumentProcessor {
             }
             incrementMetric(tables: batchTables, lists: batchLists, headers: batchHeaders, ocrPages: batchOCR)
 
-            // Emit updated progress with accumulated metrics
+            results.append(contentsOf: batchResults)
+            // MEMORY-SAFE: batchRenderData goes out of scope here, releasing CIImages
+            // Only maxRenderConcurrency (3) page images were alive at once
+            } // end inner sub-batch (render-safe)
+
+            // Emit updated progress with accumulated metrics (once per outer batch)
             await MainActor.run {
                 let m = self.liveMetrics
                 var detailParts: [String] = ["pg \(batchEnd)/\(pageCount)"]
@@ -1717,13 +2355,7 @@ class DocumentProcessor {
                     totalPages: pageCount
                 )
             }
-
-            results.append(contentsOf: batchResults)
-
-            // MEMORY OPTIMIZATION: Clear batch render data to release CIImages
-            // This allows ARC to reclaim ~27MB per batch before the next batch loads
-            // batchRenderData goes out of scope here, releasing the images
-        }
+        } // end outer batch (progress reporting)
 
         // Sort by page index and aggregate results
         results.sort { $0.pageIndex < $1.pageIndex }
@@ -1761,7 +2393,12 @@ class DocumentProcessor {
             let pageNumber = index + 1
             let pageStartIndex = fullText.endIndex
             if !cleanedText.isEmpty {
-                fullText += cleanedText + "\n\n"
+                // Insert page break sentinel between pages (same as legacy path)
+                // so processDocument can split into per-page content with --- Page N --- markers
+                if !fullText.isEmpty {
+                    fullText += "\n\n\(Self.pageBreakSentinel)\n\n"
+                }
+                fullText += cleanedText
                 pageTextRanges[pageNumber] = pageStartIndex..<fullText.endIndex
             }
         }
@@ -1881,13 +2518,17 @@ class DocumentProcessor {
         for element in elements {
             // Track section titles for context association
             if element.elementType == "title" {
-                let titleText = element.text.trimmingCharacters(in: .whitespacesAndNewlines)
-                currentSectionTitle = titleText
-                // Build section path (max 3 levels)
-                if currentSectionPath.count >= 3 {
-                    currentSectionPath.removeFirst()
+                let titleText = sanitizeStructuredLabel(element.text)
+                if let titleText {
+                    currentSectionTitle = titleText
+                    // Build section path (max 3 levels)
+                    if currentSectionPath.count >= 3 {
+                        currentSectionPath.removeFirst()
+                    }
+                    currentSectionPath.append(titleText)
+                } else {
+                    Log.debug("[DocumentProcessor] Dropping garbled section title from path context", category: .ingestion)
                 }
-                currentSectionPath.append(titleText)
             }
 
             if element.isAtomicChunk {
@@ -1895,7 +2536,19 @@ class DocumentProcessor {
                 flushParagraphBuffer()
 
                 // Tables and important lists become single atomic chunks
-                var text = element.text
+                var text = OCRConfiguration.normalizeExtractedText(element.text)
+
+                // Universal garbage filtering for atomic structured content.
+                // This prevents OCR-corrupted rows/headers from becoming retrieval anchors.
+                let (filteredAtomicText, removedAtomicLines) = OCRConfiguration.filterGarbageText(text)
+                if removedAtomicLines > 0 {
+                    Log.debug(
+                        "[DocumentProcessor] Atomic \(element.elementType) cleanup removed \(removedAtomicLines) noisy lines",
+                        category: .ingestion
+                    )
+                    text = filteredAtomicText
+                }
+
                 guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
 
                 // UNIVERSAL: Prepend FULL section path to table for hierarchical context
@@ -1909,7 +2562,10 @@ class DocumentProcessor {
                     contextPrefix = "Section Path: \(pathString)\n"
                     text = contextPrefix + text
                     Log.debug("[DocumentProcessor] Table with full path: \(pathString)", category: .ingestion)
-                } else if let sectionTitle = currentSectionTitle, element.elementType == "table" {
+                } else if let sectionTitle = currentSectionTitle,
+                          element.elementType == "table",
+                          sanitizeStructuredLabel(sectionTitle) != nil
+                {
                     // Fallback to single section title if no path available
                     contextPrefix = "Section: \(sectionTitle)\n"
                     text = contextPrefix + text
@@ -1962,10 +2618,22 @@ class DocumentProcessor {
 
             } else if element.elementType == "paragraph" || element.elementType == "title" {
                 // Buffer paragraphs for semantic chunking
-                paragraphBuffer.append((text: element.text, page: element.pageNumber))
+                let normalized = OCRConfiguration.normalizeExtractedText(element.text)
+                let trimmed = normalized.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    // Do not feed garbled title text into paragraph chunking path
+                    if element.elementType == "title", sanitizeStructuredLabel(trimmed) == nil {
+                        continue
+                    }
+                    paragraphBuffer.append((text: trimmed, page: element.pageNumber))
+                }
             } else {
                 // Lists that aren't atomic get buffered too
-                paragraphBuffer.append((text: element.text, page: element.pageNumber))
+                let normalized = OCRConfiguration.normalizeExtractedText(element.text)
+                let trimmed = normalized.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    paragraphBuffer.append((text: trimmed, page: element.pageNumber))
+                }
             }
         }
 
@@ -1982,8 +2650,45 @@ class DocumentProcessor {
         return chunks
     }
 
+    /// Sanitizes potential section labels/titles used for section context.
+    /// Returns nil when the label appears OCR-garbled and unsafe to propagate.
+    private func sanitizeStructuredLabel(_ raw: String) -> String? {
+        let normalized = OCRConfiguration
+            .normalizeExtractedText(raw)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !normalized.isEmpty else { return nil }
+        guard !normalized.hasPrefix("[OCR unclear]"),
+              !normalized.hasPrefix("[OCR quality: low]")
+        else {
+            return nil
+        }
+
+        // Filter line-level OCR garbage and re-evaluate
+        let (cleaned, _) = OCRConfiguration.filterGarbageText(normalized)
+        let candidate = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard candidate.count >= 2 else { return nil }
+
+        // Reject labels that are symbol-heavy / mostly non-alphanumeric
+        let scalars = candidate.unicodeScalars
+        let alnumCount = scalars.filter { CharacterSet.alphanumerics.contains($0) }.count
+        let ratio = Double(alnumCount) / Double(max(1, scalars.count))
+        if scalars.count >= 8, ratio < 0.45 {
+            return nil
+        }
+
+        // Reject long labels that fail global text quality checks
+        if candidate.count >= 24, !isTextQualityAcceptable(candidate) {
+            return nil
+        }
+
+        return candidate
+    }
+
     /// Split an oversized atomic chunk (table/list) into multiple smaller chunks
-    /// Preserves context prefix and section path on each chunk for retrieval coherence
+    /// Preserves context prefix and section path on each chunk for retrieval coherence.
+    /// For tables: repeats the header row at the top of each continuation chunk
+    /// so that every chunk has column labels for its numeric values.
     private func splitOversizedAtomicChunk(
         text: String,
         contextPrefix: String,
@@ -2001,16 +2706,79 @@ class DocumentProcessor {
         // Split by rows for tables (line-based), or by items for lists
         let lines = contentText.components(separatedBy: "\n").filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
 
+        // For tables: detect and preserve header row for repetition in continuation chunks
+        // A header row is typically the first non-separator row (no pipes-only or dashes-only)
+        let tableHeaderLine: String? = {
+            guard element.elementType == "table", lines.count > 2 else { return nil }
+            // Check if first line looks like a header (not a separator like "|---|---|")
+            if let first = lines.first {
+                let stripped = first.replacingOccurrences(of: "|", with: "")
+                                   .replacingOccurrences(of: "-", with: "")
+                                   .replacingOccurrences(of: ":", with: "")
+                                   .trimmingCharacters(in: .whitespaces)
+                // If there's actual text content (not just formatting), it's likely a header
+                if !stripped.isEmpty {
+                    return first
+                }
+            }
+            return nil
+        }()
+
+        // Also detect markdown table separator (e.g., "|---|---|")
+        let tableSeparatorLine: String? = {
+            guard element.elementType == "table", lines.count > 2 else { return nil }
+            if lines.count > 1 {
+                let second = lines[1]
+                let stripped = second.replacingOccurrences(of: "|", with: "")
+                                    .replacingOccurrences(of: "-", with: "")
+                                    .replacingOccurrences(of: ":", with: "")
+                                    .replacingOccurrences(of: " ", with: "")
+                // If it's just dashes and pipes, it's a separator
+                if stripped.isEmpty {
+                    return second
+                }
+            }
+            return nil
+        }()
+
+        // Calculate header overhead for word budget
+        let headerWords = (tableHeaderLine?.split(separator: " ").count ?? 0) +
+                          (tableSeparatorLine?.split(separator: " ").count ?? 0)
+        let effectiveMaxWords = maxWords - headerWords
+
         var currentChunkLines: [String] = []
         var currentWordCount = 0
         var chunkNumber = 0
 
-        for line in lines {
+        // Skip header lines in iteration (they'll be prepended to each chunk)
+        let startIndex: Int
+        if tableHeaderLine != nil && tableSeparatorLine != nil {
+            startIndex = 2
+        } else if tableHeaderLine != nil {
+            startIndex = 1
+        } else {
+            startIndex = 0
+        }
+
+        for lineIndex in startIndex..<lines.count {
+            let line = lines[lineIndex]
             let lineWords = line.split(separator: " ").count
 
             // If adding this line would exceed limit, flush current chunk
-            if currentWordCount + lineWords > maxWords && !currentChunkLines.isEmpty {
-                let chunkContent = contextPrefix + "[Part \(chunkNumber + 1)]\n" + currentChunkLines.joined(separator: "\n")
+            if currentWordCount + lineWords > effectiveMaxWords && !currentChunkLines.isEmpty {
+                // Build chunk with header repetition for tables
+                var chunkLines: [String] = []
+                if chunkNumber > 0, let header = tableHeaderLine {
+                    // Continuation chunk — prepend header for context
+                    chunkLines.append(header)
+                    if let separator = tableSeparatorLine {
+                        chunkLines.append(separator)
+                    }
+                }
+                chunkLines.append(contentsOf: currentChunkLines)
+
+                let chunkContent = contextPrefix + "[Part \(chunkNumber + 1)]\n" + chunkLines.joined(separator: "\n")
+                let totalWordCount = currentWordCount + headerWords
                 let metadata = ChunkMetadata(
                     chunkIndex: baseChunkIndex + chunkNumber,
                     startPosition: 0,
@@ -2021,7 +2789,7 @@ class DocumentProcessor {
                     semanticDensity: 0.8,
                     hasNumericData: element.elementType == "table",
                     hasListStructure: element.elementType == "list",
-                    wordCount: currentWordCount,
+                    wordCount: totalWordCount,
                     characterCount: chunkContent.count,
                     structureType: element.elementType,
                     sectionPath: sectionPath.isEmpty ? nil : sectionPath
@@ -2038,7 +2806,18 @@ class DocumentProcessor {
 
         // Flush remaining lines
         if !currentChunkLines.isEmpty {
-            let chunkContent = contextPrefix + (chunkNumber > 0 ? "[Part \(chunkNumber + 1)]\n" : "") + currentChunkLines.joined(separator: "\n")
+            // Build chunk with header repetition for continuation chunks
+            var chunkLines: [String] = []
+            if chunkNumber > 0, let header = tableHeaderLine {
+                chunkLines.append(header)
+                if let separator = tableSeparatorLine {
+                    chunkLines.append(separator)
+                }
+            }
+            chunkLines.append(contentsOf: currentChunkLines)
+
+            let chunkContent = contextPrefix + (chunkNumber > 0 ? "[Part \(chunkNumber + 1)]\n" : "") + chunkLines.joined(separator: "\n")
+            let totalWordCount = currentWordCount + (chunkNumber > 0 ? headerWords : 0)
             let metadata = ChunkMetadata(
                 chunkIndex: baseChunkIndex + chunkNumber,
                 startPosition: 0,
@@ -2049,7 +2828,7 @@ class DocumentProcessor {
                 semanticDensity: 0.8,
                 hasNumericData: element.elementType == "table",
                 hasListStructure: element.elementType == "list",
-                wordCount: currentWordCount,
+                wordCount: totalWordCount,
                 characterCount: chunkContent.count,
                 structureType: element.elementType,
                 sectionPath: sectionPath.isEmpty ? nil : sectionPath
@@ -2426,10 +3205,7 @@ class DocumentProcessor {
     /// Extract text from PDF using PDFKit (native iOS framework) - Legacy method
     /// Now with OCR fallback for image-only pages
     private func extractTextFromPDF(url: URL) async throws -> String {
-        guard let pdfDocument = PDFDocument(url: url) else {
-            Log.error("[DocumentProcessor] PDF load failed: \(url.lastPathComponent)", category: .ingestion)
-            throw DocumentProcessingError.pdfLoadFailed
-        }
+        let pdfDocument = try loadPDF(url: url, context: "PDF")
 
         let pageCount = pdfDocument.pageCount
         Log.debug("[DocumentProcessor] PDF pages: \(pageCount)", category: .ingestion)
@@ -2534,8 +3310,15 @@ class DocumentProcessor {
     /// Higher DPI captures fine text, small labels, and low-quality scans better
     /// Apple's Vision framework works best at 150-300+ DPI
     /// GPU-accelerated when DeviceCapabilityService.useGPUForPDFRendering is enabled
+    ///
+    /// ROTATION HANDLING: PDF pages can have /Rotate flags (90°, 180°, 270°).
+    /// We use .cropBox which returns dimensions in the page's display orientation,
+    /// and PDFPage.draw() automatically applies the rotation transform.
     private func renderPDFPageAsImage(page: PDFPage, scale: CGFloat = 5.0) -> CIImage? {
-        let pageBounds = page.bounds(for: .mediaBox)
+        // Use .cropBox instead of .mediaBox — cropBox respects the page's /Rotate flag
+        // and returns dimensions in the correct display orientation.
+        // For a portrait page rotated 90° to landscape, cropBox gives landscape dimensions.
+        let pageBounds = page.bounds(for: .cropBox)
 
         // Scale up for maximum OCR accuracy - Vision needs high DPI images
         // PDF pages are typically 72 DPI, so 5x = 360 DPI (maximum quality for text recognition)
@@ -2544,6 +3327,11 @@ class DocumentProcessor {
             width: pageBounds.size.width * scale,
             height: pageBounds.size.height * scale
         )
+
+        let pageRotation = page.rotation
+        if pageRotation != 0 {
+            Log.info("[DocumentProcessor] PDF page has rotation=\(pageRotation)° — using cropBox for correct orientation", category: .ingestion)
+        }
 
         #if canImport(UIKit)
         // Use opaque format to avoid alpha channel overhead
@@ -2557,11 +3345,20 @@ class DocumentProcessor {
             UIColor.white.set()
             context.fill(CGRect(origin: .zero, size: scaledSize))
 
+            let ctx = context.cgContext
+            ctx.saveGState()
+
             // Scale up the PDF rendering
-            context.cgContext.scaleBy(x: scale, y: scale)
-            context.cgContext.translateBy(x: 0, y: pageBounds.size.height)
-            context.cgContext.scaleBy(x: 1.0, y: -1.0)
-            page.draw(with: .mediaBox, to: context.cgContext)
+            ctx.scaleBy(x: scale, y: scale)
+
+            // Flip Y-axis: UIKit has origin at top-left, PDF at bottom-left
+            ctx.translateBy(x: 0, y: pageBounds.size.height)
+            ctx.scaleBy(x: 1.0, y: -1.0)
+
+            // PDFPage.draw(with:to:) handles /Rotate internally when using .cropBox
+            page.draw(with: .cropBox, to: ctx)
+
+            ctx.restoreGState()
         }
 
         // GPU-accelerated path: Use Metal-backed CIContext for image processing
@@ -2595,7 +3392,7 @@ class DocumentProcessor {
             ctx.scaleBy(x: scale, y: scale)
             ctx.translateBy(x: 0, y: pageBounds.size.height)
             ctx.scaleBy(x: 1.0, y: -1.0)
-            page.draw(with: .mediaBox, to: ctx)
+            page.draw(with: .cropBox, to: ctx)
             ctx.restoreGState()
         }
         image.unlockFocus()
@@ -2745,12 +3542,14 @@ class DocumentProcessor {
     /// Extract embedded images from a PDF page for visual understanding
     /// Uses multiple strategies to find images in PDFs:
     /// 1. PDF annotations (explicit image markers)
-    /// 2. Full-page scans (pages without extractable text)
-    /// 3. Vision rectangle detection (find image regions via computer vision)
+    /// 2. Full-page scans (pages without extractable text OR garbled text layers)
+    /// 3. Pages with minimal text that are mostly visual
+    /// 4. Text quality check — garbled font-encoded text layers (Kia, Hyundai PDFs)
+    ///    are treated as image-only pages so figures/diagrams get analyzed
     /// Returns array of (image, bounds) tuples where bounds are normalized coordinates
     private func extractImagesFromPDFPage(page: PDFPage) -> [(image: CIImage, bounds: CGRect)] {
         var extractedImages: [(CIImage, CGRect)] = []
-        let pageBounds = page.bounds(for: .mediaBox)
+        let pageBounds = page.bounds(for: .cropBox)
 
         // Strategy 1: Look for image annotations (link, stamp, etc. that might contain images)
         for annotation in page.annotations {
@@ -2769,21 +3568,26 @@ class DocumentProcessor {
             }
         }
 
-        // Strategy 2: If page has no extractable text but renders as image,
-        // the whole page might be a scanned image or diagram
-        let pageText = page.string?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if pageText.isEmpty {
-            if let fullPageImage = renderPDFPageAsImage(page: page) {
-                let normalizedBounds = CGRect(x: 0, y: 0, width: 1, height: 1)
-                extractedImages.append((fullPageImage, normalizedBounds))
-            }
+        // Determine effective text content — garbled font-encoded text layers
+        // (common in Asian-publisher PDFs like Kia, Hyundai) are NOT real text.
+        // Check actual text quality so we don't skip visual content on pages
+        // where the text layer is encrypted/garbled.
+        let rawPageText = page.string?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let hasUsableText: Bool
+        if rawPageText.isEmpty {
+            hasUsableText = false
+        } else if rawPageText.count < 100 {
+            hasUsableText = false // Minimal text — likely mostly visual
+        } else {
+            // Quality check: if text layer is garbled (font encoding issues),
+            // treat the page as having no usable text
+            hasUsableText = isTextQualityAcceptable(rawPageText)
         }
 
-        // Strategy 3: Look for pages with minimal text that might be mostly diagrams
-        // If page has less than 100 characters but isn't empty, it's likely mostly visual
-        else if pageText.count < 100 {
+        // Strategy 2: Page has no usable text — entire page is a visual element
+        // This catches: empty pages, scanned images, garbled text layers, diagrams
+        if !hasUsableText {
             if let fullPageImage = renderPDFPageAsImage(page: page) {
-                // Render at lower scale since we're just checking for visual content
                 let normalizedBounds = CGRect(x: 0, y: 0, width: 1, height: 1)
                 extractedImages.append((fullPageImage, normalizedBounds))
             }
@@ -2809,10 +3613,10 @@ class DocumentProcessor {
                 context.fill(CGRect(origin: .zero, size: size))
 
                 context.cgContext.scaleBy(x: scale, y: scale)
-                context.cgContext.translateBy(x: -region.minX, y: region.maxY - page.bounds(for: .mediaBox).height)
+                context.cgContext.translateBy(x: -region.minX, y: region.maxY - page.bounds(for: .cropBox).height)
                 context.cgContext.scaleBy(x: 1.0, y: -1.0)
 
-                page.draw(with: .mediaBox, to: context.cgContext)
+                page.draw(with: .cropBox, to: context.cgContext)
             }
             return CIImage(image: image)
         #else
@@ -2822,7 +3626,7 @@ class DocumentProcessor {
 
     /// Extract images from entire PDF document with page tracking
     func extractAllImagesFromPDF(url: URL) async -> [(image: CIImage, pageNumber: Int, bounds: CGRect)] {
-        guard let pdfDocument = PDFDocument(url: url) else {
+        guard let pdfDocument = try? loadPDF(url: url, context: "Image extraction") else {
             Log.warning("[DocumentProcessor] Cannot extract images: PDF load failed", category: .ingestion)
             return []
         }
@@ -2850,9 +3654,7 @@ class DocumentProcessor {
             return try (await extractTextWithPageInfo(from: url, type: detectDocumentType(url: url)).text, .empty)
         }
 
-        guard let pdfDocument = PDFDocument(url: url) else {
-            throw DocumentProcessingError.pdfLoadFailed
-        }
+        let pdfDocument = try loadPDF(url: url, context: "Visual understanding")
 
         let startTime = Date()
         var fullText = ""
@@ -2902,8 +3704,9 @@ class DocumentProcessor {
             visualMetadata = metadata
 
             // Append compact image descriptions to text for embedding
-            // Cap total image text to avoid overwhelming document/context budgets
-            let maxImageTextPerDoc = 3000  // ~2 chunks worth of image descriptions max
+            // Scale the budget based on document size — large manuals have many figures
+            // Base: 3000 chars (~2 chunks) for small docs, up to 30000 for large ones
+            let maxImageTextPerDoc = min(30000, max(3000, extractedImages.count * 500))
             var totalImageTextAdded = 0
 
             for analyzed in analyzedImages {
@@ -2967,7 +3770,7 @@ class DocumentProcessor {
             HardwareTelemetryState.shared.pulse(.reranking, intensity: 0.8, duration: 0.3)  // Reuse reranking as "Vision OCR" activity
         }
 
-        // Convert CIImage to CGImage using GPU-accelerated context with serial queue
+        // Convert CIImage to CGImage using GPU-accelerated context (CIContext is thread-safe)
         var cgImageResult: CGImage?
         Self.gpuQueue.sync {
             cgImageResult = Self.gpuContext.createCGImage(image, from: image.extent)
@@ -2994,15 +3797,8 @@ class DocumentProcessor {
                 continuation.resume(returning: observations)
             }
 
-            // === BULLETPROOF OCR CONFIGURATION (same as performOCR) ===
-            request.revision = VNRecognizeTextRequestRevision3
-            request.recognitionLevel = .accurate
-            request.usesLanguageCorrection = true
-            request.automaticallyDetectsLanguage = true
-            request.recognitionLanguages = ["en-US", "en-GB", "es-ES", "fr-FR", "de-DE", "it-IT", "pt-BR"]
-            request.minimumTextHeight = 0.0
-            // Note: customWords left empty - Vision's language correction handles domain terms
-            // Adding domain-specific words here would make the app less universal
+            // === CENTRALIZED OCR CONFIGURATION (via OCRConfiguration factory) ===
+            OCRConfiguration.configureRequest(request, customWords: self.currentDocumentCustomWords)
 
             // Limit concurrent Vision OCR to prevent Metal race conditions
             VisionOCRThrottle.performSync {
@@ -3101,7 +3897,55 @@ class DocumentProcessor {
     /// Configured for maximum accuracy with Apple's latest Vision capabilities
     /// GPU-accelerated via Metal-backed CGImage conversion
     private func performOCR(on image: CIImage) async throws -> String {
-        // Convert CIImage to CGImage using GPU-accelerated context with serial queue
+        // ATTEMPT 1: Standard OCR on the original image
+        let result = try await performOCRSingleAttempt(on: image)
+
+        // If we got meaningful text, return it
+        if !result.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return result
+        }
+
+        // RETRY WITH ESCALATING PREPROCESSING STRATEGIES
+        // If original image produced nothing, the page may be low-quality scan/photo
+        Log.info("[DocumentProcessor] OCR empty on raw image — retrying with preprocessing", category: .ingestion)
+
+        // Try progressively more aggressive strategies (skip minimal, start from standard)
+        let retryStrategies = Array(AdaptivePreprocessor.strategies.dropFirst()) // standard → maximum
+        var bestResult = ""
+        var bestConfidence: Float = 0
+
+        for strategy in retryStrategies {
+            let preprocessed = AdaptivePreprocessor.apply(
+                strategy,
+                to: image,
+                gpuContext: Self.gpuContext,
+                gpuQueue: Self.gpuQueue
+            )
+
+            let retryText = try await performOCRSingleAttempt(on: preprocessed)
+            let wordCount = retryText.split(separator: " ").count
+
+            if wordCount > bestResult.split(separator: " ").count {
+                bestResult = retryText
+                Log.debug("[DocumentProcessor] OCR retry '\(strategy.name)': \(wordCount) words", category: .ingestion)
+            }
+
+            // Good enough — stop escalating
+            if wordCount >= 10 {
+                Log.info("[DocumentProcessor] OCR retry '\(strategy.name)' succeeded: \(wordCount) words", category: .ingestion)
+                return bestResult
+            }
+        }
+
+        if !bestResult.isEmpty {
+            Log.info("[DocumentProcessor] OCR retry recovered \(bestResult.split(separator: " ").count) words after escalation", category: .ingestion)
+        }
+        return bestResult
+    }
+
+    /// Perform a single OCR attempt on an image (no retry logic)
+    private func performOCRSingleAttempt(on image: CIImage) async throws -> String {
+        // Convert CIImage to CGImage using GPU-accelerated context (CIContext is thread-safe)
         var cgImageResult: CGImage?
         Self.gpuQueue.sync {
             cgImageResult = Self.gpuContext.createCGImage(image, from: image.extent)
@@ -3156,31 +4000,8 @@ class DocumentProcessor {
                 continuation.resume(returning: columnText)
             }
 
-            // === BULLETPROOF OCR CONFIGURATION ===
-
-            // Use latest Vision revision for best accuracy
-            request.revision = VNRecognizeTextRequestRevision3
-
-            // Maximum accuracy mode (uses neural network)
-            request.recognitionLevel = .accurate
-
-            // Enable language correction (NLP post-processing)
-            request.usesLanguageCorrection = true
-
-            // Automatically detect language (iOS 16+)
-            // This is better than hardcoded language list for mixed-language docs
-            request.automaticallyDetectsLanguage = true
-
-            // Prioritize English but support many languages
-            // Order matters - first language is preferred
-            request.recognitionLanguages = ["en-US", "en-GB", "es-ES", "fr-FR", "de-DE", "it-IT", "pt-BR"]
-
-            // Capture small text (important for footnotes, table cells, diagrams)
-            // 0.0 = detect all text regardless of size (relative to image height)
-            request.minimumTextHeight = 0.0
-
-            // Note: customWords left empty - Vision's language correction handles domain terms
-            // Adding domain-specific words here would make the app less universal
+            // === CENTRALIZED OCR CONFIGURATION (via OCRConfiguration factory) ===
+            OCRConfiguration.configureRequest(request, customWords: self.currentDocumentCustomWords)
 
             // Limit concurrent Vision OCR to prevent Metal race conditions
             VisionOCRThrottle.performSync {
@@ -3224,7 +4045,7 @@ class DocumentProcessor {
     /// Async wrapper for observation-based OCR
     /// GPU-accelerated via Metal-backed CGImage conversion
     private func performOCRWithObservationsAsync(on image: CIImage) async throws -> [VNRecognizedTextObservation] {
-        // Convert CIImage to CGImage using GPU-accelerated context with serial queue
+        // Convert CIImage to CGImage using GPU-accelerated context (CIContext is thread-safe)
         var cgImageResult: CGImage?
         Self.gpuQueue.sync {
             cgImageResult = Self.gpuContext.createCGImage(image, from: image.extent)
@@ -3250,12 +4071,8 @@ class DocumentProcessor {
                 continuation.resume(returning: observations)
             }
 
-            request.revision = VNRecognizeTextRequestRevision3
-            request.recognitionLevel = .accurate
-            request.usesLanguageCorrection = true
-            request.automaticallyDetectsLanguage = true
-            request.recognitionLanguages = ["en-US", "en-GB", "es-ES", "fr-FR", "de-DE", "it-IT", "pt-BR"]
-            request.minimumTextHeight = 0.0
+            // === CENTRALIZED OCR CONFIGURATION (via OCRConfiguration factory) ===
+            OCRConfiguration.configureRequest(request, customWords: self.currentDocumentCustomWords)
 
             // Limit concurrent Vision OCR to prevent Metal race conditions
             VisionOCRThrottle.performSync {
@@ -3350,7 +4167,7 @@ class DocumentProcessor {
 
         // Detect columns from X positions
         let xPositions = spatialLines.map { $0.xPosition }
-        let pageWidth = page.bounds(for: .mediaBox).width
+        let pageWidth = page.bounds(for: .cropBox).width
         let columnBoundaries = detectColumnBoundaries(from: xPositions, pageWidth: pageWidth)
 
         if columnBoundaries.isEmpty {
@@ -3432,7 +4249,11 @@ class DocumentProcessor {
         // If single column or can't detect columns, use simple reading order
         guard columns.count > 1 else {
             Log.debug("[DocumentProcessor] Single column layout detected", category: .ingestion)
-            return observations.compactMap { $0.topCandidates(1).first?.string }.joined(separator: "\n")
+            let result = ConfidenceVerifier.assembleVerifiedText(from: observations)
+            if result.uncertainCount > 0 {
+                Log.debug("[DocumentProcessor] ⚠️ \(result.uncertainCount) uncertain observations (avg confidence: \(String(format: "%.1f%%", result.avgConfidence * 100)))", category: .ingestion)
+            }
+            return result.text
         }
 
         Log.debug("[DocumentProcessor] Multi-column layout detected: \(columns.count) columns", category: .ingestion)
@@ -3457,15 +4278,16 @@ class DocumentProcessor {
             columnGroups[closestColumn].append(observation)
         }
 
-        // Sort each column top-to-bottom and extract text
+        // Sort each column top-to-bottom and extract text with confidence verification
         var allText: [String] = []
         for (index, group) in columnGroups.enumerated() {
             let sortedGroup = group.sorted { $0.boundingBox.midY > $1.boundingBox.midY }
-            let columnText = sortedGroup.compactMap { $0.topCandidates(1).first?.string }
+            let result = ConfidenceVerifier.assembleVerifiedText(from: sortedGroup)
 
-            if !columnText.isEmpty {
-                Log.debug("[DocumentProcessor] Column \(index + 1): \(columnText.count) text blocks", category: .ingestion)
-                allText.append(contentsOf: columnText)
+            if !result.text.isEmpty {
+                let lines = result.text.components(separatedBy: "\n")
+                Log.debug("[DocumentProcessor] Column \(index + 1): \(lines.count) text blocks", category: .ingestion)
+                allText.append(contentsOf: lines)
                 allText.append("") // Paragraph break between columns
             }
         }
@@ -3598,8 +4420,16 @@ class DocumentProcessor {
                 if tableRows.count >= 2 {
                     // Check X-alignment consistency (column structure)
                     if hasConsistentColumnAlignment(tableRows) {
+                        // CRITICAL: Use confidence-verified text for table cells
+                        // Tables contain numeric data where OCR errors cause wrong answers
                         let textRows = tableRows.map { row in
-                            row.compactMap { $0.topCandidates(1).first?.string }
+                            row.compactMap { cell -> String? in
+                                let analysis = ConfidenceVerifier.analyze(cell)
+                                if analysis.isUncertain && analysis.containsNumericData {
+                                    Log.warning("[DocumentProcessor] ⚠️ Uncertain table value: '\(analysis.text)' (conf: \(String(format: "%.0f%%", analysis.confidence * 100))). Alternatives: \(analysis.alternatives.map { "\($0.text)(\(String(format: "%.0f%%", $0.confidence * 100)))" }.joined(separator: ", "))", category: .ingestion)
+                                }
+                                return analysis.text.isEmpty ? nil : analysis.text
+                            }
                         }
 
                         // Calculate bounding box
@@ -3685,43 +4515,192 @@ class DocumentProcessor {
         throw DocumentProcessingError.unsupportedEncoding
     }
 
-    /// Extract text from CSV - convert to structured readable format
+    /// Extract text from CSV - RFC 4180 compliant parser
+    /// Handles: quoted fields, embedded delimiters, embedded newlines,
+    /// escaped quotes (""), multiple delimiter types (comma, tab, semicolon, pipe)
     private func extractTextFromCSV(url: URL) throws -> String {
-        let csvContent = try String(contentsOf: url, encoding: .utf8)
-        let lines = csvContent.components(separatedBy: .newlines)
+        // Try multiple encodings for robustness
+        let csvContent: String
+        if let utf8 = try? String(contentsOf: url, encoding: .utf8) {
+            csvContent = utf8
+        } else if let latin1 = try? String(contentsOf: url, encoding: .isoLatin1) {
+            Log.info("[DocumentProcessor] CSV: Using Latin-1 encoding (UTF-8 failed)", category: .ingestion)
+            csvContent = latin1
+        } else if let win1252 = try? String(contentsOf: url, encoding: .windowsCP1252) {
+            Log.info("[DocumentProcessor] CSV: Using Windows-1252 encoding", category: .ingestion)
+            csvContent = win1252
+        } else {
+            throw DocumentProcessingError.unsupportedEncoding
+        }
 
-        guard !lines.isEmpty else {
+        guard !csvContent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw DocumentProcessingError.emptyDocument
         }
 
-        // Parse CSV and convert to readable format
-        var structuredText = ""
+        // Detect delimiter from first line (tab > semicolon > pipe > comma)
+        let delimiter = detectCSVDelimiter(csvContent)
+        Log.debug("[DocumentProcessor] CSV delimiter detected: '\(delimiter == "\t" ? "TAB" : String(delimiter))'", category: .ingestion)
 
-        // Detect delimiter (comma or tab)
-        let delimiter = lines.first?.contains("\t") == true ? "\t" : ","
+        // Parse using RFC 4180 state machine
+        let rows = parseCSVRows(csvContent, delimiter: delimiter)
 
-        // Process header
-        if let header = lines.first {
-            let headers = header.components(separatedBy: delimiter)
-            structuredText += "Table with columns: " + headers.joined(separator: ", ") + "\n\n"
+        guard !rows.isEmpty else {
+            throw DocumentProcessingError.emptyDocument
         }
 
-        // Process ALL rows - ZERO DATA LOSS policy
-        // CSV files must be fully ingested regardless of size
-        let totalRows = lines.count - 1
+        // Build structured text output
+        var structuredText = ""
+
+        // Header row
+        if let header = rows.first {
+            // Use parsed fields (handles quoted column names)
+            structuredText += "Table with columns: " + header.joined(separator: ", ") + "\n\n"
+        }
+
+        // Process ALL data rows - ZERO DATA LOSS policy
+        let totalRows = rows.count - 1
         if totalRows > 1000 {
             Log.info("[DocumentProcessor] Processing large CSV: \(totalRows) rows", category: .ingestion)
         }
 
-        for i in 1..<lines.count {
-            let row = lines[i]
-            if !row.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                let values = row.components(separatedBy: delimiter)
+        for i in 1..<rows.count {
+            let values = rows[i]
+            if !values.allSatisfy({ $0.trimmingCharacters(in: .whitespaces).isEmpty }) {
                 structuredText += "Row \(i): " + values.joined(separator: " | ") + "\n"
             }
         }
 
         return structuredText
+    }
+
+    /// Detect CSV delimiter by analyzing the first few lines
+    /// Priority: tab > semicolon > pipe > comma (avoids false positives from commas in text)
+    private func detectCSVDelimiter(_ content: String) -> Character {
+        // Take first 5 lines (not parsed, just split by raw newline for detection)
+        let sampleLines = content.components(separatedBy: .newlines).prefix(5)
+        let sample = sampleLines.joined(separator: "\n")
+
+        let tabCount = sample.filter { $0 == "\t" }.count
+        let semiCount = sample.filter { $0 == ";" }.count
+        let pipeCount = sample.filter { $0 == "|" }.count
+        let commaCount = sample.filter { $0 == "," }.count
+
+        // Tab is unambiguous — if present, it's almost always the delimiter
+        if tabCount >= sampleLines.count - 1 && tabCount > 0 {
+            return "\t"
+        }
+
+        // Pick the most frequent delimiter that appears consistently across lines
+        let candidates: [(Character, Int)] = [
+            ("\t", tabCount),
+            (";", semiCount),
+            ("|", pipeCount),
+            (",", commaCount)
+        ]
+
+        // Delimiter should appear at least once per line — pick the one with most consistent count
+        if let best = candidates.max(by: { $0.1 < $1.1 }), best.1 > 0 {
+            return best.0
+        }
+
+        return "," // Default
+    }
+
+    /// RFC 4180 CSV parser — handles quoted fields, embedded delimiters, embedded newlines, escaped quotes
+    /// Returns array of rows, each row is an array of field values
+    private func parseCSVRows(_ content: String, delimiter: Character) -> [[String]] {
+        var rows: [[String]] = []
+        var currentRow: [String] = []
+        var currentField = ""
+        var inQuotes = false
+        var i = content.startIndex
+
+        while i < content.endIndex {
+            let char = content[i]
+
+            if inQuotes {
+                if char == "\"" {
+                    // Look ahead: is this an escaped quote ("") or end of quoted field?
+                    let next = content.index(after: i)
+                    if next < content.endIndex && content[next] == "\"" {
+                        // Escaped quote — add literal quote and skip both
+                        currentField.append("\"")
+                        i = content.index(after: next)
+                        continue
+                    } else {
+                        // End of quoted field
+                        inQuotes = false
+                        i = content.index(after: i)
+                        continue
+                    }
+                } else {
+                    // Inside quotes — everything is literal (including delimiters and newlines)
+                    currentField.append(char)
+                    i = content.index(after: i)
+                    continue
+                }
+            }
+
+            // Not in quotes
+            if char == "\"" {
+                // Start of quoted field (should be at field start, but be permissive)
+                inQuotes = true
+                i = content.index(after: i)
+                continue
+            }
+
+            if char == delimiter {
+                // End of field
+                currentRow.append(currentField.trimmingCharacters(in: .whitespaces))
+                currentField = ""
+                i = content.index(after: i)
+                continue
+            }
+
+            if char == "\r" {
+                // Handle \r\n and bare \r
+                let next = content.index(after: i)
+                if next < content.endIndex && content[next] == "\n" {
+                    i = content.index(after: next)
+                } else {
+                    i = content.index(after: i)
+                }
+                // End of row
+                currentRow.append(currentField.trimmingCharacters(in: .whitespaces))
+                if !currentRow.allSatisfy({ $0.isEmpty }) {
+                    rows.append(currentRow)
+                }
+                currentRow = []
+                currentField = ""
+                continue
+            }
+
+            if char == "\n" {
+                // End of row
+                currentRow.append(currentField.trimmingCharacters(in: .whitespaces))
+                if !currentRow.allSatisfy({ $0.isEmpty }) {
+                    rows.append(currentRow)
+                }
+                currentRow = []
+                currentField = ""
+                i = content.index(after: i)
+                continue
+            }
+
+            // Regular character
+            currentField.append(char)
+            i = content.index(after: i)
+        }
+
+        // Don't forget the last field/row
+        if !currentField.isEmpty || !currentRow.isEmpty {
+            currentRow.append(currentField.trimmingCharacters(in: .whitespaces))
+            if !currentRow.allSatisfy({ $0.isEmpty }) {
+                rows.append(currentRow)
+            }
+        }
+
+        return rows
     }
 
     // MARK: - Audio/Video Transcription
@@ -3842,13 +4821,28 @@ class DocumentProcessor {
             if let documentXML = archive.extractString(path: "word/document.xml") {
                 extractedText = extractTextFromWordXML(documentXML)
             }
-            // Also check for headers/footers
-            for i in 1...10 {
+            // Headers/footers (stop at first miss, don't loop to 10)
+            for i in 1...20 {
                 if let headerXML = archive.extractString(path: "word/header\(i).xml") {
                     extractedText += "\n" + extractTextFromWordXML(headerXML)
-                }
+                } else if i > 3 { break }  // At least check 1–3
                 if let footerXML = archive.extractString(path: "word/footer\(i).xml") {
                     extractedText += "\n" + extractTextFromWordXML(footerXML)
+                }
+            }
+            // Footnotes and endnotes — important for academic/legal documents
+            if let footnotesXML = archive.extractString(path: "word/footnotes.xml") {
+                let footnoteText = extractTextFromWordXML(footnotesXML)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if !footnoteText.isEmpty {
+                    extractedText += "\n\nFootnotes:\n" + footnoteText
+                }
+            }
+            if let endnotesXML = archive.extractString(path: "word/endnotes.xml") {
+                let endnoteText = extractTextFromWordXML(endnotesXML)
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if !endnoteText.isEmpty {
+                    extractedText += "\n\nEndnotes:\n" + endnoteText
                 }
             }
 
@@ -3869,10 +4863,22 @@ class DocumentProcessor {
             }
 
         case .powerpoint:
-            // PowerPoint: slides contain text
+            // PowerPoint: slides contain text, notes contain speaker notes
             for i in 1...500 {
                 if let slideXML = archive.extractString(path: "ppt/slides/slide\(i).xml") {
-                    extractedText += extractTextFromPowerPointSlide(slideXML)
+                    let slideText = extractTextFromPowerPointSlide(slideXML)
+                    extractedText += "Slide \(i):\n" + slideText
+
+                    // Speaker notes — often contain the most detailed information
+                    if let notesXML = archive.extractString(path: "ppt/notesSlides/notesSlide\(i).xml") {
+                        let notesText = extractTextFromPowerPointSlide(notesXML)
+                            .trimmingCharacters(in: .whitespacesAndNewlines)
+                        if !notesText.isEmpty && notesText != "\(i)" {
+                            // Skip notes that are just the slide number
+                            extractedText += "\nNotes: " + notesText
+                        }
+                    }
+
                     extractedText += "\n\n---\n\n"  // Slide separator
                 } else {
                     break
@@ -3893,131 +4899,380 @@ class DocumentProcessor {
         return trimmed
     }
 
-    /// Extract text from Word XML (removes tags, preserves structure)
+    /// Extract text from Word XML with table, list, and run-spacing support.
+    /// Parses `<w:tbl>` → `<w:tr>` → `<w:tc>` hierarchy for tables.
+    /// Joins `<w:t>` runs within a paragraph with proper whitespace.
     private func extractTextFromWordXML(_ xml: String) -> String {
-        // Word uses <w:t> tags for text, <w:p> for paragraphs
-        var text = xml
+        var result = ""
 
-        // Replace paragraph breaks with newlines
-        text = text.replacingOccurrences(of: "</w:p>", with: "\n")
+        // STEP 1: Extract tables separately and replace them with placeholders
+        // This prevents table text from being mixed into paragraph flow
+        var tableTexts: [String] = []
+        var processedXML = xml
 
-        // Replace soft breaks
-        text = text.replacingOccurrences(of: "<w:br/>", with: "\n")
-        text = text.replacingOccurrences(of: "<w:br />", with: "\n")
-
-        // Extract text from <w:t> tags
-        // Pattern: <w:t>content</w:t> or <w:t xml:space="preserve">content</w:t>
-        let pattern = #"<w:t[^>]*>([^<]*)</w:t>"#
-        if let regex = try? NSRegularExpression(pattern: pattern, options: []) {
-            let range = NSRange(text.startIndex..., in: text)
-            var extractedParts: [String] = []
-
-            regex.enumerateMatches(in: text, options: [], range: range) { match, _, _ in
-                if let match = match, let contentRange = Range(match.range(at: 1), in: text) {
-                    extractedParts.append(String(text[contentRange]))
+        let tablePattern = #"<w:tbl\b[^>]*>.*?</w:tbl>"#
+        if let tableRegex = try? NSRegularExpression(pattern: tablePattern, options: [.dotMatchesLineSeparators]) {
+            let range = NSRange(xml.startIndex..., in: xml)
+            var matches: [NSTextCheckingResult] = []
+            tableRegex.enumerateMatches(in: xml, options: [], range: range) { match, _, _ in
+                if let match = match { matches.append(match) }
+            }
+            // Process in reverse to preserve indices
+            for match in matches.reversed() {
+                if let matchRange = Range(match.range, in: processedXML) {
+                    let tableXML = String(processedXML[matchRange])
+                    let tableText = extractTableFromWordXML(tableXML)
+                    let placeholder = "\n[[TABLE_\(tableTexts.count)]]\n"
+                    tableTexts.append(tableText)
+                    processedXML.replaceSubrange(matchRange, with: placeholder)
                 }
             }
-
-            return extractedParts.joined()
         }
 
-        // Fallback: strip all XML tags
-        return text.replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
-            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+        // STEP 2: Extract paragraphs with run-level text joining
+        let paragraphPattern = #"<w:p\b[^>]*>(.*?)</w:p>"#
+        let runTextPattern = #"<w:t[^>]*>([^<]*)</w:t>"#
+        let listPattern = #"<w:numPr>"#  // Presence indicates numbered/bullet list item
+        let breakPattern = #"<w:br\s*/?\s*>"#
+
+        if let paraRegex = try? NSRegularExpression(pattern: paragraphPattern, options: [.dotMatchesLineSeparators]),
+           let runRegex = try? NSRegularExpression(pattern: runTextPattern, options: []),
+           let listRegex = try? NSRegularExpression(pattern: listPattern, options: []),
+           let breakRegex = try? NSRegularExpression(pattern: breakPattern, options: []) {
+
+            let range = NSRange(processedXML.startIndex..., in: processedXML)
+            paraRegex.enumerateMatches(in: processedXML, options: [], range: range) { match, _, _ in
+                guard let match = match, let contentRange = Range(match.range(at: 1), in: processedXML) else { return }
+                let paraContent = String(processedXML[contentRange])
+
+                // Check for list item
+                let isListItem = listRegex.firstMatch(in: paraContent, options: [],
+                    range: NSRange(paraContent.startIndex..., in: paraContent)) != nil
+
+                // Replace <w:br/> with newline
+                var processed = breakRegex.stringByReplacingMatches(in: paraContent, options: [],
+                    range: NSRange(paraContent.startIndex..., in: paraContent), withTemplate: "\n")
+
+                // Extract all text runs and join with space (preserves word boundaries)
+                let runRange = NSRange(processed.startIndex..., in: processed)
+                var runs: [String] = []
+                runRegex.enumerateMatches(in: processed, options: [], range: runRange) { runMatch, _, _ in
+                    if let runMatch = runMatch, let textRange = Range(runMatch.range(at: 1), in: processed) {
+                        runs.append(String(processed[textRange]))
+                    }
+                }
+
+                let paragraphText = runs.joined() // Runs within a paragraph are contiguous
+                if !paragraphText.trimmingCharacters(in: .whitespaces).isEmpty {
+                    if isListItem {
+                        result += "• " + paragraphText + "\n"
+                    } else {
+                        result += paragraphText + "\n"
+                    }
+                }
+            }
+        }
+
+        // STEP 3: Re-insert table text at placeholders
+        for (i, tableText) in tableTexts.enumerated() {
+            result = result.replacingOccurrences(of: "[[TABLE_\(i)]]", with: "\n" + tableText + "\n")
+        }
+
+        return result
+    }
+
+    /// Extract a single Word XML table as pipe-separated text
+    /// Parses `<w:tbl>` → `<w:tr>` → `<w:tc>` → `<w:t>` hierarchy
+    private func extractTableFromWordXML(_ tableXML: String) -> String {
+        let rowPattern = #"<w:tr\b[^>]*>(.*?)</w:tr>"#
+        let cellPattern = #"<w:tc\b[^>]*>(.*?)</w:tc>"#
+        let textPattern = #"<w:t[^>]*>([^<]*)</w:t>"#
+
+        guard let rowRegex = try? NSRegularExpression(pattern: rowPattern, options: [.dotMatchesLineSeparators]),
+              let cellRegex = try? NSRegularExpression(pattern: cellPattern, options: [.dotMatchesLineSeparators]),
+              let textRegex = try? NSRegularExpression(pattern: textPattern, options: []) else {
+            return ""
+        }
+
+        var tableRows: [[String]] = []
+
+        let rowRange = NSRange(tableXML.startIndex..., in: tableXML)
+        rowRegex.enumerateMatches(in: tableXML, options: [], range: rowRange) { rowMatch, _, _ in
+            guard let rowMatch = rowMatch, let rowContent = Range(rowMatch.range(at: 1), in: tableXML) else { return }
+            let rowStr = String(tableXML[rowContent])
+            var cells: [String] = []
+
+            let cellRange = NSRange(rowStr.startIndex..., in: rowStr)
+            cellRegex.enumerateMatches(in: rowStr, options: [], range: cellRange) { cellMatch, _, _ in
+                guard let cellMatch = cellMatch, let cellContent = Range(cellMatch.range(at: 1), in: rowStr) else { return }
+                let cellStr = String(rowStr[cellContent])
+
+                // Extract all text runs within the cell
+                var cellText: [String] = []
+                let textRange = NSRange(cellStr.startIndex..., in: cellStr)
+                textRegex.enumerateMatches(in: cellStr, options: [], range: textRange) { textMatch, _, _ in
+                    if let textMatch = textMatch, let tRange = Range(textMatch.range(at: 1), in: cellStr) {
+                        cellText.append(String(cellStr[tRange]))
+                    }
+                }
+                cells.append(cellText.joined().trimmingCharacters(in: .whitespaces))
+            }
+
+            if !cells.allSatisfy({ $0.isEmpty }) {
+                tableRows.append(cells)
+            }
+        }
+
+        // Format as pipe-separated table with header separator
+        guard !tableRows.isEmpty else { return "" }
+
+        var output = ""
+        for (i, row) in tableRows.enumerated() {
+            output += "| " + row.joined(separator: " | ") + " |\n"
+            if i == 0 {
+                // Add header separator after first row
+                output += "|" + row.map { _ in " --- " }.joined(separator: "|") + "|\n"
+            }
+        }
+        return output
     }
 
     /// Extract shared strings from Excel (these are referenced by index in sheets)
+    /// Handles rich text strings with multiple `<r><t>` runs within a single `<si>` element
     private func extractSharedStringsFromExcel(_ xml: String) -> [String] {
         var strings: [String] = []
 
-        // Pattern: <t>content</t> within <si> elements
-        let pattern = #"<si>.*?<t[^>]*>([^<]*)</t>.*?</si>"#
-        if let regex = try? NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators]) {
-            let range = NSRange(xml.startIndex..., in: xml)
-            regex.enumerateMatches(in: xml, options: [], range: range) { match, _, _ in
-                if let match = match, let contentRange = Range(match.range(at: 1), in: xml) {
-                    strings.append(String(xml[contentRange]))
+        // Match each <si>...</si> block, then extract ALL <t> tags within it
+        let siPattern = #"<si>(.*?)</si>"#
+        let tPattern = #"<t[^>]*>([^<]*)</t>"#
+
+        guard let siRegex = try? NSRegularExpression(pattern: siPattern, options: [.dotMatchesLineSeparators]),
+              let tRegex = try? NSRegularExpression(pattern: tPattern, options: []) else {
+            return strings
+        }
+
+        let range = NSRange(xml.startIndex..., in: xml)
+        siRegex.enumerateMatches(in: xml, options: [], range: range) { match, _, _ in
+            guard let match = match, let contentRange = Range(match.range(at: 1), in: xml) else { return }
+            let siContent = String(xml[contentRange])
+
+            // Concatenate ALL <t> fragments within this shared string
+            var fragments: [String] = []
+            let tRange = NSRange(siContent.startIndex..., in: siContent)
+            tRegex.enumerateMatches(in: siContent, options: [], range: tRange) { tMatch, _, _ in
+                if let tMatch = tMatch, let textRange = Range(tMatch.range(at: 1), in: siContent) {
+                    fragments.append(String(siContent[textRange]))
                 }
             }
+            strings.append(fragments.joined())
         }
 
         return strings
     }
 
-    /// Extract text from Excel worksheet, using shared strings for cell values
+    /// Extract text from Excel worksheet, using shared strings for cell values.
+    /// Handles cells with formulas (`<f>` before `<v>`), inline strings (`<is><t>`),
+    /// and boolean/error types.
     private func extractTextFromExcelSheet(_ xml: String, sharedStrings: [String]) -> String {
         var rows: [[String]] = []
-        var currentRow: [String] = []
 
-        // Pattern for cells: <c r="A1" t="s"><v>0</v></c> (t="s" means shared string index)
-        // or <c r="A1"><v>123</v></c> for numbers
         let rowPattern = #"<row[^>]*>(.*?)</row>"#
-        let cellPattern = #"<c[^>]*(?:t="([^"]*)")?[^>]*><v>([^<]*)</v></c>"#
+        // More permissive cell pattern: captures type and looks for <v> OR <is><t> anywhere in cell
+        let cellPattern = #"<c\b([^>]*)>(.*?)</c>"#
+        let typePattern = #"t="([^"]*)""#
+        let valuePattern = #"<v>([^<]*)</v>"#
+        let inlinePattern = #"<t[^>]*>([^<]*)</t>"#
 
-        if let rowRegex = try? NSRegularExpression(pattern: rowPattern, options: [.dotMatchesLineSeparators]),
-           let cellRegex = try? NSRegularExpression(pattern: cellPattern, options: []) {
+        guard let rowRegex = try? NSRegularExpression(pattern: rowPattern, options: [.dotMatchesLineSeparators]),
+              let cellRegex = try? NSRegularExpression(pattern: cellPattern, options: [.dotMatchesLineSeparators]),
+              let typeRegex = try? NSRegularExpression(pattern: typePattern, options: []),
+              let valueRegex = try? NSRegularExpression(pattern: valuePattern, options: []),
+              let inlineRegex = try? NSRegularExpression(pattern: inlinePattern, options: []) else {
+            return ""
+        }
 
-            let range = NSRange(xml.startIndex..., in: xml)
-            rowRegex.enumerateMatches(in: xml, options: [], range: range) { rowMatch, _, _ in
-                if let rowMatch = rowMatch, let rowContentRange = Range(rowMatch.range(at: 1), in: xml) {
-                    let rowContent = String(xml[rowContentRange])
-                    currentRow = []
+        let range = NSRange(xml.startIndex..., in: xml)
+        rowRegex.enumerateMatches(in: xml, options: [], range: range) { rowMatch, _, _ in
+            guard let rowMatch = rowMatch, let rowContentRange = Range(rowMatch.range(at: 1), in: xml) else { return }
+            let rowContent = String(xml[rowContentRange])
+            var currentRow: [String] = []
 
-                    let cellRange = NSRange(rowContent.startIndex..., in: rowContent)
-                    cellRegex.enumerateMatches(in: rowContent, options: [], range: cellRange) { cellMatch, _, _ in
-                        if let cellMatch = cellMatch {
-                            let typeRange = Range(cellMatch.range(at: 1), in: rowContent)
-                            let valueRange = Range(cellMatch.range(at: 2), in: rowContent)
+            let cellRange = NSRange(rowContent.startIndex..., in: rowContent)
+            cellRegex.enumerateMatches(in: rowContent, options: [], range: cellRange) { cellMatch, _, _ in
+                guard let cellMatch = cellMatch else { return }
+                let attrsRange = Range(cellMatch.range(at: 1), in: rowContent)
+                let bodyRange = Range(cellMatch.range(at: 2), in: rowContent)
 
-                            if let valueRange = valueRange {
-                                let value = String(rowContent[valueRange])
-                                let cellType = typeRange.map { String(rowContent[$0]) }
+                let attrs = attrsRange.map { String(rowContent[$0]) } ?? ""
+                let body = bodyRange.map { String(rowContent[$0]) } ?? ""
 
-                                if cellType == "s", let index = Int(value), index < sharedStrings.count {
-                                    currentRow.append(sharedStrings[index])
-                                } else {
-                                    currentRow.append(value)
-                                }
-                            }
+                // Determine cell type
+                var cellType: String? = nil
+                if let typeMatch = typeRegex.firstMatch(in: attrs, options: [],
+                    range: NSRange(attrs.startIndex..., in: attrs)),
+                   let tRange = Range(typeMatch.range(at: 1), in: attrs) {
+                    cellType = String(attrs[tRange])
+                }
+
+                // Try to get value from <v> tag
+                if let valueMatch = valueRegex.firstMatch(in: body, options: [],
+                    range: NSRange(body.startIndex..., in: body)),
+                   let vRange = Range(valueMatch.range(at: 1), in: body) {
+                    let value = String(body[vRange])
+
+                    if cellType == "s", let index = Int(value), index < sharedStrings.count {
+                        currentRow.append(sharedStrings[index])
+                    } else if cellType == "b" {
+                        currentRow.append(value == "1" ? "TRUE" : "FALSE")
+                    } else {
+                        currentRow.append(value)
+                    }
+                } else if cellType == "inlineStr" || cellType == "str" {
+                    // Inline string: extract from <is><t> or just <t>
+                    var fragments: [String] = []
+                    let bRange = NSRange(body.startIndex..., in: body)
+                    inlineRegex.enumerateMatches(in: body, options: [], range: bRange) { tMatch, _, _ in
+                        if let tMatch = tMatch, let tRange = Range(tMatch.range(at: 1), in: body) {
+                            fragments.append(String(body[tRange]))
                         }
                     }
-
-                    if !currentRow.isEmpty {
-                        rows.append(currentRow)
-                    }
+                    currentRow.append(fragments.joined())
+                } else {
+                    // Empty cell
+                    currentRow.append("")
                 }
+            }
+
+            if !currentRow.allSatisfy({ $0.isEmpty }) {
+                rows.append(currentRow)
             }
         }
 
-        // Format as tab-separated values (like CSV but cleaner for RAG)
-        return rows.map { $0.joined(separator: "\t") }.joined(separator: "\n")
+        // Format as pipe-separated table for better RAG readability
+        guard !rows.isEmpty else { return "" }
+        var output = ""
+        for (i, row) in rows.enumerated() {
+            output += "| " + row.joined(separator: " | ") + " |\n"
+            if i == 0 {
+                output += "|" + row.map { _ in " --- " }.joined(separator: "|") + "|\n"
+            }
+        }
+        return output
     }
 
-    /// Extract text from PowerPoint slide XML
+    /// Extract text from PowerPoint slide XML with paragraph and table awareness
+    /// Preserves `<a:p>` paragraph boundaries, extracts `<a:tbl>` tables as pipe-separated
     private func extractTextFromPowerPointSlide(_ xml: String) -> String {
-        let text = xml
+        var result = ""
 
-        // PowerPoint uses <a:t> tags for text
-        let pattern = #"<a:t>([^<]*)</a:t>"#
-        if let regex = try? NSRegularExpression(pattern: pattern, options: []) {
-            let range = NSRange(text.startIndex..., in: text)
-            var extractedParts: [String] = []
-
-            regex.enumerateMatches(in: text, options: [], range: range) { match, _, _ in
-                if let match = match, let contentRange = Range(match.range(at: 1), in: text) {
-                    let content = String(text[contentRange])
-                    if !content.trimmingCharacters(in: .whitespaces).isEmpty {
-                        extractedParts.append(content)
-                    }
+        // STEP 1: Extract tables and replace with placeholders
+        var tableTexts: [String] = []
+        var processedXML = xml
+        let tablePattern = #"<a:tbl\b[^>]*>.*?</a:tbl>"#
+        if let tableRegex = try? NSRegularExpression(pattern: tablePattern, options: [.dotMatchesLineSeparators]) {
+            let range = NSRange(xml.startIndex..., in: xml)
+            var matches: [NSTextCheckingResult] = []
+            tableRegex.enumerateMatches(in: xml, options: [], range: range) { match, _, _ in
+                if let match = match { matches.append(match) }
+            }
+            for match in matches.reversed() {
+                if let matchRange = Range(match.range, in: processedXML) {
+                    let tableXML = String(processedXML[matchRange])
+                    let tableText = extractTableFromPowerPointXML(tableXML)
+                    let placeholder = "\n[[PPTTABLE_\(tableTexts.count)]]\n"
+                    tableTexts.append(tableText)
+                    processedXML.replaceSubrange(matchRange, with: placeholder)
                 }
             }
-
-            return extractedParts.joined(separator: " ")
         }
 
-        // Fallback
-        return text.replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
-            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+        // STEP 2: Extract paragraphs — <a:p> contains <a:r><a:t> text runs
+        let paraPattern = #"<a:p\b[^>]*>(.*?)</a:p>"#
+        let textPattern = #"<a:t>([^<]*)</a:t>"#
+
+        if let paraRegex = try? NSRegularExpression(pattern: paraPattern, options: [.dotMatchesLineSeparators]),
+           let textRegex = try? NSRegularExpression(pattern: textPattern, options: []) {
+
+            let range = NSRange(processedXML.startIndex..., in: processedXML)
+            paraRegex.enumerateMatches(in: processedXML, options: [], range: range) { match, _, _ in
+                guard let match = match, let contentRange = Range(match.range(at: 1), in: processedXML) else { return }
+                let paraContent = String(processedXML[contentRange])
+
+                // Extract all text runs in this paragraph
+                var runs: [String] = []
+                let tRange = NSRange(paraContent.startIndex..., in: paraContent)
+                textRegex.enumerateMatches(in: paraContent, options: [], range: tRange) { tMatch, _, _ in
+                    if let tMatch = tMatch, let textRange = Range(tMatch.range(at: 1), in: paraContent) {
+                        let content = String(paraContent[textRange])
+                        if !content.trimmingCharacters(in: .whitespaces).isEmpty {
+                            runs.append(content)
+                        }
+                    }
+                }
+
+                if !runs.isEmpty {
+                    result += runs.joined() + "\n"
+                }
+            }
+        }
+
+        // STEP 3: Re-insert tables
+        for (i, tableText) in tableTexts.enumerated() {
+            result = result.replacingOccurrences(of: "[[PPTTABLE_\(i)]]", with: "\n" + tableText + "\n")
+        }
+
+        return result.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Extract a PowerPoint table as pipe-separated text
+    private func extractTableFromPowerPointXML(_ tableXML: String) -> String {
+        let rowPattern = #"<a:tr\b[^>]*>(.*?)</a:tr>"#
+        let cellPattern = #"<a:tc\b[^>]*>(.*?)</a:tc>"#
+        let textPattern = #"<a:t>([^<]*)</a:t>"#
+
+        guard let rowRegex = try? NSRegularExpression(pattern: rowPattern, options: [.dotMatchesLineSeparators]),
+              let cellRegex = try? NSRegularExpression(pattern: cellPattern, options: [.dotMatchesLineSeparators]),
+              let textRegex = try? NSRegularExpression(pattern: textPattern, options: []) else {
+            return ""
+        }
+
+        var tableRows: [[String]] = []
+        let rowRange = NSRange(tableXML.startIndex..., in: tableXML)
+
+        rowRegex.enumerateMatches(in: tableXML, options: [], range: rowRange) { rowMatch, _, _ in
+            guard let rowMatch = rowMatch, let rowContent = Range(rowMatch.range(at: 1), in: tableXML) else { return }
+            let rowStr = String(tableXML[rowContent])
+            var cells: [String] = []
+
+            let cellRange = NSRange(rowStr.startIndex..., in: rowStr)
+            cellRegex.enumerateMatches(in: rowStr, options: [], range: cellRange) { cellMatch, _, _ in
+                guard let cellMatch = cellMatch, let cellContent = Range(cellMatch.range(at: 1), in: rowStr) else { return }
+                let cellStr = String(rowStr[cellContent])
+
+                var cellText: [String] = []
+                let tRange = NSRange(cellStr.startIndex..., in: cellStr)
+                textRegex.enumerateMatches(in: cellStr, options: [], range: tRange) { tMatch, _, _ in
+                    if let tMatch = tMatch, let textRange = Range(tMatch.range(at: 1), in: cellStr) {
+                        cellText.append(String(cellStr[textRange]))
+                    }
+                }
+                cells.append(cellText.joined().trimmingCharacters(in: .whitespaces))
+            }
+
+            if !cells.allSatisfy({ $0.isEmpty }) {
+                tableRows.append(cells)
+            }
+        }
+
+        guard !tableRows.isEmpty else { return "" }
+        var output = ""
+        for (i, row) in tableRows.enumerated() {
+            output += "| " + row.joined(separator: " | ") + " |\n"
+            if i == 0 {
+                output += "|" + row.map { _ in " --- " }.joined(separator: "|") + "|\n"
+            }
+        }
+        return output
     }
 
     // MARK: - Chunking Strategy
@@ -4192,6 +5447,7 @@ class DocumentProcessor {
 enum DocumentProcessingError: LocalizedError {
     case unsupportedFormat
     case pdfLoadFailed
+    case pdfEncrypted
     case emptyDocument
     case imageOnlyPDF
     case rtfParseFailed
@@ -4212,6 +5468,8 @@ enum DocumentProcessingError: LocalizedError {
             return "Unsupported document format"
         case .pdfLoadFailed:
             return "Failed to load PDF document"
+        case .pdfEncrypted:
+            return "This PDF is password-protected. Please remove the password and try again."
         case .emptyDocument:
             return "Document contains no text"
         case .imageOnlyPDF:

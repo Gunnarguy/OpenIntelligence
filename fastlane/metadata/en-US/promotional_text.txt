@@ -1,1 +1,1 @@
-23-step RAG pipeline. 100% On-Device. Ask PDFs, get cited answers. HyDE, Reranking, & Graph Packing. No cloud, no accounts. Native iOS Performance.
+NEW: Motherboard HUD — X-ray your iPhone's Apple Silicon in real-time. 23-step RAG pipeline. 100% On-Device. Ask PDFs, get cited answers. HyDE, Reranking, & Graph Packing. No cloud, no accounts.

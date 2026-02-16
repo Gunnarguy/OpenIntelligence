@@ -1,13 +1,16 @@
-Version 1.0.1
+Version 1.2.0
 
-• Updated descriptions and metadata to accurately reflect the 23-step RAG pipeline.
-• Clarified on-device storage and privacy guarantees.
-• Documentation improvements.
-• Ask questions in plain English
-• Get accurate answers with citations to exact source passages
-• Powered by on-device AI using your device's Neural Engine
-• Privacy-first: all processing happens locally by default
-• Optional Private Cloud Compute with Apple's zero-retention guarantee
-• Organize documents into containers with automatic tagging
-• Standard and Deep Think quality modes
-• Works offline with no account required
+NEW: DEVICE-OPTIMIZED PERFORMANCE ENGINE
+Every pipeline stage now adapts to the specific Apple Silicon chip in your device.
+
+• 3-Tier Metal GPU Search — Vector similarity uses threadgroup shared memory (fastest), SIMD4 (4× throughput), or scalar shaders based on your corpus size. Previously all searches used the slowest shader.
+• Device-Specific OCR — A19 Pro: 8 parallel Vision ops @ 1ms cooldown. A18 Pro: 6 @ 2ms. A17 Pro: 4 @ 3ms. Adaptive filtering skips 50-80% of clean PDF pages entirely.
+• Concurrent Neural Reranking — Cross-encoder scores multiple query-chunk pairs in parallel with pre-tokenized bulk memory writes (3× faster array fills).
+• GPU Embedding Mode — Embeddings run on GPU during ingestion, freeing the Neural Engine for simultaneous OCR.
+• Concurrent Image Processing — CIFilter preprocessing runs in parallel across pages (was serialized).
+• 5-Candidate OCR — Evaluates more transcription alternatives for higher accuracy on ambiguous text.
+
+UNDER THE HOOD
+• Extracted and deduplicated cross-encoder prediction code
+• Removed dead code paths in reranking pipeline
+• Updated stale comments across OCR pipeline

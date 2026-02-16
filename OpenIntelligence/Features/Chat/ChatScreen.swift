@@ -1753,6 +1753,9 @@ struct ChatScreen: View {
                     }
                 }
 
+                // Snapshot thinking events before they get cleared on next query
+                let capturedThinkingEvents = await MainActor.run { self.thinkingEvents }
+
                 var assistant = ChatMessage(
                     role: .assistant,
                     content: sanitizeFinalResponse(response.generatedResponse),
@@ -1760,6 +1763,18 @@ struct ChatScreen: View {
                     retrievedChunks: response.retrievedChunks
                 )
                 assistant.containerId = capturedUsedContainerId
+
+                // Build pipeline trace from thinking events for later export
+                if !capturedThinkingEvents.isEmpty {
+                    let sorted = capturedThinkingEvents.sorted { $0.timestamp < $1.timestamp }
+                    let baseTime = sorted.first?.timestamp ?? Date()
+                    assistant.pipelineTrace = sorted.map { event in
+                        let elapsed = event.timestamp.timeIntervalSince(baseTime)
+                        let time = String(format: "+%06.0fms", elapsed * 1000)
+                        let detail = event.detail.map { " │ \($0)" } ?? ""
+                        return "\(time) [\(event.kind.displayName)] \(event.title)\(detail)"
+                    }
+                }
 
                 await MainActor.run {
                     // flushStreamingBufferToVisibleText already handled cleanup when isFinal arrived

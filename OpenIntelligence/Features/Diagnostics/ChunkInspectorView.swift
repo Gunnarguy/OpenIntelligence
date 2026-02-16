@@ -36,6 +36,28 @@ struct ChunkInspectorView: View {
         case structureType = "Structure Type"
     }
 
+    /// Dynamically generates quick-search suggestions from loaded document names/types
+    private var dynamicQuickSearchTerms: [String] {
+        let docs = ragService.documents
+        guard !docs.isEmpty else {
+            return ["introduction", "summary", "table", "section 1", "overview"]
+        }
+        var terms: [String] = []
+        // Use first few document filenames (without extension) as search hints
+        for doc in docs.prefix(3) {
+            let name = (doc.filename as NSString).deletingPathExtension
+            let cleaned = name.replacingOccurrences(of: "_", with: " ")
+                .replacingOccurrences(of: "-", with: " ")
+            if cleaned.count <= 30 {
+                terms.append(cleaned)
+            }
+        }
+        // Add generic structural queries
+        terms.append(contentsOf: ["summary", "table", "introduction", "conclusion", "section 1"])
+        // Cap at 5 chips
+        return Array(terms.prefix(5))
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             inspectionHeader
@@ -114,11 +136,9 @@ struct ChunkInspectorView: View {
             if searchQuery.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
-                        quickSearchChip("SAE 0W-20")
-                        quickSearchChip("SAE 5W-30")
-                        quickSearchChip("engine oil")
-                        quickSearchChip("viscosity")
-                        quickSearchChip("2.0L")
+                        ForEach(dynamicQuickSearchTerms, id: \.self) { term in
+                            quickSearchChip(term)
+                        }
                     }
                     .padding(.horizontal)
                 }

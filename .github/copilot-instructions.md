@@ -44,6 +44,10 @@ Ingest ANY document, ANY size. Answer questions using Apple Intelligence. **ZERO
 ```
 INGESTION (6 steps):
   1. Parse (PDFKit/Vision OCR 360 DPI/Office ZIP)
+     - Adaptive Preprocessing (5 CIFilter strategies: minimal→maximum)
+     - Dynamic Vocabulary (PDFKit text mining → customWords)
+     - Centralized OCR config (OCRConfiguration.configureRequest)
+     - Multi-candidate confidence OCR (topCandidates(5), 90% numeric threshold)
   2. SemanticChunker (≤310w, section detection)
   3. Entity Extraction (NLTagger NER + PascalCase)
   4. Token Validation (BertTokenizer ≤510)
@@ -94,20 +98,20 @@ QUERY → RESPONSE (17 steps):
 
 > **Full Reference**: See `Docs/reference/APPLE_DOCUMENT_INTELLIGENCE.md`
 
-## Service Inventory (78 Services)
+## Service Inventory (80 Services)
 
-| Category           | Count | Key Services                                                                               |
-| ------------------ | ----- | ------------------------------------------------------------------------------------------ |
-| **RAG Pipeline**   | 14    | RAGService, RAGEngine, HybridSearchService, VerificationGateService, ContextPackingService |
-| **Query**          | 8     | QueryEnhancementService, HyDEService, ContextualCompressionService, QueryRouterService     |
-| **Document**       | 19    | DocumentProcessor, SemanticChunker, EntityIndexService, AudioTranscriptionService          |
-| **Embedding**      | 2     | EmbeddingService, CoreMLSentenceEmbeddingProvider                                          |
-| **Storage**        | 3     | FullTextStorageService, SQLiteFullTextService, DocumentationCacheService                   |
-| **VectorStore**    | 4     | VectorDatabase (protocol), InMemoryVectorDatabase, BNNSVectorDatabase, VectorStoreRouter   |
-| **LLM**            | 7     | AppleFoundationLLMService, OnDeviceAnalysisService, LocalOpenAIServerLLMService            |
-| **Agentic**        | 3     | AgenticOrchestrator, ConversationMemoryService, WritingToolsService                        |
-| **Infrastructure** | 17    | ContainerService, GPUComputeService, DeviceCapabilityService, SystemStateMonitor           |
-| **Billing**        | 1     | StoreKitBillingService                                                                     |
+| Category           | Count | Key Services                                                                                                |
+| ------------------ | ----- | ----------------------------------------------------------------------------------------------------------- |
+| **RAG Pipeline**   | 14    | RAGService, RAGEngine, HybridSearchService, VerificationGateService, ContextPackingService                  |
+| **Query**          | 8     | QueryEnhancementService, HyDEService, ContextualCompressionService, QueryRouterService                      |
+| **Document**       | 20    | DocumentProcessor, SemanticChunker, EntityIndexService, AudioTranscriptionService, OCRConfiguration         |
+| **Embedding**      | 2     | EmbeddingService, CoreMLSentenceEmbeddingProvider                                                           |
+| **Storage**        | 3     | FullTextStorageService, SQLiteFullTextService, DocumentationCacheService                                    |
+| **VectorStore**    | 4     | VectorDatabase (protocol), InMemoryVectorDatabase, BNNSVectorDatabase, VectorStoreRouter                    |
+| **LLM**            | 7     | AppleFoundationLLMService, OnDeviceAnalysisService, LocalOpenAIServerLLMService                             |
+| **Agentic**        | 3     | AgenticOrchestrator, ConversationMemoryService, WritingToolsService                                         |
+| **Infrastructure** | 18    | ContainerService, GPUComputeService (3-tier Metal shaders), HardwareTelemetryState, DeviceCapabilityService |
+| **Billing**        | 1     | StoreKitBillingService                                                                                      |
 
 **Full inventory**: See `ARCHITECTURE.md` → "Complete Service Inventory"
 

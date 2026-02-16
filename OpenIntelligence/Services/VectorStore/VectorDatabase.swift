@@ -48,11 +48,26 @@ protocol VectorDatabase {
     /// Call after storeBatch() when you want to control when disk I/O happens.
     /// The default implementation is a no-op for in-memory databases.
     func persist() async throws
+
+    /// Retrieve raw embedding vectors for chunks by their integer index in the store.
+    /// Used internally by getEmbeddings(forChunkIDs:) when the implementation knows indices.
+    func getEmbeddings(forIndices indices: [Int]) async -> [[Float]]
+
+    /// Retrieve raw embedding vectors for specific chunks by UUID.
+    /// Used by Gate E (Semantic Grounding) — the primary hallucination detector.
+    /// Returns one [Float] per input UUID, in order. Empty array for unknown UUIDs.
+    func getEmbeddings(forChunkIDs ids: [UUID]) async -> [[Float]]
 }
 
-// Default no-op for databases that don't need explicit persistence
+// Default implementations for optional protocol methods
 extension VectorDatabase {
     func persist() async throws { /* no-op */ }
+    func getEmbeddings(forIndices indices: [Int]) async -> [[Float]] {
+        return indices.map { _ in [Float]() }
+    }
+    func getEmbeddings(forChunkIDs ids: [UUID]) async -> [[Float]] {
+        return ids.map { _ in [Float]() }
+    }
 }
 
 /// Statistics for vector database health monitoring
@@ -1121,6 +1136,57 @@ class MmapVectorDatabase: VectorDatabase {
         Log.debug("[MmapVectorDatabase] Search completed in \(String(format: "%.3f", elapsed))s (top \(results.count) of \(chunkMetadata.count))", category: .vectorDB)
 
         return results
+    }
+
+    /// Retrieve raw embedding vectors for specific chunk indices from the mmap file.
+    /// Used by Gate E (Semantic Grounding) to verify LLM responses are semantically
+    /// close to source chunks. Reads directly from memory-mapped embeddings.bin.
+    /// Cost: 384×4=1.5KB per embedding × ~20 chunks = ~30KB — negligible for verification.
+    func getEmbeddings(forIndices indices: [Int]) async -> [[Float]] {
+        guard let mapped = mappedEmbeddings, !chunkMetadata.isEmpty else {
+            return indices.map { _ in [Float]() }
+        }
+
+        return await withCheckedContinuation { continuation in
+            queue.async {
+                var results: [[Float]] = []
+                results.reserveCapacity(indices.count)
+
+                mapped.withUnsafeBytes { buffer in
+                    let embeddings = buffer.bindMemory(to: Float.self)
+                    let totalChunks = self.chunkMetadata.count
+
+                    for index in indices {
+                        guard index >= 0, index < totalChunks else {
+                            results.append([])
+                            continue
+                        }
+
+                        let offset = index * self.embeddingDim
+                        guard offset + self.embeddingDim <= embeddings.count else {
+                            results.append([])
+                            continue
+                        }
+
+                        // Copy embedding vector from mmap — same offset calculation as search()
+                        let ptr = embeddings.baseAddress!.advanced(by: offset)
+                        let vec = Array(UnsafeBufferPointer(start: ptr, count: self.embeddingDim))
+                        results.append(vec)
+                    }
+                }
+
+                continuation.resume(returning: results)
+            }
+        }
+    }
+
+    /// Retrieve raw embeddings for chunks identified by UUID.
+    /// Maps UUIDs → integer indices via idToIndex, then reads from mmap.
+    /// Called by Gate E via the protocol — this is the primary entry point.
+    func getEmbeddings(forChunkIDs ids: [UUID]) async -> [[Float]] {
+        // Map UUIDs to integer indices using the in-memory lookup table
+        let indices = ids.map { idToIndex[$0] ?? -1 }
+        return await getEmbeddings(forIndices: indices)
     }
 
     func deleteChunks(forDocument documentId: UUID) async throws {

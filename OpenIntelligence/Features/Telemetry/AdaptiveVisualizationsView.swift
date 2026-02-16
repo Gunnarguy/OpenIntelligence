@@ -2843,8 +2843,6 @@ struct CompactAtlasSceneView: View {
 
         // Domain-specific pattern matching for meaningful labels
         switch domain {
-        case "vehicle":
-            return inferVehicleTopic(from: lowercased)
         case "technical":
             return inferTechnicalTopic(from: lowercased)
         case "legal":
@@ -2856,59 +2854,25 @@ struct CompactAtlasSceneView: View {
         }
     }
 
-    /// Detect document domain from content
+    /// Detect document domain from content (score-based, no priority bias)
     private func detectDomain(from text: String) -> String {
-        // Vehicle/automotive indicators
-        let vehicleTerms = ["vehicle", "car", "engine", "transmission", "brake", "tire", "oil",
-                           "fuel", "mph", "dashboard", "steering", "warranty", "maintenance"]
-        if vehicleTerms.contains(where: { text.contains($0) }) { return "vehicle" }
-
-        // Technical/software indicators
-        let techTerms = ["api", "function", "code", "software", "database", "server", "deploy"]
-        if techTerms.contains(where: { text.contains($0) }) { return "technical" }
-
-        // Legal indicators
-        let legalTerms = ["agreement", "contract", "liability", "hereby", "pursuant"]
-        if legalTerms.contains(where: { text.contains($0) }) { return "legal" }
-
-        // Medical indicators
-        let medicalTerms = ["patient", "diagnosis", "treatment", "medication", "symptoms"]
-        if medicalTerms.contains(where: { text.contains($0) }) { return "medical" }
-
-        return "general"
-    }
-
-    /// Infer topic for vehicle/automotive content
-    private func inferVehicleTopic(from text: String) -> String {
-        let patterns: [(terms: [String], label: String)] = [
-            (["infotainment", "display", "screen", "touchscreen", "navigation"], "Infotainment System"),
-            (["bluetooth", "audio", "speaker", "radio", "music", "sound"], "Audio & Connectivity"),
-            (["setting", "settings", "configure", "customize"], "Vehicle Settings"),
-            (["climate", "air conditioning", "hvac", "temperature", "heater"], "Climate Control"),
-            (["seat", "seating", "lumbar", "headrest"], "Seat Adjustment"),
-            (["safety", "airbag", "collision", "seatbelt"], "Safety Features"),
-            (["adas", "driver assist", "lane", "blind spot", "cruise control"], "Driver Assistance"),
-            (["alarm", "security", "theft", "lock", "keyless"], "Security System"),
-            (["camera", "backup", "parking", "sensor"], "Parking Assistance"),
-            (["oil", "lubricant", "viscosity"], "Oil Specifications"),
-            (["maintenance", "service", "schedule"], "Maintenance Schedule"),
-            (["tire", "wheel", "pressure", "rotation"], "Tire Information"),
-            (["brake", "braking", "pad", "rotor"], "Brake System"),
-            (["coolant", "antifreeze", "radiator"], "Cooling System"),
-            (["battery", "charging", "jump start"], "Battery & Charging"),
-            (["fuel", "gas", "gasoline", "tank", "mpg"], "Fuel System"),
-            (["engine", "motor", "horsepower", "torque"], "Engine Specs"),
-            (["transmission", "gear", "shift"], "Transmission"),
-            (["warranty", "coverage", "guarantee"], "Warranty"),
-            (["interior", "cabin", "dashboard", "console"], "Interior Features"),
-            (["trunk", "cargo", "storage"], "Cargo & Storage"),
-            (["gauge", "speedometer", "instrument"], "Instrument Panel"),
-            (["warning", "indicator", "alert"], "Warning Lights"),
-            (["specification", "dimension", "weight"], "Specifications"),
-            (["mirror", "lighting", "headlight"], "Exterior Controls"),
+        let domainTerms: [(String, [String])] = [
+            ("technical", ["api", "function", "code", "software", "database", "server", "deploy"]),
+            ("legal", ["agreement", "contract", "liability", "hereby", "pursuant"]),
+            ("medical", ["patient", "diagnosis", "treatment", "medication", "symptoms"]),
         ]
 
-        return matchBestPattern(patterns: patterns, text: text) ?? "Vehicle Info"
+        var bestDomain = "general"
+        var bestScore = 0
+        for (domain, terms) in domainTerms {
+            let score = terms.filter { text.contains($0) }.count
+            if score > bestScore {
+                bestScore = score
+                bestDomain = domain
+            }
+        }
+
+        return bestScore >= 2 ? bestDomain : "general"
     }
 
     /// Infer topic for technical/software content

@@ -2275,9 +2275,9 @@ struct DocumentPreviewSheet: View {
         }
         .task {
             isLoading = true
-            content = await SQLiteFullTextService.shared.getContentPreview(
-                documentId: documentId,
-                maxLength: 50000 // Get full content for analysis
+            // Load FULL content — no artificial truncation
+            content = await SQLiteFullTextService.shared.getFullContent(
+                documentId: documentId
             ) ?? ""
             isLoading = false
         }
