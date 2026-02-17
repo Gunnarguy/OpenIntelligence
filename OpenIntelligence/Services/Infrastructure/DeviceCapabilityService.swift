@@ -185,9 +185,9 @@ final class DeviceCapabilityService: @unchecked Sendable {
     var agenticStepCooldownMs: UInt64 {
         switch cachedTier {
         case .unsupported: return 0
-        case .baseline: return 200 // Longer cooldown for A17 Pro
-        case .enhanced: return 100 // A18 has better thermals
-        case .advanced: return 50 // A19 projected
+        case .baseline: return 100  // A17 Pro: reduced cooldown, quality over battery
+        case .enhanced: return 50   // A18 Pro: fast iteration
+        case .advanced: return 25   // A19 Pro: near-instant
         case .ultraAdvanced: return 0 // M-series can go full speed
         }
     }
@@ -209,13 +209,15 @@ final class DeviceCapabilityService: @unchecked Sendable {
     /// Used by BNNSVectorDatabase for vDSP_mmul batch matrix operations.
     /// STABLE: Reduced after Metal command buffer crashes at MAX POWER.
     var vectorBatchSize: Int {
-        // STABLE: Moderate batch sizes to avoid memory pressure
+        // CRANKED: Larger batch sizes amortize dispatch overhead.
+        // Apple9+ 64-bit atomics enable lock-free batch coordination.
+        // vDSP_mmul is highly optimized for these sizes on Apple Silicon.
         switch cachedTier {
         case .unsupported: return 128
-        case .baseline: return 384    // A17 Pro: conservative
-        case .enhanced: return 512    // A18 Pro: moderate
-        case .advanced: return 768    // A19 Pro: scaled
-        case .ultraAdvanced: return 1024 // M-series: reasonable
+        case .baseline: return 512    // A17 Pro: vDSP handles this easily
+        case .enhanced: return 768    // A18 Pro: larger batches for throughput
+        case .advanced: return 1024   // A19 Pro: full SIMD utilization
+        case .ultraAdvanced: return 1536 // M-series: maximum batch throughput
         }
     }
 
@@ -226,13 +228,15 @@ final class DeviceCapabilityService: @unchecked Sendable {
     /// MiniLM-L6-v2 uses ~100MB; these batch sizes fit comfortably.
     /// STABLE: Reduced for pipeline stability.
     var embeddingBatchSize: Int {
-        // STABLE: Moderate batches for smooth pipeline
+        // CRANKED: Larger batches amortize CoreML model loading overhead.
+        // MiniLM-L6-v2 uses ~100MB; these batch sizes fit comfortably.
+        // Bigger batches = fewer model invocations = faster ingestion.
         switch cachedTier {
         case .unsupported: return 8
-        case .baseline: return 16   // A17 Pro: conservative
-        case .enhanced: return 24   // A18 Pro: moderate
-        case .advanced: return 32   // A19 Pro: scaled
-        case .ultraAdvanced: return 48 // M-series: reasonable
+        case .baseline: return 24   // A17 Pro: boosted from 16
+        case .enhanced: return 32   // A18 Pro: boosted from 24
+        case .advanced: return 48   // A19 Pro: full throughput
+        case .ultraAdvanced: return 64 // M-series: maximum batch
         }
     }
 
@@ -257,14 +261,14 @@ final class DeviceCapabilityService: @unchecked Sendable {
     /// Metal Feature Set: Apple9+ supports 64-bit atomics for lock-free progress tracking.
     /// Higher-tier devices can process more chunks before yielding to UI.
     var maxChunksPerSearchYield: Int {
-        // MAX POWER: Process more chunks before yielding
+        // CRANKED: Process more chunks before yielding for higher search quality
         // 64-bit atomics enable lock-free progress tracking
         switch cachedTier {
         case .unsupported: return 200
-        case .baseline: return 2000   // A17 Pro: fast single-core
-        case .enhanced: return 4000   // A18 Pro: MAXIMUM chunk processing
-        case .advanced: return 8000   // A19 Pro: next-gen cores
-        case .ultraAdvanced: return 16000 // M-series: unlimited
+        case .baseline: return 3000   // A17 Pro: fast single-core
+        case .enhanced: return 6000   // A18 Pro: maximum chunk processing
+        case .advanced: return 10000  // A19 Pro: next-gen cores
+        case .ultraAdvanced: return 20000 // M-series: unlimited
         }
     }
 
@@ -282,18 +286,19 @@ final class DeviceCapabilityService: @unchecked Sendable {
     /// IMPORTANT: Mac needs LOWER values despite more power!
     /// macOS Metal command buffer scheduling differs from iOS.
     var visionParsingConcurrency: Int {
-        // Mac check - macOS Metal is pickier about command buffer pile-up
+        // Mac check - active cooling allows sustained throughput
         if isMac || ProcessInfo.processInfo.isiOSAppOnMac {
-            return 6  // Mac: 2x the 3 Vision ops
+            return 8  // Mac: 2x the 4 Vision ops, active cooling
         }
 
         // iOS devices: 2x VisionOCRThrottle limits for pipeline saturation
+        // Pipeline pre-renders pages ahead of Vision to keep ANE saturated
         switch cachedTier {
         case .unsupported: return 2
         case .baseline: return 8   // A17 Pro: 2x the 4 Vision ops
-        case .enhanced: return 10  // A18 Pro: 2x the 5 Vision ops
-        case .advanced: return 12  // A19 Pro: 2x the 6 Vision ops
-        case .ultraAdvanced: return 8 // M-series iPad: moderate
+        case .enhanced: return 12  // A18 Pro: 2x the 6 Vision ops
+        case .advanced: return 16  // A19 Pro: 2x the 8 Vision ops
+        case .ultraAdvanced: return 12 // M-series iPad: 2x + headroom
         }
     }
 
@@ -305,18 +310,46 @@ final class DeviceCapabilityService: @unchecked Sendable {
     ///
     /// CRITICAL: Values must coordinate with VisionOCRThrottle maxConcurrentVisionOps!
     var ocrExtractionConcurrency: Int {
-        // Mac check - macOS Metal is pickier about command buffer pile-up
+        // Mac check - active cooling allows sustained throughput
         if isMac || ProcessInfo.processInfo.isiOSAppOnMac {
-            return 6  // Mac: matches visionParsingConcurrency
+            return 8  // Mac: matches visionParsingConcurrency, active cooling
         }
 
         // iOS devices - 2x VisionOCRThrottle for pipeline saturation
         switch cachedTier {
         case .unsupported: return 2
         case .baseline: return 8   // A17 Pro: 2x the 4 Vision ops
-        case .enhanced: return 10  // A18 Pro: 2x the 5 Vision ops
-        case .advanced: return 12  // A19 Pro: 2x the 6 Vision ops
-        case .ultraAdvanced: return 8 // M-series iPad: moderate
+        case .enhanced: return 12  // A18 Pro: 2x the 6 Vision ops
+        case .advanced: return 16  // A19 Pro: 2x the 8 Vision ops
+        case .ultraAdvanced: return 12 // M-series iPad: 2x + headroom
+        }
+    }
+
+    /// Maximum number of full-resolution PDF page images alive in memory simultaneously.
+    ///
+    /// At 360 DPI, each US Letter PDF page renders to 6210×11040px ≈ 206 MB (opaque RGB).
+    /// MEMORY BUDGET: 3 pages × 206 MB = ~618 MB — well within iOS app limits.
+    /// This is INDEPENDENT of Neural Engine pipeline depth (visionParsingConcurrency):
+    ///   - The pipeline can queue 10+ pages for OCR work
+    ///   - But only `pdfRenderingConcurrency` pages have full-res images alive at once
+    ///   - Images are rendered on-demand inside TaskGroup tasks, not pre-rendered in bulk
+    ///   - Each image is released immediately after Vision OCR completes for that page
+    ///
+    /// This prevents the OOM crash where 10 × 206 MB = 2 GB of images were held simultaneously.
+    /// Quality is UNCHANGED: still 360 DPI, same preprocessing, same Vision accuracy.
+    var pdfRenderingConcurrency: Int {
+        if isMac || ProcessInfo.processInfo.isiOSAppOnMac {
+            return 6  // Mac: 16-96 GB RAM, active cooling, 6 × 206 MB = 1.2 GB
+        }
+        // CRANKED: Modern devices have plenty of RAM for concurrent page images.
+        // Images are released immediately after Vision OCR completes per page.
+        // At 360 DPI, 206 MB/page: 4 pages = 824 MB (well within 8 GB headroom)
+        switch cachedTier {
+        case .unsupported: return 1
+        case .baseline: return 3   // A17 Pro: ~6 GB RAM, 3 × 206 MB = 618 MB (safe)
+        case .enhanced: return 4   // A18 Pro: ~8 GB RAM, 4 × 206 MB = 824 MB
+        case .advanced: return 5   // A19 Pro: ~8 GB RAM, 5 × 206 MB = 1.0 GB (fine with fast release)
+        case .ultraAdvanced: return 5 // M-series iPad: 8-16 GB RAM
         }
     }
 
@@ -327,18 +360,20 @@ final class DeviceCapabilityService: @unchecked Sendable {
     /// STABLE: Reduced after Metal synchronizeResource crashes.
     /// GPU boost mode disabled - caused Metal command buffer conflicts.
     var embeddingConcurrency: Int {
-        // Mac check - macOS Metal is pickier
+        // Mac check - active cooling allows sustained GPU embedding throughput
         if isMac || ProcessInfo.processInfo.isiOSAppOnMac {
-            return 8  // Mac: Conservative for macOS Metal stability
+            return 12  // Mac: Active cooling, separate GPU from ANE Vision ops
         }
 
-        // iOS devices
+        // CRANKED: Embeddings run on GPU during ingestion (freeing ANE for Vision).
+        // Higher concurrency = more chunks embedded per second = faster ingestion.
+        // GPU has dedicated bandwidth separate from ANE.
         switch cachedTier {
         case .unsupported: return 2
-        case .baseline: return 10  // A17 Pro: 2x Vision ops
-        case .enhanced: return 12  // A18 Pro: 2x Vision ops (5 * 2 + margin)
-        case .advanced: return 16  // A19 Pro: scaled
-        case .ultraAdvanced: return 12 // M-series iPad: moderate
+        case .baseline: return 12  // A17 Pro: GPU is underutilized during OCR
+        case .enhanced: return 16  // A18 Pro: 6-core GPU, plenty of headroom
+        case .advanced: return 20  // A19 Pro: scaled GPU throughput
+        case .ultraAdvanced: return 16 // M-series iPad: balanced with other GPU work
         }
     }
 
@@ -403,29 +438,29 @@ final class DeviceCapabilityService: @unchecked Sendable {
     /// IMPORTANT: Mac needs LOWER values despite more GPU cores!
     /// macOS Metal command buffer scheduling differs from iOS.
     var gpuConcurrency: Int {
-        // Mac check - macOS Metal is pickier about command buffer pile-up
+        // Mac check - active cooling allows sustained GPU throughput
         if isMac || ProcessInfo.processInfo.isiOSAppOnMac {
-            return 4  // Mac: Conservative for macOS Metal stability
+            return 6  // Mac: Active cooling, more GPU cores
         }
 
         let level = gpuAccelerationLevel
         if level >= 0.9 {
-            // Performance mode - safe maximums for iOS
+            // Performance mode - CRANKED maximums for iOS
             switch cachedTier {
             case .unsupported: return 2
-            case .baseline: return 8    // A17 Pro: safe
-            case .enhanced: return 10   // A18 Pro: moderate
-            case .advanced: return 12   // A19 Pro: scaled
-            case .ultraAdvanced: return 8 // M-series iPad: moderate
+            case .baseline: return 10   // A17 Pro: 6-core GPU, boosted
+            case .enhanced: return 14   // A18 Pro: 6-core GPU, full utilization
+            case .advanced: return 16   // A19 Pro: next-gen GPU cores
+            case .ultraAdvanced: return 12 // M-series iPad: balanced
             }
         } else if level >= 0.6 {
             // Balanced mode
             switch cachedTier {
             case .unsupported: return 2
-            case .baseline: return 6
-            case .enhanced: return 8
-            case .advanced: return 10
-            case .ultraAdvanced: return 6 // M-series iPad
+            case .baseline: return 8
+            case .enhanced: return 10
+            case .advanced: return 12
+            case .ultraAdvanced: return 8 // M-series iPad
             }
         } else {
             // Efficiency mode
@@ -445,27 +480,17 @@ final class DeviceCapabilityService: @unchecked Sendable {
             return .fast // Shouldn't happen, but fallback
 
         case .baseline:
-            // A17 Pro: Conservative settings to prevent thermal throttling
+            // A17 Pro: Moderate settings for quality without thermal throttling
             return AgenticConfig(
-                maxSteps: 4,
-                maxTotalTokens: 16000,
+                maxSteps: 5,
+                maxTotalTokens: 20000,
                 streamIntermediateResults: true,
-                confidenceThreshold: 0.80, // Stop earlier to save battery
-                    escalationThreshold: 0.30
+                confidenceThreshold: 0.85, // Higher quality threshold
+                    escalationThreshold: 0.35
             )
 
         case .enhanced:
-            // A18/A18 Pro: Balanced performance
-            return AgenticConfig(
-                maxSteps: 6,
-                maxTotalTokens: 24000,
-                streamIntermediateResults: true,
-                confidenceThreshold: 0.85,
-                escalationThreshold: 0.35
-            )
-
-        case .advanced:
-            // A19/A19 Pro: More aggressive
+            // A18/A18 Pro: High quality, good thermal headroom
             return AgenticConfig(
                 maxSteps: 8,
                 maxTotalTokens: 32000,
@@ -474,14 +499,24 @@ final class DeviceCapabilityService: @unchecked Sendable {
                 escalationThreshold: 0.40
             )
 
-        case .ultraAdvanced:
-            // M-series / future: Full power
+        case .advanced:
+            // A19/A19 Pro: Maximum quality
             return AgenticConfig(
                 maxSteps: 10,
-                maxTotalTokens: 48000,
+                maxTotalTokens: 40000,
+                streamIntermediateResults: true,
+                confidenceThreshold: 0.92,
+                escalationThreshold: 0.45
+            )
+
+        case .ultraAdvanced:
+            // M-series / future: Full power, highest quality
+            return AgenticConfig(
+                maxSteps: 12,
+                maxTotalTokens: 56000,
                 streamIntermediateResults: true,
                 confidenceThreshold: 0.95,
-                escalationThreshold: 0.45
+                escalationThreshold: 0.50
             )
         }
     }

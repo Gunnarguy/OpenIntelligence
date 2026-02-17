@@ -73,6 +73,10 @@ final class SettingsStore: ObservableObject {
 
         // Appearance
         static let appAccentColorHex = "appAccentColorHex" // nil = system default
+        static let showSiliconHUD = "showSiliconHUD" // Bool - Show hardware activity overlay
+        static let hudGlowIntensity = "hudGlowIntensity" // Double 0.0-1.0 - HUD glow brightness
+        static let hudShowMetrics = "hudShowMetrics" // Bool - Show real-time metrics in legend
+        static let hudShowTaptic = "hudShowTaptic" // Bool - Show Taptic Engine on HUD
     }
 
     // MARK: - Published Settings (bind from UI)
@@ -201,6 +205,19 @@ final class SettingsStore: ObservableObject {
     /// App-wide accent color. nil = use system default.
     /// When set, overrides the tint color throughout the app.
     @Published var appAccentColorHex: String?
+
+    /// Show the Silicon HUD overlay during processing.
+    /// Displays subtle borders at the physical SoC and Taptic Engine locations.
+    @Published var showSiliconHUD: Bool
+
+    /// HUD glow intensity multiplier (0.0 = invisible, 1.0 = full brightness)
+    @Published var hudGlowIntensity: Double
+
+    /// Show real-time metrics (ops count, latency) in the HUD legend
+    @Published var hudShowMetrics: Bool
+
+    /// Show Taptic Engine activity on the HUD
+    @Published var hudShowTaptic: Bool
 
     // MARK: - Infra
 
@@ -394,6 +411,11 @@ final class SettingsStore: ObservableObject {
         // Appearance settings
         // Accent color - nil means use system default
         appAccentColorHex = defaults.string(forKey: Keys.appAccentColorHex)
+        // Silicon HUD - defaults to true (show the X-ray overlay)
+        showSiliconHUD = defaults.object(forKey: Keys.showSiliconHUD) as? Bool ?? true
+        hudGlowIntensity = defaults.object(forKey: Keys.hudGlowIntensity) as? Double ?? 0.6
+        hudShowMetrics = defaults.object(forKey: Keys.hudShowMetrics) as? Bool ?? true
+        hudShowTaptic = defaults.object(forKey: Keys.hudShowTaptic) as? Bool ?? true
 
         // Quality mode - load from UserDefaults or default to standard
         if let savedMode = defaults.string(forKey: Keys.ragQualityMode),
@@ -467,6 +489,10 @@ final class SettingsStore: ObservableObject {
             $enableParentDocumentRetrieval.map { _ in () }.eraseToAnyPublisher(),
             $enableConversationMemory.map { _ in () }.eraseToAnyPublisher(),
             $appAccentColorHex.map { _ in () }.eraseToAnyPublisher(),
+            $showSiliconHUD.map { _ in () }.eraseToAnyPublisher(),
+            $hudGlowIntensity.map { _ in () }.eraseToAnyPublisher(),
+            $hudShowMetrics.map { _ in () }.eraseToAnyPublisher(),
+            $hudShowTaptic.map { _ in () }.eraseToAnyPublisher(),
         ]
         Publishers.MergeMany(publishers)
             .sink { [weak self] in
@@ -596,6 +622,10 @@ final class SettingsStore: ObservableObject {
 
         // Appearance
         defaults.set(appAccentColorHex, forKey: Keys.appAccentColorHex)
+        defaults.set(showSiliconHUD, forKey: Keys.showSiliconHUD)
+        defaults.set(hudGlowIntensity, forKey: Keys.hudGlowIntensity)
+        defaults.set(hudShowMetrics, forKey: Keys.hudShowMetrics)
+        defaults.set(hudShowTaptic, forKey: Keys.hudShowTaptic)
     }
 
     // MARK: - Side Effects (Debounced)

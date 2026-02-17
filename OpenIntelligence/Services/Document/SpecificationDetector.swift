@@ -10,7 +10,7 @@
 //  NOT the content. The embedding model handles semantic matching.
 //
 //  Universal patterns that work across:
-//  - Automotive manuals (oil specs, torque values, part numbers)
+//  - Technical manuals (specs, tolerances, part numbers)
 //  - Medical documents (dosages, lab values, drug codes)
 //  - Engineering specs (tolerances, material grades, standards)
 //  - Legal documents (statute references, case citations)
@@ -24,7 +24,7 @@ struct SpecificationBlock: Sendable {
     /// Category of specification (structural type, not domain)
     let category: String
 
-    /// Extracted value (e.g., "SAE 0W-20", "500mg", "ISO-9001")
+    /// Extracted value (e.g., "ISO-9001", "500mg", "A2-70")
     let value: String
 
     /// Original text range where found
@@ -53,13 +53,19 @@ enum SpecificationDetector: Sendable {
         // Matches: 4.5L, 500mg, 32psi, 25Nm, 120V, 15A, 98.6°F, 37°C
         ("Measurement", #"\d+(?:[.,]\d+)?\s*(?:L|mL|ml|gal|qt|oz|fl\.?\s*oz|kg|g|mg|µg|lb|lbs|psi|bar|kPa|MPa|Pa|Nm|N·m|ft-?lb|lb-?ft|in-?lb|V|kV|mV|A|mA|W|kW|MW|HP|hp|Hz|kHz|MHz|GHz|Ω|ohm|°[CF]|deg(?:rees?)?\s*[CF]|mm|cm|m|km|in|ft|yd|mi)"#),
 
-        // RATIO/GRADE PATTERNS: Number-letter-number (viscosity, ratios, grades)
-        // Matches: 0W-20, 5W-30, 10W-40, A3/B4, C3, SP/GF-6A
-        ("Grade", #"\d+[A-Z]-\d+|\b[A-Z]\d+(?:/[A-Z]\d+)?"#),
+        // VISCOSITY/GRADE PATTERNS: Alphanumeric grade codes
+        // Matches: 0W-20, 5W-30, 10W-40, 20W-50
+        // OPTIMIZED: Split from old Grade pattern. The old \b[A-Z]\d+ matched ANY
+        // single letter + digit: G2, E85, C3, A3 — all section refs/fuse labels.
+        ("Grade", #"\d+W-\d+"#),
 
-        // PART/MODEL NUMBERS: Alphanumeric with dashes/dots (generic)
-        // Matches: ABC-12345, 12345-678-90, XYZ.123.456
-        ("PartNumber", #"[A-Z0-9]{2,}[-.]?[A-Z0-9]{2,}[-.]?[A-Z0-9]{2,}"#),
+        // PART/MODEL NUMBERS: Alphanumeric with dash/dot delimiter
+        // Matches: ABC-12345, 1688-020-122, XYZ.123.456, DOT-4
+        // REQUIRES at least one digit to avoid matching plain English hyphenated words
+        // like "three-quarters", "over-revving", "Long-press".
+        // DESIGN: Cast a WIDE net here. Detection = RECALL.
+        // The SpecificationExtractor's entity-centric SCORING handles precision.
+        ("PartNumber", #"(?=[A-Z0-9.-]*\d)[A-Z0-9]{2,}[-\.][A-Z0-9]{2,}(?:[-\.][A-Z0-9]{2,})*"#),
 
         // PERCENTAGE VALUES: Number followed by %
         // Matches: 95%, 0.5%, 99.9%

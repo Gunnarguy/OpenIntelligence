@@ -2,7 +2,7 @@
 
 > **Scope**: Token limits, context rules, and integration constraints for iOS 26+ Foundation Models.
 > **Source**: Official Apple Developer Documentation (iOS 26.0+)
-> **Last Updated**: January 2026
+> **Last Updated**: February 2026
 > **Tech Note**: [TN3193: Managing the on-device foundation model's context window](https://developer.apple.com/documentation/Technotes/tn3193-managing-the-on-device-foundation-model-s-context-window)
 
 ---
@@ -30,10 +30,11 @@
 > **"Apple's on-device foundation model has a context window of 4096 tokens per language model session."**
 > — TN3193
 
-This is a **hard limit**. There is NO 65K extended context for PCC (Private Cloud Compute). The 4096 limit applies to:
+This is a **hard limit** for the Foundation Models framework. The 4096 limit applies to:
 
-- On-device execution
-- PCC execution (same model, just faster inference)
+- On-device execution (the ONLY execution path available to third-party apps)
+
+> **Note**: The PCC server model was trained on up to 65K token sequences, but third-party developers have **NO access** to PCC. The Foundation Models framework exposes ONLY the ~3B on-device model. See [APPLE_FM_TECH_REPORT_2025.md](./APPLE_FM_TECH_REPORT_2025.md) and [PRIVATE_CLOUD_COMPUTE.md](./PRIVATE_CLOUD_COMPUTE.md) for details.
 
 ### What Counts Toward the Limit
 
@@ -646,6 +647,14 @@ At 3.5 chars/token: **~5,250-7,000 characters for RAG snippets**
 ---
 
 ## References
+
+### Related OpenIntelligence Docs
+
+- [Apple FM Tech Report 2025](./APPLE_FM_TECH_REPORT_2025.md) — Model architecture, PT-MoE, KV-cache sharing, compression, benchmarks
+- [Private Cloud Compute](./PRIVATE_CLOUD_COMPUTE.md) — PCC security architecture, why we don't have access
+- [Hard Limits](./HARD_LIMITS.md) — Every hard constraint in one place, feature checklist
+
+### Apple Sources
 
 - [Foundation Models Framework](https://developer.apple.com/documentation/foundationmodels)
 - [TN3193: Managing Context Window](https://developer.apple.com/documentation/Technotes/tn3193-managing-the-on-device-foundation-model-s-context-window)

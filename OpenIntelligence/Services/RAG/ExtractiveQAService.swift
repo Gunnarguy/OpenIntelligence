@@ -224,17 +224,17 @@ actor CoreMLExtractiveQAService: ExtractiveQAService {
 
 // MARK: - Heuristic Fallback (NLP-based span detection)
 
-/// Heuristic-based extractive QA using NaturalLanguage framework.
-/// Less accurate than neural model but provides basic span extraction capability.
-/// Used as fallback when CoreML model is unavailable.
+/// Enhanced heuristic-based extractive QA using NaturalLanguage framework.
+/// Uses multi-signal scoring: keyword overlap, entity type matching,
+/// proximity weighting, and passage position bias.
 actor HeuristicExtractiveQAService: ExtractiveQAService {
 
     var isAvailable: Bool { true }
 
     var modelInfo: ExtractiveModelInfo {
         ExtractiveModelInfo(
-            modelName: "HeuristicQA (NLTagger)",
-            version: "1.0.0",
+            modelName: "HeuristicQA-v2 (NLTagger+Proximity)",
+            version: "2.0.0",
             maxSequenceLength: Int.max,
             vocabSize: 0,
             isLoaded: true,
@@ -243,51 +243,87 @@ actor HeuristicExtractiveQAService: ExtractiveQAService {
     }
 
     func extractAnswer(question: String, passages: [String]) async throws -> ExtractionResult? {
-        // Detect question type to guide extraction
         let questionType = detectQuestionType(question)
+        let questionKeywords = extractKeywords(from: question)
 
-        // Find sentences in passages that are most likely to contain the answer
-        var bestCandidate: (span: String, confidence: Float, passageIndex: Int)?
+        // Score ALL candidates across all passages, then pick the best
+        var allCandidates: [(span: String, confidence: Float, passageIndex: Int, sentenceIndex: Int)] = []
 
         for (passageIndex, passage) in passages.enumerated() {
             let sentences = extractSentences(from: passage)
+            // Passage position bias: earlier passages (higher retrieval rank) get a boost
+            let passagePositionBonus: Float = max(0, 0.15 - Float(passageIndex) * 0.03)
 
-            for sentence in sentences {
-                let score = scoreCandidate(sentence: sentence, question: question, type: questionType)
+            for (sentenceIndex, sentence) in sentences.enumerated() {
+                guard !sentence.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
 
-                if score > (bestCandidate?.confidence ?? 0) {
-                    // Extract the specific answer span from the sentence
-                    let span = extractSpan(from: sentence, type: questionType)
-                    bestCandidate = (span, score, passageIndex)
+                let score = scoreCandidate(
+                    sentence: sentence,
+                    questionKeywords: questionKeywords,
+                    type: questionType,
+                    passagePositionBonus: passagePositionBonus
+                )
+
+                if score >= 0.2 { // Lower threshold to collect more candidates for comparison
+                    let span = extractSpan(from: sentence, type: questionType, question: question)
+                    allCandidates.append((span, score, passageIndex, sentenceIndex))
                 }
             }
         }
 
-        guard let candidate = bestCandidate, candidate.confidence >= 0.3 else {
+        // Sort by score descending
+        allCandidates.sort { $0.confidence > $1.confidence }
+
+        // Require minimum confidence after scoring
+        guard let best = allCandidates.first, best.confidence >= 0.3 else {
             return nil
         }
 
-        let passage = passages[candidate.passageIndex]
-        let range = passage.range(of: candidate.span) ?? passage.startIndex..<passage.startIndex
+        // If top 2 candidates are very close in score but from different passages,
+        // prefer the one from the higher-ranked passage (lower index)
+        if allCandidates.count >= 2 {
+            let second = allCandidates[1]
+            let scoreDiff = best.confidence - second.confidence
+            if scoreDiff < 0.05 && second.passageIndex < best.passageIndex {
+                // Second candidate is from a better-ranked passage and nearly as good
+                let passage = passages[second.passageIndex]
+                let range = passage.range(of: second.span) ?? passage.startIndex..<passage.startIndex
+                return ExtractionResult(
+                    answerSpan: second.span,
+                    confidence: second.confidence,
+                    sourcePassageIndex: second.passageIndex,
+                    spanRange: range,
+                    startLogit: second.confidence,
+                    endLogit: second.confidence
+                )
+            }
+        }
+
+        let passage = passages[best.passageIndex]
+        let range = passage.range(of: best.span) ?? passage.startIndex..<passage.startIndex
 
         return ExtractionResult(
-            answerSpan: candidate.span,
-            confidence: candidate.confidence,
-            sourcePassageIndex: candidate.passageIndex,
+            answerSpan: best.span,
+            confidence: best.confidence,
+            sourcePassageIndex: best.passageIndex,
             spanRange: range,
-            startLogit: candidate.confidence,
-            endLogit: candidate.confidence
+            startLogit: best.confidence,
+            endLogit: best.confidence
         )
     }
 
     private enum QuestionType {
-        case who, what, when, `where`, why, how, howMany, yesNo, other
+        case who, what, when, `where`, why, how, howMany, yesNo, definition, other
     }
 
     private func detectQuestionType(_ question: String) -> QuestionType {
-        let lower = question.lowercased()
+        let lower = question.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
 
         if lower.hasPrefix("who") { return .who }
+        if lower.hasPrefix("what is ") || lower.hasPrefix("what are ") || lower.hasPrefix("what's ") {
+            // "What is X?" is often a definition query
+            return .definition
+        }
         if lower.hasPrefix("what") { return .what }
         if lower.hasPrefix("when") { return .when }
         if lower.hasPrefix("where") { return .`where` }
@@ -298,7 +334,33 @@ actor HeuristicExtractiveQAService: ExtractiveQAService {
            lower.hasPrefix("does ") || lower.hasPrefix("do ") ||
            lower.hasPrefix("can ") || lower.hasPrefix("will ") { return .yesNo }
 
+        // Check for implicit definition queries: "the meaning of", "define"
+        if lower.contains("meaning of") || lower.contains("definition of") || lower.hasPrefix("define") {
+            return .definition
+        }
+
         return .other
+    }
+
+    /// Extract meaningful keywords from the question, removing stop words
+    private func extractKeywords(from question: String) -> [String] {
+        let stopWords: Set<String> = [
+            "the", "a", "an", "is", "are", "was", "were", "what", "who", "when",
+            "where", "why", "how", "does", "do", "can", "will", "of", "in", "on",
+            "at", "to", "for", "this", "that", "these", "those", "it", "its",
+            "they", "their", "and", "or", "but", "not", "with", "from", "by",
+            "about", "into", "through", "during", "before", "after", "above",
+            "below", "between", "under", "my", "your", "his", "her", "our",
+            "many", "much", "some", "any", "all", "each", "every", "both",
+            "more", "most", "other", "such", "than", "too", "very", "just",
+            "also", "now", "then", "here", "there", "which", "would", "should",
+            "could", "might", "shall", "may", "must", "need", "have", "has", "had",
+            "been", "being", "did", "done", "get", "got", "getting", "tell", "me",
+            "please", "explain", "describe"
+        ]
+        return question.lowercased()
+            .components(separatedBy: .alphanumerics.inverted)
+            .filter { $0.count > 1 && !stopWords.contains($0) }
     }
 
     private func extractSentences(from text: String) -> [String] {
@@ -307,55 +369,69 @@ actor HeuristicExtractiveQAService: ExtractiveQAService {
         tokenizer.string = text
 
         tokenizer.enumerateTokens(in: text.startIndex..<text.endIndex) { range, _ in
-            sentences.append(String(text[range]).trimmingCharacters(in: .whitespacesAndNewlines))
+            let sentence = String(text[range]).trimmingCharacters(in: .whitespacesAndNewlines)
+            if !sentence.isEmpty {
+                sentences.append(sentence)
+            }
             return true
         }
 
         return sentences
     }
 
-    private func scoreCandidate(sentence: String, question: String, type: QuestionType) -> Float {
+    private func scoreCandidate(
+        sentence: String,
+        questionKeywords: [String],
+        type: QuestionType,
+        passagePositionBonus: Float
+    ) -> Float {
         let sentenceLower = sentence.lowercased()
-        let questionLower = question.lowercased()
+        guard !questionKeywords.isEmpty else { return 0 }
 
-        // Extract content words from question (skip stop words)
-        let stopWords: Set<String> = ["the", "a", "an", "is", "are", "was", "were", "what", "who", "when", "where", "why", "how", "does", "do", "can", "will", "of", "in", "on", "at", "to", "for"]
-        let questionWords = questionLower
-            .components(separatedBy: .alphanumerics.inverted)
-            .filter { $0.count > 2 && !stopWords.contains($0) }
-
-        // Count keyword matches
-        var matchCount = 0
-        for word in questionWords {
-            if sentenceLower.contains(word) {
-                matchCount += 1
+        // --- Signal 1: Keyword overlap (weighted by keyword rarity/length) ---
+        var weightedMatchScore: Float = 0
+        var totalWeight: Float = 0
+        for keyword in questionKeywords {
+            // Longer keywords are more discriminative
+            let weight: Float = Float(keyword.count) / 4.0
+            totalWeight += weight
+            if sentenceLower.contains(keyword) {
+                weightedMatchScore += weight
+                // Bonus for exact word boundary match (not substring)
+                let pattern = "\\b\(NSRegularExpression.escapedPattern(for: keyword))\\b"
+                if sentenceLower.range(of: pattern, options: .regularExpression) != nil {
+                    weightedMatchScore += weight * 0.3 // 30% bonus for exact match
+                }
             }
         }
+        let keywordScore = totalWeight > 0 ? weightedMatchScore / totalWeight : 0
 
-        let keywordScore = questionWords.isEmpty ? 0 : Float(matchCount) / Float(questionWords.count)
-
-        // Bonus for answer type indicators
+        // --- Signal 2: Entity type match bonus ---
         var typeBonus: Float = 0
-
         switch type {
         case .who:
             let tagger = NLTagger(tagSchemes: [.nameType])
             tagger.string = sentence
             tagger.enumerateTags(in: sentence.startIndex..<sentence.endIndex, unit: .word, scheme: .nameType) { tag, _ in
                 if tag == .personalName || tag == .organizationName {
-                    typeBonus = 0.3
+                    typeBonus = 0.25
                     return false
                 }
                 return true
             }
 
         case .when:
-            // Look for date/time patterns
-            let datePatterns = ["\\d{4}", "january|february|march|april|may|june|july|august|september|october|november|december", "monday|tuesday|wednesday|thursday|friday|saturday|sunday"]
+            let datePatterns = [
+                "\\d{4}", // Year
+                "\\d{1,2}/\\d{1,2}", // Date formats
+                "january|february|march|april|may|june|july|august|september|october|november|december",
+                "monday|tuesday|wednesday|thursday|friday|saturday|sunday",
+                "\\d{1,2}\\s+(am|pm)", // Time
+                "ago|since|until|before|after" // Temporal markers
+            ]
             for pattern in datePatterns {
                 if sentenceLower.range(of: pattern, options: .regularExpression) != nil {
-                    typeBonus = 0.3
-                    break
+                    typeBonus = max(typeBonus, 0.25)
                 }
             }
 
@@ -364,38 +440,80 @@ actor HeuristicExtractiveQAService: ExtractiveQAService {
             tagger.string = sentence
             tagger.enumerateTags(in: sentence.startIndex..<sentence.endIndex, unit: .word, scheme: .nameType) { tag, _ in
                 if tag == .placeName {
-                    typeBonus = 0.3
+                    typeBonus = 0.25
                     return false
                 }
                 return true
             }
 
         case .howMany:
-            // Look for numbers
             if sentence.range(of: "\\d+", options: .regularExpression) != nil {
-                typeBonus = 0.3
+                typeBonus = 0.25
+            }
+
+        case .definition:
+            // Definitional patterns: "X is Y", "refers to", "defined as", "known as", "means"
+            let defPatterns = ["\\bis\\b.*\\b(a|an|the)\\b", "refers to", "defined as", "known as", "means that", "meaning"]
+            for pattern in defPatterns {
+                if sentenceLower.range(of: pattern, options: .regularExpression) != nil {
+                    typeBonus = max(typeBonus, 0.2)
+                }
+            }
+
+        case .how:
+            // Procedural markers
+            let procPatterns = ["step", "first", "then", "next", "finally", "begin by", "start with", "to do this"]
+            for pattern in procPatterns {
+                if sentenceLower.contains(pattern) {
+                    typeBonus = max(typeBonus, 0.15)
+                }
+            }
+
+        case .why:
+            // Causal markers
+            let causePatterns = ["because", "due to", "caused by", "result of", "reason", "therefore", "since"]
+            for pattern in causePatterns {
+                if sentenceLower.contains(pattern) {
+                    typeBonus = max(typeBonus, 0.2)
+                }
             }
 
         default:
             break
         }
 
-        return min(1.0, keywordScore * 0.7 + typeBonus)
+        // --- Signal 3: Sentence length penalty ---
+        // Very short (<20 chars) or very long (>500 chars) sentences are less likely to be answers
+        let lengthPenalty: Float
+        let len = sentence.count
+        if len < 20 { lengthPenalty = -0.1 }
+        else if len > 500 { lengthPenalty = -0.05 }
+        else { lengthPenalty = 0 }
+
+        // --- Signal 4: Specificity bonus ---
+        // Sentences with numbers, measurements, or technical terms score higher
+        var specificityBonus: Float = 0
+        if sentence.range(of: "\\d+\\.?\\d*\\s*(mg|kg|ml|mm|cm|m|km|lbs|oz|ft|in|mph|kph|psi|°[CF]|watts?|volts?|amps?|ohms?|hz|mhz|ghz|gb|mb|kb|tb)", options: [.regularExpression, .caseInsensitive]) != nil {
+            specificityBonus = 0.15 // Has measurements with units
+        } else if sentence.range(of: "\\d+", options: .regularExpression) != nil {
+            specificityBonus = 0.05 // Has numbers
+        }
+
+        // Combine signals
+        let rawScore = keywordScore * 0.50 + typeBonus + specificityBonus + passagePositionBonus + lengthPenalty
+        return min(1.0, max(0, rawScore))
     }
 
-    private func extractSpan(from sentence: String, type: QuestionType) -> String {
-        // For now, return the full sentence as the span
-        // Future: Use NLTagger to extract just the relevant noun phrase or entity
-
+    private func extractSpan(from sentence: String, type: QuestionType, question: String) -> String {
         switch type {
         case .howMany:
-            // Try to extract just the numeric portion
-            if let match = sentence.range(of: "\\d+[\\d,\\.]*\\s*\\w*", options: .regularExpression) {
+            // Extract numeric value with context
+            if let match = sentence.range(of: "\\d+[\\d,\\.]*\\s*\\w*(?:\\s+\\w+)?", options: .regularExpression) {
                 return String(sentence[match])
             }
 
         case .who:
-            // Try to extract person/org name
+            // Extract all person/org names
             let tagger = NLTagger(tagSchemes: [.nameType])
             tagger.string = sentence
             var names: [String] = []
@@ -409,14 +527,53 @@ actor HeuristicExtractiveQAService: ExtractiveQAService {
                 return names.joined(separator: " ")
             }
 
+        case .when:
+            // Extract temporal expression
+            let datePatterns = [
+                "\\b\\d{1,2}[/-]\\d{1,2}[/-]\\d{2,4}\\b", // Date formats
+                "\\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\\s+\\d{1,2},?\\s*\\d{0,4}\\b", // Month day year
+                "\\b\\d{4}\\b", // Year
+                "\\b\\d{1,2}\\s*(?:am|pm)\\b" // Time
+            ]
+            for pattern in datePatterns {
+                if let match = sentence.range(of: pattern, options: [.regularExpression, .caseInsensitive]) {
+                    return String(sentence[match])
+                }
+            }
+
+        case .where:
+            // Extract place names
+            let tagger = NLTagger(tagSchemes: [.nameType])
+            tagger.string = sentence
+            var places: [String] = []
+            tagger.enumerateTags(in: sentence.startIndex..<sentence.endIndex, unit: .word, scheme: .nameType) { tag, range in
+                if tag == .placeName {
+                    places.append(String(sentence[range]))
+                }
+                return true
+            }
+            if !places.isEmpty {
+                return places.joined(separator: ", ")
+            }
+
+        case .definition:
+            // For "what is X?" try to extract the definitional part after "is"
+            let sentenceLower = sentence.lowercased()
+            if let isRange = sentenceLower.range(of: "\\bis\\s+", options: .regularExpression) {
+                let definition = String(sentence[isRange.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+                if definition.count > 10 && definition.count < 300 {
+                    return definition.hasSuffix(".") ? String(definition.dropLast()) : definition
+                }
+            }
+
         default:
             break
         }
 
-        // Fallback: return trimmed sentence (max 200 chars)
+        // Fallback: return trimmed sentence (max 300 chars for more context)
         let trimmed = sentence.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.count > 200 {
-            return String(trimmed.prefix(200)) + "..."
+        if trimmed.count > 300 {
+            return String(trimmed.prefix(300)) + "..."
         }
         return trimmed
     }
@@ -426,17 +583,11 @@ actor HeuristicExtractiveQAService: ExtractiveQAService {
 
 /// Factory for creating the best available ExtractiveQA service
 enum ExtractiveQAServiceFactory {
-    /// Create the best available extractive QA service
-    /// Priority: CoreML model > Heuristic fallback > Placeholder
+    /// Priority: CoreML model > Heuristic-v2 > Placeholder
     static func create() -> ExtractiveQAService {
-        // Check if CoreML model is available
         if Bundle.main.url(forResource: "ExtractiveQAModel", withExtension: "mlmodelc") != nil {
-            // Uncomment when CoreML implementation is ready:
-            // return CoreMLExtractiveQAService()
-            Log.info("ExtractiveQA: CoreML model found but implementation not ready, using heuristic", category: .initialization)
+            Log.info("ExtractiveQA: CoreML model found but implementation not ready, using heuristic-v2", category: .initialization)
         }
-
-        // Use heuristic service as default
         return HeuristicExtractiveQAService()
     }
 }

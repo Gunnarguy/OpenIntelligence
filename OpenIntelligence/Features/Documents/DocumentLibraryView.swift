@@ -184,6 +184,15 @@ struct DocumentLibraryView: View {
             } else {
                 documentListView
             }
+
+            // Motherboard HUD - Full-screen X-ray overlay
+            // Shows glowing borders at the ACTUAL physical locations where
+            // the Neural Engine, GPU, and CPU sit behind the screen
+            if settings.showSiliconHUD {
+                HardwareXRayOverlay()
+                    .allowsHitTesting(false) // Don't block touches
+                    .transition(.opacity)
+            }
         }
         .navigationTitle("Documents")
         #if os(iOS)
@@ -367,6 +376,7 @@ struct DocumentLibraryView: View {
     /// Ingests a picked document and unlocks the onboarding step once any content exists.
     private func enqueueDocumentIngestion(_ urls: [URL]) {
         guard !urls.isEmpty else { return }
+        DSHaptics.drop()  // Files dropped/selected feedback
         ragService.enqueueDocuments(urls)
         Task { @MainActor in
             onboardingStore.markSamplesImported()
@@ -453,6 +463,9 @@ struct DocumentLibraryView: View {
     @MainActor
     private func confirmDeleteLibrary() {
         guard let container = libraryToDelete else { return }
+
+        // Haptic for destructive action
+        DSHaptics.delete()
 
         // Get documents in this library before deletion
         let docsToRemove = ragService.documents.filter { $0.containerId == container.id }

@@ -195,6 +195,142 @@ nonisolated enum LoggingConfiguration {
         return enabledCategories.contains(category)
     }
 
+    // MARK: - File-Based Trace Logger
+    //
+    // Captures pipeline/llm/retrieval/ingestion/embedding logs to a rolling file
+    // in the app's Documents directory. This file can be pulled from the device
+    // to the Mac for debugging without copy-pasting console output.
+    //
+    // Usage:
+    //   1. App writes to Documents/pipeline_trace.log automatically
+    //   2. Run: scripts/pull_trace.sh  (pulls from connected iPhone to Xrays/)
+    //   3. Read Xrays/pipeline_trace.log
+    //
+    // The file is capped at ~500KB and auto-rotates. Only debug builds log to file.
+
+    /// Categories that get written to the trace file (pipeline-relevant only)
+    private static let fileLogCategories: Set<Category> = [
+        .pipeline, .llm, .retrieval, .ingestion, .embedding, .pipelineTrace
+    ]
+
+    /// Backing store for file logger state
+    private static var _fileLogEnabled: Bool = {
+        #if DEBUG
+            return true  // Auto-enable in debug builds
+        #else
+            return false
+        #endif
+    }()
+
+    /// Whether file logging is enabled
+    static var fileLogEnabled: Bool {
+        get {
+            stateLock.lock()
+            defer { stateLock.unlock() }
+            return _fileLogEnabled
+        }
+        set {
+            stateLock.lock()
+            _fileLogEnabled = newValue
+            stateLock.unlock()
+        }
+    }
+
+    /// Maximum file size before rotation (~500KB)
+    private static let maxFileSize: UInt64 = 500_000
+
+    /// File handle for the trace log (lazy-initialized)
+    private static var _fileHandle: FileHandle?
+    private static var _fileURL: URL?
+
+    /// Get or create the trace log file handle
+    private static func traceFileHandle() -> FileHandle? {
+        if let handle = _fileHandle { return handle }
+
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+        guard let docsDir = docs else { return nil }
+
+        let fileURL = docsDir.appendingPathComponent("pipeline_trace.log")
+        _fileURL = fileURL
+
+        // Create file if it doesn't exist
+        if !FileManager.default.fileExists(atPath: fileURL.path) {
+            let header = "═══ OpenIntelligence Pipeline Trace ═══\nStarted: \(ISO8601DateFormatter().string(from: Date()))\n\n"
+            FileManager.default.createFile(atPath: fileURL.path, contents: header.data(using: .utf8))
+        }
+
+        // Rotate if too large
+        if let attrs = try? FileManager.default.attributesOfItem(atPath: fileURL.path),
+           let size = attrs[.size] as? UInt64, size > maxFileSize {
+            // Rename old log, start fresh
+            let backupURL = docsDir.appendingPathComponent("pipeline_trace.prev.log")
+            try? FileManager.default.removeItem(at: backupURL)
+            try? FileManager.default.moveItem(at: fileURL, to: backupURL)
+            let header = "═══ OpenIntelligence Pipeline Trace (rotated) ═══\nStarted: \(ISO8601DateFormatter().string(from: Date()))\n\n"
+            FileManager.default.createFile(atPath: fileURL.path, contents: header.data(using: .utf8))
+        }
+
+        _fileHandle = try? FileHandle(forWritingTo: fileURL)
+        _fileHandle?.seekToEndOfFile()
+        return _fileHandle
+    }
+
+    /// Write a line to the trace log file (non-blocking, fire-and-forget)
+    private static func writeToFile(_ message: String, category: Category?) {
+        guard _fileLogEnabled else { return }
+        guard let cat = category, fileLogCategories.contains(cat) else { return }
+
+        // Format: [HH:mm:ss.SSS] [CATEGORY] message
+        let timestamp = fileTimestampFormatter.string(from: Date())
+        let catName = String(describing: cat).uppercased().padding(toLength: 12, withPad: " ", startingAt: 0)
+        let line = "[\(timestamp)] [\(catName)] \(message)\n"
+
+        guard let data = line.data(using: .utf8) else { return }
+
+        stateLock.lock()
+        let handle = traceFileHandle()
+        handle?.write(data)
+        stateLock.unlock()
+    }
+
+    /// Mark a new query in the trace log with a clear separator
+    static func traceQueryStart(_ query: String) {
+        guard _fileLogEnabled else { return }
+        let separator = String(repeating: "━", count: 72)
+        let timestamp = ISO8601DateFormatter().string(from: Date())
+        let header = "\n\(separator)\n▶ QUERY: \(query)\n  TIME: \(timestamp)\n\(separator)\n"
+        guard let data = header.data(using: .utf8) else { return }
+        stateLock.lock()
+        let handle = traceFileHandle()
+        handle?.write(data)
+        stateLock.unlock()
+    }
+
+    /// Mark query completion in the trace log
+    static func traceQueryEnd(responseLength: Int, duration: TimeInterval) {
+        guard _fileLogEnabled else { return }
+        let footer = "◀ QUERY COMPLETE: \(responseLength) chars in \(String(format: "%.1fs", duration))\n\n"
+        guard let data = footer.data(using: .utf8) else { return }
+        stateLock.lock()
+        let handle = traceFileHandle()
+        handle?.write(data)
+        stateLock.unlock()
+    }
+
+    /// Flush the file handle (call on app background/terminate)
+    static func flushTraceLog() {
+        stateLock.lock()
+        _fileHandle?.synchronizeFile()
+        stateLock.unlock()
+    }
+
+    /// Timestamp formatter for file log entries
+    private static let fileTimestampFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm:ss.SSS"
+        return f
+    }()
+
     /// Log message with level check
     static func log(_ level: Level, category: Category? = nil, _ message: String) {
         guard isEnabled(level) else { return }
@@ -211,6 +347,9 @@ nonisolated enum LoggingConfiguration {
         }
 
         print("\(prefix) \(message)")
+
+        // Also write to trace file for pipeline-relevant categories
+        writeToFile(message, category: category)
     }
 
     /// Convenience methods for common log levels

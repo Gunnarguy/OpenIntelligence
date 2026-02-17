@@ -274,12 +274,12 @@ struct TableData: Sendable {
     /// Key-value representation for specs tables
     /// Works for BOTH 2-column tables (key-value) AND multi-column tables (using headers)
     /// Examples:
-    ///   - 2-column no header: "Viscosity | SAE 0W-20" → [("Viscosity", "SAE 0W-20")]
-    ///   - 2-column with header: Headers: [Property, Value], Row: [Viscosity, SAE 0W-20]
-    ///                           → [("Viscosity", "SAE 0W-20")]
-    ///   - Multi-column with headers: Headers: [Engine, Oil Type, Viscosity]
-    ///                                Row: [2.0L, Synthetic, SAE 0W-20]
-    ///                                → [("Engine", "2.0L"), ("Oil Type", "Synthetic"), ("Viscosity", "SAE 0W-20")]
+    ///   - 2-column no header: "Material | Grade A2-70" → [("Material", "Grade A2-70")]
+    ///   - 2-column with header: Headers: [Property, Value], Row: [Material, Grade A2-70]
+    ///                           → [("Material", "Grade A2-70")]
+    ///   - Multi-column with headers: Headers: [Component, Type, Rating]
+    ///                                Row: [Motor, Brushless, 500W]
+    ///                                → [("Component", "Motor"), ("Type", "Brushless"), ("Rating", "500W")]
     nonisolated var keyValuePairs: [(key: String, value: String)]? {
         guard !rows.isEmpty else { return nil }
 
@@ -365,6 +365,17 @@ actor StructuredDocumentParser {
 
     static let shared = StructuredDocumentParser()
 
+    /// Dynamic custom words for the current document being processed.
+    /// Set by DocumentProcessor before structured parsing begins.
+    /// Merges universal terms with document-specific vocabulary.
+    private var documentCustomWords: [String] = OCRConfiguration.universalCustomWords
+
+    /// Update the dynamic vocabulary for the current document.
+    /// Called once per document, before any page parsing starts.
+    func setDocumentCustomWords(_ words: [String]) {
+        documentCustomWords = words
+    }
+
     private init() {}
 
     // MARK: - Public API
@@ -377,6 +388,11 @@ actor StructuredDocumentParser {
     func parsePageImage(_ image: CIImage, pageNumber: Int) async throws -> StructuredPageContent {
         let startTime = Date()
 
+        // Report ANE activity to HUD (RecognizeDocumentsRequest uses Neural Engine)
+        Task { @MainActor in
+            HardwareTelemetryState.shared.pulse(.llmInference, intensity: 0.8, duration: 0.5)  // Use llmInference for "structure analysis"
+        }
+
         // Convert CIImage to Data for Vision request
         guard let imageData = imageToData(image) else {
             Log.warning("[StructuredDocumentParser] Failed to convert image to data, falling back to OCR", category: .ingestion)
@@ -385,7 +401,19 @@ actor StructuredDocumentParser {
 
         // Create and configure the request
         // RecognizeDocumentsRequest is simpler in iOS 26 - it handles text recognition internally
-        let request = RecognizeDocumentsRequest()
+        var request = RecognizeDocumentsRequest()
+
+        // Configure text recognition options for maximum accuracy
+        // customWords: universal terms + document-specific vocabulary extracted from PDFKit text layer
+        request.textRecognitionOptions.customWords = documentCustomWords
+        request.textRecognitionOptions.useLanguageCorrection = true
+        request.textRecognitionOptions.automaticallyDetectLanguage = true
+        request.textRecognitionOptions.minimumTextHeightFraction = 0.0  // Detect all text sizes
+        // Recognition languages in priority order - Latin first to prevent CJK misrecognition
+        // of bullet symbols and other non-text glyphs
+        request.textRecognitionOptions.recognitionLanguages = OCRConfiguration.recognitionLanguages.compactMap {
+            Locale.Language(identifier: $0)
+        }
 
         // Perform the structured document recognition (throttled to prevent Metal GPU races)
         let observations = try await VisionOCRThrottle.performAsync {
@@ -422,8 +450,11 @@ actor StructuredDocumentParser {
         // 1. Extract title if present (with OCR quality validation)
         var pageTitle: String? = nil
         if let title = document.title {
-            let rawTitle = title.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
-            // Clean and validate title - flag but don't discard
+            var rawTitle = title.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+            // Step 1: Fix Cyrillic/reversed text BEFORE quality validation
+            rawTitle = deconfuseCyrillicLatin(rawTitle)
+            rawTitle = fixReversedTextIfNeeded(rawTitle)
+            // Step 2: Clean and validate title - flag but don't discard
             let (cleanedTitle, isLowQuality) = validateAndCleanOCR(rawTitle)
             if !cleanedTitle.isEmpty {
                 let finalTitle = isLowQuality ? "[OCR unclear] \(cleanedTitle)" : cleanedTitle
@@ -462,7 +493,11 @@ actor StructuredDocumentParser {
         // The key insight: Vision already determined what's a paragraph vs table
         // Re-parsing as "spec blocks" was FRAGMENTING content unnecessarily
         for paragraph in document.paragraphs {
-            let rawText = paragraph.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+            var rawText = paragraph.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            // Fix Cyrillic/reversed text before validation
+            rawText = deconfuseCyrillicLatin(rawText)
+            rawText = fixReversedTextIfNeeded(rawText)
 
             // Validate and clean, but FLAG don't discard
             let (cleanedText, isLowQuality) = validateAndCleanOCR(rawText)
@@ -550,10 +585,32 @@ actor StructuredDocumentParser {
         var rows: [[String]] = []
         var detectedEntities: [DetectedEntity] = []
 
+        var garbledCellCount = 0
+        var totalCellCount = 0
+
         for row in table.rows {
             var cellTexts: [String] = []
             for cell in row {
-                let text = cell.content.text.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+                var text = cell.content.text.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+                totalCellCount += 1
+
+                if !text.isEmpty {
+                    // Step 1: Fix Cyrillic→Latin substitutions (common Vision OCR error)
+                    text = deconfuseCyrillicLatin(text)
+
+                    // Step 2: Detect and fix reversed text (broken PDF text layers)
+                    text = fixReversedTextIfNeeded(text)
+
+                    // Step 3: Validate OCR quality (same pipeline as paragraphs/titles)
+                    let (cleaned, isLowQuality) = validateAndCleanOCR(text)
+                    text = cleaned
+
+                    if isLowQuality {
+                        garbledCellCount += 1
+                        Log.warning("[StructuredDocumentParser] Low quality table cell on page \(pageNumber): '\(text.prefix(60))...'", category: .ingestion)
+                    }
+                }
+
                 cellTexts.append(text)
 
                 // ENHANCEMENT: Extract detected data from Vision's DataDetection
@@ -562,6 +619,14 @@ actor StructuredDocumentParser {
                 detectedEntities.append(contentsOf: cellEntities)
             }
             rows.append(cellTexts)
+        }
+
+        // Quality gate: if majority of cells are garbled, log warning
+        if totalCellCount > 0 {
+            let garbledRatio = Double(garbledCellCount) / Double(totalCellCount)
+            if garbledRatio > 0.5 {
+                Log.warning("[StructuredDocumentParser] Table on page \(pageNumber) is mostly garbled (\(Int(garbledRatio * 100))% low quality cells)", category: .ingestion)
+            }
         }
 
         // UNIVERSAL: Detect if first row looks like a header using structural heuristics
@@ -631,9 +696,16 @@ actor StructuredDocumentParser {
         var items: [String] = []
 
         for item in list.items {
-            let text = item.content.text.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+            var text = item.content.text.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
             if !text.isEmpty {
-                items.append(text)
+                // Apply same OCR cleanup pipeline as tables and paragraphs
+                text = deconfuseCyrillicLatin(text)
+                text = fixReversedTextIfNeeded(text)
+                let (cleaned, _) = validateAndCleanOCR(text)
+                text = cleaned
+                if !text.isEmpty {
+                    items.append(text)
+                }
             }
         }
 
@@ -760,22 +832,30 @@ actor StructuredDocumentParser {
     /// Available from iOS 18.0+ (not iOS 26 specific)
     private func performTextRecognitionFallback(on imageData: Data) async throws -> String {
         var request = RecognizeTextRequest()
-        request.recognitionLevel = .accurate  // Prioritize accuracy over speed
-        request.usesLanguageCorrection = true // Apply language model corrections
+        request.recognitionLevel = .accurate
+        request.usesLanguageCorrection = true
         request.automaticallyDetectsLanguage = true
+        request.minimumTextHeightFraction = 0.0
+        request.recognitionLanguages = OCRConfiguration.recognitionLanguages.compactMap {
+            Locale.Language(identifier: $0)
+        }
+        request.customWords = documentCustomWords
 
-        // RecognizeTextRequest (iOS 18+) has native async .perform(on:)
-        // Throttle to prevent Metal GPU race conditions
-        // Capture request as a let to avoid Swift 6 concurrent capture warning
         let configuredRequest = request
         let observations = try await VisionOCRThrottle.performAsync {
             try await configuredRequest.perform(on: imageData)
         }
 
-        // Combine all recognized text observations
-        let recognizedText = observations
-            .compactMap { $0.topCandidates(1).first?.string }
-            .joined(separator: "\n")
+        // Use confidence-verified text assembly for better accuracy
+        // topCandidates(5) gives us more alternatives for confidence comparison
+        var lines: [String] = []
+        for observation in observations {
+            let candidates = observation.topCandidates(5)
+            if let best = candidates.first {
+                lines.append(best.string)
+            }
+        }
+        let recognizedText = lines.joined(separator: "\n")
 
         Log.debug("[StructuredDocumentParser] RecognizeTextRequest fallback captured \(recognizedText.count) chars", category: .ingestion)
         return recognizedText
@@ -810,7 +890,10 @@ actor StructuredDocumentParser {
             context.cgContext.draw(renderedImage, in: CGRect(origin: .zero, size: size))
         }
 
-        return opaqueImage.jpegData(compressionQuality: 0.9)
+        // PNG (lossless) for Vision processing — JPEG compression degrades fine
+        // details like decimal points, thin serifs, and small numbers in table cells.
+        // The ~3× size increase is worth it for OCR accuracy on numeric data.
+        return opaqueImage.pngData()
         #else
         return nil
         #endif
@@ -899,6 +982,118 @@ actor StructuredDocumentParser {
         }
 
         return (cleaned, isLowQuality)
+    }
+
+    // MARK: - Cyrillic/Latin Deconfusion & Reversed Text Detection
+
+    /// Fix Cyrillic characters that Vision OCR substitutes for visually-similar Latin characters
+    /// Common in scanned PDFs where the text layer has encoding issues
+    nonisolated private func deconfuseCyrillicLatin(_ text: String) -> String {
+        // Only apply if text contains Cyrillic characters mixed with Latin
+        let hasCyrillic = text.unicodeScalars.contains { $0.value >= 0x0400 && $0.value <= 0x04FF }
+        guard hasCyrillic else { return text }
+
+        // Check if it's genuinely Cyrillic text (mostly Cyrillic) vs OCR confusion (mostly Latin)
+        let cyrillicCount = text.unicodeScalars.filter { $0.value >= 0x0400 && $0.value <= 0x04FF }.count
+        let latinCount = text.unicodeScalars.filter { ($0.value >= 0x0041 && $0.value <= 0x005A) || ($0.value >= 0x0061 && $0.value <= 0x007A) }.count
+        let totalLetters = cyrillicCount + latinCount
+
+        // If mostly Cyrillic (>60%), it's probably real Cyrillic text — leave it alone
+        guard totalLetters > 0, Double(cyrillicCount) / Double(totalLetters) < 0.6 else { return text }
+
+        // Cyrillic → Latin lookalike map (visually similar characters Vision confuses)
+        let deconfusionMap: [Character: Character] = [
+            "\u{0410}": "A",  // А → A
+            "\u{0412}": "B",  // В → B
+            "\u{0421}": "C",  // С → C
+            "\u{0415}": "E",  // Е → E
+            "\u{041D}": "H",  // Н → H
+            "\u{041A}": "K",  // К → K
+            "\u{041C}": "M",  // М → M
+            "\u{041E}": "O",  // О → O
+            "\u{0420}": "P",  // Р → P
+            "\u{0422}": "T",  // Т → T
+            "\u{0425}": "X",  // Х → X
+            "\u{042F}": "R",  // Я → R (reversed R shape)
+            "\u{0430}": "a",  // а → a
+            "\u{0435}": "e",  // е → e
+            "\u{043E}": "o",  // о → o
+            "\u{0440}": "p",  // р → p
+            "\u{0441}": "c",  // с → c
+            "\u{0443}": "y",  // у → y
+            "\u{0445}": "x",  // х → x
+            "\u{0434}": "d",  // д → d (approximate)
+            "\u{0438}": "u",  // и → u (approximate, reversed N)
+            "\u{043D}": "h",  // н → h
+        ]
+
+        var result = ""
+        for char in text {
+            if let replacement = deconfusionMap[char] {
+                result.append(replacement)
+            } else {
+                result.append(char)
+            }
+        }
+
+        if result != text {
+            Log.debug("[StructuredDocumentParser] Deconfused Cyrillic→Latin: '\(text.prefix(40))' → '\(result.prefix(40))'", category: .ingestion)
+        }
+
+        return result
+    }
+
+    /// Detect and fix reversed text from broken PDF text layers
+    /// Some PDFs encode text right-to-left, producing "weiv tnorf" instead of "front view"
+    nonisolated private func fixReversedTextIfNeeded(_ text: String) -> String {
+        // Only attempt for short-to-medium text (section titles, headers, cell values)
+        // Long body text reversals are too risky to auto-fix
+        guard text.count >= 3 && text.count <= 120 else { return text }
+
+        // Split into words, check if ANY are recognizable English
+        let words = text.lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { $0.count >= 2 }
+
+        guard words.count >= 1 else { return text }
+
+        let forwardRecognized = words.filter { Self.commonWords.contains($0) }.count
+        let forwardRate = Double(forwardRecognized) / Double(words.count)
+
+        // If forward text already has decent recognition, don't reverse
+        if forwardRate >= 0.3 { return text }
+
+        // Try reversing each word (keeping word order) — "weiv tnorf" → "view front"
+        let reversedWords = text.components(separatedBy: " ").map { word -> String in
+            // Only reverse words that are purely alphabetic (don't reverse numbers/codes)
+            let isAlphaWord = word.allSatisfy { $0.isLetter || $0 == "-" }
+            return isAlphaWord ? String(word.reversed()) : word
+        }
+        let wordReversed = reversedWords.joined(separator: " ")
+
+        let wordReversedWords = wordReversed.lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { $0.count >= 2 }
+        let wordReversedRecognized = wordReversedWords.filter { Self.commonWords.contains($0) }.count
+        let wordReversedRate = Double(wordReversedRecognized) / Double(max(1, wordReversedWords.count))
+
+        // Also try full string reversal — "tnorf weiv" → "view front"
+        let fullReversed = String(text.reversed())
+        let fullReversedWords = fullReversed.lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { $0.count >= 2 }
+        let fullReversedRecognized = fullReversedWords.filter { Self.commonWords.contains($0) }.count
+        let fullReversedRate = Double(fullReversedRecognized) / Double(max(1, fullReversedWords.count))
+
+        // Pick the best interpretation (must be significantly better than forward)
+        let bestRate = max(wordReversedRate, fullReversedRate)
+        if bestRate > forwardRate && bestRate >= 0.25 {
+            let bestText = wordReversedRate >= fullReversedRate ? wordReversed : fullReversed
+            Log.debug("[StructuredDocumentParser] Fixed reversed text: '\(text.prefix(40))' → '\(bestText.prefix(40))'", category: .ingestion)
+            return bestText
+        }
+
+        return text
     }
 
     /// Clean up common OCR errors in text

@@ -90,6 +90,12 @@ final class ParentDocumentService {
 
     /// Expand retrieved chunks to include sibling context from the same section/page.
     ///
+    /// CRITICAL: All original matched chunks are ALWAYS preserved.
+    /// Sibling expansion is ADDITIVE — it can never cause matched chunks to be dropped.
+    /// Previous behavior: token budget could cut off after 2 chunks, silently dropping
+    /// 18 out of 20 MMR-selected diverse chunks. This caused catastrophic data loss
+    /// (e.g., 20 diverse oil-related chunks → 2 chunks about oil pressure warning only).
+    ///
     /// - Parameters:
     ///   - retrievedChunks: The chunks returned from hybrid search/reranking
     ///   - allChunks: All chunks in the database (for finding siblings)
@@ -113,84 +119,75 @@ final class ParentDocumentService {
 
         // Calculate initial token count
         let tokensBeforeExpansion = retrievedChunks.reduce(0) { $0 + estimateTokens($1.chunk.content) }
-        var currentTokens = 0
 
+        // PHASE 1: Guarantee ALL original matched chunks survive.
+        // These were carefully selected by MMR diversification — never drop them.
         for retrieved in retrievedChunks {
-            // Skip if already included (could happen with overlapping sibling groups)
-            if includedChunkIds.contains(retrieved.chunk.id) {
-                continue
+            if !includedChunkIds.contains(retrieved.chunk.id) {
+                expandedChunks.append(retrieved)
+                includedChunkIds.insert(retrieved.chunk.id)
             }
+        }
 
-            // Check if we should expand this chunk
-            let shouldExpand = retrieved.similarityScore >= config.minRelevanceForExpansion
+        // PHASE 2: Add siblings within token budget (additive only).
+        // Siblings provide local context but must never displace matched chunks.
+        var currentTokens = expandedChunks.reduce(0) { $0 + estimateTokens($1.chunk.content) }
+        var siblingInsertions: [(index: Int, chunk: RetrievedChunk)] = []
 
-            if shouldExpand {
-                // Find siblings
-                let siblings = findSiblings(
-                    for: retrieved.chunk,
-                    in: chunksByDocument[retrieved.chunk.documentId] ?? [],
-                    chunkById: chunkById
-                )
+        for (i, retrieved) in expandedChunks.enumerated() {
+            // Skip if this chunk doesn't meet relevance threshold for expansion
+            guard retrieved.similarityScore >= config.minRelevanceForExpansion else { continue }
 
-                // Add siblings in order (before, matched, after)
-                for sibling in siblings.before.reversed() {
-                    if currentTokens + estimateTokens(sibling.content) > config.maxExpandedTokens {
-                        break
-                    }
-                    if !includedChunkIds.contains(sibling.id) {
-                        let siblingRetrieved = RetrievedChunk(
-                            chunk: sibling,
-                            similarityScore: retrieved.similarityScore * 0.8, // Discount sibling score
-                            rank: expandedChunks.count,
-                            sourceDocument: retrieved.sourceDocument,
-                            pageNumber: sibling.metadata.pageNumber
-                        )
-                        expandedChunks.append(siblingRetrieved)
-                        includedChunkIds.insert(sibling.id)
-                        currentTokens += estimateTokens(sibling.content)
-                        addedSiblings += 1
-                    }
-                }
+            // Stop adding siblings if we've hit the token limit
+            guard currentTokens < config.maxExpandedTokens else { break }
 
-                // Add the matched chunk
-                if !includedChunkIds.contains(retrieved.chunk.id) {
-                    expandedChunks.append(retrieved)
-                    includedChunkIds.insert(retrieved.chunk.id)
-                    currentTokens += estimateTokens(retrieved.chunk.content)
-                }
+            // Find siblings
+            let siblings = findSiblings(
+                for: retrieved.chunk,
+                in: chunksByDocument[retrieved.chunk.documentId] ?? [],
+                chunkById: chunkById
+            )
 
-                // Add siblings after
-                for sibling in siblings.after {
-                    if currentTokens + estimateTokens(sibling.content) > config.maxExpandedTokens {
-                        break
-                    }
-                    if !includedChunkIds.contains(sibling.id) {
-                        let siblingRetrieved = RetrievedChunk(
-                            chunk: sibling,
-                            similarityScore: retrieved.similarityScore * 0.8, // Discount sibling score
-                            rank: expandedChunks.count,
-                            sourceDocument: retrieved.sourceDocument,
-                            pageNumber: sibling.metadata.pageNumber
-                        )
-                        expandedChunks.append(siblingRetrieved)
-                        includedChunkIds.insert(sibling.id)
-                        currentTokens += estimateTokens(sibling.content)
-                        addedSiblings += 1
-                    }
-                }
-            } else {
-                // Just add the matched chunk without expansion
-                if !includedChunkIds.contains(retrieved.chunk.id) {
-                    expandedChunks.append(retrieved)
-                    includedChunkIds.insert(retrieved.chunk.id)
-                    currentTokens += estimateTokens(retrieved.chunk.content)
+            // Collect siblings to insert adjacent to the matched chunk
+            for sibling in siblings.before.reversed() {
+                guard currentTokens + estimateTokens(sibling.content) <= config.maxExpandedTokens else { break }
+                if !includedChunkIds.contains(sibling.id) {
+                    let siblingRetrieved = RetrievedChunk(
+                        chunk: sibling,
+                        similarityScore: retrieved.similarityScore * 0.8,
+                        rank: expandedChunks.count + siblingInsertions.count,
+                        sourceDocument: retrieved.sourceDocument,
+                        pageNumber: sibling.metadata.pageNumber
+                    )
+                    siblingInsertions.append((index: i, chunk: siblingRetrieved))
+                    includedChunkIds.insert(sibling.id)
+                    currentTokens += estimateTokens(sibling.content)
+                    addedSiblings += 1
                 }
             }
 
-            // Stop if we've hit the token limit
-            if currentTokens >= config.maxExpandedTokens {
-                break
+            for sibling in siblings.after {
+                guard currentTokens + estimateTokens(sibling.content) <= config.maxExpandedTokens else { break }
+                if !includedChunkIds.contains(sibling.id) {
+                    let siblingRetrieved = RetrievedChunk(
+                        chunk: sibling,
+                        similarityScore: retrieved.similarityScore * 0.8,
+                        rank: expandedChunks.count + siblingInsertions.count,
+                        sourceDocument: retrieved.sourceDocument,
+                        pageNumber: sibling.metadata.pageNumber
+                    )
+                    siblingInsertions.append((index: i + 1, chunk: siblingRetrieved))
+                    includedChunkIds.insert(sibling.id)
+                    currentTokens += estimateTokens(sibling.content)
+                    addedSiblings += 1
+                }
             }
+        }
+
+        // Insert siblings into the expanded list (reverse order to preserve indices)
+        for insertion in siblingInsertions.reversed() {
+            let insertAt = min(insertion.index, expandedChunks.count)
+            expandedChunks.insert(insertion.chunk, at: insertAt)
         }
 
         let duration = Date().timeIntervalSince(startTime)
@@ -260,8 +257,8 @@ final class ParentDocumentService {
 
     /// Check if two chunks are siblings (same section/page)
     /// CRITICAL: Siblings must be topically related, not just physically adjacent!
-    /// For a 542-page car manual, a chunk about "engine oil" should NOT pull in
-    /// siblings about "driver assistance" just because they're on nearby pages.
+    /// For a large document, a chunk about "system specs" should NOT pull in
+    /// siblings about "troubleshooting" just because they're on nearby pages.
     private func isSibling(_ a: DocumentChunk, _ b: DocumentChunk) -> Bool {
         // Must be same document
         guard a.documentId == b.documentId else { return false }
@@ -297,9 +294,11 @@ final class ParentDocumentService {
         return indexDistance <= 1
     }
 
-    /// Estimate token count from text (rough: ~4 chars per token)
+    /// Estimate token count from text.
+    /// Uses ~1.4 chars per token (Apple FM tokenizer calibration).
+    /// This matches ContextPackingService and LLMService estimates.
     private func estimateTokens(_ text: String) -> Int {
-        return max(1, text.count / 4)
+        return max(1, Int(ceil(Double(text.count) / 1.4)))
     }
 
     // MARK: - Utility: Compute Sibling Group ID During Ingestion

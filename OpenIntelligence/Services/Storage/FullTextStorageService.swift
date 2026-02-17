@@ -19,7 +19,11 @@ actor FullTextStorageService {
 
     // MARK: - Storage
 
-    private var cache: [UUID: String] = [:]  // In-memory cache for fast access
+    /// LRU-capped in-memory cache. Max 5 documents to limit memory footprint.
+    /// A 1000-page PDF ≈ 5 MB text; 5 docs = 25 MB max cache.
+    private var cache: [UUID: String] = [:]
+    private var cacheOrder: [UUID] = [] // LRU order: oldest first, newest last
+    private let maxCacheSize = 5
     private let fileManager = FileManager.default
 
     private var storageDirectory: URL {
@@ -30,6 +34,22 @@ actor FullTextStorageService {
     }
 
     private init() {}
+
+    /// Add to cache with LRU eviction
+    private func cacheDocument(_ documentId: UUID, text: String) {
+        // If already cached, move to end (most recent)
+        if cache[documentId] != nil {
+            cacheOrder.removeAll { $0 == documentId }
+        } else if cache.count >= maxCacheSize {
+            // Evict oldest entry
+            if let oldest = cacheOrder.first {
+                cache.removeValue(forKey: oldest)
+                cacheOrder.removeFirst()
+            }
+        }
+        cache[documentId] = text
+        cacheOrder.append(documentId)
+    }
 
     /// Get all document IDs that have stored full text
     private func getAllStoredDocumentIds() -> [UUID] {
@@ -46,8 +66,8 @@ actor FullTextStorageService {
     ///   - text: The complete original document text (unmodified)
     ///   - documentId: Document UUID
     func store(text: String, for documentId: UUID) async {
-        // Cache in memory
-        cache[documentId] = text
+        // Cache in memory with LRU eviction
+        cacheDocument(documentId, text: text)
 
         // Persist to disk
         let fileURL = storageDirectory.appendingPathComponent("\(documentId.uuidString).txt")
@@ -76,7 +96,7 @@ actor FullTextStorageService {
 
         do {
             let text = try String(contentsOf: fileURL, encoding: .utf8)
-            cache[documentId] = text  // Cache for future access
+            cacheDocument(documentId, text: text)  // Cache with LRU eviction
             return text
         } catch {
             Log.error("[FullTextStorage] Failed to load full text: \(error)", category: .retrieval)
@@ -87,6 +107,7 @@ actor FullTextStorageService {
     /// Delete full text for a document
     func delete(for documentId: UUID) async {
         cache.removeValue(forKey: documentId)
+        cacheOrder.removeAll { $0 == documentId }
         let fileURL = storageDirectory.appendingPathComponent("\(documentId.uuidString).txt")
         try? fileManager.removeItem(at: fileURL)
     }
@@ -244,6 +265,7 @@ actor FullTextStorageService {
     /// Clear memory cache (keeps disk storage)
     func clearCache() {
         cache.removeAll()
+        cacheOrder.removeAll()
     }
 
     /// Get storage statistics

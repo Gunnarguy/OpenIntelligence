@@ -111,6 +111,13 @@ struct PipelineMetrics: Sendable, Equatable {
     var hasCode: Bool = false
     var hasMath: Bool = false
 
+    // Document content profile (displayed in UI)
+    var documentDomain: String = ""          // e.g. "Vehicle Manual", "Technical Report", "Legal"
+    var contentDescriptor: String = ""       // e.g. "Automotive maintenance & specifications"
+    var extractionCoverage: Double = 0       // 0.0-1.0 ratio of pages with extracted text
+    var documentLanguage: String = ""        // Primary detected language name
+    var contentCategories: [String] = []     // e.g. ["Safety", "Maintenance", "Specifications"]
+
     // Timing
     var extractionTimeMs: Int = 0
     var chunkingTimeMs: Int = 0

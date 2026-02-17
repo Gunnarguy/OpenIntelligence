@@ -1,1 +1,1 @@
-23-step RAG pipeline. 100% On-Device. Ask PDFs, get cited answers. HyDE, Reranking, & Graph Packing. No cloud, no accounts. Native iOS Performance.
+NEW in 1.2: Full markdown response rendering. 3-tier Metal GPU vector search. Device-specific OCR concurrency. Concurrent neural reranking. 25-step pipeline. 81 services. 100% on-device. No cloud, no accounts.

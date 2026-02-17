@@ -180,6 +180,9 @@ final class GPUComputeService: @unchecked Sendable {
     private let cosineSimilaritySIMDPipeline: MTLComputePipelineState?
     private let batchNormalizeSIMDPipeline: MTLComputePipelineState?
 
+    // Threadgroup-optimized pipeline (fastest — query cached in shared memory + SIMD4)
+    private let cosineSimilarityThreadgroupPipeline: MTLComputePipelineState?
+
     /// Whether GPU compute is available
     nonisolated var isGPUAvailable: Bool { device != nil && commandQueue != nil }
 
@@ -205,6 +208,7 @@ final class GPUComputeService: @unchecked Sendable {
             self.mmrDiversityPipeline = nil
             self.cosineSimilaritySIMDPipeline = nil
             self.batchNormalizeSIMDPipeline = nil
+            self.cosineSimilarityThreadgroupPipeline = nil
             Log.warning("[GPUComputeService] Metal unavailable. Using Accelerate CPU backend.", category: .initialization)
             return
         }
@@ -236,6 +240,7 @@ final class GPUComputeService: @unchecked Sendable {
         var mmrPipeline: MTLComputePipelineState? = nil
         var cosineSIMDPipeline: MTLComputePipelineState? = nil
         var normSIMDPipeline: MTLComputePipelineState? = nil
+        var cosineThreadgroupPipeline: MTLComputePipelineState? = nil
 
         if let lib = loadedLibrary {
             do {
@@ -259,6 +264,13 @@ final class GPUComputeService: @unchecked Sendable {
                     normSIMDPipeline = try mtlDevice.makeComputePipelineState(function: normSIMDFunc)
                     Log.info("[GPUComputeService] ✓ SIMD4 normalize pipeline ready", category: .initialization)
                 }
+
+                // Threadgroup-optimized pipeline (fastest for large batches)
+                // Caches query vector in threadgroup shared memory — eliminates redundant global reads
+                if let tgFunc = lib.makeFunction(name: "batchCosineSimilarityThreadgroup") {
+                    cosineThreadgroupPipeline = try mtlDevice.makeComputePipelineState(function: tgFunc)
+                    Log.info("[GPUComputeService] ✓ Threadgroup cosine similarity pipeline ready (fastest)", category: .initialization)
+                }
             } catch {
                 Log.warning("[GPUComputeService] Failed to create compute pipelines: \(error)", category: .initialization)
             }
@@ -269,6 +281,7 @@ final class GPUComputeService: @unchecked Sendable {
         self.mmrDiversityPipeline = mmrPipeline
         self.cosineSimilaritySIMDPipeline = cosineSIMDPipeline
         self.batchNormalizeSIMDPipeline = normSIMDPipeline
+        self.cosineSimilarityThreadgroupPipeline = cosineThreadgroupPipeline
 
         Log.info("[GPUComputeService] 🚀 Metal GPU initialized: \(mtlDevice.name)", category: .initialization)
         if let pool = self.bufferPool {
@@ -303,6 +316,10 @@ final class GPUComputeService: @unchecked Sendable {
         // Use GPU for large batches (> 100 vectors), CPU for small batches
         // GPU has overhead for buffer creation, so CPU is faster for small work
         if docCount > 100, let device = device, let queue = commandQueue {
+            // Report GPU activity for vector similarity
+            HardwareTelemetryReporter.pulse(.vectorSimilarity, intensity: 0.85, duration: 0.3)
+            HardwareTelemetryReporter.reportGPUCompute()
+
             // Prefer SIMD pipeline (4x faster), fall back to standard
             if let simdPipeline = cosineSimilaritySIMDPipeline {
                 return gpuBatchCosineSimilaritySIMD(query: query, documents: documents, device: device, queue: queue, pipeline: simdPipeline)
@@ -560,6 +577,336 @@ final class GPUComputeService: @unchecked Sendable {
         return results
     }
 
+    // MARK: - Flat Buffer GPU Path (Zero-Copy)
+
+    /// GPU batch cosine similarity using a PRE-FLATTENED contiguous Float buffer.
+    /// Eliminates the massive memory spike from converting [[Float]] → flat → Metal buffer.
+    /// For 50K vectors × 384 dims, this saves ~150 MB of temporary allocations.
+    ///
+    /// - Parameters:
+    ///   - query: Single query embedding vector
+    ///   - flatDocuments: Contiguous Float array where embeddings are packed sequentially
+    ///     (e.g., [e0_0, e0_1, ..., e0_383, e1_0, e1_1, ..., e1_383, ...])
+    ///   - documentCount: Number of documents in the flat buffer
+    ///   - dimension: Embedding dimension (must match query.count)
+    /// - Returns: Array of cosine similarity scores, one per document
+    nonisolated func batchCosineSimilarityFlat(
+        query: [Float],
+        flatDocuments: [Float],
+        documentCount: Int,
+        dimension: Int
+    ) -> [Float] {
+        guard documentCount > 0, dimension > 0, flatDocuments.count >= documentCount * dimension else {
+            return []
+        }
+
+        // GPU path for large batches — tiered shader selection
+        if documentCount > 100, let device = device, let queue = commandQueue {
+            HardwareTelemetryReporter.pulse(.vectorSimilarity, intensity: 0.85, duration: 0.3)
+            HardwareTelemetryReporter.reportGPUCompute()
+
+            // Select fastest compatible shader
+            let simdCompatible = dimension % 4 == 0
+            let threadgroupSafe = simdCompatible && (dimension / 4) <= 96
+
+            let selectedPipeline: MTLComputePipelineState?
+            if threadgroupSafe, documentCount >= 1000, let tgPipeline = cosineSimilarityThreadgroupPipeline {
+                selectedPipeline = tgPipeline
+            } else if simdCompatible, let simdPipeline = cosineSimilaritySIMDPipeline {
+                selectedPipeline = simdPipeline
+            } else {
+                selectedPipeline = cosineSimilarityPipeline
+            }
+
+            if let pipeline = selectedPipeline {
+                return gpuBatchCosineSimilarityFlat(
+                    query: query,
+                    flatDocuments: flatDocuments,
+                    documentCount: documentCount,
+                    dimension: dimension,
+                    device: device,
+                    queue: queue,
+                    pipeline: pipeline
+                )
+            }
+        }
+
+        // CPU fallback — use vDSP_mmul on the flat buffer directly
+        return cpuBatchCosineSimilarityFlat(
+            query: query,
+            flatDocuments: flatDocuments,
+            documentCount: documentCount,
+            dimension: dimension
+        )
+    }
+
+    /// Batch cosine similarity from an `UnsafeBufferPointer<Float>` — for mmap'd vectors.
+    /// The caller has already opened a pointer into mmap'd `Data`; we read directly
+    /// from that pointer with no heap copy.
+    ///
+    /// - Parameters:
+    ///   - query: Query embedding (dimension-sized array)
+    ///   - flatDocuments: Unsafe pointer into mmap'd or contiguous float buffer
+    ///   - documentCount: Number of documents
+    ///   - dimension: Embedding dimension
+    /// - Returns: Array of cosine similarity scores
+    nonisolated func batchCosineSimilarityFlatBuffer(
+        query: [Float],
+        flatDocuments: UnsafeBufferPointer<Float>,
+        documentCount: Int,
+        dimension: Int
+    ) -> [Float] {
+        guard documentCount > 0, dimension > 0, flatDocuments.count >= documentCount * dimension else {
+            return []
+        }
+
+        // GPU path — tiered shader selection for maximum throughput:
+        // Tier 1: Threadgroup (≥1000 docs) — query cached in shared memory + SIMD4 = fastest
+        // Tier 2: SIMD4 (100-999 docs) — float4 vector ops = 4x scalar throughput
+        // Tier 3: Scalar — fallback for non-SIMD-aligned dimensions
+        if documentCount > 100, let device = device, let queue = commandQueue {
+            // SIMD4/threadgroup shaders require dimension to be a multiple of 4.
+            // MiniLM-L6-v2 = 384 (384/4=96 float4s) — always SIMD-compatible.
+            // Threadgroup shader has sharedQuery[96] — safe for dimension ≤ 384.
+            let simdCompatible = dimension % 4 == 0
+            let threadgroupSafe = simdCompatible && (dimension / 4) <= 96  // sharedQuery[96] limit
+
+            let selectedPipeline: MTLComputePipelineState?
+            let shaderTier: String
+            if threadgroupSafe, documentCount >= 1000, let tgPipeline = cosineSimilarityThreadgroupPipeline {
+                selectedPipeline = tgPipeline
+                shaderTier = "threadgroup"
+            } else if simdCompatible, let simdPipeline = cosineSimilaritySIMDPipeline {
+                selectedPipeline = simdPipeline
+                shaderTier = "SIMD4"
+            } else {
+                selectedPipeline = cosineSimilarityPipeline
+                shaderTier = "scalar"
+            }
+
+            guard let pipeline = selectedPipeline else {
+                return cpuBatchCosineSimilarityFlatBuffer(
+                    query: query, flatDocuments: flatDocuments,
+                    documentCount: documentCount, dimension: dimension
+                )
+            }
+
+            HardwareTelemetryReporter.pulse(.vectorSimilarity, intensity: 0.85, duration: 0.3)
+            HardwareTelemetryReporter.reportGPUCompute()
+            Log.debug("[GPUComputeService] GPU search: \(documentCount) vectors × \(dimension)D via \(shaderTier) shader", category: .retrieval)
+
+            let docsSize = documentCount * dimension * MemoryLayout<Float>.stride
+            let querySize = dimension * MemoryLayout<Float>.stride
+            let resultsSize = documentCount * MemoryLayout<Float>.stride
+
+            // Metal buffer: zero-copy for mmap'd docs via bytesNoCopy when page-aligned.
+            // mmap guarantees page-aligned addresses. Apple Silicon unified memory
+            // lets GPU read directly from mmap'd pages — no 73 MB heap copy.
+            // Falls back to makeBuffer(bytes:) if length isn't page-aligned.
+            // Query buffer is small (1.5 KB) so a copy is always fine.
+            guard let queryBuffer = device.makeBuffer(bytes: query, length: querySize, options: .storageModeShared) else {
+                return cpuBatchCosineSimilarityFlatBuffer(
+                    query: query, flatDocuments: flatDocuments,
+                    documentCount: documentCount, dimension: dimension
+                )
+            }
+
+            // Try zero-copy first; fall back to copy if alignment requirements aren't met
+            let docsBuffer: any MTLBuffer
+            if let zeroCopy = device.makeBuffer(bytesNoCopy: UnsafeMutableRawPointer(mutating: flatDocuments.baseAddress!),
+                                                 length: docsSize,
+                                                 options: .storageModeShared,
+                                                 deallocator: nil) {
+                docsBuffer = zeroCopy
+            } else if let copied = device.makeBuffer(bytes: flatDocuments.baseAddress!, length: docsSize, options: .storageModeShared) {
+                docsBuffer = copied
+            } else {
+                return cpuBatchCosineSimilarityFlatBuffer(
+                    query: query, flatDocuments: flatDocuments,
+                    documentCount: documentCount, dimension: dimension
+                )
+            }
+
+            guard let resultsBuffer = device.makeBuffer(length: resultsSize, options: .storageModeShared),
+                  let commandBuffer = queue.makeCommandBuffer(),
+                  let encoder = commandBuffer.makeComputeCommandEncoder() else {
+                // Fall through to CPU
+                return cpuBatchCosineSimilarityFlatBuffer(
+                    query: query, flatDocuments: flatDocuments,
+                    documentCount: documentCount, dimension: dimension
+                )
+            }
+
+            encoder.setComputePipelineState(pipeline)
+            encoder.setBuffer(queryBuffer, offset: 0, index: 0)
+            encoder.setBuffer(docsBuffer, offset: 0, index: 1)
+            encoder.setBuffer(resultsBuffer, offset: 0, index: 2)
+
+            var dim = UInt32(dimension)
+            var count = UInt32(documentCount)
+            encoder.setBytes(&dim, length: MemoryLayout<UInt32>.stride, index: 3)
+            encoder.setBytes(&count, length: MemoryLayout<UInt32>.stride, index: 4)
+
+            let threadGroupSize = min(pipeline.maxTotalThreadsPerThreadgroup, documentCount)
+            let threadGroups = MTLSize(width: (documentCount + threadGroupSize - 1) / threadGroupSize, height: 1, depth: 1)
+            let threadsPerGroup = MTLSize(width: threadGroupSize, height: 1, depth: 1)
+
+            encoder.dispatchThreadgroups(threadGroups, threadsPerThreadgroup: threadsPerGroup)
+            encoder.endEncoding()
+            commandBuffer.commit()
+            commandBuffer.waitUntilCompleted()
+
+            let resultsPtr = resultsBuffer.contents().bindMemory(to: Float.self, capacity: documentCount)
+            return Array(UnsafeBufferPointer(start: resultsPtr, count: documentCount))
+        }
+
+        // CPU fallback
+        return cpuBatchCosineSimilarityFlatBuffer(
+            query: query, flatDocuments: flatDocuments,
+            documentCount: documentCount, dimension: dimension
+        )
+    }
+
+    /// CPU cosine similarity from `UnsafeBufferPointer<Float>` (mmap-friendly)
+    private nonisolated func cpuBatchCosineSimilarityFlatBuffer(
+        query: [Float],
+        flatDocuments: UnsafeBufferPointer<Float>,
+        documentCount: Int,
+        dimension: Int
+    ) -> [Float] {
+        var results = [Float](repeating: 0, count: documentCount)
+
+        query.withUnsafeBufferPointer { queryPtr in
+            results.withUnsafeMutableBufferPointer { outPtr in
+                vDSP_mmul(
+                    flatDocuments.baseAddress!, 1,
+                    queryPtr.baseAddress!, 1,
+                    outPtr.baseAddress!, 1,
+                    vDSP_Length(documentCount), 1, vDSP_Length(dimension)
+                )
+            }
+        }
+
+        let queryNorm = sqrt(vDSP.sumOfSquares(query))
+        guard queryNorm > 1e-9 else { return results }
+
+        for i in 0..<documentCount {
+            let start = i * dimension
+            var sumSq: Float = 0
+            vDSP_svesq(flatDocuments.baseAddress! + start, 1, &sumSq, vDSP_Length(dimension))
+            let docNorm = sqrt(sumSq)
+            if docNorm > 1e-9 {
+                results[i] /= (queryNorm * docNorm)
+            } else {
+                results[i] = 0
+            }
+        }
+
+        return results
+    }
+
+    /// GPU implementation for pre-flattened embeddings — zero copy to Metal buffer
+    private nonisolated func gpuBatchCosineSimilarityFlat(
+        query: [Float],
+        flatDocuments: [Float],
+        documentCount: Int,
+        dimension: Int,
+        device: MTLDevice,
+        queue: MTLCommandQueue,
+        pipeline: MTLComputePipelineState
+    ) -> [Float] {
+        let querySize = dimension * MemoryLayout<Float>.stride
+        let docsSize = documentCount * dimension * MemoryLayout<Float>.stride
+        let resultsSize = documentCount * MemoryLayout<Float>.stride
+
+        guard let queryBuffer = bufferPool?.acquire(bytes: query, length: querySize)
+                ?? device.makeBuffer(bytes: query, length: querySize, options: .storageModeShared),
+              let docsBuffer = bufferPool?.acquire(bytes: flatDocuments, length: docsSize)
+                ?? device.makeBuffer(bytes: flatDocuments, length: docsSize, options: .storageModeShared),
+              let resultsBuffer = bufferPool?.acquire(minimumSize: resultsSize)
+                ?? device.makeBuffer(length: resultsSize, options: .storageModeShared),
+              let commandBuffer = queue.makeCommandBuffer(),
+              let encoder = commandBuffer.makeComputeCommandEncoder() else {
+            return cpuBatchCosineSimilarityFlat(
+                query: query,
+                flatDocuments: flatDocuments,
+                documentCount: documentCount,
+                dimension: dimension
+            )
+        }
+
+        encoder.setComputePipelineState(pipeline)
+        encoder.setBuffer(queryBuffer, offset: 0, index: 0)
+        encoder.setBuffer(docsBuffer, offset: 0, index: 1)
+        encoder.setBuffer(resultsBuffer, offset: 0, index: 2)
+
+        var dim = UInt32(dimension)
+        var count = UInt32(documentCount)
+        encoder.setBytes(&dim, length: MemoryLayout<UInt32>.stride, index: 3)
+        encoder.setBytes(&count, length: MemoryLayout<UInt32>.stride, index: 4)
+
+        let threadGroupSize = min(pipeline.maxTotalThreadsPerThreadgroup, documentCount)
+        let threadGroups = MTLSize(width: (documentCount + threadGroupSize - 1) / threadGroupSize, height: 1, depth: 1)
+        let threadsPerGroup = MTLSize(width: threadGroupSize, height: 1, depth: 1)
+
+        encoder.dispatchThreadgroups(threadGroups, threadsPerThreadgroup: threadsPerGroup)
+        encoder.endEncoding()
+
+        commandBuffer.commit()
+        commandBuffer.waitUntilCompleted()
+
+        let resultsPtr = resultsBuffer.contents().bindMemory(to: Float.self, capacity: documentCount)
+        let results = Array(UnsafeBufferPointer(start: resultsPtr, count: documentCount))
+
+        bufferPool?.release(queryBuffer)
+        bufferPool?.release(docsBuffer)
+        bufferPool?.release(resultsBuffer)
+
+        return results
+    }
+
+    /// CPU fallback for pre-flattened embeddings using Accelerate vDSP_mmul
+    private nonisolated func cpuBatchCosineSimilarityFlat(
+        query: [Float],
+        flatDocuments: [Float],
+        documentCount: Int,
+        dimension: Int
+    ) -> [Float] {
+        var results = [Float](repeating: 0, count: documentCount)
+
+        // Matrix-vector multiply: [N x D] × [D x 1] = [N x 1]
+        flatDocuments.withUnsafeBufferPointer { docsPtr in
+            query.withUnsafeBufferPointer { queryPtr in
+                results.withUnsafeMutableBufferPointer { outPtr in
+                    vDSP_mmul(
+                        docsPtr.baseAddress!, 1,
+                        queryPtr.baseAddress!, 1,
+                        outPtr.baseAddress!, 1,
+                        vDSP_Length(documentCount), 1, vDSP_Length(dimension)
+                    )
+                }
+            }
+        }
+
+        // Normalize by norms (dot product → cosine similarity)
+        let queryNorm = sqrt(vDSP.sumOfSquares(query))
+        guard queryNorm > 1e-9 else { return results }
+
+        for i in 0..<documentCount {
+            let start = i * dimension
+            let end = start + dimension
+            let docSlice = Array(flatDocuments[start..<end])
+            let docNorm = sqrt(vDSP.sumOfSquares(docSlice))
+            if docNorm > 1e-9 {
+                results[i] /= (queryNorm * docNorm)
+            } else {
+                results[i] = 0
+            }
+        }
+
+        return results
+    }
+
     /// CPU fallback using Accelerate vDSP
     private nonisolated func cpuBatchCosineSimilarity(query: [Float], documents: [[Float]]) -> [Float] {
         let dimension = query.count
@@ -757,7 +1104,7 @@ final class GPUComputeService: @unchecked Sendable {
     /// This is O(n²) so GPU acceleration is critical for large candidate sets
     nonisolated func mmrDiversityMatrix(embeddings: [[Float]]) -> [[Float]] {
         let count = embeddings.count
-        guard count > 1 else { return [[]] }
+        guard count > 1 else { return [] }
 
         // GPU is essential for large matrices (> 50 vectors = 2500 comparisons)
         if count > 50, isGPUAvailable {
@@ -775,7 +1122,9 @@ final class GPUComputeService: @unchecked Sendable {
 
         let count = embeddings.count
         let dimension = embeddings.first?.count ?? 0
-        guard dimension > 0 else { return [[]] }
+        guard dimension > 0 else {
+            return cpuDiversityMatrix(embeddings: embeddings)
+        }
 
         // Flatten embeddings into matrix (count x dimension)
         var flatMatrix = [Float]()
@@ -800,15 +1149,18 @@ final class GPUComputeService: @unchecked Sendable {
         }
 
         // Create MPS matrix descriptors
+        // Both A and B use the SAME descriptor (count x dimension) since the buffer
+        // stores data in row-major (count x dimension) layout. transposeRight: true
+        // tells MPS to transpose B during computation — the descriptor must match
+        // the actual data layout, NOT the logical transposed shape.
         let matrixDesc = MPSMatrixDescriptor(rows: count, columns: dimension, rowBytes: dimension * MemoryLayout<Float>.stride, dataType: .float32)
-        let matrixTransposeDesc = MPSMatrixDescriptor(rows: dimension, columns: count, rowBytes: count * MemoryLayout<Float>.stride, dataType: .float32)
         let resultDesc = MPSMatrixDescriptor(rows: count, columns: count, rowBytes: count * MemoryLayout<Float>.stride, dataType: .float32)
 
         let matrixA = MPSMatrix(buffer: matrixBuffer, descriptor: matrixDesc)
-        let matrixB = MPSMatrix(buffer: matrixBuffer, descriptor: matrixTransposeDesc)  // Transpose
+        let matrixB = MPSMatrix(buffer: matrixBuffer, descriptor: matrixDesc)  // Same layout — MPS transposes via flag
         let matrixC = MPSMatrix(buffer: resultBuffer, descriptor: resultDesc)
 
-        // Matrix multiply kernel
+        // Matrix multiply: C = A * B^T  →  (count×dim) × (dim×count) = (count×count)
         let matMul = MPSMatrixMultiplication(device: device, transposeLeft: false, transposeRight: true, resultRows: count, resultColumns: count, interiorColumns: dimension, alpha: 1.0, beta: 0.0)
 
         matMul.encode(commandBuffer: commandBuffer, leftMatrix: matrixA, rightMatrix: matrixB, resultMatrix: matrixC)

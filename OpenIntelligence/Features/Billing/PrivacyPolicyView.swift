@@ -12,7 +12,7 @@ struct PrivacyPolicyView: View {
                         .font(.largeTitle.weight(.bold))
                         .padding(.bottom, 8)
 
-                    Text("Last updated: November 15, 2025")
+                    Text("Last updated: February 16, 2026")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
@@ -24,14 +24,14 @@ OpenIntelligence is designed privacy-first. Your documents stay on your device w
 """)
 
                         section(title: "Information We Collect", content: """
-**On-Device Processing:**
+**On-Device Processing (Default):**
 • Document content and embeddings stored locally in app sandbox
-• Usage telemetry (feature usage, performance metrics) - anonymous and aggregated
-• No data leaves your device unless you explicitly authorize cloud providers
+• Usage telemetry (feature usage, performance metrics) - stays on-device only
+• No data leaves your device unless you explicitly use Apple Intelligence features
 
 **Cloud Processing (With Your Consent):**
 • Apple Private Cloud Compute: Encrypted query context, no persistent storage
-• Telemetry: Cloud transmission logs (hashed, no raw document text)
+• All telemetry and diagnostics remain entirely on-device
 
 **Billing Data:**
 • Subscription tier and status (processed by Apple, not visible to us)

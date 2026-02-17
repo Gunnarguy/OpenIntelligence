@@ -28,7 +28,7 @@ nonisolated struct ContainerVocabulary: Codable, Sendable {
     /// Key: normalized term, Value: occurrence count across all chunks
     var termFrequencies: [String: Int]
 
-    /// Specification codes detected (SAE 0W-20, ISO 9001, etc.)
+    /// Specification codes detected (ISO 9001, API SN, ASTM D-975, etc.)
     var specificationCodes: Set<String>
 
     /// Named entities (organizations, products, people)

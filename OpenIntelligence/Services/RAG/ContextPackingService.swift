@@ -54,11 +54,13 @@ actor ContextPackingService {
     /// Graph index for traversal
     private let graphIndex: GraphIndexService
 
-    /// Estimated tokens per character (conservative estimate)
-    private let tokensPerChar: Double = 0.3
+    /// Estimated tokens per character.
+    /// MUST match RAGService ratio: Apple FM empirically uses ~1.4 chars/token.
+    /// Previous value (0.3) underestimated by 2.4x, causing context overpacking.
+    private let tokensPerChar: Double = 0.71
 
     /// Default token budget (can be overridden per call)
-    private let defaultTokenBudget: Int = 4000
+    private let defaultTokenBudget: Int = 3200
 
     init(graphIndex: GraphIndexService? = nil) {
         self.graphIndex = graphIndex ?? GraphIndexService()

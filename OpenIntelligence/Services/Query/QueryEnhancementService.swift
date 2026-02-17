@@ -22,24 +22,28 @@ struct CorpusVocabulary: Sendable {
 
 /// Classification of query intent for adaptive weight tuning.
 enum QueryIntent: String, Sendable {
-    /// Specific keyword lookup (e.g., "oil type", "error code 5W-30")
+    /// Specific keyword lookup (e.g., "part number XYZ", "error code 404")
     /// → Heavily favor BM25 keyword matching
     case keyword
 
-    /// Conceptual/semantic question (e.g., "how does the engine cooling system work")
+    /// Conceptual/semantic question (e.g., "how does the cooling system work")
     /// → Favor vector/embedding similarity
     case conceptual
 
-    /// Balanced mix of both (e.g., "what maintenance is needed for the 2.0L engine")
+    /// Balanced mix of both (e.g., "what maintenance is needed for the 2.0L model")
     case balanced
 
     /// Suggested weight adjustments for hybrid search
     var weightAdjustment: (vectorDelta: Float, keywordDelta: Float) {
         switch self {
         case .keyword:
-            return (vectorDelta: -0.15, keywordDelta: +0.15) // Boost BM25 significantly
+            // UNIVERSAL FIX: Gentle nudge, not a sledgehammer.
+            // OCR'd text is noisy — BM25 alone can't find "fuel tank capacity"
+            // when the OCR'd text says "Fuel Capacity" or "fue l capa city".
+            // Embeddings understand meaning; they must always have a strong vote.
+            return (vectorDelta: -0.05, keywordDelta: +0.05)
         case .conceptual:
-            return (vectorDelta: +0.15, keywordDelta: -0.15) // Boost vector similarity
+            return (vectorDelta: +0.10, keywordDelta: -0.10) // Moderate boost to vector similarity
         case .balanced:
             return (vectorDelta: 0, keywordDelta: 0) // Use default weights
         }
@@ -52,19 +56,19 @@ enum QueryIntent: String, Sendable {
 /// Determines the answering strategy: extractive vs abstractive, single vs multi-hop.
 enum AnswerIntent: String, Sendable, CaseIterable {
     /// Direct fact lookup - run extractive QA on packed context → best span
-    /// Example: "What is the oil capacity?" → "5.7 quarts [S1]"
+    /// Example: "What is the maximum capacity?" → "5.7 quarts [S1]"
     case lookup
 
     /// Table-specific lookup - retrieve table_row then extract target cell(s)
-    /// Example: "What are the torque specs for head bolts?"
+    /// Example: "What are the torque specs for the bolts?"
     case tableLookup = "table_lookup"
 
     /// Step-by-step procedure - output ordered list_item nodes + headings (preserve order)
-    /// Example: "How do I change the oil?" → ordered steps from source
+    /// Example: "How do I replace the filter?" → ordered steps from source
     case procedure
 
     /// Side-by-side comparison - retrieve evidence for A and B separately
-    /// Example: "Compare synthetic vs conventional oil"
+    /// Example: "Compare option A vs option B"
     case compare
 
     /// Extractive summarization - sentence selection via bi-encoder similarity
@@ -72,11 +76,11 @@ enum AnswerIntent: String, Sendable, CaseIterable {
     case summarize
 
     /// Multi-hop investigation - answer = "evidence map" + extracted sub-facts
-    /// Example: "What factors affect engine longevity?"
+    /// Example: "What factors affect system longevity?"
     case investigate
 
     /// Numerical computation from extracted values
-    /// Example: "What's the total fluid capacity?" (sum multiple values)
+    /// Example: "What's the total capacity?" (sum multiple values)
     case compute
 
     /// Research findings / author discovery - requires document-level context
@@ -98,13 +102,16 @@ enum AnswerIntent: String, Sendable, CaseIterable {
         }
     }
 
-    /// Whether this intent should use extractive-first answering (no LLM generation)
+    /// Whether this intent should use extractive-first answering (spec rescue, HyDE disabled)
+    /// Only for lookup/tableLookup where the answer is a literal value in a spec table.
+    /// Procedure is NOT extractive — "what does pressing the button do?" needs behavioral
+    /// descriptions, not specification tables.
     var isExtractiveFirst: Bool {
         switch self {
-        case .lookup, .tableLookup, .procedure:
-            return true  // Direct extraction from source
-        case .compare, .summarize, .investigate, .compute, .findings:
-            return false  // May need synthesis
+        case .lookup, .tableLookup:
+            return true  // Direct extraction from source (e.g., "SAE 0W-20")
+        case .procedure, .compare, .summarize, .investigate, .compute, .findings:
+            return false  // Needs synthesis or behavioral descriptions
         }
     }
 
@@ -172,7 +179,25 @@ final class QueryEnhancementService {
     /// - **Balanced**: Mix of both
     func classifyIntent(_ query: String) -> QueryIntent {
         let lower = query.lowercased()
-        let words = lower.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).map(String.init)
+        let rawWords = lower.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).map(String.init)
+
+        // Normalize words: strip punctuation, expand contractions
+        // "what's" → "what", "do?" → "do", "it's" → "it"
+        let words = rawWords.map { word -> String in
+            var w = word.trimmingCharacters(in: .punctuationCharacters)
+            // Handle 's contractions with ANY apostrophe variant:
+            // U+0027 ' (straight), U+2019 ' (curly/smart from iOS keyboard),
+            // U+2018 ' (left single), U+FF07 (fullwidth)
+            // Character-agnostic: check if word ends in (non-letter)(s)
+            if w.count >= 3 && w.hasSuffix("s") {
+                let idx = w.index(w.endIndex, offsetBy: -2)
+                let charBeforeS = w[idx]
+                if !charBeforeS.isLetter && !charBeforeS.isNumber {
+                    w = String(w.dropLast(2))
+                }
+            }
+            return w
+        }.filter { !$0.isEmpty }
 
         // Signals for keyword-heavy queries
         var keywordSignals = 0
@@ -238,6 +263,18 @@ final class QueryEnhancementService {
         // 3. Longer queries with context (usually more conceptual)
         if words.count >= 8 {
             conceptualSignals += 1
+        }
+
+        // 4. Behavioral question patterns: "what does X do", "what happens when"
+        // These ask about function/behavior → strongly conceptual
+        let firstWord = words.first ?? ""
+        let lastWord = words.last ?? ""
+        if firstWord == "what" && (lastWord == "do" || lastWord == "does" || lastWord == "happen" || lastWord == "happens") {
+            conceptualSignals += 2
+        }
+        // "how does X work", "what does X do" mid-sentence patterns
+        if lower.contains("what does") || lower.contains("what do") || lower.contains("how does") || lower.contains("what happens") {
+            conceptualSignals += 2
         }
 
         // Classify based on signal balance
@@ -358,18 +395,82 @@ final class QueryEnhancementService {
             if lower.contains(pattern) { return .summarize }
         }
 
-        // Priority 5: Investigate (multi-hop research)
+        // Priority 5a: Behavioral/functional → procedure (action-reaction answers)
+        // "What does pressing the button do?" / "What's X do?" / "X does what?"
+        // These ask "when I do X, what happens?" — sequential procedural answers,
+        // NOT multi-hop research. Routing to .investigate would trigger iterative
+        // retrieval passes that fragment the answer across unrelated chunks.
+        let behavioralPatterns: [String] = [
+            // "pressing button does what", "the switch does what"
+            "does what", "do what",
+            // "what happens if/when I press X"
+            "happens if", "happens when",
+            // "function of X", "purpose of X", "X is used for"
+            "function of", "purpose of", "used for",
+            // Regex: "what does X do", "what's X do", "what will X do", "what can X do"
+            "what does .* do", "what will .* do", "what can .* do",
+            "what's .* do"
+        ]
+        for pattern in behavioralPatterns {
+            if pattern.contains(".*"), let _ = lower.range(of: pattern, options: .regularExpression) {
+                Log.debug("[QueryEnhancement] Behavioral regex → procedure: '\(pattern)'", category: .retrieval)
+                return .procedure
+            }
+            if lower.contains(pattern) {
+                Log.debug("[QueryEnhancement] Behavioral pattern → procedure: '\(pattern)'", category: .retrieval)
+                return .procedure
+            }
+        }
+
+        // Priority 5c: Enumeration queries → summarize (NOT lookup)
+        // "List all X", "List every X", "What are all the X", "Name every X"
+        // These require LLM synthesis across multiple chunks, not single-value extraction.
+        // MUST be checked BEFORE lookup/tableLookup/embedded patterns, which would
+        // short-circuit to ExtractiveQA and return a single value like "SPY-PHI"
+        // when the user wants a comprehensive listing of ALL matching values.
+        let enumerationPatterns: [String] = [
+            "list all", "list every", "list the", "list each",
+            "name all", "name every", "name each",
+            "what are all", "what are every",
+            "show all", "show every", "show each",
+            "give me all", "give me every",
+            "enumerate", "all the .* numbers", "all .* reference",
+        ]
+        for pattern in enumerationPatterns {
+            if pattern.contains(".*"), let _ = lower.range(of: pattern, options: .regularExpression) {
+                Log.debug("[QueryEnhancement] Enumeration regex → summarize: '\(pattern)'", category: .retrieval)
+                return .summarize
+            }
+            if lower.contains(pattern) {
+                Log.debug("[QueryEnhancement] Enumeration pattern → summarize: '\(pattern)'", category: .retrieval)
+                return .summarize
+            }
+        }
+
+        // Priority 5b: Investigate (multi-hop research requiring iterative retrieval)
         let investigatePatterns: [String] = [
             "factors", "causes", "reasons", "why does", "why is", "why are",
             "what affects", "what influences", "implications", "consequences",
             "relationship between", "how does .* affect", "what happens when"
         ]
         for pattern in investigatePatterns {
-            if lower.contains(pattern) { return .investigate }
-            // Regex pattern check
             if pattern.contains(".*"), let _ = lower.range(of: pattern, options: .regularExpression) {
+                Log.debug("[QueryEnhancement] Matched investigate regex: '\(pattern)'", category: .retrieval)
                 return .investigate
             }
+            if lower.contains(pattern) { return .investigate }
+        }
+
+        // BEHAVIORAL CATCH-ALL: Any query starting with "what" and ending with "do"
+        // (optionally with trailing punctuation) is asking about behavior/function.
+        // Examples: "What's pressing the button do?", "What does the power button do"
+        // Routes to .procedure because these ask "what happens when I do X" — sequential
+        // action-reaction answers, NOT multi-hop research (.investigate would trigger
+        // iterative retrieval and fragment the answer across multiple search passes).
+        let trimmedLower = lower.trimmingCharacters(in: .punctuationCharacters).trimmingCharacters(in: .whitespaces)
+        if trimmedLower.hasPrefix("what") && trimmedLower.hasSuffix(" do") {
+            Log.debug("[QueryEnhancement] Behavioral catch-all: starts with 'what', ends with 'do' → procedure", category: .retrieval)
+            return .procedure
         }
 
         // Priority 6: Table lookup (table-specific queries)
@@ -401,13 +502,26 @@ final class QueryEnhancementService {
             if lower.hasPrefix(starter) { return .lookup }
         }
 
+        // CRITICAL: Detect "what is the X" patterns ANYWHERE in the query (not just at start)
+        // Queries like "1688 Stryker camera head what is the reference number?" should be LOOKUP
+        let embeddedLookupPatterns: [String] = [
+            "what is the", "what are the", "what's the",
+            "reference number", "part number", "model number", "serial number",
+            "catalog number", "item number", "product code", "sku"
+        ]
+        for pattern in embeddedLookupPatterns {
+            if lower.contains(pattern) {
+                Log.debug("[QueryEnhancement] Detected embedded lookup pattern: '\(pattern)'", category: .retrieval)
+                return .lookup
+            }
+        }
+
         // CRITICAL FIX: Detect specification lookup patterns that may not start with lookup words
-        // "type of oil", "kind of fluid", "grade of", etc. are clearly looking for specific values
+        // "type of X", "kind of Y", "grade of Z", etc. are clearly looking for specific values
         let specLookupPatterns: [String] = [
             "type of", "kind of", "grade of", "brand of", "model of",
-            "oil", "fluid", "coolant", "fuel", "gasoline", "diesel",
-            "capacity", "weight", "pressure", "viscosity",
-            "does this car take", "does this vehicle take", "should i use"
+            "capacity", "weight", "pressure",
+            "should i use"
         ]
         for pattern in specLookupPatterns {
             if lower.contains(pattern) {
@@ -455,13 +569,13 @@ final class QueryEnhancementService {
             "test", "help", "hello", "hi", "hey", "ok", "okay", "thanks", "thank you",
         ]
         if tokenCount <= 1 || keyTerms.isEmpty || trivialSet.contains(lower) {
+            // OPTIMIZED: Only add query-prefixed expansions — bare "overview"/"summary"
+            // matched unrelated chunks across the entire corpus, diluting precision
             variations.append("\(original) overview")
             variations.append("\(original) summary")
-            variations.append("\(original) introduction")
-            variations.append("overview")
-            variations.append("summary")
-            Log.debug("[QueryEnhancement] Trivial input detected; added generic boost terms", category: .retrieval)
-            return uniquePreservingOrder(variations, max: 8)
+            variations.append("\(original) details")
+            Log.debug("[QueryEnhancement] Trivial input detected; added scoped boost terms", category: .retrieval)
+            return uniquePreservingOrder(variations, max: 6)
         }
 
         // 3) Synonym-based expansions.
@@ -529,35 +643,55 @@ final class QueryEnhancementService {
         return terms
     }
 
-    /// Very small, domain-oriented synonym map.
+    /// Synonym generation for query expansion.
     ///
-    /// This is intentionally conservative (no heavy NLP / embeddings) to keep expansion cheap.
+    /// IMPORTANT: Co-occurrence ≠ synonymy. "type" co-occurs with "air conditioning"
+    /// in a car manual, but replacing "type" → "air conditioning" produces nonsense
+    /// like "What air conditioning of oil does this car takes". This ruins retrieval.
+    ///
+    /// Strategy:
+    /// - Corpus co-occurrences are NEVER used here. They're already handled by
+    ///   expandFromCorpus() (step 1.5) with proper quality gates (multi-term
+    ///   co-occurrence, stopword filtering). Using them again here for REPLACEMENT
+    ///   is redundant and catastrophic.
+    /// - Only true synonyms (universal action verbs + common noun equivalents)
+    ///   are returned. These are safe for both replacement and appending.
     private func generateSynonyms(for terms: [String]) -> [String: [String]] {
         var result: [String: [String]] = [:]
 
-        let synonymDict: [String: [String]] = [
-            "clean": ["sanitize", "disinfect", "sterilize", "wash"],
-            "use": ["operate", "utilize", "employ", "apply"],
-            "device": ["instrument", "equipment", "apparatus", "tool"],
-            "procedure": ["process", "method", "protocol", "technique"],
-            "patient": ["individual", "subject", "person"],
-            "doctor": ["physician", "surgeon", "clinician", "practitioner"],
-            "remove": ["detach", "disconnect", "separate", "extract"],
-            "install": ["attach", "connect", "mount", "affix"],
-            "check": ["verify", "inspect", "examine", "test"],
-            "warning": ["caution", "alert", "notice", "advisory"],
-            // UI/hardware controls
-            "button": ["switch", "toggle", "control", "key", "trigger"],
-            "press": ["tap", "click", "push", "activate", "toggle"],
-            "pressing": ["tapping", "clicking", "pushing", "activating", "toggling"],
-            "click": ["tap", "press", "select", "activate"],
-            "start": ["begin", "initiate", "launch", "enable", "activate"],
-            "stop": ["end", "disable", "deactivate", "halt", "pause"],
+        // True synonyms only — words that can safely REPLACE each other in any query.
+        // Action verbs and common noun equivalents. NOT domain-specific terms
+        // (those come from corpus expansion, not synonym replacement).
+        let trueSynonyms: [String: [String]] = [
+            // Action verbs
+            "use": ["operate", "utilize", "apply"],
+            "remove": ["detach", "disconnect", "extract"],
+            "install": ["attach", "connect", "mount"],
+            "check": ["verify", "inspect", "examine"],
+            "start": ["begin", "initiate", "launch"],
+            "stop": ["end", "disable", "halt"],
+            "press": ["tap", "push", "activate"],
+            "click": ["tap", "press", "select"],
+            "replace": ["change", "swap", "renew"],
+            "adjust": ["set", "configure", "calibrate"],
+            "clean": ["wash", "wipe", "rinse"],
+            "open": ["unlock", "release", "access"],
+            "close": ["shut", "lock", "seal"],
+            // Common noun equivalents
+            "vehicle": ["car", "automobile"],
+            "car": ["vehicle", "automobile"],
+            "engine": ["motor", "powerplant"],
+            "motor": ["engine", "powerplant"],
+            "fluid": ["liquid", "lubricant"],
+            "capacity": ["volume", "quantity"],
+            "specification": ["spec", "requirement"],
+            "temperature": ["temp", "heat"],
+            "pressure": ["psi", "force"],
         ]
 
         for term in terms {
             let lower = term.lowercased()
-            if let syns = synonymDict[lower], !syns.isEmpty {
+            if let syns = trueSynonyms[lower], !syns.isEmpty {
                 result[term] = syns
             }
         }
@@ -626,9 +760,21 @@ final class QueryEnhancementService {
         var expansions: [String] = []
         let queryLower = query.lowercased()
 
+        // OPTIMIZED: Filter key terms through question-framing stopwords before
+        // corpus lookup. Generic framing words produce massive co-occurrence
+        // sets that pull in irrelevant terms.
+        // Only look up substantive content words.
+        let corpusStopwords: Set<String> = [
+            "type", "kind", "sort", "take", "use", "does",
+            "get", "find", "tell", "know", "look", "want", "like", "make",
+            "put", "give", "help", "work", "come", "thing", "much", "many",
+            "way", "long", "need", "require"
+        ]
+        let substantiveTerms = keyTerms.filter { !corpusStopwords.contains($0.lowercased()) }
+
         // 1) Find corpus terms that co-occur with query terms
-        var relatedTerms: [String: Int] = [:] // term → frequency boost
-        for term in keyTerms {
+        var relatedTerms: [String: Int] = [:] // term → co-occurrence count with query terms
+        for term in substantiveTerms {
             let termLower = term.lowercased()
             if let coTerms = vocabulary.coOccurrences[termLower] {
                 for coTerm in coTerms {
@@ -641,86 +787,92 @@ final class QueryEnhancementService {
             }
         }
 
-        // 2) Sort by frequency (terms that co-occur with multiple query terms are better)
-        let topRelated = relatedTerms
+        // 2) Quality gate: require multi-term co-occurrence
+        // For multi-term queries ("fuel capacity car"), a related term must
+        // co-occur with at least 2 query terms to be considered relevant.
+        // This filters noise like "tire" (only co-occurs with "car") while
+        // keeping "tank" (co-occurs with both "fuel" and "capacity").
+        let minCooccurrence = substantiveTerms.count >= 2 ? 2 : 1
+        let qualifiedTerms = relatedTerms
+            .filter { $0.value >= minCooccurrence }
             .sorted { $0.value > $1.value }
-            .prefix(6)
+            .prefix(3)  // Tight limit: only truly relevant terms
             .map { $0.key }
 
-        if !topRelated.isEmpty {
-            // Add query + corpus-derived context terms
-            expansions.append("\(query) \(topRelated.joined(separator: " "))")
-
-            // Also add targeted variations with top 2-3 related terms
-            for relatedTerm in topRelated.prefix(3) {
-                expansions.append("\(query) \(relatedTerm)")
-            }
+        if !qualifiedTerms.isEmpty {
+            // Single combined expansion — no individual term variants
+            // which would each pull in unrelated chunks
+            expansions.append("\(query) \(qualifiedTerms.joined(separator: " "))")
         }
 
         // 3) Find multi-word phrases in the corpus that contain query terms
-        // e.g., "button" → "Record Button", "Recording Mode Switch"
-        let phraseExpansions = findCorpusPhrases(keyTerms: keyTerms, vocabulary: vocabulary)
-        for phrase in phraseExpansions.prefix(4) {
-            // Replace the generic term with the specific phrase
+        // REQUIRES phrases to contain 2+ query terms for multi-term queries,
+        // preventing irrelevant phrases like "inhale vaporized fuel" or
+        // "gage load capacity" that match only one query term in the wrong context.
+        let phraseExpansions = findCorpusPhrases(keyTerms: substantiveTerms, vocabulary: vocabulary)
+        for phrase in phraseExpansions.prefix(2) {
             expansions.append(phrase)
         }
 
         return expansions
     }
 
-    /// Finds multi-word phrases in the corpus that contain any of the query terms.
+    /// Finds multi-word phrases in the corpus that contain query terms.
     ///
-    /// For example, if user asks about "button", this finds phrases like:
-    /// - "Record Button"
-    /// - "Recording Mode Switch"
-    /// - "toggle down the Recording Mode Switch"
+    /// For multi-term queries, requires phrases to contain 2+ query terms,
+    /// preventing irrelevant matches like "inhale vaporized fuel" (only matches "fuel")
+    /// or "gage load capacity" (wrong context for "capacity").
+    ///
+    /// Action words (press/turn/push) are NO LONGER used as triggers — they pulled in
+    /// completely unrelated phrases like "Press START button" from snippets that
+    /// happened to also contain a query term elsewhere.
     private func findCorpusPhrases(keyTerms: [String], vocabulary: CorpusVocabulary) -> [String] {
-        var phrases: Set<String> = []
+        var phrases: [(phrase: String, termOverlap: Int)] = []
         let keyTermsLower = Set(keyTerms.map { $0.lowercased() })
-
-        // Common action words that indicate physical interaction
-        let actionWords: Set<String> = [
-            "press", "push", "hold", "toggle", "slide", "tap", "click",
-            "switch", "turn", "activate", "enable", "disable", "start", "stop",
-        ]
+        let requiredOverlap = keyTermsLower.count >= 2 ? 2 : 1
 
         for snippet in vocabulary.textSnippets {
             let snippetLower = snippet.lowercased()
 
-            // Check if snippet contains any of our key terms
-            for term in keyTermsLower {
-                guard snippetLower.contains(term) else { continue }
+            // Quick check: snippet must contain at least one key term
+            guard keyTermsLower.contains(where: { snippetLower.contains($0) }) else { continue }
 
-                // Extract phrases around the term (simple window approach)
-                let words = snippet.split(whereSeparator: { $0.isWhitespace || $0.isNewline })
-                    .map { String($0) }
+            let words = snippet.split(whereSeparator: { $0.isWhitespace || $0.isNewline })
+                .map { String($0) }
 
-                for (i, word) in words.enumerated() {
-                    let wordLower = word.lowercased()
-                        .trimmingCharacters(in: .punctuationCharacters)
+            for (i, word) in words.enumerated() {
+                let wordLower = word.lowercased()
+                    .trimmingCharacters(in: .punctuationCharacters)
 
-                    if wordLower == term || actionWords.contains(wordLower) {
-                        // Extract a 3-5 word window around this word
-                        let start = max(0, i - 2)
-                        let end = min(words.count, i + 3)
-                        let phrase = words[start ..< end]
-                            .joined(separator: " ")
-                            .trimmingCharacters(in: .punctuationCharacters)
+                // Only trigger on actual query terms — NOT action words
+                guard keyTermsLower.contains(wordLower) else { continue }
 
-                        // Only keep phrases that look meaningful (have capitalized nouns, etc.)
-                        // Also validate each word in the phrase
-                        if phrase.count > 10, phrase.count < 60,
-                           isValidExpansionPhrase(phrase)
-                        {
-                            phrases.insert(phrase)
-                        }
-                    }
-                }
+                // Extract a 3-5 word window around this word
+                let start = max(0, i - 2)
+                let end = min(words.count, i + 3)
+                let phrase = words[start ..< end]
+                    .joined(separator: " ")
+                    .trimmingCharacters(in: .punctuationCharacters)
+
+                guard phrase.count > 10, phrase.count < 60,
+                      isValidExpansionPhrase(phrase) else { continue }
+
+                // Count how many query terms appear in this phrase
+                let termOverlap = keyTermsLower.filter { phrase.lowercased().contains($0) }.count
+                guard termOverlap >= requiredOverlap else { continue }
+
+                phrases.append((phrase: phrase, termOverlap: termOverlap))
             }
         }
 
-        // Sort by length (prefer shorter, more specific phrases)
-        return phrases.sorted { $0.count < $1.count }
+        // Sort by term overlap (more query terms = better), then by length (shorter = more specific)
+        let uniquePhrases = Array(Set(phrases.map { $0.phrase }))
+        return uniquePhrases.sorted { p1, p2 in
+            let overlap1 = phrases.first { $0.phrase == p1 }?.termOverlap ?? 0
+            let overlap2 = phrases.first { $0.phrase == p2 }?.termOverlap ?? 0
+            if overlap1 != overlap2 { return overlap1 > overlap2 }
+            return p1.count < p2.count
+        }
     }
 
     // MARK: - Expansion Term Validation
@@ -730,8 +882,8 @@ final class QueryEnhancementService {
     private func isValidExpansionTerm(_ term: String) -> Bool {
         let trimmed = term.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        // Reject empty or too short
-        guard trimmed.count >= 3 else { return false }
+        // Reject empty or too short (4-char minimum filters OCR fragments like "cle", "vehi")
+        guard trimmed.count >= 4 else { return false }
 
         // Reject hyphenated fragments (e.g., "sys-", "-tem", "manu-")
         if trimmed.hasPrefix("-") || trimmed.hasSuffix("-") {
@@ -760,6 +912,25 @@ final class QueryEnhancementService {
             return false
         }
 
+        // OPTIMIZED: Reject non-Latin script characters (OCR artifacts like CJK, Arabic, etc.)
+        // These come from noisy PDF extraction and pollute expansions (e.g., "notice 僅")
+        let latinCount = trimmed.filter { $0.isASCII && $0.isLetter }.count
+        let letterCount = trimmed.filter { $0.isLetter }.count
+        if letterCount > 0 && Float(latinCount) / Float(letterCount) < 0.8 {
+            return false
+        }
+
+        // Reject terms with embedded digits that look like OCR noise (e.g., "SENSOR4", "10A")
+        // But allow known spec patterns like "ISO" or "API"
+        let knownSpecPrefixes: Set<String> = ["api", "iso", "ieee", "ansi", "astm", "iec"]
+        if !knownSpecPrefixes.contains(trimmed.lowercased()),
+           trimmed.contains(where: { $0.isNumber }),
+           trimmed.contains(where: { $0.isLetter }),
+           trimmed.count <= 8 {
+            // Short alphanumeric tokens like "SENSOR4", "10A" are likely noise
+            return false
+        }
+
         return true
     }
 
@@ -784,10 +955,10 @@ final class QueryEnhancementService {
 extension CorpusVocabulary {
     /// Builds vocabulary from document chunks for corpus-aware query expansion.
     ///
-    /// This extracts:
-    /// 1. All keywords from chunk metadata
-    /// 2. Co-occurrence relationships (which terms appear together)
-    /// 3. Text snippets for phrase extraction
+    /// Quality filtering at build time:
+    /// 1. Validates terms (rejects OCR garbage, fragments, non-Latin)
+    /// 2. Requires minimum cross-chunk frequency (hapax legomena = noise)
+    /// 3. Filters text snippets by ASCII quality (garbled OCR → skip)
     /// 4. Adjective+noun pairs from text (e.g., "blue outlet", "red button")
     static func build(from chunks: [DocumentChunk]) -> CorpusVocabulary {
         guard !chunks.isEmpty else { return .empty }
@@ -796,35 +967,65 @@ extension CorpusVocabulary {
         var coOccurrences: [String: Set<String>] = [:]
         var textSnippets: [String] = []
 
-        for chunk in chunks {
-            // Collect keywords from metadata
-            let chunkKeywords = Set(chunk.metadata.keywords.map { $0.lowercased() })
-            allKeywords.formUnion(chunkKeywords)
+        // Phase 1: Collect validated terms per chunk and count cross-chunk frequency
+        var termChunkCount: [String: Int] = [:]  // term → number of chunks containing it
+        var perChunkTerms: [Set<String>] = []
+        perChunkTerms.reserveCapacity(chunks.count)
 
-            // Extract adjective+noun phrases from the actual text
-            // This catches patterns like "blue outlet", "remote access", "network control"
+        for chunk in chunks {
+            let chunkKeywords = Set(chunk.metadata.keywords.map { $0.lowercased() })
             let textPhrases = extractAdjectiveNounPairs(from: chunk.content)
             let phraseKeywords = Set(textPhrases.map { $0.lowercased() })
-            allKeywords.formUnion(phraseKeywords)
 
-            // Combine metadata keywords with extracted phrases for co-occurrence
-            let allChunkTerms = chunkKeywords.union(phraseKeywords)
+            // Filter at build time — reject OCR garbage, fragments, non-Latin
+            let validTerms = chunkKeywords.union(phraseKeywords).filter { isValidVocabTerm($0) }
+            perChunkTerms.append(validTerms)
 
-            // Build co-occurrence map (terms that appear in the same chunk are related)
-            for keyword in allChunkTerms {
-                var related = coOccurrences[keyword] ?? []
-                related.formUnion(allChunkTerms)
-                related.remove(keyword) // Don't include self
-                coOccurrences[keyword] = related
+            for term in validTerms {
+                termChunkCount[term, default: 0] += 1
             }
 
-            // Keep short text snippets for phrase extraction (first 500 chars)
+            // Only keep text snippets with high ASCII ratio (reject garbled OCR)
             let snippet = String(chunk.content.prefix(500))
-            textSnippets.append(snippet)
+            let asciiCount = snippet.filter { $0.isASCII }.count
+            if Float(asciiCount) / max(Float(snippet.count), 1) > 0.85 {
+                textSnippets.append(snippet)
+            }
         }
 
+        // Phase 2: Build vocabulary from validated terms.
+        // UNIVERSAL FIX: Previously required minFrequency of 2+ (or chunks/500), which
+        // excluded terms appearing in only 1 chunk — i.e., exactly the rare needles users
+        // search for (a specific drug name, part number, legal citation, etc.).
+        //
+        // New strategy: frequency-1 terms ARE included in the keyword set (so they participate
+        // in query expansion), but NOT in co-occurrence maps (where singleton co-occurrence
+        // would just be noise). This gives rare needles a path through expansion while
+        // keeping co-occurrence quality high.
+        //
+        // For co-occurrence: still require 2+ to maintain signal quality.
+        let coOccurrenceMinFreq = max(2, chunks.count / 500)
+        // For keywords: include all validated terms (frequency ≥ 1)
+        let keywordMinFreq = 1
+
+        for validTerms in perChunkTerms {
+            // All valid terms join the keyword vocabulary (including rare needles)
+            let keywordQualifiedTerms = validTerms.filter { (termChunkCount[$0] ?? 0) >= keywordMinFreq }
+            allKeywords.formUnion(keywordQualifiedTerms)
+
+            // Only frequent terms build co-occurrence maps (noise filter)
+            let coOccurrenceQualifiedTerms = validTerms.filter { (termChunkCount[$0] ?? 0) >= coOccurrenceMinFreq }
+            for keyword in coOccurrenceQualifiedTerms {
+                var related = coOccurrences[keyword] ?? []
+                related.formUnion(coOccurrenceQualifiedTerms)
+                related.remove(keyword)
+                coOccurrences[keyword] = related
+            }
+        }
+
+        let filteredCount = termChunkCount.count - allKeywords.count
         Log.debug(
-            "[CorpusVocabulary] Built vocabulary: \(allKeywords.count) terms, \(coOccurrences.count) co-occurrence entries",
+            "[CorpusVocabulary] Built vocabulary: \(allKeywords.count) terms (kwMinFreq=\(keywordMinFreq)), \(coOccurrences.count) co-occurrence entries (coMinFreq=\(coOccurrenceMinFreq)), filtered \(filteredCount) invalid terms",
             category: .retrieval
         )
 
@@ -833,6 +1034,28 @@ extension CorpusVocabulary {
             coOccurrences: coOccurrences,
             textSnippets: textSnippets
         )
+    }
+
+    /// Validates a term during vocabulary building.
+    /// Rejects OCR garbage, fragments, and non-meaningful tokens.
+    private static func isValidVocabTerm(_ term: String) -> Bool {
+        // Reject fragments ("cle", "vehi", "ble")
+        guard term.count >= 4 else { return false }
+
+        // Reject hyphenated line-break artifacts
+        if term.hasPrefix("-") || term.hasSuffix("-") || term.contains("- ") || term.contains(" -") {
+            return false
+        }
+
+        // Require mostly ASCII letters (rejects OCR Unicode garbage like Cyrillic, CJK)
+        let asciiLetterCount = term.filter { $0.isASCII && $0.isLetter }.count
+        guard Float(asciiLetterCount) / Float(term.count) > 0.6 else { return false }
+
+        // Reject terms that are majority non-letter (digits-only, symbols)
+        let letterCount = term.filter { $0.isLetter }.count
+        guard Float(letterCount) / Float(term.count) > 0.5 else { return false }
+
+        return true
     }
 
     /// Extract adjective+noun pairs using NLTagger

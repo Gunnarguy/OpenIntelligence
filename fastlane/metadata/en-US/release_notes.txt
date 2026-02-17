@@ -1,13 +1,31 @@
-Version 1.0.1
+Version 1.2.0
 
-• Updated descriptions and metadata to accurately reflect the 23-step RAG pipeline.
-• Clarified on-device storage and privacy guarantees.
-• Documentation improvements.
-• Ask questions in plain English
-• Get accurate answers with citations to exact source passages
-• Powered by on-device AI using your device's Neural Engine
-• Privacy-first: all processing happens locally by default
-• Optional Private Cloud Compute with Apple's zero-retention guarantee
-• Organize documents into containers with automatic tagging
-• Standard and Deep Think quality modes
-• Works offline with no account required
+RICH MARKDOWN RESPONSE RENDERING
+Responses now display with full formatting — headers, bullet lists, numbered lists, bold text, code blocks, and block quotes — instead of a single unformatted paragraph.
+
+• Full Block-Level Markdown Parser — Headings (h1-h6), bullet lists, numbered lists, code fences, block quotes, horizontal rules, and paragraphs. Replaces the previous inline-only renderer.
+• Inline Normalization Preprocessor — Apple's on-device FM concatenates all markdown on a single line. 6 regex patterns now split headers, bullets, numbered items, and block quotes onto separate lines before parsing.
+• 7 Response-Cleaning Functions Audited — Two functions were actively stripping ALL markdown from every response. Both rewritten to preserve formatting while still removing degenerate artifacts.
+• Formatting-Aware LLM Prompts — All system prompts (Standard, Deep Think, Maximum, Integrity Repair) now instruct the model to use headers, bullets, and bold for key terms.
+• Paragraph Structure Preservation — Sentence joining changed from space to paragraph breaks, maintaining document structure through the entire pipeline.
+
+DEVICE-OPTIMIZED PERFORMANCE ENGINE
+Every pipeline stage now adapts to the specific Apple Silicon chip in your device.
+
+• 3-Tier Metal GPU Search — Vector similarity selects the fastest shader automatically: Threadgroup (shared memory + SIMD4, ≥1000 vectors), SIMD4 (4× scalar throughput, 100-999 vectors), or Scalar (fallback). Previously all searches used the slowest scalar kernel.
+• Device-Specific OCR Concurrency — A19 Pro: 8 parallel Vision ops @ 1ms cooldown. A18 Pro: 6 @ 2ms. A17 Pro: 4 @ 3ms. Older: 2 @ 6ms.
+• Adaptive OCR Page Filtering — PageComplexityAnalyzer pre-screens pages, skipping 50-80% of clean digital PDF pages before Vision OCR even runs.
+• Concurrent GPU Rendering — CIFilter preprocessing now runs in parallel (was serialized on a serial queue despite CIContext being thread-safe).
+• Concurrent Neural Reranking — Cross-encoder scores multiple query-chunk pairs in parallel via TaskGroup. All pairs pre-tokenized before entering the hot loop. MLMultiArray populated via bulk dataPointer copy instead of per-element NSNumber subscript — 3× faster array fills.
+• GPU Embedding Ingestion Mode — Embeddings switch to CPU+GPU compute units during document ingestion, freeing the Neural Engine for simultaneous Vision OCR.
+• 5-Candidate OCR — Evaluates 5 transcription alternatives per recognition (was 3) for higher accuracy on ambiguous text.
+
+STABILITY & HARDENING
+• Fixed crash in MMR diversification when GPU diversity matrix returns malformed results (dimension 0 edge case)
+• Matrix dimension validation and bounds checking added to RAGEngine
+• GPUComputeService edge cases corrected — empty arrays no longer wrapped in spurious outer arrays
+• StoreKit product loading now races against a 5-second timeout — app no longer hangs 30-60 seconds on airplane mode
+• Fatal threading assertion in LLM service replaced with safe fallback in Release builds
+• Pipeline trace diagnostics compiled out of Release builds via #if DEBUG
+• Privacy manifest updated with SystemBootTime API declaration, NSPrivacyTracking, and NSPrivacyCollectedDataTypes
+• Dead code removed from cross-encoder path

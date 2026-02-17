@@ -838,12 +838,16 @@ final class PageComplexityAnalyzer: @unchecked Sendable {
 
     // MARK: - Page Rendering for Analysis
 
-    /// Render page at low resolution for fast analysis
+    /// Render page at moderate resolution for reliable visual pattern analysis.
+    /// 144 DPI (2×) provides enough detail to detect table grid lines, chart axes,
+    /// and figure boundaries while keeping analysis fast. The previous 72 DPI (1×)
+    /// missed fine table structures, causing table pages to be classified as "simple"
+    /// and skip Vision OCR — the #1 cause of wrong numeric data in RAG answers.
     private func renderPageForAnalysis(_ page: PDFPage) -> CIImage? {
         let bounds = page.bounds(for: .mediaBox)
 
-        // Render at 72 DPI (1x) for speed - just for analysis
-        let scale: CGFloat = 1.0
+        // Render at 144 DPI (2x) for reliable pattern detection
+        let scale: CGFloat = 2.0
         let size = CGSize(width: bounds.width * scale, height: bounds.height * scale)
 
         #if canImport(UIKit)
@@ -956,6 +960,22 @@ final class PageComplexityAnalyzer: @unchecked Sendable {
             score += 2.0
         } else if textCoverage < 0.4 {
             score += 1.0
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        // RULE 4.5: TABLE PRESENCE OVERRIDE — NEVER skip OCR for table pages
+        // PDFKit text extraction DESTROYS table structure and scrambles numeric
+        // values. Vision OCR + RecognizeDocumentsRequest preserves cell alignment
+        // and exact numbers. This is the #1 cause of wrong data in RAG answers.
+        // ═══════════════════════════════════════════════════════════════════
+        if tablePresence > 0.2 || numericDensity > 0.3 {
+            // Tables and dense numeric content REQUIRE Vision OCR for accuracy
+            // Even with a perfect native text layer, PDFKit mangles table cell values
+            if tablePresence > 0.5 || numericDensity > 0.5 {
+                return .complex     // Heavy table → enhancedOCR
+            } else {
+                return .moderate    // Some table signals → basicOCR (minimum)
+            }
         }
 
         // ═══════════════════════════════════════════════════════════════════

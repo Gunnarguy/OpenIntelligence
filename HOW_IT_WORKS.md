@@ -2,6 +2,8 @@
 
 **A chronological walkthrough of the pipeline: Ingestion → Retrieval → Reasoning → Output.**
 
+> **Built on Apple's AI Stack**: 100% native—FoundationModels (iOS 26), Vision OCR, NaturalLanguage NER, CoreML embeddings. No third-party AI dependencies. See [ARCHITECTURE.md](ARCHITECTURE.md#apple-framework-dependencies) for complete framework inventory.
+
 ## Table of Contents
 
 - [How OpenIntelligence Actually Works](#how-openintelligence-actually-works)
@@ -71,6 +73,17 @@ Before diving into the steps, here is the high-level map of the machine.
 
 The process begins with converting human-readable documents into machine-understandable math.
 
+### 0. Adaptive Document Intelligence
+
+**"Understand the document BEFORE reading it"**
+
+Before OCR even runs, the engine analyzes each page:
+
+1. **Page Complexity Analysis**: `PageComplexityAnalyzer` scores every page for text quality, table presence, numeric density, and visual complexity. Pages with tables/numbers are FORCED through Vision OCR even if PDFKit text looks acceptable (because PDFKit scrambles table cell values).
+2. **Dynamic Vocabulary Extraction**: PDFKit's rough text layer is mined for acronyms, alphanumeric codes (e.g., "0W-20", "R-134a"), CamelCase terms, and compound units. These become Vision's `customWords` so it doesn't autocorrect legitimate technical terms.
+3. **Adaptive Preprocessing**: Based on page quality, one of 5 GPU-accelerated CIFilter strategies is selected — from "minimal" (clean digital PDFs) to "maximum" (faded microfiche/bad phone photos) — applying appropriate sharpening, contrast, denoising, and exposure correction. CIFilter rendering runs on a **concurrent** `DispatchQueue` — CIContext is thread-safe, so multiple pages preprocess in parallel.
+4. **Multi-Candidate Confidence OCR**: Vision returns up to **5** alternative transcriptions per text line. Numeric data requires 90% confidence (vs 85% for text). When a table cell reads "15.5" at 82% confidence but "14.3" at 78%, both alternatives are flagged for verification rather than blindly trusting the first guess.
+
 ### 1. Chunking
 
 **"Break documents into pieces small enough to embed"**
@@ -79,7 +92,8 @@ We cannot feed a 50-page PDF into the model at once. We must slice it.
 
 - **Rule:** Max 310 words per chunk.
 - **Why?** The embedding model has a hard limit of 510 tokens. 310 words + overhead ensures we never crash the tokenizer.
-- **Result:** A 50-page document becomes ~200 individual chunks.
+- **Table Preservation:** Tables (markdown `|` tables, tab-separated data) are detected as a pre-pass and treated as atomic units. The chunker never splits through a table — it snaps boundaries to table edges or includes a table as one oversized chunk rather than destroying its row structure.
+- **Result:** A 50-page document becomes ~200 individual chunks, with spec tables kept intact.
 
 ### 2. The Core Concept: Embeddings
 
@@ -96,9 +110,15 @@ Text → [384 numbers] → Math becomes possible
 
 Even though the words are different, the _vectors_ are mathematically close in 384-dimensional space. This allows us to find answers based on _meaning_, not just keywords.
 
-### 3. Storage (BNNS Optimized)
+### 3. Storage (BNNS + Metal GPU Optimized)
 
-Once embedded, we store these vectors in a **BNNS-accelerated index** (Basic Neural Network Subroutines). This allows the Neural Engine to brute-force compare a query against thousands of chunks in milliseconds.
+Once embedded, we store these vectors in a **BNNS-accelerated index** backed by **Metal GPU compute**. The GPU search path uses a 3-tier shader selection:
+
+1. **Threadgroup** (≥1000 vectors): Caches the query in fast shared memory + SIMD4 vector ops — the fastest path. MiniLM's 384 dimensions fit exactly (384/4 = 96 float4s).
+2. **SIMD4** (100-999 vectors): Processes 4 floats per hardware cycle — 4× scalar throughput.
+3. **Scalar** (fallback): Works with any dimension.
+
+For mmap'd vector databases, `makeBuffer(bytesNoCopy:)` lets the GPU read directly from memory-mapped pages on Apple Silicon unified memory — no heap copy for the document vectors.
 
 ---
 
@@ -111,7 +131,7 @@ When a user asks a question, we need to find the "needle in the haystack" (the r
 We don't rely on just one method. We use two:
 
 1.  **Vector Search (Semantic):** Finds concepts (e.g., matching "oil" to "lubricant").
-2.  **BM25 (Keyword):** Finds exact matches (e.g., matching part number "XYZ-123").
+2.  **BM25 (Keyword):** Finds exact matches (e.g., matching part number "XYZ-123"). Uses AND-first FTS5 queries (all terms must co-occur) with automatic OR fallback. Scoring is per-chunk, not per-document.
 
 We fuse these results using **RRF (Reciprocal Rank Fusion)** to get the top ~50 candidates.
 
@@ -119,8 +139,8 @@ We fuse these results using **RRF (Reciprocal Rank Fusion)** to get the top ~50 
 
 The top 50 candidates are "statistically" close, but maybe not "logically" relevant.
 
-- **Tool:** Cross-Encoder (TinyBERT).
-- **Action:** Looks at the specific [Query + Chunk] pair together.
+- **Tool:** Cross-Encoder (TinyBERT) with **concurrent predictions**.
+- **Action:** All query-chunk pairs are pre-tokenized, then scored in parallel using a `TaskGroup` (2-4 concurrent predictions based on device tier). `MLMultiArray` buffers are filled via bulk `dataPointer` writes — 3× faster than per-element subscripts.
 - **Result:** Reorders the top 50 by actual relevance, discarding the noise. We keep only the top 5-10.
 
 ---
@@ -166,13 +186,14 @@ Now that we have the context, **RAGService** decides how to run the generation. 
 **"Search, answer, search better, enrich, repeat"**
 
 - **Process:**
-  1. Initial Retrieval.
-  2. LLM analyzes: "What is missing?"
-  3. Generate _new_ search queries.
-  4. Retrieve again.
-  5. Repeat 4-8 times.
-  6. Synthesize final answer.
-- **Speed:** 10-30 seconds.
+  1. Initial Retrieval (same hybrid search as Standard).
+  2. **ExtractiveQA Pre-Check:** For simple lookups, try to extract the answer directly before entering multi-session reasoning. Saves 4-8 LLM sessions when a spec is directly extractable.
+  3. LLM analyzes: "What is missing?"
+  4. Generate _new_ search queries.
+  5. Retrieve again (auto-enables **iterative retrieval** for multi-hop intents like compare/investigate).
+  6. Repeat 4-8 times.
+  7. Synthesize final answer.
+- **Speed:** 10-30 seconds (or 2-5s if ExtractiveQA short-circuits).
 - **Use Case:** Complex research, multi-part questions.
 
 ### Maximum Mode (8-50 Passes)
@@ -232,3 +253,103 @@ The system is `Search Engine` + `Logic Controller` + `Writer`.
 1.  **Search Engine:** Finds the raw data (Ingestion/Retrieval).
 2.  **Logic Controller:** Fits data into constraints and iterates (Orchestration).
 3.  **Writer:** Formats the final text (Generation).
+
+---
+
+## Bonus: Device-Optimized Performance (v1.2)
+
+Every pipeline stage adapts to the specific Apple Silicon in your device. The system detects your chip at launch and configures concurrency, compute units, and shader selection accordingly.
+
+### Hardware-Aware Pipeline
+
+| Stage             | What Adapts                      | How                                                                                           |
+| ----------------- | -------------------------------- | --------------------------------------------------------------------------------------------- |
+| **OCR**           | Concurrent Vision ops + cooldown | A19: 8 ops / 1ms. A18: 6 / 2ms. A17: 4 / 3ms. Adaptive filtering skips 50-80% of clean pages. |
+| **Preprocessing** | CIFilter rendering queue         | Concurrent (was serial) — CIContext is thread-safe per Apple docs                             |
+| **Embedding**     | CoreML compute units             | GPU (`.cpuAndGPU`) during ingestion, freeing ANE for Vision OCR                               |
+| **Vector Search** | Metal shader tier                | Threadgroup (≥1000 docs) → SIMD4 (100+) → scalar fallback                                     |
+| **Reranking**     | TaskGroup concurrency            | 2-4 parallel cross-encoder predictions based on device tier                                   |
+
+### Metal Shader Selection
+
+The GPU vector search automatically picks the fastest compatible kernel:
+
+```
+Query arrives → check dimension alignment → check corpus size
+  │
+  ├── dimension % 4 == 0 AND dimension/4 ≤ 96 AND docs ≥ 1000
+  │   └── THREADGROUP: Query cached in shared memory + SIMD4 (fastest)
+  │
+  ├── dimension % 4 == 0 AND docs ≥ 100
+  │   └── SIMD4: float4 vector ops (4× scalar)
+  │
+  └── else
+      └── SCALAR: Per-element float ops (always works)
+```
+
+MiniLM-L6-v2 (384 dimensions) → 384/4 = 96 float4s → fits exactly in `sharedQuery[96]`, so all searches ≥1000 vectors take the threadgroup fast path.
+
+---
+
+## Bonus: Motherboard HUD (v1.1)
+
+While the RAG pipeline handles the intelligence, the **Motherboard HUD** shows you what's happening inside the device in real-time.
+
+### What It Shows
+
+A translucent X-ray overlay on the chat screen renders the physical positions of Apple Silicon components — exactly where they sit behind the glass. Each component pulses with live telemetry:
+
+| Component   | Telemetry                        | Visual                              |
+| ----------- | -------------------------------- | ----------------------------------- |
+| **SoC**     | CPU + GPU + Neural Engine load   | Pulsing glow at the A-series chip   |
+| **NAND**    | Storage activity                 | Activity indicator at flash storage |
+| **DRAM**    | Memory pressure (normal/warning) | Color-coded at the RAM position     |
+| **Modem**   | Network state                    | Signal indicator at Qualcomm modem  |
+| **PMIC**    | Battery + thermal state          | Power management chip activity      |
+| **WiFi/BT** | Wireless activity                | Radio module indicator              |
+| **Taptic**  | Haptic feedback                  | Animated pulse at Taptic Engine     |
+
+### How Positions Are Determined
+
+Component positions come from iFixit teardown photographs analyzed with Apple Vision AI. Each device model has its own layout map — an iPhone 15 Pro has components in different positions than an iPhone 17 Pro. The HUD normalizes these positions to screen coordinates.
+
+### Design Philosophy
+
+**Ultra-subtle**: Components render as barely-visible ghost outlines. You can read chat messages through them. They only become noticeable when activity spikes — exactly when you'd want to see them.
+
+---
+
+## Bonus: Universal Retrieval (v1.1)
+
+Eight targeted fixes to the retrieval pipeline that collectively ensure near-perfect needle-in-haystack accuracy across any document type:
+
+1. **Lexical Always-On** — BM25 keyword search always contributes to hybrid results, even when vector search dominates. Previously, high vector scores could suppress lexical matches entirely.
+2. **Proportional Hit-Rate** — RRF fusion weights scale with each method's hit count. If BM25 finds 50 matches and vector finds 10, BM25 gets proportionally more influence.
+3. **HyDE Blending** — The hypothetical document embedding is blended 70/30 with the original query embedding instead of replacing it. This preserves the user's exact terminology.
+4. **Year/Integer Exemption** — Verification Gate C no longer flags years (1900-2100) or small integers (1-10) as potential hallucinations. "Chapter 3" and "2024" aren't fabricated numbers.
+5. **Sentence-Scored Fallback** — When LLM-based contextual compression fails, individual sentences are scored by query-term overlap and information density. This preserves critical data.
+6. **Rare Term Preservation** — Query expansion includes rare corpus terms that exactly match query words, even if they don't appear in the synonym dictionary.
+7. **Corpus-Learned Synonyms** — Dynamic synonym generation from document word co-occurrence data. If "viscosity" always appears near "SAE" in your documents, they become synonyms.
+8. **Adaptive Reranking** — Cross-encoder candidate pool scales with corpus size: `min(count, max(100, topK×5))`. Large corpora get more candidates evaluated.
+
+---
+
+## Bonus: Rich Markdown Rendering (v1.2)
+
+Responses now display with proper formatting — headers, bullet lists, numbered lists, bold text, code blocks — instead of a wall of unformatted text.
+
+### The Problem
+
+Apple's on-device Foundation Model outputs markdown syntax (`### headers`, `- bullets`, `**bold**`) but concatenates everything on a single line. The previous renderer treated all text as inline content, so `### Header - **Item**: description` displayed as plain text with literal `###` symbols visible.
+
+### The Fix (Three Layers)
+
+1. **Block-Level Parser**: `MarkdownRenderer.swift` was rewritten from `.inlineOnlyPreservingWhitespace` to a full parser that recognizes headings, bullets, numbered lists, code fences, block quotes, and horizontal rules. Each block renders as its own SwiftUI view with appropriate styling.
+
+2. **Inline Normalizer**: A preprocessing step (`normalizeInlineMarkdown()`) uses 6 regex patterns to detect markdown syntax embedded mid-line and split it onto separate lines before the parser runs. For example, `Sport mode - **Throttle**: aggressive` becomes two lines — the text before, and `- **Throttle**: aggressive` as a proper bullet.
+
+3. **Pipeline Preservation**: Seven response-cleaning functions across 4 files were audited. Two were actively stripping ALL markdown from responses — `cleanupResponseText()` in RAGService and `cleanupFinalAnswer()` in AgenticOrchestrator. Both were rewritten to preserve formatting while still removing orphaned markers and degenerate artifacts.
+
+### Why It Matters
+
+The LLM produces good structure — headers for sections, bullets for lists, bold for key terms. Without proper rendering, users see raw syntax mixed into a single paragraph. With it, responses look like well-formatted documents with clear visual hierarchy.

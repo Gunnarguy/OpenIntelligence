@@ -72,6 +72,11 @@ struct MessageBubbleV2: View {
                             Button {
                                 withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                                     showReasoningTrace.toggle()
+                                    if showReasoningTrace {
+                                        DSHaptics.expand()
+                                    } else {
+                                        DSHaptics.collapse()
+                                    }
                                 }
                             } label: {
                                 HStack(spacing: 6) {
@@ -108,6 +113,7 @@ struct MessageBubbleV2: View {
                 .onTapGesture {
                     withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
                         showActions.toggle()
+                        DSHaptics.soft()
                     }
                 }
 
@@ -126,6 +132,7 @@ struct MessageBubbleV2: View {
                     onShare: { shareMessage() },
                     onToggleHidden: (!isUser ? { toggleHidden() } : nil),
                     onReport: (!isUser ? { showReportSheet = true } : nil),
+                    onExportTrace: (!isUser ? { exportPipelineTrace() } : nil),
                     onGoDeeper: isUser ? nil : onGoDeeper,
                     onThumbsUp: onThumbsUp,
                     onThumbsDown: onThumbsDown
@@ -237,6 +244,25 @@ struct MessageBubbleV2: View {
 
     private func shareMessage() {
         sharePayload = SharePayload(items: [message.content])
+    }
+
+    private func exportPipelineTrace() {
+        if let fileURL = PipelineTraceExporter.exportToFile(
+            message: message,
+            pipelineTrace: message.pipelineTrace ?? []
+        ) {
+            sharePayload = SharePayload(items: [fileURL])
+        } else {
+            // Fallback: copy trace text to clipboard
+            let traceText = PipelineTraceExporter.buildTrace(
+                message: message,
+                pipelineTrace: message.pipelineTrace ?? []
+            )
+            #if canImport(UIKit)
+                UIPasteboard.general.string = traceText
+            #endif
+            DSHaptics.success()
+        }
     }
 
     private func toggleHidden() {

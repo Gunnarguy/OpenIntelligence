@@ -159,6 +159,11 @@ struct AnswerIntelligenceView: View {
         Button {
             withAnimation {
                 isExpanded.toggle()
+                if isExpanded {
+                    DSHaptics.expand()
+                } else {
+                    DSHaptics.collapse()
+                }
             }
         } label: {
             HStack(spacing: DSSpacing.sm) {
@@ -661,6 +666,7 @@ extension AnswerIntelligence {
         case .evidenceCoverage: return "Evidence Coverage"
         case .numericSanity: return "Numeric Accuracy"
         case .contradictionSweep: return "Contradiction Check"
+        case .semanticGrounding: return "Semantic Grounding"
         }
     }
 
@@ -670,6 +676,7 @@ extension AnswerIntelligence {
         case .evidenceCoverage: return "text.quote"
         case .numericSanity: return "number"
         case .contradictionSweep: return "arrow.triangle.branch"
+        case .semanticGrounding: return "brain.head.profile"
         }
     }
 }

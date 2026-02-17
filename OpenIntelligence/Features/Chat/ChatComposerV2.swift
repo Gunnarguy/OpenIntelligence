@@ -148,7 +148,16 @@ struct ChatComposerV2: View {
         }
         .background(.ultraThinMaterial)
         .onSubmit(send)
-.sheet(isPresented: $showDocumentPicker) {
+        // Report keyboard typing to HUD (visualizes Taptic Engine activity)
+        // iOS keyboard already provides haptics - we just REPORT to telemetry for visualization
+        .onChange(of: inputText) { oldValue, newValue in
+            let delta = newValue.count - oldValue.count
+            // Single character addition or deletion (not paste/cut)
+            if delta == 1 || delta == -1 {
+                HardwareTelemetryState.shared.reportKeyboardTap()
+            }
+        }
+        .sheet(isPresented: $showDocumentPicker) {
     ExtendedDocumentPicker { urls in
         handlePickedFiles(urls, type: .document)
     }

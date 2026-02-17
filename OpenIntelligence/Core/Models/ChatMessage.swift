@@ -16,6 +16,10 @@ struct ChatMessage: Identifiable, Codable, Sendable {
     var retrievedChunks: [RetrievedChunk]?
     var containerId: UUID? = nil
 
+    /// Captured pipeline trace lines (thinking events + pipeline log) for debugging export.
+    /// Stored in-memory only — excluded from Codable persistence to keep data lean.
+    var pipelineTrace: [String]? = nil
+
     // User safety controls (GenAI/UGC compliance): allow hiding/reporting individual assistant messages.
     // Note: ChatV2 currently stores messages in-memory only (not persisted), so this is intentionally lightweight.
     var isHidden: Bool = false
@@ -31,6 +35,7 @@ struct ChatMessage: Identifiable, Codable, Sendable {
         metadata: ResponseMetadata? = nil,
         retrievedChunks: [RetrievedChunk]? = nil,
         containerId: UUID? = nil,
+        pipelineTrace: [String]? = nil,
         isHidden: Bool = false,
         userReportedAt: Date? = nil,
         userReportReason: String? = nil,
@@ -43,15 +48,23 @@ struct ChatMessage: Identifiable, Codable, Sendable {
         self.metadata = metadata
         self.retrievedChunks = retrievedChunks
         self.containerId = containerId
+        self.pipelineTrace = pipelineTrace
         self.isHidden = isHidden
         self.userReportedAt = userReportedAt
         self.userReportReason = userReportReason
         self.userReportNotes = userReportNotes
     }
 
-    enum Role: String, Codable, Sendable { 
+    enum Role: String, Codable, Sendable {
         case user
         case assistant
         case system
+    }
+
+    // Exclude pipelineTrace from persistence — it's in-memory debugging data only
+    enum CodingKeys: String, CodingKey {
+        case id, role, content, timestamp, metadata, retrievedChunks, containerId
+        case isHidden, userReportedAt, userReportReason, userReportNotes
+        // pipelineTrace intentionally excluded
     }
 }

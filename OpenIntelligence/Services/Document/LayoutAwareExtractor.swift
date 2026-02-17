@@ -104,6 +104,11 @@ actor LayoutAwareExtractor {
     func extractWithLayout(from image: CIImage, pageNumber: Int) async throws -> LayoutAnalysisResult {
         Log.info("[LayoutAwareExtractor] 🔍 Analyzing page \(pageNumber) layout (image: \(Int(image.extent.width))×\(Int(image.extent.height)))", category: .ingestion)
 
+        // Report ANE activity to HUD (Vision uses Neural Engine for text recognition)
+        Task { @MainActor in
+            HardwareTelemetryState.shared.pulse(.reranking, intensity: 0.7, duration: 0.4)
+        }
+
         // Step 1: Get all text blocks with bounding boxes using Vision
         let blocks = try await recognizeTextBlocks(in: image, pageNumber: pageNumber)
 

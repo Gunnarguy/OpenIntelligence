@@ -1,0 +1,28 @@
+# Google Ads Descriptions for OpenIntelligence
+# Max 90 characters each | Provide 4-5 variations
+# ================================================
+
+# Description 1: Core Pipeline
+23-step RAG pipeline: HyDE, BM25, cross-encoder reranking, MMR. Enterprise search on iPhone.
+
+# Description 2: The Result
+Ask "What oil does my car take?" Get "SAE 0W-20, 5.3 quarts" with a citation to tap.
+
+# Description 3: Privacy Reality
+Everything runs on-device. No accounts. No uploads. Apple Private Cloud Compute fallback only.
+
+# Description 4: Deep Think Mode
+Deep Think spawns multiple reasoning sessions, cross-validates evidence, synthesizes answers.
+
+# Description 5: File Support
+PDF, Word, Excel, PowerPoint, CSV, Markdown, images. 384-dim embeddings. Hybrid search.
+
+# ================================================
+# COPY-PASTE READY (no comments):
+# ================================================
+
+23-step RAG pipeline: HyDE, BM25, cross-encoder reranking, MMR. Enterprise search on iPhone.
+Ask "What oil does my car take?" Get "SAE 0W-20, 5.3 quarts" with a citation to tap.
+Everything runs on-device. No accounts. No uploads. Apple Private Cloud Compute fallback only.
+Deep Think spawns multiple reasoning sessions, cross-validates evidence, synthesizes answers.
+PDF, Word, Excel, PowerPoint, CSV, Markdown, images. 384-dim embeddings. Hybrid search.

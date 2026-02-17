@@ -471,20 +471,35 @@ private struct IngestionQueueRow: View {
                 }
             }
 
-            // Row 4: Analysis scores (when available)
-            if m.vocabularyRichness > 0 || m.technicalDensity > 0 {
-                HStack(spacing: 8) {
-                    if m.vocabularyRichness > 0 {
-                        metricPill(icon: "textformat.abc", value: String(format: "%.0f%%", m.vocabularyRichness * 100), label: "voc")
-                    }
-                    if m.technicalDensity > 0 {
-                        metricPill(icon: "gearshape.2", value: String(format: "%.0f%%", m.technicalDensity * 100), label: "tech")
+            // Row 4: Document content profile
+            if !m.documentDomain.isEmpty || m.hasCode || m.hasMath || !m.contentCategories.isEmpty {
+                HStack(spacing: 6) {
+                    if !m.documentDomain.isEmpty {
+                        domainChip(m.documentDomain)
                     }
                     if m.hasCode {
-                        codeBadgeMini("{ }")
+                        contentBadge(icon: "chevron.left.forwardslash.chevron.right", text: "Code", color: .orange)
                     }
                     if m.hasMath {
-                        codeBadgeMini("∑")
+                        contentBadge(icon: "function", text: "Math", color: .pink)
+                    }
+                    if !m.documentLanguage.isEmpty && m.documentLanguage != "English" {
+                        metricPill(icon: "globe", value: m.documentLanguage, label: nil)
+                    }
+                }
+            }
+
+            // Row 5: Content categories (top topics detected)
+            if !m.contentCategories.isEmpty {
+                HStack(spacing: 4) {
+                    ForEach(m.contentCategories.prefix(4), id: \.self) { category in
+                        Text(category)
+                            .font(.system(size: 8, weight: .medium))
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(DSColors.accent.opacity(0.12))
+                            .foregroundStyle(DSColors.accent)
+                            .clipShape(Capsule())
                     }
                 }
             }
@@ -740,18 +755,107 @@ private struct IngestionQueueRow: View {
 
     @ViewBuilder
     private func corpusMetrics(_ m: PipelineMetrics) -> some View {
-        if m.vocabularyRichness > 0 {
-            HStack(spacing: 12) {
-                metricGauge(label: "Vocab", value: m.vocabularyRichness, color: .blue)
-                metricGauge(label: "Tech", value: m.technicalDensity, color: .purple)
+        // Document content profile — shows what the document actually IS
+        if !m.documentDomain.isEmpty || !m.contentDescriptor.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                if !m.documentDomain.isEmpty {
+                    HStack(spacing: 6) {
+                        domainChip(m.documentDomain)
+                        if !m.documentLanguage.isEmpty {
+                            Text(m.documentLanguage)
+                                .font(.system(size: 9, design: .monospaced))
+                                .foregroundStyle(DSColors.secondaryText)
+                        }
+                    }
+                }
+                if !m.contentDescriptor.isEmpty {
+                    Text(m.contentDescriptor)
+                        .font(.system(size: 10))
+                        .foregroundStyle(DSColors.primaryText)
+                        .lineLimit(2)
+                }
+            }
+            .padding(6)
+            .background(DSColors.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+        }
+
+        // Content categories as topic chips
+        if !m.contentCategories.isEmpty {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 4) {
+                    ForEach(m.contentCategories.prefix(6), id: \.self) { category in
+                        Text(category)
+                            .font(.system(size: 9, weight: .medium))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(DSColors.accent.opacity(0.12))
+                            .foregroundStyle(DSColors.accent)
+                            .clipShape(Capsule())
+                    }
+                }
             }
         }
+
+        // Content type badges
         if m.hasCode || m.hasMath {
             HStack(spacing: 6) {
                 if m.hasCode { contentBadge(icon: "chevron.left.forwardslash.chevron.right", text: "Code", color: .orange) }
                 if m.hasMath { contentBadge(icon: "function", text: "Math", color: .pink) }
             }
         }
+
+        // Extraction coverage bar (how much of the document was successfully extracted)
+        if m.extractionCoverage > 0 {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack {
+                    Text("EXTRACTION").font(.system(size: 7, weight: .bold, design: .monospaced)).foregroundStyle(DSColors.secondaryText)
+                    Spacer()
+                    Text(String(format: "%.0f%%", m.extractionCoverage * 100))
+                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                        .foregroundStyle(m.extractionCoverage > 0.9 ? .green : m.extractionCoverage > 0.7 ? .yellow : .red)
+                }
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(Color.gray.opacity(0.2))
+                        .frame(height: 3)
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(m.extractionCoverage > 0.9 ? .green : m.extractionCoverage > 0.7 ? .yellow : .red)
+                        .frame(width: max(4, 80 * min(1, m.extractionCoverage)), height: 3)
+                }
+            }
+        }
+    }
+
+    /// Chip displaying the auto-classified document domain
+    @ViewBuilder
+    private func domainChip(_ domain: String) -> some View {
+        let (icon, color) = domainIconAndColor(domain)
+        HStack(spacing: 3) {
+            Image(systemName: icon)
+                .font(.system(size: 8))
+            Text(domain)
+                .font(.system(size: 9, weight: .semibold))
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(color.opacity(0.15))
+        .foregroundStyle(color)
+        .clipShape(Capsule())
+    }
+
+    private func domainIconAndColor(_ domain: String) -> (String, Color) {
+        let d = domain.lowercased()
+        if d.contains("vehicle") || d.contains("automotive") || d.contains("car") { return ("car.fill", .blue) }
+        if d.contains("medical") || d.contains("health") { return ("cross.case.fill", .red) }
+        if d.contains("legal") || d.contains("law") || d.contains("contract") { return ("building.columns.fill", .indigo) }
+        if d.contains("financial") || d.contains("finance") { return ("chart.line.uptrend.xyaxis", .green) }
+        if d.contains("academic") || d.contains("research") || d.contains("scientific") { return ("graduationcap.fill", .purple) }
+        if d.contains("technical") || d.contains("engineering") { return ("wrench.and.screwdriver.fill", .orange) }
+        if d.contains("manual") || d.contains("guide") || d.contains("instruction") { return ("book.fill", .cyan) }
+        if d.contains("report") { return ("doc.text.fill", .teal) }
+        if d.contains("policy") || d.contains("compliance") { return ("shield.fill", .mint) }
+        return ("doc.fill", .secondary)
     }
 
     @ViewBuilder
