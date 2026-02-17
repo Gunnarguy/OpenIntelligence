@@ -200,11 +200,14 @@ struct RetrievalConfig: Codable, Equatable, Sendable {
 
     // MARK: - Presets
 
-    /// Default balanced configuration for general use
+    /// Default balanced configuration for general use.
+    /// UNIVERSAL: Equal weight — let query intent classification do the fine-tuning,
+    /// not a static bias. OCR'd text is noisy; BM25-heavy defaults kill retrieval
+    /// for queries like "fuel tank capacity" where the OCR says "Fuel Capacity".
     static let `default` = RetrievalConfig(
-        minSimilarity: 0.28, // Lowered from 0.35 to avoid over-filtering technical terms
-        vectorWeight: 0.4, // Slightly favor BM25 for keyword-heavy queries
-        lexicalWeight: 0.6,
+        minSimilarity: 0.28,
+        vectorWeight: 0.50,
+        lexicalWeight: 0.50,
         mmrLambda: 0.6,
         minConfidentChunks: 1,
         requireExplicitCitations: false
@@ -230,13 +233,14 @@ struct RetrievalConfig: Codable, Equatable, Sendable {
         requireExplicitCitations: false
     )
 
-    /// Optimized for technical manuals, specifications, and reference documents.
-    /// Heavy keyword weighting to find exact terms (e.g., "oil", "engine", "5W-30").
+    /// For technical/structured documents (PDFs, manuals, specs).
+    /// UNIVERSAL: Slightly favor keywords for exact term matching, but keep
+    /// vector search strong. OCR noise means BM25 alone is unreliable.
     static let technicalManual = RetrievalConfig(
-        minSimilarity: 0.22, // Very low threshold for domain-specific vocabulary
-        vectorWeight: 0.3, // Strongly favor keyword (BM25) matching
-        lexicalWeight: 0.7,
-        mmrLambda: 0.5, // Favor diversity for multi-part answers
+        minSimilarity: 0.22,
+        vectorWeight: 0.45,
+        lexicalWeight: 0.55,
+        mmrLambda: 0.5,
         minConfidentChunks: 1,
         requireExplicitCitations: false
     )

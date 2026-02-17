@@ -81,7 +81,7 @@ final class VectorStoreRouter {
             let existingKind = describeKind(existing)
             let expectedKind = container.vectorDBKind.rawValue
 
-            if existingDim == container.embeddingDim, existingKind == expectedKind { 
+            if existingDim == container.embeddingDim, existingKind == expectedKind {
                 return existing
             }
 
@@ -147,15 +147,18 @@ final class VectorStoreRouter {
         // Remove from cache
         stores.removeValue(forKey: containerId)
 
-        // Delete the persisted vector database file
-        let url = AppSupportPaths.vectorsFileURL(containerId: containerId)
-        do {
-            if FileManager.default.fileExists(atPath: url.path) {
-                try FileManager.default.removeItem(at: url)
-                Log.info("[VectorStoreRouter] Cleared vector storage for container \(containerId)", category: .vectorDB)
+        // Delete all persisted vector database files (binary + legacy JSON)
+        let legacyURL = AppSupportPaths.vectorsFileURL(containerId: containerId)
+        let allFiles = BNNSVectorDatabase.binaryFileURLs(from: legacyURL)
+        for fileURL in allFiles {
+            do {
+                if FileManager.default.fileExists(atPath: fileURL.path) {
+                    try FileManager.default.removeItem(at: fileURL)
+                    Log.info("[VectorStoreRouter] Deleted vector file: \(fileURL.lastPathComponent)", category: .vectorDB)
+                }
+            } catch {
+                Log.error("[VectorStoreRouter] Failed to delete \(fileURL.lastPathComponent): \(error.localizedDescription)", category: .vectorDB)
             }
-        } catch {
-            Log.error("[VectorStoreRouter] Failed to clear vector storage: \(error.localizedDescription)", category: .vectorDB)
         }
     }
 

@@ -98,6 +98,9 @@ struct ChatScreen: View {
     // Vision Capture overlay
     @State private var showVisionCapture: Bool = false
 
+    // Hardware telemetry for Motherboard HUD visibility
+    @ObservedObject private var hardwareTelemetry = HardwareTelemetryState.shared
+
     // Dynamic suggested questions
     @State private var dynamicSuggestedQuestions: [String] = []
     @State private var suggestedQuestionsTask: Task<Void, Never>? = nil
@@ -407,6 +410,15 @@ struct ChatScreen: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 88)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+
+            // Motherboard HUD - Full-screen X-ray overlay
+            // Shows glowing borders at the ACTUAL physical locations where
+            // the Neural Engine, GPU, and CPU sit behind the screen
+            if settings.showSiliconHUD {
+                HardwareXRayOverlay()
+                    .allowsHitTesting(false) // Don't block touches
+                    .transition(.opacity)
+            }
         }
         // MARK: - Vision Capture (v2 feature - disabled for v1 App Store release)
         // .fullScreenCover(isPresented: $showVisionCapture) {
@@ -1549,6 +1561,9 @@ struct ChatScreen: View {
         let query = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return }
 
+        // Haptic feedback for sending a message
+        DSHaptics.messageSent()
+
         // Cancel any existing query - "cancel and replace" strategy
         // This prevents memory leaks from orphaned tasks on back-to-back queries
         if let existingTask = currentQueryTask {
@@ -1654,6 +1669,7 @@ struct ChatScreen: View {
                     self.generatingStartTS = nil
                     self.generatingElapsedFinal = nil
                     // StatusPillV2 shows stage - no toast needed
+                    DSHaptics.processingPulse() // Feel the pipeline starting
                 }
                 try? await Task.sleep(nanoseconds: 250_000_000)
 
@@ -1668,6 +1684,7 @@ struct ChatScreen: View {
                         self.embeddingElapsedFinal = Date().timeIntervalSince(embStart)
                     }
                     // StatusPillV2 shows stage - no toast needed
+                    DSHaptics.processingPulse() // Feel the search starting
                 }
 
                 let config = InferenceConfig(
@@ -1698,6 +1715,7 @@ struct ChatScreen: View {
                         self.searchingElapsedFinal = genStart.timeIntervalSince(searchStart)
                     }
                     // StatusPillV2 shows stage - no toast needed
+                    DSHaptics.messageReceived() // Feel the response starting
                 }
 
                 let response = try await capturedService.query(
@@ -1735,6 +1753,9 @@ struct ChatScreen: View {
                     }
                 }
 
+                // Snapshot thinking events before they get cleared on next query
+                let capturedThinkingEvents = await MainActor.run { self.thinkingEvents }
+
                 var assistant = ChatMessage(
                     role: .assistant,
                     content: sanitizeFinalResponse(response.generatedResponse),
@@ -1742,6 +1763,18 @@ struct ChatScreen: View {
                     retrievedChunks: response.retrievedChunks
                 )
                 assistant.containerId = capturedUsedContainerId
+
+                // Build pipeline trace from thinking events for later export
+                if !capturedThinkingEvents.isEmpty {
+                    let sorted = capturedThinkingEvents.sorted { $0.timestamp < $1.timestamp }
+                    let baseTime = sorted.first?.timestamp ?? Date()
+                    assistant.pipelineTrace = sorted.map { event in
+                        let elapsed = event.timestamp.timeIntervalSince(baseTime)
+                        let time = String(format: "+%06.0fms", elapsed * 1000)
+                        let detail = event.detail.map { " │ \($0)" } ?? ""
+                        return "\(time) [\(event.kind.displayName)] \(event.title)\(detail)"
+                    }
+                }
 
                 await MainActor.run {
                     // flushStreamingBufferToVisibleText already handled cleanup when isFinal arrived

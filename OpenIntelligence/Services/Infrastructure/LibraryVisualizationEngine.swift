@@ -618,28 +618,27 @@ final class LibraryVisualizationEngine: ObservableObject {
     private func detectDocumentDomain(from context: String?, content: String) -> String {
         let text = (context ?? "").lowercased() + " " + content.lowercased()
 
-        // Vehicle/automotive
-        let vehicleTerms = ["vehicle", "car", "truck", "engine", "transmission", "brake", "tire",
-                           "oil", "fuel", "mpg", "dashboard", "steering", "kia", "toyota", "ford",
-                           "honda", "bmw", "sportage", "manual", "owner's manual", "warranty"]
-        if vehicleTerms.contains(where: { text.contains($0) }) { return "vehicle" }
+        // Score each domain by keyword match count (most matches wins, no priority bias)
+        let domainTerms: [(String, [String])] = [
+            ("technical", ["api", "function", "code", "software", "algorithm", "database", "server",
+                          "programming", "developer", "git", "deploy", "kubernetes"]),
+            ("legal", ["agreement", "contract", "liability", "hereby", "pursuant", "jurisdiction",
+                      "plaintiff", "defendant", "court", "attorney"]),
+            ("medical", ["patient", "diagnosis", "treatment", "medication", "symptoms", "clinical",
+                        "hospital", "physician", "dosage"]),
+        ]
 
-        // Technical/software
-        let techTerms = ["api", "function", "code", "software", "algorithm", "database", "server",
-                        "programming", "developer", "git", "deploy", "kubernetes"]
-        if techTerms.contains(where: { text.contains($0) }) { return "technical" }
+        var bestDomain = "general"
+        var bestScore = 0
+        for (domain, terms) in domainTerms {
+            let score = terms.filter { text.contains($0) }.count
+            if score > bestScore {
+                bestScore = score
+                bestDomain = domain
+            }
+        }
 
-        // Legal
-        let legalTerms = ["agreement", "contract", "liability", "hereby", "pursuant", "jurisdiction",
-                         "plaintiff", "defendant", "court", "attorney"]
-        if legalTerms.contains(where: { text.contains($0) }) { return "legal" }
-
-        // Medical
-        let medicalTerms = ["patient", "diagnosis", "treatment", "medication", "symptoms", "clinical",
-                           "hospital", "physician", "dosage"]
-        if medicalTerms.contains(where: { text.contains($0) }) { return "medical" }
-
-        return "general"
+        return bestScore >= 2 ? bestDomain : "general"
     }
 
     /// Match domain-specific patterns to generate meaningful labels
@@ -649,58 +648,6 @@ final class LibraryVisualizationEngine: ObservableObject {
         let patterns: [(terms: [String], label: String)]
 
         switch domain {
-        case "vehicle":
-            patterns = [
-                // Infotainment & Display
-                (["infotainment", "display", "screen", "touchscreen", "navigation", "nav", "gps"], "Infotainment System"),
-                (["bluetooth", "audio", "speaker", "radio", "music", "sound", "stereo"], "Audio & Connectivity"),
-                (["carplay", "android auto", "phone", "smartphone"], "Phone Integration"),
-
-                // Settings & Controls
-                (["setting", "settings", "configure", "configuration", "customize"], "Vehicle Settings"),
-                (["climate", "air conditioning", "hvac", "temperature", "heater", "ac"], "Climate Control"),
-                (["seat", "seating", "lumbar", "headrest", "position"], "Seat Adjustment"),
-                (["mirror", "mirrors", "rearview", "side mirror"], "Mirror Controls"),
-                (["lighting", "lights", "headlight", "headlamp"], "Lighting System"),
-
-                // Safety & Security
-                (["safety", "airbag", "collision", "crash", "seatbelt", "restraint"], "Safety Features"),
-                (["adas", "driver assist", "lane", "blind spot", "cruise control", "adaptive"], "Driver Assistance"),
-                (["alarm", "security", "theft", "lock", "unlock", "key", "keyless"], "Security System"),
-                (["camera", "backup", "parking", "sensor"], "Parking Assistance"),
-
-                // Maintenance & Fluids
-                (["oil", "lubricant", "viscosity", "synthetic"], "Oil Specifications"),
-                (["maintenance", "service", "schedule", "interval"], "Maintenance Schedule"),
-                (["tire", "wheel", "pressure", "rotation", "psi"], "Tire Information"),
-                (["brake", "braking", "pad", "rotor"], "Brake System"),
-                (["coolant", "antifreeze", "radiator"], "Cooling System"),
-                (["battery", "charging", "jump start"], "Battery & Charging"),
-                (["fuel", "gas", "gasoline", "tank", "mpg"], "Fuel System"),
-
-                // Engine & Drivetrain
-                (["engine", "motor", "horsepower", "torque"], "Engine Specifications"),
-                (["transmission", "gear", "shift", "automatic"], "Transmission"),
-                (["drivetrain", "awd", "4wd", "fwd", "all-wheel"], "Drivetrain"),
-
-                // Warranty & Service
-                (["warranty", "coverage", "guarantee"], "Warranty Information"),
-                (["dealer", "service center", "authorized"], "Service & Dealers"),
-
-                // Interior & Features
-                (["interior", "cabin", "dashboard", "console"], "Interior Features"),
-                (["trunk", "cargo", "storage", "capacity"], "Cargo & Storage"),
-                (["window", "windshield", "wiper", "defroster"], "Windows & Wipers"),
-
-                // Instrument Panel
-                (["gauge", "speedometer", "tachometer", "instrument"], "Instrument Panel"),
-                (["warning", "indicator", "alert", "message"], "Warning Lights"),
-
-                // Specifications
-                (["specification", "specs", "dimension", "weight"], "Vehicle Specifications"),
-                (["towing", "trailer", "hitch", "payload"], "Towing Capacity"),
-            ]
-
         case "technical":
             patterns = [
                 (["api", "endpoint", "rest", "graphql"], "API Reference"),

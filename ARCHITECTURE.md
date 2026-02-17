@@ -1,27 +1,28 @@
 # OpenIntelligence Technical Architecture
 
-**Version**: 2.8
-**Date**: January 29, 2026
-**Status**: Production (App Store Ready)
+**Version**: 3.3
+**Date**: February 16, 2026
+**Status**: Production (App Store v1.2)
 
 ## Table of Contents
 
 1. [Executive Summary](#executive-summary)
-2. [System Architecture](#system-architecture)
-3. [Core Services Inventory](#core-services)
+2. [Apple Framework Dependencies](#apple-framework-dependencies)
+3. [System Architecture](#system-architecture)
+4. [Core Services Inventory](#core-services)
    - [RAG Pipeline Services](#rag-pipeline-services-14-services)
    - [Query Services](#query-services-8-services)
-   - [Document Processing Services](#document-processing-services-19-services)
+   - [Document Processing Services](#document-processing-services-20-services)
    - [Embedding Services](#embedding-services-2-services)
    - [Storage Services](#storage-services-3-services)
    - [VectorStore Services](#vectorstore-services-4-services)
    - [LLM Services](#llm-services-7-services)
    - [Agentic Services](#agentic-services-3-services)
-   - [Infrastructure Services](#infrastructure-services-17-services)
+   - [Infrastructure Services](#infrastructure-services-18-services)
    - [Billing Services](#billing-services-1-service)
-4. [DocumentProcessor Deep Dive](#documentprocessor)
-5. [Token Budget Management](#token-budget-management)
-6. [Data Structures](#data-structures)
+5. [DocumentProcessor Deep Dive](#documentprocessor)
+6. [Token Budget Management](#token-budget-management)
+7. [Data Structures](#data-structures)
 
 ## Executive Summary
 
@@ -29,21 +30,22 @@ OpenIntelligence is a native iOS 26 application implementing a complete Retrieva
 
 **Simple Concept:** Import any document. Ask questions in plain English. Get cited answers powered by on-device AI.
 
-**Latest (v2.8)**: Device-tier-aware Vision concurrency, platform-specific Metal optimizations, Mac compatibility via iPad mode, 4-gate verification pipeline, 78 services across 10 categories.
+**Latest (v3.3)**: Rich Markdown Response Rendering (full block-level parser, inline normalization preprocessor, formatting-preserving pipeline, formatting-aware LLM prompts). Device-Optimized Performance Engine (3-tier Metal shader selection, device-specific OCR concurrency, concurrent cross-encoder predictions, GPU embedding ingestion mode, concurrent CIFilter rendering). MMR crash fix (GPU diversity matrix edge case). Motherboard HUD (real-time Apple Silicon X-ray overlay), Universal Retrieval (8 fixes for needle-in-haystack accuracy), Adaptive Document Intelligence Engine, multi-candidate confidence OCR, 5-strategy adaptive preprocessing, language-agnostic quality detection, centralized OCR configuration factory. 81 services across 11 categories.
 
 ### RAG Pipeline Summary
 
-The system implements a **23-step end-to-end pipeline** powered by **78 services**:
+The system implements a **25-step end-to-end pipeline** powered by **81 services**:
 
-| Phase                | Steps | Key Services                                                                  |
-| -------------------- | ----- | ----------------------------------------------------------------------------- |
-| **Ingestion**        | 6     | DocumentProcessor, SemanticChunker, EntityIndexService, EmbeddingService      |
-| **Query Processing** | 7     | QueryEnhancementService, HyDEService, QueryRouterService, HybridSearchService |
-| **Post-Retrieval**   | 7     | VerificationGateService, ContextPackingService, ParentDocumentService         |
-| **Generation**       | 3     | ExtractiveSummarizationService, LLMService, AgenticOrchestrator               |
-| **Post-Generation**  | 4     | QualityAssuranceService, ConfidenceCalibrationService                         |
+| Phase                | Steps | Key Services                                                                           |
+| -------------------- | ----- | -------------------------------------------------------------------------------------- |
+| **Ingestion**        | 6     | DocumentProcessor, SemanticChunker (table-aware), EntityIndexService, EmbeddingService |
+| **Query Processing** | 7     | QueryEnhancementService, HyDEService, QueryRouterService, HybridSearchService          |
+| **Post-Retrieval**   | 7     | VerificationGateService, ContextPackingService, ParentDocumentService                  |
+| **Generation**       | 3     | ExtractiveSummarizationService, LLMService, AgenticOrchestrator                        |
+| **Post-Generation**  | 4     | QualityAssuranceService, ConfidenceCalibrationService                                  |
+| **Rendering**        | 2     | MarkdownRenderer (block-level parser + inline normalizer)                              |
 
-> **Complete inventory**: See "Complete Service Inventory (78 Services)" below.
+> **Complete inventory**: See "Complete Service Inventory (81 Services)" below.
 
 ### Key Architectural Principles
 
@@ -52,6 +54,45 @@ The system implements a **23-step end-to-end pipeline** powered by **78 services
 3. **Async/Await**: Modern Swift concurrency throughout
 4. **Adaptive Retrieval**: Query-intent-aware weight tuning and content-type-optimized configurations
 5. **Simple**: 10 core files implement complete functionality
+
+## Apple Framework Dependencies
+
+OpenIntelligence is built entirely on Apple's native frameworks—**no third-party AI dependencies**.
+
+> **Complete Reference**: See [Docs/reference/APPLE_DOCUMENT_INTELLIGENCE.md](Docs/reference/APPLE_DOCUMENT_INTELLIGENCE.md) for detailed API documentation.
+
+### Production Frameworks (8 Integrated)
+
+| Framework            | Primary Use                   | Key Services                                                                   |
+| -------------------- | ----------------------------- | ------------------------------------------------------------------------------ |
+| **FoundationModels** | LLM generation (iOS 26)       | `AppleFoundationLLMService`, `AgenticOrchestrator`, 8 @Tools                   |
+| **Vision**           | OCR, document detection       | `VisionOCRService`, `IntelligentDocumentProcessor`                             |
+| **NaturalLanguage**  | NER, tokenization, embeddings | `QueryEnhancementService`, `EntityIndexService`, `SemanticChunker`             |
+| **CoreML**           | Neural embeddings, reranking  | `EmbeddingService` (MiniLM-L6), `ReRankerService` (TinyBERT)                   |
+| **PDFKit**           | PDF parsing                   | `DocumentProcessor`                                                            |
+| **Speech**           | Audio transcription           | `AudioTranscriptionService`                                                    |
+| **Metal**            | GPU acceleration              | `GPUComputeService` (3-tier shaders), `VisionOCRThrottle`, `DocumentProcessor` |
+| **StoreKit 2**       | Subscription billing          | `StoreKitBillingService`                                                       |
+
+### iOS 26+ APIs in Production
+
+| API                             | Usage                                        |
+| ------------------------------- | -------------------------------------------- |
+| `LanguageModelSession`          | All LLM queries via Apple Intelligence       |
+| `@Generable`, `@Guide`, `@Tool` | 8 agentic tools + structured response types  |
+| `LanguageModelFeedback`         | User feedback submission from chat UI        |
+| `prewarm()`                     | App launch prewarming for faster first query |
+
+### Framework Opportunities (Phase 2+)
+
+| Framework                   | Planned Use                                  | Target |
+| --------------------------- | -------------------------------------------- | ------ |
+| **VisionKit** (DataScanner) | Live camera document scanning                | v2.0   |
+| **Translation.framework**   | Multi-language document translation          | v1.3   |
+| **NLGazetteer**             | Custom entity training (product names, SKUs) | v1.3   |
+| **CreateMLComponents**      | On-device classifier training                | v2.0   |
+| **MetricKit**               | Production performance telemetry             | v2.0   |
+| **SpeechAnalyzer** (iOS 26) | Enhanced audio quality metrics               | v1.3   |
 
 ## System Architecture
 
@@ -101,6 +142,7 @@ User Document Input
 ┌─────────────────┐                ┌─────────────────┐
 │ Store Full Text │  ← ZERO LOSS   │ Chunk Documents │  ← Content-adaptive
 │ (Original)      │                │  (≤310w max)    │    SemanticChunker
+│                 │                │  + Table Blocks │    (atomic table preservation)
 └────────┬────────┘                └────────┬────────┘
          │                                  │
          │                                  ▼
@@ -167,7 +209,7 @@ User Query Input
 │ Hybrid Search               │
 │ ┌─────────┐ ┌─────────────┐ │
 │ │ Vector  │ │   BM25      │ │  ← Dual retrieval paths
-│ │ k-NN    │ │ Keyword     │ │
+│ │ k-NN    │ │ Chunk-Level │ │  ← AND-first FTS5 + per-chunk scoring
 │ └────┬────┘ └──────┬──────┘ │
 │      └──────┬──────┘        │
 │             ▼               │
@@ -254,9 +296,9 @@ User Query Input
 
 ## Core Services
 
-### Complete Service Inventory (78 Services)
+### Complete Service Inventory (81 Services)
 
-OpenIntelligence is composed of **78 distinct services** organized into 9 categories. This inventory provides a complete reference.
+OpenIntelligence is composed of **81 distinct services** organized into 11 categories. This inventory provides a complete reference.
 
 #### RAG Pipeline Services (14 services)
 
@@ -264,8 +306,8 @@ OpenIntelligence is composed of **78 distinct services** organized into 9 catego
 | -------------------------------- | ----------- | --------------------------------------------------------------------------- | ------------------------------------------ |
 | `RAGService`                     | class       | Main `@MainActor` orchestrator: ingestion, retrieval, UI state              | `RAG/RAGService.swift`                     |
 | `RAGEngine`                      | actor       | Background math: MMR, BM25, RRF, reranking (no UI)                          | `RAG/RAGEngine.swift`                      |
-| `HybridSearchService`            | class       | Vector k-NN + BM25 keyword with RRF fusion (k=60)                           | `RAG/HybridSearchService.swift`            |
-| `IterativeRetrievalService`      | final class | Multi-pass retrieval with self-correction loops                             | `RAG/IterativeRetrievalService.swift`      |
+| `HybridSearchService`            | class       | Vector k-NN + chunk-level BM25 with RRF fusion (k=60)                       | `RAG/HybridSearchService.swift`            |
+| `IterativeRetrievalService`      | final class | Multi-pass retrieval with self-correction (auto-enabled for multi-hop)      | `RAG/IterativeRetrievalService.swift`      |
 | `VerificationGateService`        | actor       | Anti-hallucination gates A-D (confidence, coverage, numeric, contradiction) | `RAG/VerificationGateService.swift`        |
 | `ContextPackingService`          | actor       | Graph context packing within token budget                                   | `RAG/ContextPackingService.swift`          |
 | `GraphIndexService`              | actor       | Cross-reference detection (page refs, table refs, neighbors)                | `RAG/GraphIndexService.swift`              |
@@ -290,29 +332,30 @@ OpenIntelligence is composed of **78 distinct services** organized into 9 catego
 | `QueryComplexityAnalyzer`      | final class | Analyzes query structure to determine optimal routing     | `Query/QueryComplexityAnalyzer.swift`      |
 | `SpecificationExtractor`       | struct      | Extracts technical specs (dimensions, tolerances)         | `Query/SpecificationExtractor.swift`       |
 
-#### Document Processing Services (19 services)
+#### Document Processing Services (20 services)
 
-| Service                        | Type        | Purpose                                                         | File                                          |
-| ------------------------------ | ----------- | --------------------------------------------------------------- | --------------------------------------------- |
-| `DocumentProcessor`            | struct      | Universal parsing: PDF, Office, OCR (360 DPI), GPU acceleration | `Document/DocumentProcessor.swift`            |
-| `IntelligentDocumentProcessor` | actor       | Orchestrates AI-enhanced parsing (layout, region, semantics)    | `Document/IntelligentDocumentProcessor.swift` |
-| `SemanticChunker`              | struct      | Content-adaptive chunking with section detection (≤310w)        | `Document/SemanticChunker.swift`              |
-| `EntityIndexService`           | actor       | Global entity→chunk inverted index for GraphRAG                 | `Document/EntityIndexService.swift`           |
-| `AudioTranscriptionService`    | final class | Audio/video transcription via Speech.framework                  | `Document/AudioTranscriptionService.swift`    |
-| `ContentTaggingService`        | final class | Apple Intelligence content tagging (topics, actions, emotions)  | `Document/ContentTaggingService.swift`        |
-| `LanguageDetectionService`     | final class | Multi-language detection via NLLanguageRecognizer               | `Document/LanguageDetectionService.swift`     |
-| `ImageUnderstandingService`    | class       | Vision-based image classification and description               | `Document/ImageUnderstandingService.swift`    |
-| `ImageDescriptionService`      | class       | Apple Intelligence image descriptions for live camera           | `Document/ImageUnderstandingService.swift`    |
-| `YOLODetectionService`         | actor       | YOLO v3 object detection (80 classes) for intelligent capture   | `Document/YOLODetectionService.swift`         |
-| `DocumentSummaryService`       | actor       | L1 summary generation at ingestion for RAPTOR-lite              | `Document/DocumentSummaryService.swift`       |
-| `VisionOCRThrottle`            | actor       | Controls concurrent Vision requests based on device thermal     | `Document/VisionOCRThrottle.swift`            |
-| `CoreMLDocumentClassifier`     | class       | ML-based document type classification (invoice vs manual)       | `Document/CoreMLDocumentClassifier.swift`     |
-| `CoreMLRegionDetector`         | class       | Detects layout regions (header, footer, sidebar) via Vision     | `Document/CoreMLRegionDetector.swift`         |
-| `LayoutAwareExtractor`         | struct      | Extracts text while preserving 2D spatial relationships         | `Document/LayoutAwareExtractor.swift`         |
-| `PageComplexityAnalyzer`       | struct      | Scores page layout density to adjust OCR parameters             | `Document/PageComplexityAnalyzer.swift`       |
-| `SpatialDocumentAnalyzer`      | class       | Analyzes spatial relationships between document elements        | `Document/SpatialDocumentAnalyzer.swift`      |
-| `SpecificationDetector`        | struct      | Regex/ML detection of specification tables and key-value pairs  | `Document/SpecificationDetector.swift`        |
-| `StructuredDocumentParser`     | actor       | Parses hierarchy (Section > Subsection > Paragraph)             | `Document/StructuredDocumentParser.swift`     |
+| Service                        | Type        | Purpose                                                          | File                                          |
+| ------------------------------ | ----------- | ---------------------------------------------------------------- | --------------------------------------------- |
+| `DocumentProcessor`            | struct      | Universal parsing: PDF, Office, OCR (360 DPI), GPU acceleration  | `Document/DocumentProcessor.swift`            |
+| `IntelligentDocumentProcessor` | actor       | Orchestrates AI-enhanced parsing (layout, region, semantics)     | `Document/IntelligentDocumentProcessor.swift` |
+| `SemanticChunker`              | struct      | Content-adaptive chunking with section + table detection (≤310w) | `Document/SemanticChunker.swift`              |
+| `EntityIndexService`           | actor       | Global entity→chunk inverted index for GraphRAG                  | `Document/EntityIndexService.swift`           |
+| `AudioTranscriptionService`    | final class | Audio/video transcription via Speech.framework                   | `Document/AudioTranscriptionService.swift`    |
+| `ContentTaggingService`        | final class | Apple Intelligence content tagging (topics, actions, emotions)   | `Document/ContentTaggingService.swift`        |
+| `LanguageDetectionService`     | final class | Multi-language detection via NLLanguageRecognizer                | `Document/LanguageDetectionService.swift`     |
+| `ImageUnderstandingService`    | class       | Vision-based image classification and description                | `Document/ImageUnderstandingService.swift`    |
+| `ImageDescriptionService`      | class       | Apple Intelligence image descriptions for live camera            | `Document/ImageUnderstandingService.swift`    |
+| `YOLODetectionService`         | actor       | YOLO v3 object detection (80 classes) for intelligent capture    | `Document/YOLODetectionService.swift`         |
+| `DocumentSummaryService`       | actor       | L1 summary generation at ingestion for RAPTOR-lite               | `Document/DocumentSummaryService.swift`       |
+| `VisionOCRThrottle`            | actor       | Controls concurrent Vision requests based on device thermal      | `Document/VisionOCRThrottle.swift`            |
+| `CoreMLDocumentClassifier`     | class       | ML-based document type classification (invoice vs manual)        | `Document/CoreMLDocumentClassifier.swift`     |
+| `CoreMLRegionDetector`         | class       | Detects layout regions (header, footer, sidebar) via Vision      | `Document/CoreMLRegionDetector.swift`         |
+| `LayoutAwareExtractor`         | struct      | Extracts text while preserving 2D spatial relationships          | `Document/LayoutAwareExtractor.swift`         |
+| `PageComplexityAnalyzer`       | struct      | Scores page layout density to adjust OCR parameters              | `Document/PageComplexityAnalyzer.swift`       |
+| `SpatialDocumentAnalyzer`      | class       | Analyzes spatial relationships between document elements         | `Document/SpatialDocumentAnalyzer.swift`      |
+| `SpecificationDetector`        | struct      | Regex/ML detection of specification tables and key-value pairs   | `Document/SpecificationDetector.swift`        |
+| `StructuredDocumentParser`     | actor       | Parses hierarchy (Section > Subsection > Paragraph)              | `Document/StructuredDocumentParser.swift`     |
+| `OCRConfiguration`             | enum        | Central OCR config factory, adaptive preprocessing, confidence   | `Document/OCRConfiguration.swift`             |
 
 #### Embedding Services (2 services)
 
@@ -326,7 +369,7 @@ OpenIntelligence is composed of **78 distinct services** organized into 9 catego
 | Service                     | Type  | Purpose                                              | File                                      |
 | --------------------------- | ----- | ---------------------------------------------------- | ----------------------------------------- |
 | `FullTextStorageService`    | actor | Complete original document storage for exact queries | `Storage/FullTextStorageService.swift`    |
-| `SQLiteFullTextService`     | actor | FTS5-powered BM25 keyword search (10-100x faster)    | `Storage/SQLiteFullTextService.swift`     |
+| `SQLiteFullTextService`     | actor | FTS5-powered AND-first BM25 search (10-100x faster)  | `Storage/SQLiteFullTextService.swift`     |
 | `DocumentationCacheService` | actor | Caches fetched web content for offline access        | `Storage/DocumentationCacheService.swift` |
 
 #### VectorStore Services (4 services)
@@ -358,32 +401,39 @@ OpenIntelligence is composed of **78 distinct services** organized into 9 catego
 | `ConversationMemoryService` | final class | Persistent conversation memory with summarization   | `Agentic/ConversationMemoryService.swift` |
 | `WritingToolsService`       | class       | Apple Writing Tools (proofread, rewrite, summarize) | `Agentic/WritingToolsService.swift`       |
 
-#### Infrastructure Services (17 services)
+#### Infrastructure Services (18 services)
 
-| Service                        | Type        | Purpose                                                         | File                                                |
-| ------------------------------ | ----------- | --------------------------------------------------------------- | --------------------------------------------------- |
-| `ContainerService`             | final class | KnowledgeContainer management (CRUD, selection, persistence)    | `Infrastructure/ContainerService.swift`             |
-| `DeviceCapabilityService`      | final class | Device tier detection (A-series vs M-series, NPU TOPS)          | `Infrastructure/DeviceCapabilityService.swift`      |
-| `GPUComputeService`            | final class | Metal Performance Shaders for batch vector ops (10-50x speedup) | `Infrastructure/GPUComputeService.swift`            |
-| `ProjectionService`            | final class | 3D projection: PCA, Random Projection, t-SNE, UMAP              | `Infrastructure/ProjectionService.swift`            |
-| `ClusterLabelService`          | actor       | LLM-generated intelligent labels for Atlas clusters             | `Infrastructure/ClusterLabelService.swift`          |
-| `TranscriptPersistenceService` | final class | Apple FM session transcript persistence for resume              | `Infrastructure/TranscriptPersistenceService.swift` |
-| `SettingsStore`                | final class | Centralized settings with UserDefaults persistence              | `Infrastructure/SettingsStore.swift`                |
-| `AdaptivePipelineOptimizer`    | actor       | Dynamically adjusts pipeline parameters based on load/battery   | `Infrastructure/AdaptivePipelineOptimizer.swift`    |
-| `LibraryIconSuggestionService` | actor       | Suggests SF Symbols for document containers based on contents   | `Infrastructure/LibraryIconSuggestionService.swift` |
-| `LibraryVisualizationEngine`   | class       | Renders 3D document atlas visualizations                        | `Infrastructure/LibraryVisualizationEngine.swift`   |
-| `LoggingConfiguration`         | struct      | Centralized OSLog subsystem configuration                       | `Infrastructure/LoggingConfiguration.swift`         |
-| `ProjectionCache`              | actor       | Caches expensive UMAP/t-SNE projections                         | `Infrastructure/ProjectionCache.swift`              |
-| `QuotaPolicy`                  | struct      | Enforces usage limits for free tier users                       | `Infrastructure/QuotaPolicy.swift`                  |
-| `SystemStateMonitor`           | class       | Monitors thermal state, memory, and battery for degradation     | `Infrastructure/SystemStateMonitor.swift`           |
-| `TelemetryCenter`              | actor       | Aggregates performance metrics (TTFT, TPS, ingest speed)        | `Infrastructure/TelemetryCenter.swift`              |
-| `LLMStreamingContext`          | actor       | Manages state for streaming LLM responses                       | `LLM/LLMStreamingContext.swift`                     |
+| Service                        | Type        | Purpose                                                                                            | File                                                |
+| ------------------------------ | ----------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| `ContainerService`             | final class | KnowledgeContainer management (CRUD, selection, persistence)                                       | `Infrastructure/ContainerService.swift`             |
+| `DeviceCapabilityService`      | final class | Device tier detection, hardware-aware pipeline tuning (OCR, embedding, reranking concurrency)      | `Infrastructure/DeviceCapabilityService.swift`      |
+| `GPUComputeService`            | final class | Metal GPU compute: 3-tier shader selection (threadgroup/SIMD4/scalar), buffer pool, MPS matrix ops | `Infrastructure/GPUComputeService.swift`            |
+| `ProjectionService`            | final class | 3D projection: PCA, Random Projection, t-SNE, UMAP                                                 | `Infrastructure/ProjectionService.swift`            |
+| `ClusterLabelService`          | actor       | LLM-generated intelligent labels for Atlas clusters                                                | `Infrastructure/ClusterLabelService.swift`          |
+| `TranscriptPersistenceService` | final class | Apple FM session transcript persistence for resume                                                 | `Infrastructure/TranscriptPersistenceService.swift` |
+| `SettingsStore`                | final class | Centralized settings with UserDefaults persistence                                                 | `Infrastructure/SettingsStore.swift`                |
+| `AdaptivePipelineOptimizer`    | actor       | Dynamically adjusts pipeline parameters based on load/battery                                      | `Infrastructure/AdaptivePipelineOptimizer.swift`    |
+| `LibraryIconSuggestionService` | actor       | Suggests SF Symbols for document containers based on contents                                      | `Infrastructure/LibraryIconSuggestionService.swift` |
+| `LibraryVisualizationEngine`   | class       | Renders 3D document atlas visualizations                                                           | `Infrastructure/LibraryVisualizationEngine.swift`   |
+| `LoggingConfiguration`         | struct      | Centralized OSLog subsystem configuration                                                          | `Infrastructure/LoggingConfiguration.swift`         |
+| `ProjectionCache`              | actor       | Caches expensive UMAP/t-SNE projections                                                            | `Infrastructure/ProjectionCache.swift`              |
+| `QuotaPolicy`                  | struct      | Enforces usage limits for free tier users                                                          | `Infrastructure/QuotaPolicy.swift`                  |
+| `SystemStateMonitor`           | class       | Monitors thermal state, memory, and battery for degradation                                        | `Infrastructure/SystemStateMonitor.swift`           |
+| `HardwareTelemetryState`       | class       | Real-time CPU/GPU/Neural Engine/thermal/battery telemetry                                          | `Infrastructure/HardwareTelemetryState.swift`       |
+| `TelemetryCenter`              | actor       | Aggregates performance metrics (TTFT, TPS, ingest speed)                                           | `Infrastructure/TelemetryCenter.swift`              |
+| `LLMStreamingContext`          | actor       | Manages state for streaming LLM responses                                                          | `LLM/LLMStreamingContext.swift`                     |
 
 #### Billing Services (1 service)
 
 | Service                  | Type        | Purpose                                       | File                                   |
 | ------------------------ | ----------- | --------------------------------------------- | -------------------------------------- |
 | `StoreKitBillingService` | final class | StoreKit 2 in-app purchases and subscriptions | `Billing/StoreKitBillingService.swift` |
+
+#### Rendering Services (1 service)
+
+| Service            | Type   | Purpose                                                                                                 | File                                     |
+| ------------------ | ------ | ------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| `MarkdownRenderer` | struct | Full block-level markdown parser + inline normalizer (6 regex patterns for Apple FM single-line output) | `Core/Extensions/MarkdownRenderer.swift` |
 
 ---
 
@@ -414,47 +464,110 @@ OpenIntelligence is composed of **78 distinct services** organized into 9 catego
 
 **Current Implementation** (Jan 2026 - Enhanced):
 
-| Capability           | API Used                         | Status          |
-| -------------------- | -------------------------------- | --------------- |
-| OCR Text Recognition | `VNRecognizeTextRequest`         | ✅ Implemented  |
-| High-DPI Rendering   | 360 DPI (5x scale factor)        | ✅ Enhanced     |
-| Multi-language OCR   | Recognition languages config     | ✅ 10 languages |
-| Accurate Mode        | `.recognitionLevel = .accurate`  | ✅ Enabled      |
-| Language Correction  | `.usesLanguageCorrection = true` | ✅ Enabled      |
-| Image Upscaling      | CIFilter.lanczosScaleTransform   | ✅ New          |
-| Contrast Enhancement | CIColorControls                  | ✅ New          |
+| Capability                      | API Used                                  | Status          |
+| ------------------------------- | ----------------------------------------- | --------------- |
+| OCR Text Recognition            | `VNRecognizeTextRequest` Rev3             | ✅ Implemented  |
+| High-DPI Rendering              | 360 DPI (5x scale factor)                 | ✅ Enhanced     |
+| Multi-language OCR              | 13 languages via centralized config       | ✅ 13 languages |
+| Accurate Mode                   | `.recognitionLevel = .accurate`           | ✅ Enabled      |
+| Language Correction             | `.usesLanguageCorrection = true`          | ✅ Enabled      |
+| Auto Language Detection         | `.automaticallyDetectsLanguage = true`    | ✅ Enabled      |
+| Adaptive Preprocessing          | 5-strategy CIFilter pipeline              | ✅ New          |
+| Multi-Candidate Confidence OCR  | `topCandidates(5)` + ConfidenceVerifier   | ✅ New          |
+| Dynamic Vocabulary Extraction   | PDFKit text mining → customWords          | ✅ New          |
+| Centralized OCR Factory         | `OCRConfiguration.configureRequest()`     | ✅ New          |
+| Language-Agnostic Quality Check | NLLanguageRecognizer + Unicode categories | ✅ New          |
 
 **Device-Tier-Aware Vision Concurrency** (Jan 26, 2026):
 
 `VisionOCRThrottle` controls concurrent Vision OCR operations with device-specific tuning:
 
-| Device Tier    | Chip     | Vision Ops | Cooldown | Notes                        |
-| -------------- | -------- | ---------- | -------- | ---------------------------- |
-| Enhanced       | A18 Pro  | 5          | 5ms      | Neural Engine optimized      |
-| Advanced       | A19 Pro  | 6          | 3ms      | Next-gen ANE                 |
-| Ultra-Advanced | M-series | 6          | 3ms      | Active cooling (iPad Pro)    |
-| Mac Compatible | M-series | 3          | 10ms     | Conservative for macOS Metal |
-| Baseline       | A17 Pro  | 4          | 8ms      | Conservative for thermal     |
+| Device Tier    | Chip     | Vision Ops | Cooldown | Notes                                |
+| -------------- | -------- | ---------- | -------- | ------------------------------------ |
+| Ultra-Advanced | A19 Pro  | 8          | 1ms      | 16-core ANE @ 45 TOPS, Apple10 Metal |
+| Enhanced       | A18 Pro  | 6          | 2ms      | 16-core ANE @ 38 TOPS, Apple9 Metal  |
+| Standard       | A17 Pro  | 4          | 3ms      | 16-core ANE @ 35 TOPS                |
+| Mac Compatible | M-series | 4          | 3ms      | Active cooling, improved scheduling  |
+| Baseline       | Older    | 2          | 6ms      | Conservative for thermal             |
 
 **Platform Detection**: On Mac (via "Designed for iPad"), Metal command buffer scheduling differs from iOS. The system automatically detects `ProcessInfo.processInfo.isiOSAppOnMac` and uses conservative concurrency to prevent Metal validation errors in Apple's Vision framework.
 
-**OCR Quality Improvements** (Jan 24, 2026):
+**GPU Compute Architecture** (`GPUComputeService.swift`, Feb 14, 2026):
+
+The Metal compute service provides 7 inline GPU kernels with automatic tiered shader selection:
+
+| Kernel                             | Variant             | Description                                             | When Used                              |
+| ---------------------------------- | ------------------- | ------------------------------------------------------- | -------------------------------------- |
+| `batchCosineSimilarity`            | Scalar              | Per-element float ops                                   | Fallback (non-SIMD-aligned dimensions) |
+| `batchCosineSimilaritySIMD`        | SIMD4               | `float4` vector ops, 4× scalar throughput               | 100-999 docs, dimension % 4 == 0       |
+| `batchCosineSimilarityThreadgroup` | Threadgroup + SIMD4 | Query cached in shared memory + `float4`                | ≥1000 docs, dimension/4 ≤ 96           |
+| `batchNormalize`                   | Scalar              | Vector L2 normalization                                 | Fallback                               |
+| `batchNormalizeSIMD`               | SIMD4               | `float4` normalization                                  | SIMD-aligned dimensions                |
+| `mmrDiversityMatrix`               | Scalar              | Pairwise similarity matrix (compiled, MPS used instead) | Reserved                               |
+
+**Shader Selection Logic**: Both `batchCosineSimilarityFlat` (heap arrays) and `batchCosineSimilarityFlatBuffer` (mmap'd `UnsafeBufferPointer`) use identical tiered selection. MiniLM-L6-v2 (384-dim / 4 = 96 float4s) fits exactly within the threadgroup `sharedQuery[96]` limit, so all searches ≥1000 vectors use the fastest path.
+
+**Zero-Copy mmap**: For mmap'd vector databases, `makeBuffer(bytesNoCopy:)` lets the GPU read directly from mmap'd pages on Apple Silicon unified memory — no 73MB heap copy.
+
+**Cross-Encoder Concurrent Reranking** (`RAGEngine.swift`, Feb 14, 2026):
+
+Cross-encoder prediction now uses `TaskGroup` with device-tier-aware concurrency:
+
+- Pre-tokenization: All query-chunk pairs tokenized before the TaskGroup starts
+- Bulk `dataPointer` writes: `MLMultiArray` populated via pointer (3× faster than `NSNumber` subscript)
+- Bounded concurrency: Seed + feed pattern maintains `maxConcurrentPredictions` in flight
+- Per-task isolation: Each task creates its own `MLMultiArray` buffers (no sharing)
+
+**Concurrent CIFilter Rendering** (`DocumentProcessor.swift`, Feb 14, 2026):
+
+`DocumentProcessor.gpuQueue` upgraded from `DispatchQueue(label:)` (serial) to `DispatchQueue(label:, attributes: .concurrent)`. CIContext is documented thread-safe by Apple — each `.sync` call writes to its own local variable with no shared mutable state. This eliminates the bottleneck that serialized ALL CIFilter preprocessing.
+
+**GPU Embedding Ingestion Mode** (`CoreMLSentenceEmbeddingProvider.swift`, Feb 14, 2026):
+
+During document ingestion, `enableIngestionMode()` reloads the MiniLM CoreML model with `.cpuAndGPU` compute units (instead of default `.all` which prefers ANE). This frees the Neural Engine for concurrent Vision OCR operations. `disableIngestionMode()` reverts to default after ingestion completes.
+
+**Adaptive Document Intelligence Engine** (Feb 10, 2026):
+
+The `OCRConfiguration` enum is the single source of truth for ALL Vision OCR configuration across the codebase. Every `VNRecognizeTextRequest` uses `OCRConfiguration.configureRequest()` instead of manual setup, eliminating 3 duplicate config blocks.
+
+**Adaptive Preprocessing** (`AdaptivePreprocessor`):
+
+Selects from 5 CIFilter strategies based on page characteristics (text quality, scan type, degradation):
+
+| Strategy   | Use Case                            | Sharpen | Contrast | Extras                 |
+| ---------- | ----------------------------------- | ------- | -------- | ---------------------- |
+| minimal    | Clean digital PDFs, born-digital    | 0.3/0.5 | 1.02     | —                      |
+| standard   | Good quality scans, modern printers | 0.5/0.8 | 1.05     | —                      |
+| enhanced   | Older scans, slightly degraded      | 0.8/1.2 | 1.15     | Noise reduction        |
+| aggressive | Very poor quality, faded, blurry    | 1.2/1.5 | 1.25     | Exposure + noise       |
+| maximum    | Microfiche, bad phone photos        | 1.5/2.0 | 1.40     | Heavy exposure + noise |
+
+**Multi-Candidate Confidence OCR** (`ConfidenceVerifier`):
+
+All text assembly now uses `topCandidates(5)` instead of `topCandidates(1)`. Numeric data in tables uses a higher confidence threshold (90% vs 85% for text) to catch OCR errors like "15.5" vs "14.3" gallons.
+
+**Dynamic Vocabulary Extraction**:
+
+PDFKit's text layer is mined BEFORE Vision OCR runs to extract domain vocabulary (acronyms, alphanumeric codes, CamelCase terms, compound units). These are fed as `customWords` to Vision so it doesn't autocorrect legitimate technical terms.
 
 ```swift
-// 360 DPI rendering for better text recognition (was 216 DPI)
-let scale: CGFloat = 5.0  // 72 DPI × 5 = 360 DPI
-let scaledSize = CGSize(width: pageRect.width * scale, height: pageRect.height * scale)
+// Centralized OCR configuration (replaces 3 duplicate blocks)
+OCRConfiguration.configureRequest(request, customWords: documentCustomWords)
 
-// Upscale low-res images before OCR
-if imageSize.width < 1000 || imageSize.height < 1000 {
-    let upscaleFilter = CIFilter.lanczosScaleTransform()
-    upscaleFilter.scale = 1.5  // 50% larger
+// Adaptive preprocessing based on page quality
+let strategy = AdaptivePreprocessor.selectStrategy(
+    textQuality: complexity.textQuality,
+    hasNativeTextLayer: hasText,
+    isScanned: isScanned,
+    imagePresence: 0.0
+)
+let processed = AdaptivePreprocessor.apply(strategy, to: image, ...)
+
+// Confidence-verified text assembly (critical for table data)
+let result = ConfidenceVerifier.assembleVerifiedText(from: observations)
+if result.uncertainCount > 0 {
+    Log.warning("\(result.uncertainCount) uncertain values detected")
 }
-
-// Enhance contrast for faded/scanned documents
-let colorControls = CIFilter.colorControls()
-colorControls.contrast = 1.1
-colorControls.brightness = 0.02
 ```
 
 #### Office Document Extraction
@@ -1079,6 +1192,82 @@ func query(_ text: String, topK: Int) async {
 
 ---
 
+## v3.1 Architecture Changes (February 2026)
+
+### Motherboard HUD — Real-Time Hardware Telemetry Overlay
+
+A full-screen X-ray overlay rendered on the chat screen showing real Apple Silicon component positions with live telemetry.
+
+**New Services:**
+
+- `HardwareTelemetryState` — Centralized real-time hardware telemetry (CPU/GPU/Neural Engine usage, memory pressure, thermal state, battery level)
+- `MotherboardHUDView` — Transparent SwiftUI overlay rendering SoC, NAND, DRAM, modem, PMIC, WiFi/BT, and Taptic Engine at Vision AI-verified teardown positions
+
+**Device Support:**
+
+- iPhone 15 Pro / Pro Max (A17 Pro)
+- iPhone 16 / Plus (A18)
+- iPhone 16 Pro / Pro Max (A18 Pro)
+- iPhone 17 Pro / Pro Max (A19 Pro)
+
+**Integration Points:**
+
+- `ChatScreen.swift` — HUD overlays as ZStack layer
+- `SettingsView.swift` — Toggle for enable/disable
+- `ContentView.swift` — State binding for global HUD visibility
+
+### Universal Retrieval Improvements (8 Fixes)
+
+Eight research-grade fixes applied to the RAG pipeline for near-universal needle-in-haystack accuracy:
+
+| Fix | Service                        | Change                                                                                   |
+| --- | ------------------------------ | ---------------------------------------------------------------------------------------- |
+| 1   | `HybridSearchService`          | BM25 lexical search always contributes to results, even when vector search dominates     |
+| 2   | `HybridSearchService`          | RRF fusion weights adjusted proportionally based on each method's hit count              |
+| 3   | `HyDEService`                  | HyDE embedding blended 70/30 with original query embedding instead of replacing it       |
+| 4   | `VerificationGateService`      | Gate C exempts years 1900-2100 and small integers 1-10 from numeric hallucination checks |
+| 5   | `ContextualCompressionService` | Sentence-level scoring fallback when LLM compression fails                               |
+| 6   | `QueryEnhancementService`      | Rare corpus terms that exactly match query words included in expansion                   |
+| 7   | `QueryEnhancementService`      | Dynamic synonym generation from document co-occurrence data                              |
+| 8   | `RAGEngine`                    | Cross-encoder candidate pool scales adaptively: `min(count, max(100, topK×5))`           |
+
+### Rich Markdown Response Rendering (v3.3)
+
+A complete rendering pipeline that transforms raw LLM output into properly formatted markdown with headers, bullets, bold text, code blocks, and block quotes.
+
+**Problem**: Apple's on-device Foundation Model outputs correct markdown syntax (`### headers`, `- bullets`, `**bold**`) but concatenates everything on a single line. The previous inline-only renderer displayed raw syntax as plain text.
+
+**Solution (3 layers):**
+
+1. **Block-Level Parser** (`MarkdownRenderer.swift`): Full parser recognizing headings (h1-h6), bullet lists, numbered lists, code fences, block quotes, horizontal rules, and paragraphs. Each block renders as its own SwiftUI view via `MarkdownBlockView`.
+
+2. **Inline Normalization** (`normalizeInlineMarkdown()`): Preprocessing step with 6 regex patterns that detect markdown syntax embedded mid-line and split it onto separate lines before parsing:
+   - `(?<=\S) +(#{1,6} )` — headers mid-line
+   - `(?<=\S) +(- \*\*)` — bold bullet items
+   - `(?<=[.!?:]) +(- [A-Z])` — plain bullets after punctuation
+   - `(?<=[.!?:]) +(\d+[.)]\s)` — numbered items after punctuation
+   - `(?<=\S) +(\d+[.)]\s+\*\*)` — bold numbered items
+   - `(?<=\S) +(> )` — block quotes mid-line
+
+3. **Pipeline Preservation**: 7 response-cleaning functions across 4 files were audited. `cleanupResponseText()` in RAGService and `cleanupFinalAnswer()` in AgenticOrchestrator were rewritten to preserve markdown. All synthesis prompts updated with formatting instructions.
+
+**Files Modified:**
+
+- `Core/Extensions/MarkdownRenderer.swift` — Complete rewrite (block parser + inline normalizer)
+- `Services/RAG/RAGService.swift` — `cleanupResponseText()`, `compactDegenerateResponse()`, system prompts
+- `Services/Agentic/AgenticOrchestrator.swift` — `cleanupFinalAnswer()`, all synthesis prompts
+
+### MMR Crash Fix (v3.3)
+
+Fixed array index out of bounds crash in `RAGEngine.applyMMR()`. Root cause: `GPUComputeService.mmrDiversityMatrix()` returned `[[]]` (outer array with one empty inner array) instead of `[]` for dimension-0 embeddings.
+
+**Files Modified:**
+
+- `Services/RAG/RAGEngine.swift` — Matrix dimension validation + bounds checking
+- `Services/Infrastructure/GPUComputeService.swift` — Corrected edge case returns (`guard count > 1` returns `[]`, `guard dimension > 0` falls back to CPU)
+
+---
+
 ## Advanced RAG Techniques (Jan 2026)
 
 OpenIntelligence implements state-of-the-art RAG techniques from 2024-2026 research, optimized for Apple's 4,096-token context window constraint.
@@ -1247,18 +1436,19 @@ Turn 3: "And its towing capacity?"  ← "its" = Telluride
 
 `DeviceCapabilityService` detects device tier, chip, form factor, and NPU TOPS at runtime:
 
-| Property                   | Purpose                                            |
-| -------------------------- | -------------------------------------------------- |
-| `tier`                     | Capability tier (baseline/enhanced/advanced/ultra) |
-| `chipName`                 | Chip identifier (A17 Pro, A18 Pro, M3, etc.)       |
-| `npuTops`                  | Neural Engine TOPS (35-45 for A17-A19 Pro)         |
-| `isMac`                    | Mac detection (native or iPad app on Mac)          |
-| `visionParsingConcurrency` | Concurrent Vision parsing pages (6-12)             |
-| `ocrExtractionConcurrency` | Concurrent OCR extraction pages (6-14)             |
-| `embeddingConcurrency`     | Concurrent embedding requests (8-16)               |
-| `gpuConcurrency`           | Concurrent GPU operations (4-12)                   |
+| Property                               | Purpose                                                                             |
+| -------------------------------------- | ----------------------------------------------------------------------------------- |
+| `tier`                                 | Capability tier (baseline/enhanced/advanced/ultra)                                  |
+| `chipName`                             | Chip identifier (A17 Pro, A18 Pro, M3, etc.)                                        |
+| `npuTops`                              | Neural Engine TOPS (35-45 for A17-A19 Pro)                                          |
+| `isMac`                                | Mac detection (native or iPad app on Mac)                                           |
+| `visionParsingConcurrency`             | Concurrent Vision parsing pages (6-12)                                              |
+| `ocrExtractionConcurrency`             | Concurrent OCR extraction pages (6-14)                                              |
+| `embeddingConcurrency`                 | Concurrent embedding requests (8-16)                                                |
+| `gpuConcurrency`                       | Concurrent GPU operations (4-12)                                                    |
+| `embeddingComputeUnitsDuringIngestion` | CoreML compute units for embedding during ingestion (`.cpuAndGPU` for modern tiers) |
 
-**Platform-Specific Tuning**: Mac (via "Designed for iPad") receives more conservative concurrency values due to differences in macOS Metal command buffer scheduling.
+**Platform-Specific Tuning**: Mac (via "Designed for iPad") receives more conservative concurrency values due to differences in macOS Metal command buffer scheduling. All tier values are cranked to maximum safe limits — `DeviceCapabilityService` drives concurrency for OCR, embedding, cross-encoder reranking, and GPU compute across the entire pipeline.
 
 ### SystemStateMonitor
 
@@ -2392,7 +2582,7 @@ OpenIntelligence/
 │   ├── Billing/                   # StoreKit/subscription UI
 │   ├── Onboarding/                # First-run experience
 │   ├── Diagnostics/               # Debug views
-│   └── Telemetry/                 # Visualization & analytics views
+│   └── Telemetry/                 # Motherboard HUD, execution metrics, analytics
 │
 ├── Services/                      # ALL business logic (organized by domain)
 │   ├── RAG/                       # Core RAG pipeline (RAGService, RAGEngine, HybridSearch)

@@ -76,18 +76,22 @@ actor SQLiteFullTextService {
     /// Called automatically by all public methods
     private func ensureInitialized() {
         guard !isInitialized else { return }
-        initializeDatabase()
-        isInitialized = true
+        isInitialized = initializeDatabase()
     }
 
     /// Initialize SQLite database with FTS5 table
-    private func initializeDatabase() {
+    @discardableResult
+    private func initializeDatabase() -> Bool {
         let path = databasePath.path
 
         guard sqlite3_open(path, &database) == SQLITE_OK else {
             let errorMessage = String(cString: sqlite3_errmsg(database))
             Log.error("[SQLiteFTS5] Failed to open database: \(errorMessage)", category: .vectorDB)
-            return
+            if let db = database {
+                sqlite3_close(db)
+                database = nil
+            }
+            return false
         }
 
         // Enable WAL mode for better concurrency
@@ -110,6 +114,11 @@ actor SQLiteFullTextService {
             Log.info("[SQLiteFTS5] Database initialized at \(path)", category: .vectorDB)
         } else {
             Log.error("[SQLiteFTS5] Failed to create FTS5 table", category: .vectorDB)
+            if let db = database {
+                sqlite3_close(db)
+                database = nil
+            }
+            return false
         }
 
         // Create metadata table for tracking document info
@@ -123,6 +132,52 @@ actor SQLiteFullTextService {
             )
         """
         _ = execute(sql: createMetaSQL)
+
+        // MARK: Chunk-Level FTS5 Table
+        // Indexes individual chunks (not whole documents) for chunk-level BM25 scoring.
+        // section_title and section_path are SEARCHABLE — enabling queries like:
+        //   "oil" filtered to chunks whose section contains "engine"
+        // This is the key to distinguishing "engine oil" chunks from "gear oil" chunks.
+        let createChunkTableSQL = """
+            CREATE VIRTUAL TABLE IF NOT EXISTS chunks USING fts5(
+                chunk_id UNINDEXED,
+                document_id UNINDEXED,
+                container_id UNINDEXED,
+                chunk_index UNINDEXED,
+                page_number UNINDEXED,
+                section_title,
+                section_path,
+                structure_type UNINDEXED,
+                content,
+                tokenize='porter unicode61',
+                columnsize=0
+            )
+        """
+
+        if execute(sql: createChunkTableSQL) {
+            Log.info("[SQLiteFTS5] Chunk-level FTS5 table initialized", category: .vectorDB)
+        }
+
+        // MARK: Page-Level FTS5 Table
+        // Stores each PDF page as a separate row for page-level search and context isolation.
+        // This enables: (1) page-scoped BM25 search, (2) page-level context retrieval,
+        // (3) proper page boundary preservation in exports and queries.
+        let createPageTableSQL = """
+            CREATE VIRTUAL TABLE IF NOT EXISTS document_pages USING fts5(
+                page_id UNINDEXED,
+                document_id UNINDEXED,
+                container_id UNINDEXED,
+                page_number UNINDEXED,
+                content,
+                tokenize='porter unicode61'
+            )
+        """
+
+        if execute(sql: createPageTableSQL) {
+            Log.info("[SQLiteFTS5] Page-level FTS5 table initialized", category: .vectorDB)
+        }
+
+        return true
     }
 
     // MARK: - Core CRUD Operations
@@ -184,6 +239,173 @@ actor SQLiteFullTextService {
         Log.debug("[SQLiteFTS5] Stored document \(documentId) (\(text.count) chars, \(wordCount) words)", category: .vectorDB)
     }
 
+    /// Store per-page text in FTS5 index for page-level search and context isolation
+    /// - Parameters:
+    ///   - pages: Array of (pageNumber, content) tuples — one per PDF page
+    ///   - documentId: Document UUID
+    ///   - containerId: Container UUID for isolation
+    func storePages(pages: [(pageNumber: Int, content: String)], for documentId: UUID, containerId: UUID) async {
+        ensureInitialized()
+        guard let db = database else {
+            Log.error("[SQLiteFTS5] Database not initialized for page storage", category: .vectorDB)
+            return
+        }
+
+        guard !pages.isEmpty else { return }
+
+        // Delete existing pages for this document
+        let deleteSQL = "DELETE FROM document_pages WHERE document_id = ?"
+        var delStmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, deleteSQL, -1, &delStmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(delStmt, 1, documentId.uuidString, -1, SQLITE_TRANSIENT)
+            sqlite3_step(delStmt)
+            sqlite3_finalize(delStmt)
+        }
+
+        // Insert each page as a separate row in a transaction
+        execute(sql: "BEGIN TRANSACTION")
+
+        let insertSQL = "INSERT INTO document_pages (page_id, document_id, container_id, page_number, content) VALUES (?, ?, ?, ?, ?)"
+        var statement: OpaquePointer?
+
+        guard sqlite3_prepare_v2(db, insertSQL, -1, &statement, nil) == SQLITE_OK else {
+            Log.error("[SQLiteFTS5] Failed to prepare page insert statement", category: .vectorDB)
+            execute(sql: "ROLLBACK")
+            return
+        }
+
+        let docIdStr = documentId.uuidString
+        let containerIdStr = containerId.uuidString
+        var storedCount = 0
+
+        for (pageNumber, content) in pages {
+            let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+
+            sqlite3_reset(statement)
+            sqlite3_clear_bindings(statement)
+
+            let pageId = "\(docIdStr)_p\(pageNumber)"
+            sqlite3_bind_text(statement, 1, pageId, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(statement, 2, docIdStr, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(statement, 3, containerIdStr, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_int64(statement, 4, Int64(pageNumber))
+            sqlite3_bind_text(statement, 5, trimmed, -1, SQLITE_TRANSIENT)
+
+            if sqlite3_step(statement) != SQLITE_DONE {
+                let error = String(cString: sqlite3_errmsg(db))
+                Log.warning("[SQLiteFTS5] Failed to insert page \(pageNumber): \(error)", category: .vectorDB)
+            } else {
+                storedCount += 1
+            }
+        }
+
+        sqlite3_finalize(statement)
+        execute(sql: "COMMIT")
+
+        Log.info("[SQLiteFTS5] Stored \(storedCount) pages for document \(documentId)", category: .vectorDB)
+    }
+
+    /// Search pages within a container, returning page-level results with page numbers
+    struct PageSearchResult: Sendable {
+        let documentId: UUID
+        let pageNumber: Int
+        let content: String
+        let bm25Score: Double
+        let snippet: String
+    }
+
+    func searchPages(query: String, containerId: UUID, limit: Int = 10) async -> [PageSearchResult] {
+        ensureInitialized()
+        guard let db = database else { return [] }
+
+        let searchSQL = """
+            SELECT page_id, document_id, page_number, content,
+                   bm25(document_pages) as score,
+                   snippet(document_pages, 4, '<b>', '</b>', '...', 32) as snip
+            FROM document_pages
+            WHERE document_pages MATCH ? AND container_id = ?
+            ORDER BY bm25(document_pages)
+            LIMIT ?
+        """
+        var statement: OpaquePointer?
+
+        guard sqlite3_prepare_v2(db, searchSQL, -1, &statement, nil) == SQLITE_OK else {
+            Log.error("[SQLiteFTS5] Failed to prepare page search", category: .vectorDB)
+            return []
+        }
+
+        defer { sqlite3_finalize(statement) }
+
+        sqlite3_bind_text(statement, 1, query, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(statement, 2, containerId.uuidString, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_int64(statement, 3, Int64(limit))
+
+        var results: [PageSearchResult] = []
+        while sqlite3_step(statement) == SQLITE_ROW {
+            guard let docIdStr = sqlite3_column_text(statement, 1),
+                  let documentId = UUID(uuidString: String(cString: docIdStr)) else { continue }
+            let pageNumber = Int(sqlite3_column_int64(statement, 2))
+            let content = sqlite3_column_text(statement, 3).map { String(cString: $0) } ?? ""
+            let score = sqlite3_column_double(statement, 4)
+            let snippet = sqlite3_column_text(statement, 5).map { String(cString: $0) } ?? ""
+
+            results.append(PageSearchResult(
+                documentId: documentId,
+                pageNumber: pageNumber,
+                content: content,
+                bm25Score: score,
+                snippet: snippet
+            ))
+        }
+
+        return results
+    }
+
+    /// Retrieve text for a specific page
+    func retrievePage(documentId: UUID, pageNumber: Int) async -> String? {
+        ensureInitialized()
+        guard let db = database else { return nil }
+
+        let sql = "SELECT content FROM document_pages WHERE document_id = ? AND page_number = ?"
+        var statement: OpaquePointer?
+
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else { return nil }
+        defer { sqlite3_finalize(statement) }
+
+        sqlite3_bind_text(statement, 1, documentId.uuidString, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_int64(statement, 2, Int64(pageNumber))
+
+        if sqlite3_step(statement) == SQLITE_ROW,
+           let text = sqlite3_column_text(statement, 0) {
+            return String(cString: text)
+        }
+        return nil
+    }
+
+    /// Retrieve all pages for a document, ordered by page number
+    func retrieveAllPages(for documentId: UUID) async -> [(pageNumber: Int, content: String)] {
+        ensureInitialized()
+        guard let db = database else { return [] }
+
+        let sql = "SELECT page_number, content FROM document_pages WHERE document_id = ? ORDER BY CAST(page_number AS INTEGER)"
+        var statement: OpaquePointer?
+
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else { return [] }
+        defer { sqlite3_finalize(statement) }
+
+        sqlite3_bind_text(statement, 1, documentId.uuidString, -1, SQLITE_TRANSIENT)
+
+        var pages: [(pageNumber: Int, content: String)] = []
+        while sqlite3_step(statement) == SQLITE_ROW {
+            let pageNumber = Int(sqlite3_column_int64(statement, 0))
+            if let text = sqlite3_column_text(statement, 1) {
+                pages.append((pageNumber: pageNumber, content: String(cString: text)))
+            }
+        }
+        return pages
+    }
+
     /// Retrieve full document text
     func retrieve(for documentId: UUID) async -> String? {
         ensureInitialized()
@@ -234,6 +456,16 @@ actor SQLiteFullTextService {
             sqlite3_finalize(metaStmt)
         }
 
+        // Delete from page-level table
+        let deletePageSQL = "DELETE FROM document_pages WHERE document_id = ?"
+        var pageStmt: OpaquePointer?
+
+        if sqlite3_prepare_v2(db, deletePageSQL, -1, &pageStmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(pageStmt, 1, documentId.uuidString, -1, SQLITE_TRANSIENT)
+            sqlite3_step(pageStmt)
+            sqlite3_finalize(pageStmt)
+        }
+
         Log.debug("[SQLiteFTS5] Deleted document \(documentId)", category: .vectorDB)
     }
 
@@ -277,7 +509,271 @@ actor SQLiteFullTextService {
             sqlite3_finalize(metaStmt)
         }
 
+        // Delete from page-level table
+        let deletePageSQL = "DELETE FROM document_pages WHERE container_id = ?"
+        var pageDelStmt: OpaquePointer?
+
+        if sqlite3_prepare_v2(db, deletePageSQL, -1, &pageDelStmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(pageDelStmt, 1, containerId.uuidString, -1, SQLITE_TRANSIENT)
+            sqlite3_step(pageDelStmt)
+            sqlite3_finalize(pageDelStmt)
+        }
+
         Log.info("[SQLiteFTS5] Deleted \(documentIds.count) documents for container \(containerId)", category: .vectorDB)
+    }
+
+    // MARK: - Chunk-Level CRUD Operations
+
+    /// Result from chunk-level FTS5 search with section context
+    struct ChunkSearchResult: Sendable {
+        let chunkId: String
+        let documentId: UUID
+        let containerId: UUID
+        let chunkIndex: Int
+        let pageNumber: Int?
+        let sectionTitle: String?
+        let sectionPath: String?
+        let content: String
+        let bm25Score: Double
+    }
+
+    /// Store a single chunk in the chunk-level FTS5 index.
+    /// Called during ingestion after chunking and metadata extraction.
+    /// - Parameters:
+    ///   - chunkId: Unique chunk identifier (documentId_chunkIndex)
+    ///   - documentId: Parent document UUID
+    ///   - containerId: Container UUID
+    ///   - chunkIndex: Position in document (0-based)
+    ///   - pageNumber: Page number (nil if unknown)
+    ///   - sectionTitle: Nearest parent section heading (nil if not detected)
+    ///   - sectionPath: Full hierarchical path e.g. "SPECIFICATIONS > Engine Oil"
+    ///   - structureType: table/paragraph/list/title (nil if undetected)
+    ///   - content: The chunk text
+    func storeChunk(
+        chunkId: String,
+        documentId: UUID,
+        containerId: UUID,
+        chunkIndex: Int,
+        pageNumber: Int?,
+        sectionTitle: String?,
+        sectionPath: String?,
+        structureType: String?,
+        content: String
+    ) async {
+        ensureInitialized()
+        guard let db = database else { return }
+
+        let insertSQL = """
+            INSERT INTO chunks (chunk_id, document_id, container_id, chunk_index, page_number,
+                               section_title, section_path, structure_type, content)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        var statement: OpaquePointer?
+
+        guard sqlite3_prepare_v2(db, insertSQL, -1, &statement, nil) == SQLITE_OK else {
+            Log.error("[SQLiteFTS5] Failed to prepare chunk insert", category: .vectorDB)
+            return
+        }
+
+        defer { sqlite3_finalize(statement) }
+
+        sqlite3_bind_text(statement, 1, chunkId, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(statement, 2, documentId.uuidString, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(statement, 3, containerId.uuidString, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_int(statement, 4, Int32(chunkIndex))
+        if let pn = pageNumber {
+            sqlite3_bind_int(statement, 5, Int32(pn))
+        } else {
+            sqlite3_bind_null(statement, 5)
+        }
+        sqlite3_bind_text(statement, 6, sectionTitle ?? "", -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(statement, 7, sectionPath ?? "", -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(statement, 8, structureType ?? "", -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(statement, 9, content, -1, SQLITE_TRANSIENT)
+
+        if sqlite3_step(statement) != SQLITE_DONE {
+            let error = String(cString: sqlite3_errmsg(db))
+            Log.error("[SQLiteFTS5] Chunk insert failed: \(error)", category: .vectorDB)
+        }
+    }
+
+    /// Store all chunks for a document in a single transaction (fast batch insert)
+    func storeChunks(
+        documentId: UUID,
+        containerId: UUID,
+        chunks: [(chunkIndex: Int, pageNumber: Int?, sectionTitle: String?,
+                  sectionPath: String?, structureType: String?, content: String)]
+    ) async {
+        ensureInitialized()
+        guard let db = database else { return }
+
+        // Delete any existing chunks for this document first
+        await deleteChunks(for: documentId)
+
+        let insertSQL = """
+            INSERT INTO chunks (chunk_id, document_id, container_id, chunk_index, page_number,
+                               section_title, section_path, structure_type, content)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+
+        // Wrap in transaction for speed (100x faster than individual inserts)
+        execute(sql: "BEGIN TRANSACTION")
+
+        for chunk in chunks {
+            var statement: OpaquePointer?
+            guard sqlite3_prepare_v2(db, insertSQL, -1, &statement, nil) == SQLITE_OK else { continue }
+
+            let chunkId = "\(documentId.uuidString)_\(chunk.chunkIndex)"
+            sqlite3_bind_text(statement, 1, chunkId, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(statement, 2, documentId.uuidString, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(statement, 3, containerId.uuidString, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_int(statement, 4, Int32(chunk.chunkIndex))
+            if let pn = chunk.pageNumber {
+                sqlite3_bind_int(statement, 5, Int32(pn))
+            } else {
+                sqlite3_bind_null(statement, 5)
+            }
+            sqlite3_bind_text(statement, 6, chunk.sectionTitle ?? "", -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(statement, 7, chunk.sectionPath ?? "", -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(statement, 8, chunk.structureType ?? "", -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(statement, 9, chunk.content, -1, SQLITE_TRANSIENT)
+
+            sqlite3_step(statement)
+            sqlite3_finalize(statement)
+        }
+
+        execute(sql: "COMMIT")
+        Log.info("[SQLiteFTS5] Stored \(chunks.count) chunks for document \(documentId)", category: .vectorDB)
+    }
+
+    /// Delete all chunks for a document
+    func deleteChunks(for documentId: UUID) async {
+        ensureInitialized()
+        guard let db = database else { return }
+
+        let deleteSQL = "DELETE FROM chunks WHERE document_id = ?"
+        var statement: OpaquePointer?
+
+        if sqlite3_prepare_v2(db, deleteSQL, -1, &statement, nil) == SQLITE_OK {
+            sqlite3_bind_text(statement, 1, documentId.uuidString, -1, SQLITE_TRANSIENT)
+            sqlite3_step(statement)
+            sqlite3_finalize(statement)
+        }
+    }
+
+    /// Delete all chunks for a container
+    func deleteChunksForContainer(containerId: UUID) async {
+        ensureInitialized()
+        guard let db = database else { return }
+
+        let deleteSQL = "DELETE FROM chunks WHERE container_id = ?"
+        var statement: OpaquePointer?
+
+        if sqlite3_prepare_v2(db, deleteSQL, -1, &statement, nil) == SQLITE_OK {
+            sqlite3_bind_text(statement, 1, containerId.uuidString, -1, SQLITE_TRANSIENT)
+            sqlite3_step(statement)
+            sqlite3_finalize(statement)
+        }
+    }
+
+    /// Search chunks with BM25 ranking.
+    /// The key advantage: FTS5 BM25 is computed PER-CHUNK, not per-document.
+    /// section_title and section_path are searchable — when query mentions "engine oil",
+    /// chunks whose section contains "engine" get a higher BM25 score automatically.
+    ///
+    /// - Parameters:
+    ///   - query: Search query
+    ///   - containerId: Container filter
+    ///   - limit: Max results
+    /// - Returns: Chunk-level BM25 results with section context
+    func searchChunks(
+        query: String,
+        containerId: UUID? = nil,
+        limit: Int = 50
+    ) async -> [ChunkSearchResult] {
+        ensureInitialized()
+        guard let db = database else { return [] }
+
+        let escapedQuery = escapeFTS5Query(query)
+
+        // BM25 weights: section_title(10.0), section_path(5.0), content(1.0)
+        // This heavily boosts matches in section headings — "engine oil" matching
+        // a sectionTitle="Engine Oil" gets 10x the score of matching in body text.
+        var sql: String
+        if containerId != nil {
+            sql = """
+                SELECT chunk_id, document_id, container_id, chunk_index, page_number,
+                       section_title, section_path, content,
+                       bm25(chunks, 0, 0, 0, 0, 10.0, 5.0, 0, 1.0) as score
+                FROM chunks
+                WHERE chunks MATCH ? AND container_id = ?
+                ORDER BY bm25(chunks, 0, 0, 0, 0, 10.0, 5.0, 0, 1.0)
+                LIMIT ?
+            """
+        } else {
+            sql = """
+                SELECT chunk_id, document_id, container_id, chunk_index, page_number,
+                       section_title, section_path, content,
+                       bm25(chunks, 0, 0, 0, 0, 10.0, 5.0, 0, 1.0) as score
+                FROM chunks
+                WHERE chunks MATCH ?
+                ORDER BY bm25(chunks, 0, 0, 0, 0, 10.0, 5.0, 0, 1.0)
+                LIMIT ?
+            """
+        }
+
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
+            let error = String(cString: sqlite3_errmsg(db))
+            Log.error("[SQLiteFTS5] Chunk search prepare failed: \(error)", category: .retrieval)
+            return []
+        }
+
+        defer { sqlite3_finalize(statement) }
+
+        sqlite3_bind_text(statement, 1, escapedQuery, -1, SQLITE_TRANSIENT)
+        if let cId = containerId {
+            sqlite3_bind_text(statement, 2, cId.uuidString, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_int(statement, 3, Int32(limit))
+        } else {
+            sqlite3_bind_int(statement, 2, Int32(limit))
+        }
+
+        var results: [ChunkSearchResult] = []
+
+        while sqlite3_step(statement) == SQLITE_ROW {
+            guard let chunkIdPtr = sqlite3_column_text(statement, 0),
+                  let docIdPtr = sqlite3_column_text(statement, 1),
+                  let containerIdPtr = sqlite3_column_text(statement, 2),
+                  let docId = UUID(uuidString: String(cString: docIdPtr)),
+                  let cId = UUID(uuidString: String(cString: containerIdPtr)) else {
+                continue
+            }
+
+            let chunkId = String(cString: chunkIdPtr)
+            let chunkIndex = Int(sqlite3_column_int(statement, 3))
+            let pageNumber: Int? = sqlite3_column_type(statement, 4) != SQLITE_NULL
+                ? Int(sqlite3_column_int(statement, 4)) : nil
+            let sectionTitle = sqlite3_column_text(statement, 5).map { String(cString: $0) }
+            let sectionPath = sqlite3_column_text(statement, 6).map { String(cString: $0) }
+            let content = sqlite3_column_text(statement, 7).map { String(cString: $0) } ?? ""
+            let score = sqlite3_column_double(statement, 8)
+
+            results.append(ChunkSearchResult(
+                chunkId: chunkId,
+                documentId: docId,
+                containerId: cId,
+                chunkIndex: chunkIndex,
+                pageNumber: pageNumber,
+                sectionTitle: sectionTitle?.isEmpty == true ? nil : sectionTitle,
+                sectionPath: sectionPath?.isEmpty == true ? nil : sectionPath,
+                content: content,
+                bm25Score: score
+            ))
+        }
+
+        Log.debug("[SQLiteFTS5] Chunk search '\(query)' returned \(results.count) results", category: .retrieval)
+        return results
     }
 
     // MARK: - FTS5 Search Operations
@@ -360,6 +856,73 @@ actor SQLiteFullTextService {
         return results
     }
 
+    /// Search using OR-based broad query (fallback when AND-first returns nothing)
+    func searchBroad(query: String, containerId: UUID? = nil, limit: Int = 20) async -> [FTS5SearchResult] {
+        ensureInitialized()
+        guard let db = database else { return [] }
+
+        let escapedQuery = escapeFTS5QueryBroad(query)
+
+        var sql: String
+        if containerId != nil {
+            sql = """
+                SELECT document_id, content, bm25(documents) as score,
+                       snippet(documents, 2, '<b>', '</b>', '...', 32) as snip
+                FROM documents
+                WHERE documents MATCH ? AND container_id = ?
+                ORDER BY bm25(documents)
+                LIMIT ?
+            """
+        } else {
+            sql = """
+                SELECT document_id, content, bm25(documents) as score,
+                       snippet(documents, 2, '<b>', '</b>', '...', 32) as snip
+                FROM documents
+                WHERE documents MATCH ?
+                ORDER BY bm25(documents)
+                LIMIT ?
+            """
+        }
+
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
+            return []
+        }
+
+        defer { sqlite3_finalize(statement) }
+
+        sqlite3_bind_text(statement, 1, escapedQuery, -1, SQLITE_TRANSIENT)
+        if let cId = containerId {
+            sqlite3_bind_text(statement, 2, cId.uuidString, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_int(statement, 3, Int32(limit))
+        } else {
+            sqlite3_bind_int(statement, 2, Int32(limit))
+        }
+
+        var results: [FTS5SearchResult] = []
+
+        while sqlite3_step(statement) == SQLITE_ROW {
+            guard let docIdPtr = sqlite3_column_text(statement, 0),
+                  let docId = UUID(uuidString: String(cString: docIdPtr)) else {
+                continue
+            }
+
+            let content = sqlite3_column_text(statement, 1).map { String(cString: $0) } ?? ""
+            let score = sqlite3_column_double(statement, 2)
+            let snippet = sqlite3_column_text(statement, 3).map { String(cString: $0) }
+
+            results.append(FTS5SearchResult(
+                documentId: docId,
+                content: content,
+                bm25Score: score,
+                snippet: snippet,
+                highlightedContent: nil
+            ))
+        }
+
+        return results
+    }
+
     /// Count exact pattern occurrences across all documents (or in specific container)
     /// Uses FTS5 MATCH for fast filtering, then exact count for precision
     func countPatternInCorpus(pattern: String, containerId: UUID? = nil) async -> [UUID: Int] {
@@ -425,8 +988,20 @@ actor SQLiteFullTextService {
     /// Get BM25 scores for documents matching a query
     /// This replaces the in-memory BM25Scorer with FTS5's native implementation
     func bm25Scores(query: String, containerId: UUID? = nil) async -> [UUID: Double] {
+        // Try AND-first (precise) query
         let results = await search(query: query, containerId: containerId, limit: 1000)
-        return Dictionary(uniqueKeysWithValues: results.map { ($0.documentId, -$0.bm25Score) })
+
+        if !results.isEmpty {
+            return Dictionary(uniqueKeysWithValues: results.map { ($0.documentId, -$0.bm25Score) })
+        }
+
+        // AND returned nothing — fall back to OR for broader recall
+        // This handles cases where no single document contains ALL query terms
+        let broadResults = await searchBroad(query: query, containerId: containerId, limit: 1000)
+        if !broadResults.isEmpty {
+            Log.debug("[SQLiteFTS5] AND query returned 0 results, OR fallback found \(broadResults.count)", category: .retrieval)
+        }
+        return Dictionary(uniqueKeysWithValues: broadResults.map { ($0.documentId, -$0.bm25Score) })
     }
 
     /// Search corpus and return matches with context snippets
@@ -1419,6 +1994,46 @@ actor SQLiteFullTextService {
         return results
     }
 
+    /// Get full content for a document (no truncation)
+    func getFullContent(documentId: UUID) async -> String? {
+        ensureInitialized()
+        guard let db = database else { return nil }
+
+        let sql = "SELECT content FROM documents WHERE document_id = ? LIMIT 1"
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else { return nil }
+        defer { sqlite3_finalize(statement) }
+
+        sqlite3_bind_text(statement, 1, documentId.uuidString, -1, SQLITE_TRANSIENT)
+
+        if sqlite3_step(statement) == SQLITE_ROW {
+            if let contentPtr = sqlite3_column_text(statement, 0) {
+                return String(cString: contentPtr)
+            }
+        }
+
+        return nil
+    }
+
+    /// Get stored content length in characters (efficient — no full content load)
+    func getContentLength(documentId: UUID) async -> Int? {
+        ensureInitialized()
+        guard let db = database else { return nil }
+
+        let sql = "SELECT character_count FROM document_meta WHERE document_id = ? LIMIT 1"
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else { return nil }
+        defer { sqlite3_finalize(statement) }
+
+        sqlite3_bind_text(statement, 1, documentId.uuidString, -1, SQLITE_TRANSIENT)
+
+        if sqlite3_step(statement) == SQLITE_ROW {
+            return Int(sqlite3_column_int64(statement, 0))
+        }
+
+        return nil
+    }
+
     /// Get a content preview for a document
     func getContentPreview(documentId: UUID, maxLength: Int = 500) async -> String? {
         ensureInitialized()
@@ -1437,7 +2052,7 @@ actor SQLiteFullTextService {
                 if content.count <= maxLength {
                     return content
                 }
-                return String(content.prefix(maxLength)) + "..."
+                return String(content.prefix(maxLength)) + "\n\n--- Preview truncated (\(content.count.formatted()) of \(content.count.formatted()) characters stored) ---"
             }
         }
 
@@ -1481,20 +2096,73 @@ actor SQLiteFullTextService {
         return true
     }
 
-    /// Escape special FTS5 query characters
+    /// Escape and construct FTS5 query from natural language input.
+    /// OPTIMIZED: Uses AND-first (implicit) for precision, OR fallback for recall.
+    /// Previous OR-only behavior matched ANY term, so "system error capacity" hit
+    /// every chunk containing "system" OR "error" OR "capacity" — ~90% of a large doc.
+    /// AND-first ensures all content terms must co-occur, dramatically improving
+    /// needle-in-haystack precision for BM25 scoring.
     private func escapeFTS5Query(_ query: String) -> String {
-        // FTS5 special characters that need escaping: " ^ * ( ) -
-        // For a basic word search, wrap in quotes for exact phrase or just return as-is
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return trimmed }
 
-        // If query contains spaces, treat as phrase search
-        if trimmed.contains(" ") && !trimmed.contains("\"") {
-            return "\"\(trimmed)\""
+        // FTS5 stopwords to skip (common words that add noise)
+        let ftsStop: Set<String> = [
+            "the", "a", "an", "is", "are", "was", "were", "be", "been",
+            "do", "does", "did", "will", "would", "could", "should", "can",
+            "to", "of", "in", "for", "on", "with", "at", "by", "from",
+            "this", "that", "what", "which", "who", "how", "it", "its",
+            "i", "me", "my", "we", "you", "your", "he", "she", "they",
+            // Generic query-framing words (not domain-specific content words)
+            "kind", "type", "take", "use", "need", "much"
+        ]
+
+        // Split into content words, escape each
+        let words = trimmed.lowercased()
+            .split(whereSeparator: { $0.isWhitespace || $0.isNewline })
+            .map { String($0).replacingOccurrences(of: "\"", with: "\"\"") }
+            .filter { $0.count >= 2 && !ftsStop.contains($0) }
+
+        guard !words.isEmpty else {
+            // Fallback: return original as quoted phrase
+            return "\"\(trimmed.replacingOccurrences(of: "\"", with: "\"\""))\""
         }
 
-        // Escape special characters
-        return trimmed
-            .replacingOccurrences(of: "\"", with: "\"\"")
+        // AND-first strategy: FTS5 implicit AND (space-separated) requires ALL terms
+        // to appear in the document. This is far more precise for needle-in-haystack.
+        // For single-term queries, AND and OR are equivalent.
+        // For multi-term queries, AND dramatically reduces false positives.
+        //
+        // Note: FTS5 porter stemmer handles morphological variants automatically
+        // ("running" → "run", "oils" → "oil"), so AND won't miss inflected forms.
+        return words.map { "\"\($0)\"" }.joined(separator: " ")
+    }
+
+    /// Build an OR-based FTS5 query for broad recall (fallback when AND returns nothing)
+    private func escapeFTS5QueryBroad(_ query: String) -> String {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return trimmed }
+
+        let ftsStop: Set<String> = [
+            "the", "a", "an", "is", "are", "was", "were", "be", "been",
+            "do", "does", "did", "will", "would", "could", "should", "can",
+            "to", "of", "in", "for", "on", "with", "at", "by", "from",
+            "this", "that", "what", "which", "who", "how", "it", "its",
+            "i", "me", "my", "we", "you", "your", "he", "she", "they",
+            "kind", "type", "take", "use", "need", "much"
+        ]
+
+        let words = trimmed.lowercased()
+            .split(whereSeparator: { $0.isWhitespace || $0.isNewline })
+            .map { String($0).replacingOccurrences(of: "\"", with: "\"\"") }
+            .filter { $0.count >= 2 && !ftsStop.contains($0) }
+
+        guard !words.isEmpty else {
+            return "\"\(trimmed.replacingOccurrences(of: "\"", with: "\"\""))\""
+        }
+
+        // OR-based: any term matches (broad recall fallback)
+        return words.map { "\"\($0)\"" }.joined(separator: " OR ")
     }
 
     /// Count words using simple whitespace split (for metadata)

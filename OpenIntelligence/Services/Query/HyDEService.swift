@@ -115,11 +115,20 @@ final class HyDEService: @unchecked Sendable {
     ) async throws -> HyDEResult {
         let hypotheticalDoc = try await generateHypotheticalDocument(for: query, config: config)
 
+        // UNIVERSAL FIX: Blend original query + hypothetical document for embedding.
+        // Previously used ONLY the hypothetical doc, which meant a hallucinated hypothetical
+        // (e.g., "Drug X is typically 500mg" when the answer is 250mg) would pull retrieval
+        // entirely in the wrong direction with zero safety net.
+        // Now: concatenate both so the embedding captures BOTH the query intent vocabulary
+        // AND the hypothetical answer vocabulary. MiniLM handles this well since the combined
+        // text is still well under 510 tokens.
+        let blendedText = "\(query)\n\(hypotheticalDoc)"
+
         return HyDEResult(
             originalQuery: query,
             hypotheticalDocument: hypotheticalDoc,
-            // Combine for multi-vector search: query captures intent, hyDE captures content
-            combinedForEmbedding: hypotheticalDoc
+            // Blended: query vocabulary (intent) + hypothetical vocabulary (answer domain)
+            combinedForEmbedding: blendedText
         )
     }
 
@@ -130,9 +139,8 @@ final class HyDEService: @unchecked Sendable {
 
         var prompt = """
         Write a brief factual passage (2-3 sentences) that would answer this question.
-        Write as if this is an excerpt from a product manual or reference guide.
-        IMPORTANT: Your answer MUST directly address the specific action or concept in the question.
-        Do NOT make up unrelated information.\(keyTermsHint)
+        Write as if this is an excerpt from a reference document.
+        Your answer MUST directly address the question. Do NOT make up unrelated information.\(keyTermsHint)
 
         Question: \(query)
 
@@ -176,7 +184,9 @@ struct HyDEResult: Sendable {
     /// The generated hypothetical document
     let hypotheticalDocument: String
 
-    /// The text to use for embedding (typically the hypothetical doc)
+    /// The text to use for embedding — blends original query + hypothetical document.
+    /// The original query captures intent vocabulary; the hypothetical captures answer vocabulary.
+    /// This ensures a wrong hypothetical doesn't completely hijack retrieval.
     let combinedForEmbedding: String
 }
 
@@ -225,7 +235,7 @@ extension HyDEService {
 
         // Also use for queries that look like they expect specific data
         let technicalIndicators = [
-            "specification", "spec", "requirement", "capacity", "oil", "fluid",
+            "specification", "spec", "requirement", "capacity",
             "dimension", "weight", "size", "model", "version", "number",
         ]
 

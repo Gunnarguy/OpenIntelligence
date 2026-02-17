@@ -29,7 +29,11 @@ struct BM25Snapshot: Sendable {
 /// BM25 (Best Matching 25) keyword scoring for hybrid search
 class BM25Scorer {
     private let k1: Float = 1.5  // Term frequency saturation parameter
-    private let b: Float = 0.75  // Length normalization parameter
+    private let b: Float = 0.5   // Length normalization: lowered from 0.75 because all chunks are ~260 words (uniform length makes length normalization less important)
+    // OPTIMIZED: Cached tokenizer instead of allocating per tokenize() call
+    private let cachedTokenizer = NLTokenizer(unit: .word)
+    // Lemmatizer for stemming: "running"→"run", "configurations"→"configuration"
+    private let cachedTagger = NLTagger(tagSchemes: [.lemma])
 
     private var documentFrequencies: [String: Int] = [:]
     private var avgDocLength: Float = 0
@@ -59,7 +63,12 @@ class BM25Scorer {
 
     /// Calculate BM25 score for a query against a document
     func score(query: String, document: String) -> Float {
-        let queryTerms = tokenize(query)
+        return score(queryTerms: tokenize(query), document: document)
+    }
+
+    /// Calculate BM25 score for pre-tokenized query terms against a document.
+    /// OPTIMIZED: Avoids re-tokenizing the same query for every candidate document.
+    func score(queryTerms: [String], document: String) -> Float {
         let docTerms = tokenize(document)
         let docLength = Float(docTerms.count)
 
@@ -87,14 +96,21 @@ class BM25Scorer {
         return score
     }
 
-    private func tokenize(_ text: String) -> [String] {
-        let tokenizer = NLTokenizer(unit: .word)
+    func tokenize(_ text: String) -> [String] {
         let normalized = text.lowercased()
-        tokenizer.string = normalized
+        cachedTokenizer.string = normalized
+        cachedTagger.string = normalized
 
-        return tokenizer.tokens(for: normalized.startIndex ..< normalized.endIndex).compactMap {
-            let token = String(normalized[$0]).trimmingCharacters(in: .punctuationCharacters)
-            return token.isEmpty ? nil : token
+        return cachedTokenizer.tokens(for: normalized.startIndex ..< normalized.endIndex).compactMap { range in
+            let token = String(normalized[range]).trimmingCharacters(in: .punctuationCharacters)
+            guard !token.isEmpty else { return nil }
+            // Apply lemmatization: "running"→"run", "configurations"→"configuration"
+            // Falls back to the original token if no lemma is found
+            if let lemmaTag = cachedTagger.tag(at: range.lowerBound, unit: .word, scheme: .lemma).0 {
+                let lemma = lemmaTag.rawValue.trimmingCharacters(in: .punctuationCharacters)
+                if !lemma.isEmpty { return lemma }
+            }
+            return token
         }
     }
 }
@@ -142,6 +158,8 @@ class HybridSearchService {
     private let vectorDatabase: VectorDatabase
     private let bm25Scorer = BM25Scorer()
     private var engine: RAGEngine { RAGEngine.shared }
+    // OPTIMIZED: Cached tokenizer for keyword extraction and BM25 scoring
+    private let cachedTokenizer = NLTokenizer(unit: .word)
 
     // Fusion weights (can be tuned)
     private let vectorWeight: Float
@@ -168,16 +186,18 @@ class HybridSearchService {
 
     /// Perform hybrid search with reciprocal rank fusion
     /// - Parameters:
-    ///   - query: The search query string
+    ///   - query: The search query string (may include expansions for BM25)
+    ///   - originalQuery: The user's original query (used for keyword boost & FTS5). Falls back to `query` if nil.
     ///   - embedding: Query embedding vector
     ///   - topK: Number of top results to return
     ///   - cachedChunks: Optional pre-fetched chunks to avoid re-loading allChunks() for lexical recall
     ///   - containerId: Optional container ID to enable FTS5-accelerated BM25 scoring
-    func search(query: String, embedding: [Float], topK: Int, cachedChunks: [DocumentChunk]? = nil, containerId: UUID? = nil) async throws -> [RetrievedChunk] {
+    func search(query: String, originalQuery: String? = nil, embedding: [Float], topK: Int, cachedChunks: [DocumentChunk]? = nil, containerId: UUID? = nil) async throws -> [RetrievedChunk] {
+        let boostQuery = originalQuery ?? query
         // Auto-select FTS5 path if containerId provided and FTS5 data available
         if let cid = containerId, await isFTS5Available(containerId: cid) {
             Log.debug("[Hybrid] Using FTS5-accelerated BM25 for container \(cid)", category: .pipeline)
-            return try await searchWithFTS5(query: query, embedding: embedding, topK: topK, containerId: cid)
+            return try await searchWithFTS5(query: query, originalQuery: boostQuery, embedding: embedding, topK: topK, containerId: cid, cachedChunks: cachedChunks)
         }
 
         Log.debug("Hybrid search starting (vector: \(vectorWeight), keyword: \(keywordWeight))", category: .pipeline)
@@ -190,9 +210,9 @@ class HybridSearchService {
         var candidatePool = vectorResults
 
         if shouldRunLexicalRecall(query: query, vectorCount: vectorResults.count, topK: topK) {
-            // ENHANCEMENT: Scale lexical recall with topK for large corpus support
-            // For 10,000-chunk corpus with topK=100, we want lexical recall of ~300-500
-            let maxRecall = min(500, max(topK * 5, 100))  // Increased from 200/40 for large corpora
+            // UNIVERSAL: Always runs, but candidate pool scales with vector confidence.
+            // Healthy vector = smaller pool (fast). Weak vector = full pool (thorough).
+            let maxRecall = lexicalRecallLimit(query: query, vectorCount: vectorResults.count, topK: topK)
             let lexicalCandidates = try await lexicalRecallCandidates(
                 query: query,
                 embedding: embedding,
@@ -235,12 +255,13 @@ class HybridSearchService {
         )
 
         // 4. Apply EXACT KEYWORD MATCH BOOST
-        // If query keywords appear verbatim in chunk, boost its ranking significantly
-        let boostedResults = applyKeywordMatchBoost(query: query, results: fusedResults)
+        // OPTIMIZED: Use original query for keyword boost, not expanded query.
+        // Expanded query contains corpus terms ("vehicle", "indicator") that match
+        // 284/300 chunks, making the boost meaningless.
+        let boostedResults = applyKeywordMatchBoost(query: boostQuery, results: fusedResults)
 
         // 5. Apply STRUCTURE-AWARE BOOST for spec queries (iOS 26+ structured parsing)
-        // Tables chunks are boosted when query is about specifications (oil, fuel, capacity, etc.)
-        let structureBoostedResults = applyStructureTypeBoost(query: query, results: boostedResults)
+        let structureBoostedResults = applyStructureTypeBoost(query: boostQuery, results: boostedResults)
 
         // 6. Take top K from boosted results and re-rank index
         let topResults = Array(structureBoostedResults.prefix(topK))
@@ -253,75 +274,114 @@ class HybridSearchService {
         return reindex(topResults)
     }
 
-    /// Boost chunks that contain EXACT matches of important query keywords
-    /// This fixes cases where "button" in query should strongly prefer chunks with "button"
+    /// Boost chunks that contain EXACT matches of important query keywords.
+    /// OPTIMIZED: Uses additive score adjustment instead of full re-sort.
+    /// Previous full re-sort completely overrode RRF fusion — now keyword matches
+    /// add 0.05 per match (0.10 for boundary matches), capped at 0.20.
+    /// Strong enough to meaningfully elevate keyword-matching chunks while preserving RRF ordering.
+    ///
+    /// 10x: Uses DYNAMIC hit-rate filtering instead of hardcoded stopwords.
+    /// Any keyword that matches >30% of candidate chunks has zero discriminative value
+    /// (it's a corpus-common word for THIS document, regardless of domain) and gets
+    /// zero boost. Works for any domain, any document, forever — no hardcoded lists.
     private func applyKeywordMatchBoost(query: String, results: [RetrievedChunk]) -> [RetrievedChunk] {
         let queryKeywords = extractImportantKeywords(from: query)
-        guard !queryKeywords.isEmpty else { return results }
+        guard !queryKeywords.isEmpty, !results.isEmpty else { return results }
 
-        // Score each result by keyword match count
-        var scoredResults: [(chunk: RetrievedChunk, boost: Int, originalRank: Int)] = []
+        // PROPORTIONAL HIT-RATE SCALING: For each keyword, measure how many chunks contain it.
+        // Instead of binary disable at 30%, scale the boost proportionally:
+        // 0% hit rate → full boost, 50%+ → zero boost (linear decay).
+        // This preserves SOME boost for domain-critical terms like "insulin" in a diabetes
+        // manual (might hit 40% of chunks but still deserves partial boost) while eliminating
+        // boost for truly universal terms (60%+ hit rate = corpus noise).
+        let decayCeiling = 0.50  // hit rate at which boost reaches zero
+        let totalChunks = Double(results.count)
+        var discriminativeKeywords: [(keyword: String, scaleFactor: Double)] = []
 
-        for (idx, result) in results.enumerated() {
+        for keyword in queryKeywords {
+            let hitCount = results.filter { $0.chunk.content.lowercased().contains(keyword) }.count
+            let hitRate = Double(hitCount) / totalChunks
+            let scaleFactor = max(0.0, 1.0 - (hitRate / decayCeiling))
+            if scaleFactor > 0.0 {
+                discriminativeKeywords.append((keyword: keyword, scaleFactor: scaleFactor))
+            } else {
+                Log.debug("[Hybrid] Keyword '\(keyword)' hit \(Int(hitRate * 100))% of chunks — zero boost (≥\(Int(decayCeiling * 100))%)", category: .retrieval)
+            }
+        }
+
+        guard !discriminativeKeywords.isEmpty else {
+            Log.debug("[Hybrid] All keywords above \(Int(decayCeiling * 100))% hit rate, skipping boost", category: .retrieval)
+            return results
+        }
+
+        var boostedResults: [RetrievedChunk] = []
+        var boostedCount = 0
+
+        for result in results {
             let contentLower = result.chunk.content.lowercased()
-            var matchCount = 0
+            var weightedMatchScore = 0.0
 
-            for keyword in queryKeywords {
+            for (keyword, scaleFactor) in discriminativeKeywords {
                 if contentLower.contains(keyword) {
-                    matchCount += 1
-                    // Extra boost for exact word boundary matches
+                    weightedMatchScore += 1.0 * scaleFactor
+                    // Extra for exact word boundary matches
                     if contentLower.contains(" \(keyword) ") ||
                        contentLower.contains(" \(keyword).") ||
                        contentLower.contains(" \(keyword),") ||
                        contentLower.hasPrefix("\(keyword) ") ||
                        contentLower.hasSuffix(" \(keyword)") {
-                        matchCount += 1
+                        weightedMatchScore += 1.0 * scaleFactor
                     }
                 }
             }
 
-            scoredResults.append((result, matchCount, idx))
-        }
-
-        // Sort by: keyword match count (desc), then original rank (asc)
-        scoredResults.sort {
-            if $0.boost != $1.boost {
-                return $0.boost > $1.boost  // More keyword matches = better
+            if weightedMatchScore > 0 {
+                let boost = min(0.20, weightedMatchScore * 0.05)
+                let boosted = RetrievedChunk(
+                    chunk: result.chunk,
+                    similarityScore: result.similarityScore + Float(boost),
+                    rank: result.rank,
+                    sourceDocument: result.sourceDocument,
+                    pageNumber: result.pageNumber
+                )
+                boostedResults.append(boosted)
+                boostedCount += 1
+            } else {
+                boostedResults.append(result)
             }
-            return $0.originalRank < $1.originalRank  // Preserve original order for ties
         }
 
-        let boostedCount = scoredResults.prefix(10).filter { $0.boost > 0 }.count
+        boostedResults.sort { $0.similarityScore > $1.similarityScore }
+
         if boostedCount > 0 {
-            Log.debug("[Hybrid] Keyword boost: \(boostedCount) chunks boosted for keywords \(queryKeywords)", category: .retrieval)
+            let keywordNames = discriminativeKeywords.map { "\($0.keyword)(\(Int($0.scaleFactor * 100))%)" }
+            Log.debug("[Hybrid] Keyword boost: \(boostedCount)/\(results.count) chunks boosted for \(keywordNames) (filtered \(queryKeywords.count - discriminativeKeywords.count) at ≥\(Int(decayCeiling * 100))% hit rate)", category: .retrieval)
         }
 
-        return scoredResults.map { $0.chunk }
+        return boostedResults
     }
 
-    /// Boost table/list chunks when query seeks specific data (domain-agnostic)
-    /// Detects spec-seeking queries via linguistic patterns, not hardcoded keywords
+    /// Boost table/list chunks when query seeks specific data (domain-agnostic).
+    /// OPTIMIZED: Additive score adjustment instead of full re-sort (same fix as keyword boost).
     private func applyStructureTypeBoost(query: String, results: [RetrievedChunk]) -> [RetrievedChunk] {
         let queryLower = query.lowercased()
 
-        // Domain-agnostic detection of "specification-seeking" queries
-        // These patterns work for ANY domain: medical, legal, technical, automotive, etc.
         let isSpecQuery = detectSpecificationQuery(queryLower)
         guard isSpecQuery else { return results }
 
-        // Score each result by structure type
-        var scoredResults: [(chunk: RetrievedChunk, boost: Int, originalRank: Int)] = []
+        var boostedResults: [RetrievedChunk] = []
+        var boostedCount = 0
 
-        for (idx, result) in results.enumerated() {
-            var boost = 0
+        for result in results {
+            var boostPoints = 0
 
             // Check if chunk has structureType metadata (from iOS 26+ structured parsing)
             if let structureType = result.chunk.metadata.structureType {
                 switch structureType {
                 case "table":
-                    boost += 5  // ENHANCED: Stronger boost for tables on spec queries (was 3)
+                    boostPoints += 5
                 case "list":
-                    boost += 2  // ENHANCED: Slightly higher boost for lists (was 1)
+                    boostPoints += 2
                 default:
                     break
                 }
@@ -330,48 +390,61 @@ class HybridSearchService {
             // Also check if content looks like a table (fallback for legacy chunks)
             let content = result.chunk.content
             if content.contains("|") && content.components(separatedBy: "|").count >= 4 {
-                // Contains table-like markdown formatting
-                boost += 3  // ENHANCED: Stronger table detection boost (was 2)
+                boostPoints += 3
             }
 
-            // Boost if chunk contains numbers/measurements (specs often have numeric data)
             if result.chunk.metadata.hasNumericData {
-                boost += 1
+                boostPoints += 1
             }
 
-            // ENHANCED: Check for actual specification patterns in content
-            // Strongly boost chunks containing spec codes (0W-20, API SN, ISO 9001, etc.)
+            // Check for specification patterns in content (universal, not domain-specific)
+            // CRITICAL: Patterns must use \b word boundaries to prevent false matches.
+            // Previously `\d+\s*m` matched "7 m" in "page 7-7 mentions" → 300/300 chunks boosted = useless.
             let specPatterns: [(pattern: String, weight: Int)] = [
-                (#"\d+W-\d+"#, 4),           // Oil viscosity: 0W-20, 5W-30, 10W-40
-                (#"(?:API|SAE|ACEA|ILSAC)\s*[A-Z0-9-]+"#, 3),  // Spec codes: API SN, SAE J300
-                (#"\d+(?:\.\d+)?\s*(?:L|qt|gal|ml)"#, 2),      // Volumes: 4.5L, 5 qt
-                (#"\d+(?:\.\d+)?\s*(?:psi|kPa|bar)"#, 2),      // Pressures: 32 psi
+                (#"\d+(?:\.\d+)?\s*(?:L|qt|gal|ml|mL|mg|g|kg|lb|oz)\b"#, 2),
+                (#"\d+(?:\.\d+)?\s*(?:psi|kPa|bar|Pa|atm|mmHg)\b"#, 2),
+                (#"\d+(?:\.\d+)?\s*(?:mm|cm|km|in|ft|yd)\b"#, 2),  // No bare 'm' — matches everything
+                (#"\d+(?:\.\d+)?\s*(?:V|A|W|kW|mA|Ah|kWh|Hz|MHz|GHz)\b"#, 2),
+                (#"(?:ISO|IEEE|ANSI|ASTM|IEC|DIN|EN|UL|NFPA)[-\s]?[A-Z0-9-]+"#, 3),
             ]
 
             for (pattern, weight) in specPatterns {
                 if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
                    regex.firstMatch(in: content, options: [], range: NSRange(content.startIndex..., in: content)) != nil {
-                    boost += weight
+                    boostPoints += weight
                 }
             }
 
-            scoredResults.append((result, boost, idx))
-        }
-
-        // Sort by: boost (desc), then original rank (asc)
-        scoredResults.sort {
-            if $0.boost != $1.boost {
-                return $0.boost > $1.boost
+            if boostPoints >= 5 {
+                // Additive boost: 0.04 per point, capped at 0.30
+                // CRITICAL: Require minimum 5 boost points before applying any boost.
+                // ≥3 was still too permissive: hasNumericData(1) + any measurement like
+                // "12V" or "25 mm"(2) = 3 → 295/300 chunks boosted = near-universal = useless.
+                // ≥5 requires: structureType=table(5), or list(2)+specPattern(2)+numeric(1),
+                // or pipe-table(3)+specPattern(2). Much more selective.
+                // Cap of 0.30 helps bridge the reranker's prose bias (~0.78 prose vs ~0.30 table).
+                let boost = min(0.30, Double(boostPoints) * 0.04)
+                let boosted = RetrievedChunk(
+                    chunk: result.chunk,
+                    similarityScore: result.similarityScore + Float(boost),
+                    rank: result.rank,
+                    sourceDocument: result.sourceDocument,
+                    pageNumber: result.pageNumber
+                )
+                boostedResults.append(boosted)
+                boostedCount += 1
+            } else {
+                boostedResults.append(result)
             }
-            return $0.originalRank < $1.originalRank
         }
 
-        let boostedCount = scoredResults.prefix(10).filter { $0.boost > 0 }.count
+        boostedResults.sort { $0.similarityScore > $1.similarityScore }
+
         if boostedCount > 0 {
             Log.debug("[Hybrid] Structure boost: \(boostedCount) table/list chunks boosted for spec query", category: .retrieval)
         }
 
-        return scoredResults.map { $0.chunk }
+        return boostedResults
     }
 
     /// Detect if query is seeking specific data/specifications (domain-agnostic)
@@ -423,7 +496,10 @@ class HybridSearchService {
         return false
     }
 
-    /// Extract important keywords from query (nouns, verbs - skip stopwords)
+    /// Extract important keywords from query (nouns, verbs - skip stopwords).
+    /// OPTIMIZED: Returns deduplicated set to prevent inflated boost scores.
+    /// Previously returned duplicates from expanded queries (e.g., "oil" appearing 9x
+    /// in 9 query variations), causing 282/300 chunks to be "boosted" = meaningless.
     private func extractImportantKeywords(from query: String) -> [String] {
         let stopwords: Set<String> = [
             "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
@@ -436,18 +512,38 @@ class HybridSearchService {
             "more", "most", "other", "some", "such", "no", "nor", "not", "only",
             "own", "same", "so", "than", "too", "very", "just", "also", "now",
             "i", "me", "my", "myself", "we", "our", "ours", "ourselves", "you", "your",
-            "he", "him", "his", "she", "her", "it", "its", "they", "them", "their"
+            "he", "him", "his", "she", "her", "it", "its", "they", "them", "their",
+                // OPTIMIZED: Query-framing words that add no discriminative value.
+                // "type"/"take"/"kind"/"sort" are question words, not content words.
+                // Only filter true question-framing verbs and vague nouns here —
+                // domain-specific filtering is handled dynamically by hit-rate analysis
+                // in applyKeywordMatchBoost() (any keyword matching >30% of chunks = 0 boost).
+                "type", "kind", "sort", "take", "use", "get", "find",
+            "tell", "know", "look", "want", "like", "make", "put", "give", "help",
+            "work", "come", "thing", "about", "much", "many", "way", "long"
         ]
 
         let tokens = tokenize(query)
+        var seen = Set<String>()
         let important = tokens.filter { token in
-            token.count >= 3 && !stopwords.contains(token)
+            token.count >= 3 && !stopwords.contains(token) && seen.insert(token).inserted
         }
 
         return important
     }
 
+    /// Determines whether lexical recall should run and how many candidates to fetch.
+    /// UNIVERSAL FIX: Always runs lexical recall — keyword-only needles must never be invisible.
+    /// When vector search is healthy, uses a smaller candidate pool (topK*2) to keep latency low.
+    /// When vector search is weak (< topK results) or query has exact-match cues, uses the full pool.
     private func shouldRunLexicalRecall(query: String, vectorCount: Int, topK: Int) -> Bool {
+        // Always run — the only question is how many candidates (handled by caller's maxRecall)
+        return true
+    }
+
+    /// Returns the lexical recall candidate limit, scaled by retrieval confidence.
+    /// Healthy vector search → smaller pool (fast). Weak vector → full pool (thorough).
+    private func lexicalRecallLimit(query: String, vectorCount: Int, topK: Int) -> Int {
         let normalized = query.lowercased()
         let hasDigits = normalized.rangeOfCharacter(from: .decimalDigits) != nil
         let hasExactCue =
@@ -456,7 +552,14 @@ class HybridSearchService {
             || normalized.contains("clause")
             || normalized.contains("exhibit")
             || normalized.contains("statute")
-        return vectorCount < topK || hasDigits || hasExactCue
+
+        if vectorCount < topK || hasDigits || hasExactCue {
+            // Weak vector or exact-match query: full lexical recall
+            return min(500, max(topK * 5, 100))
+        } else {
+            // Healthy vector: smaller lexical recall to catch keyword-only needles without latency hit
+            return min(200, max(topK * 2, 50))
+        }
     }
 
     private func lexicalRecallCandidates(
@@ -520,12 +623,21 @@ class HybridSearchService {
     }
 
     private func tokenize(_ text: String) -> [String] {
-        let tokenizer = NLTokenizer(unit: .word)
         let normalized = text.lowercased()
-        tokenizer.string = normalized
+        cachedTokenizer.string = normalized
 
-        return tokenizer.tokens(for: normalized.startIndex ..< normalized.endIndex).compactMap {
-            let token = String(normalized[$0]).trimmingCharacters(in: .punctuationCharacters)
+        return cachedTokenizer.tokens(for: normalized.startIndex ..< normalized.endIndex).compactMap {
+            var token = String(normalized[$0]).trimmingCharacters(in: .punctuationCharacters)
+            if token.isEmpty { return nil }
+            // Handle contractions: "what's" → "what", "don't" → "don", "it's" → "it"
+            // Both straight (') and curly (\u{2019}) apostrophes.
+            // Without this, "what's" bypasses the "what" stopword and gets used as a keyword.
+            for apostrophe in ["'", "\u{2019}"] {
+                if let range = token.range(of: apostrophe) {
+                    token = String(token[token.startIndex..<range.lowerBound])
+                    break
+                }
+            }
             return token.isEmpty ? nil : token
         }
     }
@@ -582,31 +694,100 @@ class HybridSearchService {
     }
 
     /// Perform hybrid search using FTS5 for BM25 scoring
+    /// FTS5-accelerated hybrid search path.
     /// This is the optimized path when FTS5 data is available
     func searchWithFTS5(
         query: String,
+        originalQuery: String,
         embedding: [Float],
         topK: Int,
-        containerId: UUID
+        containerId: UUID,
+        cachedChunks: [DocumentChunk]? = nil
     ) async throws -> [RetrievedChunk] {
         Log.debug("[Hybrid] FTS5-accelerated search starting", category: .pipeline)
 
         let startTime = CFAbsoluteTimeGetCurrent()
 
-        // 1. Vector search (same as before)
+        // 1. Vector search (primary candidate source)
         let vectorCandidateMultiplier = topK > 50 ? 2 : 3
-        let vectorResults = try await vectorDatabase.search(embedding: embedding, topK: topK * vectorCandidateMultiplier)
+        var vectorResults = try await vectorDatabase.search(embedding: embedding, topK: topK * vectorCandidateMultiplier)
 
-        // 2. FTS5 BM25 scores (10-100X faster than in-memory)
-        let fts5Service = SQLiteFullTextService.shared
-        let bm25Lookup = await fts5Service.bm25Scores(query: query, containerId: containerId)
+        // 1.5 CHUNK-LEVEL FTS5 INJECTION — find chunks by section title / content keywords
+        // that vector search may have missed (bridging the "vocabulary mismatch" gap).
+        // This is the critical supplement that catches keyword-only matches in section headings.
+        do {
+            let fts5Results = await SQLiteFullTextService.shared.searchChunks(
+                query: originalQuery,
+                containerId: containerId,
+                limit: min(topK * 2, 30)
+            )
 
-        // Map chunk IDs to their parent document's BM25 score
-        let keywordResults: [(chunk: RetrievedChunk, score: Float)] = vectorResults.map { r in
-            let docId = r.chunk.documentId  // Get documentId from the chunk itself
-            let score = Float(bm25Lookup[docId] ?? 0)
-            return (chunk: r, score: score)
+            if !fts5Results.isEmpty {
+                // Build a set of chunk IDs already in vector results for dedup
+                let existingChunkIds = Set(vectorResults.map { "\($0.chunk.documentId.uuidString)_\($0.chunk.metadata.chunkIndex)" })
+
+                // Look up actual DocumentChunks for FTS5-only hits
+                var newChunks = 0
+                let allChunks: [DocumentChunk]
+                if let cachedChunks {
+                    allChunks = cachedChunks
+                } else {
+                    allChunks = try await vectorDatabase.allChunks()
+                }
+                // Build fast lookup: "documentId_chunkIndex" -> DocumentChunk
+                let chunkLookup: [String: DocumentChunk] = {
+                    var dict = [String: DocumentChunk]()
+                    dict.reserveCapacity(allChunks.count)
+                    for chunk in allChunks {
+                        let key = "\(chunk.documentId.uuidString)_\(chunk.metadata.chunkIndex)"
+                        dict[key] = chunk
+                    }
+                    return dict
+                }()
+
+                for fts5Hit in fts5Results {
+                    let chunkKey = fts5Hit.chunkId
+                    guard !existingChunkIds.contains(chunkKey) else { continue }
+
+                    // Find the actual DocumentChunk from the vector store
+                    if let docChunk = chunkLookup[chunkKey] {
+                        // Assign a synthetic similarity score: FTS5-only hits get a moderate
+                        // score (0.40) so they enter RRF fusion but don't dominate over
+                        // high-quality vector matches. The BM25 score from FTS5 will still
+                        // boost them in fusion if the keyword match is strong.
+                        let syntheticScore: Float = 0.40
+                        let retrieved = RetrievedChunk(
+                            chunk: docChunk,
+                            similarityScore: syntheticScore,
+                            rank: vectorResults.count + newChunks + 1,
+                            sourceDocument: fts5Hit.sectionTitle ?? "Unknown",
+                            pageNumber: fts5Hit.pageNumber
+                        )
+                        vectorResults.append(retrieved)
+                        newChunks += 1
+                    }
+                }
+
+                if newChunks > 0 {
+                    Log.info("[Hybrid] FTS5 injected \(newChunks) new chunks (from \(fts5Results.count) FTS5 hits)", category: .pipeline)
+                }
+            }
+        } catch {
+            // FTS5 injection is supplementary — don't fail the whole search
+            Log.debug("[Hybrid] FTS5 chunk injection failed (non-fatal): \(error)", category: .pipeline)
         }
+
+        // 2. CHUNK-LEVEL BM25 scoring (not document-level)
+        // CRITICAL FIX: Previously used FTS5 document-level BM25 which gave ALL chunks from
+        // the same document the SAME score. A 200-page manual has "oil" on page 5 and
+        // "transmission" on page 180 — but every chunk got identical BM25 score.
+        // Now: compute BM25 at chunk granularity using in-memory scorer for precise differentiation.
+        let snapshot = bm25Scorer.snapshot(from: vectorResults)
+        let keywordResults = await engine.bm25Scores(
+            query: originalQuery,
+            candidates: vectorResults,
+            snapshot: snapshot
+        )
 
         // 3. Reciprocal Rank Fusion
         let vectorRanked = reindex(vectorResults.sorted { $0.similarityScore > $1.similarityScore })
@@ -618,9 +799,9 @@ class HybridSearchService {
             keywordWeight: keywordWeight
         )
 
-        // 4. Apply boosts
-        let boostedResults = applyKeywordMatchBoost(query: query, results: fusedResults)
-        let structureBoostedResults = applyStructureTypeBoost(query: query, results: boostedResults)
+        // 4. Apply boosts — use ORIGINAL query for targeted matching
+        let boostedResults = applyKeywordMatchBoost(query: originalQuery, results: fusedResults)
+        let structureBoostedResults = applyStructureTypeBoost(query: originalQuery, results: boostedResults)
 
         let elapsed = CFAbsoluteTimeGetCurrent() - startTime
         Log.debug("[Hybrid] FTS5-accelerated search completed in \(String(format: "%.1f", elapsed * 1000))ms", category: .pipeline)

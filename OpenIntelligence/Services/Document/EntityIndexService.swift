@@ -306,9 +306,26 @@ actor EntityIndexService {
 
     // MARK: - Helpers
 
-    /// Normalize entity for case-insensitive lookup
+    /// Normalize entity text for consistent matching across representations.
+    /// Handles abbreviations ("U.S.A." → "usa"), spacing variants ("Core Data" → "coredata"),
+    /// punctuation ("Dr." → "dr"), and case.
     private func normalizeEntity(_ entity: String) -> String {
-        return entity.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        var normalized = entity
+            .lowercased()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Remove periods (handles abbreviations: "U.S.A." → "usa", "Dr." → "dr")
+        normalized = normalized.replacingOccurrences(of: ".", with: "")
+
+        // Remove hyphens for compound matching ("co-pilot" → "copilot")
+        normalized = normalized.replacingOccurrences(of: "-", with: "")
+
+        // Collapse all whitespace to single space, then remove for canonical form
+        // "Core Data" → "coredata", "New York" → "newyork"
+        let components = normalized.split(separator: " ", omittingEmptySubsequences: true)
+        normalized = components.joined()
+
+        return normalized
     }
 
     // MARK: - Statistics

@@ -219,7 +219,7 @@ enum RAGQualityMode: String, Identifiable, Sendable {
         switch canonical {
         case .standard: return 0.50  // Standard threshold
         case .deepThink: return 0.60 // Higher bar for deep reasoning
-        case .maximum: return 0.98   // 98% confidence required for Maximum
+        case .maximum: return 0.80   // High confidence for Maximum (0.98 was unreachable)
         default: return 0.50
         }
     }
@@ -233,10 +233,10 @@ enum RAGQualityMode: String, Identifiable, Sendable {
     /// Maximum number of query expansion variants to generate
     var maxQueryExpansions: Int {
         switch canonical {
-        case .standard: return 9     // Reasonable expansion
-        case .deepThink: return 12   // More variants for thorough search
-        case .maximum: return 20     // Maximum coverage
-        default: return 9
+        case .standard: return 6     // Focused expansion (quality over quantity)
+        case .deepThink: return 8    // More variants for thorough search
+        case .maximum: return 12     // Broader coverage
+        default: return 6
         }
     }
 

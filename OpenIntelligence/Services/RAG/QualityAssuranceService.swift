@@ -104,7 +104,7 @@ struct QATestCase: Sendable, Codable {
     let difficulty: Difficulty
 
     enum AnswerType: String, Sendable, Codable {
-        case factoid       // Single fact: "What oil does X use?"
+        case factoid       // Single fact: "What value does X specify?"
         case extractive    // Span from document
         case abstractive   // Synthesized answer
         case yesNo         // Boolean question
@@ -157,8 +157,8 @@ actor QualityAssuranceService {
 
         // Technical terms (domain-specific)
         EmbeddingSimilarityPair(textA: "machine learning", textB: "artificial intelligence", expectedSimilarity: 0.75, category: "synonym"),
-        EmbeddingSimilarityPair(textA: "5W-30 oil", textB: "motor oil", expectedSimilarity: 0.7, category: "related"),
-        EmbeddingSimilarityPair(textA: "tire pressure", textB: "PSI", expectedSimilarity: 0.6, category: "related"),
+        EmbeddingSimilarityPair(textA: "HTTP request", textB: "API call", expectedSimilarity: 0.7, category: "related"),
+        EmbeddingSimilarityPair(textA: "database", textB: "SQL query", expectedSimilarity: 0.6, category: "related"),
     ]
 
     /// Built-in QA test cases for the sample documents

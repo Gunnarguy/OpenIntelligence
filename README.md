@@ -4,22 +4,23 @@
 [![Platform](https://img.shields.io/badge/platform-iOS%2026.0%2B-blue.svg)](https://developer.apple.com/ios/)
 [![Swift](https://img.shields.io/badge/Swift-6.0-orange.svg)](https://swift.org)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Services](https://img.shields.io/badge/services-78-purple.svg)](ARCHITECTURE.md)
+[![Services](https://img.shields.io/badge/services-81-purple.svg)](ARCHITECTURE.md)
 [![How It Works](https://img.shields.io/badge/Deep%20Dive-HOW%20IT%20WORKS-orange.svg)](HOW_IT_WORKS.md)
 
 **Ask your documents anything. Get cited answers.**
 
 ## Table of Contents
 
-1. [What It Does](#what-it-does)
-2. [Supported File Formats](#supported-file-formats)
-3. [Core Technology](#core-technology)
-4. [Apple's On-Device Language Model](#apples-on-device-language-model)
-5. [Quality Modes](#quality-modes)
-6. [23-Step Pipeline](#23-step-pipeline)
-7. [Verification Gates](#verification-gates-anti-hallucination)
-8. [Architecture](#architecture)
-9. [Documentation](#documentation)
+1. [What's New in v1.2](#whats-new-in-v12-february-2026)
+2. [What It Does](#what-it-does)
+3. [Supported File Formats](#supported-file-formats)
+4. [Core Technology](#core-technology)
+5. [Apple's On-Device Language Model](#apples-on-device-language-model)
+6. [Quality Modes](#quality-modes)
+7. [25-Step Pipeline](#25-step-pipeline)
+8. [Verification Gates](#verification-gates-anti-hallucination)
+9. [Architecture](#architecture)
+10. [Documentation](#documentation)
 
 <p align="center">
   <a href="https://apps.apple.com/us/app/openintelligence/id6756559175">
@@ -28,6 +29,56 @@
 </p>
 
 OpenIntelligence is a document question-answering app powered by Apple Intelligence. Import any document—PDFs, Office files, audio, images—ask questions in plain English, and get accurate answers with citations. All processing happens on your device.
+
+---
+
+## What's New in v1.2 (February 2026)
+
+### Device-Optimized Performance Engine
+
+Every pipeline stage is now hardware-aware — tuned to the specific Apple Silicon chip in your device.
+
+- **3-tier Metal GPU search** — Vector similarity uses threadgroup (shared memory), SIMD4 (4× throughput), or scalar shaders based on corpus size and dimension
+- **Device-specific OCR concurrency** — A19 Pro: 8 parallel ops @ 1ms cooldown. A18 Pro: 6 @ 2ms. A17 Pro: 4 @ 3ms. Adaptive filtering skips 50-80% of clean pages entirely
+- **Concurrent cross-encoder reranking** — Pre-tokenized TaskGroup predictions with bulk `dataPointer` memory writes (3× faster array fills)
+- **GPU embedding ingestion mode** — Embeddings run on GPU during ingestion, freeing Neural Engine for simultaneous Vision OCR
+- **Concurrent GPU rendering** — CIFilter preprocessing runs in parallel (was serialized)
+- **5-candidate OCR** — Evaluates more transcription alternatives for higher accuracy on ambiguous text
+
+### Rich Markdown Response Rendering (v1.2)
+
+Responses now render with full markdown formatting — headers, bullets, bold text, code blocks, and block quotes — instead of a single unformatted paragraph.
+
+- **Full block-level parser** — Headings (h1-h6), bullet lists, numbered lists, code fences, block quotes, horizontal rules, and paragraphs
+- **Inline normalization** — Apple's on-device FM outputs markdown syntax on a single line; 6 regex patterns split it into proper blocks before parsing
+- **Formatting-aware prompts** — All LLM synthesis prompts instruct the model to use `### headers`, `- bullets`, and `**bold**` for key terms
+- **Pipeline preservation** — 7 response-cleaning functions audited; markdown is no longer stripped from responses
+
+### MMR Stability Fix (v1.2)
+
+- Fixed crash in `RAGEngine.applyMMR()` when GPU diversity matrix returned malformed results for edge-case embeddings (dimension 0)
+
+### Motherboard HUD — X-Ray Your iPhone (v1.1)
+
+A translucent overlay that shows where Apple Silicon components physically sit behind your screen. Real-time CPU, GPU, Neural Engine, and thermal telemetry displayed at the actual chip positions — verified from iFixit teardown images + Apple Vision AI.
+
+- **Real-time hardware telemetry** — CPU/GPU load, memory pressure, thermal state, battery level, Neural Engine activity
+- **Device-specific layouts** — Accurate component positions for iPhone 15 Pro through iPhone 17 Pro series
+- **Ultra-subtle design** — Ghost outlines that pulse with activity, never distracting
+- **One toggle** — Enable/disable from Settings → Telemetry
+
+### Universal Retrieval — 8 Fixes (v1.1)
+
+Near-perfect needle-in-haystack accuracy across any document type:
+
+- Lexical search always contributes to hybrid results
+- HyDE embeddings blended 70/30 with query embeddings
+- Corpus-learned dynamic synonyms from co-occurrence data
+- Adaptive cross-encoder candidate pool scaling
+- Sentence-level fallback when LLM compression fails
+- Rare term preservation in query expansion
+- Year/integer exemption in numeric verification
+- Proportional hit-rate weighting in RRF fusion
 
 ---
 
@@ -66,22 +117,22 @@ OpenIntelligence is a document question-answering app powered by Apple Intellige
 
 ### Embedding Pipeline
 
-| Component           | Technology          | Specification                          |
-| ------------------- | ------------------- | -------------------------------------- |
-| **Embedding Model** | CoreML MiniLM-L6-v2 | 384 dimensions, bundled in app         |
-| **Tokenizer**       | BertTokenizer       | 510 token max (512 - CLS/SEP)          |
-| **Chunk Size**      | SemanticChunker     | ≤310 words + 30-word contextual prefix |
-| **Vector Index**    | BNNS Optimized      | Hardware-accelerated brute force       |
-| **Keyword Index**   | SQLite FTS5         | BM25 scoring, Porter stemmer           |
+| Component           | Technology          | Specification                               |
+| ------------------- | ------------------- | ------------------------------------------- |
+| **Embedding Model** | CoreML MiniLM-L6-v2 | 384 dimensions, bundled in app              |
+| **Tokenizer**       | BertTokenizer       | 510 token max (512 - CLS/SEP)               |
+| **Chunk Size**      | SemanticChunker     | ≤310 words + 30-word contextual prefix      |
+| **Vector Index**    | BNNS + Metal GPU    | 3-tier shader: threadgroup / SIMD4 / scalar |
+| **Keyword Index**   | SQLite FTS5         | BM25 scoring, Porter stemmer                |
 
 ### Search & Retrieval
 
-| Component           | Technology           | Specification                     |
-| ------------------- | -------------------- | --------------------------------- |
-| **Hybrid Search**   | Vector + BM25        | Reciprocal Rank Fusion (k=60)     |
-| **Reranker**        | CoreML Cross-Encoder | `ReRankerModel.mlpackage` bundled |
-| **Diversification** | MMR                  | λ=0.6 relevance/diversity balance |
-| **Context Window**  | Lost-in-Middle       | Best chunks at start AND end      |
+| Component           | Technology           | Specification                                   |
+| ------------------- | -------------------- | ----------------------------------------------- |
+| **Hybrid Search**   | Vector + BM25        | Reciprocal Rank Fusion (k=60)                   |
+| **Reranker**        | CoreML Cross-Encoder | Concurrent TaskGroup predictions, pre-tokenized |
+| **Diversification** | MMR                  | λ=0.6 relevance/diversity balance               |
+| **Context Window**  | Lost-in-Middle       | Best chunks at start AND end                    |
 
 ### LLM Generation
 
@@ -180,9 +231,9 @@ Deep Think and Maximum modes use **Self-RAG 2.0**: multiple reasoning sessions t
 
 ---
 
-## 23-Step Pipeline
+## 25-Step Pipeline
 
-OpenIntelligence processes every query through 23 distinct steps:
+OpenIntelligence processes every query through 25 distinct steps:
 
 ```
 INGESTION (6 steps):
@@ -193,7 +244,7 @@ INGESTION (6 steps):
   5. Embed         → CoreML MiniLM-L6-v2 (384-dim vectors)
   6. Store         → HNSW index + SQLite FTS5 + EntityIndex
 
-RETRIEVAL (17 steps):
+RETRIEVAL & GENERATION (17 steps):
   Step 0    Corpus Analysis        → Build vocabulary cache per container
   Step 1    Query Understanding    → Pronoun resolution, NER extraction
   Step 1.5  Query Expansion        → Corpus-aware synonym expansion
@@ -212,11 +263,16 @@ RETRIEVAL (17 steps):
   Step 5.9  Extractive Summary     → For summarize intent
   Step 5.10 Extractive QA          → For lookup intent
   Step 6    LLM Generation         → Apple FM / Private Cloud Compute
+  Step 6.5  Response Formatting    → Markdown preservation pipeline
   Step 7    Quality Assessment     → Confidence scoring
   Step 7.5  Verification Gates     → Gates A-D (see below)
   Step 8    Package Results        → Build response with sources
   Step 8.1  Calibrated Confidence  → Platt scaling (0.0-1.0)
   Step 9    Response Metadata      → Timing, token counts, source URIs
+
+RENDERING (2 steps):
+  Step 10   Markdown Rendering     → Block-level parser + inline normalizer
+  Step 10.1 Inline Normalization   → 6 regex patterns for Apple FM output
 ```
 
 ---
@@ -238,22 +294,23 @@ If any gate fails, the system either abstains or triggers iterative retrieval.
 
 ## Architecture
 
-**78 services** organized into **10 categories**:
+**81 services** organized into **11 categories**:
 
 | Category           | Count | Key Services                                                        |
 | ------------------ | ----- | ------------------------------------------------------------------- |
 | **RAG Pipeline**   | 14    | RAGService, RAGEngine, VerifiedGateService, AutoTuneService         |
 | **Query**          | 8     | QueryEnhancementService, HyDEService, ContextualCompressionService  |
-| **Document**       | 19    | IntelligentDocumentProcessor, StructuredDocumentParser, VisionOCR   |
+| **Document**       | 20    | IntelligentDocumentProcessor, StructuredDocumentParser, VisionOCR   |
 | **Embedding**      | 2     | EmbeddingService, CoreMLSentenceEmbeddingProvider                   |
 | **Storage**        | 3     | FullTextStorageService, SQLiteFullTextService                       |
 | **VectorStore**    | 4     | VectorDatabase, BNNSVectorDatabase, VectorStoreRouter               |
 | **LLM**            | 7     | AppleFoundationLLMService, OnDeviceAnalysisService                  |
 | **Agentic**        | 3     | AgenticOrchestrator, ConversationMemoryService, WritingToolsService |
-| **Infrastructure** | 17    | ContainerService, GPUComputeService, AdaptivePipelineOptimizer      |
+| **Infrastructure** | 18    | ContainerService, GPUComputeService, HardwareTelemetryState         |
+| **Rendering**      | 1     | MarkdownRenderer (block-level parser + inline normalizer)           |
 | **Billing**        | 1     | StoreKitBillingService                                              |
 
-**Full inventory**: See [ARCHITECTURE.md](ARCHITECTURE.md) → "Complete Service Inventory (78 Services)"
+**Full inventory**: See [ARCHITECTURE.md](ARCHITECTURE.md) → "Complete Service Inventory (81 Services)"
 
 ### Data Flow
 
@@ -390,7 +447,7 @@ OpenIntelligence/
 │   ├── Documents/              # Document picker, ingestion UI
 │   ├── Onboarding/             # First-launch experience
 │   ├── Settings/               # Settings views
-│   └── Telemetry/              # Execution metrics display
+│   └── Telemetry/              # Motherboard HUD, execution metrics
 ├── Resources/
 │   ├── MLModels/               # EmbeddingModel + ReRankerModel
 │   └── StoreKit/               # Subscription configuration
@@ -399,7 +456,7 @@ OpenIntelligence/
 │   ├── Billing/                # StoreKitBillingService
 │   ├── Document/               # DocumentProcessor, SemanticChunker, OCR
 │   ├── Embedding/              # EmbeddingService, CoreMLProvider
-│   ├── Infrastructure/         # ContainerService, GPUCompute, Settings
+│   ├── Infrastructure/         # ContainerService, GPUCompute, Telemetry
 │   ├── LLM/                    # AppleFoundationLLMService, tools
 │   ├── Query/                  # QueryEnhancement, HyDE, Compression
 │   ├── RAG/                    # RAGService, RAGEngine, HybridSearch
@@ -415,7 +472,7 @@ OpenIntelligence/
 | Document                                            | Description                                                     |
 | --------------------------------------------------- | --------------------------------------------------------------- |
 | **[HOW_IT_WORKS.md](HOW_IT_WORKS.md)**              | 🔥 Plain-English deep dive: 5 gears, token budget, orchestrator |
-| [ARCHITECTURE.md](ARCHITECTURE.md)                  | Complete technical architecture, 78-service inventory           |
+| [ARCHITECTURE.md](ARCHITECTURE.md)                  | Complete technical architecture, 81-service inventory           |
 | [RAG_TECHNICAL.md](Docs/reference/RAG_TECHNICAL.md) | Technical specs: HyDE, math, formulas, & algorithms             |
 | [APPLE_MODELS.md](Docs/reference/APPLE_MODELS.md)   | Apple Intelligence specs: Context limits & token economics      |
 | [ROADMAP.md](ROADMAP.md)                            | Feature roadmap and version history                             |

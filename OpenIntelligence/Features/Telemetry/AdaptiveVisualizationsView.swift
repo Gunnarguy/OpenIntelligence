@@ -14,6 +14,7 @@ import SwiftUI
 struct AdaptiveVisualizationsView: View {
     @EnvironmentObject private var ragService: RAGService
     @EnvironmentObject private var containerService: ContainerService
+    @EnvironmentObject private var settings: SettingsStore
     @StateObject private var engine = LibraryVisualizationEngine.shared
 
     @State private var selectedInsight: VisualizationInsight?
@@ -99,40 +100,51 @@ struct AdaptiveVisualizationsView: View {
     }
 
     var body: some View {
-        ScrollView {
-            LazyVStack(spacing: 20) {
-                // HERO: 3D Atlas (always visible for libraries with content)
-                if let profile = engine.currentProfile, profile.chunkCount >= 10 {
-                    hero3DAtlasSection(profile: profile)
+        ZStack {
+            ScrollView {
+                LazyVStack(spacing: 20) {
+                    // HERO: 3D Atlas (always visible for libraries with content)
+                    if let profile = engine.currentProfile, profile.chunkCount >= 10 {
+                        hero3DAtlasSection(profile: profile)
+                    }
+
+                    libraryHeader
+
+                    if engine.isAnalyzing {
+                        analyzeLoadingCard
+                    } else if let profile = engine.currentProfile {
+                        // Insights row (horizontal scroll for space efficiency)
+                        if !engine.insights.isEmpty {
+                            insightsHorizontalSection
+                        }
+
+                        // Dynamic views grid
+                        if !engine.recommendedViews.isEmpty {
+                            recommendedViewsSection
+                        }
+
+                        if let expanded = expandedView, expanded != .embedding3D {
+                            expandedViewSection(type: expanded, profile: profile)
+                        }
+
+                        libraryStatsSection(profile: profile)
+                    } else {
+                        emptyStateCard
+                    }
                 }
-
-                libraryHeader
-
-                if engine.isAnalyzing {
-                    analyzeLoadingCard
-                } else if let profile = engine.currentProfile {
-                    // Insights row (horizontal scroll for space efficiency)
-                    if !engine.insights.isEmpty {
-                        insightsHorizontalSection
-                    }
-
-                    // Dynamic views grid
-                    if !engine.recommendedViews.isEmpty {
-                        recommendedViewsSection
-                    }
-
-                    if let expanded = expandedView, expanded != .embedding3D {
-                        expandedViewSection(type: expanded, profile: profile)
-                    }
-
-                    libraryStatsSection(profile: profile)
-                } else {
-                    emptyStateCard
-                }
+                .padding()
             }
-            .padding()
+            .background(DSColors.background)
+
+            // Motherboard HUD - Full-screen X-ray overlay
+            // Shows glowing borders at the ACTUAL physical locations where
+            // the Neural Engine, GPU, and CPU sit behind the screen
+            if settings.showSiliconHUD {
+                HardwareXRayOverlay()
+                    .allowsHitTesting(false) // Don't block touches
+                    .transition(.opacity)
+            }
         }
-        .background(DSColors.background)
         .navigationTitle("Knowledge Atlas")
         .navigationBarTitleDisplayMode(.large)
         .fullScreenCover(isPresented: $show3DFullscreen) {
@@ -147,6 +159,7 @@ struct AdaptiveVisualizationsView: View {
             await refreshAnalysis()
         }
         .refreshable {
+            DSHaptics.refresh()
             await refreshAnalysis()
         }
     }
@@ -2830,8 +2843,6 @@ struct CompactAtlasSceneView: View {
 
         // Domain-specific pattern matching for meaningful labels
         switch domain {
-        case "vehicle":
-            return inferVehicleTopic(from: lowercased)
         case "technical":
             return inferTechnicalTopic(from: lowercased)
         case "legal":
@@ -2843,59 +2854,25 @@ struct CompactAtlasSceneView: View {
         }
     }
 
-    /// Detect document domain from content
+    /// Detect document domain from content (score-based, no priority bias)
     private func detectDomain(from text: String) -> String {
-        // Vehicle/automotive indicators
-        let vehicleTerms = ["vehicle", "car", "engine", "transmission", "brake", "tire", "oil",
-                           "fuel", "mph", "dashboard", "steering", "warranty", "maintenance"]
-        if vehicleTerms.contains(where: { text.contains($0) }) { return "vehicle" }
-
-        // Technical/software indicators
-        let techTerms = ["api", "function", "code", "software", "database", "server", "deploy"]
-        if techTerms.contains(where: { text.contains($0) }) { return "technical" }
-
-        // Legal indicators
-        let legalTerms = ["agreement", "contract", "liability", "hereby", "pursuant"]
-        if legalTerms.contains(where: { text.contains($0) }) { return "legal" }
-
-        // Medical indicators
-        let medicalTerms = ["patient", "diagnosis", "treatment", "medication", "symptoms"]
-        if medicalTerms.contains(where: { text.contains($0) }) { return "medical" }
-
-        return "general"
-    }
-
-    /// Infer topic for vehicle/automotive content
-    private func inferVehicleTopic(from text: String) -> String {
-        let patterns: [(terms: [String], label: String)] = [
-            (["infotainment", "display", "screen", "touchscreen", "navigation"], "Infotainment System"),
-            (["bluetooth", "audio", "speaker", "radio", "music", "sound"], "Audio & Connectivity"),
-            (["setting", "settings", "configure", "customize"], "Vehicle Settings"),
-            (["climate", "air conditioning", "hvac", "temperature", "heater"], "Climate Control"),
-            (["seat", "seating", "lumbar", "headrest"], "Seat Adjustment"),
-            (["safety", "airbag", "collision", "seatbelt"], "Safety Features"),
-            (["adas", "driver assist", "lane", "blind spot", "cruise control"], "Driver Assistance"),
-            (["alarm", "security", "theft", "lock", "keyless"], "Security System"),
-            (["camera", "backup", "parking", "sensor"], "Parking Assistance"),
-            (["oil", "lubricant", "viscosity"], "Oil Specifications"),
-            (["maintenance", "service", "schedule"], "Maintenance Schedule"),
-            (["tire", "wheel", "pressure", "rotation"], "Tire Information"),
-            (["brake", "braking", "pad", "rotor"], "Brake System"),
-            (["coolant", "antifreeze", "radiator"], "Cooling System"),
-            (["battery", "charging", "jump start"], "Battery & Charging"),
-            (["fuel", "gas", "gasoline", "tank", "mpg"], "Fuel System"),
-            (["engine", "motor", "horsepower", "torque"], "Engine Specs"),
-            (["transmission", "gear", "shift"], "Transmission"),
-            (["warranty", "coverage", "guarantee"], "Warranty"),
-            (["interior", "cabin", "dashboard", "console"], "Interior Features"),
-            (["trunk", "cargo", "storage"], "Cargo & Storage"),
-            (["gauge", "speedometer", "instrument"], "Instrument Panel"),
-            (["warning", "indicator", "alert"], "Warning Lights"),
-            (["specification", "dimension", "weight"], "Specifications"),
-            (["mirror", "lighting", "headlight"], "Exterior Controls"),
+        let domainTerms: [(String, [String])] = [
+            ("technical", ["api", "function", "code", "software", "database", "server", "deploy"]),
+            ("legal", ["agreement", "contract", "liability", "hereby", "pursuant"]),
+            ("medical", ["patient", "diagnosis", "treatment", "medication", "symptoms"]),
         ]
 
-        return matchBestPattern(patterns: patterns, text: text) ?? "Vehicle Info"
+        var bestDomain = "general"
+        var bestScore = 0
+        for (domain, terms) in domainTerms {
+            let score = terms.filter { text.contains($0) }.count
+            if score > bestScore {
+                bestScore = score
+                bestDomain = domain
+            }
+        }
+
+        return bestScore >= 2 ? bestDomain : "general"
     }
 
     /// Infer topic for technical/software content

@@ -22,43 +22,59 @@ struct SettingsView: View {
     @State private var showAdvancedGeneration = false
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 16) {
-                // Hero & Core Experience
-                heroCard
-                modelSelectionCard
+        GeometryReader { geometry in
+            ZStack {
+                ScrollView(.vertical, showsIndicators: true) {
+                    VStack(spacing: 16) {
+                        // Hero & Core Experience
+                        heroCard
+                        modelSelectionCard
 
-                // Privacy & Execution (combined)
-                privacyExecutionCard
+                        // Privacy & Execution (combined)
+                        privacyExecutionCard
 
-                // Subscription
-                billingCard
+                        // Subscription
+                        billingCard
 
-                // Intelligence Mode (Standard vs Deep Think)
-                retrievalCard
+                        // Intelligence Mode (Standard vs Deep Think)
+                        retrievalCard
 
-                // Generation Tuning (exposed hidden settings)
-                generationTuningCard
+                        // Generation Tuning (exposed hidden settings)
+                        generationTuningCard
 
-                // Context & Performance
-                contextWindowCard
+                        // Context & Performance
+                        contextWindowCard
 
-                // More
-                appearanceCard
-                developerCard
-                aboutCard
+                        // More
+                        appearanceCard
+                        developerCard
+                        aboutCard
+                    }
+                    .padding()
+                    .frame(width: geometry.size.width) // Hard width constraint prevents horizontal bounce
+                }
+                .scrollBounceBehavior(.basedOnSize)
+                .background(
+                    LinearGradient(
+                        colors: [DSColors.background, DSColors.surface.opacity(0.3)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .ignoresSafeArea()
+                )
+
+                // Motherboard HUD - Full-screen X-ray overlay
+                // Shows glowing borders at the ACTUAL physical locations where
+                // the Neural Engine, GPU, and CPU sit behind the screen
+                if settings.showSiliconHUD {
+                    HardwareXRayOverlay()
+                        .allowsHitTesting(false) // Don't block touches
+                        .transition(.opacity)
+                }
             }
-.padding()
+            .clipped()
         }
-.background(
-    LinearGradient(
-        colors: [DSColors.background, DSColors.surface.opacity(0.3)],
-        startPoint: .top,
-        endPoint: .bottom
-    )
-    .ignoresSafeArea()
-)
-.navigationTitle("Settings")
+        .navigationTitle("Settings")
         .sheet(isPresented: $showPlanSheet) {
             PlanUpgradeSheet(entryPoint: planEntryPoint)
         }
@@ -1273,6 +1289,102 @@ Text(mode.description)
                 AccentColorSettingsRow(accentColorHex: $settings.appAccentColorHex)
                     .padding(.horizontal)
                     .padding(.vertical, 12)
+
+                Divider()
+                    .padding(.horizontal)
+
+                // Silicon HUD Toggle
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Silicon HUD")
+                            .font(.subheadline.weight(.medium))
+                        Text("X-ray view of \(DeviceComponentLayout.current.chipName) activity")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+
+                    Spacer()
+
+                    Toggle("", isOn: $settings.showSiliconHUD)
+                        .labelsHidden()
+                        .tint(.purple)
+                        .onChange(of: settings.showSiliconHUD) { _, _ in
+                            DSHaptics.toggle()
+                        }
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 12)
+
+                // HUD Customization (only show when HUD is enabled)
+                if settings.showSiliconHUD {
+                    Divider()
+                        .padding(.horizontal)
+
+                    // Glow Intensity Slider
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Glow Intensity")
+                                .font(.caption.weight(.medium))
+                            Spacer()
+                            Text("\(Int(settings.hudGlowIntensity * 100))%")
+                                .font(.caption.weight(.semibold).monospacedDigit())
+                                .foregroundColor(.purple)
+                        }
+                        Slider(value: $settings.hudGlowIntensity, in: 0.1...1.0, step: 0.1)
+                            .tint(.purple)
+                            .onChange(of: settings.hudGlowIntensity) { _, _ in
+                                DSHaptics.tick()
+                            }
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+
+                    Divider()
+                        .padding(.horizontal)
+
+                    // Show Metrics Toggle
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Live Metrics")
+                                .font(.caption.weight(.medium))
+                            Text("Show ops count and latency in legend")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                        Toggle("", isOn: $settings.hudShowMetrics)
+                            .labelsHidden()
+                            .tint(.cyan)
+                            .onChange(of: settings.hudShowMetrics) { _, _ in
+                                DSHaptics.toggle()
+                            }
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+
+                    Divider()
+                        .padding(.horizontal)
+
+                    // Show Taptic Engine Toggle
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Taptic Engine")
+                                .font(.caption.weight(.medium))
+                            Text("Show haptic motor activity on HUD")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                        Toggle("", isOn: $settings.hudShowTaptic)
+                            .labelsHidden()
+                            .tint(.pink)
+                            .onChange(of: settings.hudShowTaptic) { _, _ in
+                                DSHaptics.toggle()
+                            }
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+                }
             }
         }
         .background(DSColors.surface)

@@ -218,7 +218,7 @@ actor ClusterLabelService {
         }
 
         prompt += "\nRespond with ONLY the topic label (2-4 words, no quotes or explanation)."
-        prompt += "\nExamples: 'Vehicle Settings', 'Oil Specifications', 'Safety Features', 'Infotainment Guide'"
+        prompt += "\nExamples: 'System Overview', 'Technical Specifications', 'Safety Guidelines', 'Getting Started'"
 
         return prompt
     }
@@ -295,8 +295,6 @@ actor ClusterLabelService {
 
         // Domain-specific label generation
         switch domain {
-        case .vehicle:
-            return generateVehicleLabel(keywords: keywords, content: allText)
         case .technical:
             return generateTechnicalLabel(keywords: keywords, content: allText)
         case .legal:
@@ -313,7 +311,6 @@ actor ClusterLabelService {
     }
 
     private enum DocumentDomain {
-        case vehicle
         case technical
         case legal
         case medical
@@ -325,112 +322,35 @@ actor ClusterLabelService {
     private func inferDomain(from context: String?, content: String) -> DocumentDomain {
         let text = (context ?? "").lowercased() + " " + content.lowercased()
 
-        // Vehicle/automotive indicators
-        let vehicleTerms = ["vehicle", "car", "truck", "suv", "engine", "transmission", "brake", "tire",
-                           "oil", "fuel", "mpg", "mph", "speedometer", "dashboard", "steering",
-                           "kia", "toyota", "ford", "honda", "bmw", "mercedes", "audi", "sportage",
-                           "sedan", "coupe", "manual", "owner's manual", "warranty"]
-        if vehicleTerms.contains(where: { text.contains($0) }) {
-            return .vehicle
+        // Score each domain by keyword match count (most matches wins, no priority bias)
+        let domainTerms: [(DocumentDomain, [String])] = [
+            (.technical, ["api", "function", "code", "software", "algorithm", "database", "server",
+                         "programming", "developer", "git", "deploy", "cloud", "kubernetes"]),
+            (.legal, ["agreement", "contract", "liability", "hereby", "pursuant", "jurisdiction",
+                     "plaintiff", "defendant", "court", "law", "legal", "attorney"]),
+            (.medical, ["patient", "diagnosis", "treatment", "medication", "symptoms", "clinical",
+                       "hospital", "physician", "medical", "health", "dosage"]),
+            (.financial, ["revenue", "profit", "investment", "portfolio", "stock", "market",
+                         "financial", "accounting", "budget", "expense", "asset"]),
+            (.academic, ["research", "hypothesis", "methodology", "findings", "abstract",
+                        "study", "thesis", "dissertation", "peer-reviewed", "journal"]),
+        ]
+
+        var bestDomain: DocumentDomain = .general
+        var bestScore = 0
+        for (domain, terms) in domainTerms {
+            let score = terms.filter { text.contains($0) }.count
+            if score > bestScore {
+                bestScore = score
+                bestDomain = domain
+            }
         }
 
-        // Technical/software indicators
-        let techTerms = ["api", "function", "code", "software", "algorithm", "database", "server",
-                        "programming", "developer", "git", "deploy", "cloud", "kubernetes"]
-        if techTerms.contains(where: { text.contains($0) }) {
-            return .technical
-        }
-
-        // Legal indicators
-        let legalTerms = ["agreement", "contract", "liability", "hereby", "pursuant", "jurisdiction",
-                         "plaintiff", "defendant", "court", "law", "legal", "attorney"]
-        if legalTerms.contains(where: { text.contains($0) }) {
-            return .legal
-        }
-
-        // Medical indicators
-        let medicalTerms = ["patient", "diagnosis", "treatment", "medication", "symptoms", "clinical",
-                           "hospital", "physician", "medical", "health", "dosage"]
-        if medicalTerms.contains(where: { text.contains($0) }) {
-            return .medical
-        }
-
-        // Financial indicators
-        let financialTerms = ["revenue", "profit", "investment", "portfolio", "stock", "market",
-                             "financial", "accounting", "budget", "expense", "asset"]
-        if financialTerms.contains(where: { text.contains($0) }) {
-            return .financial
-        }
-
-        // Academic indicators
-        let academicTerms = ["research", "hypothesis", "methodology", "findings", "abstract",
-                            "study", "thesis", "dissertation", "peer-reviewed", "journal"]
-        if academicTerms.contains(where: { text.contains($0) }) {
-            return .academic
-        }
-
-        return .general
+        // Require at least 2 matching terms to claim a domain
+        return bestScore >= 2 ? bestDomain : .general
     }
 
     // MARK: - Domain-Specific Label Generators
-
-    private func generateVehicleLabel(keywords: [String], content: String) -> String {
-        // Vehicle-specific topic patterns
-        let patterns: [(terms: [String], label: String)] = [
-            // Infotainment & Display
-            (["infotainment", "display", "screen", "touchscreen", "navigation", "nav", "gps"], "Infotainment System"),
-            (["bluetooth", "audio", "speaker", "radio", "music", "sound", "stereo"], "Audio & Connectivity"),
-            (["carplay", "android auto", "phone", "smartphone"], "Phone Integration"),
-
-            // Settings & Controls
-            (["setting", "settings", "configure", "configuration", "customize", "preference"], "Vehicle Settings"),
-            (["climate", "air conditioning", "hvac", "temperature", "heater", "ac", "a/c"], "Climate Control"),
-            (["seat", "seating", "lumbar", "headrest", "position"], "Seat Adjustment"),
-            (["mirror", "mirrors", "rearview", "side mirror"], "Mirror Controls"),
-            (["lighting", "lights", "headlight", "headlamp", "interior light"], "Lighting System"),
-
-            // Safety & Security
-            (["safety", "airbag", "collision", "crash", "seatbelt", "restraint"], "Safety Features"),
-            (["adas", "driver assist", "lane", "blind spot", "cruise control", "adaptive"], "Driver Assistance"),
-            (["alarm", "security", "theft", "lock", "unlock", "key", "keyless"], "Security System"),
-            (["camera", "backup", "parking", "sensor", "rear view"], "Parking Assistance"),
-
-            // Maintenance & Fluids
-            (["oil", "lubricant", "viscosity", "synthetic", "conventional", "change"], "Oil Specifications"),
-            (["maintenance", "service", "schedule", "interval", "routine"], "Maintenance Schedule"),
-            (["tire", "wheel", "pressure", "rotation", "alignment", "psi"], "Tire Information"),
-            (["brake", "braking", "pad", "rotor", "fluid"], "Brake System"),
-            (["coolant", "antifreeze", "radiator", "overheat"], "Cooling System"),
-            (["battery", "charging", "jump start", "voltage"], "Battery & Charging"),
-            (["fuel", "gas", "gasoline", "diesel", "tank", "mpg", "economy"], "Fuel System"),
-            (["filter", "air filter", "cabin filter", "replace"], "Filters & Replacement"),
-
-            // Engine & Drivetrain
-            (["engine", "motor", "horsepower", "hp", "torque", "cylinder"], "Engine Specifications"),
-            (["transmission", "gear", "shift", "automatic", "manual", "cvt"], "Transmission"),
-            (["drivetrain", "awd", "4wd", "fwd", "rwd", "all-wheel"], "Drivetrain"),
-
-            // Warranty & Service
-            (["warranty", "coverage", "guarantee", "defect", "repair"], "Warranty Information"),
-            (["dealer", "service center", "authorized", "certified"], "Service & Dealers"),
-
-            // Interior & Features
-            (["interior", "cabin", "dashboard", "console", "storage"], "Interior Features"),
-            (["trunk", "cargo", "storage", "capacity", "space"], "Cargo & Storage"),
-            (["window", "windshield", "wiper", "defroster", "defrost"], "Windows & Wipers"),
-
-            // Instrument Panel
-            (["gauge", "speedometer", "tachometer", "odometer", "instrument"], "Instrument Panel"),
-            (["warning", "indicator", "light", "alert", "message"], "Warning Lights"),
-
-            // Specifications
-            (["specification", "specs", "dimension", "weight", "capacity"], "Vehicle Specifications"),
-            (["towing", "trailer", "hitch", "payload"], "Towing Capacity"),
-        ]
-
-        return matchPatternLabel(patterns: patterns, keywords: keywords, content: content)
-            ?? generateFallbackLabel(keywords: keywords, suffix: nil)
-    }
 
     private func generateTechnicalLabel(keywords: [String], content: String) -> String {
         let patterns: [(terms: [String], label: String)] = [
@@ -599,7 +519,6 @@ actor ClusterLabelService {
         let domain = inferDomain(from: nameText, content: sampleText)
 
         switch domain {
-        case .vehicle: return "Vehicle Manual"
         case .technical: return "Technical Documentation"
         case .legal: return "Legal Document"
         case .medical: return "Medical Document"

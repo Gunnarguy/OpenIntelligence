@@ -285,7 +285,8 @@ actor LiveAnalysisService {
                     }
                 }
             }
-            textRequest.recognitionLevel = .fast
+            // Use centralized OCR configuration — same as main document pipeline
+            OCRConfiguration.configureRequest(textRequest)
 
             // Document detection
             let documentRequest = VNDetectDocumentSegmentationRequest { request, error in

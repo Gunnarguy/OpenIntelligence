@@ -1,18 +1,18 @@
 # RAG Technical Specifications
 
-**Version**: 1.3
-**Updated**: January 29, 2026
+**Version**: 1.4
+**Updated**: February 16, 2026
 **Compatibility**: iOS 26+ / Apple Intelligence
 
 This document provides the technical formulas, algorithms, and deep dive specifications for the RAG pipeline.
 
 > **For the High-Level Flow**: See [HOW_IT_WORKS.md](../../HOW_IT_WORKS.md)
 
-> **Full Architecture**: See [ARCHITECTURE.md](../../ARCHITECTURE.md) → "Complete Service Inventory (78 Services)"
+> **Full Architecture**: See [ARCHITECTURE.md](../../ARCHITECTURE.md) → "Complete Service Inventory (81 Services)"
 
 ---
 
-## Pipeline Overview (23 Steps)
+## Pipeline Overview (25 Steps)
 
 ```
 INGESTION (6 steps):
@@ -47,6 +47,7 @@ QUERY → RESPONSE (17 steps):
   Step 8:   Package Results
   Step 8.1: Calibrated Confidence (Platt scaling)
   Step 9:   Response Metadata (timing, sources, metrics)
+  Step 10:  Markdown Rendering (block-level parser + inline normalization)
 ```
 
 ---

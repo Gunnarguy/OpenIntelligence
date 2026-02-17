@@ -20,6 +20,9 @@ struct MessageActionsBar: View {
     let onToggleHidden: (() -> Void)?
     let onReport: (() -> Void)?
 
+    /// Called when user taps "Export Trace" to share pipeline diagnostics
+    var onExportTrace: (() -> Void)?
+
     /// Called when user taps "Go Deeper" to re-query with agentic mode
     var onGoDeeper: (() -> Void)?
 
@@ -103,6 +106,13 @@ struct MessageActionsBar: View {
             if !isUser, message.metadata != nil, let onShowDetails {
                 ActionButton(icon: "info.circle", label: "Details", color: .blue) {
                     onShowDetails()
+                }
+            }
+
+            // Export Trace (assistant only, if has pipeline trace or metadata)
+            if !isUser, (message.pipelineTrace != nil || message.metadata != nil), let onExportTrace {
+                ActionButton(icon: "doc.text.magnifyingglass", label: "Trace", color: .cyan) {
+                    onExportTrace()
                 }
             }
 
@@ -252,7 +262,7 @@ struct MessageMetadataPanel: View {
                         Divider().padding(.horizontal, 12)
                         MetricRow(label: "Sources", value: "\(chunks.count) chunks", icon: "doc.text")
                     }
-                    if metadata.isHighAccuracyMode { 
+                    if metadata.isHighAccuracyMode {
                         Divider().padding(.horizontal, 12)
                         MetricRow(label: "Retrieval", value: metadata.retrievalConfigSummary, icon: "slider.horizontal.3", valueColor: .purple)
                     }

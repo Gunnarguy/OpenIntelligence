@@ -152,6 +152,10 @@ struct AgenticResult: Sendable {
 final class AgenticOrchestrator: Sendable {
     private weak var ragService: RAGService?
     private let config: AgenticConfig
+    /// Quality mode from user settings — controls retrieval parameters (topK, minSimilarity,
+    /// mmrLambda, parent doc retrieval, compression, etc.) across all pipeline steps.
+    /// Without this, Deep Think/Maximum use hardcoded defaults that ignore user's mode selection.
+    let qualityMode: RAGQualityMode
 
     /// Common stop words to exclude from repetition detection
     /// These inflate overlap ratios without indicating actual semantic repetition
@@ -167,9 +171,10 @@ final class AgenticOrchestrator: Sendable {
         "according", "evidence", "results", "effects", "impact", "review", "analysis",
     ]
 
-    init(ragService: RAGService, config: AgenticConfig = .defaultConfig) {
+    init(ragService: RAGService, config: AgenticConfig = .defaultConfig, qualityMode: RAGQualityMode = .deepThink) {
         self.ragService = ragService
         self.config = config
+        self.qualityMode = qualityMode
     }
 
     /// Get the appropriate ReasoningChainConfig based on AgenticConfig
@@ -355,12 +360,11 @@ final class AgenticOrchestrator: Sendable {
             let notFoundAnswer = """
             I couldn't find information about "\(query)" in your documents.
 
-            The retrieved content was about different topics (account creation, email setup, etc.) that don't address your question.
+            The retrieved content didn't match your question.
 
             **Suggestions:**
             - Check if your documents contain information about this topic
             - Try rephrasing your question with different keywords
-            - The specific information you're looking for may not be in the indexed documents
             """
 
             return AgenticResult(
@@ -395,6 +399,11 @@ final class AgenticOrchestrator: Sendable {
         steps.append(evalStep)
         await onStep?(evalStep)
 
+        // NOTE: ExtractiveQA pre-check removed. Never skip multi-session reasoning.
+        // The heuristic extractor produced false positives (e.g., "three-quarters" for
+        // "fuel tank capacity") and short-circuited LLM reasoning entirely. All queries
+        // now proceed through multi-session reasoning for reliable answers.
+
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         // STEP 2.5: Graph Expansion (GraphRAG-lite)
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -419,6 +428,28 @@ final class AgenticOrchestrator: Sendable {
                 retrievalQuality = evaluateRetrievalQuality(chunks: allRetrievedChunks, query: query)
                 Log.info("[Agentic] Graph expansion updated quality: \(retrievalQuality.description)", category: .llm)
             }
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // STEP 2.7: Cross-Reference Resolution
+        // Technical documents often say "see section X on page Y" — the actual
+        // data (spec tables, procedures) lives in the referenced section but
+        // the reranker scores the prose cross-reference higher than the table.
+        // Follow ALL cross-references to ensure the answer chunk is in the pool.
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        let crossRefChunks = try await resolveCrossReferences(
+            chunks: allRetrievedChunks,
+            query: query,
+            ragService: ragService,
+            onDetailedEvent: detailedForwarder
+        )
+        if !crossRefChunks.isEmpty {
+            for chunk in crossRefChunks where !allRetrievedChunks.contains(where: { $0.chunk.id == chunk.chunk.id }) {
+                allRetrievedChunks.append(chunk)
+            }
+            // Re-evaluate quality with cross-referenced chunks included
+            retrievalQuality = evaluateRetrievalQuality(chunks: allRetrievedChunks, query: query)
+            Log.info("[Agentic] Cross-reference resolution added \(crossRefChunks.count) chunks, quality: \(retrievalQuality.description)", category: .llm)
         }
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -911,6 +942,7 @@ final class AgenticOrchestrator: Sendable {
                     query: query,
                     topK: 20,
                     minSimilarity: 0.08, // Much lower threshold
+                    qualityMode: qualityMode,
                     onDetailedEvent: detailedForwarder
                 )
 
@@ -1166,19 +1198,21 @@ final class AgenticOrchestrator: Sendable {
         // System prompt is now ~370 tokens, query ~50, output ~800 = 1220 tokens overhead
         // Remaining: 4096 - 1220 = 2876 tokens ≈ 4000 chars at 1.4 chars/token
         // Use 3000 chars for safety margin
+        //
+        // SENTENCE-LEVEL EXTRACTION: When searchResults come from pre-assembled chunks,
+        // they’re already formatted. But we still truncate to budget.
         let truncatedResults = String(searchResults.prefix(3000))
 
         // Deep Think mode: thorough synthesis with actionable details
         let systemPrompt = """
         Answer using ONLY the provided excerpts [S1], [S2], etc.
         Rules:
-        1) Use ONLY information from excerpts - cite [S1], [S2] etc. (NOT URLs!)
-        2) Look for SPECIFIC VALUES: numbers, measurements, specifications, ratings
-        3) Include exact steps, durations, technical specs when present
-        4) Include FEEDBACK indicators: lights, sounds, vibrations, visual cues
-        5) Provide STEP-BY-STEP procedures when applicable
-        6) Be THOROUGH - extract every relevant detail, especially specific values
-        7) Read OCR'd text carefully - look for model numbers, specifications, capacities
+        1) Cite sources as [S1], [S2] etc. (NOT URLs)
+        2) Extract specific values: numbers, measurements, specs, ratings when present
+        3) Be thorough — pull every relevant detail from the excerpts
+        4) Write naturally and intelligently — match your format to what the user actually asked
+        5) Read OCR'd text carefully for model numbers, specs, and data
+        6) NEVER say "I don't have information" — always provide what IS there
         """
 
         // Generate using the main RAGService pipeline which handles:
@@ -1217,86 +1251,30 @@ final class AgenticOrchestrator: Sendable {
 
         // Format chunks EXACTLY like Standard mode's assembleContext with [S1], [S2] notation
         var contextBuilder = ""
-        let maxChunks = min(chunks.count, 10) // Conservative chunk count
-        var usedChunks = 0
-
-        // CRITICAL: Apple FM has 4096 token limit (both on-device AND PCC)
-        // Token budget breakdown (updated for enhanced prompts):
-        //   - System prompt: ~610 tokens (enhanced for detail extraction)
-        //   - Query: ~50 tokens
-        //   - Context: ~2200 tokens max (reduced for longer prompt)
-        //   - Output: ~800 tokens
-        //   - Safety margin: ~100 tokens
-        // At 1.4 chars/token (Apple FM ratio), 2200 tokens ≈ 3080 chars
         let maxContextChars = 2800 // Reduced to account for enhanced prompt
 
-        // Target at least 3 chunks for diverse context
-        let minChunksTarget = min(3, chunks.count)
-        let headerOverhead = 30 // Approximate header + separator size
-        let targetCharsPerChunk = max(400, (maxContextChars - (minChunksTarget * headerOverhead)) / minChunksTarget)
+        // SENTENCE-LEVEL EXTRACTION: Instead of packing 3-4 whole chunks and
+        // hoping the answer is in one of them, extract only query-relevant
+        // sentences from ALL candidates. With 2800 chars, this fits targeted
+        // data from 8-12 sources instead of 3 whole chunks.
+        // Universal across all document types.
+        let extraction = ragService.extractRelevantSentences(
+            from: chunks,
+            query: query,
+            maxChars: maxContextChars,
+            compact: true
+        )
+        contextBuilder = extraction.context
+        let usedChunks = extraction.sourcesUsed
 
-        for (index, chunk) in chunks.prefix(maxChunks).enumerated() {
-            let fullText = (chunk.chunk.parentContent ?? chunk.chunk.content)
-                .trimmingCharacters(in: .whitespacesAndNewlines)
+        Log.info("[Deep Think] Sentence extraction: \(extraction.sentencesIncluded) sentences from \(usedChunks) sources, \(contextBuilder.count) chars", category: .llm)
 
-            // Calculate remaining budget
-            let remainingBudget = maxContextChars - contextBuilder.count
-
-            // Truncate if needed to fit more chunks
-            let truncatedText: String
-            if usedChunks < minChunksTarget - 1 && fullText.count > targetCharsPerChunk {
-                truncatedText = truncateAtSentence(fullText, maxChars: targetCharsPerChunk)
-            } else {
-                truncatedText = fullText
-            }
-
-            // Match Standard mode's compact format: [S1], [S2], etc.
-            let source = chunk.sourceDocument.isEmpty ? "" : URL(fileURLWithPath: chunk.sourceDocument).lastPathComponent
-            let sourceRef = source.isEmpty ? "" : "(\(source)) "
-            let block = "[S\(index + 1)] \(sourceRef)\(truncatedText)" + (index < maxChunks - 1 ? "\n---\n" : "")
-
-            // Respect context budget - but force-fit truncated versions for minimum chunks
-            if contextBuilder.count + block.count <= maxContextChars || usedChunks == 0 {
-                contextBuilder += block
-                usedChunks += 1
-            } else if usedChunks < minChunksTarget && remainingBudget > 300 {
-                // Force-fit a truncated version
-                let forceTruncated = truncateAtSentence(truncatedText, maxChars: remainingBudget - headerOverhead - 20)
-                if forceTruncated.count >= 150 {
-                    let forceBlock = "[S\(index + 1)] \(sourceRef)\(forceTruncated)" + (index < maxChunks - 1 ? "\n---\n" : "")
-                    contextBuilder += forceBlock
-                    usedChunks += 1
-                } else {
-                    break
-                }
-            } else {
-                break
-            }
-        }
-
-        Log.info("[Deep Think] Using \(usedChunks) chunks, \(contextBuilder.count) chars", category: .llm)
-
-        // Deep Think mode: comprehensive multi-source synthesis with maximum detail
-        // CRITICAL: Explicitly forbid "I don't have information" responses
+        // Deep Think mode: comprehensive multi-source synthesis
         let systemPrompt = """
-        Expert research analyst synthesizing multiple document sources.
-
-        EXTRACTION REQUIREMENTS:
-        - Find SPECIFIC VALUES: numbers, specifications, ratings, capacities, measurements
-        - Specific ACTIONS: exact steps, button presses, durations
-        - Feedback INDICATORS: lights, sounds, vibrations, on-screen messages
-        - STEP-BY-STEP procedures with numbered steps
-        - Technical SPECIFICATIONS: voltages, capacities, dimensions, ranges
-        - Read OCR'd text carefully - extract values even if formatting is imperfect
-
-        FORMAT:
-        - Cite sources as [S1], [S2], etc. (bracket notation only, NOT URLs!)
-        - Use headers for major sections
-        - Use bullet points for lists
-        - Quote exact values/specs when you find them
-
-        NEVER say "I don't have information" - always provide what IS in the documents.
-        If the question is vague, interpret it based on document topics and provide all relevant findings.
+        Answer using excerpts [S1], [S2]. Extract ALL specific values, numbers, specs.
+        Read OCR'd text carefully. Write naturally. Cite [S1], [S2] only.
+        NEVER say "I don't have information" — provide what IS there.
+        If vague, interpret based on document topics.
         """
 
         // Generate using the main RAGService pipeline which handles:
@@ -1536,6 +1514,7 @@ final class AgenticOrchestrator: Sendable {
             query: subQuery,
             topK: 20,
             minSimilarity: 0.08, // Low threshold - let re-ranker decide quality
+            qualityMode: qualityMode,
             onDetailedEvent: onDetailedEvent
         )
 
@@ -1578,11 +1557,11 @@ final class AgenticOrchestrator: Sendable {
     /// This is the key to universal retrieval - we don't hardcode synonyms, we let the LLM
     /// understand the user's INTENT and generate queries that would find relevant content.
     ///
-    /// For "What oil does this car take?", the LLM might generate:
-    /// - "engine oil specification"
-    /// - "motor oil type grade viscosity"
-    /// - "5W-30 0W-20 oil recommendation"
-    /// - "lubricant requirements"
+    /// For "What dosage should I take?", the LLM might generate:
+    /// - "recommended dosage amount"
+    /// - "dose quantity milligrams"
+    /// - "administration instructions"
+    /// - "prescribing guidelines"
     private func generateSearchQueries(
         originalQuery: String,
         ragService: RAGService
@@ -1650,6 +1629,7 @@ final class AgenticOrchestrator: Sendable {
                 query: query,
                 topK: 15,
                 minSimilarity: 0.05, // Very low - we'll use RRF to rank
+                qualityMode: qualityMode,
                 onDetailedEvent: onDetailedEvent  // Always forward events
             )
             allResults.append(chunks)
@@ -1682,11 +1662,22 @@ final class AgenticOrchestrator: Sendable {
             }
         }
 
-        // Sort by RERANKER SCORE (actual relevance) and take top results
-        // CRITICAL: RRF is for consensus across queries, but reranker score is the true relevance measure
-        // A chunk with 0.90 reranker score in 1 query is MORE RELEVANT than a chunk with 0.10 in all 5 queries
+        // Sort by BLENDED score: 60% reranker (relevance) + 40% RRF (multi-query consensus)
+        // CRITICAL: Pure reranker sorting lets a single high-scoring irrelevant chunk dominate.
+        // E.g., a "radiator overheating" chunk scores 0.78 reranker for "fuel tank capacity"
+        // because it mentions fuel gauge + engine + vehicle (lots of term overlap).
+        // But the actual spec table only appears in 1-2 queries with lower reranker score.
+        // RRF consensus rewards chunks that appear across MULTIPLE differently-worded queries,
+        // which is a strong signal that the chunk actually addresses the topic.
+        let maxRRF = chunkScores.values.map { $0.rrfScore }.max() ?? 1.0
         let fusedResults = chunkScores.values
-            .sorted { $0.maxRerankerScore > $1.maxRerankerScore }  // Sort by RELEVANCE, not consensus
+            .sorted {
+                let normRRF0 = $0.rrfScore / max(maxRRF, 0.001)
+                let normRRF1 = $1.rrfScore / max(maxRRF, 0.001)
+                let blended0 = $0.maxRerankerScore * 0.6 + normRRF0 * 0.4
+                let blended1 = $1.maxRerankerScore * 0.6 + normRRF1 * 0.4
+                return blended0 > blended1
+            }
             .prefix(20)
             .enumerated()
             .map { (index, retrieved) -> RetrievedChunk in
@@ -1787,6 +1778,138 @@ final class AgenticOrchestrator: Sendable {
         return (isValid, isValid ? "Content matches intent" : "Content does not address the question")
     }
 
+    // MARK: - Cross-Reference Resolution
+
+    /// Resolve cross-references found in retrieved chunks.
+    /// Technical documents frequently say "see page X" or "given in 'Section Name'".
+    /// The actual data (spec tables, procedures) lives in the referenced section, but
+    /// the reranker consistently scores prose descriptions higher than structured tables.
+    /// This method follows those references to retrieve the actual data chunks.
+    ///
+    /// Example: A chunk says "The fuel tank capacity is given in 'Recommended lubricants
+    /// and capacities' on page 9-7." — this method retrieves chunks from that section.
+    private func resolveCrossReferences(
+        chunks: [RetrievedChunk],
+        query: String,
+        ragService: RAGService,
+        onDetailedEvent: (@Sendable (ThinkingEvent.Kind, String, String) async -> Void)? = nil
+    ) async throws -> [RetrievedChunk] {
+        // Cross-reference patterns common in technical documents
+        // Each captures the section name or page reference
+        // Use try?/compactMap instead of try! to prevent crashes from invalid regex
+        let crossRefPatterns: [(regex: NSRegularExpression, captureGroup: Int)] = [
+            // QUOTED: "given in 'Recommended lubricants and capacities' on page 9-7"
+            // NOTE: In raw strings #"..."#, \u{} is literal text, NOT a Unicode escape.
+            // ICU regex (NSRegularExpression) uses \x{HHHH} for Unicode code points.
+            (pattern: #"(?:given|found|listed|shown|described|specified|provided|included|explained)\s+(?:in|under|at)\s+['"\x{201C}\x{201D}]([^'"\x{201C}\x{201D}\n]{3,80})['"\x{201C}\x{201D}]"#,
+             options: NSRegularExpression.Options.caseInsensitive, group: 1),
+            // QUOTED: "see 'Section Name'" or "refer to 'Section Name'"
+            (pattern: #"(?:see|refer\s+to|check|consult)\s+['"\x{201C}\x{201D}]([^'"\x{201C}\x{201D}\n]{3,80})['"\x{201C}\x{201D}]"#,
+             options: .caseInsensitive, group: 1),
+            // QUOTED: "in the 'Section Name' section/table/chapter"
+            (pattern: #"in\s+(?:the\s+)?['"\x{201C}\x{201D}]([^'"\x{201C}\x{201D}\n]{3,80})['"\x{201C}\x{201D}]\s+(?:section|table|chapter|page)"#,
+             options: .caseInsensitive, group: 1),
+            // UNQUOTED (case-insensitive): "given in recommended lubricants and capacities on page 9-7"
+            (pattern: #"(?:given|found|listed|shown|described|specified|provided|included|explained)\s+(?:in|under|at)\s+(?:the\s+)?([a-z][a-z]+(?:\s+[a-z&,]+){2,10})\s+on\s+page"#,
+             options: .caseInsensitive, group: 1),
+            // UNQUOTED: "see section name on page X" or "refer to section name on page X"
+            (pattern: #"(?:see|refer\s+to|check|consult)\s+(?:the\s+)?([a-z][a-z]+(?:\s+[a-z&,]+){2,10})\s+on\s+page"#,
+             options: .caseInsensitive, group: 1),
+            // CATCH-ALL: "given in <any text> on page" — most permissive fallback
+            (pattern: #"(?:given|found|listed|shown|described|specified|provided)\s+(?:in|under|at)\s+(?:the\s+)?(.{5,80})\s+on\s+page"#,
+             options: .caseInsensitive, group: 1),
+        ].compactMap { item -> (regex: NSRegularExpression, captureGroup: Int)? in
+            let (pattern, options, group) = item
+            guard let regex = try? NSRegularExpression(pattern: pattern, options: options) else {
+                Log.error("[CrossRef] Failed to compile regex: \(pattern.prefix(60))...", category: .retrieval)
+                return nil
+            }
+            return (regex, group)
+        }
+
+        var referencedSections: Set<String> = []
+        let existingIds = Set(chunks.map { $0.chunk.id })
+
+        // Scan top chunks for cross-references
+        for chunk in chunks.prefix(12) {
+            let content = chunk.chunk.content
+            let range = NSRange(content.startIndex..., in: content)
+
+            for (regex, group) in crossRefPatterns {
+                let matches = regex.matches(in: content, range: range)
+                for match in matches {
+                    guard match.numberOfRanges > group,
+                          let captureRange = Range(match.range(at: group), in: content) else { continue }
+                    let reference = String(content[captureRange])
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    // Skip very short references or pure page numbers
+                    if reference.count >= 5,
+                       reference.range(of: #"^\d+[-–]?\d*$"#, options: .regularExpression) == nil {
+                        referencedSections.insert(reference)
+                    }
+                }
+            }
+        }
+
+        guard !referencedSections.isEmpty else { return [] }
+
+        Log.info("[CrossRef] Found \(referencedSections.count) cross-references: \(referencedSections.joined(separator: ", "))", category: .retrieval)
+        await onDetailedEvent?(.retrieval, "Cross-references", "Following \(referencedSections.count) document references")
+
+        var additionalChunks: [RetrievedChunk] = []
+
+        // Follow each cross-reference (limit to 3 to bound latency)
+        for section in referencedSections.prefix(3) {
+            await onDetailedEvent?(.retrieval, "Following ref", "Retrieving: \"\(section.prefix(40))\"")
+
+            // Search for the referenced section using the full retrieval pipeline
+            let sectionChunks = try await ragService.executeFullRetrievalPipeline(
+                query: section,
+                topK: 5,
+                minSimilarity: 0.10,  // Low threshold — we trust the document's cross-reference
+                qualityMode: qualityMode,
+                onDetailedEvent: nil  // Don't spam detailed events for sub-searches
+            )
+
+            var addedFromSection = 0
+            for chunk in sectionChunks where !existingIds.contains(chunk.chunk.id) {
+                // Boost cross-referenced chunks: the DOCUMENT itself said to look here.
+                // Floor at 0.55 ensures these compete with reranker-favored prose chunks.
+                // Cap preserves ordering among cross-ref results.
+                let boostedScore = max(chunk.similarityScore, 0.55)
+                let boosted = RetrievedChunk(
+                    chunk: chunk.chunk,
+                    similarityScore: boostedScore,
+                    rank: chunk.rank,
+                    sourceDocument: chunk.sourceDocument,
+                    pageNumber: chunk.pageNumber
+                )
+                additionalChunks.append(boosted)
+                addedFromSection += 1
+            }
+
+            Log.info("[CrossRef] '\(section.prefix(40))': retrieved \(sectionChunks.count) chunks, \(addedFromSection) new", category: .retrieval)
+        }
+
+        if !additionalChunks.isEmpty {
+            await onDetailedEvent?(.retrieval, "Cross-ref resolved", "+\(additionalChunks.count) chunks from referenced sections")
+
+            let crossRefStep = ThinkingStep(
+                id: UUID(),
+                type: .searching,
+                input: "Cross-reference resolution",
+                output: "Followed \(referencedSections.count) document references → +\(additionalChunks.count) chunks",
+                tokensUsed: 0,
+                duration: 0.3,
+                timestamp: Date()
+            )
+            // Log only, don't append to steps (caller handles that)
+            Log.info("[CrossRef] \(crossRefStep.output)", category: .retrieval)
+        }
+
+        return additionalChunks
+    }
+
     // MARK: - Graph Expansion (GraphRAG-lite)
 
     private func executeGraphExpansion(
@@ -1856,6 +1979,7 @@ final class AgenticOrchestrator: Sendable {
                 query: entity,
                 topK: 4,
                 minSimilarity: 0.2,
+                qualityMode: qualityMode,
                 onDetailedEvent: onDetailedEvent
             )
             for chunk in hopChunks where !expandedChunks.contains(where: { $0.chunk.id == chunk.chunk.id }) {
@@ -1940,7 +2064,7 @@ final class AgenticOrchestrator: Sendable {
 
         let response = try await ragService.generateWithFreshSession(
             prompt: analysisPrompt,
-            maxTokens: 1024
+            maxTokens: 700
         )
 
         return ThinkingStep(
@@ -2003,6 +2127,8 @@ final class AgenticOrchestrator: Sendable {
 
         let systemPrompt = """
         Synthesize findings into a comprehensive answer. Cite [S1], [S2] when available.
+        Format with ### section headers, - bullet lists, **bold** key terms.
+        Separate sections with blank lines for readability.
         """
 
         let response = try await ragService.generateWithProperConsent(
@@ -3495,44 +3621,87 @@ extension AgenticOrchestrator {
         Log.info("[ReasoningChain] Starting \(isDeepThinkMode ? "dynamic 4-8" : String(config.sessionCount))-session chain for: \(query.prefix(40))... (confidence reporting: \(shouldReportConfidence), threshold: \(Int(confidenceThreshold * 100))%)", category: .llm)
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        // CRITICAL: Use TOP-K chunks for ALL sessions, not distributed slices
+        // CHUNK ROTATION: Each session sees a sliding window of chunks
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        // Previous approach distributed chunks: Session 1 gets top chunks, Session 2 gets
-        // worse chunks, Session 3 gets even worse, etc. This is WRONG because:
-        // 1. Later sessions analyze irrelevant content (web interface, shipping, etc.)
-        // 2. The value of multi-session is reasoning DEPTH, not seeing MORE (worse) chunks
-        // 3. Ranked chunks exist for a reason - lower-ranked = less relevant
-        //
-        // New approach: ALL sessions see the SAME top-K most relevant chunks.
-        // Each session reasons DEEPER on the same high-quality context.
+        // Session 1: chunks [0..3], Session 2: [2..5], Session 3: [4..7], etc.
+        // This ensures the answer gets found even when the reranker is wrong.
+        // Multi-session value = depth (repeated reasoning) + breadth (more chunks).
 
         // For multi-session modes, use smaller context to leave room for accumulated insights
         // Deep Think (4-8 sessions) and Maximum (up to 50) both need room for insight chains
+        //
+        // FIXED TOKEN BUDGET (context no longer doubled):
+        // 4096 total - 80 (system) - 30 (LLM wrapper) - 500 (output) = 3486 tokens ≈ 4880 chars
+        // Session 1 (no insights): context up to 4000 chars, prompt text ~300 chars = 4300 (fits)
+        // Session 2+ (with insights): context ≤ 2200 + insights ≤ 1200 + prompt ~300 = 3700 (fits)
+        // buildChainPrompt handles the per-session budget split (4000 for S1, 2200 for S2+)
         let maxChunksPerSession = (isUnlimitedMode || isDeepThinkMode) ? 4 : 6
-        let contextBudget = isUnlimitedMode ? 2500 : (isDeepThinkMode ? 2800 : (config.maxContextPerSession - 500))
-        let topChunks = Array(chunks.prefix(maxChunksPerSession))
+        let contextBudget = isUnlimitedMode ? 3000 : (isDeepThinkMode ? 3500 : (config.maxContextPerSession - 500))
 
-        // Pre-build the shared context from top chunks (used by all sessions)
-        var sharedContext = ""
-        for (idx, chunk) in topChunks.enumerated() {
-            let content = chunk.chunk.parentContent ?? chunk.chunk.content
-            sharedContext += "[S\(idx + 1)] \(content)\n---\n"
-            allSources.insert(chunk.sourceDocument)
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // SESSION CONTEXT ROTATION: Different sessions see different chunks
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // Previous approach: ALL sessions see the same top-4 chunks.
+        // Problem: If reranker scored wrong chunks highest (common for broad-topic
+        // queries), ALL sessions reason over irrelevant content and the actual
+        // answer chunk is never seen.
+        //
+        // New approach: Session N sees chunks [N*stride..N*stride+perSession]
+        // with stride=2 for overlap. Session 1 gets [0..3], Session 2 gets [2..5],
+        // Session 3 gets [4..7], etc. This covers more of the top-20 chunks
+        // while maintaining partial overlap for continuity.
+        // The multi-session value is BOTH depth AND breadth.
+        let chunksPerSession = min(maxChunksPerSession, chunks.count)
+        let stride = max(1, chunksPerSession / 2)  // 50% overlap between sessions
 
-            // Stay within session budget (tighter for unlimited mode)
-            if sharedContext.count > contextBudget { break }
+        // Use dynamic max for Deep Think mode (can go up to 8 sessions)
+        let effectiveMaxSessions = isDeepThinkMode ? maxSessionsForMode : config.sessionCount
+
+        // Build ALL session contexts upfront; each session gets a sliding window
+        var sessionContexts: [String] = []
+        var sessionOffset = 0
+        let totalAvailableChunks = chunks.count
+
+        // Generate enough context windows for all possible sessions
+        while sessionContexts.count < effectiveMaxSessions {
+            let startIdx = min(sessionOffset, max(0, totalAvailableChunks - chunksPerSession))
+            let endIdx = min(startIdx + chunksPerSession, totalAvailableChunks)
+
+            // SENTENCE-LEVEL EXTRACTION: Instead of packing 3-4 whole chunks per session,
+            // extract only query-relevant sentences from the window's chunks.
+            // With 3000-3500 char budgets per session, this fits targeted data from
+            // ALL chunks in the window instead of truncating at 2-3 whole chunks.
+            // Universal across all document types — same extraction as Standard pipeline.
+            let windowChunks = Array(chunks[startIdx..<endIdx])
+            for c in windowChunks { allSources.insert(c.sourceDocument) }
+
+            let extraction = ragService.extractRelevantSentences(
+                from: windowChunks,
+                query: query,
+                maxChars: contextBudget,
+                compact: true
+            )
+            let ctx = extraction.context
+            Log.debug("[ReasoningChain] Session \(sessionContexts.count + 1): \(extraction.sentencesIncluded) sentences from \(extraction.sourcesUsed) sources (\(ctx.count) chars)", category: .retrieval)
+
+            sessionContexts.append(ctx)
+            sessionOffset += stride
+
+            // If we've exhausted all chunks, wrap around to top chunks
+            if sessionOffset >= totalAvailableChunks {
+                sessionOffset = 0
+            }
         }
 
-        Log.debug("[ReasoningChain] Using top \(topChunks.count) chunks for ALL sessions (shared context: \(sharedContext.count) chars)", category: .retrieval)
+        // For logging, use the first session's context
+        let sharedContext = sessionContexts.first ?? ""
+        Log.debug("[ReasoningChain] Built \(sessionContexts.count) rotating contexts (first: \(sharedContext.count) chars, \(chunksPerSession) chunks/session, stride \(stride))", category: .retrieval)
 
         if isUnlimitedMode {
             Log.info("[ReasoningChain] UNLIMITED MODE: Will keep reasoning until \(Int(confidenceThreshold * 100))% confident or \(config.sessionCount) sessions max", category: .llm)
         } else if isDeepThinkMode {
             Log.info("[ReasoningChain] DEEP THINK MODE: Dynamic 4-8 sessions, targeting \(Int(confidenceThreshold * 100))% confidence", category: .llm)
         }
-
-        // Use dynamic max for Deep Think mode (can go up to 8 sessions)
-        let effectiveMaxSessions = isDeepThinkMode ? maxSessionsForMode : config.sessionCount
 
         for sessionIndex in 0..<effectiveMaxSessions {
             let sessionNum = sessionIndex + 1
@@ -3560,10 +3729,12 @@ extension AgenticOrchestrator {
             }
 
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            // All sessions use the SAME top-ranked context
-            // The multi-session value is reasoning depth, not chunk diversity
+            // Each session gets a ROTATED context window for chunk diversity
+            // Session 1 sees chunks [0..3], Session 2 sees [2..5], etc.
+            // This ensures the answer chunk gets seen even if reranker is wrong
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            let sessionContext = sharedContext
+            let contextIndex = min(sessionIndex, sessionContexts.count - 1)
+            let sessionContext = sessionContexts[contextIndex]
 
             // DEBUG: Log what context is actually being passed
             Log.debug("[ReasoningChain] Session \(sessionNum) context (\(sessionContext.count) chars): \(sessionContext.prefix(500))...", category: .retrieval)
@@ -3604,24 +3775,31 @@ extension AgenticOrchestrator {
             // Execute session with proper consent + context overflow recovery
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-            // Maximum mode gets higher token limits for more detailed reasoning
-            let sessionMaxTokens = isUnlimitedMode ? 1200 : (isDeepThinkMode ? 900 : 700)
+            // FIXED: Reduce maxTokens to leave room for context within 4096 limit
+            // Budget: system(100) + prompt+context+insights(~2500) + output(500) = ~3100 tokens
+            let sessionMaxTokens = isUnlimitedMode ? 600 : (isDeepThinkMode ? 500 : 500)
 
-            // Disable tools after session 1 to prevent context overflow
-            // Session 1 can use tools for initial search, later sessions synthesize
-            let disableToolsForSession = sessionNum > 1
+            // FIXED: Disable tools for ALL sessions — multi-query retrieval already
+            // gathered all needed chunks. Session 1 tool calls waste tokens on useless
+            // searches like search_exact_pattern("What's the button do?") which matches nothing.
+            // Tool schema alone costs ~400 tokens we can't afford in a 4096 budget.
+            let disableToolsForSession = true
 
             // Attempt execution with automatic context reduction on overflow
             var sessionPrompt = prompt
-            var currentContext = sessionContext
             let maxRetries = 2
 
+            // CRITICAL FIX: Pass context as empty string to generateWithProperConsent.
+            // buildChainPrompt() already embeds DOCUMENTS: in the prompt text.
+            // Passing context AGAIN causes LLMService to wrap CONTEXT: around BOTH,
+            // resulting in context appearing TWICE in the LLM input — doubling token usage.
+            // This was the root cause of constant context overflow (4521+ tokens on a 4096 limit).
             var response: LLMResponse? = nil
             for retryCount in 0...maxRetries {
                 do {
                     response = try await ragService.generateWithProperConsent(
                         prompt: sessionPrompt,
-                        context: currentContext,
+                        context: "",
                         systemPrompt: systemPrompt,
                         maxTokens: sessionMaxTokens,
                         disableTools: disableToolsForSession
@@ -3638,14 +3816,14 @@ extension AgenticOrchestrator {
                         // Reduce prompt by truncating context and insights more aggressively
                         let reductionFactor = 1.0 - (Double(retryCount + 1) * 0.3) // 70%, then 40%
                         let reducedInsights = insightsForPrompt.map { String($0.prefix(Int(Double($0.count) * reductionFactor))) }
-                        currentContext = String(sessionContext.prefix(Int(Double(sessionContext.count) * reductionFactor)))
+                        let reducedContext = String(sessionContext.prefix(Int(Double(sessionContext.count) * reductionFactor)))
 
                         // Rebuild prompt with reduced content
                         let (reducedPrompt, _) = buildChainPrompt(
                             sessionIndex: sessionIndex,
                             sessionCount: effectiveSessionCount,
                             query: query,
-                            context: currentContext,
+                            context: reducedContext,
                             previousInsights: reducedInsights,
                             maxInsightLength: Int(Double(config.maxInsightLength) * reductionFactor)
                         )
@@ -3818,18 +3996,22 @@ extension AgenticOrchestrator {
                         : (similarityCount >= forceTerminationCount || maxOverlapRatio > forceTerminationThreshold)
 
                     if shouldForceTerminate {
-                        // Repetition means we're stuck - NOT that we found the answer
-                        // Don't boost confidence, just stop to avoid wasting tokens
-                        repetitionBonus = 0.0 // No confidence boost for repetition
+                        // Repetition means we're STUCK, NOT that we found the correct answer.
+                        // Don't boost confidence — the answer may be completely wrong.
+                        // Just set a termination flag so the loop exits.
+                        repetitionBonus = 0.0
                         Log.info("[ReasoningChain] Strong repetition detected (\(similarityCount)/4 similar, consecutive: \(consecutiveSimilar), max overlap: \(Int(maxOverlapRatio * 100))%) - stopping to avoid loops", category: .llm)
 
-                        // IMMEDIATE TERMINATION: Stop the loop, but don't inflate confidence
-                        // The answer may be wrong - repetition != correctness
+                        // FIXED: Do NOT set confidence to threshold. That caused 85% confidence
+                        // on wrong answers just because the LLM repeated itself.
+                        // Instead, just break out of the session loop.
                         let minSessionsBeforeForceStop = isUnlimitedMode ? 15 : 4
                         if sessionNum >= minSessionsBeforeForceStop {
-                            // Set to threshold to stop, but not higher (don't claim false confidence)
-                            cumulativeConfidence = isDeepThinkMode ? 0.85 : 0.98
                             Log.info("[ReasoningChain] Forcing early termination due to repetition loop (after \(sessionNum) sessions)", category: .llm)
+                            // DON'T touch cumulativeConfidence — keep it at whatever it actually is
+                            // The loop will exit because we'll set a flag below
+                            chainInsights.append(insight) // Save last insight before breaking
+                            break // Exit the session loop immediately
                         } else {
                             Log.info("[ReasoningChain] Repetition detected but continuing (session \(sessionNum) < \(minSessionsBeforeForceStop) minimum)", category: .llm)
                         }
@@ -3929,13 +4111,16 @@ extension AgenticOrchestrator {
             exhaustivePrompt += "- First, verify the findings actually answer the original question\n"
             exhaustivePrompt += "- Include specific values, numbers, and specifications found\n"
             exhaustivePrompt += "- Cite specific sources as [S1], [S2], etc.\n"
-            exhaustivePrompt += "- Be thorough but stay focused on what was asked\n\n"
+            exhaustivePrompt += "- Be thorough but stay focused on what was asked\n"
+            exhaustivePrompt += "- Format with ### section headers, - bullet lists, **bold** key terms\n"
+            exhaustivePrompt += "- Separate paragraphs and sections with blank lines\n\n"
             exhaustivePrompt += "DIRECT ANSWER:"
 
             var exhaustiveSystemPrompt = "You synthesize research into a direct answer. "
             exhaustiveSystemPrompt += "First verify the findings answer the original question. "
             exhaustiveSystemPrompt += "If findings are about something else, note that clearly. "
-            exhaustiveSystemPrompt += "Include all specific values, numbers, and specifications."
+            exhaustiveSystemPrompt += "Include all specific values, numbers, and specifications. "
+            exhaustiveSystemPrompt += "Format with ### headers, - bullets, **bold** key terms, and blank lines between sections."
 
             // Apple FM API: 4096 token limit applies to BOTH on-device and PCC
             // The 65K server capacity is internal to Apple, not exposed to developers (TN3193)
@@ -3958,6 +4143,77 @@ extension AgenticOrchestrator {
                 Log.warning("[ReasoningChain] Exhaustive synthesis failed, using last insight: \(error)", category: .llm)
                 finalAnswer = cleanupFinalAnswer(chainInsights.last ?? "Unable to synthesize answer from reasoning chain.")
             }
+        } else if isDeepThinkMode, chainInsights.count >= 2 {
+            // DEEP THINK MODE: Run a synthesis pass to combine all session findings.
+            // Without this, the answer is just the last raw insight (which might be
+            // "No new information found" if the last session had no new details).
+            // Synthesis merges ALL accumulated findings into one comprehensive answer.
+            Log.info("[ReasoningChain] Running Deep Think synthesis (\(chainInsights.count) insights)...", category: .llm)
+
+            // Budget for Deep Think synthesis: keep it tight within 4096
+            let maxInsightChars = 3000
+            var condensedInsights: [String] = []
+            var totalChars = 0
+
+            // Include all insights, truncating individual ones if needed
+            for insight in chainInsights {
+                let trimmed = insight.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+                // Skip empty or "no new info" insights
+                if trimmed.count < 20 || trimmed.lowercased().contains("no new information") {
+                    continue
+                }
+                if totalChars + trimmed.count <= maxInsightChars {
+                    condensedInsights.append(trimmed)
+                    totalChars += trimmed.count
+                } else {
+                    // Truncate and include
+                    let remaining = maxInsightChars - totalChars
+                    if remaining > 100 {
+                        condensedInsights.append(String(trimmed.prefix(remaining)))
+                    }
+                    break
+                }
+            }
+
+            if condensedInsights.isEmpty {
+                // All insights were empty/trivial — fall back to last one
+                finalAnswer = cleanupFinalAnswer(chainInsights.last ?? "Unable to synthesize answer from reasoning chain.")
+            } else {
+                let insightsSummary = condensedInsights.enumerated()
+                    .map { "[\($0.offset + 1)] \($0.element)" }
+                    .joined(separator: "\n")
+
+                let synthesisPrompt = """
+                QUESTION: \(query)
+
+                ALL FINDINGS:
+                \(insightsSummary)
+
+                Combine ALL findings into one complete, direct answer to: "\(query)"
+                Include every relevant detail found across all sessions.
+                Be comprehensive but concise. Cite as [S1], [S2].
+                Format with ### section headers, - bullet lists, **bold** key terms.
+                Separate paragraphs and sections with blank lines for readability.
+                """
+
+                let synthesisSystemPrompt = "Combine all research findings into one comprehensive answer. Include every detail found. Format with ### headers, - bullets, **bold** key terms, and blank lines between sections."
+
+                do {
+                    let synthesisResponse = try await ragService.generateWithProperConsent(
+                        prompt: synthesisPrompt,
+                        context: "",
+                        systemPrompt: synthesisSystemPrompt,
+                        maxTokens: 500
+                    )
+                    finalAnswer = cleanupFinalAnswer(synthesisResponse.text)
+                    totalTokens += synthesisResponse.tokensGenerated
+                    Log.info("[ReasoningChain] Deep Think synthesis: \(synthesisResponse.tokensGenerated) tokens (\(finalAnswer.count) chars)", category: .llm)
+                } catch {
+                    Log.warning("[ReasoningChain] Deep Think synthesis failed, using combined insights: \(error)", category: .llm)
+                    // Fallback: concatenate all non-trivial insights
+                    finalAnswer = cleanupFinalAnswer(condensedInsights.joined(separator: "\n\n"))
+                }
+            }
         } else {
             // Standard mode: The last insight IS the final answer (session N is synthesis)
             finalAnswer = cleanupFinalAnswer(chainInsights.last ?? "Unable to synthesize answer from reasoning chain.")
@@ -3974,7 +4230,7 @@ extension AgenticOrchestrator {
             chainInsights: chainInsights,
             totalTokens: totalTokens,
             sessionCount: actualSessionCount,
-            confidence: max(0.5, cumulativeConfidence),
+            confidence: cumulativeConfidence,  // Don't artificially floor — report honestly
             sources: Array(allSources)
         )
     }
@@ -4096,9 +4352,9 @@ extension AgenticOrchestrator {
                 subs.append(SubQuestion(question: keywords.joined(separator: " ")))
             }
 
-            // Always include these research-oriented checks
-            subs.append(SubQuestion(question: "research study found showed"))
-            subs.append(SubQuestion(question: "limitation caveat concern mixed"))
+            // Document-grounded checks (not research-oriented — source docs may be manuals, not papers)
+            subs.append(SubQuestion(question: "specific details values numbers"))
+            subs.append(SubQuestion(question: "notes warnings exceptions"))
 
             // Deduplicate
             var seen = Set<String>()
@@ -4418,6 +4674,7 @@ extension AgenticOrchestrator {
                             query: expQuery,
                             topK: 20,
                             minSimilarity: 0.15, // Lower threshold for exploration
+                            qualityMode: qualityMode,
                             onDetailedEvent: detailedForwarder
                         ) {
                             for chunk in chunks where !usedChunkIds.contains(chunk.chunk.id) {
@@ -4484,25 +4741,19 @@ extension AgenticOrchestrator {
             }
 
             // Build context with strict character limit
-            var contextParts: [String] = []
-            var contextChars = 0
+            // SENTENCE-LEVEL EXTRACTION: Instead of packing 2-3 whole chunks into
+            // 2500 chars, extract query-relevant sentences from the session's chunks.
+            // This fits targeted data from all available chunks instead of
+            // truncating mid-sentence. Universal across all document types.
             let maxContextChars = 2500 // ~600 tokens, leaves room for prompt + response
-
-            for chunk in sessionChunks {
-                let chunkText = "[S\(chunk.chunk.metadata.chunkIndex)] \(chunk.chunk.content)"
-                if contextChars + chunkText.count <= maxContextChars {
-                    contextParts.append(chunkText)
-                    contextChars += chunkText.count
-                } else if contextChars < maxContextChars / 2 {
-                    // Add truncated version if we have room
-                    let remaining = maxContextChars - contextChars
-                    contextParts.append(String(chunkText.prefix(remaining)) + "...")
-                    break
-                } else {
-                    break
-                }
-            }
-            let context = contextParts.joined(separator: "\n\n")
+            let extraction = ragService.extractRelevantSentences(
+                from: sessionChunks,
+                query: query,
+                maxChars: maxContextChars,
+                compact: true
+            )
+            let context = extraction.context
+            Log.debug("[Unlimited] Session \(sessionNum): \(extraction.sentencesIncluded) sentences from \(extraction.sourcesUsed) sources (\(context.count) chars)", category: .retrieval)
 
             // Build prompt based on session stage
             let (prompt, systemPrompt) = buildUnlimitedSessionPrompt(
@@ -4746,8 +4997,8 @@ extension AgenticOrchestrator {
         let insightSummary = previousInsights.isEmpty ? "" :
             "Prior findings: " + previousInsights.suffix(2).map { String($0.prefix(150)) }.joined(separator: " | ")
 
-        // Core instruction for all sessions: document analysis framing
-        let coreInstruction = "Interpret vague questions based on document topics. Report comprehensive findings."
+        // Core instruction for all sessions: document-grounded, anti-hallucination
+        let coreInstruction = "Report ONLY facts found in these documents. Never invent statistics, studies, or claims not in the text."
 
         if sessionNum == 1 {
             // First session: Initial exploration
@@ -4758,10 +5009,10 @@ extension AgenticOrchestrator {
                 DOCUMENTS FROM USER'S LIBRARY:
                 \(context)
 
-                Extract specific facts, numbers, and evidence from these documents.
+                Extract specific facts, numbers, and details from these documents.
                 \(coreInstruction)
                 """,
-                "Expert research analyst with PhD-level expertise. Extract all facts and evidence from documents."
+                "Document analyst. Extract ONLY facts present in the documents. Never fabricate statistics or research claims."
             )
         } else if sessionNum <= 5 {
             // Early sessions: Build breadth
@@ -4773,9 +5024,10 @@ extension AgenticOrchestrator {
                 ADDITIONAL DOCUMENTS:
                 \(context)
 
-                What NEW facts or findings do these documents add? Avoid repeating prior findings.
+                What NEW facts or details do these documents add? Avoid repeating prior findings.
+                \(coreInstruction)
                 """,
-                "Expert research analyst. Find new details. Avoid repetition. Be thorough."
+                "Document analyst. Find new details from documents only. Never fabricate. Avoid repetition."
             )
         } else if sessionNum <= 15 {
             // Middle sessions: Build depth - use currentAnswer summary
@@ -4789,8 +5041,9 @@ extension AgenticOrchestrator {
                 \(context)
 
                 Add nuances or deeper details not yet covered from these documents.
+                \(coreInstruction)
                 """,
-                "Expert research analyst. Find nuances and details. Be specific and thorough."
+                "Document analyst. Find nuances from documents only. Never invent facts."
             )
         } else {
             // Later sessions: Refine and verify
@@ -4801,9 +5054,10 @@ extension AgenticOrchestrator {
                 DOCUMENTS:
                 \(context)
 
-                Verify findings and add supporting evidence from these documents.
+                Verify findings against these documents. Add supporting details found in the text.
+                \(coreInstruction)
                 """,
-                "Expert research analyst. Verify and add details. Be thorough."
+                "Document analyst. Verify against source text. Never fabricate."
             )
         }
     }
@@ -4844,7 +5098,7 @@ extension AgenticOrchestrator {
         let response = try await ragService.generateWithProperConsent(
             prompt: prompt,
             context: "",
-            systemPrompt: "Synthesize facts into clear answers. Preserve all data. NEVER say you don't have information.",
+            systemPrompt: "Synthesize facts into clear answers. Preserve all data. Only include facts from the documents. Never fabricate statistics or research claims.",
             maxTokens: 1000,
             disableTools: true
         )
@@ -4852,8 +5106,10 @@ extension AgenticOrchestrator {
         return cleanupFinalAnswer(response.text)
     }
 
-    /// Final synthesis of unlimited reasoning - CHAINS MULTIPLE OUTPUTS for comprehensive answer
-    /// Each output call stays under 4096, but we chain as many as needed
+    /// Final synthesis of unlimited reasoning - SINGLE PASS with optional refinement
+    /// Replaces the old multi-pass concatenation approach that caused massive duplication.
+    /// Uses FactBank as the single source of truth — one comprehensive synthesis, then
+    /// an optional REPLACEMENT refinement pass (never concatenation).
     private func synthesizeFinalUnlimitedAnswer(
         query: String,
         factBank: FactBank,
@@ -4865,128 +5121,89 @@ extension AgenticOrchestrator {
         }
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        // CHAINED OUTPUT SYNTHESIS - build answer section by section
-        // Uses the Fact Bank as the core data source (already compressed)
+        // SINGLE-PASS SYNTHESIS — one comprehensive answer from FactBank
+        // No concatenation. Optional refinement REPLACES, never appends.
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-        var finalAnswer = ""
         let factContext = factBank.asContext() // Already compressed to ~1500 chars
 
-        Log.info("[Synthesis] Chaining output passes with Fact Bank (\(factBank.summary))", category: .llm)
+        // Gather supplementary context from recent insights (non-overlapping with FactBank)
+        let supplementary: String
+        if allInsights.count > 3 {
+            let recent = allInsights.suffix(3).map { String($0.prefix(300)) }
+            supplementary = "\n\nSUPPLEMENTARY FINDINGS:\n" + recent.joined(separator: "\n")
+        } else {
+            supplementary = ""
+        }
 
-        // ── PASS 1: Core answer from Fact Bank ──
-        // The Fact Bank contains the compressed, essential facts from ALL sessions
-        let corePrompt = """
+        Log.info("[Synthesis] Single-pass synthesis with Fact Bank (\(factBank.summary)), \(allInsights.count) insights", category: .llm)
+
+        // ── PASS 1: Comprehensive answer from ALL evidence ──
+        let synthesisPrompt = """
         Q: \(query)
 
         DOCUMENT FINDINGS:
-        \(factContext)
+        \(factContext)\(supplementary)
 
-        Write a comprehensive summary (aim for 1000+ words) with:
-        - Start with an executive summary (2-3 sentences)
-        - Key findings with all specific evidence, numbers, citations
-        - Use clear paragraph breaks to organize by theme
-        - Use **bold** for key terms and findings
-        Be thorough and include ALL the facts from the documents. NEVER repeat the same point twice.
-        If the question was vague, interpret it based on what the documents discuss.
+        Write a thorough answer using ONLY the document findings above:
+        - Include ALL specific values, numbers, names, and details from the findings
+        - Use **bold** for key terms
+        - Organize by topic/theme with clear headings
+        - Include practical details, caveats, or limitations ONLY if mentioned in the findings
+        - Do NOT invent facts, statistics, or research claims not in the findings
+        - Do NOT add "research perspective" or "future research" sections
+        - Every statement must trace back to the document findings
+        Never repeat the same information twice.
         """
 
         let coreResponse = try await ragService.generateWithProperConsent(
-            prompt: corePrompt,
+            prompt: synthesisPrompt,
             context: "",
-            systemPrompt: "Expert research writer. Include ALL document facts. Be comprehensive (1000+ words). Use **bold** for key terms. NEVER repeat content.",
-            maxTokens: 1200,
+            systemPrompt: "Document analyst. Answer using ONLY the provided findings. Never fabricate facts or statistics. Use **bold** for key terms. Never repeat content.",
+            maxTokens: 1500,
             disableTools: true
         )
-        finalAnswer = cleanupFinalAnswer(coreResponse.text)
+        var finalAnswer = cleanupFinalAnswer(coreResponse.text)
 
-        // ── PASS 2: Add depth from recent insights ──
-        if allInsights.count > 3 {
-            let recentInsights = allInsights.suffix(3).map { String($0.prefix(350)) }
-
-            let depthPrompt = """
+        // ── PASS 2: Refinement (REPLACES, never appends) — only if sufficient evidence ──
+        // This pass checks for missing facts and removes duplication.
+        // Only triggers when we have substantial evidence (8+ insights) AND the answer is long enough
+        // that it might have missed something or contain repetition.
+        if allInsights.count > 8 && finalAnswer.count > 800 {
+            let refinementPrompt = """
             Q: \(query)
 
-            CURRENT ANSWER:
-            \(String(finalAnswer.prefix(1000)))
-
-            ADDITIONAL CONTEXT:
-            \(recentInsights.joined(separator: "\n\n"))
-
-            Add a new section about **Additional Details** with:
-            - Nuances and exceptions not yet covered
-            - Supporting examples or methodology details
-            Write in prose. Use **bold** for key terms. Do NOT repeat content from the current answer.
-            """
-
-            let depthResponse = try await ragService.generateWithProperConsent(
-                prompt: depthPrompt,
-                context: "",
-                systemPrompt: "Expert analyst. Add depth with new content only.",
-                maxTokens: 800,
-                disableTools: true
-            )
-            let depthSection = cleanupFinalAnswer(depthResponse.text)
-            if depthSection.count > 50 {
-                finalAnswer += "\n\n" + depthSection
-            }
-        }
-
-        // ── PASS 3: Implications and limitations ──
-        if allInsights.count > 5 {
-            let implicationsPrompt = """
-            Q: \(query)
-
-            ANSWER SUMMARY:
-            \(String(finalAnswer.prefix(800)))
-
-            Add a section about **Implications & Limitations**:
-            - Practical takeaways
-            - Research caveats
-            - Future research needs
-            Write in prose (2-3 paragraphs). Use **bold** for key terms.
-            """
-
-            let implResponse = try await ragService.generateWithProperConsent(
-                prompt: implicationsPrompt,
-                context: "",
-                systemPrompt: "Expert analyst. Synthesize implications from document evidence.",
-                maxTokens: 600,
-                disableTools: true
-            )
-            let implSection = cleanupFinalAnswer(implResponse.text)
-            if implSection.count > 50 {
-                finalAnswer += "\n\n" + implSection
-            }
-        }
-
-        // ── PASS 4: Final polish (only for substantial answers) ──
-        if finalAnswer.count > 2500 && allInsights.count > 8 {
-            // Verify we haven't lost any key facts by cross-checking with Fact Bank
-            let polishPrompt = """
-            FACT CHECK these facts are in the answer:
+            FACT BANK (all known facts):
             \(factContext)
 
-            ANSWER:
-            \(String(finalAnswer.prefix(2200)))
+            DRAFT ANSWER:
+            \(String(finalAnswer.prefix(1800)))
 
-            If any facts above are MISSING from the answer, add them.
-            Fix any repetition or unclear sections.
-            Return the complete polished answer.
+            Improve this draft:
+            1. Add any facts from the FACT BANK that are missing from the draft
+            2. Remove any duplicated or repeated content
+            3. Remove any claims not supported by the FACT BANK
+            4. Keep the same structure and formatting
+            Return the improved complete answer.
             """
 
-            let polishResponse = try await ragService.generateWithProperConsent(
-                prompt: polishPrompt,
+            let refinedResponse = try await ragService.generateWithProperConsent(
+                prompt: refinementPrompt,
                 context: "",
-                systemPrompt: "Expert editor. Ensure completeness and clarity.",
-                maxTokens: 1200,
+                systemPrompt: "Editor. Only include facts from the FACT BANK. Remove repetition. Remove unsupported claims.",
+                maxTokens: 1500,
                 disableTools: true
             )
-            let polished = cleanupFinalAnswer(polishResponse.text)
-            if polished.count > finalAnswer.count * 2 / 3 {
-                finalAnswer = polished
+            let refined = cleanupFinalAnswer(refinedResponse.text)
+
+            // Only use refinement if it's substantial (not a truncated mess)
+            if refined.count > finalAnswer.count / 2 {
+                finalAnswer = refined  // REPLACE, never append
             }
         }
+
+        // ── Final cross-pass deduplication ──
+        finalAnswer = deduplicateSynthesizedAnswer(finalAnswer)
 
         Log.info("[Synthesis] Final answer: \(finalAnswer.count) chars from \(allInsights.count) insights", category: .llm)
 
@@ -5313,41 +5530,17 @@ extension AgenticOrchestrator {
         let synthesisPrompt = """
         \(synthesisInput)
 
-        TASK: Synthesize ALL cluster findings into ONE comprehensive, publication-quality answer.
+        TASK: Synthesize ALL findings into ONE comprehensive answer.
+        Integrate across clusters. Include specific values and data. Use **bold** for key terms.
+        Never repeat content. Cite [S1], [S2].
 
-        REQUIREMENTS:
-        - Integrate findings across ALL clusters - don't just summarize each separately
-        - Identify common themes, contradictions, and complementary evidence
-        - Use **bold** for key terms/findings and *italic* for emphasis - this renders well
-        - Include specific statistics, study names, and methodologies
-        - Discuss implications and limitations
-        - Target 1000+ words - be THOROUGH but never repeat the same point twice
-        - Each paragraph should add NEW information, not rephrase previous content
-
-        COMPREHENSIVE SYNTHESIS:
+        SYNTHESIS:
         """
 
         let systemPrompt = """
-        You are an academic research assistant synthesizing document findings.
-        This is document summarization from the user's personal knowledge library - NOT advice generation.
-
-        MAXIMUM QUALITY REQUIREMENTS:
-        1. COMPLETENESS: Extract every detail - procedures, specifications, warnings, tips
-        2. SPECIFICITY: Include exact values ("5V/2A", "hold 3 seconds", "blue LED blinks twice")
-        3. ACTIONABLE: Provide step-by-step instructions with feedback indicators
-        4. TECHNICAL: Include all specifications, tolerances, and technical parameters
-        5. STRUCTURED: Use headers, bullet points, and numbered steps for clarity
-
-        FORMATTING:
-        - Use **bold** for key findings, terms, and actions
-        - Use *italic* for emphasis and technical terms
-        - Use numbered lists for procedures
-        - Use bullet points for features and specifications
-        - Include section headers for major topics
-
-        Be exhaustive - aim for 1000+ words. Include ALL relevant details from EVERY document.
-        Never repeat the same information - each paragraph must add new content.
-        Cross-reference and synthesize findings that appear in multiple sources.
+        Synthesize document findings. Include ALL specific values, numbers, and data points.
+        Cross-reference multiple sources. Never repeat content. Use **bold** for key terms.
+        Cite as [S1], [S2]. Write like a domain expert — format naturally for the content.
         """
 
         var totalTokens = 0
@@ -5408,6 +5601,7 @@ extension AgenticOrchestrator {
             query: query,
             topK: 50,
             minSimilarity: 0.20, // Lower threshold to catch more relevant content
+            qualityMode: qualityMode,
             onDetailedEvent: onDetailedEvent
         )
 
@@ -5428,6 +5622,7 @@ extension AgenticOrchestrator {
                 query: variation,
                 topK: 20,
                 minSimilarity: 0.25,
+                qualityMode: qualityMode,
                 onDetailedEvent: onDetailedEvent
             )
             for chunk in variantChunks {
@@ -5524,7 +5719,17 @@ extension AgenticOrchestrator {
         return queries
     }
 
-    /// Build prompt for a specific position in the reasoning chain
+    /// Build prompt for a specific position in the reasoning chain.
+    /// CRITICAL: The prompt INCLUDES the context (DOCUMENTS section).
+    /// Do NOT pass context separately to generateWithProperConsent — that would double it.
+    ///
+    /// Token budget (4096 total):
+    ///   System prompt: ~80 tokens
+    ///   LLMService wrapper: ~30 tokens
+    ///   Output (maxTokens): 500 tokens
+    ///   Available for prompt: ~3486 tokens ≈ 4880 chars
+    ///   Session 1 (no insights): context ≤ 4000 chars, prompt text ~300 chars
+    ///   Session 2+ (with insights): context ≤ 2000 chars + insights ≤ 1500 chars + prompt ~300 chars
     private func buildChainPrompt(
         sessionIndex: Int,
         sessionCount: Int,
@@ -5533,120 +5738,109 @@ extension AgenticOrchestrator {
         previousInsights: [String],
         maxInsightLength: Int
     ) -> (prompt: String, systemPrompt: String) {
-        // CRITICAL: Limit total insight summary to prevent context overflow
-        // Apple FM has 4096 token limit ≈ 5700 chars at 1.4 chars/token
-        // Budget: System (~200 tokens), Query (~50), Context (~1000), Output (~800) = 2050 tokens overhead
-        // Remaining for insights: ~2000 tokens ≈ 2800 chars
-        let maxInsightSummaryChars = 2500
+        // FIXED: Reduced insight budget from 2500 to 1200 chars.
+        // With context doubling fix, real budget is:
+        //   4096 tokens - 80 (system) - 30 (wrapper) - 500 (output) = 3486 tokens ≈ 4880 chars
+        //   Session 1: 4000 chars context + 300 prompt = 4300 (fits)
+        //   Session 2+: 2200 context + 1200 insights + 300 prompt = 3700 (fits)
+        let maxInsightSummaryChars = 1200
 
         let insightSummary: String
         if previousInsights.isEmpty {
             insightSummary = ""
         } else {
-            let rawSummary = "PRIOR ANALYSIS:\n" + previousInsights.enumerated()
-                .map { "[\($0.offset + 1)] \($0.element)" }
+            // For sessions with insights, provide a CONCISE summary of findings so far.
+            // Don't dump the full text — just the key answer and supporting details.
+            let rawSummary = "PRIOR FINDINGS:\n" + previousInsights.enumerated()
+                .map { "[\($0.offset + 1)] \(String($0.element.prefix(400)))" }
                 .joined(separator: "\n")
 
-            // Truncate if too long - this prevents context overflow in later sessions
             if rawSummary.count > maxInsightSummaryChars {
-                insightSummary = String(rawSummary.prefix(maxInsightSummaryChars)) + "\n[...truncated for context budget]"
+                insightSummary = String(rawSummary.prefix(maxInsightSummaryChars))
                 Log.debug("[ReasoningChain] Truncated insight summary from \(rawSummary.count) to \(maxInsightSummaryChars) chars", category: .llm)
             } else {
                 insightSummary = rawSummary
             }
         }
 
+        // Context budget: session 1 gets full context, later sessions share with insights
+        let contextForPrompt = previousInsights.isEmpty
+            ? String(context.prefix(4000))
+            : String(context.prefix(2200))
+
         switch sessionIndex {
         case 0:
-            // SESSION 1: Answer the question using the documents
-            // NOTE: Don't be too restrictive - if there's relevant info, use it
-            // Technical specifications ARE valid answers (SAE 0W-20 = oil type)
-            let systemPrompt = """
-            Answer using the documents. Find specific values and specifications.
-            Technical specs (like "SAE 0W-20", "API SP") ARE valid answers to "what type" questions.
-            Quote exact values from the documents.
-            """
+            // SESSION 1: Extract ALL relevant information from documents
+            // CRITICAL: Don't say "find THE answer" — questions can have multiple parts.
+            // "What does pressing the button do?" might have 5+ answers (record, stop, connect, reset, etc.)
+            let systemPrompt = "Extract ALL relevant information from the documents. List every detail that answers the question."
             let prompt = """
             QUESTION: \(query)
 
             DOCUMENTS:
-            \(context)
+            \(contextForPrompt)
 
-            Find the answer to: "\(query)"
-            - Quote specific values/specifications from the documents
-            - Technical specifications count as valid answers (e.g., "SAE 0W-20" IS an oil type)
-            - Include quantities if mentioned
-            - Cite sources as [S1], [S2] (not URLs)
+            List ALL information from the documents that answers this question.
+            Include every relevant detail, value, and procedure found.
+            Cite as [S1], [S2].
             """
             return (prompt, systemPrompt)
 
         case 1:
-            // SESSION 2: Enhance and enrich the initial answer (not hyper-skeptical verification)
-            let systemPrompt = """
-            You enhance answers by adding more specific values from the documents.
-            Technical specifications (like SAE 0W-20) ARE valid answers - don't reject them.
-            Look for additional details: quantities, capacities, part numbers.
-            """
+            // SESSION 2: Add NEW details not yet covered
+            let systemPrompt = "Find NEW information in these documents that is NOT already in the prior findings. Focus on what's missing."
             let prompt = """
-            ORIGINAL QUESTION: \(query)
+            QUESTION: \(query)
 
-            CURRENT ANSWER:
             \(insightSummary)
 
-            DOCUMENTS:
-            \(context.prefix(2000))
+            NEW DOCUMENTS:
+            \(contextForPrompt)
 
-            ENHANCE this answer by adding:
-            - More specific values from the documents
-            - Quantities, capacities, specifications
-            - Related information (e.g., if asked about oil, include quantity too)
-
-            Note: Specifications like "SAE 0W-20" or "API SP" ARE valid answers to "what type" questions.
-            Cite sources as [S1], [S2] (not URLs).
+            What NEW information do these documents add that is NOT already covered above?
+            List only NEW details, values, or procedures not yet mentioned.
+            If nothing new, say "No new information found."
+            Cite as [S1], [S2].
             """
             return (prompt, systemPrompt)
 
         case sessionCount - 1:
-            // FINAL SESSION: Clean Synthesis
-            let systemPrompt = """
-            Deliver a clear answer that directly addresses the question.
-            Only include information that answers what was asked.
-            """
+            // FINAL SESSION: Clean synthesis of ALL accumulated findings
+            let systemPrompt = "Combine all findings into one clear, complete answer. Use markdown formatting: ### headers for sections, - bullets for lists, **bold** for key terms. Separate paragraphs with blank lines."
             let prompt = """
-            ORIGINAL QUESTION: \(query)
+            QUESTION: \(query)
 
-            ANALYSIS:
             \(insightSummary)
 
-            Give a direct answer to: "\(query)"
-            - State the specific value/answer clearly
-            - Cite sources as [S1], [S2]
+            DOCUMENTS:
+            \(contextForPrompt)
+
+            Combine ALL findings into one complete answer to: "\(query)"
+            Include every relevant detail found. Be comprehensive but concise.
+            Format with ### section headers, - bullet lists, and **bold** key terms.
+            Separate paragraphs with blank lines for readability.
+            Cite as [S1], [S2].
             """
             return (prompt, systemPrompt)
 
         default:
-            // MIDDLE SESSIONS: Enrich with additional details
-            let systemPrompt = """
-            Add more details and specifications from the documents.
-            Technical specs, model numbers, quantities are all valuable.
-            Don't second-guess correct answers - enhance them.
-            """
+            // MIDDLE SESSIONS: Mine for NEW details not yet found
+            // CRITICAL: Don't repeat prior findings. Only report NEW information.
+            // This prevents the "echo chamber" where sessions just repeat Session 1.
+            let systemPrompt = "Find NEW information in these documents not covered by prior findings. Only report what is NEW."
             let prompt = """
-            ORIGINAL QUESTION: \(query)
+            QUESTION: \(query)
 
-            CURRENT ANSWER:
             \(insightSummary)
 
-            DOCUMENTS:
-            \(context.prefix(2000))
+            NEW DOCUMENTS:
+            \(contextForPrompt)
 
-            ADD more details from the documents:
-            - Additional specifications or part numbers
-            - Quantities and capacities
-            - Related procedures or warnings
-
-            Keep all correct information from the current answer.
-            Cite as [S1], [S2] only.
+            Search these NEW documents for information about: "\(query)"
+            Report ONLY details NOT already in the prior findings above.
+            If you find new values, procedures, or specifications, list them.
+            If nothing new, say "No new information found."
+            Cite as [S1], [S2].
             """
             return (prompt, systemPrompt)
         }
@@ -5755,6 +5949,63 @@ extension AgenticOrchestrator {
         return cleanedText
     }
 
+    /// Deduplicate a synthesized answer by removing repeated paragraphs/sections
+    /// This catches cross-pass duplication that per-LLM-call dedup can't see.
+    private func deduplicateSynthesizedAnswer(_ text: String) -> String {
+        // Split into paragraphs (sections separated by blank lines)
+        let paragraphs = text.components(separatedBy: "\n\n").filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+        guard paragraphs.count > 1 else { return text }
+
+        var kept: [String] = []
+        var seenFingerprints: Set<String> = []
+
+        for paragraph in paragraphs {
+            // Create a fingerprint: lowercased, stripped of formatting, first 120 chars
+            let stripped = paragraph
+                .replacingOccurrences(of: "**", with: "")
+                .replacingOccurrences(of: "*", with: "")
+                .lowercased()
+                .components(separatedBy: .whitespacesAndNewlines)
+                .filter { !$0.isEmpty }
+                .joined(separator: " ")
+
+            let fingerprint = String(stripped.prefix(120))
+
+            // Check for near-duplicate: if >70% of fingerprint matches any seen
+            var isDuplicate = false
+            if seenFingerprints.contains(fingerprint) {
+                isDuplicate = true
+            } else {
+                // Check fuzzy match — paragraphs that start the same way
+                for seen in seenFingerprints {
+                    let shorter = min(fingerprint.count, seen.count)
+                    guard shorter > 40 else { continue }
+                    let prefix1 = String(fingerprint.prefix(shorter))
+                    let prefix2 = String(seen.prefix(shorter))
+                    if prefix1 == prefix2 {
+                        isDuplicate = true
+                        break
+                    }
+                }
+            }
+
+            if !isDuplicate {
+                kept.append(paragraph)
+                seenFingerprints.insert(fingerprint)
+            } else {
+                Log.debug("[Synthesis] Removed duplicate paragraph: \(String(paragraph.prefix(80)))...", category: .llm)
+            }
+        }
+
+        // Safety: if we removed more than 60%, keep the original
+        if kept.count < paragraphs.count * 2 / 5 {
+            Log.info("[Synthesis] Dedup would remove \(paragraphs.count - kept.count)/\(paragraphs.count) paragraphs — aborting", category: .llm)
+            return text
+        }
+
+        return kept.joined(separator: "\n\n")
+    }
+
     /// Clean up final answer by removing raw LLM markers and artifacts
     private func cleanupFinalAnswer(_ text: String) -> String {
         var result = text
@@ -5820,67 +6071,27 @@ extension AgenticOrchestrator {
             result = result.replacingOccurrences(of: marker, with: "", options: .caseInsensitive)
         }
 
-        // Strip markdown headers (##, ###, etc.) - MarkdownText only renders inline markdown
-        result = result.components(separatedBy: .newlines)
-            .map { line in
-                var cleaned = line
-                // Remove markdown headers - convert "## Title" to "Title"
-                if let headerMatch = cleaned.range(of: #"^#{1,6}\s+"#, options: .regularExpression) {
-                    cleaned = String(cleaned[headerMatch.upperBound...])
-                }
-                return cleaned
-            }
-            .joined(separator: "\n")
+        // NOTE: Markdown formatting (headers, lists, code fences) is now preserved
+        // MarkdownText renders full block-level markdown as of v1.2
 
-        // Remove lines that are just markers or very short marker fragments
-        let badLinePatterns = [
+        // Remove lines that are just leaked prompt structure markers (single words like "Reasoning:" with no content)
+        let promptLeakPatterns = [
             "reasoning", "insight", "analysis", "observation", "conclusion",
             "reasons", "new details", "additional", "procedure", "special cases",
-            "step 1", "step 2", "step 3", "step 4", "step 5",
             "executive summary", "key findings", "your comprehensive answer",
         ]
         result = result.components(separatedBy: .newlines)
             .filter { line in
                 let trimmed = line.trimmingCharacters(in: .whitespaces).lowercased()
-                // Keep non-empty lines that aren't just markers
-                guard !trimmed.isEmpty else { return false }
-                // Filter out lines that are JUST a marker word
-                for pattern in badLinePatterns {
+                // Keep empty lines (they separate blocks)
+                guard !trimmed.isEmpty else { return true }
+                // Filter out lines that are JUST a leaked prompt marker (no real content)
+                for pattern in promptLeakPatterns {
                     if trimmed == pattern || trimmed == pattern + ":" {
                         return false
                     }
                 }
                 return true
-            }
-            .joined(separator: "\n")
-
-        // Convert bullet points and numbered lists to prose-friendly format
-        // NOTE: Preserve inline formatting like **bold** and *italic* - only strip list bullets
-        result = result.components(separatedBy: .newlines)
-            .map { line in
-                let trimmed = line.trimmingCharacters(in: .whitespaces)
-                // Convert "- text" to just the text (dash bullets)
-                if trimmed.hasPrefix("- ") && trimmed.count > 2 {
-                    return String(trimmed.dropFirst(2))
-                }
-                // Convert "• text" to just the text (unicode bullets)
-                if trimmed.hasPrefix("• ") && trimmed.count > 2 {
-                    return String(trimmed.dropFirst(2))
-                }
-                // Only strip "* text" if it's clearly a bullet (no closing * for italic)
-                // List bullet: "* some text" vs Italic: "*emphasized*"
-                if trimmed.hasPrefix("* ") && trimmed.count > 2 && !trimmed.dropFirst(2).contains("*") {
-                    return String(trimmed.dropFirst(2))
-                }
-                // Convert numbered lists "1. text" or "1) text" to just text
-                if let numMatch = trimmed.range(of: #"^\d+[.)]\s+"#, options: .regularExpression) {
-                    return String(trimmed[numMatch.upperBound...])
-                }
-                // Remove orphaned bullets/numbers
-                if trimmed == "-" || trimmed == "*" || trimmed == "•" || trimmed.range(of: #"^\d+[.)]?$"#, options: .regularExpression) != nil {
-                    return ""
-                }
-                return line
             }
             .joined(separator: "\n")
 
@@ -5970,7 +6181,7 @@ extension RAGService {
         chunks: [RetrievedChunk],
         onProgress: ((String, String) async -> Void)? = nil  // (title, detail)
     ) async throws -> ReasoningChainResult {
-        let orchestrator = AgenticOrchestrator(ragService: self, config: .fast)
+        let orchestrator = AgenticOrchestrator(ragService: self, config: .fast, qualityMode: .standard)
         let totalSessions = ReasoningChainConfig.light.sessionCount
 
         // Track session number for UI

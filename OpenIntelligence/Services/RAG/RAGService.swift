@@ -257,7 +257,7 @@ class RAGService: ObservableObject {
     private let contextPackingService: ContextPackingService
     private let confidenceCalibrationService = ConfidenceCalibrationService()
     private let extractiveSummarizationService: ExtractiveSummarizationService
-    private let specificationExtractor = SpecificationExtractor()
+    // specificationExtractor removed — ExtractiveQA bypass disabled, all queries go through LLM
     private weak var entitlementStore: EntitlementStore?
     private var cancellables = Set<AnyCancellable>()
     @MainActor private weak var settingsStore: SettingsStore?
@@ -877,7 +877,7 @@ class RAGService: ObservableObject {
         // Subscribe to container ID changes
         containerService.$activeContainerId
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] newContainerId in
+            .sink { [weak self] (newContainerId: UUID) in
                 guard let self = self else { return }
 
                 Task { @MainActor in
@@ -1152,6 +1152,7 @@ class RAGService: ObservableObject {
     /// Log chunk content previews at each pipeline stage for debugging
     /// Shows first 100 chars of each chunk with score and page info
     private func logChunkTrace(_ chunks: [RetrievedChunk], stage: String, query: String) {
+        #if DEBUG
         guard Log.pipelineTraceEnabled else { return }
 
         let separator = String(repeating: "─", count: 60)
@@ -1183,10 +1184,12 @@ class RAGService: ObservableObject {
             print("  ... and \(chunks.count - 10) more chunks")
         }
         print(separator)
+        #endif
     }
 
     /// Log final assembled context with keyword analysis
     private func logFinalContext(_ context: String, actualChunksUsed: Int, query: String) {
+        #if DEBUG
         guard Log.pipelineTraceEnabled else { return }
 
         let separator = String(repeating: "═", count: 60)
@@ -1220,17 +1223,14 @@ class RAGService: ObservableObject {
         let preview = String(context.prefix(500)).replacingOccurrences(of: "\n", with: "↵")
         print("   Preview: \"\(preview)...\"")
         print(separator)
+        #endif
     }
 
-    /// Scan all chunks for viscosity patterns and report findings
-    /// This helps diagnose whether oil specs are present in the corpus
+    /// Scan all chunks for specification patterns and report findings
+    /// This helps diagnose whether specs are present in the corpus
     private func runViscosityScan(_ allChunks: [DocumentChunk], query: String) async {
+        #if DEBUG
         guard Log.pipelineTraceEnabled else { return }
-
-        // Only run for oil-related queries to avoid noise
-        let queryLower = query.lowercased()
-        _ = queryLower.contains("oil") || queryLower.contains("fluid") ||
-            queryLower.contains("lubricant") || queryLower.contains("viscosity")
 
         let separator = String(repeating: "═", count: 60)
         print("\n\(separator)")
@@ -1239,64 +1239,357 @@ class RAGService: ObservableObject {
         print("   Total chunks: \(allChunks.count)")
         print(separator)
 
-        // Scan for viscosity patterns
-        let viscosityPattern = #"\d+[Ww]-\d+"#
-        var viscosityChunks: [(idx: Int, page: Int?, match: String, preview: String)] = []
+        // Scan for specification patterns (numbers with units, codes, grades)
+        let specPattern = #"\b\d+(?:\.\d+)?\s*(?:W-\d+|L|ml|mm|cm|kg|g|psi|kPa|°[CF])\b"#
+        var specChunks: [(idx: Int, page: Int?, match: String, preview: String)] = []
 
         for (idx, chunk) in allChunks.enumerated() {
             let content = chunk.content
-            if let range = content.range(of: viscosityPattern, options: .regularExpression) {
+            if let range = content.range(of: specPattern, options: .regularExpression) {
                 let match = String(content[range])
                 let preview = String(content.prefix(120)).replacingOccurrences(of: "\n", with: " ")
-                viscosityChunks.append((idx, chunk.metadata.pageNumber, match, preview))
+                specChunks.append((idx, chunk.metadata.pageNumber, match, preview))
             }
         }
 
-        if viscosityChunks.isEmpty {
-            print("   ⚠️ NO VISCOSITY PATTERNS FOUND (0W-20, 5W-30, etc.)")
-            print("   This means the oil specification may be:")
-            print("   • In an image/table not extracted as text")
-            print("   • Split across chunk boundaries")
-            print("   • Using non-standard formatting")
-
-            // Search for related terms to help diagnose
-            var oilMentions = 0
-            var saeMatches: [String] = []
-            for chunk in allChunks {
-                let content = chunk.content.lowercased()
-                if content.contains("engine oil") { oilMentions += 1 }
-                if let range = content.range(of: #"sae\s*\d+"#, options: .regularExpression) {
-                    saeMatches.append(String(chunk.content[range]))
-                }
-            }
-            print("   Related: \(oilMentions) chunks mention 'engine oil'")
-            if !saeMatches.isEmpty {
-                print("   SAE mentions: \(Set(saeMatches).joined(separator: ", "))")
-            }
+        if specChunks.isEmpty {
+            print("   ⚠️ NO SPECIFICATION PATTERNS FOUND")
+            print("   Specifications may be in images/tables not extracted as text")
         } else {
-            print("   ✅ Found \(viscosityChunks.count) chunks with viscosity specs:")
-            for vc in viscosityChunks.prefix(8) {
-                let section = allChunks[vc.idx].metadata.sectionTitle ?? "—"
-                print("   [\(vc.idx)] p.\(vc.page ?? 0) §\(section.prefix(25))")
-                print("       Match: \(vc.match)")
-                print("       \"\(vc.preview)...\"")
+            print("   ✅ Found \(specChunks.count) chunks with specification patterns:")
+            for sc in specChunks.prefix(8) {
+                let section = allChunks[sc.idx].metadata.sectionTitle ?? "—"
+                print("   [\(sc.idx)] p.\(sc.page ?? 0) §\(section.prefix(25))")
+                print("       Match: \(sc.match)")
+                print("       \"\(sc.preview)...\"")
             }
-            if viscosityChunks.count > 8 {
-                print("   ... and \(viscosityChunks.count - 8) more")
+            if specChunks.count > 8 {
+                print("   ... and \(specChunks.count - 8) more")
             }
         }
         print(separator)
+        #endif
     }
 
-    /// Count specification-like patterns in content (numbers, measurements, codes)
-    /// Used to prioritize chunks with actual specs for lookup queries
+    // MARK: - Cross-Reference Resolution (Standard Pipeline)
+
+    /// Lightweight cross-reference resolution for Standard mode.
+    /// Scans retrieved chunks for patterns like "given in 'Section Name' on page X" and
+    /// searches the full chunk pool for chunks from that section.
+    ///
+    /// Unlike the AgenticOrchestrator version (which runs a full retrieval pipeline per reference),
+    /// this uses the already-loaded `allChunks` array for zero-latency lookups.
+    /// This is safe because the Standard pipeline already has all chunks in memory.
+    private func resolveCrossReferencesStandard(
+        chunks: [RetrievedChunk],
+        query: String,
+        allChunks: [DocumentChunk]
+    ) async -> [RetrievedChunk] {
+        // Cross-reference patterns common in technical documents
+        let patterns: [(regex: NSRegularExpression, group: Int)] = {
+            var result: [(NSRegularExpression, Int)] = []
+            // QUOTED: "given in 'Recommended lubricants and capacities' on page 9-7"
+            // NOTE: In raw strings #"..."#, \u{} is literal text, NOT a Unicode escape.
+            // ICU regex uses \x{HHHH} for Unicode code points.
+            if let r = try? NSRegularExpression(
+                pattern: #"(?:given|found|listed|shown|described|specified|provided|included|explained)\s+(?:in|under|at)\s+['"\x{201C}\x{201D}]([^'"\x{201C}\x{201D}\n]{3,80})['"\x{201C}\x{201D}]"#,
+                options: .caseInsensitive) { result.append((r, 1)) }
+            // QUOTED: "see 'Section Name'" or "refer to 'Section Name'"
+            if let r = try? NSRegularExpression(
+                pattern: #"(?:see|refer\s+to|check|consult)\s+['"\x{201C}\x{201D}]([^'"\x{201C}\x{201D}\n]{3,80})['"\x{201C}\x{201D}]"#,
+                options: .caseInsensitive) { result.append((r, 1)) }
+            // UNQUOTED: "given in Recommended lubricants and capacities on page 9-7"
+            // Case-insensitive to handle OCR variations. Optional "the" article.
+            if let r = try? NSRegularExpression(
+                pattern: #"(?:given|found|listed|shown|described|specified|provided|included|explained)\s+(?:in|under|at)\s+(?:the\s+)?([a-z][a-z]+(?:\s+[a-z&,]+){2,10})\s+on\s+page"#,
+                options: .caseInsensitive) { result.append((r, 1)) }
+            // UNQUOTED: "see Recommended Lubricants on page X" or "refer to Section on page X"
+            if let r = try? NSRegularExpression(
+                pattern: #"(?:see|refer\s+to|check|consult)\s+(?:the\s+)?([a-z][a-z]+(?:\s+[a-z&,]+){2,10})\s+on\s+page"#,
+                options: .caseInsensitive) { result.append((r, 1)) }
+            // CATCH-ALL UNQUOTED: "given in <any text> on page" — most permissive fallback
+            // Handles OCR artifacts, mixed case, special characters in section names
+            if let r = try? NSRegularExpression(
+                pattern: #"(?:given|found|listed|shown|described|specified|provided)\s+(?:in|under|at)\s+(?:the\s+)?(.{5,80})\s+on\s+page"#,
+                options: .caseInsensitive) { result.append((r, 1)) }
+            return result
+        }()
+
+        // Page reference pattern — directly resolve "page X-Y" or "page X"
+        let pagePattern = try? NSRegularExpression(
+            pattern: #"(?:on|see|,)\s+page\s+(\d+[-–]\d+|\d+)"#,
+            options: .caseInsensitive
+        )
+
+        var referencedSections: Set<String> = []
+        var referencedPages: Set<Int> = []
+
+        // Scan top chunks for cross-references
+        for chunk in chunks.prefix(10) {
+            let content = chunk.chunk.content
+            let range = NSRange(content.startIndex..., in: content)
+
+            // Check section name patterns
+            for (regex, group) in patterns {
+                let matches = regex.matches(in: content, range: range)
+                for match in matches {
+                    guard match.numberOfRanges > group,
+                          let captureRange = Range(match.range(at: group), in: content) else { continue }
+                    let reference = String(content[captureRange])
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    if reference.count >= 5,
+                       reference.range(of: #"^\d+[-–]?\d*$"#, options: .regularExpression) == nil {
+                        referencedSections.insert(reference)
+                    }
+                }
+            }
+
+            // Check page number patterns ("on page 9-7", "see page 42")
+            if let pageRegex = pagePattern {
+                let pageMatches = pageRegex.matches(in: content, range: range)
+                for match in pageMatches {
+                    guard match.numberOfRanges > 1,
+                          let captureRange = Range(match.range(at: 1), in: content) else { continue }
+                    let pageStr = String(content[captureRange])
+                    // Handle "9-7" format (chapter-page) — extract both numbers
+                    let parts = pageStr.components(separatedBy: CharacterSet(charactersIn: "-–"))
+                    for part in parts {
+                        if let pageNum = Int(part.trimmingCharacters(in: .whitespaces)) {
+                            referencedPages.insert(pageNum)
+                        }
+                    }
+                }
+            }
+        }
+
+        guard !referencedSections.isEmpty || !referencedPages.isEmpty else { return [] }
+
+        Log.info("[CrossRef-Std] Found \(referencedSections.count) section refs: [\(referencedSections.joined(separator: ", "))], \(referencedPages.count) page refs: \(referencedPages.sorted())", category: .retrieval)
+
+        let existingIds = Set(chunks.map { $0.chunk.id })
+        var additionalChunks: [RetrievedChunk] = []
+
+        // Search the in-memory chunk pool for referenced sections
+        // This is fast — just string matching against already-loaded chunks
+        for section in referencedSections.prefix(3) {
+            let sectionLower = section.lowercased()
+            let sectionWords = Set(sectionLower.split(separator: " ").map(String.init).filter { $0.count > 3 })
+
+            // Find chunks whose content mentions the section name OR whose section header matches
+            var matchingChunks: [(chunk: DocumentChunk, score: Float)] = []
+
+            for chunk in allChunks where !existingIds.contains(chunk.id) {
+                let contentLower = chunk.content.lowercased()
+
+                // Strong match: content contains the full section name
+                if contentLower.contains(sectionLower) {
+                    matchingChunks.append((chunk, 0.70))
+                    continue
+                }
+
+                // Medium match: content contains most of the section name words (handles line breaks/OCR)
+                let matchingWords = sectionWords.filter { contentLower.contains($0) }
+                if matchingWords.count >= max(2, sectionWords.count * 2 / 3) {
+                    // Also check for table/spec indicators to prioritize structured content
+                    let hasTableIndicator = chunk.metadata.structureType == "table" ||
+                        chunk.content.contains("|") && chunk.content.components(separatedBy: "|").count >= 4
+                    let hasNumbers = chunk.content.rangeOfCharacter(from: .decimalDigits) != nil
+                    let score: Float = (hasTableIndicator && hasNumbers) ? 0.65 : 0.55
+                    matchingChunks.append((chunk, score))
+                }
+            }
+
+            // Sort by score, take top 3 per section
+            matchingChunks.sort { $0.score > $1.score }
+            for (matchChunk, score) in matchingChunks.prefix(3) {
+                let docName = getDocumentName(for: matchChunk.documentId)
+                additionalChunks.append(RetrievedChunk(
+                    chunk: matchChunk,
+                    similarityScore: score,
+                    rank: 1,
+                    sourceDocument: docName,
+                    pageNumber: matchChunk.metadata.pageNumber
+                ))
+            }
+
+            Log.info("[CrossRef-Std] '\(section.prefix(40))': found \(min(3, matchingChunks.count)) matching chunks", category: .retrieval)
+        }
+
+        // Phase 2: Page-number resolution — fetch chunks from referenced pages
+        // This is the most robust approach: "page 9-7" → find chunks with pageNumber matching
+        for pageNum in referencedPages.sorted().prefix(3) {
+            let pageChunks = allChunks.filter { chunk in
+                !existingIds.contains(chunk.id) &&
+                !additionalChunks.contains(where: { $0.chunk.id == chunk.id }) &&
+                chunk.metadata.pageNumber == pageNum
+            }
+
+            // Prioritize table/spec chunks from the referenced page
+            let scored: [(chunk: DocumentChunk, score: Float)] = pageChunks.map { chunk in
+                var score: Float = 0.60
+                // Strong boost for actual table structure
+                if chunk.metadata.structureType == "table" { score += 0.15 }
+                // Boost for pipe-delimited table content
+                if chunk.content.contains("|") && chunk.content.components(separatedBy: "|").count >= 4 { score += 0.10 }
+                // Boost for numeric data (specs have numbers)
+                if chunk.metadata.hasNumericData { score += 0.05 }
+                // Boost for query term overlap
+                let queryWords = Set(query.lowercased().split(separator: " ").map(String.init).filter { $0.count > 3 })
+                let contentLower = chunk.content.lowercased()
+                let overlap = queryWords.filter { contentLower.contains($0) }.count
+                if overlap > 0 { score += Float(overlap) * 0.05 }
+                return (chunk, score)
+            }
+            .sorted { $0.score > $1.score }
+
+            for (matchChunk, score) in scored.prefix(3) {
+                let docName = getDocumentName(for: matchChunk.documentId)
+                additionalChunks.append(RetrievedChunk(
+                    chunk: matchChunk,
+                    similarityScore: score,
+                    rank: 1,
+                    sourceDocument: docName,
+                    pageNumber: matchChunk.metadata.pageNumber
+                ))
+            }
+
+            Log.info("[CrossRef-Std] Page \(pageNum): found \(min(3, pageChunks.count))/\(pageChunks.count) chunks", category: .retrieval)
+        }
+
+        return additionalChunks
+    }
+
+    // MARK: - Spec Table Sniper
+
+    /// "Spec Table Sniper" — targeted search for chunks containing query keywords + numeric data.
+    /// Bypasses semantic similarity and reranker scoring entirely.
+    ///
+    /// The reranker has an inherent prose bias (~0.78 for prose vs ~0.30 for tables).
+    /// This method searches ALL chunks for co-occurrence of discriminative query keywords
+    /// and numeric/structured data — the signature of specification tables, dosage charts,
+    /// legal statute numbers, financial figures, or any factual lookup target.
+    ///
+    /// Universal: works for technical manuals, medical papers, legal documents, research data.
+    private func specTableSniper(
+        query: String,
+        allChunks: [DocumentChunk],
+        excludeIds: Set<UUID>
+    ) -> [RetrievedChunk] {
+        let queryLower = query.lowercased()
+
+        // Extract meaningful query words (skip stopwords and short words)
+        let queryWords = queryLower
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { $0.count > 2 && !Self.stopWords.contains($0) }
+        let queryWordSet = Set(queryWords)
+
+        // Need at least 2 meaningful keywords for targeted search
+        guard queryWordSet.count >= 2 else { return [] }
+
+        var candidates: [(chunk: DocumentChunk, score: Float, matchCount: Int)] = []
+
+        for chunk in allChunks where !excludeIds.contains(chunk.id) {
+            let contentLower = chunk.content.lowercased()
+
+            // Count query keyword matches via substring search
+            let matchingWords = queryWordSet.filter { contentLower.contains($0) }
+
+            // Require at least 2 keyword matches (or all if query has only 2 keywords)
+            let minRequired = min(2, queryWordSet.count)
+            guard matchingWords.count >= minRequired else { continue }
+
+            // Must contain numeric data — specs always have numbers
+            guard chunk.content.rangeOfCharacter(from: .decimalDigits) != nil else { continue }
+
+            // Score based on quality indicators
+            var score: Float = 0.60 // Base score for keyword+number co-occurrence
+
+            // Keyword coverage bonus (up to +0.15 for 100% coverage)
+            let coverage = Float(matchingWords.count) / Float(queryWordSet.count)
+            score += coverage * 0.15
+
+            // Table structure indicators
+            if chunk.metadata.structureType == "table" { score += 0.10 }
+            let pipeCount = chunk.content.components(separatedBy: "|").count
+            if pipeCount >= 4 { score += 0.08 }
+
+            // Measurement unit patterns (universal across all domains)
+            let hasMeasurement = chunk.content.range(
+                of: #"\d+(?:\.\d+)?\s*(?:L|qt|gal|ml|mL|mg|g|kg|lb|oz|psi|kPa|bar|mm|cm|km|in|ft|yd|V|A|W|kW|mA|Ah|kWh|Hz|MHz|GHz|%|cc|cu)\b"#,
+                options: [.regularExpression, .caseInsensitive]
+            ) != nil
+            if hasMeasurement { score += 0.08 }
+
+            // Key-value pair indicators (colon or tab-separated with numbers)
+            let lines = chunk.content.components(separatedBy: "\n")
+            let kvLines = lines.filter { line in
+                (line.contains(":") || line.contains("\t")) &&
+                line.rangeOfCharacter(from: .decimalDigits) != nil
+            }
+            if kvLines.count >= 2 { score += 0.05 }
+
+            // PENALTY: Cross-reference chunks point to data but aren't the data itself.
+            // "The fuel tank capacity is given in X on page Y" has our keywords but
+            // shouldn't be selected over the actual spec table.
+            let crossRefIndicators = ["given in", "refer to", "see page", "found in",
+                                       "listed in", "shown in", "specified in", "provided in"]
+            let hasCrossRef = crossRefIndicators.contains { contentLower.contains($0) }
+            if hasCrossRef && contentLower.contains("page") { score -= 0.20 }
+
+            candidates.append((chunk, score, matchingWords.count))
+        }
+
+        // Sort by score, then by keyword match count for ties
+        candidates.sort {
+            if abs($0.score - $1.score) < 0.01 { return $0.matchCount > $1.matchCount }
+            return $0.score > $1.score
+        }
+
+        // Take top 3 candidates
+        return candidates.prefix(3).map { (chunk, score, _) in
+            RetrievedChunk(
+                chunk: chunk,
+                similarityScore: score,
+                rank: 1,
+                sourceDocument: getDocumentName(for: chunk.documentId),
+                pageNumber: chunk.metadata.pageNumber
+            )
+        }
+    }
+
+    /// Demote chunks that merely contain cross-references to other sections.
+    /// These chunks say "the answer is in Section X on page Y" but don't contain the actual answer.
+    /// After the spec sniper has found actual data chunks, these pointer chunks should be deprioritized.
+    private func demoteCrossReferenceChunks(_ chunks: inout [RetrievedChunk]) {
+        let crossRefVerbs = ["given in", "refer to", "found in", "listed in",
+                             "shown in", "specified in", "provided in", "described in"]
+
+        for i in chunks.indices {
+            let contentLower = chunks[i].chunk.content.lowercased()
+            // Only demote if chunk has BOTH a cross-ref verb AND a page reference
+            let hasCrossRef = crossRefVerbs.contains { contentLower.contains($0) }
+            let hasPageRef = contentLower.contains("page")
+            if hasCrossRef && hasPageRef {
+                // Halve the score so cross-ref chunks sort below actual data chunks
+                let demotedScore = chunks[i].similarityScore * 0.5
+                chunks[i] = RetrievedChunk(
+                    chunk: chunks[i].chunk,
+                    similarityScore: demotedScore,
+                    rank: chunks[i].rank,
+                    sourceDocument: chunks[i].sourceDocument,
+                    pageNumber: chunks[i].pageNumber
+                )
+            }
+        }
+    }
+
     private func countSpecPatterns(_ content: String) -> Int {
         var score = 0
 
-        // Oil viscosity patterns: 0W-20, 5W-30, etc.
-        let viscosityPattern = #"\d+W-\d+"#
-        if let regex = try? NSRegularExpression(pattern: viscosityPattern, options: []) {
-            score += regex.numberOfMatches(in: content, options: [], range: NSRange(content.startIndex..., in: content)) * 3  // High weight for oil specs
+        // Alphanumeric grade/code patterns: 0W-20, A2-70, ISO-9001, etc.
+        let gradePattern = #"[A-Z0-9]+[-][A-Z0-9]+"#
+        if let regex = try? NSRegularExpression(pattern: gradePattern, options: []) {
+            score += regex.numberOfMatches(in: content, options: [], range: NSRange(content.startIndex..., in: content)) * 2
         }
 
         // Measurement patterns: 3.5L, 100mm, 32psi, etc.
@@ -1310,8 +1603,8 @@ class RAGService: ObservableObject {
             score += 2
         }
 
-        // API/spec codes: API SN, SAE, ACEA, etc.
-        let specCodePattern = #"\b(?:API|SAE|ACEA|ILSAC|JASO)\s*[A-Z0-9-]+"#
+        // Standard body codes: ISO, API, IEEE, ANSI, ASTM, etc.
+        let specCodePattern = #"\b(?:API|ISO|IEEE|ANSI|ASTM|IEC|SAE|ACEA)\s*[A-Z0-9-]+"#
         if let regex = try? NSRegularExpression(pattern: specCodePattern, options: []) {
             score += regex.numberOfMatches(in: content, options: [], range: NSRange(content.startIndex..., in: content)) * 3
         }
@@ -1323,6 +1616,408 @@ class RAGService: ObservableObject {
         }
 
         return score
+    }
+
+    // MARK: - Section Metadata Boost
+
+    /// Boost retrieval scores for chunks whose sectionTitle/sectionPath match query keywords.
+    ///
+    /// **Why this matters**: Embeddings for "Engine Oil: SAE 0W-20" and "Gear Oil: SAE 75W/85"
+    /// have nearly identical vector similarity to "what oil does this car take".
+    /// But `sectionTitle = "Engine Oil"` vs `sectionTitle = "Differential Gear Oil"` is
+    /// the disambiguating signal. This method boosts chunks whose section context
+    /// matches the query's discriminative keywords.
+    ///
+    /// - Parameters:
+    ///   - chunks: Retrieved chunks from hybrid search
+    ///   - query: The user's original query
+    /// - Returns: Chunks with boosted scores, re-sorted. Nil if no boost applied.
+    static func applyMetadataBoost(
+        chunks: [RetrievedChunk],
+        query: String
+    ) -> [RetrievedChunk]? {
+        // Extract keywords from query (lowercase, no stopwords)
+        // UNIVERSAL: Only pure English function words — no domain-specific terms
+        let stopwords: Set<String> = [
+            "what", "whats", "which", "how", "much", "many", "does", "this", "that", "the",
+            "a", "an", "is", "are", "was", "were", "do", "did", "can", "will",
+            "should", "would", "could", "for", "with", "from", "into", "have", "has",
+            "been", "be", "it", "its", "my", "your", "our", "their", "of", "in", "on",
+            "at", "to", "and", "or", "not", "no", "about", "tell", "me", "explain",
+            "describe", "show", "find", "get", "give", "list", "where", "when", "why",
+            "there", "here", "also", "just", "some", "any", "all", "each", "every",
+            "than", "then", "so", "if", "but", "up", "out", "by", "re"
+        ]
+        let queryWords = query.lowercased()
+            .components(separatedBy: .alphanumerics.inverted)
+            .filter { $0.count >= 2 && !stopwords.contains($0) }
+        let queryKeywords = Set(queryWords)
+
+        guard !queryKeywords.isEmpty else { return nil }
+
+        // IDF-awareness: count how many chunks have each keyword in their section title
+        // Keywords appearing in >30% of sections are non-discriminative for boosting
+        var sectionKeywordFreq: [String: Int] = [:]
+        let chunksWithSections = chunks.filter { $0.chunk.metadata.sectionTitle != nil }
+        for chunk in chunksWithSections {
+            if let title = chunk.chunk.metadata.sectionTitle {
+                let titleWords = Set(title.lowercased()
+                    .components(separatedBy: .alphanumerics.inverted)
+                    .filter { $0.count >= 2 })
+                for word in titleWords where queryKeywords.contains(word) {
+                    sectionKeywordFreq[word, default: 0] += 1
+                }
+            }
+        }
+        let sectionCount = max(chunksWithSections.count, 1)
+        let discriminativeKeywords = queryKeywords.filter { kw in
+            let freq = sectionKeywordFreq[kw] ?? 0
+            return Float(freq) / Float(sectionCount) < 0.30
+        }
+
+        // If ALL keywords are non-discriminative in sections, skip boosting entirely
+        guard !discriminativeKeywords.isEmpty else {
+            Log.debug("[MetadataBoost] All keywords non-discriminative in sections — skipping", category: .retrieval)
+            return nil
+        }
+
+        // For multi-word queries, require at least 2 keyword matches (compound concept)
+        // "smart mode" should NOT boost sections with just "smart" (Smart Cruise Control)
+        // or just "mode" (Drive Mode) — only sections containing BOTH
+        let requireMultiMatch = discriminativeKeywords.count >= 2
+
+        var anyBoosted = false
+        var boosted: [RetrievedChunk] = []
+
+        for chunk in chunks {
+            var boost: Float = 0.0
+
+            // Check sectionTitle for keyword matches
+            if let title = chunk.chunk.metadata.sectionTitle {
+                let titleWords = title.lowercased()
+                    .components(separatedBy: .alphanumerics.inverted)
+                    .filter { $0.count >= 2 }
+                let titleSet = Set(titleWords)
+                let titleMatches = discriminativeKeywords.intersection(titleSet)
+
+                // For compound queries: require 2+ keyword matches in the section title
+                // "smart mode" → only boost if title contains BOTH "smart" AND "mode"
+                if requireMultiMatch && titleMatches.count < 2 {
+                    // Single keyword match in a multi-keyword query — skip
+                    // (prevents "Smart Cruise Control" from being boosted for "smart mode")
+                } else {
+                    // +0.08 per keyword match in sectionTitle
+                    boost += Float(titleMatches.count) * 0.08
+                }
+            }
+
+            // Check sectionPath (only if title didn't already match)
+            if boost == 0, let path = chunk.chunk.metadata.sectionPath {
+                let pathStr = path.joined(separator: " ")
+                let pathWords = pathStr.lowercased()
+                    .components(separatedBy: .alphanumerics.inverted)
+                    .filter { $0.count >= 2 }
+                let pathSet = Set(pathWords)
+                let pathMatches = discriminativeKeywords.intersection(pathSet)
+
+                if requireMultiMatch && pathMatches.count < 2 {
+                    // Skip single-keyword path matches for compound queries
+                } else {
+                    boost += Float(pathMatches.count) * 0.04
+                }
+            }
+
+            if boost > 0 {
+                anyBoosted = true
+                let cappedBoost = min(boost, 0.20)
+                let newScore = min(chunk.similarityScore + cappedBoost, 1.0)
+
+                boosted.append(RetrievedChunk(
+                    chunk: chunk.chunk,
+                    similarityScore: newScore,
+                    rank: chunk.rank,
+                    sourceDocument: chunk.sourceDocument,
+                    pageNumber: chunk.pageNumber
+                ))
+
+                Log.debug(
+                    "[MetadataBoost] Chunk \(chunk.chunk.metadata.chunkIndex) " +
+                    "section='\(chunk.chunk.metadata.sectionTitle ?? "nil")' " +
+                    "boosted \(String(format: "%.3f", chunk.similarityScore))→\(String(format: "%.3f", newScore))",
+                    category: .retrieval
+                )
+            } else {
+                boosted.append(chunk)
+            }
+        }
+
+        guard anyBoosted else { return nil }
+
+        // Re-sort by boosted scores (descending)
+        boosted.sort { $0.similarityScore > $1.similarityScore }
+
+        // Re-assign ranks
+        return boosted.enumerated().map { idx, chunk in
+            RetrievedChunk(
+                chunk: chunk.chunk,
+                similarityScore: chunk.similarityScore,
+                rank: idx + 1,
+                sourceDocument: chunk.sourceDocument,
+                pageNumber: chunk.pageNumber
+            )
+        }
+    }
+
+    // MARK: - Sentence-Level Extraction for Lookup Queries
+
+    /// Result from sentence-level extraction
+    struct SentenceExtractionResult {
+        let context: String
+        let sourcesUsed: Int
+        let sentencesIncluded: Int
+    }
+
+    /// Extracts query-relevant sentences from ALL candidate chunks and packs them
+    /// into the context budget.  Instead of fitting 3 whole chunks (and hoping
+    /// the answer is in one of them), this fits targeted lines from 10-15+ chunks.
+    ///
+    /// Universal across all domains — works for any document type.  Uses simple
+    /// keyword + spec-pattern matching to score individual sentences.
+    func extractRelevantSentences(
+        from candidates: [RetrievedChunk],
+        query: String,
+        maxChars: Int,
+        compact: Bool,
+        isExtractiveFirst: Bool = false
+    ) -> SentenceExtractionResult {
+        // Extract discriminative query keywords
+        let queryLower = query.lowercased()
+        let queryKeywords = queryLower
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { $0.count > 2 && !Self.stopWords.contains($0) }
+
+        guard !queryKeywords.isEmpty else {
+            // Fallback: no usable keywords, return empty
+            return SentenceExtractionResult(context: "", sourcesUsed: 0, sentencesIncluded: 0)
+        }
+
+        // UNIVERSAL SPEC BOOST: When the intent classifier identifies an extractive query
+        // (lookup, tableLookup — ANY domain), boost sentences with concrete data patterns
+        // (numbers, units, spec codes, key-value pairs) over sentences that merely mention
+        // the topic. This is driven by answerIntent.isExtractiveFirst — computed from the
+        // query structure — not from hardcoded phrase patterns.
+        // Works universally: automotive specs, medical dosages, legal citations, financial
+        // figures, engineering tolerances, nutritional facts, etc.
+        let specBoostMultiplier: Double = isExtractiveFirst ? 2.5 : 1.0
+
+        // Score every sentence across all candidates
+        struct ScoredSentence {
+            let text: String          // The sentence/line itself
+            let headingContext: String // The heading above this line (if any)
+            let score: Double
+            let sourceIndex: Int  // which chunk it came from
+            let sourceDoc: String
+            let pageNumber: Int?
+        }
+
+        var scoredSentences: [ScoredSentence] = []
+
+        for (chunkIdx, candidate) in candidates.enumerated() {
+            let content = candidate.chunk.parentContent ?? candidate.chunk.content
+            let source = candidate.sourceDocument
+            let page = candidate.pageNumber
+
+            // Split into individual lines first (preserve line order for heading tracking)
+            let rawLines = content
+                .components(separatedBy: CharacterSet.newlines)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { $0.count > 3 }
+
+            // Track the most recent heading-like line for context inheritance.
+            // A "heading" is a short line (≤80 chars) without numbers that acts
+            // as a section label in spec tables.  Universal across all documents.
+            var currentHeading = ""
+
+            for (lineIdx, rawLine) in rawLines.enumerated() {
+                // Detect heading lines: short, no trailing numbers, typically labels
+                let isHeading = rawLine.count <= 80
+                    && rawLine.rangeOfCharacter(from: .decimalDigits) == nil
+                    && !rawLine.contains("|")
+                    && !rawLine.hasSuffix(".")
+
+                if isHeading {
+                    currentHeading = rawLine
+                }
+
+                // Split line into sub-sentences if it's prose (not table/spec data)
+                let subLines: [String]
+                if rawLine.contains("\t") || rawLine.contains("  ") || rawLine.contains("|") {
+                    subLines = [rawLine]  // Table row — keep whole
+                } else {
+                    let parts = rawLine.components(separatedBy: ". ")
+                        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                        .filter { $0.count > 5 }
+                    subLines = parts.isEmpty ? [rawLine] : parts
+                }
+
+                for subLine in subLines {
+                    guard subLine.count > 5 else { continue }
+                    let lineLower = subLine.lowercased()
+                    let headingLower = currentHeading.lowercased()
+
+                    // Direct keyword hits on THIS line
+                    var directHits = 0
+                    for kw in queryKeywords {
+                        if lineLower.contains(kw) { directHits += 1 }
+                    }
+
+                    // HEADING INHERITANCE: keyword hits on the heading above this line.
+                    // In spec tables, "Engine Oil" is the heading, "SAE 0W-20" is the value.
+                    // The value line inherits the heading's keyword relevance.
+                    // Also check the PREVIOUS raw line as implicit heading context.
+                    var headingHits = 0
+                    if !isHeading {  // Don't let headings inherit from themselves
+                        for kw in queryKeywords {
+                            if headingLower.contains(kw) { headingHits += 1 }
+                        }
+                        // Also check immediate previous line as context
+                        if headingHits == 0 && lineIdx > 0 {
+                            let prevLower = rawLines[lineIdx - 1].lowercased()
+                            for kw in queryKeywords {
+                                if prevLower.contains(kw) { headingHits += 1 }
+                            }
+                        }
+                    }
+
+                    let totalKeywordHits = directHits + headingHits
+
+                    // Must have at least 1 keyword match (direct OR inherited)
+                    guard totalKeywordHits > 0 else { continue }
+
+                    // Bonus for containing numbers (specs always have numbers)
+                    let hasNumbers = subLine.rangeOfCharacter(from: .decimalDigits) != nil
+                    let numberBonus: Double = hasNumbers ? 2.0 : 0.0
+
+                    // Bonus for measurement units (boosted for extractive queries)
+                    let unitPattern = #"\d+(?:\.\d+)?\s*(?:qt|quart|gal|gallon|L|liter|litre|ml|oz|fl|kg|g|lb|lbs|mg|mcg|ug|mm|cm|m|km|in|ft|yd|mi|psi|kPa|MPa|bar|atm|rpm|hp|kW|MW|GW|Hz|kHz|MHz|GHz|TB|GB|MB|KB|V|mV|A|mA|W|kWh|MWh|Ah|mAh|cal|kcal|kJ|MJ|BTU|dB|dBm|lux|lm|cd|mol|IU|%)\b"#
+                    let unitHits = (try? NSRegularExpression(pattern: unitPattern, options: .caseInsensitive))?
+                        .numberOfMatches(in: subLine, range: NSRange(subLine.startIndex..., in: subLine)) ?? 0
+                    let unitBonus = Double(min(unitHits, 3)) * 1.5 * specBoostMultiplier
+
+                    // Bonus for spec/standard codes (universal across every industry)
+                    let specCodePattern = #"\b(?:API|ISO|SAE|ACEA|ASTM|IEEE|ANSI|IEC|NIST|OSHA|EPA|FDA|WHO|USP|NF|BP|JP|MIL-|SPEC-|UL|CE|FCC|RoHS|REACH|GMP|HACCP|NFPA|ASHRAE|ACI|AISI|AISC|AWS|ASME|DOT|FMVSS|ECE|JIS|DIN|EN|BS|AS|NZS|CSA|CAN|GB|GB/T)\s*[A-Z0-9./-]+"#
+                    let specHits = (try? NSRegularExpression(pattern: specCodePattern))?
+                        .numberOfMatches(in: subLine, range: NSRange(subLine.startIndex..., in: subLine)) ?? 0
+                    let specBonus = Double(min(specHits, 3)) * 2.0 * specBoostMultiplier
+
+                    // Bonus for table row indicators (colon-separated key-value, boosted for extractive queries)
+                    let kvBonus: Double = (subLine.contains(":") && hasNumbers) ? 1.5 * specBoostMultiplier : 0.0
+
+                    // Bonus for structured alphanumeric codes/model numbers/grades
+                    // Catches: 5W-30, A2024-T3, 316L, Type III, Class 2, Grade 8,
+                    // NDC 12345-678, ICD-10 M54.5, CAS 64-17-5, etc.
+                    // Universal: any alphanumeric code with hyphens/dots = structured data
+                    let structuredCodePattern = #"\b[A-Z0-9]{1,6}[-./][A-Z0-9]{1,6}(?:[-./][A-Z0-9]{1,6})?\b"#
+                    let codeHits = (try? NSRegularExpression(pattern: structuredCodePattern))?
+                        .numberOfMatches(in: subLine, range: NSRange(subLine.startIndex..., in: subLine)) ?? 0
+                    let codeBonus = Double(min(codeHits, 3)) * 1.5 * specBoostMultiplier
+
+                    // Proximity bonus: chunk rank (higher-ranked chunks get a small boost)
+                    let rankBonus = max(0.0, 1.0 - Double(chunkIdx) * 0.05)
+
+                    // Direct keyword hits are worth MORE than inherited ones.
+                    // Direct: the line itself talks about "oil" → 3.0 per hit
+                    // Inherited: the heading says "oil", this line has the spec → 2.0 per hit
+                    let keywordScore = Double(directHits) * 3.0 + Double(headingHits) * 2.0
+
+                    let totalScore = keywordScore
+                        + numberBonus + unitBonus + specBonus + kvBonus + codeBonus + rankBonus
+
+                    // Determine heading context to include when packing
+                    let effectiveHeading: String
+                    if directHits == 0 && headingHits > 0 && !currentHeading.isEmpty {
+                        // Line only matches via heading — include heading for context
+                        effectiveHeading = currentHeading
+                    } else {
+                        effectiveHeading = ""
+                    }
+
+                    scoredSentences.append(ScoredSentence(
+                        text: subLine,
+                        headingContext: effectiveHeading,
+                        score: totalScore,
+                        sourceIndex: chunkIdx,
+                        sourceDoc: source,
+                        pageNumber: page
+                    ))
+                }
+            }
+        }
+
+        // Sort by score descending
+        scoredSentences.sort { $0.score > $1.score }
+
+        // Deduplicate: remove near-identical sentences (same text, different chunks)
+        var seen: Set<String> = []
+        scoredSentences = scoredSentences.filter { s in
+            let key = s.text.lowercased().filter { $0.isLetter || $0.isNumber }
+            if seen.contains(key) { return false }
+            seen.insert(key)
+            return true
+        }
+
+        // Pack into context budget
+        var builder = String()
+        builder.reserveCapacity(min(maxChars, 5000))
+        var sourcesUsed: Set<Int> = []
+        var sentenceCount = 0
+        let headerOverhead = compact ? 30 : 80
+        let separatorSize = compact ? 5 : 7
+
+        // Group consecutive sentences from the same source for readability
+        for sentence in scoredSentences {
+            let sourceLabel: String
+            if compact {
+                let filename = URL(fileURLWithPath: sentence.sourceDoc).lastPathComponent
+                sourceLabel = sourcesUsed.contains(sentence.sourceIndex) ? "" :
+                    "[S\(sentence.sourceIndex + 1)] (\(filename))\n"
+            } else {
+                let page = sentence.pageNumber.map { " p.\($0)" } ?? ""
+                sourceLabel = sourcesUsed.contains(sentence.sourceIndex) ? "" :
+                    "[S\(sentence.sourceIndex + 1)] \(sentence.sourceDoc)\(page)\n"
+            }
+
+            // Include heading context for sentences found via inheritance
+            // e.g. "Engine Oil > SAE 0W-20" gives the LLM section context
+            let displayText = sentence.headingContext.isEmpty
+                ? sentence.text
+                : "\(sentence.headingContext) > \(sentence.text)"
+
+            let entry = sourceLabel + displayText + "\n"
+            let overhead = sourcesUsed.contains(sentence.sourceIndex) ? 0 : headerOverhead
+
+            if builder.count + entry.count + overhead + separatorSize <= maxChars {
+                if !sourcesUsed.contains(sentence.sourceIndex) && !builder.isEmpty {
+                    builder += compact ? "\n---\n" : "\n\n---\n\n"
+                }
+                builder += entry
+                sourcesUsed.insert(sentence.sourceIndex)
+                sentenceCount += 1
+            } else if builder.count + displayText.count + 2 <= maxChars && sourcesUsed.contains(sentence.sourceIndex) {
+                // Can fit sentence without new header (same source)
+                builder += displayText + "\n"
+                sentenceCount += 1
+            } else {
+                // Budget exceeded
+                break
+            }
+        }
+
+        return SentenceExtractionResult(
+            context: builder,
+            sourcesUsed: sourcesUsed.count,
+            sentencesIncluded: sentenceCount
+        )
     }
 
     // MARK: - Lexical Relevance Check
@@ -1627,7 +2322,42 @@ class RAGService: ObservableObject {
     func allChunksForActiveContainer() async -> [DocumentChunk] {
         let db = await dbForActiveContainer()
         do {
-            return try await db.allChunks()
+            let chunks = try await db.allChunks()
+            guard !chunks.isEmpty else { return [] }
+
+            // Compatibility hydration for mmap-backed stores:
+            // BNNSVectorDatabase intentionally stores metadata-only chunks (embedding: [])
+            // to keep memory low during retrieval. Visualization views require embeddings,
+            // so we fetch them explicitly for this call.
+            if chunks.allSatisfy({ $0.embedding.isEmpty }) {
+                let indices = Array(0..<chunks.count)
+                let embeddings = await db.getEmbeddings(forIndices: indices)
+
+                guard embeddings.count == chunks.count else {
+                    Log.warning("[RAGService] Embedding hydration mismatch for visualization: chunks=\(chunks.count), embeddings=\(embeddings.count)")
+                    return chunks
+                }
+
+                var hydrated: [DocumentChunk] = []
+                hydrated.reserveCapacity(chunks.count)
+                for i in 0..<chunks.count {
+                    let chunk = chunks[i]
+                    hydrated.append(
+                        DocumentChunk(
+                            id: chunk.id,
+                            documentId: chunk.documentId,
+                            content: chunk.content,
+                            parentContent: chunk.parentContent,
+                            contextualPrefix: chunk.contextualPrefix,
+                            embedding: embeddings[i],
+                            metadata: chunk.metadata
+                        )
+                    )
+                }
+                return hydrated
+            }
+
+            return chunks
         } catch {
             Log.error("[RAGService] Failed to load all chunks: \(error.localizedDescription)")
             return []
@@ -1969,6 +2699,13 @@ class RAGService: ObservableObject {
     ) {
         processingStatus = "\(filename) • \(detail)"
         guard let id, let index = ingestionItems.firstIndex(where: { $0.id == id }) else { return }
+
+        // Haptic feedback for stage transitions
+        let oldStage = ingestionItems[index].stage
+        if oldStage != stage {
+            triggerIngestionHaptic(for: stage)
+        }
+
         var item = ingestionItems[index]
         item.stage = stage
         item.detail = detail
@@ -1989,6 +2726,31 @@ class RAGService: ObservableObject {
             metricsUpdate(&item.metrics)
         }
         ingestionItems[index] = item
+    }
+
+    /// Haptic feedback based on ingestion stage
+    @MainActor
+    private func triggerIngestionHaptic(for stage: IngestionStage) {
+        switch stage {
+        case .loading, .extracting:
+            DSHaptics.soft() // Just starting
+        case .transcribing:
+            DSHaptics.processingPulse() // Audio/video processing
+        case .chunking, .analyzing, .adapting:
+            DSHaptics.tick() // Processing ticks
+        case .embedding:
+            DSHaptics.processingPulse() // Neural processing
+        case .indexing:
+            DSHaptics.tick()
+        case .storing:
+            DSHaptics.soft()
+        case .complete:
+            DSHaptics.documentIngested() // Success!
+        case .failed:
+            DSHaptics.warning() // Something went wrong
+        case .reindexing, .queued:
+            break // No haptic for these
+        }
     }
 
     @MainActor
@@ -2028,7 +2790,7 @@ class RAGService: ObservableObject {
                     completedIds: snapshot.map { $0.id }
                 )
             }
-            try? await Task.sleep(nanoseconds: 200_000_000)
+            try? await Task.sleep(nanoseconds: 50_000_000) // 50ms poll interval (was 200ms)
         }
     }
 
@@ -2169,8 +2931,8 @@ class RAGService: ObservableObject {
             updateIngestionItem(id: trackingId, filename: filename, stage: .loading, detail: "Loading")
         }
 
-        // Give UI time to show the overlay (short, user-visible)
-        try? await Task.sleep(nanoseconds: 200_000_000) // 0.2s
+        // Yield to let SwiftUI render the overlay (@Published updates propagate on next run loop)
+        await Task.yield()
 
         // Set up progress handler for real-time updates (legacy string-based)
         documentProcessor.progressHandler = { [weak self] progress in
@@ -2281,8 +3043,8 @@ class RAGService: ObservableObject {
                 }
             }
 
-            // Small delay to show the chunking message
-            try? await Task.sleep(nanoseconds: 200_000_000) // 0.2s
+            // Yield to let SwiftUI render chunking status
+            await Task.yield()
 
             // Step 1.5: Auto-adapt configuration if enabled
             if context.allowsSelfTuningScheduling,
@@ -2374,12 +3136,19 @@ class RAGService: ObservableObject {
 
                 // Update metrics with analysis results
                 let detectedLangs = report.corpus.languageHypotheses.sorted { $0.value > $1.value }.prefix(3).map { $0.key.rawValue }
+
+                // Classify document domain from filename and content signals
+                let domain = Self.classifyDocumentDomain(filename: filename, signals: report.corpus, entities: report.documents.flatMap { $0.keyTopics })
+                let descriptor = Self.buildContentDescriptor(signals: report.corpus, entities: report.documents.flatMap { $0.keyTopics })
+                let categories = Self.extractContentCategories(entities: report.documents.flatMap { $0.keyTopics }, signals: report.corpus)
+                let primaryLang = detectedLangs.first.flatMap { Self.languageDisplayName($0) } ?? ""
+
                 await MainActor.run {
                     updateIngestionItem(
                         id: trackingId,
                         filename: filename,
                         stage: .analyzing,
-                        detail: "Vocab richness \(String(format: "%.0f%%", report.corpus.vocabularyRichness * 100)) • Tech density \(String(format: "%.0f%%", report.corpus.technicalDensity * 100))",
+                        detail: domain.isEmpty ? "Analyzing content structure..." : "\(domain) • \(descriptor)",
                         progress: 1.0
                     ) { metrics in
                         metrics.vocabularyRichness = report.corpus.vocabularyRichness
@@ -2393,6 +3162,13 @@ class RAGService: ObservableObject {
                         metrics.targetWordWindow = report.chunking.targetWordWindow
                         metrics.overlapWords = report.chunking.overlapWords
                         metrics.analysisTimeMs = Int(analysisTime * 1000)
+
+                        // Document content profile (displayed in UI instead of raw ratios)
+                        metrics.documentDomain = domain
+                        metrics.contentDescriptor = descriptor
+                        metrics.contentCategories = categories
+                        metrics.documentLanguage = primaryLang
+                        // extractionCoverage is set during extraction phase
                     }
                 }
 
@@ -2449,7 +3225,7 @@ class RAGService: ObservableObject {
                                 detail: "Config adapted to \(updatedContainer.embeddingDim)D"
                             )
                         }
-                        try? await Task.sleep(nanoseconds: 500_000_000)
+                        try? await Task.sleep(nanoseconds: 50_000_000) // 50ms flash
                     }
 
                     container = updatedContainer
@@ -2499,8 +3275,21 @@ class RAGService: ObservableObject {
             let maxTokens = containerEmbeddingService.maxSafeTokens  // 510 for CoreML
 
             for chunk in processedChunks {
-                // Build chunk-specific contextual prefix with section info
-                let sectionContext = chunk.metadata.sectionTitle.map { " [\($0)]" } ?? ""
+                // Build chunk-specific contextual prefix with FULL section hierarchy
+                // Uses sectionPath (e.g. ["SPECIFICATIONS", "Engine Oil"]) for maximum
+                // heading context in the embedding. This is THE key to making embeddings
+                // discriminative — "[CarManual] [SPECIFICATIONS > Engine Oil] SAE 0W-20"
+                // vs "[CarManual] [SPECIFICATIONS > Differential Gear Oil] SAE 75W/85"
+                let sectionContext: String
+                if let path = chunk.metadata.sectionPath, !path.isEmpty {
+                    // Full hierarchical path: " [SPECIFICATIONS > Engine Oil]"
+                    sectionContext = " [\(path.joined(separator: " > "))]"
+                } else if let title = chunk.metadata.sectionTitle {
+                    // Fallback to just title
+                    sectionContext = " [\(title)]"
+                } else {
+                    sectionContext = ""
+                }
                 let contextualPrefix = docContext + sectionContext + " "
                 contextualPrefixes.append(contextualPrefix)
 
@@ -2562,7 +3351,7 @@ class RAGService: ObservableObject {
             // Batch embed with progress callback for live UI updates
             embeddings = try await containerEmbeddingService.generateEmbeddings(
                 for: textsToEmbed,
-                progressHandler: { [weak self] completed, total in
+                progressHandler: { [weak self] (completed: Int, total: Int) in
                     Task { @MainActor in
                         let progress = Double(completed) / Double(max(1, total))
                         self?.updateIngestionItem(
@@ -2618,7 +3407,7 @@ class RAGService: ObservableObject {
 
             // Step 3: Create DocumentChunk objects with embeddings and contextual prefixes
             let chunkingStartTime = Date()
-            let documentChunks = zip(zip(processedChunks, embeddings), contextualPrefixes).enumerated().map { index, pair in
+            let documentChunks = zip(zip(processedChunks, embeddings), contextualPrefixes).enumerated().map { (index: Int, pair: ((DocumentProcessor.ProcessedChunk, [Float]), String)) in
                 let ((chunk, embedding), prefix) = pair
                 let base = chunk.metadata
                 let enrichedMetadata = ChunkMetadata(
@@ -2668,6 +3457,29 @@ class RAGService: ObservableObject {
                     "count": "\(documentChunks.count)",
                 ]
             )
+
+            // Step 4.0.1: Store chunks in chunk-level FTS5 for section-aware BM25 search
+            // This enables chunk-level BM25 scoring with section heading boosts:
+            // "oil" matching in sectionTitle="Engine Oil" gets 10x the score of body text
+            let fts5ChunkData: [(chunkIndex: Int, pageNumber: Int?, sectionTitle: String?,
+                                 sectionPath: String?, structureType: String?, content: String)] =
+                documentChunks.map { chunk in
+                    let pathStr = chunk.metadata.sectionPath?.joined(separator: " > ")
+                    return (
+                        chunkIndex: chunk.metadata.chunkIndex,
+                        pageNumber: chunk.metadata.pageNumber,
+                        sectionTitle: chunk.metadata.sectionTitle,
+                        sectionPath: pathStr,
+                        structureType: chunk.metadata.structureType,
+                        content: chunk.content
+                    )
+                }
+            await SQLiteFullTextService.shared.storeChunks(
+                documentId: document.id,
+                containerId: activeContainerId,
+                chunks: fts5ChunkData
+            )
+            Log.info("[RAGService] Stored \(documentChunks.count) chunks in FTS5 chunk index", category: .ingestion)
 
             // Step 4.1: Learn vocabulary from chunks for per-container domain adaptation
             // Extracts domain terms, spec codes, and technical phrases to improve future retrieval
@@ -2756,6 +3568,10 @@ class RAGService: ObservableObject {
             } else {
                 Log.debug("[RAGService] Document summaries disabled in settings, skipping", category: .ingestion)
             }
+
+            // Step 4.9: Persist vector store to disk (single write after all batch stores)
+            // Deferred persistence avoids redundant JSON serialization after each storeBatch call
+            try await db.persist()
 
             // Step 5: Generate content tags using Apple's content tagging model (iOS 26+)
             await MainActor.run {
@@ -2906,8 +3722,8 @@ class RAGService: ObservableObject {
             // Save documents metadata to disk
             saveDocumentsToDisk()
 
-            // Small success flash
-            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1s
+            // Brief yield for UI to catch up before marking complete
+            await Task.yield()
 
             await MainActor.run {
                 updateIngestionItem(
@@ -3000,6 +3816,7 @@ class RAGService: ObservableObject {
 
         // Delete full text storage for ZERO data orphans (both FTS5 and legacy file storage)
         await SQLiteFullTextService.shared.delete(for: document.id)
+        await SQLiteFullTextService.shared.deleteChunks(for: document.id)
         await FullTextStorageService.shared.delete(for: document.id)
 
         // Invalidate visualization cache for active container after removal
@@ -3030,6 +3847,7 @@ class RAGService: ObservableObject {
         // Delete full text storage for all documents being cleared (both FTS5 and legacy)
         // FTS5: Single bulk operation for entire container (most efficient)
         await SQLiteFullTextService.shared.deleteContainer(containerId: activeId)
+        await SQLiteFullTextService.shared.deleteChunksForContainer(containerId: activeId)
 
         // Legacy file storage: Delete individual documents
         let docsToDelete = await MainActor.run {
@@ -3582,7 +4400,7 @@ class RAGService: ObservableObject {
             detail: modeDetail
         )
 
-        let orchestrator = AgenticOrchestrator(ragService: self, config: optimizedConfig)
+        let orchestrator = AgenticOrchestrator(ragService: self, config: optimizedConfig, qualityMode: qualityMode)
         let startTime = Date()
 
         // Reset live counters at start of Deep Think / Maximum
@@ -3857,6 +4675,22 @@ class RAGService: ObservableObject {
     private func queryInternal(
         _ question: String, topK: Int, config: InferenceConfig?, containerId: UUID?
     ) async throws -> RAGResponse {
+        // Mark query start in trace file for pipeline debugging
+        Log.traceQueryStart(question)
+        let queryStartTime = CFAbsoluteTimeGetCurrent()
+
+        // Flush trace on exit regardless of how the function returns
+        defer {
+            let duration = CFAbsoluteTimeGetCurrent() - queryStartTime
+            Log.traceQueryEnd(responseLength: 0, duration: duration)
+            Log.flushTraceLog()
+        }
+
+        // Report CPU activity for RAG pipeline orchestration
+        await MainActor.run {
+            HardwareTelemetryState.shared.reportRAGPipeline(stage: "Query Processing")
+        }
+
         var inferenceConfig = config ?? InferenceConfig()
         let networkAvailable = NetworkMonitor.shared.isConnected
         // Reliability mode always enabled — UI toggle removed for simplicity
@@ -4017,13 +4851,14 @@ class RAGService: ObservableObject {
 
         let allowUngroundedFallback = reliabilityModeEnabled || developerTuningEnabled
 
-        // Always use default retrieval config — per-container presets removed for simplicity
-        // AdaptivePipelineOptimizer handles auto-tuning based on query patterns
-        let retrievalConfig: RetrievalConfig = .default
-
         let selectedContainer = await MainActor.run {
             self.containerService.containers.first { $0.id == selectedId }
         }
+
+        // OPTIMIZED: Use container's retrievalConfig if available, otherwise default.
+        // Previous behavior hardcoded `.default` ignoring user-customized per-container weights.
+        // Container settings UI lets users tune vector vs lexical weight — now those actually propagate.
+        let retrievalConfig: RetrievalConfig = selectedContainer?.retrievalConfig ?? .default
 
         let vdb = await dbFor(selectedId)
 
@@ -4203,6 +5038,7 @@ class RAGService: ObservableObject {
 
                 // Step 0: Build or retrieve cached Corpus Vocabulary (for context-aware understanding)
                 Log.section("Step 0: Corpus Analysis", level: .info, category: .pipeline)
+                HardwareTelemetryState.shared.reportRAGPipeline(stage: "Corpus Analysis")
                 let corpusStartTime = Date()
 
                 // Pipeline Trace: Step 0
@@ -4242,72 +5078,21 @@ class RAGService: ObservableObject {
                     finalCorpusVocabulary = corpusVocabulary
                     Log.debug("Using cached corpus vocabulary (0ms)", category: .pipeline)
 
-                    // Even with cached vocabulary, run viscosity scan if pipeline trace is on
-                    // This helps diagnose retrieval issues
+                    // Always load allChunks — needed for parent doc expansion, lexical recall,
+                    // document summary, and multi-hop even when vocabulary is cached.
+                    // Previously only loaded when pipelineTraceEnabled, which silently broke
+                    // parent doc expansion on repeat queries to the same container.
+                    let allChunks = try await vdb.allChunks()
+                    cachedAllChunks = allChunks
                     if Log.pipelineTraceEnabled {
-                        let allChunks = try await vdb.allChunks()
-                        cachedAllChunks = allChunks
                         await runViscosityScan(allChunks, query: question)
-                    }
-                }
-
-                // DIAGNOSTIC: For oil queries, ALWAYS scan corpus for viscosity specs
-                // This helps debug retrieval issues without needing Pipeline Trace enabled
-                let queryLower = question.lowercased()
-                if queryLower.contains("oil") || queryLower.contains("viscosity") || queryLower.contains("0w") || queryLower.contains("5w") {
-                    let scanChunks: [DocumentChunk]
-                    if let cached = cachedAllChunks {
-                        scanChunks = cached
-                    } else {
-                        scanChunks = try await vdb.allChunks()
-                    }
-                    let viscosityPattern = #"\d+[Ww]-\d+"#
-                    var viscosityChunks: [(idx: Int, page: Int?, section: String?, match: String, preview: String)] = []
-                    for (idx, chunk) in scanChunks.enumerated() {
-                        let content = chunk.content
-                        if let range = content.range(of: viscosityPattern, options: .regularExpression) {
-                            let match = String(content[range])
-                            let preview = String(content.prefix(150)).replacingOccurrences(of: "\n", with: " ")
-                            viscosityChunks.append((idx, chunk.metadata.pageNumber, chunk.metadata.sectionTitle, match, preview))
-                        }
-                    }
-
-                    Log.info("🔍 [OIL-DIAGNOSTIC] Query: '\(question)'", category: .retrieval)
-                    Log.info("🔍 [OIL-DIAGNOSTIC] Scanned \(scanChunks.count) chunks for viscosity patterns", category: .retrieval)
-
-                    if viscosityChunks.isEmpty {
-                        Log.warning("🔍 [OIL-DIAGNOSTIC] ⚠️ NO CHUNKS contain viscosity specs (0W-20, 5W-30, etc.)", category: .retrieval)
-                        Log.warning("🔍 [OIL-DIAGNOSTIC] The oil specification may be in an image/table that wasn't extracted as text", category: .retrieval)
-
-                        // Look for related terms to help debug
-                        var relatedChunks: [(idx: Int, keyword: String)] = []
-                        let keywords = ["SAE", "synthetic", "motor oil", "engine oil capacity", "oil grade", "API"]
-                        for (idx, chunk) in scanChunks.enumerated() {
-                            for keyword in keywords {
-                                if chunk.content.localizedCaseInsensitiveContains(keyword) {
-                                    relatedChunks.append((idx, keyword))
-                                    break
-                                }
-                            }
-                        }
-                        Log.info("🔍 [OIL-DIAGNOSTIC] Found \(relatedChunks.count) chunks with related oil keywords", category: .retrieval)
-                        for rc in relatedChunks.prefix(3) {
-                            let chunk = scanChunks[rc.idx]
-                            let preview = String(chunk.content.prefix(100)).replacingOccurrences(of: "\n", with: " ")
-                            Log.info("🔍 [OIL-DIAGNOSTIC] Chunk[\(rc.idx)] '\(rc.keyword)': \(preview)...", category: .retrieval)
-                        }
-                    } else {
-                        Log.info("🔍 [OIL-DIAGNOSTIC] ✅ Found \(viscosityChunks.count) chunks with viscosity specs:", category: .retrieval)
-                        for vc in viscosityChunks.prefix(5) {
-                            Log.info("🔍 [OIL-DIAGNOSTIC] Chunk[\(vc.idx)] p.\(vc.page ?? 0) [\(vc.section ?? "?")] \(vc.match): \(vc.preview)", category: .retrieval)
-                        }
                     }
                 }
 
                 // Check advanced RAG settings
                 let useQueryRewriting = settingsStore?.enableQueryRewriting ?? qualityModeUsesQueryRewriting
-                // Note: Iterative retrieval is a future enhancement, capturing setting for later use
-                _ = settingsStore?.enableIterativeRetrieval ?? qualityModeUsesIterativeRetrieval
+                // Note: Iterative retrieval is auto-enabled for multi-hop intents (investigate/compare/findings)
+                // and can be force-enabled via settings toggle. See Step 3 below.
 
                 // Step 1: LLM-Powered Query Understanding (if enabled)
                 var effectiveQuery = question
@@ -4316,6 +5101,7 @@ class RAGService: ObservableObject {
 
                 if useQueryRewriting {
                     Log.section("Step 1: Query Understanding", level: .info, category: .pipeline)
+                    HardwareTelemetryState.shared.reportRAGPipeline(stage: "Query Understanding")
                     let rewriteStartTime = Date()
 
                     // Pipeline Trace: Step 1
@@ -4502,11 +5288,15 @@ class RAGService: ObservableObject {
 
                 // HyDE: Combine quality mode toggle with user settings and service availability
                 let hydeEnabledBySettings = settingsStore?.enableHyDE ?? true
-                let hydeEnabledForMode = qualityModeUsesHyDE && hydeEnabledBySettings && HyDEService.isAvailable
+                let hydeIsAvailable = HyDEService.isAvailable
+                let hydeEnabledForMode = qualityModeUsesHyDE && hydeEnabledBySettings && hydeIsAvailable
+                // ALWAYS log HyDE gate status so we can diagnose silent failures
+                Log.info("[HyDE] Gates: qualityMode=\(qualityModeUsesHyDE), settings=\(hydeEnabledBySettings), available=\(hydeIsAvailable) → enabled=\(hydeEnabledForMode)", category: .retrieval)
 
                 // CRITICAL: Disable HyDE for extractive/lookup queries to avoid hallucinated specifics biasing retrieval
                 // HyDE can guess wrong values (e.g., "5W-40" when answer is "0W-20") and pull wrong chunks
-                // Extractive-first intents (lookup, tableLookup, procedure) work better with keyword matching
+                // Extractive-first intents (lookup, tableLookup) work better with keyword matching
+                // Procedure intents need HyDE for semantic behavioral matching ("what does the button do?")
                 let hydeDisabledForIntent = answerIntent.isExtractiveFirst
                 if hydeDisabledForIntent && hydeEnabledForMode {
                     Log.debug("[HyDE] Disabled for extractive intent '\(answerIntent.rawValue)' - keyword matching preferred", category: .retrieval)
@@ -4607,18 +5397,26 @@ class RAGService: ObservableObject {
 
                 // Step 3: Hybrid Search (vector + BM25 keyword search with RRF fusion)
                 // With optional iterative retrieval for multi-pass refinement
-                let useIterative = settingsStore?.enableIterativeRetrieval ?? false
+                HardwareTelemetryState.shared.reportRAGPipeline(stage: "Hybrid Search")
+                // UPGRADED: Auto-enable iterative retrieval for multi-hop intents
+                // (compare, investigate, findings) even if user hasn't toggled the setting.
+                // The infrastructure is fully built — this just activates it where it matters.
+                let userEnabledIterative = settingsStore?.enableIterativeRetrieval ?? false
+                let useIterative = userEnabledIterative || (answerIntent.benefitsFromMultiHop && qualityModeUsesIterativeRetrieval)
                 let iterativeConfig = IterativeRetrievalConfig.default
 
                 let retrievalStartTime = Date()
-                let retrievedChunks: [RetrievedChunk]
+                var retrievedChunks: [RetrievedChunk]
                 var iterativeMetadata: (iterations: Int, confidence: Float, queries: Int)?
 
                 // Classify query intent for adaptive weight tuning (used in both paths)
                 let queryIntent = queryEnhancer.classifyIntent(effectiveQuery)
                 let adjustment = queryIntent.weightAdjustment
-                let adjustedVectorWeight = max(0.1, min(0.9, retrievalConfig.vectorWeight + adjustment.vectorDelta))
-                let adjustedKeywordWeight = max(0.1, min(0.9, retrievalConfig.lexicalWeight + adjustment.keywordDelta))
+                // UNIVERSAL FIX: Vector search must ALWAYS have at least 35% vote.
+                // Embeddings understand meaning even when OCR garbles text.
+                // BM25 on noisy OCR with >65% weight = retrieval failure.
+                let adjustedVectorWeight = max(0.35, min(0.65, retrievalConfig.vectorWeight + adjustment.vectorDelta))
+                let adjustedKeywordWeight = max(0.35, min(0.65, retrievalConfig.lexicalWeight + adjustment.keywordDelta))
 
                 // Step 2.5: Query Classification for RAPTOR-lite (summary-first retrieval)
                 // Determines whether to search document summaries (L1) or detail chunks (L0)
@@ -4764,12 +5562,62 @@ class RAGService: ObservableObject {
                     // For RAPTOR-lite: filteredCachedChunks may be limited to summaries for overview queries
                     // Pass containerId to enable FTS5-accelerated BM25 (10-100X faster than in-memory)
                     retrievedChunks = try await hybridSearch.search(
-                        query: expandedQueries.joined(separator: " "), // Combine expansions
+                        query: expandedQueries.joined(separator: " "),
+                        originalQuery: effectiveQuery,  // Original query for FTS5 + keyword boost
                         embedding: queryEmbedding,
-                        topK: effectiveTopK * 3, // Retrieve 3x for better coverage on large docs
+                        topK: effectiveTopK * 3,
                         cachedChunks: filteredCachedChunks,
-                        containerId: selectedId // Enable SQLite FTS5 for this container
+                        containerId: selectedId
                     )
+
+                    // UNIVERSAL FIX 9: Multi-vector supplementary retrieval.
+                    // The primary search uses ONE embedding (HyDE or rewritten query).
+                    // Query expansion generates ~12 variations but only uses them for BM25 text.
+                    // Problem: if the primary embedding misses a needle due to vocabulary mismatch,
+                    // it's invisible forever. Fix: embed top-2 unique expansion variations, run
+                    // supplementary vector-only searches, merge any NEW chunks into results.
+                    // This catches needles that exist in a different embedding neighborhood.
+                    //
+                    // CRITICAL: Only use APPENDED expansions (contain original query as substring),
+                    // NOT replacement expansions. Synonym replacement queries like
+                    // "What vehicle of oil does this automobile takes" embed into a completely
+                    // different semantic neighborhood and pull in irrelevant chunks.
+                    // Appended queries like "oil type specification SAE" stay on-topic.
+                    if expandedQueries.count > 1 {
+                        let existingChunkIds = Set(retrievedChunks.map { $0.chunk.id })
+                        let effectiveQueryLower = effectiveQuery.lowercased()
+                        // Pick up to 2 expansions that:
+                        // 1. Differ from the primary embedding text
+                        // 2. Are sufficiently long
+                        // 3. CONTAIN the original query (appended terms, not replacements)
+                        //    OR are corpus phrase expansions (short focused phrases)
+                        let supplementaryQueries = expandedQueries
+                            .filter { expansion in
+                                expansion != textToEmbed &&
+                                expansion != effectiveQuery &&
+                                expansion.count >= 10 &&
+                                (expansion.lowercased().hasPrefix(effectiveQueryLower) ||
+                                 expansion.count < effectiveQuery.count)  // Corpus phrases are shorter
+                            }
+                            .prefix(2)
+
+                        if !supplementaryQueries.isEmpty {
+                            Log.debug("[MultiVector] Running \(supplementaryQueries.count) supplementary vector searches", category: .retrieval)
+                            for suppQuery in supplementaryQueries {
+                                do {
+                                    let suppEmbedding = try await queryEmbeddingService.generateEmbedding(for: suppQuery)
+                                    let suppResults = try await vdb.search(embedding: suppEmbedding, topK: effectiveTopK)
+                                    let newChunks = suppResults.filter { !existingChunkIds.contains($0.chunk.id) }
+                                    if !newChunks.isEmpty {
+                                        retrievedChunks.append(contentsOf: newChunks)
+                                        Log.debug("[MultiVector] +\(newChunks.count) new chunks from expansion: \"\(suppQuery.prefix(50))...\"", category: .retrieval)
+                                    }
+                                } catch {
+                                    Log.debug("[MultiVector] Supplementary search failed: \(error.localizedDescription)", category: .retrieval)
+                                }
+                            }
+                        }
+                    }
                 }
 
                 // Measure retrieval time before any MainActor work
@@ -4842,7 +5690,7 @@ class RAGService: ObservableObject {
 
                 // Add source information for citations with a safe MainActor snapshot
                 let docsSnapshot = await snapshotDocuments()
-                let chunksWithSources: [RetrievedChunk] = retrievedChunks.map { retrieved in
+                var chunksWithSources: [RetrievedChunk] = retrievedChunks.map { retrieved in
                     let docName =
                         docsSnapshot.first(where: { $0.id == retrieved.chunk.documentId })?.filename
                             ?? "Unknown"
@@ -4906,6 +5754,21 @@ class RAGService: ObservableObject {
                 // Universal pipeline trace: log chunks after hybrid search
                 if Log.pipelineTraceEnabled {
                     logChunkTrace(chunksWithSources, stage: "Post-HybridSearch", query: question)
+                }
+
+                // Step 3.5: Section Metadata Boost
+                // Boost chunks whose sectionTitle/sectionPath match query keywords.
+                // This is THE key signal that distinguishes "Engine Oil" chunks from "Gear Oil" chunks
+                // when both contain oil specs with similar embeddings.
+                // Requires Fix 1 (Title Case detection) and Fix 2 (.first→.last) to populate sectionTitle correctly.
+                let sectionBoostedChunks = Self.applyMetadataBoost(
+                    chunks: chunksWithSources,
+                    query: question
+                )
+
+                if sectionBoostedChunks != nil {
+                    chunksWithSources = sectionBoostedChunks!
+                    Log.debug("[RAGService] Applied section metadata boost to \(chunksWithSources.count) chunks", category: .retrieval)
                 }
 
                 Log.debug(
@@ -5230,9 +6093,9 @@ class RAGService: ObservableObject {
                         metadata: ["dropped": "\(dropped)"]
                     )
 
-                    // SPEC PRESERVATION: For extractive queries, rescue chunks with actual specification values
+                    // SPEC PRESERVATION: For extractive queries, rescue chunks with actual specification values.
                     // Cross-encoders often score table/spec chunks lower (sparse text, dense data)
-                    // But these are exactly the chunks that contain the answer (e.g., "0W-20")
+                    // but these are exactly the chunks that contain the answer.
                     if answerIntent.isExtractiveFirst {
                         let filteredIds = Set(filteredChunks.map { $0.chunk.id })
                         let droppedChunks = rerankedChunks.filter { !filteredIds.contains($0.chunk.id) }
@@ -5240,26 +6103,6 @@ class RAGService: ObservableObject {
                         // Find dropped chunks with high spec scores
                         var rescuedChunks: [RetrievedChunk] = []
                         let specThreshold = 5  // Minimum spec pattern score to rescue
-
-                        // Also scan ALL candidates for viscosity patterns (critical for oil queries)
-                        let viscosityPattern = #"\d+[Ww]-\d+"#
-                        var foundViscosityChunk = false
-
-                        for chunk in rerankedChunks {
-                            let content = chunk.chunk.parentContent ?? chunk.chunk.content
-                            if let _ = content.range(of: viscosityPattern, options: .regularExpression) {
-                                foundViscosityChunk = true
-                                // If this chunk was filtered out, force rescue it
-                                if !filteredIds.contains(chunk.chunk.id) {
-                                    Log.info("   🔧 Viscosity spec found in filtered chunk: \(String(content.prefix(80)))...", category: .retrieval)
-                                    rescuedChunks.insert(chunk, at: 0)  // Priority position
-                                }
-                            }
-                        }
-
-                        if !foundViscosityChunk && Log.pipelineTraceEnabled {
-                            Log.warning("   ⚠️ No viscosity specs (e.g., 0W-20) found in ANY of \(rerankedChunks.count) reranked chunks!", category: .retrieval)
-                        }
 
                         for chunk in droppedChunks {
                             let content = chunk.chunk.parentContent ?? chunk.chunk.content
@@ -5276,33 +6119,31 @@ class RAGService: ObservableObject {
                         }
 
                         if !rescuedChunks.isEmpty {
-                            // Limit rescued chunks to prevent flooding
                             let maxRescue = min(5, rescuedChunks.count)
                             let topRescued = Array(rescuedChunks.prefix(maxRescue))
 
-                            // CRITICAL FIX (Jan 27, 2026): Boost rescued chunk scores!
-                            // Cross-encoders score spec/table chunks LOW because they're data-dense.
-                            // But these chunks contain THE ANSWER (e.g., "0W-20").
-                            // Without boosting, MMR will pick the "relevant-looking" chunks first
-                            // (like EVIC messages with "car" in them) and skip the specs.
-                            //
-                            // Strategy: Boost to match top chunk score + 0.05 so they're selected first
+                            // OPTIMIZED: Boost rescued chunks to topScore - 0.02 instead of + 0.05.
+                            // Previous behavior made rescued chunks rank HIGHER than the best RRF result,
+                            // which could pollute results if spec detection misfires.
+                            // Now: rescued chunks rank just below the top result — included in context
+                            // but won't displace genuinely high-relevance content.
                             let topScore = filteredChunks.first?.similarityScore ?? 0.8
+                            let rescueScore = max(topScore - 0.02, 0.5)  // Floor at 0.5 to ensure inclusion
                             let boostedRescued = topRescued.map { chunk -> RetrievedChunk in
                                 RetrievedChunk(
                                     chunk: chunk.chunk,
-                                    similarityScore: topScore + 0.05,  // Slightly higher than top
-                                    rank: 0,  // Top rank
+                                    similarityScore: rescueScore,
+                                    rank: 1,
                                     sourceDocument: chunk.sourceDocument,
                                     pageNumber: chunk.pageNumber
                                 )
                             }
 
-                            // Insert at FRONT so MMR picks them first
+                            // Insert at front so they're available for MMR selection
                             filteredChunks.insert(contentsOf: boostedRescued, at: 0)
 
                             Log.info(
-                                "   🔧 Spec preservation: rescued \(topRescued.count) spec-containing chunks for extractive query (boosted to \(String(format: "%.2f", topScore + 0.05)))",
+                                "   🔧 Spec preservation: rescued \(topRescued.count) spec chunks (score=\(String(format: "%.2f", rescueScore)))",
                                 category: .retrieval
                             )
                             TelemetryCenter.emit(
@@ -5311,7 +6152,7 @@ class RAGService: ObservableObject {
                                 metadata: [
                                     "rescued": "\(topRescued.count)",
                                     "intent": answerIntent.rawValue,
-                                    "boostedScore": String(format: "%.2f", topScore + 0.05)
+                                    "boostedScore": String(format: "%.2f", rescueScore)
                                 ]
                             )
                         }
@@ -5846,7 +6687,7 @@ class RAGService: ObservableObject {
                         )
 
                         emitThinkingEvent(
-                            .context,
+                            .parentDoc,
                             title: "Parent context expanded",
                             detail: "+\(expansionResult.addedSiblings) siblings • \(expansionResult.expandedChunks.count) total chunks"
                         )
@@ -5859,6 +6700,60 @@ class RAGService: ObservableObject {
                         if Log.pipelineTraceEnabled {
                             logChunkTrace(expansionResult.expandedChunks, stage: "Post-ParentExpansion", query: question)
                         }
+                    }
+                }
+
+                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                // Step 4.6: Cross-Reference Resolution
+                // Technical documents often say "see Section X on page Y". The actual
+                // data (spec tables, values) lives in the referenced section but the
+                // reranker scores prose cross-references higher than the actual table.
+                // Scan retrieved chunks for cross-refs and fetch the referenced content.
+                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                if answerIntent.isExtractiveFirst {
+                    let crossRefChunks = await resolveCrossReferencesStandard(
+                        chunks: contextCandidates,
+                        query: question,
+                        allChunks: cachedAllChunks ?? []
+                    )
+                    if !crossRefChunks.isEmpty {
+                        // Insert cross-referenced chunks near the top so they survive context assembly
+                        let existingIds = Set(contextCandidates.map { $0.chunk.id })
+                        let newChunks = crossRefChunks.filter { !existingIds.contains($0.chunk.id) }
+                        contextCandidates.insert(contentsOf: newChunks, at: 0)
+                        Log.info("[RAG] Cross-reference resolution: +\(newChunks.count) chunks from referenced sections", category: .retrieval)
+                        emitThinkingEvent(.retrieval, title: "Cross-ref resolved", detail: "+\(newChunks.count) chunks from referenced sections")
+                    }
+                }
+
+                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                // Step 4.8: Targeted Spec Retrieval ("Spec Table Sniper")
+                // The reranker has an inherent prose bias: prose scores ~0.78 while
+                // tables/specs score ~0.30. For lookup/extractive queries, bypass
+                // semantic scoring entirely and search ALL chunks for co-occurrence
+                // of query keywords + numeric data.
+                //
+                // This is the "needle in a haystack" sniper — universal across domains:
+                // medical dosages, legal statute numbers, technical specs, financial data.
+                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                if answerIntent.isExtractiveFirst, let allChunks = cachedAllChunks {
+                    let existingIds = Set(contextCandidates.map { $0.chunk.id })
+                    let sniperResults = specTableSniper(
+                        query: question,
+                        allChunks: allChunks,
+                        excludeIds: existingIds
+                    )
+                    if !sniperResults.isEmpty {
+                        // Insert at position 0 — these targeted results should survive
+                        // context assembly budget cuts ahead of prose chunks
+                        contextCandidates.insert(contentsOf: sniperResults, at: 0)
+
+                        // Demote chunks that merely CITE other sections ("given in X on page Y")
+                        // now that we have the actual data they were pointing to
+                        demoteCrossReferenceChunks(&contextCandidates)
+
+                        Log.info("[RAG] Spec sniper: +\(sniperResults.count) targeted chunks from \(allChunks.count) total (keyword+number co-occurrence)", category: .retrieval)
+                        emitThinkingEvent(.retrieval, title: "Spec sniper", detail: "+\(sniperResults.count) targeted chunks via keyword+number co-occurrence")
                     }
                 }
 
@@ -5880,19 +6775,50 @@ class RAGService: ObservableObject {
 
                 if skipCompressionForProcedural {
                     Log.info("[RAG] Skipping compression for procedural query - preserving contiguous spans", category: .retrieval)
+                    emitThinkingEvent(.compression, title: "Compression skipped", detail: "Procedural query — preserving step ordering")
                 }
 
                 if skipCompressionForVocabMismatch {
                     Log.info("[RAG] Skipping compression for vocabulary mismatch - compressor can't judge relevance", category: .retrieval)
+                    emitThinkingEvent(.compression, title: "Compression skipped", detail: "Vocabulary mismatch — compressor can't judge relevance")
                 }
 
                 if skipCompressionForParentExpansion {
                     Log.info("[RAG] Skipping compression for parent-expanded content - chunks exceed compression model capacity", category: .retrieval)
+                    emitThinkingEvent(.compression, title: "Compression skipped", detail: "Parent-expanded chunks exceed model capacity")
                 }
 
                 if useContextualCompression, HyDEService.isAvailable, contextCandidates.count > 0 {
+                    // SMART COMPRESSION BUDGET: Estimate how many chunks will fit in context
+                    // before wasting time compressing all candidates. Context budget typically
+                    // fits 3-5 chunks, so compressing 18 at ~3s each = 54s wasted.
+                    // Only compress top-N where N = estimated fit + small buffer.
+                    // Use conservative inline estimates (exact budget is computed later):
+                    //   4096 window - ~1500 overhead/prompt - ~50 question - 300 output = ~2246 tokens
+                    let estQuestionTokens = max(20, question.count / 4)
+                    let estimatedAvailableTokens = 4096 - 1500 - estQuestionTokens - 300
+                    let estimatedCharsAvailable = Int(Double(estimatedAvailableTokens) * 1.4 * 0.88)
+                    var totalChars = 0
+                    var estimatedFit = 0
+                    for candidate in contextCandidates {
+                        totalChars += candidate.chunk.text.count
+                        if totalChars <= max(estimatedCharsAvailable, 3500) {
+                            estimatedFit += 1
+                        }
+                    }
+                    // Add buffer of 2 so compression can potentially include slightly more
+                    let compressionLimit = min(contextCandidates.count, max(estimatedFit + 2, 5))
+
+                    // Skip compression entirely if only 3 or fewer chunks fit — ROI is negative
+                    // (3 chunks × 3s = 9s for negligible token savings)
+                    if compressionLimit <= 3 {
+                        Log.info("[RAG] Skipping compression - only \(estimatedFit) chunks fit in context budget (ROI negative)", category: .retrieval)
+                        emitThinkingEvent(.compression, title: "Compression skipped", detail: "Only \(estimatedFit) chunks fit — ROI negative")
+                    }
+
+                    let chunksToCompress = compressionLimit <= 3 ? [] : Array(contextCandidates.prefix(compressionLimit))
                     let compressionService = ContextualCompressionService()
-                    let chunkTexts = contextCandidates.map { $0.chunk.text }
+                    let chunkTexts = chunksToCompress.map { $0.chunk.text }
 
                     // Select compression config based on query type
                     // "exactly", "detail", "comprehensive", "all about" → verbose (minimal compression)
@@ -5923,16 +6849,23 @@ class RAGService: ObservableObject {
                         )
                         let compressionTime = Date().timeIntervalSince(compressionStartTime)
 
-                        // Update chunk texts with compressed content
+                        // Update only the compressed chunks; leave remaining candidates untouched
                         var updatedCandidates: [RetrievedChunk] = []
-                        for (index, result) in compressionResults.enumerated() where index < contextCandidates.count {
-                            let original = contextCandidates[index]
-                            let effectiveText = result.effectiveContent
+                        var droppedIrrelevantCount = 0
+                        for (index, result) in compressionResults.enumerated() where index < chunksToCompress.count {
+                            let original = chunksToCompress[index]
 
-                            // Log if compression marked chunk as low-relevance (but we keep a fallback)
+                            // CRITICAL: If compression LLM says NO_RELEVANT_CONTENT, REMOVE the chunk entirely.
+                            // Keeping 400-char stubs wastes precious context budget (only 3 chunks fit!)
+                            // and those stubs compete with actually relevant chunks in spec sort.
+                            // The compression LLM already proved it can distinguish topics accurately.
                             if result.wasMarkedIrrelevant {
-                                Log.debug("[Compression] Chunk marked low-relevance, keeping truncated fallback: \(original.chunk.text.prefix(50))...", category: .retrieval)
+                                droppedIrrelevantCount += 1
+                                Log.debug("[Compression] Dropping irrelevant chunk: \(original.chunk.text.prefix(50))...", category: .retrieval)
+                                continue  // Skip — don't add to candidates
                             }
+
+                            let effectiveText = result.effectiveContent
 
                             // Create updated chunk with compressed text
                             var compressedChunk = original.chunk
@@ -5945,6 +6878,9 @@ class RAGService: ObservableObject {
                                 pageNumber: original.pageNumber
                             ))
                         }
+                        if droppedIrrelevantCount > 0 {
+                            Log.info("[Compression] Removed \(droppedIrrelevantCount) irrelevant chunks — freeing context space", category: .retrieval)
+                        }
 
                         let originalTokens = compressionResults.reduce(0) { $0 + $1.originalTokens }
                         let compressedTokens = compressionResults.reduce(0) { $0 + $1.compressedTokens }
@@ -5952,11 +6888,13 @@ class RAGService: ObservableObject {
                         compressionSavings = originalTokens - compressedTokens
 
                         if updatedCandidates.count > 0 {
-                            contextCandidates = updatedCandidates
+                            // Merge: compressed chunks replace front, uncompressed remain at tail
+                            let remaining = Array(contextCandidates.dropFirst(updatedCandidates.count))
+                            contextCandidates = updatedCandidates + remaining
                             let lowRelNote = lowRelevanceCount > 0 ? " (\(lowRelevanceCount) fallback)" : ""
                             Log.info("[Compression] \(originalTokens)→\(compressedTokens) tokens saved \(compressionSavings) in \(String(format: "%.0f", compressionTime * 1000))ms\(lowRelNote)", category: .retrieval)
                             emitThinkingEvent(
-                                .context,
+                                .compression,
                                 title: "Context compressed",
                                 detail: "Saved \(compressionSavings) tokens • \(contextCandidates.count) chunks"
                             )
@@ -6046,6 +6984,7 @@ class RAGService: ObservableObject {
 
                 // Step 5: Construct context from retrieved chunks (off-main)
                 // Note: rawContext assembly is handled via engine.assembleContext with size limits
+                HardwareTelemetryState.shared.reportRAGPipeline(stage: "Context Assembly")
 
                 // Smart context assembly: Use as many chunks as fit within the model's context window.
                 // Apple Intelligence on-device context is 4,096 tokens (TN3193). PCC behavior may vary.
@@ -6122,71 +7061,76 @@ class RAGService: ObservableObject {
                 let allowLargeContext = pccEligible && (cloudConsentAllowed || hasTransientGrant)
                 let applyTrivialCaps = isTrivial && !allowLargeContext
 
-                // CRITICAL: Token estimation was off by ~2x (estimated 3056, actual 5994)
-                // Apple FM tokenizer is more aggressive than typical 2.5 chars/token
-                // Using 1.4 chars/token for Apple FM (empirically observed ratio)
-                // Safety is applied ONCE at the end, not per-component (avoids compound paranoia)
+                // CRITICAL OPTIMIZATION: Disable tools when the RAG pipeline has already
+                // retrieved and assembled context. Tool schemas eat ~1000 tokens (24% of
+                // the 4096 window). When context is pre-assembled, the LLM prompt already
+                // says "don't use tools" — so we're burning 1000 tokens on dead weight.
+                // Reclaiming these tokens means MORE document context = BETTER answers.
+                // Tools are only needed for agentic/conversational mode (no pre-assembled context).
+                if !inferenceConfig.disableTools && contextCandidates.count > 0 {
+                    inferenceConfig.disableTools = true
+                    Log.info("[RAG] Auto-disabled tools: context pre-assembled (\(contextCandidates.count) chunks). Reclaimed ~1000 tokens for context.", category: .pipeline)
+                }
+
+                // Apple FM tokenizer ratio: empirically ~1.4 chars/token (observed 3056 estimated → 5994 actual)
+                // This is conservative — compound safety removed; single 12% haircut applied at end
                 let conservativeCharsPerToken: Double = isAppleFMOnDevice ? 1.4 : 2.5
 
-                func estimateTokens(chars: Int) -> Int {
+                func estimateTokensConservative(chars: Int) -> Int {
                     max(1, Int(ceil(Double(chars) / conservativeCharsPerToken)))
                 }
 
                 // CRITICAL: Apple FM (both on-device AND PCC) has a hard 4096 token limit.
-                // Despite documentation suggesting PCC supports 65k, real-world testing shows
                 // PCC fails with "Context length of 4096 was exceeded" when input exceeds 4096 tokens.
-                // ALWAYS use 4096 as the base window to avoid overflow-then-retry loops.
                 let baseWindowTokens: Int = {
                     if llmService is AppleFoundationLLMService {
-                        // Always use 4096 - PCC does NOT reliably support larger contexts
                         return 4096
                     }
                     return inferenceConfig.contextLength ?? 4096
                 }()
 
-                // Token estimation for budget calculation (no compound safety factors)
-                func estimateTokensConservative(chars: Int) -> Int {
-                    max(1, Int(ceil(Double(chars) / conservativeCharsPerToken)))
-                }
+                // Only reserve tool schema tokens when tools are actually attached.
+                // With auto-disable above, this is 0 for all RAG pipeline queries,
+                // reclaiming ~1000 tokens (24% of window) for document context.
+                let toolSchemaTokens: Int = {
+                    if inferenceConfig.disableTools {
+                        return 0  // No tools → no schema overhead
+                    }
+                    return isAppleFMOnDevice ? 1000 : 800
+                }()
 
-                // Single safety margin: 15% of window + 200 flat buffer
-                // This replaces the previous compound safety (1.6x factor + 800 buffer)
-                let safetyTokens = isAppleFMOnDevice ? 400 : 300
                 let systemPromptTokens = estimateTokensConservative(chars: (inferenceConfig.systemPrompt ?? "").count)
-
-                // CRITICAL (Jan 27, 2026): Account for @Tool schema tokens!
-                // Each of the 8 tools (SearchDocuments, ListDocuments, GetSummary, CountPattern,
-                // ExactSearch, Stats, Related, Compare) includes description + parameter schema.
-                // Empirically, this adds ~800-1200 tokens total. Use 1000 as conservative estimate.
-                // Without this, we overflow: estimated 1655 tokens but actual was 4440!
-                let toolSchemaTokens = isAppleFMOnDevice ? 1000 : 800
-
-                let promptOverheadTokens = 120 + systemPromptTokens + toolSchemaTokens // Template + system + tools
+                let promptOverheadTokens = 120 + systemPromptTokens + toolSchemaTokens
                 let questionTokens = estimateTokensConservative(chars: question.count)
 
-                // CRITICAL: Account for transcript history tokens (Jan 26, 2026)
-                // The session transcript contains all previous prompts/responses and consumes context window.
-                // Without accounting for this, we overflow with "5180 tokens" when estimated "1629 tokens".
-                let transcriptTokens: Int
+                // Transcript tokens NO LONGER deducted from context budget.
+                // Context gets FULL priority — document chunks are the most important input.
+                // Instead, LLMService.generate() auto-trims the transcript to fit whatever
+                // space remains after context + prompt + overhead. This means:
+                //   - Short conversations: full transcript preserved
+                //   - Long conversations: oldest turns trimmed, context never starved
+                // This eliminates the failure mode where transcript > window → 0 context.
+                let rawTranscriptTokens: Int
                 if let appleFMService = llmService as? AppleFoundationLLMService {
-                    transcriptTokens = appleFMService.estimatedTranscriptTokens
-                    if transcriptTokens > 0 {
-                        Log.debug("[RAG] Transcript history: ~\(transcriptTokens) tokens reserved", category: .pipeline)
-                    }
+                    rawTranscriptTokens = appleFMService.estimatedTranscriptTokens
                 } else {
-                    transcriptTokens = 0
+                    rawTranscriptTokens = 0
+                }
+                if rawTranscriptTokens > 0 {
+                    Log.debug("[RAG] Transcript history: ~\(rawTranscriptTokens) tokens (auto-trimmed by LLM service, not deducted from context)", category: .pipeline)
                 }
 
                 // Reserve room for output
                 let reservedOutputTokens = max(150, min(inferenceConfig.maxTokens, 300))
 
-                // Calculate available tokens, then apply ONE 15% safety haircut at the end
-                // Now includes transcript tokens in the budget calculation
-                let rawAvailableTokens = baseWindowTokens - promptOverheadTokens - questionTokens - reservedOutputTokens - transcriptTokens
-                let globalSafetyFactor: Double = isAppleFMOnDevice ? 0.85 : 0.90 // 15% or 10% safety margin
+                // OPTIMIZED: Single 12% safety margin replaces compound (15% × factor + 400 flat).
+                // Previous: rawAvailable × 0.85 - 400 → effective ~28% waste
+                // Now:      rawAvailable × 0.88       → 12% safety, reclaims ~650 tokens
+                let rawAvailableTokens = baseWindowTokens - promptOverheadTokens - questionTokens - reservedOutputTokens
+                let globalSafetyFactor: Double = isAppleFMOnDevice ? 0.88 : 0.90
                 let availableForContextTokens = max(
                     0,
-                    Int(Double(rawAvailableTokens) * globalSafetyFactor) - safetyTokens
+                    Int(Double(rawAvailableTokens) * globalSafetyFactor)
                 )
                 let cappedContextTokens = applyTrivialCaps
                     ? min(availableForContextTokens, 2600)
@@ -6209,7 +7153,7 @@ class RAGService: ObservableObject {
                     Log.info("[RAG] Simulator mode: using on-device context budget (4096 tokens, \(maxContextChars) chars)", category: .pipeline)
                 #endif
 
-                Log.debug("Context budget: base=\(baseWindowTokens), question=\(questionTokens), transcript=\(transcriptTokens), available=\(availableForContextTokens) tokens → \(maxContextChars) chars, compact=\(useCompactMode)", category: .pipeline)
+                Log.debug("Context budget: base=\(baseWindowTokens), question=\(questionTokens), transcript=\(rawTranscriptTokens)(not deducted), available=\(availableForContextTokens) tokens → \(maxContextChars) chars, compact=\(useCompactMode)", category: .pipeline)
 
                 // For procedural queries, preserve document order instead of relevance order
                 // This prevents sequence inversions (e.g., "dry before disinfect" errors)
@@ -6226,38 +7170,75 @@ class RAGService: ObservableObject {
                     Log.info("[RAG] Procedural query - preserving document order for sequence fidelity", category: .retrieval)
                 } else if answerIntent.isExtractiveFirst {
                     // For lookup/table queries, prioritize chunks containing specifications
-                    // This ensures the actual answer (e.g., "0W-20") is included even if context is truncated
+                    // that MATCH the query topic — not just any specs
+                    let queryKeywords = question.lowercased()
+                        .split(separator: " ")
+                        .map { String($0) }
+                        .filter { $0.count > 2 && !Self.stopWords.contains($0) }
+
+                    // CORPUS-AWARE KEYWORD DISCOUNTING:
+                    // Keywords that appear in >40% of candidates are corpus-generic and should
+                    // NOT get bonus weight.  e.g. "car" in a car manual matches everything,
+                    // diluting the signal from discriminative keywords like "oil".
+                    // This is the same principle as IDF in BM25 — universal, domain-agnostic.
+                    let candidateCount = max(1, contextCandidates.count)
+                    let keywordDocFreq: [String: Int] = {
+                        var freq: [String: Int] = [:]
+                        for kw in queryKeywords {
+                            var count = 0
+                            for c in contextCandidates {
+                                let text = (c.chunk.parentContent ?? c.chunk.content).lowercased()
+                                if text.contains(kw) { count += 1 }
+                            }
+                            freq[kw] = count
+                        }
+                        return freq
+                    }()
+                    let discriminativeKeywords = queryKeywords.filter { kw in
+                        let df = keywordDocFreq[kw] ?? 0
+                        return Double(df) / Double(candidateCount) <= 0.40
+                    }
+                    let discardedKeywords = queryKeywords.filter { !discriminativeKeywords.contains($0) }
+                    if !discardedKeywords.isEmpty {
+                        Log.info("[RAG] Corpus-aware: discounted generic keywords \(discardedKeywords) (>40% of chunks)", category: .retrieval)
+                    }
+
                     orderedCandidates = contextCandidates.sorted(by: { (a: RetrievedChunk, b: RetrievedChunk) -> Bool in
                         let aContent = a.chunk.parentContent ?? a.chunk.content
                         let bContent = b.chunk.parentContent ?? b.chunk.content
+                        let aLower = aContent.lowercased()
+                        let bLower = bContent.lowercased()
 
                         // Count spec-like patterns: numbers, measurements, codes
                         let aSpecScore = countSpecPatterns(aContent)
                         let bSpecScore = countSpecPatterns(bContent)
 
-                        // ENHANCED: Also heavily weight table structure for spec queries
-                        // Tables are prime locations for specification data
+                        // Table structure bonus
                         let aIsTable = a.chunk.metadata.structureType == "table" ||
                                        (aContent.contains("|") && aContent.components(separatedBy: "|").count >= 4)
                         let bIsTable = b.chunk.metadata.structureType == "table" ||
                                        (bContent.contains("|") && bContent.components(separatedBy: "|").count >= 4)
 
+                        // Only use DISCRIMINATIVE keywords for bonus (generic ones discounted)
+                        let aKeywordHits = discriminativeKeywords.filter { aLower.contains($0) }.count
+                        let bKeywordHits = discriminativeKeywords.filter { bLower.contains($0) }.count
+
                         // Compute composite priority score
-                        // Tables with specs are highest priority, then high spec count, then relevance
                         let aTableBonus = aIsTable ? 10 : 0
                         let bTableBonus = bIsTable ? 10 : 0
-                        let aPriority = aSpecScore + aTableBonus
-                        let bPriority = bSpecScore + bTableBonus
+                        let aKeywordBonus = aKeywordHits * 5
+                        let bKeywordBonus = bKeywordHits * 5
+                        let aPriority = aSpecScore + aTableBonus + aKeywordBonus
+                        let bPriority = bSpecScore + bTableBonus + bKeywordBonus
 
-                        // If one has clear spec/table advantage, prioritize it
-                        // Lower threshold (2 instead of 3) to be more aggressive
+                        // If one has clear advantage, prioritize it
                         if abs(aPriority - bPriority) >= 2 {
                             return aPriority > bPriority
                         }
                         // Otherwise, maintain relevance order
                         return a.similarityScore > b.similarityScore
                     })
-                    Log.info("[RAG] Extractive query - prioritizing chunks with specifications", category: .retrieval)
+                    Log.info("[RAG] Extractive query - prioritizing specs (discriminative: [\(discriminativeKeywords.joined(separator: ", "))])", category: .retrieval)
                 } else {
                     orderedCandidates = contextCandidates
                 }
@@ -6265,12 +7246,64 @@ class RAGService: ObservableObject {
                 // For procedural queries, disable "Lost in Middle" reordering to preserve sequence
                 let useLostInMiddleMitigation = !isProceduralQuery
 
-                let (context, actualChunksUsed) = await engine.assembleContext(
-                    chunks: orderedCandidates,
-                    maxChars: maxContextChars,
-                    compact: useCompactMode,
-                    useLostInMiddleMitigation: useLostInMiddleMitigation
-                )
+                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                // SENTENCE-LEVEL EXTRACTION (lookup intent only)
+                // Instead of packing 3 whole chunks into 4475 chars, extract
+                // only query-relevant sentences from ALL candidates.
+                // This fits targeted data from 10-15+ chunks vs 3 whole ones —
+                // the difference between finding "Engine oil: 5.1 qt" and missing it.
+                // Universal across all domains: medical, legal, automotive, etc.
+                // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                let context: String
+                let actualChunksUsed: Int
+
+                if answerIntent.isExtractiveFirst && !isProceduralQuery {
+                    let extractionResult = extractRelevantSentences(
+                        from: orderedCandidates,
+                        query: question,
+                        maxChars: maxContextChars,
+                        compact: useCompactMode,
+                        isExtractiveFirst: answerIntent.isExtractiveFirst
+                    )
+                    context = extractionResult.context
+                    actualChunksUsed = extractionResult.sourcesUsed
+                    Log.info("[RAG] Sentence extraction: \(extractionResult.sentencesIncluded) sentences from \(extractionResult.sourcesUsed) sources (\(context.count) chars)", category: .retrieval)
+                } else {
+                    let assembled = await engine.assembleContext(
+                        chunks: orderedCandidates,
+                        maxChars: maxContextChars,
+                        compact: useCompactMode,
+                        useLostInMiddleMitigation: useLostInMiddleMitigation
+                    )
+                    var assembledContext = assembled.context
+                    actualChunksUsed = assembled.used
+
+                    // UNIVERSAL FIX 10: Needle rescue from dropped chunks.
+                    // When assembleContext runs out of budget, chunks at positions 4+ are dropped
+                    // entirely. But a keyword-matching needle sentence in chunk #7 is now invisible
+                    // to the LLM. Fix: run sentence extraction on the DROPPED chunks only,
+                    // appending high-value sentences into any remaining budget.
+                    // This catches needles across ALL intents (summarize, procedure, compare, etc.)
+                    // without replacing whole-chunk packing for the primary chunks.
+                    let droppedChunks = Array(orderedCandidates.dropFirst(assembled.used))
+                    let remainingBudget = maxContextChars - assembledContext.count
+
+                    if !droppedChunks.isEmpty && remainingBudget > 200 {
+                        let rescueResult = extractRelevantSentences(
+                            from: droppedChunks,
+                            query: question,
+                            maxChars: remainingBudget,
+                            compact: true,  // Always compact for rescue sentences to maximize density
+                            isExtractiveFirst: answerIntent.isExtractiveFirst
+                        )
+                        if rescueResult.sentencesIncluded > 0 {
+                            assembledContext += "\n---\n" + rescueResult.context
+                            Log.info("[RAG] Needle rescue: +\(rescueResult.sentencesIncluded) sentences from \(rescueResult.sourcesUsed) dropped chunks (\(rescueResult.context.count) chars)", category: .retrieval)
+                        }
+                    }
+
+                    context = assembledContext
+                }
 
                 // Universal pipeline trace: log final assembled context
                 if Log.pipelineTraceEnabled {
@@ -6293,7 +7326,10 @@ class RAGService: ObservableObject {
 
                 let contextSize = context.count
                 let contextWords = context.split(separator: " ").count
-                let includedRetrievedChunks = Array(contextCandidates.prefix(actualChunksUsed))
+                // BUGFIX: Use orderedCandidates (post-sort) not contextCandidates (pre-sort).
+                // Previously, spec prioritization sorted candidates but the slicing used the
+                // original unsorted array, so fuse-box tables could be selected over oil specs.
+                let includedRetrievedChunks = Array(orderedCandidates.prefix(actualChunksUsed))
                 let includedChunks = includedRetrievedChunks.map { $0.chunk }
                 recoveryRetrievedChunks = includedRetrievedChunks
 
@@ -6367,7 +7403,7 @@ class RAGService: ObservableObject {
                     contextChunksUsed: actualChunksUsed,
                     maxContextChars: maxContextChars,
                     baseWindowTokens: baseWindowTokens,
-                    safetyTokens: safetyTokens,
+                    safetyTokens: 0,  // Unified into globalSafetyFactor (no separate flat buffer)
                     promptOverheadTokens: promptOverheadTokens,
                     questionTokens: questionTokens,
                     reservedOutputTokens: reservedOutputTokens,
@@ -6586,93 +7622,11 @@ class RAGService: ObservableObject {
                 }
 
                 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                // Step 5.10: Extractive QA for Lookup Queries (AppleRAG §6b)
-                // For .lookup and .tableLookup intents, extract answer directly from text
-                // This prevents LLM hallucination for factual specifications
+                // Step 5.10: Extractive QA disabled — always use LLM generation.
+                // Heuristic extraction produced false positives (e.g., "three-quarters"
+                // for "fuel tank capacity") and skipped LLM entirely. All queries now
+                // proceed to LLM generation for reliable answers.
                 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                if (answerIntent == .lookup || answerIntent == .tableLookup) && answerIntent.isExtractiveFirst {
-                    Log.section("Step 5.10: Extractive QA", level: .info, category: .pipeline)
-                    let extractiveQAStart = Date()
-
-                    let extractionResult = await specificationExtractor.extract(
-                        query: effectiveQuery,
-                        chunks: includedRetrievedChunks,
-                        answerIntent: answerIntent
-                    )
-
-                    switch extractionResult {
-                    case .success(let extraction):
-                        let extractiveQATime = Date().timeIntervalSince(extractiveQAStart)
-
-                        Log.info(
-                            "[ExtractiveQA] Found: '\(extraction.answerSpan)' (confidence: \(String(format: "%.0f", extraction.confidence * 100))%, type: \(extraction.specificationType)) in \(String(format: "%.0f", extractiveQATime * 1000))ms",
-                            category: .retrieval
-                        )
-
-                        emitThinkingEvent(
-                            .extractive,
-                            title: "Extracted specification",
-                            detail: "'\(extraction.answerSpan)' • \(String(format: "%.0f", extraction.confidence * 100))% confidence"
-                        )
-
-                        // Build response directly from extraction with citation
-                        let extractiveQAMetadata = ResponseMetadata(
-                            timeToFirstToken: nil,
-                            totalGenerationTime: extractiveQATime,
-                            tokensGenerated: extraction.answerSpan.split(separator: " ").count,
-                            tokensPerSecond: nil,
-                            modelUsed: "extractive_qa",
-                            retrievalTime: retrievalTime,
-                            retrievalConfigSummary: "extractive_lookup",
-                            gatingDecision: "extractive_qa_success",
-                            toolCallsMade: nil
-                        )
-
-                        // Format the extracted answer with citation
-                        let formattedAnswer = "**\(extraction.answerSpan)**\n\n_\(extraction.citation)_"
-
-                        let extractiveQAResponse = RAGResponse(
-                            queryId: ragQueryValue.id,
-                            retrievedChunks: includedRetrievedChunks,
-                            generatedResponse: formattedAnswer,
-                            metadata: extractiveQAMetadata,
-                            confidenceScore: extraction.confidence,
-                            qualityWarnings: []
-                        )
-
-                        Log.info("✓ Extractive QA complete: '\(extraction.answerSpan)'", category: .pipeline)
-
-                        return await finalizeResponse(
-                            query: question,
-                            containerId: selectedId,
-                            containerName: selectedName,
-                            response: extractiveQAResponse
-                        )
-
-                    case .failure(let failure):
-                        // Log the failure reason but fall through to LLM
-                        let failureReason: String
-                        switch failure {
-                        case .noSpecsFound:
-                            failureReason = "no specifications found in chunks"
-                        case .noKeywordMatch:
-                            failureReason = "no query keyword matches found"
-                        case .lowConfidence(let bestMatch, let confidence):
-                            failureReason = "low confidence (\(String(format: "%.0f", confidence * 100))%) for '\(bestMatch)'"
-                        case .ambiguousMultiple(let candidates):
-                            failureReason = "ambiguous - \(candidates.count) candidates: \(candidates.joined(separator: ", "))"
-                        case .notLookupQuery:
-                            failureReason = "not a lookup-style query"
-                        }
-                        Log.warning("[ExtractiveQA] Falling back to LLM: \(failureReason)", category: .retrieval)
-                        emitThinkingEvent(
-                            .intentRoute,
-                            title: "Extractive QA fallback",
-                            detail: failureReason
-                        )
-                        // Fall through to constrained LLM generation
-                    }
-                }
 
                 // Step 6: Generate response using LLM with augmented context
                 Log.section("Step 6: LLM Generation", level: .info, category: .pipeline)
@@ -6695,98 +7649,72 @@ class RAGService: ObservableObject {
                 // Set explicit system prompt for RAG to ensure comprehensive, ACCURATE answers
                 // Keep concise to maximize context budget (every 100 chars = ~70 tokens)
 
-                // Customize prompt based on answer intent (AppleRAG §3)
+                // Customize system prompt based on answer intent (AppleRAG §3)
+                // BUDGET-CONSCIOUS: Every 100 chars ≈ 70 tokens. Keep prompts tight.
+                let lowerQuestion = question.lowercased()
+                let isBehavioralOutcomeQuery =
+                    lowerQuestion.contains("happens if")
+                    || lowerQuestion.contains("happens when")
+                    || lowerQuestion.contains("what does")
+                    || lowerQuestion.contains("what do")
+                    || lowerQuestion.contains("do when")
+
                 let intentSpecificInstructions: String
                 switch answerIntent {
                 case .lookup, .tableLookup:
                     intentSpecificInstructions = """
-                    EXTRACTION MODE: The user wants a specific value, specification, or fact.
-                    - Extract the EXACT value (numbers, units, product names, specifications)
-                    - Example: If asked "what oil?" answer "5W-30 synthetic" NOT "engine oil"
-                    - Include the specific measurement, rating, or identifier from the source
+                    State the SPECIFIC value/answer FIRST in one clear sentence (e.g., "The recommended oil is SAE 0W-20, API SP certified"). Then add supporting details.
+                    Copy numbers, units, codes, and specs VERBATIM from excerpts. Never paraphrase or substitute.
+                    Do NOT paste raw document fragments — synthesize a clear answer from the data.
+                    If the specific value is NOT in the excerpts, say so, then share what IS available.
                     """
                 case .procedure:
-                    intentSpecificInstructions = """
-                    PROCEDURE MODE: The user wants step-by-step instructions.
-                    - List ALL steps in the EXACT order from the source
-                    - Include warnings, prerequisites, and tools needed
-                    - Number each step clearly
-                    """
+                    if isBehavioralOutcomeQuery {
+                        intentSpecificInstructions = """
+                        Answer with the direct outcome FIRST in 1-2 clear sentences. If excerpts include explicit steps, include only the relevant steps in source order.
+                        Do NOT force a long numbered list when the question asks what happens.
+                        """
+                    } else {
+                        intentSpecificInstructions = """
+                        List relevant steps in source order. Number steps only when explicit ordered steps exist in the excerpts.
+                        Include warnings and prerequisites when present in source text.
+                        """
+                    }
                 case .compare:
                     intentSpecificInstructions = """
-                    COMPARISON MODE: The user wants to compare options.
-                    - Create a clear comparison of the options found
-                    - Highlight differences and similarities
-                    - Use a structured format (bullets or table-style)
+                    Compare the options found. Use a structured format. Copy exact product codes and specs from excerpts.
                     """
                 case .summarize:
                     intentSpecificInstructions = """
-                    SUMMARY MODE: Provide a comprehensive overview.
-                    - Cover all major points from the excerpts
-                    - Organize by theme or importance
+                    Provide a comprehensive overview covering all major points. Organize by theme.
                     """
                 case .investigate, .compute:
                     intentSpecificInstructions = """
-                    ANALYSIS MODE: The user needs deeper investigation.
-                    - Synthesize information across sources
-                    - Show your reasoning and connections
+                    Synthesize across sources. Show reasoning and connections. Copy specific values VERBATIM.
                     """
                 case .findings:
                     intentSpecificInstructions = """
-                    RESEARCH FINDINGS MODE: The user wants to understand what a researcher/author discovered.
-                    - Summarize the KEY FINDINGS, conclusions, and contributions
-                    - Explain the main thesis, arguments, and evidence presented
-                    - Include methodology and results if relevant
-                    - Connect specific claims to the document summary and detail excerpts
-                    - Name the researchers and their specific contributions
+                    Summarize key findings, thesis, evidence, and methodology. Name researchers and contributions.
                     """
                 }
 
                 genConfig.systemPrompt = """
-                You are an expert research analyst. Answer using the provided document excerpts labeled [S1], [S2], etc.
-
+                Answer using document excerpts [S1], [S2], etc.
                 \(intentSpecificInstructions)
-
-                Rules:
-                1. Base answers on the excerpts provided
-                2. Cite sources: [S1], [S2] (cite at least one)
-                3. Connect user terms to related concepts in excerpts (e.g., "button" may mean switch, toggle, control)
-                4. For procedures: preserve the exact sequence and include all steps
-                5. Be thorough - provide as much relevant detail as excerpts contain
-                6. If the question is vague, INTERPRET it based on document topics and provide relevant findings
-                7. NEVER say "I don't have information" or "documents don't contain" - always provide what IS there
+                Rules: Cite sources [S1]/[S2]. Copy values VERBATIM. Be thorough. Never say "no information" — always provide what IS there. If the question is vague, interpret it from document topics.
+                CRITICAL: NEVER invent numbers, measurements, or values. Use ONLY values that appear in the excerpts. If a specific value is not in the excerpts, state that clearly.
+                Format: Use ### headers for sections, - bullets for lists, **bold** for key terms. Separate paragraphs with blank lines.
                 """
 
-                // Evidence-First mode: use detailed cautious prompt with full procedural rules
+                // Evidence-First mode: cautious prompt for low retrieval confidence
                 if useEvidenceFirstMode {
                     genConfig.systemPrompt = """
-                    You are an expert research analyst in EVIDENCE-FIRST MODE due to low retrieval confidence.
-
-                        CRITICAL: Use ONLY the provided excerpts labeled[S1], [S2], etc.
-                        Do NOT search for additional information.
-
-                        EVIDENCE RULES:
-                        1.ONLY state what is DIRECTLY quoted or clearly supported by excerpts
-                    2.Cite every claim with[S1], [S2], etc.
-                        3.Explicitly list what excerpts do NOT contain(gaps in evidence)
-                    4.Do NOT fill gaps with assumptions or general knowledge
-                    5.Keep response focused - only supported facts, not speculation
-
-                        FOR PROCEDURES:
-                            - NEVER INVERT TEMPORAL ORDER: If source says "A then B then C", output A → B → C
-                            - PRESERVE PHASE BOUNDARIES: Don't merge distinct phases
-                            - NEVER OMIT MAJOR STEPS: Include every action verb(clean, disinfect, rinse, etc.)
-                            - DISTINGUISH PRECONDITIONS FROM STEPS
-
-                    FORMAT:
-                    ## What the sources show:
-                    [Cite only directly supported information]
-
-                    ## What appears to be missing:
-                    [List gaps in the evidence]
-
-                    ## Confidence note:
-                    [Brief statement about evidence quality]
+                    EVIDENCE-FIRST MODE (low confidence retrieval). Use ONLY excerpts [S1], [S2], etc.
+                    \(intentSpecificInstructions)
+                    Rules: Cite every claim. Copy values VERBATIM. Do NOT fill gaps with assumptions. NEVER invent numbers.
+                    For procedures: preserve exact order, never omit steps, include feedback indicators.
+                    Format: Use ### headers, - bullets, **bold** key terms. Separate sections with blank lines.
+                    End with: What sources show → What's missing → Confidence note.
                     """
                     // Lower temperature for more conservative output
                     genConfig.temperature = min(genConfig.temperature, 0.2)
@@ -6805,7 +7733,7 @@ class RAGService: ObservableObject {
                 let contextTokens = estimateTokensConservative(chars: context.count)
                 let availableForOutput = max(
                     128,
-                    baseWindowTokens - safetyTokens - promptOverheadTokens - questionTokens - contextTokens
+                    Int(Double(baseWindowTokens - promptOverheadTokens - questionTokens - contextTokens) * globalSafetyFactor)
                 )
                 if genConfig.maxTokens > availableForOutput {
                     genConfig.maxTokens = availableForOutput
@@ -6889,10 +7817,10 @@ class RAGService: ObservableObject {
                 var reasoningTraceForMetadata: [String]? = nil
 
                 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                // REASONING CHAIN: Reserved for Deep Think and Maximum modes
-                // Standard mode uses single-session generation for speed
-                // Deep Think: 3 sessions (Fact → Analysis → Synthesis)
-                // Maximum: 8-20+ sessions until 98% confident
+                // REASONING CHAIN: Developer override only in Standard pipeline.
+                // Deep Think/Maximum use the agentic path (returned early at L4022).
+                // This code path is only reachable when forceReasoningChain is ON,
+                // which lets developers test multi-session reasoning from Standard mode.
                 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                 let forceChain = settingsStore?.forceReasoningChain ?? false
                 let useReasoningChain: Bool = {
@@ -7263,6 +8191,97 @@ class RAGService: ObservableObject {
                     )
                 }
 
+                // Universal output integrity gate:
+                // Detect malformed generation artifacts (placeholder lists, repetition loops,
+                // dangling markdown) and attempt one grounded repair pass.
+                var integrityIssues = responseIntegrityIssues(responseText)
+                if !integrityIssues.isEmpty {
+                    Log.warning(
+                        "[RAG] Output integrity issues detected: \(integrityIssues.joined(separator: ", "))",
+                        category: .llm
+                    )
+                    emitThinkingEvent(
+                        .warning,
+                        title: "Output integrity repair",
+                        detail: "Detected malformed answer shape; repairing"
+                    )
+
+                    // Deterministic cleanup first (cheap, no extra model call)
+                    var cleanedResponse = normalizeMalformedResponseArtifacts(responseText)
+                    cleanedResponse = compactDegenerateResponse(
+                        cleanedResponse,
+                        question: question,
+                        answerIntent: answerIntent
+                    )
+                    let cleanedIssues = responseIntegrityIssues(cleanedResponse)
+
+                    // If still malformed, perform a grounded one-shot repair ONLY for non-repetition issues.
+                    // Repetition loops are handled better by deterministic compaction than another model pass.
+                    let shouldTryModelRepair = !cleanedIssues.isEmpty
+                        && cleanedIssues.contains { $0 != "dominant_repetition" }
+
+                    if shouldTryModelRepair {
+                        var repairConfig = genConfig
+                        repairConfig.temperature = min(repairConfig.temperature, 0.15)
+                        repairConfig.skipContinuation = true
+                        repairConfig.maxTokens = min(max(repairConfig.maxTokens, 192), 420)
+
+                        let repairPrompt = buildIntegrityRepairPrompt(
+                            question: question,
+                            issueLabels: cleanedIssues,
+                            answerIntent: answerIntent,
+                            requiresCitations: requiresCitations
+                        )
+
+                        if let repaired = try? await generateWithFallback(
+                            prompt: repairPrompt,
+                            context: generationContext,
+                            config: repairConfig,
+                            sourceChunks: generationChunks
+                        ) {
+                            let candidate = compactDegenerateResponse(
+                                normalizeMalformedResponseArtifacts(repaired.text),
+                                question: question,
+                                answerIntent: answerIntent
+                            )
+                            if isResponseIntegrityImproved(original: responseText, candidate: candidate) {
+                                llmResponse = repaired
+                                responseText = candidate
+                                integrityIssues = responseIntegrityIssues(responseText)
+                                Log.info("[RAG] Integrity repair succeeded", category: .llm)
+                            } else {
+                                Log.warning("[RAG] Integrity repair candidate rejected (no improvement)", category: .llm)
+                                responseText = cleanedResponse
+                                integrityIssues = cleanedIssues
+                            }
+                        } else {
+                            responseText = cleanedResponse
+                            integrityIssues = cleanedIssues
+                        }
+                    } else {
+                        responseText = cleanedResponse
+                        integrityIssues = cleanedIssues
+                    }
+
+                    // Hard stop: if repetition still remains, deterministically compact once more
+                    // and accept that output rather than spinning another expensive model pass.
+                    if integrityIssues.contains("dominant_repetition") {
+                        let compacted = compactDegenerateResponse(
+                            responseText,
+                            question: question,
+                            answerIntent: answerIntent
+                        )
+                        if isResponseIntegrityImproved(original: responseText, candidate: compacted) {
+                            responseText = compacted
+                            integrityIssues = responseIntegrityIssues(responseText)
+                        }
+                    }
+
+                    if !integrityIssues.isEmpty {
+                        Log.warning("[RAG] Residual integrity issues after repair: \(integrityIssues.joined(separator: ", "))", category: .llm)
+                    }
+                }
+
                 let generationTime = Date().timeIntervalSince(generationStartTime)
                 let responseWordCount = wordCount(of: responseText)
                 TelemetryCenter.emit(
@@ -7316,6 +8335,7 @@ class RAGService: ObservableObject {
 
                     // Step 7: Calculate confidence score and quality warnings
                     Log.section("Step 7: Quality Assessment", level: .info, category: .pipeline)
+                    HardwareTelemetryState.shared.reportRAGPipeline(stage: "Quality Assessment")
 
                     // Pipeline Trace: Step 7
                     Log.pipelineStep("7", title: "Quality Assessment", details: [
@@ -7364,11 +8384,42 @@ class RAGService: ObservableObject {
                         // NOT the scores from generationRetrievedChunks which may be sibling chunks with discounted scores
                         let topScores = [auditTopSim, auditSecondSim, auditAvgTop5].filter { $0 > 0 }
 
+                        // SEMANTIC GROUNDING: Embed the LLM response to check if its meaning
+                        // is actually grounded in source chunk embeddings. This is the primary
+                        // hallucination detector — catches fabricated content that string-matching
+                        // (number checks, keyword overlap) would miss.
+                        let responseEmbedding: [Float]?
+                        let responseForEmbedding = boundedVerificationResponseText(
+                            responseText,
+                            answerIntent: answerIntent
+                        )
+                        do {
+                            responseEmbedding = try await queryEmbeddingService.generateEmbedding(for: responseForEmbedding)
+                        } catch {
+                            Log.warning("[RAG] Could not embed response for grounding check: \(error.localizedDescription)", category: .pipeline)
+                            responseEmbedding = nil
+                        }
+
+                        // Fetch ACTUAL chunk embeddings from the vector database mmap file.
+                        // BNNSVectorDatabase returns embedding: [] in search results to save memory,
+                        // so Gate E must load them explicitly for cosine similarity grounding checks.
+                        let chunkIDs = generationRetrievedChunks.map { $0.chunk.id }
+                        let chunkEmbeddings = await vdb.getEmbeddings(forChunkIDs: chunkIDs)
+                        let validChunkEmbeddings = chunkEmbeddings.filter { !$0.isEmpty }
+
+                        if validChunkEmbeddings.isEmpty && responseEmbedding != nil {
+                            Log.warning("[RAG] Gate E: No chunk embeddings loaded — vector DB may not support getEmbeddings. Gate E will be skipped.", category: .pipeline)
+                        }
+
                         verificationResult = await verificationGateService.verify(
                             response: responseText,
                             query: question,
                             retrievedChunks: generationRetrievedChunks,
-                            topScores: topScores
+                            topScores: topScores,
+                            allCandidateChunks: contextCandidates,
+                            responseEmbedding: responseEmbedding,
+                            queryEmbedding: queryEmbedding,
+                            chunkEmbeddings: validChunkEmbeddings.isEmpty ? nil : chunkEmbeddings
                         )
                         verificationTime = Date().timeIntervalSince(verificationStartTime)
 
@@ -8104,11 +9155,289 @@ class RAGService: ObservableObject {
     }
 
     private static let citationRegex = try? NSRegularExpression(pattern: "\\[S\\d+\\]")
+    private static let emptyListItemRegex = try? NSRegularExpression(pattern: #"\b\d+\.\s*(\.)?(?=\s|$)"#)
+    private static let malformedInlineListRunRegex = try? NSRegularExpression(pattern: #"(?:\b\d+\.\s*\.\s*){2,}"#)
+    private static let danglingMarkdownRegex = try? NSRegularExpression(pattern: #"\*\*[A-Za-z][A-Za-z\s]{0,30}$"#)
 
     private func responseHasCitations(_ text: String) -> Bool {
         guard let regex = Self.citationRegex else { return false }
         let range = NSRange(text.startIndex ..< text.endIndex, in: text)
         return regex.firstMatch(in: text, options: [], range: range) != nil
+    }
+
+    private func responseIntegrityIssues(_ text: String) -> [String] {
+        var issues: [String] = []
+        let range = NSRange(text.startIndex ..< text.endIndex, in: text)
+
+        if let regex = Self.emptyListItemRegex {
+            let matches = regex.matches(in: text, options: [], range: range)
+            if matches.count >= 3 {
+                issues.append("empty_numbered_items")
+            }
+        }
+
+        if let regex = Self.malformedInlineListRunRegex,
+           regex.firstMatch(in: text, options: [], range: range) != nil
+        {
+            issues.append("inline_placeholder_list")
+        }
+
+        if let regex = Self.danglingMarkdownRegex,
+           regex.firstMatch(in: text, options: [], range: range) != nil
+        {
+            issues.append("dangling_markdown")
+        }
+
+        // Sentence repetition dominance detector
+        let sentences = text.components(separatedBy: CharacterSet(charactersIn: ".!?\n"))
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            .filter { $0.count >= 20 }
+
+        if sentences.count >= 4 {
+            var counts: [String: Int] = [:]
+            for sentence in sentences {
+                let key = sentence
+                    .replacingOccurrences(of: #"[^a-z0-9\s]"#, with: "", options: .regularExpression)
+                    .split(separator: " ")
+                    .joined(separator: " ")
+                counts[key, default: 0] += 1
+            }
+            if let dominant = counts.values.max(), Double(dominant) / Double(sentences.count) >= 0.45, dominant >= 3 {
+                issues.append("dominant_repetition")
+            }
+        }
+
+        return issues
+    }
+
+    private func normalizeMalformedResponseArtifacts(_ text: String) -> String {
+        var output = text
+
+        // Remove standalone empty numbered lines such as "2." or "2. ."
+        let lines = output.components(separatedBy: .newlines)
+        let filteredLines = lines.filter { line in
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return true }
+            return trimmed.range(of: #"^\d+\.\s*(\.)?$"#, options: .regularExpression) == nil
+        }
+        output = filteredLines.joined(separator: "\n")
+
+        output = output.replacingOccurrences(
+            of: #"(?:\b\d+\.\s*\.\s*){2,}"#,
+            with: "",
+            options: .regularExpression
+        )
+        output = output.replacingOccurrences(
+            of: #"\*\*[A-Za-z][A-Za-z\s]{0,30}$"#,
+            with: "",
+            options: .regularExpression
+        )
+        output = output.replacingOccurrences(of: #"\n{3,}"#, with: "\n\n", options: .regularExpression)
+        output = output.replacingOccurrences(of: #"[ \t]{2,}"#, with: " ", options: .regularExpression)
+
+        var trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("\"") && trimmed.hasSuffix("\"") && trimmed.count >= 2 {
+            trimmed.removeFirst()
+            trimmed.removeLast()
+            trimmed = trimmed.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        return trimmed
+    }
+
+    private func buildIntegrityRepairPrompt(
+        question: String,
+        issueLabels: [String],
+        answerIntent: AnswerIntent,
+        requiresCitations: Bool
+    ) -> String {
+        let formatHint: String = switch answerIntent {
+        case .procedure:
+            "Answer with direct outcome first. Use numbered steps only if complete explicit steps exist in excerpts."
+        case .lookup, .tableLookup:
+            "Answer with the specific value first, then 1-2 short support sentences. Keep under 120 words."
+        case .compare:
+            "Answer in concise compare format with only grounded differences."
+        default:
+            "Answer in concise paragraphs with no placeholder bullets or numbering artifacts. Keep under 180 words."
+        }
+
+        let citationHint = requiresCitations
+            ? "Include citations like [S1], [S2] for factual claims when available in excerpts."
+            : "Citations optional."
+
+        let issueHint = issueLabels.joined(separator: ", ")
+
+        return """
+        Produce a clean, grounded final answer for the question.
+        Constraints:
+        - Use ONLY facts present in the provided context excerpts.
+        - Fix these output issues: \(issueHint)
+        - Remove repetition, placeholder numbering, and malformed fragments.
+        - Do not add new facts.
+        - \(formatHint)
+        - \(citationHint)
+        - Format with ### section headers, - bullet lists, **bold** key terms.
+        - Separate paragraphs and sections with blank lines for readability.
+
+        QUESTION:
+        \(question)
+        """
+    }
+
+    private func compactDegenerateResponse(
+        _ text: String,
+        question: String,
+        answerIntent: AnswerIntent
+    ) -> String {
+        let normalized = normalizeMalformedResponseArtifacts(text)
+        let questionTerms = Set(
+            question.lowercased()
+                .components(separatedBy: CharacterSet.alphanumerics.inverted)
+                .filter { $0.count > 2 && !Self.stopWords.contains($0) }
+        )
+
+        let sentenceRegex = try? NSRegularExpression(pattern: #"[^.!?\n]+[.!?]?"#)
+        guard let sentenceRegex else { return normalized }
+
+        let fullRange = NSRange(normalized.startIndex..<normalized.endIndex, in: normalized)
+        let matches = sentenceRegex.matches(in: normalized, options: [], range: fullRange)
+        guard !matches.isEmpty else { return normalized }
+
+        struct Candidate {
+            let text: String
+            let key: String
+            let score: Int
+            let order: Int
+        }
+
+        var candidates: [Candidate] = []
+        candidates.reserveCapacity(matches.count)
+
+        for (idx, match) in matches.enumerated() {
+            guard let range = Range(match.range, in: normalized) else { continue }
+            let sentence = String(normalized[range]).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard sentence.count >= 10 else { continue }
+
+            let key = sentence
+                .lowercased()
+                .replacingOccurrences(of: #"[^a-z0-9\s]"#, with: "", options: .regularExpression)
+                .split(separator: " ")
+                .joined(separator: " ")
+            guard !key.isEmpty else { continue }
+
+            let lower = sentence.lowercased()
+            let overlap = questionTerms.reduce(0) { partial, term in
+                partial + (lower.contains(term) ? 1 : 0)
+            }
+            let digitBoost = lower.rangeOfCharacter(from: .decimalDigits) != nil ? 1 : 0
+            let score = overlap * 3 + digitBoost
+
+            candidates.append(Candidate(text: sentence, key: key, score: score, order: idx))
+        }
+
+        guard !candidates.isEmpty else { return normalized }
+
+        // Deduplicate by normalized sentence key, keeping best-scoring earliest occurrence.
+        var byKey: [String: Candidate] = [:]
+        for candidate in candidates {
+            if let existing = byKey[candidate.key] {
+                if candidate.score > existing.score || (candidate.score == existing.score && candidate.order < existing.order) {
+                    byKey[candidate.key] = candidate
+                }
+            } else {
+                byKey[candidate.key] = candidate
+            }
+        }
+
+        let ordered = byKey.values.sorted {
+            if $0.score == $1.score { return $0.order < $1.order }
+            return $0.score > $1.score
+        }
+
+        let maxSentences: Int
+        let maxWords: Int
+        switch answerIntent {
+        case .lookup, .tableLookup:
+            maxSentences = 3
+            maxWords = 120
+        case .procedure:
+            maxSentences = 6
+            maxWords = 220
+        default:
+            maxSentences = 6
+            maxWords = 220
+        }
+
+        var chosen: [String] = []
+        var totalWords = 0
+        for candidate in ordered.prefix(max(6, maxSentences * 2)) {
+            let sentenceWords = candidate.text.split(separator: " ").count
+            if totalWords + sentenceWords > maxWords, !chosen.isEmpty { continue }
+            chosen.append(candidate.text)
+            totalWords += sentenceWords
+            if chosen.count >= maxSentences || totalWords >= maxWords { break }
+        }
+
+        guard !chosen.isEmpty else { return normalized }
+        // Preserve paragraph structure: use double-newline between sentences
+        // so downstream Markdown rendering can format them properly
+        let compacted = chosen.joined(separator: "\n\n")
+        return normalizeMalformedResponseArtifacts(compacted)
+    }
+
+    private func boundedVerificationResponseText(
+        _ responseText: String,
+        answerIntent: AnswerIntent
+    ) -> String {
+        let wordCap: Int = switch answerIntent {
+        case .lookup, .tableLookup:
+            140
+        case .procedure:
+            220
+        default:
+            220
+        }
+
+        let charCap = 1400
+        let sentences = responseText
+            .components(separatedBy: CharacterSet(charactersIn: ".!?\n"))
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        var output: [String] = []
+        var words = 0
+        var chars = 0
+        for sentence in sentences {
+            let w = sentence.split(separator: " ").count
+            let c = sentence.count
+            if (words + w > wordCap || chars + c > charCap), !output.isEmpty { break }
+            output.append(sentence)
+            words += w
+            chars += c
+        }
+
+        let bounded = output.isEmpty ? String(responseText.prefix(charCap)) : output.joined(separator: ". ")
+        return bounded.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func isResponseIntegrityImproved(original: String, candidate: String) -> Bool {
+        let originalIssues = responseIntegrityIssues(original)
+        let candidateIssues = responseIntegrityIssues(candidate)
+
+        guard !candidate.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
+        guard candidate.count >= min(40, max(10, original.count / 6)) else { return false }
+
+        if candidateIssues.count < originalIssues.count {
+            return true
+        }
+
+        // If issue counts tie, prefer candidate when shorter and less repetitive
+        if candidateIssues.count == originalIssues.count, candidate.count <= original.count {
+            return true
+        }
+
+        return false
     }
 
     // MARK: - Model Management
@@ -8350,6 +9679,122 @@ class RAGService: ObservableObject {
         }
     }
 
+    // MARK: - Document Content Classification
+
+    /// Classify document domain from filename patterns and corpus signals.
+    /// Returns a short human-readable domain like "Vehicle Manual" or "Technical Report".
+    static func classifyDocumentDomain(
+        filename: String,
+        signals: LibraryIntelligenceCenter.CorpusSignals,
+        entities: [String]
+    ) -> String {
+        let lower = filename.lowercased()
+        let joinedEntities = entities.joined(separator: " ").lowercased()
+        let combined = lower + " " + joinedEntities
+
+        // Filename-based quick matches
+        let domainPatterns: [(keywords: [String], domain: String)] = [
+            (["owner", "manual", "vehicle", "car", "truck", "suv", "sedan", "automotive", "motor"], "Vehicle Manual"),
+            (["medical", "clinical", "patient", "diagnosis", "treatment", "health", "pharma"], "Medical Document"),
+            (["legal", "contract", "agreement", "statute", "law", "regulation", "compliance"], "Legal Document"),
+            (["financial", "accounting", "balance sheet", "income statement", "revenue", "fiscal"], "Financial Document"),
+            (["recipe", "cooking", "ingredient", "culinary", "baking"], "Recipe Collection"),
+            (["syllabus", "curriculum", "course", "lecture", "education", "textbook", "exam"], "Educational Material"),
+            (["api", "sdk", "documentation", "reference", "developer", "programming"], "API Documentation"),
+            (["research", "abstract", "methodology", "hypothesis", "findings", "journal"], "Research Paper"),
+            (["resume", "cv", "curriculum vitae", "experience", "qualifications"], "Resume / CV"),
+            (["invoice", "receipt", "purchase", "order", "billing", "payment"], "Invoice / Receipt"),
+            (["patent", "invention", "claims", "prior art"], "Patent Document"),
+            (["blueprint", "schematic", "wiring", "circuit", "engineering", "cad"], "Engineering Drawing"),
+            (["safety", "msds", "hazard", "sds", "material safety"], "Safety Data Sheet"),
+            (["report", "analysis", "summary", "overview", "assessment"], "Report"),
+            (["manual", "guide", "handbook", "instructions", "procedure"], "Reference Manual"),
+            (["specification", "spec", "requirements", "standard"], "Specification"),
+            (["presentation", "slide", "deck"], "Presentation"),
+            (["memo", "memorandum", "circular", "notice"], "Memo / Notice"),
+        ]
+
+        for pattern in domainPatterns {
+            let matchCount = pattern.keywords.filter { combined.contains($0) }.count
+            if matchCount >= 2 { return pattern.domain }
+        }
+
+        // Single keyword fallback with high confidence
+        for pattern in domainPatterns.prefix(10) {
+            if pattern.keywords.contains(where: { lower.contains($0) }) {
+                return pattern.domain
+            }
+        }
+
+        // Signal-based fallback
+        if signals.hasCode && signals.technicalDensity > 0.3 {
+            return "Source Code"
+        }
+        if signals.hasMath {
+            return "Technical Document"
+        }
+        if signals.technicalDensity > 0.4 {
+            return "Technical Document"
+        }
+
+        return "Document"
+    }
+
+    /// Build a short content descriptor from document profiles.
+    static func buildContentDescriptor(
+        signals: LibraryIntelligenceCenter.CorpusSignals,
+        entities: [String]
+    ) -> String {
+        // Use top entities to describe what the content is about
+        let uniqueTopics = Array(Set(entities.map { $0.lowercased().capitalized })).prefix(4)
+        if !uniqueTopics.isEmpty {
+            return uniqueTopics.joined(separator: ", ")
+        }
+
+        // Fallback: describe by content characteristics
+        var traits: [String] = []
+        if signals.hasCode { traits.append("code") }
+        if signals.hasMath { traits.append("formulas") }
+        if signals.technicalDensity > 0.3 { traits.append("technical") }
+        if signals.multilingualScore > 0.3 { traits.append("multilingual") }
+        if signals.structuredRatio > 0.5 { traits.append("structured data") }
+        return traits.isEmpty ? "General content" : traits.joined(separator: " & ")
+    }
+
+    /// Extract meaningful content categories from entities and signals.
+    static func extractContentCategories(
+        entities: [String],
+        signals: LibraryIntelligenceCenter.CorpusSignals
+    ) -> [String] {
+        var categories: [String] = []
+
+        // Use entity topics
+        let uniqueEntities = Array(Set(entities.map { $0.capitalized }))
+        categories.append(contentsOf: uniqueEntities.prefix(5))
+
+        // Add signal-derived categories
+        if signals.hasCode { categories.append("Code") }
+        if signals.hasMath { categories.append("Mathematics") }
+        if signals.multilingualScore > 0.3 { categories.append("Multilingual") }
+
+        return Array(Set(categories)).sorted()
+    }
+
+    /// Map raw NLLanguage code to human-readable name.
+    static func languageDisplayName(_ code: String) -> String {
+        let map: [String: String] = [
+            "en": "English", "es": "Spanish", "fr": "French",
+            "de": "German", "it": "Italian", "pt": "Portuguese",
+            "nl": "Dutch", "pl": "Polish", "ja": "Japanese",
+            "ko": "Korean", "zh-Hans": "Chinese (Simplified)",
+            "zh-Hant": "Chinese (Traditional)", "ar": "Arabic",
+            "ru": "Russian", "hi": "Hindi", "sv": "Swedish",
+            "da": "Danish", "fi": "Finnish", "nb": "Norwegian",
+            "tr": "Turkish", "th": "Thai", "vi": "Vietnamese",
+        ]
+        return map[code] ?? code.uppercased()
+    }
+
     // MARK: - Provider Display Names
 
     /// Maps embedding provider IDs to concise, SWE-accurate display names.
@@ -8547,7 +9992,7 @@ class RAGService: ObservableObject {
         containerName: String,
         response: RAGResponse
     ) async -> RAGResponse {
-        // Clean up the response text (remove verbose markdown that can't render)
+        // Clean up the response text (normalize whitespace, preserve markdown formatting)
         let cleanedResponse = cleanupResponseText(response.generatedResponse)
         var finalResponse = response
         finalResponse = RAGResponse(
@@ -8586,43 +10031,27 @@ class RAGService: ObservableObject {
         return finalResponse
     }
 
-    /// Clean up response text by removing verbose markdown that can't be rendered
+    /// Clean up response text — normalize whitespace while preserving markdown formatting
+    /// Headers, bullet lists, numbered lists, code fences, and block quotes are kept intact
+    /// for rendering by the block-level MarkdownText view (v1.2+)
     private nonisolated func cleanupResponseText(_ text: String) -> String {
         var result = text
 
-        // Strip markdown headers (##, ###, etc.) - convert to plain text
-        result = result.components(separatedBy: .newlines)
-            .map { line in
-                var cleaned = line
-                // Remove markdown headers - convert "## Title" to "Title"
-                if let headerMatch = cleaned.range(of: #"^#{1,6}\s+"#, options: .regularExpression) {
-                    cleaned = String(cleaned[headerMatch.upperBound...])
-                }
-                return cleaned
-            }
-            .joined(separator: "\n")
+        // NOTE: Markdown formatting (headers, lists, code fences, block quotes) is now preserved.
+        // MarkdownText renders full block-level markdown as of v1.2.
+        // Only whitespace normalization and orphan cleanup remain here.
 
-        // Convert bullet points and numbered lists to cleaner format
-        // NOTE: Preserve inline formatting like **bold** and *italic* - only strip list bullets
+        // Remove orphaned list markers with no content (just "-" or "•" or "1." alone on a line)
         result = result.components(separatedBy: .newlines)
             .map { line in
                 let trimmed = line.trimmingCharacters(in: .whitespaces)
-                // Convert "- text" to just the text (dash bullets)
-                if trimmed.hasPrefix("- ") && trimmed.count > 2 {
-                    return String(trimmed.dropFirst(2))
+                // Remove empty bullet markers
+                if trimmed == "-" || trimmed == "*" || trimmed == "•" {
+                    return ""
                 }
-                // Convert "• text" to just the text (unicode bullets)
-                if trimmed.hasPrefix("• ") && trimmed.count > 2 {
-                    return String(trimmed.dropFirst(2))
-                }
-                // Only strip "* text" if it's clearly a bullet (no closing * for italic)
-                // List bullet: "* some text" vs Italic: "*emphasized*"
-                if trimmed.hasPrefix("* ") && trimmed.count > 2 && !trimmed.dropFirst(2).contains("*") {
-                    return String(trimmed.dropFirst(2))
-                }
-                // Convert numbered lists "1. text" or "1) text" to just text
-                if let numMatch = trimmed.range(of: #"^\d+[.)]\s+"#, options: .regularExpression) {
-                    return String(trimmed[numMatch.upperBound...])
+                // Remove empty numbered markers (e.g., "2." or "3)" with nothing after)
+                if trimmed.range(of: #"^\d+[.)]?\s*$"#, options: .regularExpression) != nil {
+                    return ""
                 }
                 return line
             }
@@ -9546,13 +10975,22 @@ extension RAGService: RAGToolHandler {
     /// Execute the FULL retrieval pipeline (HyDE, hybrid search, AI re-ranking, MMR)
     /// This gives Deep Think mode the same quality retrieval as Standard mode
     /// Used by AgenticOrchestrator for high-quality chunk retrieval with reasoning on top
+    /// - Parameter qualityMode: Controls retrieval parameters (mmrLambda, parent doc, etc.)
     /// - Parameter onDetailedEvent: Optional callback for verbose thinking events (for Deep Think/Maximum)
     func executeFullRetrievalPipeline(
         query: String,
         topK: Int = 20,
         minSimilarity: Float = 0.08,
+        qualityMode: RAGQualityMode? = nil,
         onDetailedEvent: DetailedThinkingCallback? = nil
     ) async throws -> [RetrievedChunk] {
+        // Resolve quality mode from parameter or settings
+        let mode: RAGQualityMode
+        if let explicit = qualityMode {
+            mode = explicit
+        } else {
+            mode = await MainActor.run { self.settingsStore?.ragQualityMode ?? .standard }
+        }
         let embeddingContext = await resolveEmbeddingContext()
         let db = await dbFor(embeddingContext.containerId)
         let allChunks = try await db.allChunks()
@@ -9592,11 +11030,28 @@ extension RAGService: RAGToolHandler {
         await onDetailedEvent?(.vectorSearch, "Vector ready", "Query encoded for semantic search")
 
         // Step 3: Classify query intent for adaptive weights AND expand query
-        let queryEnhancer = QueryEnhancementService()
+        // Fetch corpus vocabulary from cache (built during Standard mode or prior queries)
+        let cachedVocab: CorpusVocabulary? = await MainActor.run {
+            self.corpusVocabularyCache[embeddingContext.containerId]
+        }
+        // If not cached yet, build it now from available chunks (ensures DT/Max gets corpus-aware expansion)
+        let agenticVocab: CorpusVocabulary?
+        if let cached = cachedVocab {
+            agenticVocab = cached
+        } else if !allChunks.isEmpty {
+            let built = CorpusVocabulary.build(from: allChunks)
+            await MainActor.run { self.corpusVocabularyCache[embeddingContext.containerId] = built }
+            agenticVocab = built
+        } else {
+            agenticVocab = nil
+        }
+
+        let queryEnhancer = QueryEnhancementService(corpusVocabulary: agenticVocab)
         let queryIntent = queryEnhancer.classifyIntent(query)
         let adjustment = queryIntent.weightAdjustment
-        let vectorWeight = max(0.1, min(0.9, 0.5 + adjustment.vectorDelta))
-        let keywordWeight = max(0.1, min(0.9, 0.5 + adjustment.keywordDelta))
+        // UNIVERSAL FIX: Same floor/ceiling as main pipeline — vector always gets fair vote
+        let vectorWeight = max(0.35, min(0.65, 0.5 + adjustment.vectorDelta))
+        let keywordWeight = max(0.35, min(0.65, 0.5 + adjustment.keywordDelta))
 
         // Emit: Query expansion
         await onDetailedEvent?(.queryRewrite, "Query expansion", "Intent: \(queryIntent.rawValue) → Vector \(Int(vectorWeight * 100))% / Keyword \(Int(keywordWeight * 100))%")
@@ -9622,6 +11077,7 @@ extension RAGService: RAGToolHandler {
 
         var retrievedChunks = try await hybridSearch.search(
             query: expandedQueryString, // Use expanded query for better keyword matching
+            originalQuery: query, // Pass clean original query for FTS5 + keyword boost (Round 3 fix)
             embedding: queryEmbedding,
             topK: topK * 2, // Get extra for re-ranking
             cachedChunks: effectiveChunks, // Use RAPTOR-lite filtered chunks
@@ -9638,10 +11094,9 @@ extension RAGService: RAGToolHandler {
 
         await onDetailedEvent?(.rerank, "Re-ranking complete", "Top scores: \(retrievedChunks.prefix(3).map { String(format: "%.0f%%", $0.similarityScore * 100) }.joined(separator: ", "))")
 
-        // Step 6: MMR Diversification
-        await onDetailedEvent?(.mmr, "MMR diversification", "Optimizing for coverage (λ=0.6)")
-
-        let mmrLambda: Float = 0.6
+        // Step 6: MMR Diversification (uses quality mode lambda)
+        let mmrLambda: Float = mode.mmrLambda
+        await onDetailedEvent?(.mmr, "MMR diversification", "Optimizing for coverage (λ=\(String(format: "%.2f", mmrLambda)))")
         retrievedChunks = await engine.applyMMR(
             candidates: retrievedChunks,
             queryEmbedding: queryEmbedding,
@@ -9657,6 +11112,62 @@ extension RAGService: RAGToolHandler {
 
         if preFilterCount > retrievedChunks.count {
             await onDetailedEvent?(.context, "Quality filter", "Kept \(retrievedChunks.count)/\(preFilterCount) (≥\(Int(minSimilarity * 100))% threshold)")
+        }
+
+        // Step 7.5: Parent Document Retrieval (expand with sibling chunks for context)
+        if mode.usesParentDocumentRetrieval && !retrievedChunks.isEmpty {
+            let maxSiblings = mode.maxSiblingChunks
+            await onDetailedEvent?(.parentDoc, "Parent doc retrieval", "Expanding with ±\(maxSiblings) sibling chunks")
+
+            var expandedChunks: [RetrievedChunk] = []
+            var seenChunkIds = Set<UUID>()
+
+            for chunk in retrievedChunks {
+                // Add the original chunk
+                if seenChunkIds.insert(chunk.chunk.id).inserted {
+                    expandedChunks.append(chunk)
+                }
+
+                // Find sibling chunks from the same document
+                let siblings = allChunks.filter { candidate in
+                    candidate.documentId == chunk.chunk.documentId &&
+                    candidate.id != chunk.chunk.id &&
+                    abs(candidate.metadata.chunkIndex - chunk.chunk.metadata.chunkIndex) <= maxSiblings
+                }.sorted { $0.metadata.chunkIndex < $1.metadata.chunkIndex }
+
+                for sibling in siblings {
+                    if seenChunkIds.insert(sibling.id).inserted {
+                        // Siblings get a discounted score
+                        expandedChunks.append(RetrievedChunk(
+                            chunk: sibling,
+                            similarityScore: chunk.similarityScore * 0.85,
+                            rank: expandedChunks.count + 1,
+                            sourceDocument: chunk.sourceDocument,
+                            pageNumber: sibling.metadata.pageNumber
+                        ))
+                    }
+                }
+            }
+
+            if expandedChunks.count > retrievedChunks.count {
+                await onDetailedEvent?(.parentDoc, "Context expanded", "\(retrievedChunks.count) → \(expandedChunks.count) chunks with siblings")
+                retrievedChunks = expandedChunks
+            }
+        }
+
+        // Step 8: Lost-in-Middle reorder (place best chunks at start and end)
+        if retrievedChunks.count >= 4 {
+            var reordered: [RetrievedChunk] = []
+            let sorted = retrievedChunks.sorted { $0.similarityScore > $1.similarityScore }
+            for (index, chunk) in sorted.enumerated() {
+                if index % 2 == 0 {
+                    reordered.append(chunk) // Even indices go to front
+                } else {
+                    reordered.insert(chunk, at: reordered.count / 2) // Odd go to middle
+                }
+            }
+            retrievedChunks = reordered
+            await onDetailedEvent?(.lostInMiddle, "Lost-in-Middle reorder", "Best evidence at start/end of context")
         }
 
         // Enrich with document names
@@ -9688,7 +11199,7 @@ extension RAGService: RAGToolHandler {
         let db = await dbFor(embeddingContext.containerId)
 
         // Use hybrid search (vector + BM25) for better keyword matching on technical terms
-        // Critical for car manuals, technical docs where exact terms like "5W-30" matter
+        // Critical for technical docs where exact terms like codes and specs matter
         let hybridSearch = HybridSearchService(
             vectorDatabase: db,
             vectorWeight: 0.5, // Balance vector and keyword for technical queries
@@ -9945,7 +11456,7 @@ extension RAGService: RAGToolHandler {
                 pattern: pattern,
                 containerId: activeId,
                 maxResults: 10,
-                contextChars: 150
+                contextChars: 300
             )
             // Convert to legacy SearchMatch format for compatibility
             matches = fts5Matches.map { m in
@@ -9966,9 +11477,10 @@ extension RAGService: RAGToolHandler {
             return "Pattern '\(pattern)' not found in any documents."
         }
 
-        // Compact format with strict token budget (~800 chars max)
+        // Context budget: enough to show actual values, not just cross-references
+        // 200 chars per snippet ensures spec table values are visible
         let maxMatches = 8
-        let maxSnippetChars = 80
+        let maxSnippetChars = 200
 
         var result = "**'\(pattern)'** in \(matches.count) docs:\n"
 
