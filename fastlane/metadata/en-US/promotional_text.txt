@@ -1,1 +1,1 @@
-NEW: Rich formatted responses with headers, bullets & bold text. Device-optimized Metal GPU search. Motherboard HUD. 25-step RAG pipeline. 100% On-Device. Ask PDFs, get cited answers. No cloud, no accounts.
+NEW in 1.2: Full markdown response rendering. 3-tier Metal GPU vector search. Device-specific OCR concurrency. Concurrent neural reranking. 25-step pipeline. 81 services. 100% on-device. No cloud, no accounts.
