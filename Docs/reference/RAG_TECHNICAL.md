@@ -1,7 +1,7 @@
 # RAG Technical Specifications
 
-**Version**: 1.3
-**Updated**: January 29, 2026
+**Version**: 1.4
+**Updated**: February 16, 2026
 **Compatibility**: iOS 26+ / Apple Intelligence
 
 This document provides the technical formulas, algorithms, and deep dive specifications for the RAG pipeline.
@@ -47,6 +47,7 @@ QUERY → RESPONSE (17 steps):
   Step 8:   Package Results
   Step 8.1: Calibrated Confidence (Platt scaling)
   Step 9:   Response Metadata (timing, sources, metrics)
+  Step 10:  Markdown Rendering (block-level parser + inline normalization)
 ```
 
 ---

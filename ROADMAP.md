@@ -23,7 +23,7 @@ OpenIntelligence implements **13 of 16** recognized RAG architectural patterns:
 | 1   | **Standard RAG**             | ✅     | Foundation - 25-step pipeline                                       |
 | 2   | **Agentic RAG**              | ✅     | `AgenticOrchestrator`, 8 @Tool functions, recursive research loops  |
 | 3   | **Graph RAG**                | ✅     | `EntityIndexService` + 2-hop entity expansion (GraphRAG-Lite)       |
-| 4   | **Modular RAG**              | ✅     | Protocol-oriented design, 80 swappable services                     |
+| 4   | **Modular RAG**              | ✅     | Protocol-oriented design, 81 swappable services                     |
 | 5   | **Memory-Augmented RAG**     | 🟡     | `ConversationMemoryService` (session-scoped, not persistent prefs)  |
 | 6   | **Multi-Modal RAG**          | ✅     | Image classification, OCR, audio transcription, caption association |
 | 7   | **Federated RAG**            | ⬜     | N/A - 100% on-device architecture                                   |

@@ -4,7 +4,7 @@
 [![Platform](https://img.shields.io/badge/platform-iOS%2026.0%2B-blue.svg)](https://developer.apple.com/ios/)
 [![Swift](https://img.shields.io/badge/Swift-6.0-orange.svg)](https://swift.org)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Services](https://img.shields.io/badge/services-80-purple.svg)](ARCHITECTURE.md)
+[![Services](https://img.shields.io/badge/services-81-purple.svg)](ARCHITECTURE.md)
 [![How It Works](https://img.shields.io/badge/Deep%20Dive-HOW%20IT%20WORKS-orange.svg)](HOW_IT_WORKS.md)
 
 **Ask your documents anything. Get cited answers.**
@@ -472,7 +472,7 @@ OpenIntelligence/
 | Document                                            | Description                                                     |
 | --------------------------------------------------- | --------------------------------------------------------------- |
 | **[HOW_IT_WORKS.md](HOW_IT_WORKS.md)**              | 🔥 Plain-English deep dive: 5 gears, token budget, orchestrator |
-| [ARCHITECTURE.md](ARCHITECTURE.md)                  | Complete technical architecture, 80-service inventory           |
+| [ARCHITECTURE.md](ARCHITECTURE.md)                  | Complete technical architecture, 81-service inventory           |
 | [RAG_TECHNICAL.md](Docs/reference/RAG_TECHNICAL.md) | Technical specs: HyDE, math, formulas, & algorithms             |
 | [APPLE_MODELS.md](Docs/reference/APPLE_MODELS.md)   | Apple Intelligence specs: Context limits & token economics      |
 | [ROADMAP.md](ROADMAP.md)                            | Feature roadmap and version history                             |
