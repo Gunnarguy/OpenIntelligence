@@ -1,16 +1,22 @@
 Version 1.2.0
 
+NEW: RICH MARKDOWN RESPONSE RENDERING
+Responses now display with proper formatting — headers, bullet lists, bold text, code blocks — instead of unformatted text.
+
+• Full block-level markdown parser with headings, bullets, numbered lists, code fences, and block quotes
+• Inline normalization splits Apple FM single-line output into proper markdown blocks
+• All LLM prompts now instruct formatting with headers, bullets, and bold key terms
+• 7 response-cleaning functions audited — markdown no longer stripped from responses
+
 NEW: DEVICE-OPTIMIZED PERFORMANCE ENGINE
 Every pipeline stage now adapts to the specific Apple Silicon chip in your device.
 
-• 3-Tier Metal GPU Search — Vector similarity uses threadgroup shared memory (fastest), SIMD4 (4× throughput), or scalar shaders based on your corpus size. Previously all searches used the slowest shader.
+• 3-Tier Metal GPU Search — Vector similarity uses threadgroup shared memory (fastest), SIMD4 (4× throughput), or scalar shaders based on your corpus size.
 • Device-Specific OCR — A19 Pro: 8 parallel Vision ops @ 1ms cooldown. A18 Pro: 6 @ 2ms. A17 Pro: 4 @ 3ms. Adaptive filtering skips 50-80% of clean PDF pages entirely.
 • Concurrent Neural Reranking — Cross-encoder scores multiple query-chunk pairs in parallel with pre-tokenized bulk memory writes (3× faster array fills).
 • GPU Embedding Mode — Embeddings run on GPU during ingestion, freeing the Neural Engine for simultaneous OCR.
-• Concurrent Image Processing — CIFilter preprocessing runs in parallel across pages (was serialized).
 • 5-Candidate OCR — Evaluates more transcription alternatives for higher accuracy on ambiguous text.
 
-UNDER THE HOOD
-• Extracted and deduplicated cross-encoder prediction code
-• Removed dead code paths in reranking pipeline
-• Updated stale comments across OCR pipeline
+STABILITY
+• Fixed crash in MMR diversification when GPU returns edge-case results
+• Response pipeline hardened against malformed matrix computations

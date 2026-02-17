@@ -17,7 +17,7 @@
 4. [Core Technology](#core-technology)
 5. [Apple's On-Device Language Model](#apples-on-device-language-model)
 6. [Quality Modes](#quality-modes)
-7. [23-Step Pipeline](#23-step-pipeline)
+7. [25-Step Pipeline](#25-step-pipeline)
 8. [Verification Gates](#verification-gates-anti-hallucination)
 9. [Architecture](#architecture)
 10. [Documentation](#documentation)
@@ -44,6 +44,19 @@ Every pipeline stage is now hardware-aware — tuned to the specific Apple Silic
 - **GPU embedding ingestion mode** — Embeddings run on GPU during ingestion, freeing Neural Engine for simultaneous Vision OCR
 - **Concurrent GPU rendering** — CIFilter preprocessing runs in parallel (was serialized)
 - **5-candidate OCR** — Evaluates more transcription alternatives for higher accuracy on ambiguous text
+
+### Rich Markdown Response Rendering (v1.2)
+
+Responses now render with full markdown formatting — headers, bullets, bold text, code blocks, and block quotes — instead of a single unformatted paragraph.
+
+- **Full block-level parser** — Headings (h1-h6), bullet lists, numbered lists, code fences, block quotes, horizontal rules, and paragraphs
+- **Inline normalization** — Apple's on-device FM outputs markdown syntax on a single line; 6 regex patterns split it into proper blocks before parsing
+- **Formatting-aware prompts** — All LLM synthesis prompts instruct the model to use `### headers`, `- bullets`, and `**bold**` for key terms
+- **Pipeline preservation** — 7 response-cleaning functions audited; markdown is no longer stripped from responses
+
+### MMR Stability Fix (v1.2)
+
+- Fixed crash in `RAGEngine.applyMMR()` when GPU diversity matrix returned malformed results for edge-case embeddings (dimension 0)
 
 ### Motherboard HUD — X-Ray Your iPhone (v1.1)
 
@@ -218,9 +231,9 @@ Deep Think and Maximum modes use **Self-RAG 2.0**: multiple reasoning sessions t
 
 ---
 
-## 23-Step Pipeline
+## 25-Step Pipeline
 
-OpenIntelligence processes every query through 23 distinct steps:
+OpenIntelligence processes every query through 25 distinct steps:
 
 ```
 INGESTION (6 steps):
@@ -231,7 +244,7 @@ INGESTION (6 steps):
   5. Embed         → CoreML MiniLM-L6-v2 (384-dim vectors)
   6. Store         → HNSW index + SQLite FTS5 + EntityIndex
 
-RETRIEVAL (17 steps):
+RETRIEVAL & GENERATION (17 steps):
   Step 0    Corpus Analysis        → Build vocabulary cache per container
   Step 1    Query Understanding    → Pronoun resolution, NER extraction
   Step 1.5  Query Expansion        → Corpus-aware synonym expansion
@@ -250,11 +263,16 @@ RETRIEVAL (17 steps):
   Step 5.9  Extractive Summary     → For summarize intent
   Step 5.10 Extractive QA          → For lookup intent
   Step 6    LLM Generation         → Apple FM / Private Cloud Compute
+  Step 6.5  Response Formatting    → Markdown preservation pipeline
   Step 7    Quality Assessment     → Confidence scoring
   Step 7.5  Verification Gates     → Gates A-D (see below)
   Step 8    Package Results        → Build response with sources
   Step 8.1  Calibrated Confidence  → Platt scaling (0.0-1.0)
   Step 9    Response Metadata      → Timing, token counts, source URIs
+
+RENDERING (2 steps):
+  Step 10   Markdown Rendering     → Block-level parser + inline normalizer
+  Step 10.1 Inline Normalization   → 6 regex patterns for Apple FM output
 ```
 
 ---
@@ -276,7 +294,7 @@ If any gate fails, the system either abstains or triggers iterative retrieval.
 
 ## Architecture
 
-**80 services** organized into **10 categories**:
+**81 services** organized into **11 categories**:
 
 | Category           | Count | Key Services                                                        |
 | ------------------ | ----- | ------------------------------------------------------------------- |
@@ -289,9 +307,10 @@ If any gate fails, the system either abstains or triggers iterative retrieval.
 | **LLM**            | 7     | AppleFoundationLLMService, OnDeviceAnalysisService                  |
 | **Agentic**        | 3     | AgenticOrchestrator, ConversationMemoryService, WritingToolsService |
 | **Infrastructure** | 18    | ContainerService, GPUComputeService, HardwareTelemetryState         |
+| **Rendering**      | 1     | MarkdownRenderer (block-level parser + inline normalizer)           |
 | **Billing**        | 1     | StoreKitBillingService                                              |
 
-**Full inventory**: See [ARCHITECTURE.md](ARCHITECTURE.md) → "Complete Service Inventory (80 Services)"
+**Full inventory**: See [ARCHITECTURE.md](ARCHITECTURE.md) → "Complete Service Inventory (81 Services)"
 
 ### Data Flow
 

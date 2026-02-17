@@ -8,11 +8,11 @@ This document provides the technical formulas, algorithms, and deep dive specifi
 
 > **For the High-Level Flow**: See [HOW_IT_WORKS.md](../../HOW_IT_WORKS.md)
 
-> **Full Architecture**: See [ARCHITECTURE.md](../../ARCHITECTURE.md) → "Complete Service Inventory (78 Services)"
+> **Full Architecture**: See [ARCHITECTURE.md](../../ARCHITECTURE.md) → "Complete Service Inventory (81 Services)"
 
 ---
 
-## Pipeline Overview (23 Steps)
+## Pipeline Overview (25 Steps)
 
 ```
 INGESTION (6 steps):

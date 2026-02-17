@@ -1152,6 +1152,7 @@ class RAGService: ObservableObject {
     /// Log chunk content previews at each pipeline stage for debugging
     /// Shows first 100 chars of each chunk with score and page info
     private func logChunkTrace(_ chunks: [RetrievedChunk], stage: String, query: String) {
+        #if DEBUG
         guard Log.pipelineTraceEnabled else { return }
 
         let separator = String(repeating: "─", count: 60)
@@ -1183,10 +1184,12 @@ class RAGService: ObservableObject {
             print("  ... and \(chunks.count - 10) more chunks")
         }
         print(separator)
+        #endif
     }
 
     /// Log final assembled context with keyword analysis
     private func logFinalContext(_ context: String, actualChunksUsed: Int, query: String) {
+        #if DEBUG
         guard Log.pipelineTraceEnabled else { return }
 
         let separator = String(repeating: "═", count: 60)
@@ -1220,11 +1223,13 @@ class RAGService: ObservableObject {
         let preview = String(context.prefix(500)).replacingOccurrences(of: "\n", with: "↵")
         print("   Preview: \"\(preview)...\"")
         print(separator)
+        #endif
     }
 
     /// Scan all chunks for specification patterns and report findings
     /// This helps diagnose whether specs are present in the corpus
     private func runViscosityScan(_ allChunks: [DocumentChunk], query: String) async {
+        #if DEBUG
         guard Log.pipelineTraceEnabled else { return }
 
         let separator = String(repeating: "═", count: 60)
@@ -1263,6 +1268,7 @@ class RAGService: ObservableObject {
             }
         }
         print(separator)
+        #endif
     }
 
     // MARK: - Cross-Reference Resolution (Standard Pipeline)

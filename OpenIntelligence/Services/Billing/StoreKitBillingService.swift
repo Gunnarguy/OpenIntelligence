@@ -1,6 +1,9 @@
 import Foundation
 import StoreKit
 
+/// Thrown when StoreKit network calls exceed the timeout (e.g. airplane mode).
+private struct StoreKitTimeoutError: Error {}
+
 /// Production-ready BillingService that talks to StoreKit 2.
 @MainActor
 final class StoreKitBillingService: BillingService {
@@ -46,22 +49,39 @@ final class StoreKitBillingService: BillingService {
                 category: .billing
             )
 
-            // Log StoreKit environment for debugging
-            let skEnvironment = await Transaction.currentEntitlements.first(where: { _ in true })
-            if let entitlement = skEnvironment {
-                if case .verified(let tx) = entitlement {
-                    Log.info("🌍 StoreKit environment: \(tx.environment.rawValue), storefront: \(tx.storefront.countryCode)", category: .billing)
-                }
-            } else {
-                // No entitlements - try to get storefront directly
-                if let storefront = await Storefront.current {
-                    Log.info("🌍 StoreKit storefront: \(storefront.countryCode), id: \(storefront.id)", category: .billing)
+            // Log StoreKit environment in background — don't block product loading
+            // These calls (Transaction.currentEntitlements, Storefront.current) hang on airplane mode
+            Task {
+                let skEnvironment = await Transaction.currentEntitlements.first(where: { _ in true })
+                if let entitlement = skEnvironment {
+                    if case .verified(let tx) = entitlement {
+                        Log.info("🌍 StoreKit environment: \(tx.environment.rawValue), storefront: \(tx.storefront.countryCode)", category: .billing)
+                    }
                 } else {
-                    Log.warning("🌍 No StoreKit storefront available - user may not be signed into App Store", category: .billing)
+                    if let storefront = await Storefront.current {
+                        Log.info("🌍 StoreKit storefront: \(storefront.countryCode), id: \(storefront.id)", category: .billing)
+                    } else {
+                        Log.warning("🌍 No StoreKit storefront available - user may not be signed into App Store", category: .billing)
+                    }
                 }
             }
 
-            let storeProducts = try await Product.products(for: ids)
+            // Fetch products with a 5-second timeout to prevent 30-60s hang on airplane mode.
+            // Product.products(for:) is a network call to the App Store that blocks indefinitely offline.
+            let storeProducts: [Product] = try await withThrowingTaskGroup(of: [Product].self) { group in
+                group.addTask {
+                    try await Product.products(for: ids)
+                }
+                group.addTask {
+                    try await Task.sleep(for: .seconds(5))
+                    throw StoreKitTimeoutError()
+                }
+                guard let result = try await group.next() else {
+                    throw StoreKitTimeoutError()
+                }
+                group.cancelAll()
+                return result
+            }
             Log.info("📦 StoreKit returned \(storeProducts.count) products", category: .billing)
 
             var mapping: [BillingProduct: Product] = [:]

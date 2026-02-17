@@ -2,9 +2,9 @@ Turn your documents into an offline neural knowledge base.
 
 Stop digging through PDFs. OpenIntelligence brings enterprise-grade RAG (Retrieval-Augmented Generation) to your iPhone—running entirely on your device.
 
-23-STEP RETRIEVAL PIPELINE. ZERO CLOUD DEPENDENCY.
+25-STEP RETRIEVAL PIPELINE. ZERO CLOUD DEPENDENCY.
 
-This is not simple keyword search. OpenIntelligence orchestrates a rigorous 23-step pipeline used by high-end research systems:
+This is not simple keyword search. OpenIntelligence orchestrates a rigorous 25-step pipeline used by high-end research systems:
 
 • HyDE (Hypothetical Document Embeddings) — Hallucinates an answer to find better semantic matches.
 • Hybrid Search — Fuses BM25 keywords with 384-dim neural embeddings for maximum recall.
@@ -18,6 +18,8 @@ This is not simple keyword search. OpenIntelligence orchestrates a rigorous 23-s
 • Multi-Column OCR — Metal-accelerated vision processing for complex PDF layouts (360 DPI).
 • Agentic Tool Use — Autonomous search, summarization, and comparison capabilities.
 • Motherboard HUD — Real-time X-ray overlay showing Apple Silicon chip positions with live telemetry.
+• Rich Response Formatting — Full markdown rendering with headers, bullets, bold text, and code blocks.
+• Device-Optimized Performance — 3-tier Metal GPU shaders, device-specific OCR concurrency, and concurrent neural reranking adapt to your Apple Silicon chip.
 
 THE RESULT?
 

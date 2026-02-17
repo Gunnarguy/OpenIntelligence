@@ -1,7 +1,7 @@
 # OpenIntelligence Technical Architecture
 
-**Version**: 3.2
-**Date**: February 14, 2026
+**Version**: 3.3
+**Date**: February 16, 2026
 **Status**: Production (App Store v1.2)
 
 ## Table of Contents
@@ -30,11 +30,11 @@ OpenIntelligence is a native iOS 26 application implementing a complete Retrieva
 
 **Simple Concept:** Import any document. Ask questions in plain English. Get cited answers powered by on-device AI.
 
-**Latest (v3.2)**: Device-Optimized Performance Engine (3-tier Metal shader selection, device-specific OCR concurrency, concurrent cross-encoder predictions, GPU embedding ingestion mode, concurrent CIFilter rendering). Motherboard HUD (real-time Apple Silicon X-ray overlay), Universal Retrieval (8 fixes for needle-in-haystack accuracy), Adaptive Document Intelligence Engine, multi-candidate confidence OCR, 5-strategy adaptive preprocessing, language-agnostic quality detection, centralized OCR configuration factory. 80 services across 10 categories.
+**Latest (v3.3)**: Rich Markdown Response Rendering (full block-level parser, inline normalization preprocessor, formatting-preserving pipeline, formatting-aware LLM prompts). Device-Optimized Performance Engine (3-tier Metal shader selection, device-specific OCR concurrency, concurrent cross-encoder predictions, GPU embedding ingestion mode, concurrent CIFilter rendering). MMR crash fix (GPU diversity matrix edge case). Motherboard HUD (real-time Apple Silicon X-ray overlay), Universal Retrieval (8 fixes for needle-in-haystack accuracy), Adaptive Document Intelligence Engine, multi-candidate confidence OCR, 5-strategy adaptive preprocessing, language-agnostic quality detection, centralized OCR configuration factory. 81 services across 11 categories.
 
 ### RAG Pipeline Summary
 
-The system implements a **23-step end-to-end pipeline** powered by **80 services**:
+The system implements a **25-step end-to-end pipeline** powered by **81 services**:
 
 | Phase                | Steps | Key Services                                                                           |
 | -------------------- | ----- | -------------------------------------------------------------------------------------- |
@@ -43,8 +43,9 @@ The system implements a **23-step end-to-end pipeline** powered by **80 services
 | **Post-Retrieval**   | 7     | VerificationGateService, ContextPackingService, ParentDocumentService                  |
 | **Generation**       | 3     | ExtractiveSummarizationService, LLMService, AgenticOrchestrator                        |
 | **Post-Generation**  | 4     | QualityAssuranceService, ConfidenceCalibrationService                                  |
+| **Rendering**        | 2     | MarkdownRenderer (block-level parser + inline normalizer)                              |
 
-> **Complete inventory**: See "Complete Service Inventory (80 Services)" below.
+> **Complete inventory**: See "Complete Service Inventory (81 Services)" below.
 
 ### Key Architectural Principles
 
@@ -295,9 +296,9 @@ User Query Input
 
 ## Core Services
 
-### Complete Service Inventory (80 Services)
+### Complete Service Inventory (81 Services)
 
-OpenIntelligence is composed of **80 distinct services** organized into 10 categories. This inventory provides a complete reference.
+OpenIntelligence is composed of **81 distinct services** organized into 11 categories. This inventory provides a complete reference.
 
 #### RAG Pipeline Services (14 services)
 
@@ -428,6 +429,12 @@ OpenIntelligence is composed of **80 distinct services** organized into 10 categ
 | ------------------------ | ----------- | --------------------------------------------- | -------------------------------------- |
 | `StoreKitBillingService` | final class | StoreKit 2 in-app purchases and subscriptions | `Billing/StoreKitBillingService.swift` |
 
+#### Rendering Services (1 service)
+
+| Service            | Type   | Purpose                                                                                                 | File                                     |
+| ------------------ | ------ | ------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| `MarkdownRenderer` | struct | Full block-level markdown parser + inline normalizer (6 regex patterns for Apple FM single-line output) | `Core/Extensions/MarkdownRenderer.swift` |
+
 ---
 
 ### DocumentProcessor
@@ -457,8 +464,8 @@ OpenIntelligence is composed of **80 distinct services** organized into 10 categ
 
 **Current Implementation** (Jan 2026 - Enhanced):
 
-| Capability                      | API Used                                  | Status         |
-| ------------------------------- | ----------------------------------------- | -------------- |
+| Capability                      | API Used                                  | Status          |
+| ------------------------------- | ----------------------------------------- | --------------- |
 | OCR Text Recognition            | `VNRecognizeTextRequest` Rev3             | ✅ Implemented  |
 | High-DPI Rendering              | 360 DPI (5x scale factor)                 | ✅ Enhanced     |
 | Multi-language OCR              | 13 languages via centralized config       | ✅ 13 languages |
@@ -1223,6 +1230,41 @@ Eight research-grade fixes applied to the RAG pipeline for near-universal needle
 | 6   | `QueryEnhancementService`      | Rare corpus terms that exactly match query words included in expansion                   |
 | 7   | `QueryEnhancementService`      | Dynamic synonym generation from document co-occurrence data                              |
 | 8   | `RAGEngine`                    | Cross-encoder candidate pool scales adaptively: `min(count, max(100, topK×5))`           |
+
+### Rich Markdown Response Rendering (v3.3)
+
+A complete rendering pipeline that transforms raw LLM output into properly formatted markdown with headers, bullets, bold text, code blocks, and block quotes.
+
+**Problem**: Apple's on-device Foundation Model outputs correct markdown syntax (`### headers`, `- bullets`, `**bold**`) but concatenates everything on a single line. The previous inline-only renderer displayed raw syntax as plain text.
+
+**Solution (3 layers):**
+
+1. **Block-Level Parser** (`MarkdownRenderer.swift`): Full parser recognizing headings (h1-h6), bullet lists, numbered lists, code fences, block quotes, horizontal rules, and paragraphs. Each block renders as its own SwiftUI view via `MarkdownBlockView`.
+
+2. **Inline Normalization** (`normalizeInlineMarkdown()`): Preprocessing step with 6 regex patterns that detect markdown syntax embedded mid-line and split it onto separate lines before parsing:
+   - `(?<=\S) +(#{1,6} )` — headers mid-line
+   - `(?<=\S) +(- \*\*)` — bold bullet items
+   - `(?<=[.!?:]) +(- [A-Z])` — plain bullets after punctuation
+   - `(?<=[.!?:]) +(\d+[.)]\s)` — numbered items after punctuation
+   - `(?<=\S) +(\d+[.)]\s+\*\*)` — bold numbered items
+   - `(?<=\S) +(> )` — block quotes mid-line
+
+3. **Pipeline Preservation**: 7 response-cleaning functions across 4 files were audited. `cleanupResponseText()` in RAGService and `cleanupFinalAnswer()` in AgenticOrchestrator were rewritten to preserve markdown. All synthesis prompts updated with formatting instructions.
+
+**Files Modified:**
+
+- `Core/Extensions/MarkdownRenderer.swift` — Complete rewrite (block parser + inline normalizer)
+- `Services/RAG/RAGService.swift` — `cleanupResponseText()`, `compactDegenerateResponse()`, system prompts
+- `Services/Agentic/AgenticOrchestrator.swift` — `cleanupFinalAnswer()`, all synthesis prompts
+
+### MMR Crash Fix (v3.3)
+
+Fixed array index out of bounds crash in `RAGEngine.applyMMR()`. Root cause: `GPUComputeService.mmrDiversityMatrix()` returned `[[]]` (outer array with one empty inner array) instead of `[]` for dimension-0 embeddings.
+
+**Files Modified:**
+
+- `Services/RAG/RAGEngine.swift` — Matrix dimension validation + bounds checking
+- `Services/Infrastructure/GPUComputeService.swift` — Corrected edge case returns (`guard count > 1` returns `[]`, `guard dimension > 0` falls back to CPU)
 
 ---
 

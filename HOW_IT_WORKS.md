@@ -331,3 +331,25 @@ Eight targeted fixes to the retrieval pipeline that collectively ensure near-per
 6. **Rare Term Preservation** — Query expansion includes rare corpus terms that exactly match query words, even if they don't appear in the synonym dictionary.
 7. **Corpus-Learned Synonyms** — Dynamic synonym generation from document word co-occurrence data. If "viscosity" always appears near "SAE" in your documents, they become synonyms.
 8. **Adaptive Reranking** — Cross-encoder candidate pool scales with corpus size: `min(count, max(100, topK×5))`. Large corpora get more candidates evaluated.
+
+---
+
+## Bonus: Rich Markdown Rendering (v1.2)
+
+Responses now display with proper formatting — headers, bullet lists, numbered lists, bold text, code blocks — instead of a wall of unformatted text.
+
+### The Problem
+
+Apple's on-device Foundation Model outputs markdown syntax (`### headers`, `- bullets`, `**bold**`) but concatenates everything on a single line. The previous renderer treated all text as inline content, so `### Header - **Item**: description` displayed as plain text with literal `###` symbols visible.
+
+### The Fix (Three Layers)
+
+1. **Block-Level Parser**: `MarkdownRenderer.swift` was rewritten from `.inlineOnlyPreservingWhitespace` to a full parser that recognizes headings, bullets, numbered lists, code fences, block quotes, and horizontal rules. Each block renders as its own SwiftUI view with appropriate styling.
+
+2. **Inline Normalizer**: A preprocessing step (`normalizeInlineMarkdown()`) uses 6 regex patterns to detect markdown syntax embedded mid-line and split it onto separate lines before the parser runs. For example, `Sport mode - **Throttle**: aggressive` becomes two lines — the text before, and `- **Throttle**: aggressive` as a proper bullet.
+
+3. **Pipeline Preservation**: Seven response-cleaning functions across 4 files were audited. Two were actively stripping ALL markdown from responses — `cleanupResponseText()` in RAGService and `cleanupFinalAnswer()` in AgenticOrchestrator. Both were rewritten to preserve formatting while still removing orphaned markers and degenerate artifacts.
+
+### Why It Matters
+
+The LLM produces good structure — headers for sections, bullets for lists, bold for key terms. Without proper rendering, users see raw syntax mixed into a single paragraph. With it, responses look like well-formatted documents with clear visual hierarchy.

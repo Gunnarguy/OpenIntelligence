@@ -5,7 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.2.0] - 2026-02-14 (Build 13)
+## [1.2.0] - 2026-02-16 (Build 14)
+
+### Rich Markdown Response Rendering
+
+LLM responses now render with full markdown formatting — headers, bullet lists, numbered lists, bold text, code blocks, and block quotes. Previously, responses displayed as a single unformatted paragraph.
+
+#### Markdown Rendering Engine
+
+- **Full Block-Level Parser**: `MarkdownRenderer.swift` rewritten from inline-only (`.inlineOnlyPreservingWhitespace`) to a complete block-level parser supporting headings (h1-h6), bullet lists, numbered lists, code fences, block quotes, horizontal rules, and paragraphs
+- **Inline Markdown Normalization**: Apple's on-device FM concatenates markdown syntax on a single line. New `normalizeInlineMarkdown()` preprocessor splits inline markdown onto separate lines using 6 regex patterns:
+  - Headers mid-line (`(?<=\S) +(#{1,6} )`)
+  - Bold bullet items (`(?<=\S) +(- \*\*)`)
+  - Plain bullets after punctuation (`(?<=[.!?:]) +(- [A-Z])`)
+  - Numbered items after punctuation (`(?<=[.!?:]) +(\d+[.)]\s)`)
+  - Bold numbered items (`(?<=\S) +(\d+[.)]\s+\*\*)`)
+  - Block quotes mid-line (`(?<=\S) +(> )`)
+- **SwiftUI Rendering**: `MarkdownBlockView` renders each block type with appropriate styling — `InlineMarkdownText` handles bold, italic, code, and links via `AttributedString`
+
+#### Response Formatting Preservation
+
+- **7 Response-Cleaning Functions Audited**: Identified and fixed markdown stripping across the entire response pipeline
+- **`RAGService.cleanupResponseText()`**: Rewritten to only remove orphaned empty markers — previously stripped ALL markdown formatting from every response
+- **`AgenticOrchestrator.cleanupFinalAnswer()`**: No longer strips headers (`###`), bullets (`-`), or numbered lists from Deep Think/Maximum mode responses
+- **`compactDegenerateResponse()`**: Changed sentence joining from `" "` (space) to `"\n\n"` (paragraph breaks), preserving document structure
+
+#### LLM Prompt Formatting Instructions
+
+- **Standard Pipeline**: System prompts now instruct the LLM to use `### headers`, `- bullets`, and `**bold**` for key terms
+- **Deep Think / Maximum Modes**: All 4 synthesis prompts in `AgenticOrchestrator` updated with formatting instructions
+- **Integrity Repair**: `buildIntegrityRepairPrompt()` includes formatting instructions so repaired responses maintain structure
+
+#### MMR Crash Fix
+
+- **Array Index Out of Bounds**: Fixed crash in `RAGEngine.applyMMR()` when `mmrDiversityMatrix` returned `[[]]` instead of a proper N×N matrix
+- **Root Cause**: `GPUComputeService.mmrDiversityMatrix()` returned `[[]]` for embeddings with dimension 0 — the outer array existed but contained one empty inner array
+- **Fix**: Added matrix dimension validation and bounds checking in `RAGEngine.swift`; corrected edge case returns in `GPUComputeService.swift` (`guard count > 1` returns `[]` not `[[]]`, `guard dimension > 0` falls back to CPU)
+
+---
 
 ### Device-Optimized Performance Engine
 

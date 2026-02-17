@@ -1,1 +1,1 @@
-NEW: Motherboard HUD — X-ray your iPhone's Apple Silicon in real-time. 23-step RAG pipeline. 100% On-Device. Ask PDFs, get cited answers. HyDE, Reranking, & Graph Packing. No cloud, no accounts.
+NEW: Rich formatted responses with headers, bullets & bold text. Device-optimized Metal GPU search. Motherboard HUD. 25-step RAG pipeline. 100% On-Device. Ask PDFs, get cited answers. No cloud, no accounts.

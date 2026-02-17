@@ -494,9 +494,14 @@ struct LLMResponse {
 
             // CRITICAL: SystemLanguageModel.default MUST be accessed on main thread
             guard Thread.isMainThread else {
-                fatalError(
+                assertionFailure(
                     "AppleFoundationLLMService must access SystemLanguageModel.default from main thread"
                 )
+                // In Release, attempt access anyway — the system framework's own
+                // diagnostics are preferable to a guaranteed crash.
+                let model = SystemLanguageModel.default
+                _model = model
+                return model
             }
 
             let model = SystemLanguageModel.default

@@ -42,4 +42,4 @@ Last updated: February 2026
 
 ## Contact
 
-For privacy inquiries or data deletion assistance, contact the maintainer at `privacy@openintelligence.app`.
+For privacy inquiries or data deletion assistance, contact the maintainer at `Gunnarguy@me.com`.

@@ -39,7 +39,7 @@ Ingest ANY document, ANY size. Answer questions using Apple Intelligence. **ZERO
 - **FullTextStorageService** (`actor`): Complete original document storage for exact queries
 - **AgenticOrchestrator**: Multi-session reasoning with Self-RAG 2.0 enrichment prompting
 
-### Pipeline (23 Steps End-to-End)
+### Pipeline (25 Steps End-to-End)
 
 ```
 INGESTION (6 steps):
@@ -73,11 +73,13 @@ QUERY → RESPONSE (17 steps):
   Step 5.9: Extractive Summarization (for summarize intent)
   Step 5.10: Extractive QA (for lookup intent)
   Step 6:   LLM Generation (Apple FM / PCC)
+  Step 6.5: Response Formatting (markdown preservation pipeline)
   Step 7:   Quality Assessment (confidence scoring)
   Step 7.5: Verification Gates A-D (anti-hallucination)
   Step 8:   Package Results
   Step 8.1: Calibrated Confidence (Platt scaling)
   Step 9:   Response Metadata (timing, sources, metrics)
+  Step 10:  Markdown Rendering (block-level parser + inline normalization)
 ```
 
 ### Multi-Session Reasoning
@@ -98,7 +100,7 @@ QUERY → RESPONSE (17 steps):
 
 > **Full Reference**: See `Docs/reference/APPLE_DOCUMENT_INTELLIGENCE.md`
 
-## Service Inventory (80 Services)
+## Service Inventory (81 Services)
 
 | Category           | Count | Key Services                                                                                                |
 | ------------------ | ----- | ----------------------------------------------------------------------------------------------------------- |
@@ -110,6 +112,7 @@ QUERY → RESPONSE (17 steps):
 | **VectorStore**    | 4     | VectorDatabase (protocol), InMemoryVectorDatabase, BNNSVectorDatabase, VectorStoreRouter                    |
 | **LLM**            | 7     | AppleFoundationLLMService, OnDeviceAnalysisService, LocalOpenAIServerLLMService                             |
 | **Agentic**        | 3     | AgenticOrchestrator, ConversationMemoryService, WritingToolsService                                         |
+| **Rendering**      | 1     | MarkdownRenderer (block-level parser, inline normalizer, 6 regex patterns for Apple FM output)              |
 | **Infrastructure** | 18    | ContainerService, GPUComputeService (3-tier Metal shaders), HardwareTelemetryState, DeviceCapabilityService |
 | **Billing**        | 1     | StoreKitBillingService                                                                                      |
 
@@ -136,3 +139,5 @@ xcodebuild -scheme OpenIntelligence -destination 'platform=iOS Simulator,name=iP
 4. **Dimension mismatch** → Must be 384-dim
 5. **Simulator** → Apple FM unavailable; test fallbacks
 6. **CSV data** → No row limits; tabs/special chars handled
+7. **Markdown rendering** → Apple FM concatenates markdown on one line; `normalizeInlineMarkdown()` preprocessor handles this
+8. **Response cleaning** → 7 functions in pipeline; do NOT strip markdown from `cleanupResponseText()` or `cleanupFinalAnswer()`

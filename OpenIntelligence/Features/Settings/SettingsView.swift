@@ -22,52 +22,57 @@ struct SettingsView: View {
     @State private var showAdvancedGeneration = false
 
     var body: some View {
-        ZStack {
-            ScrollView {
-                VStack(spacing: 16) {
-                    // Hero & Core Experience
-                    heroCard
-                    modelSelectionCard
+        GeometryReader { geometry in
+            ZStack {
+                ScrollView(.vertical, showsIndicators: true) {
+                    VStack(spacing: 16) {
+                        // Hero & Core Experience
+                        heroCard
+                        modelSelectionCard
 
-                    // Privacy & Execution (combined)
-                    privacyExecutionCard
+                        // Privacy & Execution (combined)
+                        privacyExecutionCard
 
-                    // Subscription
-                    billingCard
+                        // Subscription
+                        billingCard
 
-                    // Intelligence Mode (Standard vs Deep Think)
-                    retrievalCard
+                        // Intelligence Mode (Standard vs Deep Think)
+                        retrievalCard
 
-                    // Generation Tuning (exposed hidden settings)
-                    generationTuningCard
+                        // Generation Tuning (exposed hidden settings)
+                        generationTuningCard
 
-                    // Context & Performance
-                    contextWindowCard
+                        // Context & Performance
+                        contextWindowCard
 
-                    // More
-                    appearanceCard
-                    developerCard
-                    aboutCard
+                        // More
+                        appearanceCard
+                        developerCard
+                        aboutCard
+                    }
+                    .padding()
+                    .frame(width: geometry.size.width) // Hard width constraint prevents horizontal bounce
                 }
-                .padding()
-            }
-            .background(
-                LinearGradient(
-                    colors: [DSColors.background, DSColors.surface.opacity(0.3)],
-                    startPoint: .top,
-                    endPoint: .bottom
+                .scrollBounceBehavior(.basedOnSize)
+                .background(
+                    LinearGradient(
+                        colors: [DSColors.background, DSColors.surface.opacity(0.3)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .ignoresSafeArea()
                 )
-                .ignoresSafeArea()
-            )
 
-            // Motherboard HUD - Full-screen X-ray overlay
-            // Shows glowing borders at the ACTUAL physical locations where
-            // the Neural Engine, GPU, and CPU sit behind the screen
-            if settings.showSiliconHUD {
-                HardwareXRayOverlay()
-                    .allowsHitTesting(false) // Don't block touches
-                    .transition(.opacity)
+                // Motherboard HUD - Full-screen X-ray overlay
+                // Shows glowing borders at the ACTUAL physical locations where
+                // the Neural Engine, GPU, and CPU sit behind the screen
+                if settings.showSiliconHUD {
+                    HardwareXRayOverlay()
+                        .allowsHitTesting(false) // Don't block touches
+                        .transition(.opacity)
+                }
             }
+            .clipped()
         }
         .navigationTitle("Settings")
         .sheet(isPresented: $showPlanSheet) {
