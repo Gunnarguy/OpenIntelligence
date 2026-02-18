@@ -52,11 +52,26 @@ platform :ios do
 
   desc "Upload metadata only (no binary) - for fixing App Store rejection"
   lane :metadata do
+    # Read .p8 key content directly to avoid Fastlane auto-detecting
+    # APP_STORE_CONNECT_API_KEY_PATH and trying to parse it as JSON
+    key_path = File.expand_path("~/AuthKey_JT97AQ3U4U.p8")
+    key_content = File.read(key_path)
+
+    api_key = app_store_connect_api_key(
+      key_id: "JT97AQ3U4U",
+      issuer_id: "843e4ca0-4a91-49c5-93d1-c4e336d7c43b",
+      key_content: key_content,
+      in_house: false
+    )
+
     deliver(
+      api_key: api_key,
+      app_identifier: "Gunndamental.OpenIntelligence",
       skip_binary_upload: true,
       skip_screenshots: true,
       force: true,
-      submit_for_review: false
+      submit_for_review: false,
+      precheck_include_in_app_purchases: false
     )
   end
 

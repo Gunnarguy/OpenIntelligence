@@ -33,7 +33,7 @@ import Metal
 /// Check if we're running on Apple Silicon (unified memory architecture)
 /// On Apple Silicon, Metal uses MTLResourceStorageModeShared by default.
 /// Calling synchronizeResource on shared storage is INVALID and crashes.
-nonisolated(unsafe) private let isAppleSilicon: Bool = {
+private nonisolated(unsafe) let isAppleSilicon: Bool = {
     #if arch(arm64)
     return true
     #else
@@ -42,7 +42,7 @@ nonisolated(unsafe) private let isAppleSilicon: Bool = {
 }()
 
 /// Check if running on Mac (native or iOS app on Mac)
-nonisolated(unsafe) private let isRunningOnMac: Bool = {
+private nonisolated(unsafe) let isRunningOnMac: Bool = {
     var systemInfo = utsname()
     uname(&systemInfo)
     let machine = withUnsafePointer(to: &systemInfo.machine) {
@@ -56,7 +56,7 @@ nonisolated(unsafe) private let isRunningOnMac: Bool = {
 /// Shared Metal device for GPU synchronization
 /// We use this to force GPU command buffer completion between Vision calls
 /// Only used on iOS devices - disabled on Apple Silicon Macs due to shared memory architecture
-nonisolated(unsafe) private let metalDevice: MTLDevice? = {
+private nonisolated(unsafe) let metalDevice: MTLDevice? = {
     // On Apple Silicon Macs, we skip GPU sync entirely
     // Shared storage mode doesn't need synchronization
     if isAppleSilicon && isRunningOnMac {
@@ -64,7 +64,7 @@ nonisolated(unsafe) private let metalDevice: MTLDevice? = {
     }
     return MTLCreateSystemDefaultDevice()
 }()
-nonisolated(unsafe) private let metalQueue: MTLCommandQueue? = metalDevice?.makeCommandQueue()
+private nonisolated(unsafe) let metalQueue: MTLCommandQueue? = metalDevice?.makeCommandQueue()
 
 /// Force GPU to complete all pending work
 /// This drains the Metal command queue, ensuring Vision's async GPU work is complete
@@ -97,7 +97,7 @@ nonisolated private func synchronizeGPU() {
 /// Device-tier-aware maximum concurrent Vision operations
 /// Higher-tier devices (A18 Pro, M-series) can sustain more parallel Vision ops
 /// Lower-tier devices are limited to 2 to prevent Metal command buffer overflow
-nonisolated(unsafe) private let maxConcurrentVisionOps: Int = {
+private nonisolated(unsafe) let maxConcurrentVisionOps: Int = {
     // Detect device tier at initialization
     // Uses same logic as DeviceCapabilityService but without creating dependency cycle
     var systemInfo = utsname()
@@ -147,7 +147,7 @@ nonisolated(unsafe) private let maxConcurrentVisionOps: Int = {
 /// Cooldown time between Vision operations (seconds)
 /// Brief delay to let GPU command buffers settle
 /// High-tier devices use shorter cooldown
-nonisolated(unsafe) private let gpuCooldownSeconds: TimeInterval = {
+private nonisolated(unsafe) let gpuCooldownSeconds: TimeInterval = {
     // Match the tier detection from above
     var systemInfo = utsname()
     uname(&systemInfo)
@@ -237,11 +237,11 @@ private actor AsyncVisionSemaphore {
 
 /// Global async semaphore for Vision operations
 /// Uses actor isolation for proper Swift Concurrency integration
-nonisolated(unsafe) private let asyncVisionSemaphore = AsyncVisionSemaphore(maxConcurrent: maxConcurrentVisionOps)
+private nonisolated(unsafe) let asyncVisionSemaphore = AsyncVisionSemaphore(maxConcurrent: maxConcurrentVisionOps)
 
 /// Legacy semaphore for truly synchronous operations only
 /// NOTE: This will cause priority inversion warnings - unavoidable for sync code
-nonisolated(unsafe) private let syncVisionSemaphore = DispatchSemaphore(value: maxConcurrentVisionOps)
+private nonisolated(unsafe) let syncVisionSemaphore = DispatchSemaphore(value: maxConcurrentVisionOps)
 
 // MARK: - VisionOCRThrottle
 

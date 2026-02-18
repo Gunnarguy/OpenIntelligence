@@ -82,7 +82,7 @@ actor BNNSVectorDatabase: VectorDatabase {
 
     /// Load-completion task — all public methods await this before accessing data.
     /// Prevents returning empty results while loadFromDisk is in progress.
-    private var loadTask: Task<Void, Never>?
+    nonisolated(unsafe) private var loadTask: Task<Void, Never>?
 
     // MARK: - Init
 
@@ -165,7 +165,7 @@ actor BNNSVectorDatabase: VectorDatabase {
                 if let normData = try? Data(contentsOf: bin.norms),
                    normData.count == chunks.count * MemoryLayout<Float>.size {
                     self.embeddingNorms = [Float](unsafeUninitializedCapacity: chunks.count) { buf, count in
-                        normData.copyBytes(to: buf)
+                        _ = normData.copyBytes(to: buf)
                         count = chunks.count
                     }
                 } else {
@@ -337,7 +337,7 @@ actor BNNSVectorDatabase: VectorDatabase {
         } else {
             // Mixed: combine mmap + pending (only during active ingestion)
             let totalFloats = totalCount * dimension
-            var combined = [Float](unsafeUninitializedCapacity: totalFloats) { buf, count in
+            let combined = [Float](unsafeUninitializedCapacity: totalFloats) { buf, count in
                 count = totalFloats
                 if let mapped = mappedVectors {
                     mapped.withUnsafeBytes { rawBuf in

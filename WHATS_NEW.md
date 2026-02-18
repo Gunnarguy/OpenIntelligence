@@ -1,6 +1,6 @@
 # What's New in OpenIntelligence v1.2
 
-**Released**: February 16, 2026 (Build 14)
+**Released**: February 17, 2026 (Build 14)
 
 ---
 
@@ -98,6 +98,28 @@ During document ingestion, `CoreMLSentenceEmbeddingProvider` switches compute un
 | **Privacy Manifest**      | Added `NSPrivacyAccessedAPICategorySystemBootTime` (reason `35F9.1`), `NSPrivacyTracking = false`, empty `NSPrivacyCollectedDataTypes`.                                                                                                                                                                                                                |
 | **Dead Code**             | Removed unused `activeTasks` counter from cross-encoder path. Updated stale "serial queue" comments to reflect concurrent reality.                                                                                                                                                                                                                     |
 
+### Zero-Data-Loss Ingestion Fixes
+
+Critical fixes preventing silent content loss on font-encoded PDFs:
+
+| Fix                                               | Details                                                                                                                                                                                                                                                                                                                                                                 |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Font Substitution Cipher Detection (PHASE -1)** | New document-level validation renders one sample page via Vision OCR and compares to PDFKit text via Jaccard similarity. Threshold < 0.15 = garbled text layer (font substitution cipher). When detected, all pages forced through full OCR. Prevents **93% content loss** on PDFs from Kia, Hyundai, and Asian-publisher manuals where `FOREWORD` reads as `GPSFXPSE`. |
+| **Raw String Regex Fix**                          | 5 regex patterns in `OCRConfiguration.normalizeExtractedText()` used `\u{HHHH}` inside Swift raw strings — silently invalid. ICU regex requires `\x{HHHH}`. All 5 patterns (CJK bullets, en-dash, em-dash, CJK numerals) were no-ops. Fixed.                                                                                                                            |
+| **Garbled Image Extraction**                      | `extractImagesFromPDFPage()` used `page.string` emptiness as proxy for "page is visual." Font-encoded PDFs have garbled text on every page, so image extraction was skipped entirely. Now uses `isTextQualityAcceptable()` as quality gate.                                                                                                                             |
+| **Dynamic Image Text Budget**                     | Changed from hardcoded `maxImageTextPerDoc = 3000` to `min(30000, max(3000, extractedImages.count * 500))` — scales with document visual complexity.                                                                                                                                                                                                                    |
+
+### Swift 6 Concurrency Compliance
+
+11 files updated with strict concurrency annotations — **zero runtime behavior change**. All changes are compile-time only, eliminating warnings that become hard errors in Swift 6 language mode:
+
+- `nonisolated` on `OCRConfiguration` statics, `DocumentChunk.init`, `DocumentProcessor.traceIngestionOutcome`
+- `@preconcurrency import Vision` in `CaptureToRAGBridge`
+- `await` on `DeviceCapabilityService` access in `RAGEngine`
+- `let configuredRequest = request` before `@Sendable` closures in 3 files
+- `nonisolated(unsafe)` on `BNNSVectorDatabase.loadTask` for nonisolated init access
+- Dead code removal (`var bestConfidence`), `var` → `let` fixes
+
 ---
 
 ## Cumulative Changes Since App Store Launch (v1.0.0 → v1.2.0)
@@ -132,3 +154,5 @@ For the complete build-by-build changelog, see [CHANGELOG.md](CHANGELOG.md).
 | Spec detection             | Matched any letter+digit combo          | Matches only actual patterns (e.g., oil viscosity)      |
 | StoreKit offline           | Hangs 30-60 seconds                     | 5-second timeout                                        |
 | Motherboard HUD            | —                                       | Real-time Apple Silicon X-ray overlay                   |
+| Font-encoded PDFs          | Silently lost 93% of content            | PHASE -1 Jaccard detection, full OCR forced             |
+| Swift 6 concurrency        | Warnings in 11 files                    | All annotations complete, zero warnings                 |

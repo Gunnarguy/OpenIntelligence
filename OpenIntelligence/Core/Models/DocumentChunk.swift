@@ -31,7 +31,7 @@ struct DocumentChunk: Identifiable, Codable, Sendable {
         set { content = newValue }
     }
 
-    init(
+    nonisolated init(
         id: UUID = UUID(),
         documentId: UUID,
         content: String,

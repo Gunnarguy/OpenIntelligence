@@ -30,6 +30,7 @@ Xrays/*.txt
 # Swift Package Manager
 .swiftpm/
 .build/
+**/.build/
 
 
 # CocoaPods

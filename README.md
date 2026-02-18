@@ -44,6 +44,7 @@ Every pipeline stage is now hardware-aware — tuned to the specific Apple Silic
 - **GPU embedding ingestion mode** — Embeddings run on GPU during ingestion, freeing Neural Engine for simultaneous Vision OCR
 - **Concurrent GPU rendering** — CIFilter preprocessing runs in parallel (was serialized)
 - **5-candidate OCR** — Evaluates more transcription alternatives for higher accuracy on ambiguous text
+- **Font-encoded PDF detection** — Automatic PHASE -1 validation detects font substitution ciphers (Kia, Hyundai manuals) that trick every quality check, preventing 93% content loss
 
 ### Rich Markdown Response Rendering (v1.2)
 
@@ -79,6 +80,10 @@ Near-perfect needle-in-haystack accuracy across any document type:
 - Rare term preservation in query expansion
 - Year/integer exemption in numeric verification
 - Proportional hit-rate weighting in RRF fusion
+
+### Swift 6 Concurrency Compliance (v1.2)
+
+- 11 files updated with strict concurrency annotations — zero runtime change, eliminates all Swift 6 language mode warnings
 
 ---
 

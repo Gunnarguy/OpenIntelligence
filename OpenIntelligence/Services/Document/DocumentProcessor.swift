@@ -132,7 +132,7 @@ class DocumentProcessor {
         )
     }
 
-    private func traceIngestionOutcome(
+    nonisolated private func traceIngestionOutcome(
         pageNumber: Int,
         path: String,
         chars: Int,
@@ -3912,7 +3912,6 @@ class DocumentProcessor {
         // Try progressively more aggressive strategies (skip minimal, start from standard)
         let retryStrategies = Array(AdaptivePreprocessor.strategies.dropFirst()) // standard → maximum
         var bestResult = ""
-        var bestConfidence: Float = 0
 
         for strategy in retryStrategies {
             let preprocessed = AdaptivePreprocessor.apply(
@@ -4950,7 +4949,7 @@ class DocumentProcessor {
                     range: NSRange(paraContent.startIndex..., in: paraContent)) != nil
 
                 // Replace <w:br/> with newline
-                var processed = breakRegex.stringByReplacingMatches(in: paraContent, options: [],
+                let processed = breakRegex.stringByReplacingMatches(in: paraContent, options: [],
                     range: NSRange(paraContent.startIndex..., in: paraContent), withTemplate: "\n")
 
                 // Extract all text runs and join with space (preserves word boundaries)
