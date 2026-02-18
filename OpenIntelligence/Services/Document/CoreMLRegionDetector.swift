@@ -419,8 +419,9 @@ actor CoreMLRegionDetector {
                 Locale.Language(identifier: $0)
             }
             // Throttle Vision operations to prevent Metal GPU race conditions
+            let configuredRequest = request
             let observations = try await VisionOCRThrottle.performAsync {
-                try await request.perform(on: image)
+                try await configuredRequest.perform(on: image)
             }
 
             // Get the document from the first observation

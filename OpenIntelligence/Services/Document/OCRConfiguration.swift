@@ -46,7 +46,7 @@ enum OCRConfiguration {
     /// Words that appear across 3+ unrelated domains. These are mathematical,
     /// scientific, and structural — NOT domain-specific.
     /// Domain vocabulary is extracted dynamically from each document.
-    static let universalCustomWords: [String] = [
+    nonisolated static let universalCustomWords: [String] = [
         // SI units & prefixes (ISO 80000)
         "kg", "g", "mg", "µg", "ng",
         "km", "m", "cm", "mm", "µm", "nm",
@@ -99,7 +99,7 @@ enum OCRConfiguration {
 
     /// All languages Vision supports for text recognition, in priority order.
     /// Applied uniformly to every OCR request — no more fragmented lists.
-    static let recognitionLanguages: [String] = [
+    nonisolated static let recognitionLanguages: [String] = [
         "en-US", "en-GB",           // English (primary)
         "es-ES", "fr-FR", "de-DE",  // Romance / Germanic
         "it-IT", "pt-BR", "nl-NL",  // More European
@@ -115,7 +115,7 @@ enum OCRConfiguration {
     ///
     /// - Parameter customWords: Document-specific vocabulary (from `customWords(forDocumentText:)`)
     /// - Returns: Fully configured request ready to perform
-    static func configureRequest(_ request: VNRecognizeTextRequest, customWords: [String]? = nil) {
+    nonisolated static func configureRequest(_ request: VNRecognizeTextRequest, customWords: [String]? = nil) {
         request.revision = VNRecognizeTextRequestRevision3
         request.recognitionLevel = .accurate
         request.usesLanguageCorrection = true

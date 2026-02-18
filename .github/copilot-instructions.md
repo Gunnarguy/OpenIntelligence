@@ -44,6 +44,7 @@ Ingest ANY document, ANY size. Answer questions using Apple Intelligence. **ZERO
 ```
 INGESTION (6 steps):
   1. Parse (PDFKit/Vision OCR 360 DPI/Office ZIP)
+     - PHASE -1 Text Layer Validation (Jaccard font cipher detection)
      - Adaptive Preprocessing (5 CIFilter strategies: minimal→maximum)
      - Dynamic Vocabulary (PDFKit text mining → customWords)
      - Centralized OCR config (OCRConfiguration.configureRequest)

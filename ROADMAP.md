@@ -1,9 +1,9 @@
 # OpenIntelligence Roadmap
 
-**Last Updated**: February 16, 2026
+**Last Updated**: February 17, 2026
 **Version**: 1.2.0 (Build 14)
 **Status**: App Store Live
-**Maturity**: Production RAG pipeline with 8 agentic tools + Motherboard HUD + Device-Optimized Performance Engine + Rich Markdown Rendering
+**Maturity**: Production RAG pipeline with 8 agentic tools + Motherboard HUD + Device-Optimized Performance Engine + Rich Markdown Rendering + Zero-Data-Loss Ingestion + Swift 6 Compliance
 
 ---
 
@@ -14,28 +14,28 @@ Import any document. Ask questions. Get cited answers. All on-device.
 
 ### RAG Pattern Coverage (16 Industry Patterns)
 
-OpenIntelligence implements **13 of 16** recognized RAG architectural patterns:
+OpenIntelligence implements **14 of 16** recognized RAG architectural patterns:
 
 > **Note**: 3 patterns (Federated, Streaming, ODQA) are N/A by design—not gaps but architectural decisions for privacy-first, document-scoped use case.
 
-| #   | Pattern                      | Status | Implementation                                                      |
-| --- | ---------------------------- | ------ | ------------------------------------------------------------------- |
-| 1   | **Standard RAG**             | ✅     | Foundation - 25-step pipeline                                       |
-| 2   | **Agentic RAG**              | ✅     | `AgenticOrchestrator`, 8 @Tool functions, recursive research loops  |
-| 3   | **Graph RAG**                | ✅     | `EntityIndexService` + 2-hop entity expansion (GraphRAG-Lite)       |
-| 4   | **Modular RAG**              | ✅     | Protocol-oriented design, 81 swappable services                     |
-| 5   | **Memory-Augmented RAG**     | 🟡     | `ConversationMemoryService` (session-scoped, not persistent prefs)  |
-| 6   | **Multi-Modal RAG**          | ✅     | Image classification, OCR, audio transcription, caption association |
-| 7   | **Federated RAG**            | ⬜     | N/A - 100% on-device architecture                                   |
-| 8   | **Streaming RAG**            | ⬜     | N/A - Document-based, not real-time feeds                           |
-| 9   | **ODQA RAG**                 | ⬜     | N/A - Scoped to user's documents, not open-domain                   |
-| 10  | **Contextual Retrieval RAG** | ✅     | Query rewriting, pronoun resolution, follow-up handling             |
-| 11  | **Knowledge Enhanced RAG**   | ✅     | Entity extraction, EntityIndexService, structured ChunkMetadata     |
-| 12  | **Domain-Specific RAG**      | 🟡     | Content-type configs exist; domain profiles planned                 |
-| 13  | **Hybrid RAG**               | ✅     | `HybridSearchService` - BM25 + Vector + RRF fusion                  |
-| 14  | **Self-RAG**                 | ✅     | Self-RAG 2.0 with 4 Verification Gates, multi-session enrichment    |
-| 15  | **HyDE RAG**                 | ✅     | `HyDEService` - Hypothetical Document Embedding                     |
-| 16  | **Recursive/Multi-Step RAG** | ✅     | Recursive research loops, multi-chain maximum mode                  |
+| #   | Pattern                      | Status | Implementation                                                                            |
+| --- | ---------------------------- | ------ | ----------------------------------------------------------------------------------------- |
+| 1   | **Standard RAG**             | ✅      | Foundation - 25-step pipeline                                                             |
+| 2   | **Agentic RAG**              | ✅      | `AgenticOrchestrator`, 8 @Tool functions, recursive research loops                        |
+| 3   | **Graph RAG**                | ✅      | `EntityIndexService` + 2-hop entity expansion (GraphRAG-Lite)                             |
+| 4   | **Modular RAG**              | ✅      | Protocol-oriented design, 81 swappable services                                           |
+| 5   | **Memory-Augmented RAG**     | ✅      | `ConversationMemoryService` (persistent per-container disk storage with debounced writes) |
+| 6   | **Multi-Modal RAG**          | ✅      | Image classification, OCR, audio transcription, caption association                       |
+| 7   | **Federated RAG**            | ⬜      | N/A - 100% on-device architecture                                                         |
+| 8   | **Streaming RAG**            | ⬜      | N/A - Document-based, not real-time feeds                                                 |
+| 9   | **ODQA RAG**                 | ⬜      | N/A - Scoped to user's documents, not open-domain                                         |
+| 10  | **Contextual Retrieval RAG** | ✅      | Query rewriting, pronoun resolution, follow-up handling                                   |
+| 11  | **Knowledge Enhanced RAG**   | ✅      | Entity extraction, EntityIndexService, structured ChunkMetadata                           |
+| 12  | **Domain-Specific RAG**      | 🟡      | Content-type configs exist; domain profiles planned                                       |
+| 13  | **Hybrid RAG**               | ✅      | `HybridSearchService` - BM25 + Vector + RRF fusion                                        |
+| 14  | **Self-RAG**                 | ✅      | Self-RAG 2.0 with 4 Verification Gates, multi-session enrichment                          |
+| 15  | **HyDE RAG**                 | ✅      | `HyDEService` - Hypothetical Document Embedding                                           |
+| 16  | **Recursive/Multi-Step RAG** | ✅      | Recursive research loops, multi-chain maximum mode                                        |
 
 **Legend**: ✅ Implemented | 🟡 Partial | ⬜ Not Applicable
 
@@ -67,31 +67,32 @@ OpenIntelligence implements **13 of 16** recognized RAG architectural patterns:
 - ✅ TOC-aware reranking (demotes table-of-contents chunks)
 - ✅ Container-based knowledge organization
 - ✅ StoreKit 2 subscription billing
-- ✅ Swift 6 strict concurrency compliance
+- ✅ Swift 6 strict concurrency compliance — 11 files updated with `nonisolated`, `@preconcurrency`, `await`, `configuredRequest` captures (compile-time only, zero runtime change)
 - ✅ **Device-Optimized Performance Engine** — 3-tier Metal GPU shaders (threadgroup/SIMD4/scalar), device-specific OCR concurrency (A19: 8 ops/1ms), concurrent cross-encoder reranking (pre-tokenized TaskGroup), GPU embedding ingestion mode, concurrent CIFilter rendering
 - ✅ **Rich Markdown Response Rendering** — Full block-level markdown parser (headings, bullets, numbered lists, code fences, block quotes), inline normalization preprocessor (6 regex patterns for Apple FM single-line output), formatting-aware LLM prompts, 7 response-cleaning functions audited to preserve markdown
 - ✅ **MMR Crash Fix** — Fixed array index out of bounds in `RAGEngine.applyMMR()` when GPU diversity matrix returned malformed results for edge-case embeddings
+- ✅ **Zero-Data-Loss Ingestion** — PHASE -1 font substitution cipher detection via Jaccard similarity (prevents 93% content loss on Kia/Hyundai manuals), raw string regex fix (5 patterns), garbled image extraction fix, dynamic image text budget scaling
 
 ---
 
 ### � Apple Technology Integration Assessment
 
-**Summary**: OpenIntelligence leverages **8 major Apple frameworks** extensively. We've identified **6 additional framework opportunities** for future phases.
+**Summary**: OpenIntelligence leverages **8 major Apple frameworks** extensively. We've identified **5 additional framework opportunities** for future phases.
 
 > **Reference**: See [Docs/reference/APPLE_DOCUMENT_INTELLIGENCE.md](Docs/reference/APPLE_DOCUMENT_INTELLIGENCE.md) for comprehensive Apple framework documentation.
 
 #### ✅ Fully Integrated Apple Frameworks (8)
 
-| Framework            | Services Using It                                                       | Key APIs                                                                                               |
-| -------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| **FoundationModels** | `AppleFoundationLLMService`, `AgenticOrchestrator`, all @Tool functions | `LanguageModelSession`, `@Generable`, `@Guide`, `@Tool`, `prewarm()`, `LanguageModelFeedback`, TN3193  |
-| **Vision**           | `OCRConfiguration`, `DocumentProcessor`, `StructuredDocumentParser`     | `VNRecognizeTextRequest` Rev3, `RecognizeDocumentsRequest`, `topCandidates(5)`, adaptive preprocessing |
-| **NaturalLanguage**  | `QueryEnhancementService`, `EntityIndexService`, `SemanticChunker`      | `NLTagger` (NER, POS), `NLTokenizer`, `NLLanguageRecognizer`, `NLEmbedding` (512D fallback)            |
-| **CoreML**           | `EmbeddingService`, `ReRankerService`, `CoreMLDocumentClassifier`       | MiniLM-L6-v2 embeddings (384D), TinyBERT reranker, FastViT classifier (optional)                       |
-| **PDFKit**           | `DocumentProcessor`                                                     | `PDFDocument`, `PDFPage`, page-by-page text extraction                                                 |
-| **Speech**           | `AudioTranscriptionService`                                             | `SFSpeechRecognizer`, on-device transcription for M4A/MP3/WAV/MP4                                      |
-| **Metal**            | `GPUComputeService`, `VisionOCRService`                                 | GPU-accelerated matrix operations, parallel OCR concurrency                                            |
-| **StoreKit 2**       | `StoreKitBillingService`                                                | `Product`, `Transaction`, `StoreKit.Transaction.updates`, subscription management                      |
+| Framework            | Services Using It                                                                               | Key APIs                                                                                               |
+| -------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| **FoundationModels** | `AppleFoundationLLMService`, `HyDEService`, `ContextualCompressionService`, all @Tool functions | `LanguageModelSession`, `@Generable`, `@Guide`, `@Tool`, `prewarm()`, `LanguageModelFeedback`, TN3193  |
+| **Vision**           | `OCRConfiguration`, `DocumentProcessor`, `StructuredDocumentParser`                             | `VNRecognizeTextRequest` Rev3, `RecognizeDocumentsRequest`, `topCandidates(5)`, adaptive preprocessing |
+| **NaturalLanguage**  | `QueryEnhancementService`, `SemanticChunker`, `DocumentProcessor`                               | `NLTagger` (NER, POS), `NLTokenizer`, `NLLanguageRecognizer`, `NLEmbedding` (512D fallback)            |
+| **CoreML**           | `CoreMLSentenceEmbeddingProvider`, `RAGEngine`, `CoreMLDocumentClassifier`                      | MiniLM-L6-v2 embeddings (384D), TinyBERT reranker, FastViT classifier (optional)                       |
+| **PDFKit**           | `DocumentProcessor`                                                                             | `PDFDocument`, `PDFPage`, page-by-page text extraction                                                 |
+| **Speech**           | `AudioTranscriptionService`                                                                     | `SFSpeechRecognizer`, on-device transcription for M4A/MP3/WAV/MP4                                      |
+| **Metal**            | `GPUComputeService`, `VisionOCRThrottle`, `BNNSVectorDatabase`                                  | GPU-accelerated matrix operations, 3-tier shader selection, parallel OCR concurrency                   |
+| **StoreKit 2**       | `StoreKitBillingService`                                                                        | `Product`, `Transaction`, `StoreKit.Transaction.updates`, subscription management                      |
 
 #### ✅ Ready But Deferred (Code Complete, UI Disabled)
 
@@ -103,11 +104,12 @@ OpenIntelligence implements **13 of 16** recognized RAG architectural patterns:
 
 #### 🟡 Partial Integration (Opportunities Identified)
 
-| Opportunity              | Framework             | Current State                                 | Planned Enhancement                      | Target |
-| ------------------------ | --------------------- | --------------------------------------------- | ---------------------------------------- | ------ |
-| Custom Entity Extraction | NLGazetteer           | Using NLTagger NER (persons, places, orgs)    | Train gazetteer on product names, SKUs   | v1.3   |
-| Multi-Language Docs      | Translation.framework | Language detection works; no auto-translation | Translate foreign docs before embedding  | v1.3   |
-| Domain Classifiers       | CreateMLComponents    | Static content-type configs                   | Train classifiers on user's doc patterns | v2.0   |
+| Opportunity              | Framework             | Current State                                                 | Planned Enhancement                      | Target |
+| ------------------------ | --------------------- | ------------------------------------------------------------- | ---------------------------------------- | ------ |
+| Custom Entity Extraction | NLGazetteer           | Using NLTagger NER (persons, places, orgs)                    | Train gazetteer on product names, SKUs   | v1.3   |
+| Multi-Language Docs      | Translation.framework | Language detection works; no auto-translation                 | Translate foreign docs before embedding  | v1.3   |
+| Domain Classifiers       | CreateMLComponents    | Static content-type configs                                   | Train classifiers on user's doc patterns | v2.0   |
+| WritingTools Integration | WritingTools (iOS 26) | `WritingToolsService` with `clarifyQuery` wired to ChatScreen | Expose proofread/rewrite/summarize in UI | v1.3   |
 
 #### ⬜ Not Yet Leveraged (Phase 2+)
 
@@ -118,18 +120,17 @@ OpenIntelligence implements **13 of 16** recognized RAG architectural patterns:
 | **MetricKit**                 | Device performance telemetry              | Medium   | Optimize pipeline for real user hardware     |
 | **OSSignposter**              | Instruments-visible profiling             | Low      | Developer debugging, not user-facing         |
 | **SoundAnalysis**             | Audio content classification              | Low      | Classify speech/music/ambient in audio files |
-| **WritingTools** (iOS 26)     | System-wide text improvement integration  | Medium   | Already have WritingToolsService stub        |
 
 #### iOS 26+ New APIs Status
 
-| API                                     | Status         | Location                                                       |
-| --------------------------------------- | -------------- | -------------------------------------------------------------- |
-| `FoundationModels.LanguageModelSession` | ✅ Production  | `AppleFoundationLLMService`, `AgenticOrchestrator`             |
-| `@Generable`, `@Guide`, `@Tool`         | ✅ Production  | 8 agentic tools, RAGAnswer/RAGSearchResults responses          |
-| `LanguageModelFeedback`                 | ✅ Production  | Thumbs up/down feedback in ChatView                            |
-| `prewarm()`                             | ✅ Production  | App launch prewarming in OpenIntelligenceApp                   |
-| `RecognizeDocumentsRequest`             | ✅ Production  | `StructuredDocumentParser`, centralized via `OCRConfiguration` |
-| `SpeechAnalyzer`                        | ⬜ Not Started | Planned for v1.3 audio enhancement                             |
+| API                                     | Status        | Location                                                                   |
+| --------------------------------------- | ------------- | -------------------------------------------------------------------------- |
+| `FoundationModels.LanguageModelSession` | ✅ Production  | `AppleFoundationLLMService`, `HyDEService`, `ContextualCompressionService` |
+| `@Generable`, `@Guide`, `@Tool`         | ✅ Production  | 8 agentic tools, RAGAnswer/RAGSearchResults responses                      |
+| `LanguageModelFeedback`                 | ✅ Production  | Thumbs up/down feedback via `LLMService` (triggered from ChatScreen)       |
+| `prewarm()`                             | ✅ Production  | Session prewarming in `LLMService` (warmUpModel + session init)            |
+| `RecognizeDocumentsRequest`             | ✅ Production  | `StructuredDocumentParser`, centralized via `OCRConfiguration`             |
+| `SpeechAnalyzer`                        | ⬜ Not Started | Planned for v1.3 audio enhancement                                         |
 
 ---
 

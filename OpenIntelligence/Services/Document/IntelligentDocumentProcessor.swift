@@ -451,8 +451,9 @@ actor IntelligentDocumentProcessor {
                 Locale.Language(identifier: $0)
             }
             // Throttle Vision operations to prevent Metal GPU race conditions
+            let configuredRequest = request
             let observations = try await VisionOCRThrottle.performAsync {
-                try await request.perform(on: croppedImage)
+                try await configuredRequest.perform(on: croppedImage)
             }
 
             // Get the document from the first observation

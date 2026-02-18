@@ -400,4 +400,4 @@ actor LiveAnalysisService {
 
 // MARK: - Vision Helpers
 
-import Vision
+@preconcurrency import Vision

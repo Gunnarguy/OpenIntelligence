@@ -1,1 +1,1 @@
-NEW in 1.2: Full markdown response rendering. 3-tier Metal GPU vector search. Device-specific OCR concurrency. Concurrent neural reranking. 25-step pipeline. 81 services. 100% on-device. No cloud, no accounts.
+NEW in 1.2: Markdown rendering. 3-tier Metal GPU search. Device-specific OCR. Concurrent reranking. Zero-data-loss ingestion. 100% on-device.

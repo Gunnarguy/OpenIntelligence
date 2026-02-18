@@ -1172,7 +1172,7 @@ actor RAGEngine {
             // OPTIMIZATION: Concurrent predictions using TaskGroup
             // Cross-encoder MLModel.prediction is thread-safe — CoreML handles internal synchronization.
             // Device-tier-aware concurrency prevents ANE/GPU contention.
-            let maxConcurrentPredictions = min(4, max(2, DeviceCapabilityService.shared.embeddingConcurrency / 4))
+            let maxConcurrentPredictions = await min(4, max(2, DeviceCapabilityService.shared.embeddingConcurrency / 4))
 
             // Extracted prediction closure — shared by seed and feed paths to avoid code duplication.
             // Each invocation creates its own MLMultiArray buffers (no sharing between tasks).

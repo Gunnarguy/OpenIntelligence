@@ -1,7 +1,7 @@
 # OpenIntelligence Technical Architecture
 
-**Version**: 3.3
-**Date**: February 16, 2026
+**Version**: 3.4
+**Date**: February 17, 2026
 **Status**: Production (App Store v1.2)
 
 ## Table of Contents
@@ -30,7 +30,7 @@ OpenIntelligence is a native iOS 26 application implementing a complete Retrieva
 
 **Simple Concept:** Import any document. Ask questions in plain English. Get cited answers powered by on-device AI.
 
-**Latest (v3.3)**: Rich Markdown Response Rendering (full block-level parser, inline normalization preprocessor, formatting-preserving pipeline, formatting-aware LLM prompts). Device-Optimized Performance Engine (3-tier Metal shader selection, device-specific OCR concurrency, concurrent cross-encoder predictions, GPU embedding ingestion mode, concurrent CIFilter rendering). MMR crash fix (GPU diversity matrix edge case). Motherboard HUD (real-time Apple Silicon X-ray overlay), Universal Retrieval (8 fixes for needle-in-haystack accuracy), Adaptive Document Intelligence Engine, multi-candidate confidence OCR, 5-strategy adaptive preprocessing, language-agnostic quality detection, centralized OCR configuration factory. 81 services across 11 categories.
+**Latest (v3.4)**: Font substitution cipher detection (PHASE -1 Jaccard text layer validation). Swift 6 strict concurrency compliance (11 files, zero runtime change). Zero-data-loss ingestion fixes (raw regex, garbled image extraction, dynamic image text budget). Rich Markdown Response Rendering (full block-level parser, inline normalization preprocessor, formatting-preserving pipeline, formatting-aware LLM prompts). Device-Optimized Performance Engine (3-tier Metal shader selection, device-specific OCR concurrency, concurrent cross-encoder predictions, GPU embedding ingestion mode, concurrent CIFilter rendering). MMR crash fix (GPU diversity matrix edge case). Motherboard HUD (real-time Apple Silicon X-ray overlay), Universal Retrieval (8 fixes for needle-in-haystack accuracy), Adaptive Document Intelligence Engine, multi-candidate confidence OCR, 5-strategy adaptive preprocessing, language-agnostic quality detection, centralized OCR configuration factory. 81 services across 11 categories.
 
 ### RAG Pipeline Summary
 
@@ -63,25 +63,25 @@ OpenIntelligence is built entirely on Apple's native frameworks—**no third-par
 
 ### Production Frameworks (8 Integrated)
 
-| Framework            | Primary Use                   | Key Services                                                                   |
-| -------------------- | ----------------------------- | ------------------------------------------------------------------------------ |
-| **FoundationModels** | LLM generation (iOS 26)       | `AppleFoundationLLMService`, `AgenticOrchestrator`, 8 @Tools                   |
-| **Vision**           | OCR, document detection       | `VisionOCRService`, `IntelligentDocumentProcessor`                             |
-| **NaturalLanguage**  | NER, tokenization, embeddings | `QueryEnhancementService`, `EntityIndexService`, `SemanticChunker`             |
-| **CoreML**           | Neural embeddings, reranking  | `EmbeddingService` (MiniLM-L6), `ReRankerService` (TinyBERT)                   |
-| **PDFKit**           | PDF parsing                   | `DocumentProcessor`                                                            |
-| **Speech**           | Audio transcription           | `AudioTranscriptionService`                                                    |
-| **Metal**            | GPU acceleration              | `GPUComputeService` (3-tier shaders), `VisionOCRThrottle`, `DocumentProcessor` |
-| **StoreKit 2**       | Subscription billing          | `StoreKitBillingService`                                                       |
+| Framework            | Primary Use                   | Key Services                                                                         |
+| -------------------- | ----------------------------- | ------------------------------------------------------------------------------------ |
+| **FoundationModels** | LLM generation (iOS 26)       | `AppleFoundationLLMService`, `HyDEService`, `ContextualCompressionService`, 8 @Tools |
+| **Vision**           | OCR, document detection       | `OCRConfiguration`, `DocumentProcessor`, `StructuredDocumentParser`                  |
+| **NaturalLanguage**  | NER, tokenization, embeddings | `QueryEnhancementService`, `SemanticChunker`, `DocumentProcessor`                    |
+| **CoreML**           | Neural embeddings, reranking  | `CoreMLSentenceEmbeddingProvider` (MiniLM-L6), `RAGEngine` (TinyBERT reranker)       |
+| **PDFKit**           | PDF parsing                   | `DocumentProcessor`                                                                  |
+| **Speech**           | Audio transcription           | `AudioTranscriptionService`                                                          |
+| **Metal**            | GPU acceleration              | `GPUComputeService` (3-tier shaders), `VisionOCRThrottle`, `DocumentProcessor`       |
+| **StoreKit 2**       | Subscription billing          | `StoreKitBillingService`                                                             |
 
 ### iOS 26+ APIs in Production
 
-| API                             | Usage                                        |
-| ------------------------------- | -------------------------------------------- |
-| `LanguageModelSession`          | All LLM queries via Apple Intelligence       |
-| `@Generable`, `@Guide`, `@Tool` | 8 agentic tools + structured response types  |
-| `LanguageModelFeedback`         | User feedback submission from chat UI        |
-| `prewarm()`                     | App launch prewarming for faster first query |
+| API                             | Usage                                                     |
+| ------------------------------- | --------------------------------------------------------- |
+| `LanguageModelSession`          | All LLM queries via Apple Intelligence                    |
+| `@Generable`, `@Guide`, `@Tool` | 8 agentic tools + structured response types               |
+| `LanguageModelFeedback`         | User feedback submission via `LLMService`                 |
+| `prewarm()`                     | Session prewarming in `LLMService` for faster first query |
 
 ### Framework Opportunities (Phase 2+)
 
@@ -477,6 +477,7 @@ OpenIntelligence is composed of **81 distinct services** organized into 11 categ
 | Dynamic Vocabulary Extraction   | PDFKit text mining → customWords          | ✅ New          |
 | Centralized OCR Factory         | `OCRConfiguration.configureRequest()`     | ✅ New          |
 | Language-Agnostic Quality Check | NLLanguageRecognizer + Unicode categories | ✅ New          |
+| PHASE -1 Font Cipher Detection  | Jaccard similarity (OCR vs PDFKit)        | ✅ New          |
 
 **Device-Tier-Aware Vision Concurrency** (Jan 26, 2026):
 
@@ -569,6 +570,26 @@ if result.uncertainCount > 0 {
     Log.warning("\(result.uncertainCount) uncertain values detected")
 }
 ```
+
+**Font Substitution Cipher Detection (PHASE -1)** (Feb 17, 2026):
+
+Before any per-page processing begins, a document-level validation step detects font-encoded PDFs where every character is shifted through a font substitution cipher (e.g., `FOREWORD` → `GPSFXPSE`). These PDFs pass ALL per-page quality checks — 100% printable ASCII, normal word lengths, NLLanguageRecognizer detects "Dutch" — causing `PageComplexityAnalyzer` to skip OCR on every page.
+
+**Detection Method**:
+
+1. Sample 1 page, render as image, OCR via Vision
+2. Extract word sets from both OCR output and PDFKit text layer
+3. Compute Jaccard similarity: `|intersection| / |union|`
+4. If < 0.15 → `documentTextLayerGarbled = true`
+
+**When Garbled**:
+
+- All pages force image rendering regardless of complexity strategy
+- `textQualityOK` forced false — PDFKit text never trusted
+- Dynamic vocabulary mining skips garbled text layer (garbage vocabulary harms OCR)
+- Image extraction uses `isTextQualityAcceptable()` instead of `page.string` emptiness
+
+**Impact**: 542-page Kia Sportage manual goes from ~7% to ~100% content capture. Cost: ~200-500ms once per document.
 
 #### Office Document Extraction
 

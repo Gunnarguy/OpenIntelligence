@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.2.0] - 2026-02-16 (Build 14)
+## [1.2.0] - 2026-02-17 (Build 14)
 
 ### Rich Markdown Response Rendering
 
@@ -89,6 +89,47 @@ A ground-up performance overhaul that makes every pipeline stage hardware-aware.
 
 - Updated stale "serial queue" comments across `DocumentProcessor` and `OCRConfiguration` to reflect concurrent queue reality
 - Removed dead `activeTasks` counter from `RAGEngine` cross-encoder path
+
+---
+
+### Zero-Data-Loss Ingestion Fixes
+
+Critical fixes that prevent silent content loss on font-encoded PDFs and correct regex patterns that were silently failing.
+
+#### Font Substitution Cipher Detection (PHASE -1)
+
+- **Document-Level Text Layer Validation**: New PHASE -1 runs once per document (~200-500ms) before any per-page processing. Renders one sample page via Vision OCR, compares OCR words to PDFKit words via Jaccard similarity. Threshold < 0.15 = garbled text layer detected (font substitution cipher)
+- **Root Cause**: Font-encoded PDFs (Kia, Hyundai, many Asian-publisher manuals) have text layers where every character is shifted (e.g., Caesar cipher: `GPSFXPSE` = "FOREWORD"). This garbled text passes ALL per-page quality checks — 100% printable ASCII, normal word length, NLLanguageRecognizer detects "Dutch" — causing `PageComplexityAnalyzer` to skip OCR entirely. **93% of content was silently lost**
+- **Fix**: When garbled flag is set: (1) all pages force image rendering regardless of complexity strategy, (2) `textQualityOK` forced false so PDFKit text is never trusted, (3) dynamic vocabulary mining skips garbled text layer. Every page routes through Vision OCR
+- **Impact**: 542-page Kia Sportage manual goes from ~7% to ~100% content capture
+
+#### Raw String Regex Fix
+
+- **Silent Regex Failure**: 5 regex patterns in `OCRConfiguration.normalizeExtractedText()` used `\u{HHHH}` inside Swift raw strings (`#"..."#`). In raw strings, `\u{HHHH}` is literal text, not a Unicode escape. ICU regex requires `\x{HHHH}`. All 5 patterns silently failed — `replacingOccurrences` swallowed the error and returned text unchanged
+- **Impact**: CJK bullet artifacts, en-dash/em-dash normalization, and CJK numeral-as-dash replacement were all no-ops. Fixed by changing all `\u{HHHH}` to `\x{HHHH}`
+
+#### Garbled Text Layer Detection for Image Extraction
+
+- **`extractImagesFromPDFPage()`** used `page.string` emptiness as a proxy for "page is visual content." Font-encoded PDFs have garbled text on every page, so the function thought every page had usable text — **skipping image extraction for all pages with diagrams and figures**
+- **Fix**: Now uses `isTextQualityAcceptable(rawPageText)` quality gate. Garbled text fails → page treated as visual content → full-page image rendered and analyzed by `ImageUnderstandingService`
+
+#### Dynamic Image Text Budget
+
+- Changed from hardcoded `maxImageTextPerDoc = 3000` to `min(30000, max(3000, extractedImages.count * 500))` — scales with document visual complexity for large manuals
+
+---
+
+### Swift 6 Concurrency Compliance
+
+11 files updated with Swift 6 strict concurrency annotations. All changes are compile-time only — zero runtime behavior change. Eliminates warnings that become hard errors in Swift 6 language mode.
+
+- **`OCRConfiguration.swift`**: Added `nonisolated` to `universalCustomWords`, `recognitionLanguages`, and `configureRequest` to prevent `@MainActor` inference from `VNRecognizeTextRequest` parameter
+- **`DocumentChunk.swift`**: Added `nonisolated` to `init` — explicitly callable from any isolation context
+- **`DocumentProcessor.swift`**: Added `nonisolated` to `traceIngestionOutcome` (called from 14 `TaskGroup` closures), removed unused `bestConfidence` variable, changed `var processed` to `let`
+- **`CaptureToRAGBridge.swift`**: Changed `import Vision` to `@preconcurrency import Vision` to suppress `@MainActor` inference on `VNRecognizeTextRequest`
+- **`RAGEngine.swift`**: Added `await` to `DeviceCapabilityService.shared.embeddingConcurrency` access
+- **`BNNSVectorDatabase.swift`**: Added `nonisolated(unsafe)` to `loadTask` (accessed in nonisolated init), discarded unused `copyBytes` result, changed `var combined` to `let`
+- **`StructuredDocumentParser.swift`**, **`CoreMLRegionDetector.swift`**, **`IntelligentDocumentProcessor.swift`**: Copied mutable `var request` to `let configuredRequest` before `@Sendable` closure capture
 
 ---
 

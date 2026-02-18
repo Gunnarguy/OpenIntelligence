@@ -23,7 +23,7 @@ import UIKit
 
 /// Serial queue to prevent Metal command buffer race conditions
 /// when multiple threads try to render CIImages concurrently
-nonisolated(unsafe) private let gpuRenderQueue = DispatchQueue(label: "com.openintelligence.structured-parser-gpu", qos: .userInitiated)
+private nonisolated(unsafe) let gpuRenderQueue = DispatchQueue(label: "com.openintelligence.structured-parser-gpu", qos: .userInitiated)
 
 /// Shared Metal-backed CIContext for GPU-accelerated image processing
 /// CIContext is thread-safe.
@@ -416,8 +416,9 @@ actor StructuredDocumentParser {
         }
 
         // Perform the structured document recognition (throttled to prevent Metal GPU races)
+        let configuredRequest = request
         let observations = try await VisionOCRThrottle.performAsync {
-            try await request.perform(on: imageData)
+            try await configuredRequest.perform(on: imageData)
         }
 
         guard let document = observations.first?.document else {
