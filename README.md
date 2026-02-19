@@ -472,6 +472,42 @@ OpenIntelligence/
 
 ---
 
+## Roadmap — Apple Intelligence Gap Closure
+
+We've audited every Apple Intelligence framework from WWDC 2024 and 2025 against the codebase. **23 framework opportunities** identified, prioritized across three milestones:
+
+### v1.3 — Immediate (6 items)
+
+| Framework          | What It Adds                                                                                |
+| ------------------ | ------------------------------------------------------------------------------------------- |
+| **Guardrails API** | Apple's built-in content safety layer for model I/O — critical for App Store compliance     |
+| **CoreSpotlight**  | Index documents for Spotlight/Siri semantic search — makes your content visible system-wide |
+| **SpeechAnalyzer** | Modern async actor-based speech transcription, replacing legacy `SFSpeechRecognizer`        |
+| **Translation**    | On-device multilingual RAG — translate documents before embedding, cross-language queries   |
+| **Liquid Glass**   | iOS 26 design system — glass material for toolbars, navigation, and custom views            |
+| **UseCase/Locale** | Model use case optimization + language support gating                                       |
+
+### v1.4 — Next Release (8 items)
+
+| Framework                 | What It Adds                                                         |
+| ------------------------- | -------------------------------------------------------------------- |
+| **Visual Intelligence**   | Camera/screenshot search into knowledge base via App Intents         |
+| **Adapter Training**      | Custom LoRA adapters (~160MB) for domain-specific LLM specialization |
+| **Prompt Evaluation**     | Systematic prompt quality testing + regression prevention            |
+| **Metal 4**               | New GPU API with ML inference passes and unified compute encoders    |
+| **BNNS Graph**            | Enhanced neural network graph operations for vector search           |
+| **Image Playground**      | Programmatic on-device image generation from document content        |
+| **NLGazetteer**           | Custom entity vocabularies trained from ingested documents           |
+| **Lens Smudge Detection** | Camera quality check before OCR capture                              |
+
+### v2.0 — Strategic (9 items)
+
+`@Observable` migration, WidgetKit, BackgroundTasks, SwiftData, TipKit, Smart Reply, NSUserActivity/Handoff, Genmoji, DataScannerViewController + more.
+
+> **Full details**: See [ROADMAP.md](ROADMAP.md) → "Phase 2.15 — Apple Intelligence Gap Closure"
+
+---
+
 ## Documentation
 
 | Document                                            | Description                                                     |

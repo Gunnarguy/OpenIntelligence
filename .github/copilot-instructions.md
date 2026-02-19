@@ -101,6 +101,16 @@ QUERY → RESPONSE (17 steps):
 
 > **Full Reference**: See `Docs/reference/APPLE_DOCUMENT_INTELLIGENCE.md`
 
+### Planned Framework Additions (23 identified gaps from WWDC24/25)
+
+| Target   | Frameworks                                                                                                   |
+| -------- | ------------------------------------------------------------------------------------------------------------ |
+| **v1.3** | Guardrails API, CoreSpotlight, SpeechAnalyzer, Translation, Liquid Glass, UseCase/Locale                     |
+| **v1.4** | Visual Intelligence, Adapter Training, Prompt Evaluation, Metal 4, BNNS Graph, Image Playground, NLGazetteer |
+| **v2.0** | @Observable, WidgetKit, BackgroundTasks, SwiftData, TipKit, Smart Reply, NSUserActivity, Genmoji             |
+
+> **Full Gap Analysis**: See `ROADMAP.md` → "Phase 2.15 — Apple Intelligence Gap Closure"
+
 ## Service Inventory (81 Services)
 
 | Category           | Count | Key Services                                                                                                |

@@ -1,7 +1,7 @@
 # OpenIntelligence Technical Architecture
 
-**Version**: 3.4
-**Date**: February 17, 2026
+**Version**: 3.5
+**Date**: February 18, 2026
 **Status**: Production (App Store v1.2)
 
 ## Table of Contents
@@ -30,7 +30,7 @@ OpenIntelligence is a native iOS 26 application implementing a complete Retrieva
 
 **Simple Concept:** Import any document. Ask questions in plain English. Get cited answers powered by on-device AI.
 
-**Latest (v3.4)**: Font substitution cipher detection (PHASE -1 Jaccard text layer validation). Swift 6 strict concurrency compliance (11 files, zero runtime change). Zero-data-loss ingestion fixes (raw regex, garbled image extraction, dynamic image text budget). Rich Markdown Response Rendering (full block-level parser, inline normalization preprocessor, formatting-preserving pipeline, formatting-aware LLM prompts). Device-Optimized Performance Engine (3-tier Metal shader selection, device-specific OCR concurrency, concurrent cross-encoder predictions, GPU embedding ingestion mode, concurrent CIFilter rendering). MMR crash fix (GPU diversity matrix edge case). Motherboard HUD (real-time Apple Silicon X-ray overlay), Universal Retrieval (8 fixes for needle-in-haystack accuracy), Adaptive Document Intelligence Engine, multi-candidate confidence OCR, 5-strategy adaptive preprocessing, language-agnostic quality detection, centralized OCR configuration factory. 81 services across 11 categories.
+**Latest (v3.5)**: Apple Intelligence Gap Analysis complete (23 framework opportunities identified across WWDC24/25). Font substitution cipher detection (PHASE -1 Jaccard text layer validation). Swift 6 strict concurrency compliance (11 files, zero runtime change). Zero-data-loss ingestion fixes (raw regex, garbled image extraction, dynamic image text budget). Rich Markdown Response Rendering (full block-level parser, inline normalization preprocessor, formatting-preserving pipeline, formatting-aware LLM prompts). Device-Optimized Performance Engine (3-tier Metal shader selection, device-specific OCR concurrency, concurrent cross-encoder predictions, GPU embedding ingestion mode, concurrent CIFilter rendering). MMR crash fix (GPU diversity matrix edge case). Motherboard HUD (real-time Apple Silicon X-ray overlay), Universal Retrieval (8 fixes for needle-in-haystack accuracy), Adaptive Document Intelligence Engine, multi-candidate confidence OCR, 5-strategy adaptive preprocessing, language-agnostic quality detection, centralized OCR configuration factory. 81 services across 11 categories.
 
 ### RAG Pipeline Summary
 
@@ -83,16 +83,32 @@ OpenIntelligence is built entirely on Apple's native frameworks—**no third-par
 | `LanguageModelFeedback`         | User feedback submission via `LLMService`                 |
 | `prewarm()`                     | Session prewarming in `LLMService` for faster first query |
 
-### Framework Opportunities (Phase 2+)
+### Framework Opportunities (v1.3 → v2.0)
 
-| Framework                   | Planned Use                                  | Target |
-| --------------------------- | -------------------------------------------- | ------ |
-| **VisionKit** (DataScanner) | Live camera document scanning                | v2.0   |
-| **Translation.framework**   | Multi-language document translation          | v1.3   |
-| **NLGazetteer**             | Custom entity training (product names, SKUs) | v1.3   |
-| **CreateMLComponents**      | On-device classifier training                | v2.0   |
-| **MetricKit**               | Production performance telemetry             | v2.0   |
-| **SpeechAnalyzer** (iOS 26) | Enhanced audio quality metrics               | v1.3   |
+> **Full Gap Analysis**: See [ROADMAP.md](ROADMAP.md) → "Phase 2.15 — Apple Intelligence Gap Closure" for complete 23-item breakdown.
+
+| Framework                        | Planned Use                                                 | Target | Priority |
+| -------------------------------- | ----------------------------------------------------------- | ------ | -------- |
+| **Guardrails API** (iOS 26)      | Apple content safety layer for model I/O                    | v1.3   | Critical |
+| **CoreSpotlight**                | Index documents for Spotlight/Siri semantic search          | v1.3   | Critical |
+| **SpeechAnalyzer** (iOS 26)      | Modern async actor-based speech transcription               | v1.3   | Critical |
+| **Translation.framework**        | Multi-language document translation                         | v1.3   | High     |
+| **Liquid Glass** (iOS 26)        | iOS 26 glass material design system for UI                  | v1.3   | High     |
+| **UseCase / Locale** (iOS 26)    | Model use case declaration + locale gating                  | v1.3   | Medium   |
+| **Visual Intelligence** (iOS 26) | Camera/screenshot search into app content                   | v1.4   | High     |
+| **Adapter Training** (iOS 26)    | Custom LoRA adapters for domain-specific LLM                | v1.4   | High     |
+| **Metal 4** (iOS 26)             | New core API, ML inference passes, unified compute encoders | v1.4   | Medium   |
+| **BNNS Graph** (iOS 26)          | Enhanced neural network graph operations                    | v1.4   | Medium   |
+| **Image Playground**             | Programmatic on-device image generation                     | v1.4   | Medium   |
+| **NLGazetteer**                  | Custom entity training (product names, SKUs)                | v1.4   | Medium   |
+| **@Observable**                  | Replace ObservableObject/Combine with modern Observation    | v2.0   | High     |
+| **WidgetKit**                    | Home screen widgets for doc count, queries, status          | v2.0   | Medium   |
+| **BackgroundTasks**              | BGTaskScheduler for background indexing/embedding           | v2.0   | Medium   |
+| **SwiftData**                    | Modern persistence layer (evaluate vs raw sqlite3)          | v2.0   | Medium   |
+| **TipKit**                       | Contextual onboarding tips for RAG features                 | v2.0   | Low      |
+| **VisionKit** (DataScanner)      | Live camera document scanning                               | v2.0   | Medium   |
+| **CreateMLComponents**           | On-device classifier training                               | v2.0   | Medium   |
+| **MetricKit**                    | Production performance telemetry                            | v2.0   | Low      |
 
 ## System Architecture
 
