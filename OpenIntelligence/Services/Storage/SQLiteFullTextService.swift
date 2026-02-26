@@ -96,6 +96,7 @@ actor SQLiteFullTextService {
 
         // Enable WAL mode for better concurrency
         execute(sql: "PRAGMA journal_mode=WAL")
+        execute(sql: "PRAGMA busy_timeout=3000")
 
         // Create FTS5 virtual table with porter stemmer for English and unicode61 for case-insensitivity
         // document_id is UNINDEXED (not searchable) - used only for lookups
@@ -132,6 +133,20 @@ actor SQLiteFullTextService {
             )
         """
         _ = execute(sql: createMetaSQL)
+
+        // MARK: Document Content Lookup Table
+        // Regular table (NOT FTS5) for fast document_id-based content retrieval.
+        // FTS5 UNINDEXED columns require full table scans for WHERE clauses,
+        // which causes 30+ second hangs when viewing document content.
+        // This table has a proper B-tree index on document_id for O(log n) lookup.
+        let createContentSQL = """
+            CREATE TABLE IF NOT EXISTS document_content (
+                document_id TEXT PRIMARY KEY,
+                container_id TEXT NOT NULL,
+                content TEXT NOT NULL
+            )
+        """
+        _ = execute(sql: createContentSQL)
 
         // MARK: Chunk-Level FTS5 Table
         // Indexes individual chunks (not whole documents) for chunk-level BM25 scoring.
@@ -180,6 +195,9 @@ actor SQLiteFullTextService {
         return true
     }
 
+    // NOTE: Bulk backfill removed — caused actor thread blocking.
+    // Individual documents are migrated on-demand in readFromFTS5Fallback().
+
     // MARK: - Core CRUD Operations
 
     /// Store document text in FTS5 index
@@ -219,6 +237,17 @@ actor SQLiteFullTextService {
             let error = String(cString: sqlite3_errmsg(db))
             Log.error("[SQLiteFTS5] Insert failed: \(error)", category: .vectorDB)
             return
+        }
+
+        // Store in fast-lookup content table (regular B-tree indexed table)
+        let contentSQL = "INSERT OR REPLACE INTO document_content (document_id, container_id, content) VALUES (?, ?, ?)"
+        var contentStmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, contentSQL, -1, &contentStmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(contentStmt, 1, docIdStr, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(contentStmt, 2, containerIdStr, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(contentStmt, 3, text, -1, SQLITE_TRANSIENT)
+            sqlite3_step(contentStmt)
+            sqlite3_finalize(contentStmt)
         }
 
         // Store metadata
@@ -466,6 +495,16 @@ actor SQLiteFullTextService {
             sqlite3_finalize(pageStmt)
         }
 
+        // Delete from content lookup table
+        let deleteContentSQL = "DELETE FROM document_content WHERE document_id = ?"
+        var contentStmt: OpaquePointer?
+
+        if sqlite3_prepare_v2(db, deleteContentSQL, -1, &contentStmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(contentStmt, 1, documentId.uuidString, -1, SQLITE_TRANSIENT)
+            sqlite3_step(contentStmt)
+            sqlite3_finalize(contentStmt)
+        }
+
         Log.debug("[SQLiteFTS5] Deleted document \(documentId)", category: .vectorDB)
     }
 
@@ -517,6 +556,16 @@ actor SQLiteFullTextService {
             sqlite3_bind_text(pageDelStmt, 1, containerId.uuidString, -1, SQLITE_TRANSIENT)
             sqlite3_step(pageDelStmt)
             sqlite3_finalize(pageDelStmt)
+        }
+
+        // Delete from content lookup table
+        let deleteContentSQL = "DELETE FROM document_content WHERE container_id = ?"
+        var contentDelStmt: OpaquePointer?
+
+        if sqlite3_prepare_v2(db, deleteContentSQL, -1, &contentDelStmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(contentDelStmt, 1, containerId.uuidString, -1, SQLITE_TRANSIENT)
+            sqlite3_step(contentDelStmt)
+            sqlite3_finalize(contentDelStmt)
         }
 
         Log.info("[SQLiteFTS5] Deleted \(documentIds.count) documents for container \(containerId)", category: .vectorDB)
@@ -1213,8 +1262,10 @@ actor SQLiteFullTextService {
 
     /// Get comprehensive statistics about the FTS5 database
     func getStatistics() async -> FTS5Statistics {
+        Log.info("[SQLiteFTS5] getStatistics() entered", category: .vectorDB)
         ensureInitialized()
         guard let db = database else {
+            Log.warning("[SQLiteFTS5] getStatistics() — database is nil!", category: .vectorDB)
             return FTS5Statistics(
                 totalDocuments: 0,
                 totalCharacters: 0,
@@ -1302,6 +1353,7 @@ actor SQLiteFullTextService {
         // Calculate average
         let avgSize = totalDocs > 0 ? totalChars / totalDocs : 0
 
+        Log.info("[SQLiteFTS5] getStatistics() complete — \(totalDocs) docs", category: .vectorDB)
         return FTS5Statistics(
             totalDocuments: totalDocs,
             totalCharacters: totalChars,
@@ -1329,8 +1381,12 @@ actor SQLiteFullTextService {
 
     /// Get stats for all documents in a container
     func getDocumentStats(containerId: UUID) async -> [DocumentStat] {
+        Log.info("[SQLiteFTS5] getDocumentStats() entered", category: .vectorDB)
         ensureInitialized()
-        guard let db = database else { return [] }
+        guard let db = database else {
+            Log.warning("[SQLiteFTS5] getDocumentStats() — database is nil!", category: .vectorDB)
+            return []
+        }
 
         var results: [DocumentStat] = []
         let sql = """
@@ -1370,6 +1426,7 @@ actor SQLiteFullTextService {
             ))
         }
 
+        Log.info("[SQLiteFTS5] getDocumentStats() complete — \(results.count) docs", category: .vectorDB)
         return results
     }
 
@@ -1520,8 +1577,17 @@ actor SQLiteFullTextService {
         let autoVacuum = getStringValue(sql: "PRAGMA auto_vacuum") ?? "unknown"
         let mMapSize = Int64(getIntValue(sql: "PRAGMA mmap_size"))
 
-        // Quick integrity check
-        let integrityResult = getStringValue(sql: "PRAGMA quick_check") ?? "unknown"
+        // Lightweight integrity check — PRAGMA quick_check scans ALL FTS5 shadow
+        // tables and can take 30+ seconds on large databases, blocking the actor
+        // and causing the Database tab to load indefinitely. Use a fast heuristic instead.
+        let integrityResult: String = {
+            let docCount = getIntValue(sql: "SELECT COUNT(*) FROM documents")
+            let metaCount = getIntValue(sql: "SELECT COUNT(*) FROM document_meta")
+            if docCount >= 0 && metaCount >= 0 {
+                return docCount == metaCount ? "ok" : "mismatch (docs: \(docCount), meta: \(metaCount))"
+            }
+            return "unknown"
+        }()
 
         // Gather table statistics
         var tableStats: [DeepDiagnostics.TableStat] = []
@@ -1999,6 +2065,21 @@ actor SQLiteFullTextService {
         ensureInitialized()
         guard let db = database else { return nil }
 
+        // Try fast B-tree indexed table first
+        let fastSQL = "SELECT content FROM document_content WHERE document_id = ? LIMIT 1"
+        var fastStmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, fastSQL, -1, &fastStmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(fastStmt, 1, documentId.uuidString, -1, SQLITE_TRANSIENT)
+            if sqlite3_step(fastStmt) == SQLITE_ROW,
+               let contentPtr = sqlite3_column_text(fastStmt, 0) {
+                let result = String(cString: contentPtr)
+                sqlite3_finalize(fastStmt)
+                return result
+            }
+            sqlite3_finalize(fastStmt)
+        }
+
+        // Fallback to FTS5 table (pre-migration documents)
         let sql = "SELECT content FROM documents WHERE document_id = ? LIMIT 1"
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else { return nil }
@@ -2039,6 +2120,24 @@ actor SQLiteFullTextService {
         ensureInitialized()
         guard let db = database else { return nil }
 
+        // Try fast B-tree indexed table first
+        let fastSQL = "SELECT content FROM document_content WHERE document_id = ? LIMIT 1"
+        var fastStmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, fastSQL, -1, &fastStmt, nil) == SQLITE_OK {
+            sqlite3_bind_text(fastStmt, 1, documentId.uuidString, -1, SQLITE_TRANSIENT)
+            if sqlite3_step(fastStmt) == SQLITE_ROW,
+               let contentPtr = sqlite3_column_text(fastStmt, 0) {
+                let content = String(cString: contentPtr)
+                sqlite3_finalize(fastStmt)
+                if content.count <= maxLength {
+                    return content
+                }
+                return String(content.prefix(maxLength)) + "\n\n--- Preview truncated (\(content.count.formatted()) characters stored) ---"
+            }
+            sqlite3_finalize(fastStmt)
+        }
+
+        // Fallback to FTS5 table
         let sql = "SELECT content FROM documents WHERE document_id = ? LIMIT 1"
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else { return nil }
@@ -2057,6 +2156,174 @@ actor SQLiteFullTextService {
         }
 
         return nil
+    }
+
+    // MARK: - Non-Isolated Content Reader
+
+    /// Populate document_content table from FTS5 in the background.
+    /// Opens its own connection — does NOT touch the actor. Called once
+    /// after the Database tab loads so subsequent document taps are instant.
+    nonisolated static func backgroundPopulateContentTable() {
+        let fm = FileManager.default
+        guard let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else { return }
+        let dbPath = appSupport
+            .appendingPathComponent("OpenIntelligence/FTS5", isDirectory: true)
+            .appendingPathComponent("fulltext.sqlite")
+            .path
+
+        var db: OpaquePointer?
+        guard sqlite3_open_v2(dbPath, &db, SQLITE_OPEN_READWRITE, nil) == SQLITE_OK else {
+            if let db = db { sqlite3_close(db) }
+            return
+        }
+        defer { sqlite3_close(db) }
+
+        sqlite3_busy_timeout(db, 5000)
+
+        // Quick check: if document_content already has at least as many rows as documents, skip.
+        let contentCount = { () -> Int in
+            let sql = "SELECT COUNT(*) FROM document_content"
+            var stmt: OpaquePointer?
+            guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return -1 }
+            defer { sqlite3_finalize(stmt) }
+            return sqlite3_step(stmt) == SQLITE_ROW ? Int(sqlite3_column_int(stmt, 0)) : -1
+        }()
+
+        let docCount = { () -> Int in
+            let sql = "SELECT COUNT(*) FROM documents"
+            var stmt: OpaquePointer?
+            guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return -1 }
+            defer { sqlite3_finalize(stmt) }
+            return sqlite3_step(stmt) == SQLITE_ROW ? Int(sqlite3_column_int(stmt, 0)) : -1
+        }()
+
+        guard contentCount >= 0 && contentCount < docCount else { return }
+
+        // Backfill any missing rows
+        let backfillSQL = """
+            INSERT OR IGNORE INTO document_content (document_id, container_id, content)
+            SELECT document_id, container_id, content FROM documents
+        """
+        var stmt: OpaquePointer?
+        if sqlite3_prepare_v2(db, backfillSQL, -1, &stmt, nil) == SQLITE_OK {
+            sqlite3_step(stmt)
+            sqlite3_finalize(stmt)
+        }
+    }
+
+    /// Read document content WITHOUT going through the actor queue.
+    /// Opens a separate read-only SQLite connection, bypassing actor contention.
+    ///
+    /// When the Database Dashboard opens, `loadAllData()` fires 6 expensive
+    /// async let calls to this actor. All execute serially. If the user taps
+    /// a document before they finish, `getFullContent()` queues behind ALL of
+    /// them, causing the preview sheet to spin indefinitely.
+    ///
+    /// This static method sidesteps the issue entirely by opening its own
+    /// read-only connection. Safe because SQLite WAL mode supports concurrent readers.
+    nonisolated static func readContentDirectly(documentId: UUID) -> String? {
+        let fm = FileManager.default
+        guard let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            return nil
+        }
+        let dbPath = appSupport
+            .appendingPathComponent("OpenIntelligence/FTS5", isDirectory: true)
+            .appendingPathComponent("fulltext.sqlite")
+            .path
+
+        // Open separate read-only connection — does NOT touch the actor's connection
+        var db: OpaquePointer?
+        guard sqlite3_open_v2(dbPath, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
+            if let db = db { sqlite3_close(db) }
+            return nil
+        }
+        defer { sqlite3_close(db) }
+
+        // Query the B-tree indexed document_content table (O(log n) lookup).
+        // The FTS5 'documents' table has document_id UNINDEXED, which means
+        // WHERE document_id = ? requires a full table scan — 30+ seconds for
+        // large document sets. document_content has a PRIMARY KEY index.
+        let sql = "SELECT content FROM document_content WHERE document_id = ? LIMIT 1"
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
+            // Fallback: table may not exist yet (pre-migration). Try FTS5 table.
+            return readFromFTS5Fallback(db: db!, documentId: documentId)
+        }
+        defer { sqlite3_finalize(statement) }
+
+        sqlite3_bind_text(statement, 1, documentId.uuidString, -1, SQLITE_TRANSIENT)
+
+        if sqlite3_step(statement) == SQLITE_ROW,
+           let contentPtr = sqlite3_column_text(statement, 0) {
+            return String(cString: contentPtr)
+        }
+
+        // Fallback to FTS5 if document_content doesn't have the row yet
+        // (documents ingested before this migration)
+        return readFromFTS5Fallback(db: db!, documentId: documentId)
+    }
+
+    /// Fallback reader for documents ingested before the document_content table existed.
+    /// Scans the FTS5 table (slow for large datasets, but works).
+    /// When it finds data, also inserts into document_content so subsequent reads are O(log n).
+    private nonisolated static func readFromFTS5Fallback(db: OpaquePointer, documentId: UUID) -> String? {
+        let sql = "SELECT content, container_id FROM documents WHERE document_id = ? LIMIT 1"
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
+            return nil
+        }
+        defer { sqlite3_finalize(statement) }
+
+        sqlite3_bind_text(statement, 1, documentId.uuidString, -1, SQLITE_TRANSIENT)
+
+        if sqlite3_step(statement) == SQLITE_ROW,
+           let contentPtr = sqlite3_column_text(statement, 0) {
+            let content = String(cString: contentPtr)
+            let containerId = sqlite3_column_text(statement, 1).map { String(cString: $0) }
+
+            // Migrate this single row to document_content for fast future reads.
+            // Uses a READWRITE connection briefly — safe under WAL mode.
+            migrateRowToContentTable(dbPath: db, documentId: documentId, containerId: containerId, content: content)
+
+            return content
+        }
+
+        return nil
+    }
+
+    /// Migrate a single row from FTS5 → document_content on demand.
+    /// Opens a brief read-write connection to INSERT the row so subsequent
+    /// reads hit the B-tree indexed table instead of scanning FTS5.
+    private nonisolated static func migrateRowToContentTable(dbPath: OpaquePointer, documentId: UUID, containerId: String?, content: String) {
+        // We need a writable connection — the passed db is read-only.
+        // Get the path from the read-only handle.
+        guard let pathPtr = sqlite3_db_filename(dbPath, "main") else { return }
+        let path = String(cString: pathPtr)
+
+        var rwDb: OpaquePointer?
+        guard sqlite3_open_v2(path, &rwDb, SQLITE_OPEN_READWRITE, nil) == SQLITE_OK else {
+            if let rwDb = rwDb { sqlite3_close(rwDb) }
+            return
+        }
+        defer { sqlite3_close(rwDb) }
+
+        // Set busy timeout so we don't fail immediately if the actor holds a write lock
+        sqlite3_busy_timeout(rwDb, 3000)
+
+        let insertSQL = "INSERT OR IGNORE INTO document_content (document_id, container_id, content) VALUES (?, ?, ?)"
+        var insertStmt: OpaquePointer?
+        guard sqlite3_prepare_v2(rwDb, insertSQL, -1, &insertStmt, nil) == SQLITE_OK else { return }
+        defer { sqlite3_finalize(insertStmt) }
+
+        sqlite3_bind_text(insertStmt, 1, documentId.uuidString, -1, SQLITE_TRANSIENT)
+        if let containerId = containerId {
+            sqlite3_bind_text(insertStmt, 2, containerId, -1, SQLITE_TRANSIENT)
+        } else {
+            sqlite3_bind_null(insertStmt, 2)
+        }
+        sqlite3_bind_text(insertStmt, 3, content, -1, SQLITE_TRANSIENT)
+
+        sqlite3_step(insertStmt)
     }
 
     /// Get string value from PRAGMA

@@ -759,6 +759,7 @@ struct FrameAnalysis {
     let detectedObjects: [String]   // Animals, people, etc.
     let humanPoses: [DetectedPose]  // Human skeleton poses
     let animalPoses: [DetectedPose] // Animal skeleton poses
+    let lensSmudgeDetected: Bool    // iOS 26 lens smudge detection
 }
 
 /// Capture result ready for RAG ingestion

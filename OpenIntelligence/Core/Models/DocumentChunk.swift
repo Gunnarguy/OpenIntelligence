@@ -121,6 +121,14 @@ struct ChunkMetadata: Codable, Sendable {
     /// Used by EntityIndexService for cross-document correlation and GraphRAG-lite expansion
     let entities: [String]
 
+    // MARK: - Abbreviation Dictionary (Feb 2026)
+
+    /// Abbreviation→expansion mappings extracted during chunking.
+    /// Captures inline definitions like "Emotional Dysregulation (ED)" or "ED: Emotional Dysregulation"
+    /// Injected into LLM context as a glossary to prevent abbreviation cross-contamination hallucinations.
+    /// Example: ["ED": "Emotional Dysregulation", "ODD": "Oppositional Defiant Disorder"]
+    let abbreviations: [String: String]
+
     // MARK: - Abstraction Level (RAPTOR-lite, Jun 2025)
 
     /// Hierarchy level for this chunk (0=detail, 1=docSummary, 2=cluster, 3=library)
@@ -166,6 +174,7 @@ struct ChunkMetadata: Codable, Sendable {
         siblingGroupId: String? = nil,
         siblingCount: Int? = nil,
         entities: [String] = [],
+        abbreviations: [String: String] = [:],
         abstractionLevel: ChunkAbstractionLevel = .detail,
         sectionPath: [String]? = nil,
         bboxArray: [CGFloat]? = nil
@@ -186,6 +195,7 @@ struct ChunkMetadata: Codable, Sendable {
         self.siblingGroupId = siblingGroupId
         self.siblingCount = siblingCount
         self.entities = entities
+        self.abbreviations = abbreviations
         self.abstractionLevel = abstractionLevel
         self.sectionPath = sectionPath
         self.bboxArray = bboxArray
@@ -208,6 +218,7 @@ struct ChunkMetadata: Codable, Sendable {
         case siblingGroupId
         case siblingCount
         case entities
+        case abbreviations
         case abstractionLevel
         case sectionPath
         case bboxArray
@@ -239,6 +250,8 @@ struct ChunkMetadata: Codable, Sendable {
         siblingCount = try container.decodeIfPresent(Int.self, forKey: .siblingCount)
         // Entity extraction (optional for backward compatibility with old chunks)
         entities = try container.decodeIfPresent([String].self, forKey: .entities) ?? []
+        // Abbreviation dictionary (optional for backward compatibility)
+        abbreviations = try container.decodeIfPresent([String: String].self, forKey: .abbreviations) ?? [:]
         // Abstraction level (defaults to .detail for old chunks without this field)
         abstractionLevel = try container.decodeIfPresent(ChunkAbstractionLevel.self, forKey: .abstractionLevel) ?? .detail
         // Section path hierarchy (optional for backward compatibility)
@@ -271,6 +284,10 @@ struct ChunkMetadata: Codable, Sendable {
         // Entity extraction
         if !entities.isEmpty {
             try container.encode(entities, forKey: .entities)
+        }
+        // Abbreviation dictionary
+        if !abbreviations.isEmpty {
+            try container.encode(abbreviations, forKey: .abbreviations)
         }
         // Abstraction level (only encode if not .detail to save space)
         if abstractionLevel != .detail {

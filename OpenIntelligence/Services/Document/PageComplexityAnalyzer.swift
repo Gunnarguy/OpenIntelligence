@@ -694,11 +694,8 @@ final class PageComplexityAnalyzer: @unchecked Sendable {
         var chartConfidence = 0.0
         var figureConfidence = 0.0
 
-        // Convert CIImage to CGImage for Vision
-        var cgImage: CGImage?
-        gpuQueue.sync {
-            cgImage = ciContext.createCGImage(image, from: image.extent)
-        }
+        // Convert CIImage to CGImage for Vision (CIContext is thread-safe)
+        let cgImage = ciContext.createCGImage(image, from: image.extent)
 
         guard let cgImg = cgImage else {
             return VisionAnalysisResults(imageConfidence: 0, tableConfidence: 0, chartConfidence: 0, figureConfidence: 0)

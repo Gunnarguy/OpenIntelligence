@@ -10,7 +10,7 @@ import Foundation
 import NaturalLanguage
 
 /// Helper to silence deprecation warning for legacy NLEmbeddingProvider
-@available(*, deprecated, message: "Use CoreMLSentenceEmbeddingProvider instead")
+@available(iOS, deprecated: 999.0, message: "Use CoreMLSentenceEmbeddingProvider instead")
 private func makeLegacyNLEmbeddingProvider() -> NLEmbeddingProvider {
     NLEmbeddingProvider()
 }
@@ -179,14 +179,9 @@ class EmbeddingService {
     /// Returns `any EmbeddingProvider` to avoid exposing deprecated type in signature.
     @inline(__always)
     private static func makeLegacyNLEmbeddingProvider() -> any EmbeddingProvider {
-        // NLEmbeddingProvider is deprecated but intentionally used for legacy fallback.
-        // swiftlint:disable:next deprecated
-        #if swift(>=6.0)
-            nonisolated(unsafe) let provider = NLEmbeddingProvider()
-        #else
-            let provider = NLEmbeddingProvider()
-        #endif
-        return provider
+        // Delegate to top-level function which has @available(iOS, deprecated: 999.0)
+        // to suppress the NLEmbeddingProvider deprecation warning
+        OpenIntelligence.makeLegacyNLEmbeddingProvider()
     }
 
     // MARK: - Public API

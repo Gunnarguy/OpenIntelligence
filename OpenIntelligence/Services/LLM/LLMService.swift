@@ -930,6 +930,14 @@ struct LLMResponse {
         func generate(prompt: String, context: String?, config: InferenceConfig) async throws
             -> LLMResponse
         {
+            // MARK: Locale Validation (iOS 26+)
+            // Verify the current locale is supported before generation to provide
+            // a clear error rather than garbled output from unsupported languages
+            if !supportsCurrentLocale {
+                let currentLocale = Locale.current.identifier
+                Log.warning("Current locale '\(currentLocale)' not supported by Apple Intelligence — generation may produce degraded output", category: .llm)
+            }
+
             // Force statelessness: RAGService manages history manually and constructs a full prompt
             // including previous conversation. Reusing the session would duplicate history.
             session = nil
@@ -1031,21 +1039,22 @@ struct LLMResponse {
                 }
 
                 if config.systemPrompt != nil {
-                    // System instructions already set. Provide context + question concisely.
-                    // BUDGET-CONSCIOUS: Save ~150 tokens vs verbose template.
+                    // System instructions already set — formatting is handled by systemPrompt.
+                    // BUDGET-CONSCIOUS: No duplicate formatting instructions. Save ~80 tokens.
                     fullPrompt = """
                     CONTEXT:
                     \(context)
 
                     QUESTION: \(sanitizedPrompt)
 
-                    Answer thoroughly from context. Use EXACT values — never substitute. NEVER invent numbers or measurements not in context.
+                    Answer using EXACT values from the context. Merge overlapping excerpts — NEVER repeat the same sentence frame.
                     """
                 } else {
                     // No system prompt — embed minimal instructions in prompt.
                     fullPrompt = """
                     Answer from the excerpts below. Be thorough. Copy values VERBATIM.
                     Cite sources [Document Name, p.X].
+                    Merge overlapping excerpts — NEVER repeat the same sentence frame.
 
                     EXCERPTS:
                     \(context)
@@ -1181,13 +1190,13 @@ struct LLMResponse {
                     responseText = snapshot.content
                     let newChars = responseText.count - previousLength
 
-                    // More accurate token counting based on word boundaries
-                    let currentWords = responseText.split(separator: " ").count
-                    let previousWords = tokenCount
-                    let newWords = currentWords - previousWords
+                    // Token counting based on Apple FM's ~1.4 chars/token ratio
+                    // (word count underestimates by ~23% for English, more for technical text)
+                    let currentTokenEstimate = max(1, Int(ceil(Double(responseText.count) / 1.4)))
+                    let newTokens = currentTokenEstimate - tokenCount
 
-                    if newWords > 0 {
-                        tokenCount = currentWords
+                    if newTokens > 0 {
+                        tokenCount = currentTokenEstimate
                     }
 
                     // Emit new content to streaming context
@@ -1231,7 +1240,7 @@ struct LLMResponse {
                     unsupportedLanguage = true
                 case let .rateLimited(context):
                     Log.warning("[FM] Rate limited: \(context)", category: .llm)
-                    throw LLMError.generationFailed(
+                    throw LLMError.rateLimited(
                         "Apple Intelligence is temporarily rate-limited. Please wait a moment and try again."
                     )
                 case let .refusal(refusal, context):
@@ -1251,7 +1260,7 @@ struct LLMResponse {
                     )
                 case let .concurrentRequests(context):
                     Log.warning("[FM] Concurrent requests blocked: \(context)", category: .llm)
-                    throw LLMError.generationFailed(
+                    throw LLMError.concurrentRequests(
                         "A request is already in progress. Please wait for it to complete."
                     )
                 case let .unsupportedGuide(context):
@@ -1336,8 +1345,10 @@ struct LLMResponse {
                 }
             }
 
-            // Post-processing: strip any repetitive content from the final response
+            // Post-processing: normalize FM formatting quirks, then dedup
+            responseText = convertInlineBulletsToProseFlow(responseText)
             responseText = deduplicateResponse(responseText)
+            responseText = stripExcessiveBolding(responseText)
 
             LLMStreamingContext.emit(text: "", isFinal: true)
 
@@ -1581,10 +1592,11 @@ struct LLMResponse {
                 result.append(line)
             }
 
-            // Safety: if dedup would remove >60% of content, it's too aggressive
-            // (the LLM probably generated varied content that just looks similar)
+            // Safety: only reject line-dedup if it would leave fewer than 3 meaningful lines.
+            // When 48/59 lines are truly identical (exact match), the 11 unique lines are the
+            // correct output — falling back to the original would preserve degenerate repetition.
             let keptNonEmpty = result.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.count
-            let linePassTooAggressive = totalNonEmpty > 5 && keptNonEmpty < totalNonEmpty / 3
+            let linePassTooAggressive = keptNonEmpty < 3 && totalNonEmpty > 5
             if linePassTooAggressive {
                 Log.warning("[FM] Deduplication line-pass aggressive (\(dedupCount) of \(totalNonEmpty) lines) — using sentence-pass cleanup", category: .llm)
             }
@@ -1595,6 +1607,8 @@ struct LLMResponse {
 
             var normalized = linePassTooAggressive ? text : result.joined(separator: "\n")
             normalized = collapseRepeatedSentenceRuns(in: normalized)
+            normalized = collapseFuzzySimilarSentences(in: normalized)
+            normalized = collapseRepetitiveTemplates(in: normalized)
             normalized = trimDominantRepeatedSentence(in: normalized)
             normalized = cleanMalformedListArtifacts(in: normalized)
             return normalized
@@ -1630,12 +1644,17 @@ struct LLMResponse {
                 output.removeLast()
             }
 
-            // Drop dangling markdown tail fragments from truncated headings, e.g., "**Expected"
-            output = output.replacingOccurrences(
-                of: #"\*\*[A-Za-z][A-Za-z\s]{0,30}$"#,
-                with: "",
-                options: .regularExpression
-            )
+            // Drop dangling UNCLOSED bold markers from truncated headings, e.g., "**Expected"
+            // Only strip if the bold is unclosed (no matching **), preserving valid "**term**" at end
+            let trailingBoldPattern = #"\*\*[A-Za-z][A-Za-z\s]{0,30}$"#
+            if let trailingMatch = output.range(of: trailingBoldPattern, options: .regularExpression) {
+                let candidate = String(output[trailingMatch])
+                // Only strip if it's truly unclosed — no closing ** in the candidate
+                let innerContent = candidate.dropFirst(2) // Remove leading **
+                if !innerContent.contains("**") {
+                    output.replaceSubrange(trailingMatch, with: "")
+                }
+            }
 
             // Normalize excessive whitespace/newlines after cleanup
             output = output.replacingOccurrences(of: #"\n{3,}"#, with: "\n\n", options: .regularExpression)
@@ -1643,8 +1662,230 @@ struct LLMResponse {
             return output.trimmingCharacters(in: .whitespacesAndNewlines)
         }
 
+        /// Convert inline bullet markers to flowing prose.
+        /// Apple FM often puts bullet lists all on one line: "intro: * item1 * item2 * item3"
+        /// This removes the * markers so the text reads as natural prose.
+        /// Cleans only genuinely malformed inline bullets (e.g., "situations: * Cruise Control")
+        /// while preserving legitimate markdown list formatting.
+        private func convertInlineBulletsToProseFlow(_ text: String) -> String {
+            var output = text
+            var totalConverted = 0
+
+            // Pattern 1: Inline bullet "... situations: * Cruise Control"
+            // Matches ": * " or ". * " followed by a word character — these are NEVER valid markdown
+            let inlineBulletPattern = #"(?::|\.)\s\*\s(?=\w)"#
+            let inlineBulletCount = (try? NSRegularExpression(pattern: inlineBulletPattern))?
+                .numberOfMatches(in: output, range: NSRange(output.startIndex..., in: output)) ?? 0
+            if inlineBulletCount >= 1 {
+                // Replace ": * Word" with ": Word" and ". * Word" with ". Word"
+                output = output.replacingOccurrences(
+                    of: #"([:.])\s\*\s"#,
+                    with: "$1 ",
+                    options: .regularExpression
+                )
+                totalConverted += inlineBulletCount
+            }
+
+            // Pattern 2: Line-start bullets — PRESERVED for legitimate markdown formatting.
+            // Only clean truly inline junk, not proper "- item\n- item" markdown lists.
+
+            // Pattern 3: Mid-sentence standalone bullets " * Word" (space-star-space-word)
+            // Only convert when preceded by non-whitespace (legitimate bullets start lines)
+            let midBulletPattern = #"(?<=\S) \* (?=[A-Z\w])"#
+            let midCount = (try? NSRegularExpression(pattern: midBulletPattern))?
+                .numberOfMatches(in: output, range: NSRange(output.startIndex..., in: output)) ?? 0
+            if midCount >= 2 {
+                output = output.replacingOccurrences(of: midBulletPattern, with: ". ", options: .regularExpression)
+                totalConverted += midCount
+            }
+
+            // Clean up any double-period artifacts
+            output = output.replacingOccurrences(of: ".. ", with: ". ")
+            output = output.replacingOccurrences(of: "..", with: ".")
+
+            if totalConverted > 0 {
+                Log.info("[FM] Converted \(totalConverted) inline bullet artifacts to prose flow", category: .llm)
+            }
+
+            return output.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        /// Normalize markdown bolding from FM output using smart deduplication.
+        /// Instead of all-or-nothing stripping, this keeps the FIRST occurrence of each
+        /// unique bold phrase and removes duplicates. Caps total unique bold terms at 8.
+        /// This is the universal safety net — works regardless of what the LLM produces.
+        private func stripExcessiveBolding(_ text: String) -> String {
+            let boldPattern = #"\*\*([^*]+?)\*\*"#
+            guard let boldRegex = try? NSRegularExpression(pattern: boldPattern) else { return text }
+            let matches = boldRegex.matches(in: text, range: NSRange(text.startIndex..., in: text))
+
+            guard !matches.isEmpty else { return text }
+
+            let boldCount = matches.count
+            let wordCount = text.split(separator: " ").count
+            let boldDensity = wordCount > 0 ? Double(boldCount) * 100.0 / Double(wordCount) : 0
+
+            // Truly catastrophic — LLM bolded everything. Nuclear strip.
+            if boldCount > 25 || boldDensity > 20.0 {
+                let stripped = text.replacingOccurrences(
+                    of: boldPattern,
+                    with: "$1",
+                    options: .regularExpression
+                )
+                Log.info("[FM] Nuclear bold strip: \(boldCount) spans (density: \(String(format: "%.1f", boldDensity))%)", category: .llm)
+                return stripped
+            }
+
+            // Reasonable bolding — keep it all
+            if boldCount <= 8 && boldDensity <= 12.0 {
+                return text
+            }
+
+            // Smart deduplication: keep first occurrence of each unique bold phrase, strip repeats.
+            // Scale cap proportionally: longer responses can have more bold terms.
+            var seenPhrases: Set<String> = []
+            var uniqueKept = 0
+            let maxUniqueBold = min(12, max(4, wordCount / 25))
+
+            var result = text
+            // Process matches in reverse to preserve string indices
+            for match in matches.reversed() {
+                guard let phraseRange = Range(match.range(at: 1), in: result) else { continue }
+                guard let fullRange = Range(match.range, in: result) else { continue }
+                let phrase = String(result[phraseRange]).lowercased().trimmingCharacters(in: .whitespaces)
+
+                if seenPhrases.contains(phrase) || uniqueKept >= maxUniqueBold {
+                    // Duplicate or over cap — strip the bold markers, keep the text
+                    result.replaceSubrange(fullRange, with: String(result[phraseRange]))
+                } else {
+                    // First occurrence — keep it bold
+                    seenPhrases.insert(phrase)
+                    uniqueKept += 1
+                }
+            }
+
+            let stripped = boldCount - uniqueKept
+            if stripped > 0 {
+                Log.info("[FM] Bold normalization: kept \(uniqueKept) unique, stripped \(stripped) duplicates (was \(boldCount) total, density: \(String(format: "%.1f", boldDensity))%)", category: .llm)
+            }
+
+            return result
+        }
+
+        /// Collapse sentences that share a 5+ word prefix template into one combined sentence.
+        /// "X is A. X is B. X is C." → "X is A, B, or C."
+        /// Catches owner-manual boilerplate where the same sentence frame is copied with different values.
+        private func collapseRepetitiveTemplates(in text: String) -> String {
+            let rawSentences = text.components(separatedBy: ".")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty && $0.count >= 15 }
+
+            guard rawSentences.count >= 4 else { return text }
+
+            // Group sentences by their first 5 lowercased words
+            var prefixGroups: [String: [Int]] = [:]
+            for (i, sentence) in rawSentences.enumerated() {
+                let words = sentence.lowercased()
+                    .split(separator: " ")
+                    .map(String.init)
+                guard words.count >= 5 else { continue }
+                let key = words.prefix(5).joined(separator: " ")
+                prefixGroups[key, default: []].append(i)
+            }
+
+            var mergedIndices: Set<Int> = []
+            var replacements: [Int: String] = [:]
+
+            for (_, indices) in prefixGroups where indices.count >= 3 {
+                // Compute exact shared prefix across all sentences
+                let wordArrays = indices.map { idx in
+                    rawSentences[idx].split(separator: " ").map(String.init)
+                }
+                var prefixLen = wordArrays[0].count
+                for words in wordArrays.dropFirst() {
+                    var common = 0
+                    for (a, b) in zip(wordArrays[0], words) {
+                        if a.lowercased() == b.lowercased() { common += 1 } else { break }
+                    }
+                    prefixLen = min(prefixLen, common)
+                }
+                guard prefixLen >= 5 else { continue }
+
+                let prefixText = wordArrays[0].prefix(prefixLen).joined(separator: " ")
+                let suffixes = indices.compactMap { idx -> String? in
+                    let suffix = rawSentences[idx].split(separator: " ")
+                        .dropFirst(prefixLen)
+                        .joined(separator: " ")
+                    return suffix.isEmpty ? nil : suffix
+                }
+
+                guard suffixes.count >= 2 else { continue }
+
+                let merged: String
+                if suffixes.count == 2 {
+                    merged = prefixText + " " + suffixes[0] + " or " + suffixes[1]
+                } else {
+                    let allButLast = suffixes.dropLast().joined(separator: ", ")
+                    merged = prefixText + " " + allButLast + ", or " + suffixes.last!
+                }
+
+                replacements[indices[0]] = merged
+                for idx in indices.dropFirst() { mergedIndices.insert(idx) }
+                Log.info("[FM] Collapsed \(indices.count) template-repetitive sentences into one", category: .llm)
+            }
+
+            guard !replacements.isEmpty else { return text }
+
+            var result: [String] = []
+            for (i, sentence) in rawSentences.enumerated() {
+                if let merged = replacements[i] {
+                    result.append(merged)
+                } else if !mergedIndices.contains(i) {
+                    result.append(sentence)
+                }
+            }
+
+            return result.joined(separator: ". ") + "."
+        }
+
         /// Collapses contiguous repeated sentence runs (e.g., same sentence repeated 10x).
         private func collapseRepeatedSentenceRuns(in text: String) -> String {
+            // Split into lines first, preserving markdown structure
+            let lines = text.components(separatedBy: "\n")
+            var resultLines: [String] = []
+            var proseBuffer: [String] = []
+
+            // Markdown line patterns that should NEVER be deduped or restructured
+            let markdownLinePattern = #"^\s*(#{1,6}\s|[-*•]\s|\d+[.)\]]\s|>\s|```|~~~|---+|\*\*\*+|___+)"#
+
+            func flushProseBuffer() {
+                guard !proseBuffer.isEmpty else { return }
+                let proseText = proseBuffer.joined(separator: "\n")
+                let deduped = deduplicateProseBlock(proseText)
+                resultLines.append(deduped)
+                proseBuffer.removeAll()
+            }
+
+            for line in lines {
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                if trimmed.isEmpty {
+                    flushProseBuffer()
+                    resultLines.append("")
+                } else if trimmed.range(of: markdownLinePattern, options: .regularExpression) != nil {
+                    // Markdown structural line — preserve exactly, do not dedup
+                    flushProseBuffer()
+                    resultLines.append(line)
+                } else {
+                    proseBuffer.append(line)
+                }
+            }
+            flushProseBuffer()
+
+            return resultLines.joined(separator: "\n")
+        }
+
+        /// Dedup only within a prose block — never across markdown structural elements
+        private func deduplicateProseBlock(_ text: String) -> String {
             let sentenceRegex = try? NSRegularExpression(pattern: #"[^.!?\n]+[.!?]?"#)
             guard let sentenceRegex else { return text }
 
@@ -1654,23 +1895,120 @@ struct LLMResponse {
             var rebuilt: [String] = []
             rebuilt.reserveCapacity(matches.count)
 
-            var lastKey: String?
+            var seenKeys: Set<String> = []
             for match in matches {
                 guard let range = Range(match.range, in: text) else { continue }
                 let sentence = String(text[range]).trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !sentence.isEmpty else { continue }
 
                 let key = normalizedSentenceKey(sentence)
-                if key == lastKey {
+                if seenKeys.contains(key) {
                     continue
                 }
 
+                seenKeys.insert(key)
                 rebuilt.append(sentence)
-                lastKey = key
             }
 
             guard !rebuilt.isEmpty else { return text }
             return rebuilt.joined(separator: " ")
+        }
+
+        /// Remove near-duplicate sentences using Jaccard word-set similarity.
+        /// Catches paraphrased sentences like "activated when the driver presses"
+        /// vs "activated by pressing" that share >65% of meaningful words.
+        /// Preserves markdown structural lines (headers, bullets, code fences, block quotes).
+        private func collapseFuzzySimilarSentences(in text: String) -> String {
+            // Common stop words to exclude from similarity comparison
+            let stopWords: Set<String> = [
+                "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
+                "have", "has", "had", "do", "does", "did", "will", "would", "could",
+                "should", "may", "might", "can", "to", "of", "in", "for", "on", "with",
+                "at", "by", "from", "as", "into", "through", "it", "its", "that", "this",
+                "or", "and", "but", "if", "not", "no", "so", "than", "also", "only"
+            ]
+
+            // Split by lines first to preserve markdown structure
+            let lines = text.components(separatedBy: "\n")
+            let markdownLinePattern = #"^\s*(#{1,6}\s|[-*•]\s|\d+[.)\]]\s|>\s|```|~~~|---+|\*\*\*+|___+)"#
+            var resultParts: [String] = []
+            var proseBuffer: [String] = []
+
+            func flushProse() {
+                guard !proseBuffer.isEmpty else { return }
+                let prose = proseBuffer.joined(separator: " ")
+                let sentences = prose.components(separatedBy: CharacterSet(charactersIn: ".!?"))
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { $0.count >= 15 }
+
+                if sentences.count < 3 {
+                    resultParts.append(proseBuffer.joined(separator: "\n"))
+                    proseBuffer.removeAll()
+                    return
+                }
+
+                let wordSets: [Set<String>] = sentences.map { sentence in
+                    Set(
+                        sentence.lowercased()
+                            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+                            .filter { $0.count > 2 && !stopWords.contains($0) }
+                    )
+                }
+
+                var kept: [Int] = []
+                for (i, words) in wordSets.enumerated() {
+                    guard words.count >= 3 else {
+                        kept.append(i)
+                        continue
+                    }
+                    var isFuzzyDup = false
+                    for j in kept {
+                        let keptWords = wordSets[j]
+                        guard keptWords.count >= 3 else { continue }
+                        let intersection = words.intersection(keptWords).count
+                        let union = words.union(keptWords).count
+                        let jaccard = Double(intersection) / Double(max(1, union))
+                        if jaccard > 0.65 {
+                            if sentences[i].count > sentences[j].count {
+                                if let idx = kept.firstIndex(of: j) {
+                                    kept[idx] = i
+                                }
+                            }
+                            isFuzzyDup = true
+                            break
+                        }
+                    }
+                    if !isFuzzyDup {
+                        kept.append(i)
+                    }
+                }
+
+                let fuzzyRemoved = sentences.count - kept.count
+                if fuzzyRemoved > 0 {
+                    Log.info("[FM] Fuzzy dedup removed \(fuzzyRemoved) near-duplicate sentences", category: .llm)
+                }
+
+                if !kept.isEmpty {
+                    resultParts.append(kept.map { sentences[$0] }.joined(separator: ". ") + ".")
+                }
+                proseBuffer.removeAll()
+            }
+
+            for line in lines {
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                if trimmed.isEmpty {
+                    flushProse()
+                    resultParts.append("")
+                } else if trimmed.range(of: markdownLinePattern, options: .regularExpression) != nil {
+                    flushProse()
+                    resultParts.append(line)
+                } else {
+                    proseBuffer.append(line)
+                }
+            }
+            flushProse()
+
+            return resultParts.joined(separator: "\n")
         }
 
         /// If one sentence dominates the response by heavy repetition, keep first occurrence only.
@@ -2563,6 +2901,8 @@ enum LLMError: LocalizedError {
     case generationFailed(String)
     case notImplemented
     case contextWindowExceeded
+    case rateLimited(String)
+    case concurrentRequests(String)
 
     var errorDescription: String? {
         switch self {
@@ -2574,6 +2914,10 @@ enum LLMError: LocalizedError {
             return "Feature not yet implemented"
         case .contextWindowExceeded:
             return "The context window size was exceeded."
+        case let .rateLimited(message):
+            return "Rate limited: \(message)"
+        case let .concurrentRequests(message):
+            return "Concurrent request blocked: \(message)"
         }
     }
 }

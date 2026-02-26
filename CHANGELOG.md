@@ -5,7 +5,48 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.2.0] - 2026-02-17 (Build 14)
+## [1.2.0] - 2026-02-24 (Build 14)
+
+### RAG-Grounded Response Transforms
+
+New `ResponseTransformService` provides 5 document-aware transforms that use the actual retrieved source chunks — not just the AI response text — to produce grounded, citation-backed output.
+
+- **Key Facts**: Extracts source-backed bullet points with document attribution
+- **Step-by-Step**: Converts procedures using real specs/part numbers from chunks
+- **Cross-Reference**: Compares information across multiple source documents
+- **Deep Dive**: Identifies follow-up questions the library can answer
+- **Flash Cards**: Generates Q&A pairs from source content for study/review
+- **System Instructions**: Persistent `Instructions()` keep the LLM grounded in its document analyst role
+- **Token-Aware Budgets**: Each transform type gets a tuned character budget respecting the 4096-token window
+- **Timeout Protection**: 30-second `TaskGroup` timeout prevents hung generations
+- **Task Cancellation**: Checks `Task.isCancelled` before expensive LLM work
+
+### AI Hub Toolbar Redesign
+
+Replaced the Simplify/Actionable toolbar with a 3-section AI Hub menu:
+
+- **Analyze**: Key Facts, Cross-Reference
+- **Transform**: Step-by-Step, Flash Cards
+- **Explore**: Deep Dive, Illustrate (Image Playground)
+- Uses `apple.intelligence` SF Symbol, disabled when no assistant response or during processing
+
+### Image Playground LLM Concept Extraction
+
+Image Playground now uses the on-device LLM to translate domain-specific content into visual scene descriptions, instead of raw NLTagger noun extraction.
+
+- **Universal approach**: LLM understands acronyms/jargon in context and converts to simple visual imagery ("SAE 0W-20" → "golden oil pouring into an engine")
+- **Strict constraints**: <35 chars per concept, no technical terms, no brand names, concrete visual objects only
+- **NLTagger fallback**: Falls through to NLTagger noun extraction if FoundationModels unavailable
+- **Eliminates "try another description"**: Previously, raw extracted nouns like "TPB" caused Image Playground to reject the prompt
+
+### Pipeline Quality Improvements
+
+- **BM25 `b` Parameter Fix**: `RAGEngine.bm25Scores()` used `b=0.75` while `HybridSearchService.BM25Scorer` used `b=0.5`. Since chunks are uniform size (≤310 words), heavy length normalization was hurting recall. Aligned both to `b=0.5`
+- **Accelerate Cosine Similarity**: `VerificationGateService` Gate E (Semantic Grounding) replaced manual dot-product loop with `vDSP.dot()` from Accelerate framework — same math, hardware-optimized
+- **Regex Pre-Compilation**: `RAGEngine` now compiles regex patterns once as `static let` properties instead of recompiling on every query
+- **NLTagger Lemmatization in BM25**: `HybridSearchService.tokenize()` now uses `NLTagger` with `.lemma` scheme for proper stemming ("running" → "run", "studies" → "study")
+
+---
 
 ### Rich Markdown Response Rendering
 
@@ -130,6 +171,76 @@ Critical fixes that prevent silent content loss on font-encoded PDFs and correct
 - **`RAGEngine.swift`**: Added `await` to `DeviceCapabilityService.shared.embeddingConcurrency` access
 - **`BNNSVectorDatabase.swift`**: Added `nonisolated(unsafe)` to `loadTask` (accessed in nonisolated init), discarded unused `copyBytes` result, changed `var combined` to `let`
 - **`StructuredDocumentParser.swift`**, **`CoreMLRegionDetector.swift`**, **`IntelligentDocumentProcessor.swift`**: Copied mutable `var request` to `let configuredRequest` before `@Sendable` closure capture
+
+---
+
+### Pipeline Reliability Hardening
+
+11 targeted fixes across the compression → generation → fallback chain to eliminate 0-token LLM responses. Previously, a single rate-limited Apple FM call could cascade into a completely empty answer with no fallback.
+
+#### Compression Hardening (ContextualCompressionService)
+
+- **Fresh Session Per Chunk**: `resetSession()` called before each compression — prevents transcript accumulation that overflowed the 4096-token context window after 3-4 sequential compressions
+- **Per-Chunk Error Isolation**: Each `compressChunk()` wrapped in `do/catch` with passthrough fallback — one failed chunk no longer aborts the entire batch
+- **12-Second Time Budget**: New `totalTimeBudget` parameter (default 12s) — if compression exceeds budget, remaining chunks passthrough as originals. Prevents hung FM calls from blocking the pipeline indefinitely
+- **Compression Cap**: Maximum 5 chunks sent to compression (was unlimited) — reduces sequential FM calls that exhaust rate limits before generation
+
+#### Generation Hardening (RAGService)
+
+- **Empty Response → Reliability Fallback**: LLM returning 0 tokens now routes to `buildReliabilityFallbackResponse()` instead of throwing `modelNotAvailable` — which previously bypassed the fallback entirely, showing users a generic error instead of extracted content
+- **Post-Compression Cooldown**: 1-second `Task.sleep` after compression (when savings > 0) lets Apple FM rate limits recover before the main generation call
+- **Rate-Limit Retry with Backoff**: `generateWithFallback()` detects rate-limited/concurrent errors, sleeps 2 seconds, and retries once before falling through to fallback services
+- **Partial Stream Threshold**: Lowered from 24 → 10 characters — salvages more partial output from interrupted generation streams
+
+#### Error Typing (LLMService)
+
+- **Typed `LLMError` Cases**: Added `.rateLimited(String)` and `.concurrentRequests(String)` to the `LLMError` enum — replaces fragile string matching with direct pattern matching
+- **Apple FM Error Routing**: `LanguageModelSession.GenerationError.rateLimited` and `.concurrentRequests` now throw typed errors instead of generic `.generationFailed(String)`
+
+#### Fallback Quality (RAGService)
+
+- **Extractive Path B Rewrite**: When all LLM attempts fail, the extractive fallback now uses 6 chunks × 500 characters (was 3 × 240) with section titles, source document names, and an explanatory header
+- **Fallback Error Logging**: Reliability fallback LLM failure now logged with `do/catch` (was silent `try?`)
+
+#### UI Error Handling (ChatScreen)
+
+- **Exhaustive Error Switch**: `ChatScreen.friendlyErrorMessage()` handles `.rateLimited` and `.concurrentRequests` with user-friendly messages
+
+---
+
+### Memory-Safe Large PDF Ingestion
+
+Prevents OOM watchdog kills during ingestion of 500+ page PDFs. A 542-page Kia Sportage manual was being killed by the debugger during the post-parsing image analysis phase.
+
+- **Results Array Release**: `results.removeAll()` called after extracting `allElements`/`pageTexts`, freeing ~100-200MB of `PageParseResult` objects before image analysis begins
+- **Image Batch Size 20 → 5**: Peak CIImage memory reduced from ~200MB to ~50MB per batch — 4 failing pages in a 5-page batch = ~16MB vs ~200MB in a 20-page batch
+- **144 DPI Image Understanding**: Full-page renders for `ImageUnderstandingService` use 2× scale (144 DPI) instead of 5× (360 DPI) — each page drops from ~25MB to ~4MB. Vision classification and OCR don't need 360 DPI for image content analysis
+- **autoreleasepool for Full-Page Renders**: Intermediate Core Graphics allocations from `renderPDFPageAsImage()` released immediately instead of accumulating until batch completion
+
+---
+
+### True Parallel Hybrid Search
+
+Hybrid search rewritten from "FTS5 injection into vector pool" to **two fully independent searches merged via Reciprocal Rank Fusion**. Previously, FTS5 hits were injected into the vector result pool with a synthetic 0.40 similarity score, then everything was re-scored with in-memory BM25. Now:
+
+- **Parallel execution**: Vector search and FTS5 chunk search run concurrently via `async let` (~40% faster)
+- **Native SQLite `bm25()` scoring**: Uses SQLite's built-in BM25 function at chunk granularity instead of in-memory `BM25Scorer.snapshot(from:)` — eliminates local IDF bias from small candidate pools
+- **FTS5-only matches no longer invisible**: Chunks found only by FTS5 (exact keyword match, no semantic similarity) get a fair RRF score from their BM25 rank alone
+- **True RRF fusion**: Two independently ranked lists merged via `reciprocalRankFusion()` which handles the UNION of both sets
+- **Location**: `HybridSearchService.searchWithFTS5()`
+
+### Expanded Test Coverage
+
+Test suite expanded from 44 tests (7 files) to 200+ tests (15 files), covering the highest-risk untested services:
+
+- **`BM25ScorerTests.swift`** (25 tests): IDF correctness, term frequency saturation, length normalization, tokenization, pre-tokenized queries, edge cases
+- **`SemanticChunkerTests.swift`** (20 tests): Word count limits (≤310), section detection, metadata accuracy, config presets, large documents, diagnostics
+- **`VerificationGateServiceTests.swift`** (15 tests): Gates A-E thresholds, year/integer exemptions, config comparison, result helpers
+- **`ContextPackingServiceTests.swift`** (12 tests): Token budget enforcement, truncation, graph context inclusion, character limits
+- **`QueryEnhancementServiceTests.swift`** (20 tests): Intent classification (keyword/conceptual/balanced), answer intent (8 types), query expansion, weight adjustments
+- **`ExtractiveQAServiceTests.swift`** (12 tests): Heuristic extraction, confidence scoring, multi-passage selection, edge cases
+- **`MarkdownRendererTests.swift`** (18 tests): View construction smoke tests for all block types, LLM-concatenated markdown, Unicode, edge cases
+- **`OCRConfigurationTests.swift`** (18 tests): Universal vocabulary, language support, dynamic vocabulary extraction, garbage text detection
 
 ---
 

@@ -83,11 +83,15 @@ final class ContextualCompressionService: @unchecked Sendable {
     /// - Parameters:
     ///   - chunk: The retrieved chunk text
     ///   - query: The user's query
+    ///   - sectionTitle: Optional section/topic title for the chunk (helps compression
+    ///     understand what the data represents, preventing over-compression when the
+    ///     query uses abbreviations like "HRV" but the chunk body has only raw stats)
     ///   - config: Compression settings
     /// - Returns: Compressed content containing only relevant sentences
     func compressChunk(
         _ chunk: String,
         forQuery query: String,
+        sectionTitle: String? = nil,
         config: Config = .default
     ) async throws -> CompressionResult {
         #if canImport(FoundationModels)
@@ -116,15 +120,28 @@ final class ContextualCompressionService: @unchecked Sendable {
                 return CompressionResult.passthrough(chunk)
             }
 
-            let prompt = buildCompressionPrompt(chunk: chunk, query: query, config: config)
+            let prompt = buildCompressionPrompt(chunk: chunk, query: query, sectionTitle: sectionTitle, config: config)
 
             let response = try await session.respond(to: prompt)
-            let compressed = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
+            var compressed = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            // GUARD: Strip query echo from compression output.
+            // Apple FM often echoes the query ("What's smart mode?") as a prefix.
+            // This fools downstream keyword scoring into thinking irrelevant chunks
+            // are highly relevant (they contain the query keywords, not document keywords).
+            compressed = stripQueryEcho(compressed, query: query)
 
             let elapsed = Date().timeIntervalSince(startTime)
             let originalTokens = estimateTokens(chunk)
             let compressedTokens = estimateTokens(compressed)
             let ratio = Double(compressedTokens) / Double(originalTokens)
+
+            // GUARD: If compression EXPANDED the text (ratio > 1.0), the LLM hallucinated
+            // new content instead of extracting. Discard and use original.
+            if ratio > 1.0 {
+                Log.info("[Compression] REJECTED expansion \(originalTokens)→\(compressedTokens) tokens (\(String(format: "%.0f", ratio * 100))%) — using original", category: .retrieval)
+                return CompressionResult.passthrough(chunk)
+            }
 
             Log.info("[Compression] \(originalTokens)→\(compressedTokens) tokens (\(String(format: "%.0f", ratio * 100))%) in \(String(format: "%.0f", elapsed * 1000))ms", category: .retrieval)
 
@@ -141,32 +158,75 @@ final class ContextualCompressionService: @unchecked Sendable {
         #endif
     }
 
-    /// Compress multiple chunks in parallel
+    /// Compress multiple chunks sequentially with per-chunk error isolation and time budget.
+    /// - Parameters:
+    ///   - chunks: The chunk texts to compress
+    ///   - query: The user's query
+    ///   - sectionTitles: Optional section titles for each chunk (parallel array)
+    ///   - config: Compression settings
+    ///   - totalTimeBudget: Maximum total seconds for all compressions (default 12s)
     func compressChunks(
         _ chunks: [String],
         forQuery query: String,
-        config: Config = .default
+        sectionTitles: [String?]? = nil,
+        config: Config = .default,
+        totalTimeBudget: TimeInterval = 12.0
     ) async throws -> [CompressionResult] {
-        // Process in batches to avoid overwhelming the model
         var results: [CompressionResult] = []
+        let batchStart = Date()
 
-        for chunk in chunks {
-            let result = try await compressChunk(chunk, forQuery: query, config: config)
-            results.append(result)
+        for (index, chunk) in chunks.enumerated() {
+            // Time budget check: bail out early if we've spent too long
+            let elapsed = Date().timeIntervalSince(batchStart)
+            if elapsed >= totalTimeBudget {
+                Log.warning("[Compression] Time budget exhausted (\(String(format: "%.1f", elapsed))s/\(String(format: "%.0f", totalTimeBudget))s) after \(index)/\(chunks.count) chunks — using originals for remainder", category: .retrieval)
+                // Passthrough remaining chunks
+                for remainIdx in index..<chunks.count {
+                    results.append(CompressionResult.passthrough(chunks[remainIdx]))
+                }
+                break
+            }
+
+            // Fresh session per chunk to avoid transcript accumulation that overflows
+            // the 4096-token context window after 3-4 compressions
+            resetSession()
+
+            let title = (sectionTitles != nil && index < sectionTitles!.count) ? sectionTitles![index] : nil
+
+            // Per-chunk error isolation: one failure doesn't kill the batch
+            do {
+                let result = try await compressChunk(chunk, forQuery: query, sectionTitle: title, config: config)
+                results.append(result)
+            } catch {
+                Log.warning("[Compression] Chunk \(index + 1)/\(chunks.count) failed: \(error.localizedDescription) — using original", category: .retrieval)
+                results.append(CompressionResult.passthrough(chunk))
+            }
         }
 
         let totalOriginal = results.reduce(0) { $0 + $1.originalTokens }
         let totalCompressed = results.reduce(0) { $0 + $1.compressedTokens }
+        let totalElapsed = Date().timeIntervalSince(batchStart)
 
         if totalOriginal > 0 {
             let overallRatio = Double(totalCompressed) / Double(totalOriginal)
-            Log.info("[Compression] Total: \(totalOriginal)→\(totalCompressed) tokens (\(String(format: "%.0f", overallRatio * 100))% of original)", category: .retrieval)
+            Log.info("[Compression] Total: \(totalOriginal)→\(totalCompressed) tokens (\(String(format: "%.0f", overallRatio * 100))% of original) in \(String(format: "%.1f", totalElapsed))s", category: .retrieval)
         }
 
         return results
     }
 
-    private func buildCompressionPrompt(chunk: String, query: String, config: Config) -> String {
+    private func buildCompressionPrompt(chunk: String, query: String, sectionTitle: String? = nil, config: Config) -> String {
+        // Prepend section title so the LLM understands context even when
+        // the chunk body is raw data (e.g. "2024: 1,821 records, avg 71.6 ms")
+        // and the query uses an abbreviation (e.g. "HRV"). Without this,
+        // compression drops to 1% (319→2 tokens) because it can't see the connection.
+        let chunkWithContext: String
+        if let title = sectionTitle, !title.isEmpty {
+            chunkWithContext = "[Section: \(title)]\n\(chunk)"
+        } else {
+            chunkWithContext = chunk
+        }
+
         if config.includeRelatedContext {
             // Verbose prompt: include related context for comprehensive answers
             return """
@@ -175,15 +235,18 @@ final class ContextualCompressionService: @unchecked Sendable {
             - Sentences that directly answer the question
             - Related context that provides important background
             - Technical details, specifications, or procedures mentioned
-            - Connections to other relevant concepts
 
-            Keep exact wording - do not paraphrase. Preserve technical terms and values.
-            Only respond with "NO_RELEVANT_CONTENT" if the text is completely unrelated.
+            CRITICAL RULES:
+            - Copy sentences EXACTLY from the text — do NOT paraphrase or create new text
+            - Do NOT include the question in your output
+            - Do NOT add introductions, labels, or commentary
+            - If the text does not help answer the question, respond ONLY with "NO_RELEVANT_CONTENT"
+            - The text must contain actual answers, not just words that appear in the question
 
             Question: \(query)
 
             Text:
-            \(chunk)
+            \(chunkWithContext)
 
             Relevant content:
             """
@@ -191,13 +254,14 @@ final class ContextualCompressionService: @unchecked Sendable {
             // Aggressive prompt: only directly answering sentences
             return """
             Extract ONLY the sentences that directly answer the question.
-            Remove all unrelated content. Keep exact wording - do not paraphrase.
+            Remove all unrelated content. Copy exact wording — do NOT paraphrase.
+            Do NOT include the question in your output.
             If nothing is relevant, respond with "NO_RELEVANT_CONTENT".
 
             Question: \(query)
 
             Text to compress:
-            \(chunk)
+            \(chunkWithContext)
 
             Relevant sentences only:
             """
@@ -225,6 +289,50 @@ final class ContextualCompressionService: @unchecked Sendable {
         // Scale factor: 1.3 for plain English, up to 2.0 for highly technical
         let subwordFactor: Float = 1.3 + (technicalRatio * 0.7)
         return max(1, Int(Float(wordCount) * subwordFactor))
+    }
+
+    /// Strip query text that the compression LLM echoed back as a prefix.
+    /// Apple FM frequently echoes the question ("What's smart mode?") at the start of
+    /// its response. This contaminates keyword scoring downstream.
+    private func stripQueryEcho(_ text: String, query: String) -> String {
+        var result = text
+        let queryTrimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let queryLower = queryTrimmed.lowercased()
+
+        // Strip exact query at start (with optional punctuation/whitespace after)
+        let resultLower = result.lowercased()
+        if resultLower.hasPrefix(queryLower) {
+            let afterQuery = result.index(result.startIndex, offsetBy: queryTrimmed.count)
+            var trimPoint = afterQuery
+            // Skip trailing punctuation and whitespace after the echoed query
+            while trimPoint < result.endIndex {
+                let ch = result[trimPoint]
+                if ch == " " || ch == "\n" || ch == "-" || ch == ":" || ch == "?" || ch == "!" {
+                    trimPoint = result.index(after: trimPoint)
+                } else {
+                    break
+                }
+            }
+            result = String(result[trimPoint...])
+        }
+
+        // Also strip "Context and Related Concepts:" hallucination headers
+        // Apple FM frequently generates these instead of extracting text
+        let hallucHeaders = [
+            "Context and Related Concepts:",
+            "Technical Details:",
+            "Related Information:"
+        ]
+        for header in hallucHeaders {
+            if let range = result.range(of: header, options: .caseInsensitive) {
+                // Remove the header and the line it's on
+                let lineStart = result[..<range.lowerBound].lastIndex(of: "\n") ?? result.startIndex
+                let lineEnd = result[range.upperBound...].firstIndex(of: "\n") ?? result.endIndex
+                result.removeSubrange(lineStart..<lineEnd)
+            }
+        }
+
+        return result.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// Reset session to free memory

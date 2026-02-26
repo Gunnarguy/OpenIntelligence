@@ -169,6 +169,51 @@ extension ContainerSettingsSheet {
         }
     }
 
+    // MARK: - AI Feature Overrides Section
+
+    @ViewBuilder
+    var aiFeatureOverridesSection: some View {
+        Section(header: Text("AI features — per-library overrides")) {
+            Text("Control which Apple Intelligence features are active for this library. These override the global settings.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            Toggle(isOn: $autoTagOnIngestion) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Auto-Tag on Ingestion")
+                    Text("Automatically extract entities and tags when documents are added")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Translation Language")
+                    .font(.subheadline.weight(.semibold))
+
+                Picker("Translation Language", selection: $preferredTranslationLanguage) {
+                    Text("Auto-detect").tag("auto")
+                    Text("English").tag("en")
+                    Text("Spanish").tag("es")
+                    Text("French").tag("fr")
+                    Text("German").tag("de")
+                    Text("Japanese").tag("ja")
+                    Text("Chinese (Simplified)").tag("zh-Hans")
+                    Text("Korean").tag("ko")
+                    Text("Portuguese").tag("pt")
+                    Text("Italian").tag("it")
+                    Text("Arabic").tag("ar")
+                }
+                .pickerStyle(.menu)
+
+                Text("Preferred language for translating queries and document content in this library.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+            .padding(.vertical, 4)
+        }
+    }
+
     // MARK: - Silicon-Native RAG Info
 
     @ViewBuilder

@@ -358,6 +358,25 @@ enum OCRConfiguration {
             return true
         }
 
+        // Rule 6: NLLanguageRecognizer nonsense detection
+        // Text that passes all character-level checks but forms no recognizable language.
+        // Catches reversed/scrambled text from font encoding errors that PHASE -1
+        // Jaccard missed (e.g., only a few pages affected in an otherwise good document).
+        // Only applies to lines with enough text to judge (>=15 letters) and only
+        // for Latin documents (CJK/Arabic have different tokenization).
+        if isLatinDocument && totalLetters >= 15 {
+            let recognizer = NLLanguageRecognizer()
+            recognizer.processString(trimmed)
+            let hypotheses = recognizer.languageHypotheses(withMaximum: 1)
+            let topConfidence = hypotheses.values.max() ?? 0
+            // If NLLanguageRecognizer can't identify ANY language with >20% confidence,
+            // this is likely garbled text. Real English text scores >0.8.
+            // Threshold of 0.2 is very conservative — only catches true nonsense.
+            if topConfidence < 0.2 {
+                return true
+            }
+        }
+
         return false
     }
 
@@ -1126,11 +1145,8 @@ enum AdaptivePreprocessor {
 
         let croppedImage = processedImage.cropped(to: image.extent)
 
-        // Eagerly render to CGImage to prevent Metal command buffer races
-        var renderedCGImage: CGImage?
-        gpuQueue.sync {
-            renderedCGImage = gpuContext.createCGImage(croppedImage, from: croppedImage.extent)
-        }
+        // Eagerly render to CGImage (CIContext is thread-safe)
+        let renderedCGImage = gpuContext.createCGImage(croppedImage, from: croppedImage.extent)
 
         if let cgImage = renderedCGImage {
             return CIImage(cgImage: cgImage)

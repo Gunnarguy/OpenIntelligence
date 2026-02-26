@@ -21,6 +21,17 @@ struct MessageListV2: View {
     var onThumbsUp: (() -> Void)?
     var onThumbsDown: (() -> Void)?
 
+    /// Called when user taps Translate on a message
+    var onTranslate: ((String) -> Void)?
+    /// Called when user taps Illustrate on a message
+    var onIllustrate: ((String) -> Void)?
+    /// Called when user taps Proofread on a message
+    var onProofread: ((String) -> Void)?
+    /// Called when user taps Rewrite on a message
+    var onRewrite: ((String) -> Void)?
+    /// Called when user taps Summarize on a message
+    var onSummarize: ((String) -> Void)?
+
     @State private var scrollProxy: ScrollViewProxy?
 
     init(
@@ -31,7 +42,12 @@ struct MessageListV2: View {
         onRegenerate: ((ChatMessage) -> Void)? = nil,
         onGoDeeper: (() -> Void)? = nil,
         onThumbsUp: (() -> Void)? = nil,
-        onThumbsDown: (() -> Void)? = nil
+        onThumbsDown: (() -> Void)? = nil,
+        onTranslate: ((String) -> Void)? = nil,
+        onIllustrate: ((String) -> Void)? = nil,
+        onProofread: ((String) -> Void)? = nil,
+        onRewrite: ((String) -> Void)? = nil,
+        onSummarize: ((String) -> Void)? = nil
     ) {
         _messages = messages
         self.streamingText = streamingText
@@ -41,6 +57,11 @@ struct MessageListV2: View {
         self.onGoDeeper = onGoDeeper
         self.onThumbsUp = onThumbsUp
         self.onThumbsDown = onThumbsDown
+        self.onTranslate = onTranslate
+        self.onIllustrate = onIllustrate
+        self.onProofread = onProofread
+        self.onRewrite = onRewrite
+        self.onSummarize = onSummarize
     }
 
     var body: some View {
@@ -60,7 +81,12 @@ struct MessageListV2: View {
                                     onRegenerate: snapshot.role == .assistant ? { onRegenerate?(snapshot) } : nil,
                                     onGoDeeper: snapshot.role == .assistant ? onGoDeeper : nil,
                                     onThumbsUp: snapshot.role == .assistant ? onThumbsUp : nil,
-                                    onThumbsDown: snapshot.role == .assistant ? onThumbsDown : nil
+                                    onThumbsDown: snapshot.role == .assistant ? onThumbsDown : nil,
+                                    onTranslate: snapshot.role == .assistant ? onTranslate : nil,
+                                    onIllustrate: snapshot.role == .assistant ? onIllustrate : nil,
+                                    onProofread: snapshot.role == .assistant ? onProofread : nil,
+                                    onRewrite: snapshot.role == .assistant ? onRewrite : nil,
+                                    onSummarize: snapshot.role == .assistant ? onSummarize : nil
                                 )
                                 .id(snapshot.id)
                                 .transition(.asymmetric(
@@ -126,12 +152,12 @@ struct MessageListV2: View {
 
     private func scrollToBottom(proxy: ScrollViewProxy, animated: Bool) {
         if animated {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { 
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                 proxy.scrollTo("bottom", anchor: .bottom)
             }
         } else {
             // Smooth micro-animation for streaming - keeps text visible without jarring
-            withAnimation(.easeOut(duration: 0.12)) { 
+            withAnimation(.easeOut(duration: 0.12)) {
                 proxy.scrollTo("bottom", anchor: .bottom)
             }
         }
@@ -175,6 +201,11 @@ private struct StreamingBubbleV2: View {
     let text: String
 
     @State private var cursorVisible = true
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    private var spacerMinLength: CGFloat {
+        horizontalSizeClass == .compact ? 24 : 60
+    }
 
     var body: some View {
         HStack(alignment: .bottom, spacing: 0) {
@@ -200,7 +231,7 @@ private struct StreamingBubbleV2: View {
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             .shadow(color: .black.opacity(0.04), radius: 2, x: 0, y: 1)
 
-            Spacer(minLength: 60)
+            Spacer(minLength: spacerMinLength)
         }
         .onAppear {
             withAnimation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true)) {
@@ -214,6 +245,11 @@ private struct StreamingBubbleV2: View {
 
 private struct TypingBubbleV2: View {
     @State private var pulse = false
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    private var spacerMinLength: CGFloat {
+        horizontalSizeClass == .compact ? 24 : 60
+    }
 
     var body: some View {
         HStack(alignment: .bottom, spacing: 0) {
@@ -232,7 +268,7 @@ private struct TypingBubbleV2: View {
             .shadow(color: .black.opacity(0.04), radius: 2, x: 0, y: 1)
             .opacity(pulse ? 0.9 : 1.0)
 
-            Spacer(minLength: 60)
+            Spacer(minLength: spacerMinLength)
         }
         .onAppear {
             withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {

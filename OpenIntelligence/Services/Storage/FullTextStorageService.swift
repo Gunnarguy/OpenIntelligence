@@ -19,11 +19,12 @@ actor FullTextStorageService {
 
     // MARK: - Storage
 
-    /// LRU-capped in-memory cache. Max 5 documents to limit memory footprint.
-    /// A 1000-page PDF ≈ 5 MB text; 5 docs = 25 MB max cache.
+    /// LRU-capped in-memory cache. Max 3 documents to limit memory footprint.
+    /// A 1000-page PDF ≈ 5 MB text; 3 docs = 15 MB max cache.
+    /// Reduced from 5 to prevent OOM on 8GB devices running heavy RAG pipelines.
     private var cache: [UUID: String] = [:]
     private var cacheOrder: [UUID] = [] // LRU order: oldest first, newest last
-    private let maxCacheSize = 5
+    private let maxCacheSize = 3
     private let fileManager = FileManager.default
 
     private var storageDirectory: URL {

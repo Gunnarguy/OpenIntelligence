@@ -214,7 +214,7 @@ final class KeyboardHeightObserver: ObservableObject {
 /// DESIGN: Ultra-subtle background visualization - present but not distracting.
 /// Color blends based on which components are active (CPU/GPU/ANE).
 struct HardwareXRayOverlay: View {
-    @ObservedObject private var telemetry = HardwareTelemetryState.shared
+    private var telemetry = HardwareTelemetryState.shared
     @StateObject private var keyboardObserver = KeyboardHeightObserver()
     @EnvironmentObject private var settings: SettingsStore
 
@@ -606,7 +606,7 @@ struct HardwareXRayOverlay_Previews: PreviewProvider {
     static var previews: some View {
         ZStack {
             Color.black.opacity(0.95)
-            HardwareXRayOverlay(showDeviceInfo: true)
+            HardwareXRayOverlay()
         }
         .ignoresSafeArea()
         .onAppear {

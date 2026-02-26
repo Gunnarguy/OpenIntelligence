@@ -122,7 +122,7 @@ import Foundation
         ///   - documentName: Optional document name for logging
         /// - Returns: ContentTags with topics, actions, emotions, and objects
         func generateTags(for text: String, documentName: String? = nil) async throws -> ContentTags {
-            guard let model = model else {
+            guard model != nil else {
                 Log.warning("[ContentTagging] Model not initialized", category: .llm)
                 return .empty
             }
@@ -156,12 +156,14 @@ import Foundation
             Use lowercase, concise tags (1-3 words each).
             """
 
-            session = LanguageModelSession(model: model, instructions: instructions)
+            session = LanguageModelSession(instructions: instructions)
 
             guard let session = session else {
                 Log.error("[ContentTagging] Failed to create session", category: .llm)
                 return .empty
             }
+
+            HardwareTelemetryState.shared.sustain(.llmInference, active: true, intensity: 0.7)
 
             do {
                 let response = try await session.respond(
@@ -171,6 +173,8 @@ import Foundation
 
                 let tags = response.content
                 let elapsed = Date().timeIntervalSince(startTime)
+                HardwareTelemetryState.shared.sustain(.llmInference, active: false)
+                DSHaptics.soft()
 
                 Log.info(
                     "[ContentTagging] Generated \(tags.displayTags.count) tags in \(String(format: "%.2f", elapsed))s for \(documentName ?? "document"): \(tags.displayTags.joined(separator: ", "))",
@@ -182,20 +186,24 @@ import Foundation
             } catch let error as LanguageModelSession.GenerationError {
                 switch error {
                 case .exceededContextWindowSize:
+                    HardwareTelemetryState.shared.sustain(.llmInference, active: false)
                     Log.warning("[ContentTagging] Context overflow, using shorter text sample", category: .llm)
                     // Retry with much shorter text
                     let shortText = String(text.prefix(2000))
                     return try await generateTags(for: shortText, documentName: documentName)
 
                 case .guardrailViolation:
+                    HardwareTelemetryState.shared.sustain(.llmInference, active: false)
                     Log.warning("[ContentTagging] Content flagged by guardrails", category: .llm)
                     return .empty
 
                 default:
+                    HardwareTelemetryState.shared.sustain(.llmInference, active: false)
                     Log.error("[ContentTagging] Generation error: \(error)", category: .llm)
                     return .empty
                 }
             } catch {
+                HardwareTelemetryState.shared.sustain(.llmInference, active: false)
                 Log.error("[ContentTagging] Unexpected error: \(error)", category: .llm)
                 return .empty
             }

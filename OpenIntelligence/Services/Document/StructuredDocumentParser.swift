@@ -23,7 +23,7 @@ import UIKit
 
 /// Serial queue to prevent Metal command buffer race conditions
 /// when multiple threads try to render CIImages concurrently
-private nonisolated(unsafe) let gpuRenderQueue = DispatchQueue(label: "com.openintelligence.structured-parser-gpu", qos: .userInitiated)
+private let gpuRenderQueue = DispatchQueue(label: "com.openintelligence.structured-parser-gpu", qos: .userInitiated)
 
 /// Shared Metal-backed CIContext for GPU-accelerated image processing
 /// CIContext is thread-safe.
@@ -384,8 +384,14 @@ actor StructuredDocumentParser {
     /// - Parameters:
     ///   - image: CIImage of the rendered PDF page
     ///   - pageNumber: 1-indexed page number for metadata
-    /// - Returns: Structured content with separated elements
-    func parsePageImage(_ image: CIImage, pageNumber: Int) async throws -> StructuredPageContent {
+    ///   - customWords: Document-specific vocabulary for RecognizeDocumentsRequest.
+    ///     Passed explicitly per-call so concurrent documents don't clobber each other's
+    ///     vocabulary via actor state (Gap 1 fix).
+    ///   - nativeWordCount: PDFKit word count for this page. Used as quality score
+    ///     ground truth denominator instead of Vision's own transcript word count,
+    ///     which under-counts dense tables and inflates qualityScore (Gap 2 fix).
+    ///     Only trusted when text layer is validated (not garbled) — caller enforces this.
+    func parsePageImage(_ image: CIImage, pageNumber: Int, customWords: [String], nativeWordCount: Int? = nil) async throws -> StructuredPageContent {
         let startTime = Date()
 
         // Report ANE activity to HUD (RecognizeDocumentsRequest uses Neural Engine)
@@ -393,19 +399,41 @@ actor StructuredDocumentParser {
             HardwareTelemetryState.shared.pulse(.llmInference, intensity: 0.8, duration: 0.5)  // Use llmInference for "structure analysis"
         }
 
-        // Convert CIImage to Data for Vision request
-        guard let imageData = imageToData(image) else {
+        // MEMORY: Scale to 50% (180 DPI from 360 DPI source) before PNG conversion.
+        // RecognizeDocumentsRequest detects document STRUCTURE (table outlines, heading
+        // positions, list nesting) — layout geometry, not glyph-level detail.
+        // 180 DPI is above Apple's recommended 150 DPI minimum for text recognition.
+        //
+        // Memory impact per page:
+        //   360 DPI: createCGImage → 274 MB + UIGraphicsImageRenderer → 137 MB = ~411 MB
+        //   180 DPI: createCGImage →  68 MB + UIGraphicsImageRenderer →  34 MB = ~102 MB
+        //
+        // With 3-5 concurrent parsePageImage calls in the TaskGroup:
+        //   Before fix: 3×411 MB + 3×206 MB (batchRenderData) = ~1.85 GB → OOM kill on pg 35
+        //   After fix:  3×102 MB + 3×206 MB (batchRenderData) = ~0.92 GB → safe
+        //
+        // CIImage.transformed(by:) is lazy — no pixel allocation until createCGImage fires.
+        let scaledForStructure = image.transformed(by: CGAffineTransform(scaleX: 0.5, y: 0.5))
+
+        // Convert scaled CIImage to Data for RecognizeDocumentsRequest (structure detection only).
+        // The original full-resolution image is retained separately for the VNRecognizeTextRequest
+        // fallback path, which is a pure OCR path where 360 DPI matters for fine print.
+        guard let structureImageData = imageToData(scaledForStructure) else {
             Log.warning("[StructuredDocumentParser] Failed to convert image to data, falling back to OCR", category: .ingestion)
             throw StructuredParsingError.imageConversionFailed
         }
+        // Lazily produce full-res data only if the OCR fallback path is actually needed.
+        // Avoids the memory cost on the happy path (structure found).
+        lazy var fullResImageData: Data? = imageToData(image)
 
         // Create and configure the request
         // RecognizeDocumentsRequest is simpler in iOS 26 - it handles text recognition internally
         var request = RecognizeDocumentsRequest()
 
         // Configure text recognition options for maximum accuracy
-        // customWords: universal terms + document-specific vocabulary extracted from PDFKit text layer
-        request.textRecognitionOptions.customWords = documentCustomWords
+        // customWords: universal terms + document-specific vocabulary, passed in explicitly
+        // per-call so concurrent document ingestion cannot clobber vocabulary via actor state.
+        request.textRecognitionOptions.customWords = customWords
         request.textRecognitionOptions.useLanguageCorrection = true
         request.textRecognitionOptions.automaticallyDetectLanguage = true
         request.textRecognitionOptions.minimumTextHeightFraction = 0.0  // Detect all text sizes
@@ -418,15 +446,17 @@ actor StructuredDocumentParser {
         // Perform the structured document recognition (throttled to prevent Metal GPU races)
         let configuredRequest = request
         let observations = try await VisionOCRThrottle.performAsync {
-            try await configuredRequest.perform(on: imageData)
+            try await configuredRequest.perform(on: structureImageData)
         }
 
         guard let document = observations.first?.document else {
             // RecognizeDocumentsRequest found no document structure
-            // Fall back to RecognizeTextRequest for plain text extraction
+            // Fall back to RecognizeTextRequest for plain text extraction.
+            // Use full-resolution image here — VNRecognizeTextRequest is pure OCR and benefits
+            // from 360 DPI for fine print, footnotes, and small table cell text.
             Log.info("[StructuredDocumentParser] No document structure on page \(pageNumber), trying RecognizeTextRequest", category: .ingestion)
             do {
-                let fallbackText = try await performTextRecognitionFallback(on: imageData)
+                let fallbackText = try await performTextRecognitionFallback(on: fullResImageData ?? structureImageData, customWords: customWords)
                 if !fallbackText.isEmpty {
                     let elapsed = Date().timeIntervalSince(startTime)
                     Log.info("[StructuredDocumentParser] RecognizeTextRequest captured \(fallbackText.split(separator: " ").count) words on page \(pageNumber) in \(String(format: "%.2f", elapsed))s", category: .ingestion)
@@ -532,14 +562,23 @@ actor StructuredDocumentParser {
         // If structured elements have significantly fewer words than raw text, quality is low
         let structuredWordCount = elements.reduce(0) { $0 + $1.textForEmbedding.split(separator: " ").count }
         var rawWordCount = rawText.split(separator: " ").count
-        var qualityScore: Double = rawWordCount > 0 ? min(1.0, Double(structuredWordCount) / Double(rawWordCount)) : 1.0
+        // Gap 2 fix: use PDFKit native word count as ground truth denominator when provided.
+        // Vision's own transcript (rawWordCount) under-counts dense tables — RecognizeDocuments
+        // merges or drops cell separators, so rawWordCount < actual page word count. This makes
+        // qualityScore appear high (structuredWords/lowRawCount ≈ 1.0) and suppresses the
+        // fallback on exactly the pages that need it (dense tables, reference lists).
+        // nativeWordCount = PDFKit page.string word count passed in from DocumentProcessor;
+        // only trusted when text layer is validated (not garbled) — caller enforces this.
+        let groundTruthWordCount = (nativeWordCount ?? 0) > rawWordCount ? nativeWordCount! : rawWordCount
+        var qualityScore: Double = groundTruthWordCount > 0 ? min(1.0, Double(structuredWordCount) / Double(groundTruthWordCount)) : 1.0
 
         // ENHANCEMENT: Use RecognizeTextRequest fallback for very low quality parsing
         // This is more robust for low-DPI scans, unusual layouts, etc.
         if qualityScore < 0.3 || (rawWordCount < 10 && elements.isEmpty) {
             Log.info("[StructuredDocumentParser] Quality too low (\(Int(qualityScore * 100))%), trying RecognizeTextRequest fallback", category: .ingestion)
             do {
-                let fallbackText = try await performTextRecognitionFallback(on: imageData)
+                // Use full-res image for OCR fallback — 360 DPI preserves fine print quality
+                let fallbackText = try await performTextRecognitionFallback(on: fullResImageData ?? structureImageData, customWords: customWords)
                 if fallbackText.count > rawText.count {
                     rawText = fallbackText
                     rawWordCount = rawText.split(separator: " ").count
@@ -831,7 +870,7 @@ actor StructuredDocumentParser {
     /// - Images with poor lighting or contrast
     ///
     /// Available from iOS 18.0+ (not iOS 26 specific)
-    private func performTextRecognitionFallback(on imageData: Data) async throws -> String {
+    private func performTextRecognitionFallback(on imageData: Data, customWords: [String]) async throws -> String {
         var request = RecognizeTextRequest()
         request.recognitionLevel = .accurate
         request.usesLanguageCorrection = true
@@ -840,7 +879,7 @@ actor StructuredDocumentParser {
         request.recognitionLanguages = OCRConfiguration.recognitionLanguages.compactMap {
             Locale.Language(identifier: $0)
         }
-        request.customWords = documentCustomWords
+        request.customWords = customWords
 
         let configuredRequest = request
         let observations = try await VisionOCRThrottle.performAsync {
@@ -864,12 +903,8 @@ actor StructuredDocumentParser {
 
     nonisolated private func imageToData(_ ciImage: CIImage) -> Data? {
         #if canImport(UIKit)
-        // Use serial queue to prevent Metal command buffer race conditions
-        var cgImage: CGImage?
-        gpuRenderQueue.sync {
-            cgImage = sharedGPUContext.createCGImage(ciImage, from: ciImage.extent)
-        }
-        guard let renderedImage = cgImage else {
+        // CIContext is thread-safe per Apple docs — no dispatch queue needed
+        guard let renderedImage = sharedGPUContext.createCGImage(ciImage, from: ciImage.extent) else {
             return nil
         }
 

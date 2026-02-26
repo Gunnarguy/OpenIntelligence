@@ -986,10 +986,13 @@ extension CorpusVocabulary {
             }
 
             // Only keep text snippets with high ASCII ratio (reject garbled OCR)
-            let snippet = String(chunk.content.prefix(500))
-            let asciiCount = snippet.filter { $0.isASCII }.count
-            if Float(asciiCount) / max(Float(snippet.count), 1) > 0.85 {
-                textSnippets.append(snippet)
+            // MEMORY FIX: Cap at 300 entries × 200 chars ≈ 120KB (was uncapped × 500 ≈ 1.9MB)
+            if textSnippets.count < 300 {
+                let snippet = String(chunk.content.prefix(200))
+                let asciiCount = snippet.filter { $0.isASCII }.count
+                if Float(asciiCount) / max(Float(snippet.count), 1) > 0.85 {
+                    textSnippets.append(snippet)
+                }
             }
         }
 

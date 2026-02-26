@@ -1,7 +1,7 @@
 # OpenIntelligence Technical Architecture
 
-**Version**: 3.4
-**Date**: February 17, 2026
+**Version**: 3.7
+**Date**: February 24, 2026
 **Status**: Production (App Store v1.2)
 
 ## Table of Contents
@@ -11,15 +11,15 @@
 3. [System Architecture](#system-architecture)
 4. [Core Services Inventory](#core-services)
    - [RAG Pipeline Services](#rag-pipeline-services-14-services)
-   - [Query Services](#query-services-8-services)
-   - [Document Processing Services](#document-processing-services-20-services)
-   - [Embedding Services](#embedding-services-2-services)
+   - [Query Services](#query-services-9-services)
+   - [Document Processing Services](#document-processing-services-23-services)
+   - [Embedding Services](#embedding-services-7-services)
    - [Storage Services](#storage-services-3-services)
-   - [VectorStore Services](#vectorstore-services-4-services)
-   - [LLM Services](#llm-services-7-services)
-   - [Agentic Services](#agentic-services-3-services)
-   - [Infrastructure Services](#infrastructure-services-18-services)
-   - [Billing Services](#billing-services-1-service)
+   - [VectorStore Services](#vectorstore-services-5-services)
+   - [LLM Services](#llm-services-9-services)
+   - [Agentic Services](#agentic-services-6-services)
+   - [Infrastructure Services](#infrastructure-services-21-services)
+   - [Billing Services](#billing-services-2-services)
 5. [DocumentProcessor Deep Dive](#documentprocessor)
 6. [Token Budget Management](#token-budget-management)
 7. [Data Structures](#data-structures)
@@ -30,11 +30,11 @@ OpenIntelligence is a native iOS 26 application implementing a complete Retrieva
 
 **Simple Concept:** Import any document. Ask questions in plain English. Get cited answers powered by on-device AI.
 
-**Latest (v3.4)**: Font substitution cipher detection (PHASE -1 Jaccard text layer validation). Swift 6 strict concurrency compliance (11 files, zero runtime change). Zero-data-loss ingestion fixes (raw regex, garbled image extraction, dynamic image text budget). Rich Markdown Response Rendering (full block-level parser, inline normalization preprocessor, formatting-preserving pipeline, formatting-aware LLM prompts). Device-Optimized Performance Engine (3-tier Metal shader selection, device-specific OCR concurrency, concurrent cross-encoder predictions, GPU embedding ingestion mode, concurrent CIFilter rendering). MMR crash fix (GPU diversity matrix edge case). Motherboard HUD (real-time Apple Silicon X-ray overlay), Universal Retrieval (8 fixes for needle-in-haystack accuracy), Adaptive Document Intelligence Engine, multi-candidate confidence OCR, 5-strategy adaptive preprocessing, language-agnostic quality detection, centralized OCR configuration factory. 81 services across 11 categories.
+**Latest (v3.7)**: RAG-Grounded Response Transforms (5 document-aware transforms via `ResponseTransformService`). AI Hub toolbar redesign (Key Facts, Step-by-Step, Cross-Reference, Deep Dive, Flash Cards). Image Playground LLM concept extraction (domain jargon → visual scenes). BM25 `b` parameter consistency fix. Accelerate `vDSP.dot()` in Verification Gate E. Regex pre-compilation in RAGEngine. Pipeline Reliability Hardening (11 fixes: compression cap, fresh session/chunk, per-chunk isolation, 12s budget, empty→fallback, cooldown, rate-limit retry, typed LLM errors, Path B rewrite, threshold 24→10, error logging). Memory-Safe Large PDF Ingestion (results release, batch 20→5, 144 DPI image understanding, autoreleasepool). Apple Intelligence Gap Analysis complete (23 framework opportunities identified across WWDC24/25). Font substitution cipher detection (PHASE -1 Jaccard text layer validation). Swift 6 strict concurrency compliance (11 files, zero runtime change). Zero-data-loss ingestion fixes (raw regex, garbled image extraction, dynamic image text budget). Rich Markdown Response Rendering (full block-level parser, inline normalization preprocessor, formatting-preserving pipeline, formatting-aware LLM prompts). Device-Optimized Performance Engine (3-tier Metal shader selection, device-specific OCR concurrency, concurrent cross-encoder predictions, GPU embedding ingestion mode, concurrent CIFilter rendering). MMR crash fix (GPU diversity matrix edge case). Motherboard HUD (real-time Apple Silicon X-ray overlay), Universal Retrieval (8 fixes for needle-in-haystack accuracy), Adaptive Document Intelligence Engine, multi-candidate confidence OCR, 5-strategy adaptive preprocessing, language-agnostic quality detection, centralized OCR configuration factory. 102 services across 11 categories.
 
 ### RAG Pipeline Summary
 
-The system implements a **25-step end-to-end pipeline** powered by **81 services**:
+The system implements a **25-step end-to-end pipeline** powered by **102 services**:
 
 | Phase                | Steps | Key Services                                                                           |
 | -------------------- | ----- | -------------------------------------------------------------------------------------- |
@@ -45,7 +45,7 @@ The system implements a **25-step end-to-end pipeline** powered by **81 services
 | **Post-Generation**  | 4     | QualityAssuranceService, ConfidenceCalibrationService                                  |
 | **Rendering**        | 2     | MarkdownRenderer (block-level parser + inline normalizer)                              |
 
-> **Complete inventory**: See "Complete Service Inventory (81 Services)" below.
+> **Complete inventory**: See "Complete Service Inventory (102 Services)" below.
 
 ### Key Architectural Principles
 
@@ -83,16 +83,32 @@ OpenIntelligence is built entirely on Apple's native frameworks—**no third-par
 | `LanguageModelFeedback`         | User feedback submission via `LLMService`                 |
 | `prewarm()`                     | Session prewarming in `LLMService` for faster first query |
 
-### Framework Opportunities (Phase 2+)
+### Framework Opportunities (v1.3 → v2.0)
 
-| Framework                   | Planned Use                                  | Target |
-| --------------------------- | -------------------------------------------- | ------ |
-| **VisionKit** (DataScanner) | Live camera document scanning                | v2.0   |
-| **Translation.framework**   | Multi-language document translation          | v1.3   |
-| **NLGazetteer**             | Custom entity training (product names, SKUs) | v1.3   |
-| **CreateMLComponents**      | On-device classifier training                | v2.0   |
-| **MetricKit**               | Production performance telemetry             | v2.0   |
-| **SpeechAnalyzer** (iOS 26) | Enhanced audio quality metrics               | v1.3   |
+> **Full Gap Analysis**: See [ROADMAP.md](ROADMAP.md) → "Phase 2.15 — Apple Intelligence Gap Closure" for complete 23-item breakdown.
+
+| Framework                        | Planned Use                                                 | Target | Priority |
+| -------------------------------- | ----------------------------------------------------------- | ------ | -------- |
+| **Guardrails API** (iOS 26)      | Apple content safety layer for model I/O                    | v1.3   | Critical |
+| **CoreSpotlight**                | Index documents for Spotlight/Siri semantic search          | v1.3   | Critical |
+| **SpeechAnalyzer** (iOS 26)      | Modern async actor-based speech transcription               | v1.3   | Critical |
+| **Translation.framework**        | Multi-language document translation                         | v1.3   | High     |
+| **Liquid Glass** (iOS 26)        | iOS 26 glass material design system for UI                  | v1.3   | High     |
+| **UseCase / Locale** (iOS 26)    | Model use case declaration + locale gating                  | v1.3   | Medium   |
+| **Visual Intelligence** (iOS 26) | Camera/screenshot search into app content                   | v1.4   | High     |
+| **Adapter Training** (iOS 26)    | Custom LoRA adapters for domain-specific LLM                | v1.4   | High     |
+| **Metal 4** (iOS 26)             | New core API, ML inference passes, unified compute encoders | v1.4   | Medium   |
+| **BNNS Graph** (iOS 26)          | Enhanced neural network graph operations                    | v1.4   | Medium   |
+| **Image Playground**             | Programmatic on-device image generation                     | v1.4   | Medium   |
+| **NLGazetteer**                  | Custom entity training (product names, SKUs)                | v1.4   | Medium   |
+| **@Observable**                  | Replace ObservableObject/Combine with modern Observation    | v2.0   | High     |
+| **WidgetKit**                    | Home screen widgets for doc count, queries, status          | v2.0   | Medium   |
+| **BackgroundTasks**              | BGTaskScheduler for background indexing/embedding           | v2.0   | Medium   |
+| **SwiftData**                    | Modern persistence layer (evaluate vs raw sqlite3)          | v2.0   | Medium   |
+| **TipKit**                       | Contextual onboarding tips for RAG features                 | v2.0   | Low      |
+| **VisionKit** (DataScanner)      | Live camera document scanning                               | v2.0   | Medium   |
+| **CreateMLComponents**           | On-device classifier training                               | v2.0   | Medium   |
+| **MetricKit**                    | Production performance telemetry                            | v2.0   | Low      |
 
 ## System Architecture
 
@@ -296,9 +312,9 @@ User Query Input
 
 ## Core Services
 
-### Complete Service Inventory (81 Services)
+### Complete Service Inventory (102 Services)
 
-OpenIntelligence is composed of **81 distinct services** organized into 11 categories. This inventory provides a complete reference.
+OpenIntelligence is composed of **101 distinct services** organized into 11 categories. This inventory provides a complete reference.
 
 #### RAG Pipeline Services (14 services)
 
@@ -319,20 +335,21 @@ OpenIntelligence is composed of **81 distinct services** organized into 11 categ
 | `ConfidenceCalibrationService`   | final class | Platt scaling for calibrated confidence (0.0-1.0)                           | `RAG/ConfidenceCalibrationService.swift`   |
 | `AutoTuneService`                | class       | Optimizes retrieval parameters based on feedback                            | `RAG/AutoTuneService.swift`                |
 
-#### Query Services (8 services)
+#### Query Services (9 services)
 
-| Service                        | Type        | Purpose                                                   | File                                       |
-| ------------------------------ | ----------- | --------------------------------------------------------- | ------------------------------------------ |
-| `QueryEnhancementService`      | final class | Query expansion, intent classification, weight adjustment | `Query/QueryEnhancementService.swift`      |
-| `QueryRewriterService`         | final class | Pronoun resolution, follow-up handling, NER extraction    | `Query/QueryRewriterService.swift`         |
-| `QueryRouterService`           | actor       | RAPTOR-lite routing: overview queries → L1 summaries      | `Query/QueryRouterService.swift`           |
-| `HyDEService`                  | final class | Hypothetical Document Embeddings for better recall        | `Query/HyDEService.swift`                  |
-| `ContextualCompressionService` | final class | LLM-based sentence filtering from retrieved chunks        | `Query/ContextualCompressionService.swift` |
-| `SuggestedQuestionsService`    | actor       | Generates contextual starter questions from documents     | `Query/SuggestedQuestionsService.swift`    |
-| `QueryComplexityAnalyzer`      | final class | Analyzes query structure to determine optimal routing     | `Query/QueryComplexityAnalyzer.swift`      |
-| `SpecificationExtractor`       | struct      | Extracts technical specs (dimensions, tolerances)         | `Query/SpecificationExtractor.swift`       |
+| Service                        | Type        | Purpose                                                              | File                                       |
+| ------------------------------ | ----------- | -------------------------------------------------------------------- | ------------------------------------------ |
+| `QueryEnhancementService`      | final class | Query expansion, intent classification, weight adjustment            | `Query/QueryEnhancementService.swift`      |
+| `QueryRewriterService`         | final class | Pronoun resolution, follow-up handling, NER extraction               | `Query/QueryRewriterService.swift`         |
+| `QueryRouterService`           | actor       | RAPTOR-lite routing: overview queries → L1 summaries                 | `Query/QueryRouterService.swift`           |
+| `HyDEService`                  | final class | Hypothetical Document Embeddings for better recall                   | `Query/HyDEService.swift`                  |
+| `ContextualCompressionService` | final class | LLM-based sentence filtering from retrieved chunks                   | `Query/ContextualCompressionService.swift` |
+| `SuggestedQuestionsService`    | actor       | Generates contextual starter questions from documents                | `Query/SuggestedQuestionsService.swift`    |
+| `QueryComplexityAnalyzer`      | final class | Analyzes query structure to determine optimal routing                | `Query/QueryComplexityAnalyzer.swift`      |
+| `SpecificationExtractor`       | struct      | Extracts technical specs (dimensions, tolerances)                    | `Query/SpecificationExtractor.swift`       |
+| `SmartReplyService`            | actor       | Generates contextual reply suggestions based on conversation history | `Query/SmartReplyService.swift`            |
 
-#### Document Processing Services (20 services)
+#### Document Processing Services (23 services)
 
 | Service                        | Type        | Purpose                                                          | File                                          |
 | ------------------------------ | ----------- | ---------------------------------------------------------------- | --------------------------------------------- |
@@ -356,13 +373,21 @@ OpenIntelligence is composed of **81 distinct services** organized into 11 categ
 | `SpecificationDetector`        | struct      | Regex/ML detection of specification tables and key-value pairs   | `Document/SpecificationDetector.swift`        |
 | `StructuredDocumentParser`     | actor       | Parses hierarchy (Section > Subsection > Paragraph)              | `Document/StructuredDocumentParser.swift`     |
 | `OCRConfiguration`             | enum        | Central OCR config factory, adaptive preprocessing, confidence   | `Document/OCRConfiguration.swift`             |
+| `GazetteerService`             | actor       | NLGazetteer-based domain-specific entity recognition             | `Document/GazetteerService.swift`             |
+| `SpeechAnalyzerService`        | actor       | Advanced speech analysis with prosody and emotion detection      | `Document/SpeechAnalyzerService.swift`        |
+| `StreamingXMLProcessor`        | struct      | Streaming XML parser for structured document ingestion           | `Document/StreamingXMLProcessor.swift`        |
 
-#### Embedding Services (2 services)
+#### Embedding Services (7 services)
 
-| Service                           | Type  | Purpose                                          | File                                              |
-| --------------------------------- | ----- | ------------------------------------------------ | ------------------------------------------------- |
-| `EmbeddingService`                | class | 384-dim embeddings via provider pattern          | `Embedding/EmbeddingService.swift`                |
-| `CoreMLSentenceEmbeddingProvider` | class | CoreML MiniLM-L6-v2 with BertTokenizer (510 max) | `Embedding/CoreMLSentenceEmbeddingProvider.swift` |
+| Service                           | Type     | Purpose                                              | File                                              |
+| --------------------------------- | -------- | ---------------------------------------------------- | ------------------------------------------------- |
+| `EmbeddingService`                | class    | 384-dim embeddings via provider pattern              | `Embedding/EmbeddingService.swift`                |
+| `CoreMLSentenceEmbeddingProvider` | class    | CoreML MiniLM-L6-v2 with BertTokenizer (510 max)     | `Embedding/CoreMLSentenceEmbeddingProvider.swift` |
+| `EmbeddingProvider`               | protocol | Interface for pluggable embedding backends           | `Embedding/EmbeddingService.swift`                |
+| `AdaptiveEmbeddingOptimizer`      | actor    | Dynamic embedding strategy based on query complexity | `Embedding/AdaptiveEmbeddingOptimizer.swift`      |
+| `AppleFMEmbeddingProvider`        | class    | Apple Foundation Models embedding backend            | `Embedding/AppleFMEmbeddingProvider.swift`        |
+| `NLContextualEmbeddingProvider`   | class    | NLContextualEmbedding for contextual word vectors    | `Embedding/NLContextualEmbeddingProvider.swift`   |
+| `NLEmbeddingProvider`             | class    | NLEmbedding 512-dim fallback provider                | `Embedding/NLEmbeddingProvider.swift`             |
 
 #### Storage Services (3 services)
 
@@ -372,16 +397,17 @@ OpenIntelligence is composed of **81 distinct services** organized into 11 categ
 | `SQLiteFullTextService`     | actor | FTS5-powered AND-first BM25 search (10-100x faster)  | `Storage/SQLiteFullTextService.swift`     |
 | `DocumentationCacheService` | actor | Caches fetched web content for offline access        | `Storage/DocumentationCacheService.swift` |
 
-#### VectorStore Services (4 services)
+#### VectorStore Services (5 services)
 
-| Service                  | Type        | Purpose                                              | File                                   |
-| ------------------------ | ----------- | ---------------------------------------------------- | -------------------------------------- |
-| `VectorDatabase`         | protocol    | Interface for vector store implementations           | `VectorStore/VectorDatabase.swift`     |
-| `InMemoryVectorDatabase` | class       | In-memory HNSW with norm caching + LRU cache         | `VectorStore/VectorDatabase.swift`     |
-| `BNNSVectorDatabase`     | actor       | Accelerate BNNS brute-force with GPU batching        | `VectorStore/BNNSVectorDatabase.swift` |
-| `VectorStoreRouter`      | final class | Per-container routing with multi-container RRF merge | `VectorStore/VectorStoreRouter.swift`  |
+| Service                  | Type        | Purpose                                                         | File                                      |
+| ------------------------ | ----------- | --------------------------------------------------------------- | ----------------------------------------- |
+| `VectorDatabase`         | protocol    | Interface for vector store implementations                      | `VectorStore/VectorDatabase.swift`        |
+| `InMemoryVectorDatabase` | class       | In-memory HNSW with norm caching + LRU cache                    | `VectorStore/VectorDatabase.swift`        |
+| `BNNSVectorDatabase`     | actor       | Accelerate BNNS brute-force with GPU batching                   | `VectorStore/BNNSVectorDatabase.swift`    |
+| `VectorStoreRouter`      | final class | Per-container routing with multi-container RRF merge            | `VectorStore/VectorStoreRouter.swift`     |
+| `VecturaVectorDatabase`  | actor       | Vectura-backed persistent vector store with disk-mapped indexes | `VectorStore/VecturaVectorDatabase.swift` |
 
-#### LLM Services (7 services)
+#### LLM Services (9 services)
 
 | Service                       | Type        | Purpose                                                      | File                                    |
 | ----------------------------- | ----------- | ------------------------------------------------------------ | --------------------------------------- |
@@ -392,16 +418,22 @@ OpenIntelligence is composed of **81 distinct services** organized into 11 categ
 | `LocalOpenAIServerLLMService` | final class | OpenAI-compatible local server client (MLX/llama.cpp/Ollama) | `LLM/LocalOpenAIServerLLMService.swift` |
 | `OpenAIResponsesAPIService`   | class       | GPT-5 Responses API client (disabled, `#if false`)           | `LLM/OpenAIResponsesAPIService.swift`   |
 | `ModelResolutionService`      | final class | Model selection transparency layer                           | `LLM/ModelResolutionService.swift`      |
+| `AdapterManager`              | actor       | LoRA adapter lifecycle management for fine-tuned models      | `LLM/AdapterManager.swift`              |
+| `PromptEvaluationService`     | actor       | Prompt quality scoring and optimization                      | `LLM/PromptEvaluationService.swift`     |
 
-#### Agentic Services (3 services)
+#### Agentic Services (7 services)
 
-| Service                     | Type        | Purpose                                             | File                                      |
-| --------------------------- | ----------- | --------------------------------------------------- | ----------------------------------------- |
-| `AgenticOrchestrator`       | class       | Multi-session reasoning with Self-RAG 2.0 prompting | `Agentic/AgenticOrchestrator.swift`       |
-| `ConversationMemoryService` | final class | Persistent conversation memory with summarization   | `Agentic/ConversationMemoryService.swift` |
-| `WritingToolsService`       | class       | Apple Writing Tools (proofread, rewrite, summarize) | `Agentic/WritingToolsService.swift`       |
+| Service                     | Type        | Purpose                                                                                                                 | File                                      |
+| --------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| `AgenticOrchestrator`       | class       | Multi-session reasoning with Self-RAG 2.0 prompting                                                                     | `Agentic/AgenticOrchestrator.swift`       |
+| `ConversationMemoryService` | final class | Persistent conversation memory with summarization                                                                       | `Agentic/ConversationMemoryService.swift` |
+| `ResponseTransformService`  | class       | RAG-grounded response transforms (Key Facts, Step-by-Step, Cross-Reference, Deep Dive, Flash Cards) using source chunks | `Agentic/ResponseTransformService.swift`  |
+| `WritingToolsService`       | class       | Apple Writing Tools (proofread, rewrite, summarize)                                                                     | `Agentic/WritingToolsService.swift`       |
+| `RAGAppIntents`             | struct      | App Intents for Shortcuts and Siri integration                                                                          | `Agentic/RAGAppIntents.swift`             |
+| `ToolCallCounter`           | actor       | Tracks @Tool invocation counts for telemetry                                                                            | `Agentic/ToolCallCounter.swift`           |
+| `VisualIntelligenceIntents` | struct      | Visual Intelligence integration for camera pipeline                                                                     | `Agentic/VisualIntelligenceIntents.swift` |
 
-#### Infrastructure Services (18 services)
+#### Infrastructure Services (21 services)
 
 | Service                        | Type        | Purpose                                                                                            | File                                                |
 | ------------------------------ | ----------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
@@ -422,12 +454,17 @@ OpenIntelligence is composed of **81 distinct services** organized into 11 categ
 | `HardwareTelemetryState`       | class       | Real-time CPU/GPU/Neural Engine/thermal/battery telemetry                                          | `Infrastructure/HardwareTelemetryState.swift`       |
 | `TelemetryCenter`              | actor       | Aggregates performance metrics (TTFT, TPS, ingest speed)                                           | `Infrastructure/TelemetryCenter.swift`              |
 | `LLMStreamingContext`          | actor       | Manages state for streaming LLM responses                                                          | `LLM/LLMStreamingContext.swift`                     |
+| `BackgroundTaskService`        | actor       | BGProcessingTask scheduling for offline indexing                                                   | `Infrastructure/BackgroundTaskService.swift`        |
+| `BNNSGraphService`             | actor       | BNNS Graph-based neural network inference acceleration                                             | `Infrastructure/BNNSGraphService.swift`             |
+| `ImagePlaygroundService`       | actor       | Image Playground with LLM-powered concept extraction (domain jargon → visual scenes)               | `Infrastructure/ImagePlaygroundService.swift`       |
+| `SpotlightIndexService`        | actor       | CoreSpotlight indexing for system-wide document search                                             | `Infrastructure/SpotlightIndexService.swift`        |
 
-#### Billing Services (1 service)
+#### Billing Services (2 services)
 
 | Service                  | Type        | Purpose                                       | File                                   |
 | ------------------------ | ----------- | --------------------------------------------- | -------------------------------------- |
 | `StoreKitBillingService` | final class | StoreKit 2 in-app purchases and subscriptions | `Billing/StoreKitBillingService.swift` |
+| `EntitlementStore`       | actor       | Cached entitlement state for feature gating   | `Billing/EntitlementStore.swift`       |
 
 #### Rendering Services (1 service)
 
@@ -1917,12 +1954,12 @@ All advanced features are fully compatible with Apple's FoundationModels framewo
 
 ### Known Limitations ⚠️
 
-| Component                       | Honest Assessment                                                                                                                                                     | Improvement Path                                              |
-| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| **Hybrid isn't truly parallel** | Vector search runs first, then BM25 scores are computed _on the same candidates_. It's not two independent searches being merged — BM25 is re-scoring vector results. | Run FTS5 search independently, merge two distinct result sets |
-| **BM25 snapshot is per-query**  | `snapshot(from: candidates)` rebuilds document frequencies from just the ~20-50 candidates, not the full corpus. IDF is less accurate because it's local, not global. | Persist global IDF stats at ingestion time                    |
-| **No FTS5 at query time**       | SQLite FTS5 is used for storage, but BM25 scoring at query time uses in-memory `BM25Scorer`, not SQLite's native `bm25()` function.                                   | Use `SELECT ... ORDER BY bm25(fts_table)` for native scoring  |
-| **Cross-encoder capped at 50**  | `Array(chunks.prefix(50))` before reranking. If the right chunk is #51, it's never seen by the cross-encoder.                                                         | Two-stage: fast filter to 100, then cross-encoder to top 50   |
+| Component                             | Honest Assessment                                                                                                                                                                   | Improvement Path                                            |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| ~~**Hybrid isn't truly parallel**~~ ✅ | ~~Vector search runs first, then BM25 scores are computed on the same candidates.~~ **FIXED v1.2:** True parallel via `async let` — vector + FTS5 run concurrently, merged via RRF. | ✅ Implemented                                               |
+| ~~**BM25 snapshot is per-query**~~ ✅  | ~~`snapshot(from: candidates)` rebuilds document frequencies from just the ~20-50 candidates.~~ **FIXED v1.2:** Now uses native SQLite `bm25()` with corpus-wide IDF statistics.    | ✅ Implemented                                               |
+| ~~**No FTS5 at query time**~~ ✅       | ~~SQLite FTS5 is used for storage, but BM25 scoring uses in-memory BM25Scorer.~~ **FIXED v1.2:** `searchChunks()` uses native `bm25()` function with weighted columns (10/5/1).     | ✅ Implemented                                               |
+| **Cross-encoder capped at 50**        | `Array(chunks.prefix(50))` before reranking. If the right chunk is #51, it's never seen by the cross-encoder.                                                                       | Two-stage: fast filter to 100, then cross-encoder to top 50 |
 
 ### Comparison to Enterprise RAG
 
@@ -1942,18 +1979,18 @@ All advanced features are fully compatible with Apple's FoundationModels framewo
 
 ### What We Have (Best Practices Implemented)
 
-| Feature                       | Status | Implementation                                   |
-| ----------------------------- | ------ | ------------------------------------------------ |
-| Hybrid Search (Vector + BM25) | ✅     | `HybridSearchService` with RRF fusion            |
-| Cross-Encoder Reranking       | ✅     | `ReRankerModel.mlpackage` in `RAGEngine`         |
-| MMR Diversification           | ✅     | λ=0.6 in `RAGEngine.rerankWithMMR()`             |
-| Query Expansion               | ✅     | `QueryEnhancementService.expandQuery()`          |
-| Multi-Query Search            | ✅     | `AgenticOrchestrator.executeMultiQuerySearch()`  |
-| Semantic Intent Validation    | ✅     | `AgenticOrchestrator.validateSemanticIntent()`   |
-| Query Intent Classification   | ✅     | `QueryIntent` enum with dynamic weights          |
-| Content-Adaptive Chunking     | ✅     | `ChunkingConfig.recommended(for:)`               |
-| Lost-in-Middle Mitigation     | ✅     | `applyLostInMiddleReordering()`                  |
-| Auto-Tuning                   | ✅     | `RetrievalConfig.recommended(forDocumentTypes:)` |
+| Feature                       | Status | Implementation                                             |
+| ----------------------------- | ------ | ---------------------------------------------------------- |
+| Hybrid Search (Vector + BM25) | ✅      | `HybridSearchService` with true parallel RRF fusion (v1.2) |
+| Cross-Encoder Reranking       | ✅      | `ReRankerModel.mlpackage` in `RAGEngine`                   |
+| MMR Diversification           | ✅      | λ=0.6 in `RAGEngine.rerankWithMMR()`                       |
+| Query Expansion               | ✅      | `QueryEnhancementService.expandQuery()`                    |
+| Multi-Query Search            | ✅      | `AgenticOrchestrator.executeMultiQuerySearch()`            |
+| Semantic Intent Validation    | ✅      | `AgenticOrchestrator.validateSemanticIntent()`             |
+| Query Intent Classification   | ✅      | `QueryIntent` enum with dynamic weights                    |
+| Content-Adaptive Chunking     | ✅      | `ChunkingConfig.recommended(for:)`                         |
+| Lost-in-Middle Mitigation     | ✅      | `applyLostInMiddleReordering()`                            |
+| Auto-Tuning                   | ✅      | `RetrievalConfig.recommended(forDocumentTypes:)`           |
 
 ### Research-Backed Advanced RAG Features (12/12 Implemented)
 
@@ -1970,6 +2007,8 @@ All features below are **actually implemented and verified** in production code,
 
 - **BM25 Scorer**: Full Okapi BM25 with IDF, term frequency saturation (k1=1.5), length normalization (b=0.75)
 - **Vector Search**: vDSP-accelerated cosine similarity via Neural Engine
+- **True Parallel Hybrid** (v1.2): Vector + FTS5 run concurrently via `async let`, yielding two independent ranked lists
+- **Native FTS5 BM25** (v1.2): SQLite `bm25()` function with weighted columns (section_title: 10, section_path: 5, content: 1)
 - **RRF Fusion**: Reciprocal rank fusion with k=60, weighted blend (vector 40%, keyword 60% default)
 - **Keyword Match Boosting**: Exact match detection for technical terms
 
@@ -2633,7 +2672,12 @@ Docs/
 │   └── RELEASE.md                 # Release checklist, smoke tests
 └── TestDocuments/                 # Sample files for testing
 
-OpenIntelligenceTests/             # Unit tests + TestDoubles.swift for mocks
+OpenIntelligenceTests/             # 200+ unit tests across 15 test files
+#   BM25ScorerTests, SemanticChunkerTests, VerificationGateServiceTests,
+#   ContextPackingServiceTests, QueryEnhancementServiceTests,
+#   ExtractiveQAServiceTests, MarkdownRendererTests, OCRConfigurationTests,
+#   HybridSearchServiceTests, RAGPipelineTests, VectorDatabaseTests,
+#   VectorStoreRouterTests, EmbeddingDiagnosticsTests, StoreKitEntitlementTests
 scripts/                           # CI/CD helpers (secret_scan, preflight_check)
 fastlane/                          # App Store deployment automation
 ```

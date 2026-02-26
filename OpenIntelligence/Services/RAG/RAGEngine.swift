@@ -25,6 +25,16 @@ actor RAGEngine {
     /// Shared singleton to avoid repeated model loading
     static let shared = RAGEngine()
 
+    // MARK: - Pre-compiled Regex Patterns
+    // Static compilation avoids try! at call sites and amortizes cost across all queries.
+    // If a pattern fails to compile (should never happen), the Optional safely returns 0 matches.
+
+    private static let sectionNumberRegex = try? Regex(#"\b\d+\.\d+\.?"#)
+    private static let pageNumberRegex1 = try? Regex(#"\.{2,}\s*\d{1,3}\b"#)
+    private static let pageNumberRegex2 = try? Regex(#"\.\s+\d{1,2}\b"#)
+    private static let pageNumberRegex3 = try? Regex(#"\b\d{1,2}\s+\.{2,}"#)
+    private static let standaloneNumberRegex = try? Regex(#"\b\d{2}\b"#)
+
     // MARK: - Properties
 
     #if canImport(CoreML)
@@ -430,11 +440,51 @@ actor RAGEngine {
         builder.reserveCapacity(min(maxChars, 4096))
         var used = 0
 
+        // ── Abbreviation Glossary Injection ──────────────────────────────────
+        // Collect all abbreviation→expansion mappings from retrieved chunks.
+        // This prevents the LLM from cross-contaminating abbreviations:
+        // e.g., expanding "ED" as "Oppositional Defiant Disorder" when documents
+        // define it as "Emotional Dysregulation". The glossary is prepended to
+        // the context string so the LLM sees the correct definitions FIRST.
+        var glossary: [String: String] = [:]
+        for chunk in orderedChunks {
+            for (abbr, expansion) in chunk.chunk.metadata.abbreviations {
+                // First definition wins (most authoritative)
+                if glossary[abbr] == nil {
+                    glossary[abbr] = expansion
+                }
+            }
+        }
+        if !glossary.isEmpty {
+            let sortedEntries = glossary.sorted { $0.key < $1.key }
+            let glossaryBlock: String
+            if compact {
+                // Compact: "ABBR=Expansion" format, semicolon-separated
+                let entries = sortedEntries.map { "\($0.key)=\($0.value)" }.joined(separator: "; ")
+                glossaryBlock = "[Glossary] \(entries)\n---\n"
+            } else {
+                let entries = sortedEntries.map { "  \($0.key) = \($0.value)" }.joined(separator: "\n")
+                glossaryBlock = "[Abbreviations from documents — use these exact definitions]\n\(entries)\n\n---\n\n"
+            }
+            // Only inject if it fits within ~10% of the budget
+            if glossaryBlock.count <= maxChars / 10 {
+                builder += glossaryBlock
+                Log.debug("[RAGEngine] Injected abbreviation glossary (\(glossary.count) entries, \(glossaryBlock.count) chars)", category: .retrieval)
+            }
+        }
+
         // Calculate target chars per chunk to fit at least 3 chunks
         // This prevents the "1 giant chunk" problem where context is too narrow
         let minChunksTarget = min(3, orderedChunks.count)
         let headerOverhead = compact ? 30 : 80  // Approximate header + separator size
         let targetCharsPerChunk = max(400, (maxChars - (minChunksTarget * headerOverhead)) / minChunksTarget)
+
+        // ── Chunk Text Deduplication ─────────────────────────────────────
+        // Skip chunks whose content is >75% word overlap (Jaccard) with an
+        // already-included chunk. This prevents near-identical boilerplate
+        // (e.g., repeated inspection report pages) from flooding the LLM
+        // context and causing repetition loops.
+        var usedWordSets: [Set<String>] = []
 
         for (i, r) in orderedChunks.enumerated() {
 
@@ -455,6 +505,27 @@ actor RAGEngine {
                 content = rawContent
             }
             let sanitizedContent = sanitizeForLanguageDetection(content)
+
+            // Jaccard word-overlap deduplication
+            let contentWords = Set(
+                sanitizedContent.lowercased()
+                    .split(separator: " ")
+                    .map { $0.trimmingCharacters(in: CharacterSet.alphanumerics.inverted) }
+                    .filter { $0.count >= 3 }
+            )
+            if contentWords.count >= 5 {
+                let isDuplicate = usedWordSets.contains { existingWords in
+                    let intersection = contentWords.intersection(existingWords)
+                    let union = contentWords.union(existingWords)
+                    guard !union.isEmpty else { return false }
+                    let jaccard = Double(intersection.count) / Double(union.count)
+                    return jaccard >= 0.75
+                }
+                if isDuplicate {
+                    Log.debug("[RAGEngine] Skipping chunk \(i + 1) — >75% word overlap with existing context chunk", category: .retrieval)
+                    continue
+                }
+            }
 
             // Calculate remaining budget
             let remainingBudget = maxChars - builder.count
@@ -497,6 +568,7 @@ actor RAGEngine {
             if builder.count + block.count <= maxChars || used == 0 {
                 builder += block
                 used += 1
+                usedWordSets.append(contentWords)
             } else if used < minChunksTarget && remainingBudget > 300 {
                 // Force-fit truncated version if we haven't hit minimum chunks yet
                 let forceTruncated = truncateAtSentence(truncatedContent, maxChars: remainingBudget - headerOverhead - 20)
@@ -514,6 +586,7 @@ actor RAGEngine {
                     }
                     builder += forceBlock
                     used += 1
+                    usedWordSets.append(contentWords)
                 } else {
                     break
                 }
@@ -800,9 +873,9 @@ actor RAGEngine {
                 // IDF
                 let idf: Float = logf((Float(snapshot.totalDocuments) - df + 0.5) / (df + 0.5) + 1)
 
-                // BM25 with k1=1.5, b=0.75 (from scorer)
+                // BM25 with k1=1.5, b=0.5 (matches BM25Scorer — lowered from 0.75 because chunks are ~260 words uniform length)
                 let k1: Float = 1.5
-                let b: Float = 0.75
+                let b: Float = 0.5
                 let numerator = tf * (k1 + 1)
                 let denominator = tf + k1 * (1 - b + b * (docLength / max(snapshot.avgDocLength, 1)))
                 score += idf * (denominator > 0 ? (numerator / denominator) : 0)
@@ -895,14 +968,25 @@ actor RAGEngine {
     // OPTIMIZED: Cached tokenizer instance to avoid allocation per tokenize() call.
     // NLTokenizer is lightweight but ~30-300 allocations per query adds up.
     private let cachedTokenizer = NLTokenizer(unit: .word)
+    private let cachedLemmaTagger = NLTagger(tagSchemes: [.lemma])
 
-    // Tokenizer used for BM25 scoring
+    /// Tokenize text with lemmatization for BM25 scoring consistency.
+    /// Matches HybridSearchService.BM25Scorer.tokenize() so inline BM25 in
+    /// `bm25Scores()` produces identical term distributions.
+    /// "running" → "run", "configurations" → "configuration"
     private func tokenize(_ text: String) -> [String] {
         let normalized = text.lowercased()
         cachedTokenizer.string = normalized
+        cachedLemmaTagger.string = normalized
         return cachedTokenizer.tokens(for: normalized.startIndex ..< normalized.endIndex).compactMap { range in
             let token = String(normalized[range]).trimmingCharacters(in: .punctuationCharacters)
-            return token.isEmpty ? nil : token
+            guard !token.isEmpty else { return nil }
+            // Lemmatize to match BM25Scorer: "running" → "run"
+            if let lemma = cachedLemmaTagger.tag(at: range.lowerBound, unit: .word, scheme: .lemma).0?.rawValue,
+               !lemma.isEmpty {
+                return lemma
+            }
+            return token
         }
     }
 
@@ -1006,8 +1090,7 @@ actor RAGEngine {
 
         // Pattern 1: Many section numbers like "1.1.", "2.3.", "3.4.5." etc.
         // TOC pages have dense section numbering
-        let sectionNumberPattern = #"\b\d+\.\d+\.?"#
-        let sectionMatches = content.matches(of: try! Regex(sectionNumberPattern))
+        let sectionMatches = Self.sectionNumberRegex.map { content.matches(of: $0) } ?? []
         if sectionMatches.count >= 8 {
             penalty += 0.18  // Strong indicator of TOC
         } else if sectionMatches.count >= 5 {
@@ -1016,12 +1099,9 @@ actor RAGEngine {
 
         // Pattern 2: Page numbers scattered - multiple formats:
         // "...45", ".....23", ". 52", "49 ...", standalone 2-digit numbers
-        let pageNumberPattern1 = #"\.{2,}\s*\d{1,3}\b"#  // ...45, .....23
-        let pageNumberPattern2 = #"\.\s+\d{1,2}\b"#      // . 52, . 49
-        let pageNumberPattern3 = #"\b\d{1,2}\s+\.{2,}"#  // 49 ..., 50 ...
-        let pageMatches1 = content.matches(of: try! Regex(pageNumberPattern1))
-        let pageMatches2 = content.matches(of: try! Regex(pageNumberPattern2))
-        let pageMatches3 = content.matches(of: try! Regex(pageNumberPattern3))
+        let pageMatches1 = Self.pageNumberRegex1.map { content.matches(of: $0) } ?? []  // ...45, .....23
+        let pageMatches2 = Self.pageNumberRegex2.map { content.matches(of: $0) } ?? []  // . 52, . 49
+        let pageMatches3 = Self.pageNumberRegex3.map { content.matches(of: $0) } ?? []  // 49 ..., 50 ...
         let totalPageMatches = pageMatches1.count + pageMatches2.count + pageMatches3.count
         if totalPageMatches >= 5 {
             penalty += 0.18  // Very strong TOC indicator
@@ -1033,8 +1113,7 @@ actor RAGEngine {
         // TOC has many "45", "52", "53" etc. scattered throughout
         // NOTE: Swift Regex doesn't support lookbehind, so we use word boundaries
         // and filter in code instead
-        let standaloneNumberPattern = #"\b\d{2}\b"#
-        let standaloneMatches = content.matches(of: try! Regex(standaloneNumberPattern))
+        let standaloneMatches = Self.standaloneNumberRegex.map { content.matches(of: $0) } ?? []
         // Filter out numbers that are part of decimals or larger numbers
         let filteredNumberCount = standaloneMatches.filter { match in
             let matchRange = match.range

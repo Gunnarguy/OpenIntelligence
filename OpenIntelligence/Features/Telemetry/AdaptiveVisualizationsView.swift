@@ -1606,7 +1606,8 @@ struct Fullscreen3DAtlasView: View {
     @State private var annotations: [Embedding3DSceneView.AnnotationData] = []
     @State private var sceneReloadToken = UUID()
     @State private var profile: LibraryProfile?
-    @State private var chunkTopicAssignments: [UUID: String] = [:]
+    // Per-document legend (matches EmbeddingSpaceRenderer's proven approach)
+    @State private var legendItems: [VizLegendItem] = []
 
     // FTS5-derived corpus intelligence for richer labels
     @State private var fts5TopTerms: [String] = []
@@ -1659,10 +1660,10 @@ struct Fullscreen3DAtlasView: View {
                     )
                     .ignoresSafeArea()
 
-                    // Topic legend - top left
+                    // Document legend - top left
                     VStack {
                         HStack {
-                            fullscreenTopicLegend
+                            fullscreenDocumentLegend
                             Spacer()
                         }
                         Spacer()
@@ -1971,53 +1972,31 @@ struct Fullscreen3DAtlasView: View {
         }
     }
 
-    /// Topic color legend for fullscreen view
-    private var fullscreenTopicLegend: some View {
-        let topicColors = buildFullscreenTopicLegend()
-
+    /// Document color legend for fullscreen view — shows which color = which document
+    private var fullscreenDocumentLegend: some View {
         return Group {
-            if !topicColors.isEmpty {
+            if !legendItems.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
-                    ForEach(topicColors.prefix(6), id: \.name) { item in
+                    ForEach(legendItems.sorted(by: { $0.count > $1.count }).prefix(8), id: \.docId) { item in
                         HStack(spacing: 6) {
                             Circle()
-.fill(item.color)
-    .frame(width: 8, height: 8)
+                                .fill(item.color)
+                                .frame(width: 8, height: 8)
 
-                            Text(item.name)
+                            Text("\(item.name) (\(item.count))")
                                 .font(.system(size: 10, weight: .medium))
-                                .foregroundColor(.white.opacity(0.5))
+                                .foregroundColor(.white.opacity(0.7))
                                 .lineLimit(1)
                         }
                     }
                 }
                 .padding(8)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(.ultraThinMaterial)
+                )
             }
         }
-    }
-
-    private struct FullscreenTopicItem: Hashable {
-        let name: String
-        let color: Color
-        let count: Int
-    }
-
-    private func buildFullscreenTopicLegend() -> [FullscreenTopicItem] {
-        var topicCounts: [String: Int] = [:]
-        for (_, topicName) in chunkTopicAssignments {
-            topicCounts[topicName, default: 0] += 1
-        }
-
-        var result: [FullscreenTopicItem] = []
-        if let prof = profile {
-            for topic in prof.dominantTopics {
-                if let count = topicCounts[topic.name], count > 0 {
-                    result.append(FullscreenTopicItem(name: topic.name, color: topic.color, count: count))
-                }
-            }
-        }
-
-        return result.sorted { $0.count > $1.count }
     }
 
     /// Overlay hint for fullscreen view
@@ -2041,87 +2020,126 @@ struct Fullscreen3DAtlasView: View {
         let activeContainer = await MainActor.run { ragService.containerService.activeContainerId }
         async let topTermsTask = SQLiteFullTextService.shared.getTopTermsForContainer(containerId: activeContainer, limit: 50)
         async let keyPhrasesTask = SQLiteFullTextService.shared.getKeyPhrasesForContainer(containerId: activeContainer, limit: 20)
-
         let (topTermsResult, keyPhrasesResult) = await (topTermsTask, keyPhrasesTask)
-
         await MainActor.run {
             self.fts5TopTerms = topTermsResult.map { $0.term }
             self.fts5KeyPhrases = keyPhrasesResult
         }
 
-        // Force fresh profile build if none exists or if we need updated topic analysis
-        let engine = LibraryVisualizationEngine.shared
-
-        // Trigger fresh analysis for the active container
+        // Get documents and chunks for the active container
         let allChunks = await ragService.allChunksForActiveContainer()
         let docs = await MainActor.run { ragService.documents }
-        await engine.analyze(
-            containerId: activeContainer,
-            documents: docs,
-            chunks: allChunks,
-            retrievalHistory: []
-        )
+        let cs = await MainActor.run { self.containerService }
+        let defaultId = cs.containers.first?.id
+        let activeDocs = docs.filter { doc in
+            if let cid = doc.containerId { return cid == activeContainer }
+            return activeContainer == defaultId
+        }
+        let activeDocIdsSet = Set(activeDocs.map { $0.id })
+        let nameById: [UUID: String] = Dictionary(uniqueKeysWithValues: activeDocs.map { ($0.id, $0.filename) })
 
-        // Now use the freshly built profile
+        // Build profile for insights (NOT for coloring)
+        let engine = LibraryVisualizationEngine.shared
+        await engine.analyze(containerId: activeContainer, documents: docs, chunks: allChunks, retrievalHistory: [])
         if let freshProfile = engine.currentProfile {
             await MainActor.run { profile = freshProfile }
         }
 
-        // allChunks already fetched above
-
         guard !allChunks.isEmpty else {
-            await MainActor.run {
-                points = []
-                colors = []
-                annotations = []
-                isLoading = false
-            }
+            await MainActor.run { points = []; colors = []; annotations = []; legendItems = []; isLoading = false }
             return
         }
 
-        // Sample chunks
-        let sampledChunks = sampleChunks(allChunks)
-        let embeddings = sampledChunks.map { $0.embedding }
-
-        guard !embeddings.isEmpty else {
-            await MainActor.run {
-                points = []
-                colors = []
-                annotations = []
-                isLoading = false
-            }
+        // Filter to active container documents
+        let filtered = allChunks.filter { activeDocIdsSet.contains($0.documentId) }
+        guard !filtered.isEmpty else {
+            await MainActor.run { points = []; colors = []; annotations = []; legendItems = []; isLoading = false }
             return
         }
 
-        // Project to 3D
-        let seed = UInt64(abs(Int64(containerService.activeContainerId.uuidString.hashValue)))
-        let coords3D = ProjectionService.shared.project3D(
-            embeddings: embeddings,
-            method: projectionMethod,
-            seed: seed
-        )
+        // === STRATIFIED SAMPLING BY DOCUMENT ===
+        let docIds = Array(Set(filtered.map { $0.documentId }))
+        let perDocQuota = max(1, sampleLimit / max(docIds.count, 1))
+        let rngSeed = UInt64(abs(Int64(activeContainer.uuidString.hashValue)))
+        var prng = VizLCG(seed: rngSeed)
 
-        // Topic assignment using existing functions in this scope
-        let topicAssignments = assignTopics(chunks: sampledChunks)
-        let mappedColors = mapColors(chunks: sampledChunks, assignments: topicAssignments)
+        var chunksByDoc: [UUID: [DocumentChunk]] = [:]
+        for c in filtered { chunksByDoc[c.documentId, default: []].append(c) }
 
-        // Scale points properly for viewing (same approach as CompactAtlasSceneView)
-        let scaledPoints = scaleCoordinatesForViewing(coords3D)
+        var sampledEmbeddings: [[Float]] = []
+        var sampledDocIds: [UUID] = []
+        var sampledChunks: [DocumentChunk] = []
 
-        // Build annotations with proper scaling applied
-        let clusterAnnotations = buildScaledAnnotations(
-            chunks: sampledChunks,
-            coords: coords3D,
-            assignments: topicAssignments
+        for did in docIds {
+            let arr = chunksByDoc[did] ?? []
+            if arr.count > perDocQuota {
+                var indices = Array(0..<arr.count)
+                for i in stride(from: indices.count - 1, through: 1, by: -1) {
+                    let j = Int(prng.next() % UInt64(i + 1))
+                    if i != j { indices.swapAt(i, j) }
+                }
+                for idx in indices.prefix(perDocQuota) {
+                    sampledEmbeddings.append(arr[idx].embedding)
+                    sampledDocIds.append(did)
+                    sampledChunks.append(arr[idx])
+                }
+            } else {
+                for c in arr {
+                    sampledEmbeddings.append(c.embedding)
+                    sampledDocIds.append(did)
+                    sampledChunks.append(c)
+                }
+            }
+        }
+
+        // Filter empty embeddings
+        var validEmb: [[Float]] = []
+        var validIds: [UUID] = []
+        var validChunks: [DocumentChunk] = []
+        for i in 0..<sampledEmbeddings.count {
+            guard !sampledEmbeddings[i].isEmpty else { continue }
+            validEmb.append(sampledEmbeddings[i])
+            validIds.append(sampledDocIds[i])
+            validChunks.append(sampledChunks[i])
+        }
+
+        guard !validEmb.isEmpty else {
+            await MainActor.run { points = []; colors = []; annotations = []; legendItems = []; isLoading = false }
+            return
+        }
+
+        // === PROJECT TO 3D ===
+        let coords3D = ProjectionService.shared.project3D(embeddings: validEmb, method: projectionMethod, seed: rngSeed)
+
+        // === PER-DOCUMENT COLORING (proven correct from EmbeddingSpaceRenderer) ===
+        let palette = EmbeddingColorPalette.makePalette(count: docIds.count)
+        var colorByDoc: [UUID: PlatformColor] = [:]
+        let sortedDocIds = docIds.sorted { $0.uuidString < $1.uuidString }
+        for (i, did) in sortedDocIds.enumerated() {
+            colorByDoc[did] = palette[i % palette.count]
+        }
+
+        var counts: [UUID: Int] = [:]
+        for did in validIds { counts[did, default: 0] += 1 }
+        var legend: [VizLegendItem] = []
+        for did in sortedDocIds {
+            let uiColor = colorByDoc[did] ?? EmbeddingColorPalette.fallback
+            let name = nameById[did] ?? "Unknown"
+            let cnt = counts[did] ?? 0
+            if cnt > 0 { legend.append(VizLegendItem(docId: did, name: name, color: Color(uiColor), count: cnt)) }
+        }
+
+        let uiColors: [PlatformColor] = validIds.map { colorByDoc[$0] ?? EmbeddingColorPalette.fallback }
+        let scaledPoints = fullscreenNormalize(coords3D, jitterAmount: 0.06)
+
+        let clusterAnnotations = buildFullscreenAnnotations(
+            chunks: validChunks, coords: scaledPoints, docIds: validIds,
+            nameById: nameById, colorByDoc: colorByDoc
         )
 
         await MainActor.run {
-            points = scaledPoints
-            colors = mappedColors
-            annotations = clusterAnnotations
-            chunkTopicAssignments = topicAssignments
-            sceneReloadToken = UUID()
-            isLoading = false
+            points = scaledPoints; colors = uiColors; annotations = clusterAnnotations
+            legendItems = legend; sceneReloadToken = UUID(); isLoading = false
         }
     }
 
@@ -2155,6 +2173,127 @@ struct Fullscreen3DAtlasView: View {
         }
 
         return Array(sampled.prefix(sampleLimit))
+    }
+
+    // MARK: - Per-Document Visualization Helpers
+
+    /// Normalize 3D coordinates to a viewing cube centered at origin, with optional jitter.
+    private func fullscreenNormalize(_ coords: [SIMD3<Float>], jitterAmount: Double) -> [SCNVector3] {
+        guard !coords.isEmpty else { return [] }
+        let jitter = Float(jitterAmount)
+
+        var minX = Float.greatestFiniteMagnitude, maxX = -Float.greatestFiniteMagnitude
+        var minY = Float.greatestFiniteMagnitude, maxY = -Float.greatestFiniteMagnitude
+        var minZ = Float.greatestFiniteMagnitude, maxZ = -Float.greatestFiniteMagnitude
+
+        for c in coords {
+            minX = min(minX, c.x); maxX = max(maxX, c.x)
+            minY = min(minY, c.y); maxY = max(maxY, c.y)
+            minZ = min(minZ, c.z); maxZ = max(maxZ, c.z)
+        }
+
+        let centerX = (minX + maxX) / 2
+        let centerY = (minY + maxY) / 2
+        let centerZ = (minZ + maxZ) / 2
+        let maxSpan = max(max(maxX - minX, maxY - minY), max(maxZ - minZ, 0.0001))
+        let scale: Float = 3.0 / maxSpan
+
+        var result: [SCNVector3] = []
+        result.reserveCapacity(coords.count)
+
+        for (index, c) in coords.enumerated() {
+            var x = (c.x - centerX) * scale
+            var y = (c.y - centerY) * scale
+            var z = (c.z - centerZ) * scale
+
+            let seed = UInt32(index)
+            x += (Float((seed &* 1_103_515_245 &+ 12345) % 10000) / 20000.0 - 0.025) * jitter
+            y += (Float((seed &* 1_664_525 &+ 1_013_904_223) % 10000) / 20000.0 - 0.025) * jitter
+            z += (Float((seed &* 22_695_477 &+ 1) % 10000) / 20000.0 - 0.025) * jitter
+
+            result.append(SCNVector3(x, y, z))
+        }
+        return result
+    }
+
+    /// Build per-document cluster annotations — one label per document at density-weighted centroid.
+    private func buildFullscreenAnnotations(
+        chunks: [DocumentChunk],
+        coords: [SCNVector3],
+        docIds: [UUID],
+        nameById: [UUID: String],
+        colorByDoc: [UUID: PlatformColor]
+    ) -> [Embedding3DSceneView.AnnotationData] {
+        guard !coords.isEmpty, coords.count == docIds.count else { return [] }
+
+        // Group points by document
+        var docPoints: [UUID: [SCNVector3]] = [:]
+        var docChunks: [UUID: [DocumentChunk]] = [:]
+        for (i, docId) in docIds.enumerated() {
+            guard i < coords.count, i < chunks.count else { break }
+            docPoints[docId, default: []].append(coords[i])
+            docChunks[docId, default: []].append(chunks[i])
+        }
+
+        var annotations: [Embedding3DSceneView.AnnotationData] = []
+
+        for (docId, pts) in docPoints where !pts.isEmpty {
+            // Compute centroid
+            var sumX: Float = 0, sumY: Float = 0, sumZ: Float = 0
+            for pt in pts { sumX += pt.x; sumY += pt.y; sumZ += pt.z }
+            let n = Float(pts.count)
+            let centroid = SCNVector3(sumX / n, sumY / n + 0.15, sumZ / n)
+
+            let name = nameById[docId] ?? "Unknown"
+            let displayName = name.count > 30 ? String(name.prefix(27)) + "..." : name
+            let color = colorByDoc[docId] ?? EmbeddingColorPalette.fallback
+
+            // Extract top keywords from chunk content for richer labels
+            let chunkTexts = docChunks[docId] ?? []
+            let keywords = extractTopKeywords(from: chunkTexts, limit: 3)
+
+            annotations.append(Embedding3DSceneView.AnnotationData(
+                position: centroid,
+                title: displayName,
+                keywords: keywords,
+                color: color,
+                detailLevel: 1,
+                clusterSize: pts.count,
+                isDocumentCluster: true
+            ))
+        }
+
+        return annotations
+    }
+
+    /// Extract top keywords from a set of chunks using word frequency
+    private func extractTopKeywords(from chunks: [DocumentChunk], limit: Int) -> [String] {
+        let stopWords: Set<String> = [
+            "the", "and", "for", "are", "but", "not", "you", "all", "can", "had",
+            "her", "was", "one", "our", "out", "has", "have", "been", "some", "them",
+            "than", "its", "over", "such", "that", "this", "with", "will", "each",
+            "from", "they", "were", "which", "their", "said", "what", "about", "would",
+            "into", "through", "during", "before", "after", "above", "below", "between",
+            "under", "again", "further", "then", "once", "here", "there", "when",
+            "where", "how", "more", "most", "other", "only", "same", "very",
+            "just", "also", "now", "because", "while", "although", "these", "those",
+            "make", "like", "take", "come", "think", "look", "want", "give", "find",
+            "tell", "work", "seem", "feel", "leave", "call", "keep", "begin", "show",
+            "data", "file", "page", "section", "chapter", "part", "item", "general",
+            "proper", "various", "other", "note", "document", "content", "text",
+            "info", "details", "overview", "summary", "table", "figure", "none"
+        ]
+        var freq: [String: Int] = [:]
+        for chunk in chunks {
+            let words = chunk.text.lowercased().components(separatedBy: CharacterSet.alphanumerics.inverted)
+                .filter { word in
+                    word.count >= 4 &&
+                    !stopWords.contains(word) &&
+                    !word.allSatisfy({ $0.isNumber }) // Filter pure numbers
+                }
+            for word in words { freq[word, default: 0] += 1 }
+        }
+        return freq.sorted { $0.value > $1.value }.prefix(limit).map { $0.key }
     }
 
     private func assignTopics(chunks: [DocumentChunk]) -> [UUID: String] {
@@ -2427,7 +2566,7 @@ struct CompactAtlasSceneView: View {
     @State private var colors: [PlatformColor] = []
     @State private var annotations: [Embedding3DSceneView.AnnotationData] = []
     @State private var sceneReloadToken = UUID()
-    @State private var chunkTopicAssignments: [UUID: String] = [:] // chunk.id → topic name
+    @State private var docLegendItems: [VizLegendItem] = [] // per-document legend
 
     // FTS5-derived corpus intelligence for richer labels
     @State private var fts5TopTerms: [String] = []
@@ -2538,14 +2677,12 @@ struct CompactAtlasSceneView: View {
         }
     }
 
-    /// Shows what each color represents
+    /// Shows what each color represents — per-document legend
     private var topicLegendOverlay: some View {
-        let topicColors = buildTopicColorLegend()
-
-        return Group {
-            if !topicColors.isEmpty {
+        Group {
+            if !docLegendItems.isEmpty {
                 VStack(alignment: .leading, spacing: 3) {
-                    ForEach(topicColors.prefix(5), id: \.name) { item in
+                    ForEach(docLegendItems.prefix(6), id: \.docId) { item in
                         HStack(spacing: 5) {
                             Circle()
                                 .fill(item.color)
@@ -2561,31 +2698,6 @@ struct CompactAtlasSceneView: View {
                 .padding(6)
             }
         }
-    }
-
-    private struct TopicColorItem: Hashable {
-        let name: String
-        let color: Color
-        let count: Int
-    }
-
-    private func buildTopicColorLegend() -> [TopicColorItem] {
-        // Count chunks per topic
-        var topicCounts: [String: Int] = [:]
-        for (_, topicName) in chunkTopicAssignments {
-            topicCounts[topicName, default: 0] += 1
-        }
-
-        // Map to colors from profile
-        var result: [TopicColorItem] = []
-        for topic in profile.dominantTopics {
-            if let count = topicCounts[topic.name], count > 0 {
-                result.append(TopicColorItem(name: topic.name, color: topic.color, count: count))
-            }
-        }
-
-        // Sort by count descending
-        return result.sorted { $0.count > $1.count }
     }
 
     /// Small overlay explaining what the user is looking at
@@ -2652,28 +2764,61 @@ struct CompactAtlasSceneView: View {
             seed: seed
         )
 
-        // Enhanced topic assignment using NLP keywords
-        let topicAssignments = assignTopicsNLP(chunks: sampledChunks)
+        // === PER-DOCUMENT COLORING (same as Fullscreen3DAtlasView) ===
+        // Build deterministic color map by document - eliminates topic-based gray fallback
+        let docIds = Set(sampledChunks.map { $0.documentId })
+        let sortedDocIds = docIds.sorted { $0.uuidString < $1.uuidString }
+        let palette = EmbeddingColorPalette.makePalette(count: max(sortedDocIds.count, 1))
+        var colorByDoc: [UUID: PlatformColor] = [:]
+        for (i, did) in sortedDocIds.enumerated() {
+            colorByDoc[did] = palette[i % palette.count]
+        }
+        let mappedColors = sampledChunks.map { colorByDoc[$0.documentId] ?? EmbeddingColorPalette.fallback }
 
-        // Map colors based on topic assignments
-        let mappedColors = mapTopicColors(chunks: sampledChunks, assignments: topicAssignments)
+        // Build document name map (extract from contextualPrefix "[From filename] ...")
+        var docNameMap: [UUID: String] = [:]
+        for chunk in sampledChunks {
+            if docNameMap[chunk.documentId] == nil {
+                var name: String?
+                if let prefix = chunk.contextualPrefix,
+                   let fromRange = prefix.range(of: "[From "),
+                   let closeBracket = prefix[fromRange.upperBound...].range(of: "]") {
+                    let extracted = String(prefix[fromRange.upperBound..<closeBracket.lowerBound])
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !extracted.isEmpty { name = extracted }
+                }
+                docNameMap[chunk.documentId] = name ?? chunk.documentId.uuidString.prefix(8).description
+            }
+        }
+
+        // Build legend items
+        var docCounts: [UUID: Int] = [:]
+        for chunk in sampledChunks { docCounts[chunk.documentId, default: 0] += 1 }
+        var docLegend: [VizLegendItem] = []
+        for did in sortedDocIds {
+            let color = colorByDoc[did] ?? EmbeddingColorPalette.fallback
+            let name = docNameMap[did] ?? "Unknown"
+            let count = docCounts[did] ?? 0
+            if count > 0 { docLegend.append(VizLegendItem(docId: did, name: name, color: Color(color), count: count)) }
+        }
 
         // Use ACTUAL PCA/UMAP coordinates - scale them properly for viewing
         // This preserves natural clustering and semantic structure!
         let scaledPoints = scalePointsForViewing(coords3D)
 
-        // Build 3D cluster label annotations at ACTUAL cluster positions
-        let clusterAnnotations = buildClusterAnnotations(
+        // Build 3D cluster label annotations per document
+        let clusterAnnotations = buildDocumentClusterAnnotations(
             chunks: sampledChunks,
-            coords: coords3D, // Use original coords for centroid calculation
-            assignments: topicAssignments
+            coords: coords3D,
+            docNameMap: docNameMap,
+            colorByDoc: colorByDoc
         )
 
         await MainActor.run {
             points = scaledPoints
             colors = mappedColors
             annotations = clusterAnnotations
-            chunkTopicAssignments = topicAssignments
+            docLegendItems = docLegend
             sceneReloadToken = UUID()
             isLoading = false
         }
@@ -3090,7 +3235,116 @@ struct CompactAtlasSceneView: View {
         }
     }
 
-    // MARK: - 3D Cluster Annotations
+    // MARK: - Keyword Extraction (CompactAtlas)
+
+    /// Extract top keywords from a set of chunks using word frequency
+    private func extractTopKeywords(from chunks: [DocumentChunk], limit: Int) -> [String] {
+        let stopWords: Set<String> = [
+            "the", "and", "for", "are", "but", "not", "you", "all", "can", "had",
+            "her", "was", "one", "our", "out", "has", "have", "been", "some", "them",
+            "than", "its", "over", "such", "that", "this", "with", "will", "each",
+            "from", "they", "were", "which", "their", "said", "what", "about", "would",
+            "into", "more", "other", "could", "also", "after", "these", "just",
+            "like", "only", "very", "when", "where", "most", "many", "much",
+            "through", "between", "should", "being", "before", "does", "both",
+        ]
+
+        var freq: [String: Int] = [:]
+        for chunk in chunks {
+            let words = chunk.content
+                .lowercased()
+                .components(separatedBy: .alphanumerics.inverted)
+                .filter { $0.count > 2 && !stopWords.contains($0) && !$0.allSatisfy({ $0.isNumber }) }
+            for word in words {
+                freq[word, default: 0] += 1
+            }
+        }
+
+        return freq.sorted { $0.value > $1.value }
+            .prefix(limit)
+            .map { $0.key.capitalized }
+    }
+
+    // MARK: - Per-Document Cluster Annotations
+
+    /// Builds cluster annotations grouped by document (not topic).
+    /// Each document gets a labeled centroid with extracted keywords.
+    /// Eliminates the topic→"General"→gray fallback entirely.
+    private func buildDocumentClusterAnnotations(
+        chunks: [DocumentChunk],
+        coords: [SIMD3<Float>],
+        docNameMap: [UUID: String],
+        colorByDoc: [UUID: PlatformColor]
+    ) -> [Embedding3DSceneView.AnnotationData] {
+        guard chunks.count == coords.count else { return [] }
+
+        // Compute scaling (same as scalePointsForViewing)
+        var minX = Float.greatestFiniteMagnitude, maxX = -Float.greatestFiniteMagnitude
+        var minY = Float.greatestFiniteMagnitude, maxY = -Float.greatestFiniteMagnitude
+        var minZ = Float.greatestFiniteMagnitude, maxZ = -Float.greatestFiniteMagnitude
+
+        for c in coords {
+            minX = min(minX, c.x); maxX = max(maxX, c.x)
+            minY = min(minY, c.y); maxY = max(maxY, c.y)
+            minZ = min(minZ, c.z); maxZ = max(maxZ, c.z)
+        }
+
+        let centerX = (minX + maxX) / 2
+        let centerY = (minY + maxY) / 2
+        let centerZ = (minZ + maxZ) / 2
+        let spanX = max(maxX - minX, 0.0001)
+        let spanY = max(maxY - minY, 0.0001)
+        let spanZ = max(maxZ - minZ, 0.0001)
+        let maxSpan = max(spanX, max(spanY, spanZ))
+        let scale = 3.0 / maxSpan
+
+        // Group by document
+        var docPoints: [UUID: [SIMD3<Float>]] = [:]
+        var docChunks: [UUID: [DocumentChunk]] = [:]
+        for (index, chunk) in chunks.enumerated() {
+            guard index < coords.count else { continue }
+            docPoints[chunk.documentId, default: []].append(coords[index])
+            docChunks[chunk.documentId, default: []].append(chunk)
+        }
+
+        var annotations: [Embedding3DSceneView.AnnotationData] = []
+
+        for (docId, pointsInCluster) in docPoints {
+            guard pointsInCluster.count >= 2 else { continue }
+
+            // Centroid in original coords → scaled
+            var sumX: Float = 0, sumY: Float = 0, sumZ: Float = 0
+            for p in pointsInCluster { sumX += p.x; sumY += p.y; sumZ += p.z }
+            let count = Float(pointsInCluster.count)
+            let centroidX = ((sumX / count) - centerX) * scale
+            let centroidY = ((sumY / count) - centerY) * scale
+            let centroidZ = ((sumZ / count) - centerZ) * scale
+            let centroid = SCNVector3(centroidX, centroidY, centroidZ)
+
+            let docName = docNameMap[docId] ?? "Document"
+            let color = colorByDoc[docId] ?? EmbeddingColorPalette.fallback
+
+            // Extract keywords from this document's chunks
+            let keywords = extractTopKeywords(from: docChunks[docId] ?? [], limit: 3)
+            var displayKeywords = keywords
+            displayKeywords.append("\(pointsInCluster.count) chunks")
+
+            annotations.append(Embedding3DSceneView.AnnotationData(
+                position: centroid,
+                title: docName,
+                keywords: displayKeywords,
+                color: color,
+                detailLevel: pointsInCluster.count > 50 ? 2 : (pointsInCluster.count > 20 ? 1 : 0),
+                clusterSize: pointsInCluster.count,
+                isDocumentCluster: true
+            ))
+        }
+
+        annotations.sort { $0.clusterSize > $1.clusterSize }
+        return annotations
+    }
+
+    // MARK: - 3D Cluster Annotations (Legacy Topic-Based)
 
     private func buildClusterAnnotations(
         chunks: [DocumentChunk],

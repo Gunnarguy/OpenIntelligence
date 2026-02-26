@@ -1,42 +1,53 @@
 Version 1.2.0
 
-RICH MARKDOWN RESPONSE RENDERING
-Responses now display with full formatting — headers, bullets, numbered lists, bold, code blocks, and block quotes.
+AI-POWERED DOCUMENT TRANSFORMS
+New AI Hub toolbar with 5 document-aware transforms — each uses your actual retrieved source chunks, not just the AI response text.
 
-• Block-Level Markdown Parser — h1-h6, bullet lists, numbered lists, code fences, block quotes, horizontal rules, paragraphs.
-• Inline Normalization — Apple FM concatenates markdown on one line. 6 regex patterns split headers, bullets, numbered items onto separate lines before parsing.
-• Response-Cleaning Functions Audited — Two functions were stripping ALL markdown. Both rewritten to preserve formatting while removing artifacts.
-• Formatting-Aware LLM Prompts — All system prompts now instruct the model to use headers, bullets, and bold.
-• Paragraph Structure Preservation — Sentence joining uses paragraph breaks, maintaining document structure.
+• Key Facts — Source-backed bullet points with document/page attribution
+• Step-by-Step — Real procedures with specs and part numbers from your docs
+• Cross-Reference — Compare information across multiple source documents
+• Deep Dive — Follow-up questions your library can answer
+• Flash Cards — Study Q&A pairs generated from source content
 
-DEVICE-OPTIMIZED PERFORMANCE ENGINE
-Every pipeline stage adapts to your specific Apple Silicon chip.
+SEARCH & RETRIEVAL UPGRADES
+• BM25 length normalization aligned (b: 0.75 → 0.5) — better recall on uniform-size chunks
+• 5 regex patterns pre-compiled as static constants — no per-query recompilation
+• NLTagger lemmatization in keyword search — "studies" now matches "study"
+• Anti-hallucination Gate E uses Accelerate vDSP.dot() — hardware-optimized cosine similarity
+• Verification Gate A threshold: 0.55 → 0.40 (fewer false abstentions)
+• Verification Gate B threshold: 70% → 40% (more answers pass evidence coverage)
 
-• 3-Tier Metal GPU Search — Automatically selects fastest shader: Threadgroup (≥1000 vectors), SIMD4 (100-999), or Scalar fallback. Previously all searches used the slowest kernel.
-• Device-Specific OCR Concurrency — A19 Pro: 8 ops @ 1ms. A18 Pro: 6 @ 2ms. A17 Pro: 4 @ 3ms. Older: 2 @ 6ms.
-• Adaptive OCR Page Filtering — Pre-screens pages, skipping 50-80% of clean digital pages before OCR runs.
-• Concurrent GPU Rendering — CIFilter preprocessing now runs in parallel (was serialized).
-• Concurrent Neural Reranking — Cross-encoder scores pairs via TaskGroup. Bulk dataPointer copy instead of per-element subscript — 3× faster.
-• GPU Embedding Ingestion Mode — Uses CPU+GPU compute units during ingestion, freeing Neural Engine for OCR.
-• 5-Candidate OCR — Evaluates 5 transcription alternatives per recognition (was 3).
+IMAGE PLAYGROUND
+On-device LLM translates domain jargon into visual scenes. No more "try another description" on technical content.
 
-STABILITY & HARDENING
-• Fixed crash in MMR diversification (dimension 0 edge case)
-• Matrix dimension validation added to RAGEngine
-• GPUComputeService edge cases — empty arrays no longer wrapped in spurious outer arrays
-• StoreKit product loading races against 5-second timeout — no more 30-60s hangs on airplane mode
-• Fatal threading assertion replaced with safe fallback in Release builds
-• Pipeline trace diagnostics compiled out of Release via #if DEBUG
-• Privacy manifest updated with SystemBootTime API declaration
-• Dead code removed from cross-encoder path
+FORMATTED RESPONSES
+Full markdown rendering — headers, bullets, bold, code blocks, block quotes. 6 regex patterns normalize Apple FM single-line output. 2 response-cleaning functions that stripped formatting have been rewritten.
+
+PERFORMANCE (per Apple Silicon chip)
+• 2-4× parallel cross-encoder reranking (was sequential) via TaskGroup
+• 3× faster MLMultiArray fills — dataPointer bulk copy vs per-element NSNumber
+• OCR concurrency: A19 Pro 8 ops, A18 Pro 6, A17 Pro 4, older 2
+• 50-80% OCR skip rate on clean digital PDFs via PageComplexityAnalyzer
+• 3-tier Metal GPU: threadgroup/SIMD4/scalar auto-selected per query size
+• GPU embedding mode during ingestion frees Neural Engine for OCR
+• 5 OCR candidates evaluated per recognition (was 3)
+
+RELIABILITY (11 fixes)
+• Compression capped at 5 chunks with fresh LLM session per chunk
+• 12-second compression time budget — remaining chunks pass through as-is
+• Rate-limit retry: 2s backoff, typed .rateLimited/.concurrentRequests errors
+• Extractive fallback upgraded: 6 chunks × 500 chars with section titles
+• Empty LLM response → reliability fallback (was: generic error shown)
 
 ZERO-DATA-LOSS INGESTION
-Prevents silent content loss on font-encoded PDFs.
+• Font cipher detection: Jaccard < 0.15 triggers full OCR — prevents 93% content loss on font-encoded PDFs (Kia, Hyundai manuals)
+• 5 Unicode regex patterns fixed (CJK bullets, en-dash, em-dash)
+• Image extraction fixed on garbled text layers
+• Image batch: 20 → 5 pages (~200MB → ~50MB peak memory)
 
-• Font Cipher Detection — PHASE -1 validation detects PDFs where characters are shifted (Kia, Hyundai manuals). Jaccard similarity between OCR and PDFKit text. Garbled docs route through full Vision OCR. Prevents 93% content loss.
-• Raw String Regex Fix — 5 Unicode patterns were failing in Swift raw strings. CJK bullet, en-dash, em-dash patterns now work.
-• Garbled Image Extraction Fix — Image extraction on font-encoded PDFs no longer skips diagrams.
-• Dynamic Image Text Budget — Scales with document complexity instead of fixed limit.
-
-SWIFT 6 COMPLIANCE
-• 11 files updated with strict concurrency annotations. Zero runtime behavior change.
+STABILITY
+• MMR crash fixed (GPU matrix edge case)
+• StoreKit 5s timeout (was 30-60s hang offline)
+• BGTask registration fixed
+• Swift 6 concurrency: 11 files updated, zero runtime change
+• 102 services, 175+ tests across 15 files

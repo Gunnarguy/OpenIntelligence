@@ -392,7 +392,8 @@ actor LiveAnalysisService {
                 sceneLabels: sceneLabels,
                 detectedObjects: detectedObjects,
                 humanPoses: [],  // Not needed for bridge
-                animalPoses: []  // Not needed for bridge
+                animalPoses: [],  // Not needed for bridge
+                lensSmudgeDetected: false
             ))
         }
     }

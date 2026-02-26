@@ -13,6 +13,7 @@
 
 import Foundation
 import NaturalLanguage
+import Accelerate
 
 // MARK: - Verification Result
 
@@ -39,13 +40,15 @@ struct RAGVerificationResult: Sendable {
     }
 }
 
-/// The five verification gates from AppleRAG spec
+/// The seven verification gates from AppleRAG spec
 enum VerificationGate: String, CaseIterable, Sendable {
     case retrievalConfidence = "Gate A: Retrieval Confidence"
     case evidenceCoverage = "Gate B: Evidence Coverage"
     case numericSanity = "Gate C: Numeric Sanity"
     case contradictionSweep = "Gate D: Contradiction Sweep"
     case semanticGrounding = "Gate E: Semantic Grounding"
+    case quoteFaithfulness = "Gate F: Quote Faithfulness"
+    case generationQuality = "Gate G: Generation Quality"
 }
 
 // MARK: - Verification Configuration
@@ -172,6 +175,20 @@ actor VerificationGateService {
             )
             gateResults.append(gateE)
         }
+
+        // Gate F: Quote Faithfulness — catch abbreviation cross-contamination
+        // Verifies that abbreviation expansions in the response match document definitions.
+        // Example: If document defines "ED = Emotional Dysregulation" but LLM writes
+        // "oppositional defiant disorder (ED)", Gate F catches this fabrication.
+        let gateF = runGateF(response: response, chunks: retrievedChunks)
+        gateResults.append(gateF)
+
+        // Gate G: Generation Quality — information-theoretic degeneration detector
+        // Catches repetition loops, low-entropy output, and lexical poverty that
+        // slip through all upstream defenses. Uses Shannon entropy, unique-word
+        // ratio, and n-gram dominance — zero regex needed.
+        let gateG = runGateG(response: response)
+        gateResults.append(gateG)
 
         // Calculate overall result
         let allPassed = gateResults.allSatisfy { $0.passed }
@@ -359,20 +376,21 @@ actor VerificationGateService {
         )
     }
 
-    /// Check if a number looks like a year, page reference, or section number
-    /// These are commonly inferred from document metadata, not hallucinated
+    /// Check if a number looks like a year, page reference, or section number.
+    /// These are commonly inferred from document metadata, not hallucinated.
+    ///
+    /// IMPORTANT: We deliberately do NOT auto-verify small integers (1-50) because
+    /// real document data like temperatures (32°F), pressures (35 psi), volumes
+    /// (18 gallons), or doses (25 mg) fall in this range. Auto-verifying them
+    /// would let hallucinated measurement values pass Gate C unchecked.
+    /// Only years and explicit "Section X.Y" / "Figure N" patterns get a pass.
     private func isYearOrReference(_ number: String) -> Bool {
         // Year pattern: 1900-2100 (covers historical through future documents)
-        // Previously 2020-2030 — way too narrow for universal document support.
-        // A 1987 court ruling, a 2015 safety bulletin, or a 2045 projection
-        // would all falsely fail numeric verification.
         if let year = Int(number), year >= 1900, year <= 2100 {
             return true
         }
-        // Small integers that are likely section/page/figure references
-        if let n = Int(number), n >= 1, n <= 50 {
-            return true
-        }
+        // Section/figure references are typically formatted as "X.Y" — handled elsewhere.
+        // Single integers 1-50 are NOT auto-verified because they could be real data.
         return false
     }
 
@@ -547,24 +565,262 @@ actor VerificationGateService {
         )
     }
 
-    /// Compute cosine similarity between two vectors
-    /// Self-contained — doesn't depend on EmbeddingService being accessible from this actor
+    // MARK: - Gate F: Quote Faithfulness (Abbreviation Cross-Contamination Detection)
+
+    /// Pre-compiled regex matching "Full Term (ABBR)" patterns in LLM responses.
+    /// Detects when the LLM expands an abbreviation inline, e.g., "emotional dysregulation (ED)".
+    /// We then verify the expansion matches what the source documents define.
+    private static let responseAbbreviationRegex: NSRegularExpression? = {
+        // Matches: "some words (XX)" where XX is 2-8 uppercase letters
+        try? NSRegularExpression(
+            pattern: #"((?:\b[a-zA-Z]+\s+){1,5})\(([A-Z]{2,8})\)"#,
+            options: []
+        )
+    }()
+
+    /// Gate F: Quote Faithfulness — catch abbreviation cross-contamination hallucinations.
+    ///
+    /// When the LLM writes "oppositional defiant disorder (ED)", this gate checks if the
+    /// source documents define "ED" as "Oppositional Defiant Disorder". If documents define
+    /// "ED" as "Emotional Dysregulation", the expansion is a hallucination — the LLM
+    /// cross-contaminated two different abbreviations from the same paper.
+    ///
+    /// This is ADVISORY (not critical) because:
+    /// - Missing abbreviation data (old chunks) shouldn't cause abstention
+    /// - It's better to warn and slightly lower confidence than to block the response
+    ///
+    /// - Parameters:
+    ///   - response: The LLM-generated response text
+    ///   - chunks: Retrieved source chunks with abbreviation metadata
+    /// - Returns: Gate result with confidence reflecting abbreviation faithfulness
+    private func runGateF(response: String, chunks: [RetrievedChunk]) -> RAGVerificationResult.GateResult {
+
+        // Step 1: Collect all abbreviation definitions from source chunks
+        var sourceAbbreviations: [String: String] = [:]
+        for chunk in chunks {
+            for (abbr, expansion) in chunk.chunk.metadata.abbreviations {
+                if sourceAbbreviations[abbr] == nil {
+                    sourceAbbreviations[abbr] = expansion
+                }
+            }
+        }
+
+        // If no abbreviation data available, pass with full confidence
+        // (old chunks won't have this metadata — don't penalize)
+        guard !sourceAbbreviations.isEmpty else {
+            return RAGVerificationResult.GateResult(
+                gate: .quoteFaithfulness,
+                passed: true,
+                confidence: 1.0,
+                details: "No abbreviation definitions in source chunks"
+            )
+        }
+
+        // Step 2: Find abbreviation expansions in the LLM response
+        guard let regex = Self.responseAbbreviationRegex else {
+            return RAGVerificationResult.GateResult(
+                gate: .quoteFaithfulness,
+                passed: true,
+                confidence: 1.0,
+                details: "Regex unavailable"
+            )
+        }
+
+        let nsResponse = response as NSString
+        let fullRange = NSRange(location: 0, length: nsResponse.length)
+        let matches = regex.matches(in: response, options: [], range: fullRange)
+
+        var checkedCount = 0
+        var faithfulCount = 0
+        var violations: [String] = []
+
+        for match in matches {
+            guard match.numberOfRanges >= 3 else { continue }
+
+            let expansionRange = match.range(at: 1)
+            let abbrRange = match.range(at: 2)
+            guard expansionRange.location != NSNotFound, abbrRange.location != NSNotFound else { continue }
+
+            let responseExpansion = nsResponse.substring(with: expansionRange)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            let abbr = nsResponse.substring(with: abbrRange)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .uppercased()
+
+            // Check if this abbreviation has a definition in source
+            guard let sourceExpansion = sourceAbbreviations[abbr] else { continue }
+
+            checkedCount += 1
+
+            // Compare: do the response's expansion words match the source's expansion words?
+            let responseWords = Set(responseExpansion.split(separator: " ").map { String($0).lowercased() }
+                .filter { $0.count > 2 })
+            let sourceWords = Set(sourceExpansion.lowercased().split(separator: " ").map { String($0) }
+                .filter { $0.count > 2 })
+
+            // Calculate Jaccard similarity between expansion word sets
+            let intersection = responseWords.intersection(sourceWords)
+            let union = responseWords.union(sourceWords)
+            let jaccard = union.isEmpty ? 0.0 : Float(intersection.count) / Float(union.count)
+
+            if jaccard >= 0.5 {
+                // Good: response expansion matches source definition
+                faithfulCount += 1
+            } else {
+                // BAD: LLM expanded this abbreviation differently than the source defines it
+                violations.append("\(abbr): response=\"\(responseExpansion)\" vs source=\"\(sourceExpansion.lowercased())\"")
+                Log.warning("[VerificationGates] Gate F: Abbreviation cross-contamination — \(abbr) expanded as \"\(responseExpansion)\" but source defines it as \"\(sourceExpansion)\"", category: .pipeline)
+            }
+        }
+
+        // No abbreviation expansions found in response — pass
+        guard checkedCount > 0 else {
+            return RAGVerificationResult.GateResult(
+                gate: .quoteFaithfulness,
+                passed: true,
+                confidence: 1.0,
+                details: "No abbreviation expansions in response to verify (\(sourceAbbreviations.count) definitions available)"
+            )
+        }
+
+        let faithfulness = Float(faithfulCount) / Float(checkedCount)
+        // Advisory: only fail if MOST abbreviations are wrong (>50% unfaithful)
+        let passed = faithfulness >= 0.50
+
+        let details: String
+        if violations.isEmpty {
+            details = "All \(checkedCount) abbreviation expansions match source definitions"
+        } else {
+            details = "\(faithfulCount)/\(checkedCount) faithful. Violations: \(violations.prefix(3).joined(separator: "; "))"
+        }
+
+        return RAGVerificationResult.GateResult(
+            gate: .quoteFaithfulness,
+            passed: passed,
+            confidence: faithfulness,
+            details: details
+        )
+    }
+    // MARK: - Gate G: Generation Quality
+
+    /// Gate G: Generation Quality — information-theoretic degeneration detector.
+    ///
+    /// Three sub-checks:
+    ///   1. **Bigram Entropy**: Shannon entropy of word bigrams. English prose ~4-6 bits;
+    ///      degenerate repetition drops <2.0 bits. Catches ALL repetition universally.
+    ///   2. **Unique Word Ratio**: Fraction of distinct words. Quality prose ~40-70%;
+    ///      repetitive output drops <25%. Compression-ratio proxy without gzip overhead.
+    ///   3. **Trigram Dominance**: Most-frequent 3-word sequence share. If any trigram
+    ///      exceeds 15% of all positions AND appears ≥5 times, the text is looping.
+    ///
+    /// Advisory gate: lowers confidence by up to 0.3 but never triggers abstention.
+    /// The LLM may intentionally repeat key terms (e.g. product codes in comparisons),
+    /// so we use conservative thresholds.
+    private func runGateG(response: String) -> RAGVerificationResult.GateResult {
+        let words = response.lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { $0.count >= 2 }
+
+        // Short responses pass trivially — not enough signal
+        guard words.count >= 25 else {
+            return RAGVerificationResult.GateResult(
+                gate: .generationQuality,
+                passed: true,
+                confidence: 1.0,
+                details: "Response too short for quality analysis (\(words.count) words)"
+            )
+        }
+
+        var penalties: [String] = []
+        var confidencePenalty: Float = 0.0
+
+        // ── Sub-check 1: Bigram Entropy ──────────────────────────────
+        var bigramCounts: [String: Int] = [:]
+        var totalBigrams = 0
+        for i in 0..<(words.count - 1) {
+            let bigram = "\(words[i]) \(words[i + 1])"
+            bigramCounts[bigram, default: 0] += 1
+            totalBigrams += 1
+        }
+
+        if totalBigrams > 0 {
+            var entropy: Double = 0.0
+            let total = Double(totalBigrams)
+            for (_, count) in bigramCounts {
+                let p = Double(count) / total
+                if p > 0 { entropy -= p * log2(p) }
+            }
+            // Scale threshold for short responses
+            let threshold: Double = words.count < 60 ? 1.5 : 2.0
+            if entropy < threshold {
+                penalties.append("low_entropy(\(String(format: "%.2f", entropy))bits)")
+                confidencePenalty += 0.15
+            }
+        }
+
+        // ── Sub-check 2: Unique Word Ratio ───────────────────────────
+        let uniqueRatio = Float(Set(words).count) / Float(words.count)
+        if uniqueRatio < 0.25 {
+            penalties.append("low_diversity(\(String(format: "%.0f", uniqueRatio * 100))%)")
+            confidencePenalty += 0.10
+        }
+
+        // ── Sub-check 3: Trigram Dominance ───────────────────────────
+        if words.count >= 20 {
+            var trigramCounts: [String: Int] = [:]
+            for i in 0..<(words.count - 2) {
+                let trigram = "\(words[i]) \(words[i + 1]) \(words[i + 2])"
+                trigramCounts[trigram, default: 0] += 1
+            }
+            let totalTrigrams = words.count - 2
+            if let topCount = trigramCounts.values.max(),
+               topCount >= 5,
+               Float(topCount) / Float(totalTrigrams) > 0.15 {
+                penalties.append("trigram_dominance(\(topCount)/\(totalTrigrams))")
+                confidencePenalty += 0.10
+            }
+        }
+
+        let confidence = max(0.0, 1.0 - confidencePenalty)
+        // Pass if total penalty < 0.20 (single mild issue is OK)
+        let passed = confidencePenalty < 0.20
+
+        let details: String
+        if penalties.isEmpty {
+            details = "Generation quality OK: entropy=\(String(format: "%.1f", { () -> Double in var e: Double = 0; let t = Double(totalBigrams); for (_, c) in bigramCounts { let p = Double(c)/t; if p > 0 { e -= p*log2(p) } }; return e }()))bits, unique=\(String(format: "%.0f", uniqueRatio * 100))%"
+        } else {
+            details = "Quality issues: \(penalties.joined(separator: ", "))"
+        }
+
+        if !passed {
+            Log.warning("[VerificationGates] Gate G FAILED: \(details)", category: .pipeline)
+        }
+
+        return RAGVerificationResult.GateResult(
+            gate: .generationQuality,
+            passed: passed,
+            confidence: confidence,
+            details: details
+        )
+    }
+
+    /// Hardware-accelerated via vDSP — ~10x faster than scalar loop for 384-dim vectors.
+    /// Matches the Accelerate-based implementation used in RAGEngine and HybridSearchService.
     private func vectorCosineSimilarity(_ a: [Float], _ b: [Float]) -> Float {
         guard a.count == b.count, !a.isEmpty else { return 0.0 }
 
-        var dotProduct: Float = 0
-        var magnitudeA: Float = 0
-        var magnitudeB: Float = 0
+        var dot: Float = 0
+        var magA: Float = 0
+        var magB: Float = 0
 
-        for i in 0..<a.count {
-            dotProduct += a[i] * b[i]
-            magnitudeA += a[i] * a[i]
-            magnitudeB += b[i] * b[i]
-        }
+        vDSP_dotpr(a, 1, b, 1, &dot, vDSP_Length(a.count))
+        vDSP_svesq(a, 1, &magA, vDSP_Length(a.count))
+        vDSP_svesq(b, 1, &magB, vDSP_Length(b.count))
 
-        let magnitude = sqrt(magnitudeA) * sqrt(magnitudeB)
-        guard magnitude > 0 else { return 0.0 }
-        return dotProduct / magnitude
+        let magnitude = sqrt(magA) * sqrt(magB)
+        guard magnitude > 1e-9 else { return 0.0 }
+        return dot / magnitude
     }
 
     // MARK: - Helper Methods
@@ -758,6 +1014,14 @@ extension VerificationGateService {
 
         if failedGates.contains(.semanticGrounding) {
             return "My response doesn't appear to be well-supported by the source documents. The answer to your question may not be present in the available materials. Please try rephrasing or check the documents directly."
+        }
+
+        if failedGates.contains(.quoteFaithfulness) {
+            return "I found potential inaccuracies in how I expanded abbreviations or attributed information to source documents. The response may mix up similar terms. Please verify abbreviation definitions against the original documents."
+        }
+
+        if failedGates.contains(.generationQuality) {
+            return "The generated response appears to contain repetitive or low-quality output. This may happen when source documents contain many similar entries. Please try rephrasing your question to get a more focused answer."
         }
 
         if failedGates.contains(.contradictionSweep) {

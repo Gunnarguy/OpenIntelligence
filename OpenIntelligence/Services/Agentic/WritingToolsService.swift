@@ -2,239 +2,289 @@
 //  WritingToolsService.swift
 //  OpenIntelligence
 //
-//  Apple Writing Tools API integration for proofreading, rewriting, and summarization
-//  Available on iOS 18.1+ with Apple Intelligence
+//  Writing Tools powered by Apple Foundation Models (FoundationModels framework).
+//  Provides proofread, rewrite, and summarize via on-device LLM (iOS 26+).
 //
-//  Created by GitHub Copilot on 10/15/25.
+//  NOTE: Apple's system Writing Tools are a UI-level feature on UITextView
+//  (writingToolsBehavior), NOT a programmatic API. There is no "WritingTools"
+//  framework to import. This service uses FoundationModels directly to
+//  replicate the same capabilities programmatically.
 //
 
 import Foundation
 import SwiftUI
 
-#if canImport(WritingTools)
-import WritingTools
+#if canImport(FoundationModels)
+import FoundationModels
 
-/// Service for integrating Apple's Writing Tools into RAG workflows
-/// Provides system-level text enhancement capabilities
-@available(iOS 18.1, *)
+/// Programmatic writing tools powered by Apple Foundation Models.
+/// Replicates proofread / rewrite / summarize using the on-device LLM.
+@available(iOS 26.0, *)
 class WritingToolsService {
-    
-    /// Check if Writing Tools are available on this device
+
+    /// Check if Apple Foundation Models are available on this device
     var isAvailable: Bool {
-        // Writing Tools requires Apple Intelligence to be enabled
-        // Available on iPhone 15 Pro/Pro Max+, iPad with M1+, Mac with M1+
-        return WritingTools.isAvailable
+        SystemLanguageModel.default.isAvailable
     }
-    
+
     // MARK: - Text Enhancement
-    
-    /// Proofread text for grammar and spelling errors
+
+    /// Proofread text — fix grammar, spelling, and punctuation while preserving meaning
     func proofread(_ text: String) async throws -> String {
         guard isAvailable else {
             throw WritingToolsError.notAvailable
         }
 
-        Log.debug("[Writing Tools] Proofreading text (chars=\(text.count))", category: .pipeline)
-        
-        let request = WritingToolsRequest(
-            text: text,
-            tool: .proofread
-        )
-        
-        let result = try await WritingTools.process(request)
+        Log.debug("[WritingTools] Proofreading text (chars=\(text.count))", category: .pipeline)
 
-        Log.debug("[Writing Tools] Proofreading complete (changes=\(result.changeCount))", category: .pipeline)
-        
-        return result.text
+        let prompt = """
+        Proofread the following text. Fix grammar, spelling, and punctuation errors. \
+        Preserve the original meaning and tone. Return ONLY the corrected text — no \
+        explanations, no commentary, no preamble.
+
+        Text:
+        \(text)
+        """
+
+        let result = try await generate(prompt: prompt)
+        Log.debug("[WritingTools] Proofreading complete (chars=\(result.count))", category: .pipeline)
+        return result
     }
-    
-    /// Rewrite text in different tones/styles
+
+    /// Rewrite text in a given tone
     func rewrite(_ text: String, tone: RewriteTone) async throws -> [String] {
         guard isAvailable else {
             throw WritingToolsError.notAvailable
         }
 
-        Log.debug("[Writing Tools] Rewriting text (chars=\(text.count), tone=\(tone.rawValue))", category: .pipeline)
-        
-        let request = WritingToolsRequest(
-            text: text,
-            tool: .rewrite(tone: tone.systemTone)
-        )
-        
-        let result = try await WritingTools.process(request)
+        Log.debug("[WritingTools] Rewriting text (chars=\(text.count), tone=\(tone.rawValue))", category: .pipeline)
 
-        Log.debug("[Writing Tools] Rewrite complete (alternatives=\(result.alternatives.count))", category: .pipeline)
-        
-        return result.alternatives
+        let prompt = """
+        Rewrite the following text in a \(tone.rawValue.lowercased()) tone. \
+        Preserve all factual content. Return ONLY the rewritten text — no \
+        explanations, no commentary, no preamble.
+
+        Text:
+        \(text)
+        """
+
+        let result = try await generate(prompt: prompt)
+        Log.debug("[WritingTools] Rewrite complete (chars=\(result.count))", category: .pipeline)
+        return [result]
     }
-    
+
     /// Summarize text into key points
     func summarize(_ text: String, style: SummaryStyle) async throws -> String {
         guard isAvailable else {
             throw WritingToolsError.notAvailable
         }
 
-        Log.debug("[Writing Tools] Summarizing text (chars=\(text.count), style=\(style.rawValue))", category: .pipeline)
-        
-        let request = WritingToolsRequest(
-            text: text,
-            tool: .summarize(style: style.systemStyle)
-        )
-        
-        let result = try await WritingTools.process(request)
+        Log.debug("[WritingTools] Summarizing text (chars=\(text.count), style=\(style.rawValue))", category: .pipeline)
 
-        let compression = text.isEmpty ? 0.0 : (Double(result.text.count) / Double(text.count) * 100)
-        Log.debug("[Writing Tools] Summary complete (originalChars=\(text.count), summaryChars=\(result.text.count), compression=\(String(format: "%.1f", compression))%)", category: .pipeline)
-        
-        return result.text
+        let styleInstruction: String
+        switch style {
+        case .keyPoints:
+            styleInstruction = "Summarize as concise bullet-point key takeaways."
+        case .paragraph:
+            styleInstruction = "Summarize in a single concise paragraph."
+        case .list:
+            styleInstruction = "Summarize as a numbered list of main points."
+        }
+
+        let prompt = """
+        \(styleInstruction) \
+        Preserve all important facts. Return ONLY the summary — no \
+        explanations, no commentary, no preamble.
+
+        Text:
+        \(text)
+        """
+
+        let result = try await generate(prompt: prompt)
+        let compression = text.isEmpty ? 0.0 : (Double(result.count) / Double(text.count) * 100)
+        Log.debug("[WritingTools] Summary complete (originalChars=\(text.count), summaryChars=\(result.count), compression=\(String(format: "%.1f", compression))%)", category: .pipeline)
+        return result
     }
-    
+
     /// Make text more concise
     func makeConcise(_ text: String) async throws -> String {
         guard isAvailable else {
             throw WritingToolsError.notAvailable
         }
 
-        Log.debug("[Writing Tools] Making text concise (chars=\(text.count))", category: .pipeline)
-        
-        let request = WritingToolsRequest(
-            text: text,
-            tool: .makeConcise
-        )
-        
-        let result = try await WritingTools.process(request)
+        Log.debug("[WritingTools] Making text concise (chars=\(text.count))", category: .pipeline)
 
-        Log.debug("[Writing Tools] Concise version ready (originalChars=\(text.count), conciseChars=\(result.text.count))", category: .pipeline)
-        
-        return result.text
+        let prompt = """
+        Make the following text more concise. Remove redundancy and filler words while \
+        preserving all essential meaning. Return ONLY the concise version — no \
+        explanations, no commentary, no preamble.
+
+        Text:
+        \(text)
+        """
+
+        let result = try await generate(prompt: prompt)
+        Log.debug("[WritingTools] Concise version ready (originalChars=\(text.count), conciseChars=\(result.count))", category: .pipeline)
+        return result
     }
-    
+
+    // MARK: - RAG Response Transforms
+
+    /// Simplify — rewrite an AI response in plain, everyday language (ELI5)
+    func simplify(_ text: String) async throws -> String {
+        guard isAvailable else {
+            throw WritingToolsError.notAvailable
+        }
+
+        Log.debug("[WritingTools] Simplifying text (chars=\(text.count))", category: .pipeline)
+
+        let prompt = """
+        Rewrite the following text in simple, everyday language that anyone can understand. \
+        Use short sentences. Avoid jargon and technical terms — if you must use one, explain it \
+        in parentheses. Keep ALL the facts but make it easy to read. \
+        Return ONLY the simplified text — no preamble.
+
+        Text:
+        \(text)
+        """
+
+        let result = try await generate(prompt: prompt)
+        Log.debug("[WritingTools] Simplify complete (chars=\(result.count))", category: .pipeline)
+        return result
+    }
+
+    /// Make Actionable — convert an informational AI response into numbered steps / checklist
+    func makeActionable(_ text: String) async throws -> String {
+        guard isAvailable else {
+            throw WritingToolsError.notAvailable
+        }
+
+        Log.debug("[WritingTools] Making actionable (chars=\(text.count))", category: .pipeline)
+
+        let prompt = """
+        Convert the following information into a clear, numbered action plan. \
+        Each step should start with a verb (Check, Open, Remove, Apply, etc.). \
+        If there are warnings or important notes, put them as ⚠️ items. \
+        Keep it practical — someone should be able to follow these steps immediately. \
+        Return ONLY the action steps — no preamble or summary.
+
+        Information:
+        \(text)
+        """
+
+        let result = try await generate(prompt: prompt)
+        Log.debug("[WritingTools] Actionable complete (chars=\(result.count))", category: .pipeline)
+        return result
+    }
+
     // MARK: - RAG-Specific Enhancements
-    
+
     /// Summarize retrieved chunks before passing to LLM (reduces token usage)
     func summarizeContext(_ chunks: [RetrievedChunk]) async throws -> String {
         guard isAvailable else {
-            // Fallback: Return raw chunks concatenated
             return chunks.map { $0.chunk.content }.joined(separator: "\n\n")
         }
 
-        Log.debug("[Writing Tools] Summarizing context (chunks=\(chunks.count))", category: .pipeline)
-        
+        Log.debug("[WritingTools] Summarizing context (chunks=\(chunks.count))", category: .pipeline)
+
         let rawContext = chunks.map { chunk in
             """
             [Relevance: \(String(format: "%.2f", chunk.similarityScore))]
             \(chunk.chunk.content)
             """
         }.joined(separator: "\n\n---\n\n")
-        
-        // Use "key points" style for factual document content
+
         let summary = try await summarize(rawContext, style: .keyPoints)
 
         let savings = rawContext.count - summary.count
         let pct = rawContext.isEmpty ? 0.0 : ((1.0 - Double(summary.count) / Double(rawContext.count)) * 100)
-        Log.debug("[Writing Tools] Context summarized (originalChars=\(rawContext.count), summaryChars=\(summary.count), savingsChars=\(savings), savingsPct=\(String(format: "%.1f", pct))%)", category: .pipeline)
-        
+        Log.debug("[WritingTools] Context summarized (originalChars=\(rawContext.count), summaryChars=\(summary.count), savingsChars=\(savings), savingsPct=\(String(format: "%.1f", pct))%)", category: .pipeline)
+
         return summary
     }
-    
+
     /// Improve user query clarity before RAG processing
     func clarifyQuery(_ query: String) async throws -> String {
         guard isAvailable else {
             return query
         }
 
-        Log.debug("[Writing Tools] Clarifying user query (chars=\(query.count))", category: .pipeline)
-        
-        // Use proofread to fix typos and grammar
+        Log.debug("[WritingTools] Clarifying user query (chars=\(query.count))", category: .pipeline)
         let clarified = try await proofread(query)
 
         if clarified != query {
-            Log.debug("[Writing Tools] Query clarified (charsBefore=\(query.count), charsAfter=\(clarified.count))", category: .pipeline)
+            Log.debug("[WritingTools] Query clarified (charsBefore=\(query.count), charsAfter=\(clarified.count))", category: .pipeline)
         } else {
-            Log.verbose("[Writing Tools] Query already clear", category: .pipeline)
+            Log.verbose("[WritingTools] Query already clear", category: .pipeline)
         }
-        
+
         return clarified
     }
-}
 
-// MARK: - Supporting Types
+    // MARK: - Private LLM Helper
 
-@available(iOS 18.1, *)
-enum RewriteTone: String, CaseIterable {
-    case professional = "Professional"
-    case friendly = "Friendly"
-    case concise = "Concise"
-    case casual = "Casual"
-    
-    var systemTone: WritingTools.Tone {
-        switch self {
-        case .professional: return .professional
-        case .friendly: return .friendly
-        case .concise: return .concise
-        case .casual: return .casual
-        }
-    }
-}
-
-@available(iOS 18.1, *)
-enum SummaryStyle: String, CaseIterable {
-    case keyPoints = "Key Points"
-    case paragraph = "Paragraph"
-    case list = "List"
-    
-    var systemStyle: WritingTools.SummaryStyle {
-        switch self {
-        case .keyPoints: return .keyPoints
-        case .paragraph: return .paragraph
-        case .list: return .list
-        }
-    }
-}
-
-enum WritingToolsError: LocalizedError {
-    case notAvailable
-    case processingFailed(String)
-    
-    var errorDescription: String? {
-        switch self {
-        case .notAvailable:
-            return "Writing Tools require Apple Intelligence (iOS 18.1+, A17 Pro+ or M1+)"
-        case .processingFailed(let message):
-            return "Writing Tools processing failed: \(message)"
+    /// Single-shot LLM generation using Apple Foundation Models
+    private func generate(prompt: String) async throws -> String {
+        do {
+            let session = LanguageModelSession()
+            let response = try await session.respond(to: prompt)
+            let text = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else {
+                throw WritingToolsError.processingFailed("Model returned empty response")
+            }
+            return text
+        } catch let error as WritingToolsError {
+            throw error
+        } catch {
+            Log.error("[WritingTools] LLM generation failed: \(error)", category: .pipeline)
+            throw WritingToolsError.processingFailed(error.localizedDescription)
         }
     }
 }
 
 #else
-// Stub for platforms without Writing Tools
+
+// MARK: - Stub for platforms without FoundationModels (macOS, older iOS)
+
 class WritingToolsService {
     var isAvailable: Bool { false }
-    
+
     func proofread(_ text: String) async throws -> String {
         throw WritingToolsError.notAvailable
     }
-    
+
     func rewrite(_ text: String, tone: RewriteTone) async throws -> [String] {
         throw WritingToolsError.notAvailable
     }
-    
+
     func summarize(_ text: String, style: SummaryStyle) async throws -> String {
         throw WritingToolsError.notAvailable
     }
-    
+
     func makeConcise(_ text: String) async throws -> String {
         throw WritingToolsError.notAvailable
     }
-    
+
+    func simplify(_ text: String) async throws -> String {
+        throw WritingToolsError.notAvailable
+    }
+
+    func makeActionable(_ text: String) async throws -> String {
+        throw WritingToolsError.notAvailable
+    }
+
     func summarizeContext(_ chunks: [RetrievedChunk]) async throws -> String {
         return chunks.map { $0.chunk.content }.joined(separator: "\n\n")
     }
-    
+
     func clarifyQuery(_ query: String) async throws -> String {
         return query
     }
 }
+
+#endif
+
+// MARK: - Supporting Types (always available)
 
 enum RewriteTone: String, CaseIterable {
     case professional = "Professional"
@@ -251,9 +301,14 @@ enum SummaryStyle: String, CaseIterable {
 
 enum WritingToolsError: LocalizedError {
     case notAvailable
-    
+    case processingFailed(String)
+
     var errorDescription: String? {
-        "Writing Tools not available on this platform"
+        switch self {
+        case .notAvailable:
+            return "Apple Intelligence not available on this device (requires iOS 26+, A17 Pro or M1+)"
+        case .processingFailed(let message):
+            return "Writing Tools processing failed: \(message)"
+        }
     }
 }
-#endif

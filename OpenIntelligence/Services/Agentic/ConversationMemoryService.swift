@@ -573,7 +573,7 @@ final class ConversationMemoryService {
                 """
 
                 let response = try await session.respond(to: prompt)
-                return response.content.trimmingCharacters(in: .whitespacesAndNewlines)
+                return response.content.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
             } catch {
                 Log.warning("[ConversationMemory] LLM summarization failed: \(error). Using extractive fallback.", category: .retrieval)
                 return extractiveSummary(from: text)
