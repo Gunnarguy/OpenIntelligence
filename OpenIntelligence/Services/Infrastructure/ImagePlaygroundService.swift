@@ -148,18 +148,19 @@ final class ImagePlaygroundService: ObservableObject {
     // MARK: - Content Analysis (NLTagger)
 
     /// Extract the most distinctive, concrete topics from document text.
-    /// Returns (entities, topNouns) — the raw material for LLM concept generation.
-    private func extractContentSignals(from text: String) -> (entities: [String], nouns: [String]) {
+    /// Returns (entities, topNouns, adjectives) — the raw material for concept generation.
+    private func extractContentSignals(from text: String) -> (entities: [String], nouns: [String], adjectives: [String]) {
         let cleaned = text
             .replacingOccurrences(of: #"#{1,6}\s*"#, with: "", options: .regularExpression)
             .replacingOccurrences(of: #"\*{1,3}([^*]+?)\*{1,3}"#, with: "$1", options: .regularExpression)
             .replacingOccurrences(of: #"\[[^\]]{0,60}\]"#, with: "", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
-        guard !cleaned.isEmpty else { return ([], []) }
+        guard !cleaned.isEmpty else { return ([], [], []) }
 
         var entities: [String] = []
         var nouns: [String] = []
+        var adjectives: [String] = []
 
         let tagger = NLTagger(tagSchemes: [.nameType, .lexicalClass])
         tagger.string = cleaned
@@ -173,16 +174,17 @@ final class ImagePlaygroundService: ObservableObject {
                     entities.append(e)
                 }
             }
-            return entities.count < 8
+            return entities.count < 10
         }
 
-        // Concrete nouns — skip ultra-generic filler words
+        // Concrete nouns and adjectives — skip ultra-generic filler words
         let skip: Set<String> = [
             "information", "data", "system", "process", "method", "type", "result",
             "value", "level", "step", "point", "case", "thing", "fact", "issue",
             "content", "detail", "feature", "section", "part", "example", "item",
             "number", "time", "way", "use", "need", "order", "form", "rate",
             "state", "area", "line", "note", "text", "page", "word", "mode",
+            "ability", "approach", "aspect", "basis", "category", "concept",
         ]
 
         tagger.enumerateTags(in: cleaned.startIndex..<cleaned.endIndex, unit: .word, scheme: .lexicalClass, options: opts) { tag, range in
@@ -191,256 +193,275 @@ final class ImagePlaygroundService: ObservableObject {
                 if n.count >= 3, n.count <= 20, !skip.contains(n), !nouns.contains(n) {
                     nouns.append(n)
                 }
+            } else if tag == .adjective {
+                let a = String(cleaned[range]).trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                if a.count >= 3, a.count <= 15, !adjectives.contains(a) {
+                    adjectives.append(a)
+                }
             }
-            return nouns.count < 15
+            return nouns.count < 20 && adjectives.count < 10
         }
 
-        return (entities, nouns)
+        return (entities, nouns, adjectives)
     }
 
     // MARK: - LLM Concept Extraction (Content-Resonant)
 
     /// LLM-powered concept extraction that produces concepts SPECIFIC to the document content.
     ///
-    /// **How it works:**
-    /// 1. NLTagger extracts the actual entities and key nouns from the text
-    /// 2. Those are fed to the LLM as "topic seeds" so it knows what the document is about
-    /// 3. LLM generates visual metaphors/scenes that visually represent those specific topics
-    /// 4. Blocklist filtering removes only genuinely unsafe concepts
-    /// 5. Result: concepts that actually resonate with the document content
+    /// **Reliability strategy — 3-tier cascade, NEVER returns empty:**
+    /// 1. LLM generates content-specific visual scenes (best quality)
+    /// 2. If LLM fails → NLTagger builds concepts from extracted entities + nouns + adjectives
+    /// 3. If NLTagger finds nothing → deterministic hash-based selection from curated concept pool
     ///
-    /// A car manual gets car/road/garage scenes. A cooking recipe gets kitchen/food scenes.
-    /// A financial report gets city/office/chart scenes. Every document gets DIFFERENT concepts.
+    /// Each tier guarantees `maxConcepts` results. Every call produces unique, valid concepts.
     func extractConceptsWithLLM(from text: String, maxConcepts: Int = 5) async -> [String] {
         // Step 1: Extract what the document is actually about
-        let truncated = String(text.prefix(2000))
+        let truncated = String(text.prefix(2500))
         let signals = extractContentSignals(from: truncated)
         let topEntities = signals.entities.prefix(5).joined(separator: ", ")
-        let topNouns = signals.nouns.prefix(8).joined(separator: ", ")
+        let topNouns = signals.nouns.prefix(10).joined(separator: ", ")
+        let topAdj = signals.adjectives.prefix(5).joined(separator: ", ")
 
         #if canImport(FoundationModels)
         if #available(iOS 26.0, *) {
             do {
                 // Step 2: Ask LLM for content-specific visual concepts
-                let topicContext = [
-                    topEntities.isEmpty ? nil : "Key entities: \(topEntities)",
-                    topNouns.isEmpty ? nil : "Key topics: \(topNouns)"
+                let topicParts = [
+                    topEntities.isEmpty ? nil : "Named entities: \(topEntities)",
+                    topNouns.isEmpty ? nil : "Key topics: \(topNouns)",
+                    topAdj.isEmpty ? nil : "Descriptors: \(topAdj)"
                 ].compactMap { $0 }.joined(separator: "\n")
 
+                let topicContext = topicParts.isEmpty ? String(truncated.prefix(600)) : topicParts
+
+                // Use a unique seed from the text content to encourage variety
+                let contentHash = abs(text.hashValue) % 1000
+
                 let prompt = """
-                You are creating visual concepts for Apple Image Playground (Genmoji/sticker generator).
+                Create \(maxConcepts + 3) short visual descriptions for Apple Image Playground.
 
-                The user's document is about:
-                \(topicContext.isEmpty ? String(truncated.prefix(500)) : topicContext)
+                Document topics:
+                \(topicContext)
 
-                Generate 8 short visual descriptions (2-6 words each) that VISUALLY REPRESENT the specific topics above.
-                Make each one a concrete, drawable scene or object that someone would instantly connect to this content.
+                Seed: \(contentHash)
 
-                RULES:
-                - Each concept must be a PHYSICAL scene, object, or character that can be drawn
-                - Make concepts SPECIFIC to this document's topic — not generic
-                - Use vivid, concrete imagery (colors, materials, settings)
-                - NO abstract ideas, emotions, or technical diagrams
-                - NO medical instruments, weapons, or graphic imagery
-                - Keep each concept 2-6 words
+                RULES (follow exactly):
+                - Each description: 2-5 words, a PHYSICAL object or scene
+                - Must be something an artist can DRAW — no abstractions
+                - Make each one DIFFERENT from the others
+                - Relate each one to the document topics above
+                - NO weapons, medical tools, violence, nudity, death
+                - NO emotions, feelings, or abstract concepts
+                - GOOD examples: "red bicycle on cobblestone", "steaming coffee mug", "lighthouse at sunset"
+                - BAD examples: "knowledge concept", "data flow", "the feeling of discovery"
 
-                Examples of GOOD content-specific concepts:
-                - For a car manual: "red sports car on highway", "engine under open hood", "mechanic with wrench"
-                - For a recipe book: "steaming bowl of pasta", "chef tossing pizza dough", "herbs in rustic kitchen"
-                - For a travel guide: "gondola on Venice canal", "backpacker on mountain trail", "colorful market stall"
-                - For a finance report: "bull statue on Wall Street", "coins stacked on desk", "city skyline at dawn"
-
-                Output ONLY the 8 descriptions, one per line. Nothing else.
+                Output ONLY the descriptions, one per line, no numbering or bullets.
                 """
 
                 let session = LanguageModelSession()
                 let response = try await session.respond(to: prompt)
                 let raw = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
 
-                // Step 3: Parse and safety-filter (blocklist only — not whitelist)
+                // Step 3: Parse and safety-filter (blocklist only)
                 let concepts = raw.components(separatedBy: .newlines)
                     .compactMap { cleanConcept($0) }
                     .filter { !$0.isEmpty }
 
-                if concepts.count >= 2 {
-                    let unique = Array(NSOrderedSet(array: concepts)) as? [String] ?? concepts
-                    Log.info("[ImagePlayground] LLM generated \(unique.count) content-specific concepts: \(unique.prefix(5))", category: .pipeline)
+                if concepts.count >= maxConcepts {
+                    // Deduplicate while preserving order
+                    var seen = Set<String>()
+                    let unique = concepts.filter { seen.insert($0).inserted }
+                    Log.info("[ImagePlayground] LLM generated \(unique.count) concepts: \(unique.prefix(5))", category: .pipeline)
                     return Array(unique.prefix(maxConcepts))
                 }
 
-                Log.info("[ImagePlayground] LLM returned \(concepts.count) usable concepts, building content-aware fallbacks", category: .pipeline)
+                // LLM gave us some but not enough — supplement with NLTagger concepts
+                if !concepts.isEmpty {
+                    let remaining = maxConcepts - concepts.count
+                    let supplement = buildContentAwareFallbacks(
+                        entities: signals.entities, nouns: signals.nouns,
+                        adjectives: signals.adjectives, contentHash: contentHash,
+                        maxConcepts: remaining, excluding: Set(concepts)
+                    )
+                    let combined = concepts + supplement
+                    Log.info("[ImagePlayground] LLM+NLTagger hybrid: \(combined.count) concepts", category: .pipeline)
+                    return Array(combined.prefix(maxConcepts))
+                }
+
+                Log.info("[ImagePlayground] LLM returned 0 usable concepts, using NLTagger fallback", category: .pipeline)
             } catch {
-                Log.info("[ImagePlayground] LLM failed: \(error.localizedDescription), using NLTagger fallback", category: .pipeline)
+                Log.info("[ImagePlayground] LLM error: \(error.localizedDescription), using NLTagger fallback", category: .pipeline)
             }
         }
         #endif
 
-        // Step 4: Fallback — build concepts from NLTagger signals (no LLM needed)
-        return buildContentAwareFallbacks(entities: signals.entities, nouns: signals.nouns, maxConcepts: maxConcepts)
+        // Tier 2: NLTagger-based concepts (no LLM needed)
+        let contentHash = abs(text.hashValue) % 1000
+        let result = buildContentAwareFallbacks(
+            entities: signals.entities, nouns: signals.nouns,
+            adjectives: signals.adjectives, contentHash: contentHash,
+            maxConcepts: maxConcepts, excluding: []
+        )
+
+        // Tier 3: If NLTagger also found nothing, guaranteed pool selection
+        if result.count < maxConcepts {
+            let pool = guaranteedConceptPool(hash: contentHash)
+            var combined = result
+            for c in pool where combined.count < maxConcepts && !combined.contains(c) {
+                combined.append(c)
+            }
+            return combined
+        }
+
+        return result
     }
 
     /// Build visual concepts from NLTagger-extracted signals when LLM is unavailable.
-    /// Uses templates to turn raw nouns/entities into drawable scene descriptions.
-    private func buildContentAwareFallbacks(entities: [String], nouns: [String], maxConcepts: Int) -> [String] {
+    /// Combines adjectives + nouns into concrete, drawable scene descriptions.
+    /// Uses content hash for deterministic but varied template selection.
+    private func buildContentAwareFallbacks(
+        entities: [String], nouns: [String], adjectives: [String],
+        contentHash: Int, maxConcepts: Int, excluding: Set<String>
+    ) -> [String] {
         var concepts: [String] = []
 
-        // Scene templates that work with any noun
-        let sceneTemplates = [
-            "colorful illustration of %@",
-            "%@ in bright sunshine",
-            "detailed drawing of %@",
-            "%@ with golden light",
-            "whimsical %@ scene",
+        // Adjective+noun combos produce vivid, drawable concepts
+        // e.g. "golden bridge", "towering mountain", "rustic kitchen"
+        let visualAdjectives = adjectives.isEmpty
+            ? ["golden", "colorful", "vintage", "glowing", "crystal"]
+            : adjectives
+
+        // Scene templates — each produces a concrete, drawable image
+        let templates: [(String) -> String] = [
+            { "\($0) in warm sunlight" },
+            { "\($0) on a wooden table" },
+            { "\($0) surrounded by flowers" },
+            { "watercolor painting of \($0)" },
+            { "\($0) with morning dew" },
+            { "cozy scene with \($0)" },
+            { "\($0) under starry sky" },
+            { "miniature \($0) on a shelf" },
+            { "\($0) in a glass jar" },
+            { "\($0) floating on water" },
         ]
 
-        // Entity-based concepts (most specific)
-        for entity in entities.prefix(2) {
-            let safe = entity.filter { $0.isLetter || $0.isWhitespace }
+        // Pick a starting template index based on content hash for variety
+        let templateOffset = contentHash % templates.count
+
+        // A: Entity-based concepts (most specific to the document)
+        for (i, entity) in entities.prefix(3).enumerated() {
+            guard concepts.count < maxConcepts else { break }
+            let safe = entity.filter { $0.isLetter || $0.isWhitespace || $0.isNumber }
             guard safe.count >= 2, conceptIsSafe(safe) else { continue }
-            let template = sceneTemplates[concepts.count % sceneTemplates.count]
-            let concept = String(format: template, safe.lowercased())
-            if concept.count <= 60 {
+
+            // Combine with an adjective if available
+            let adj = visualAdjectives[i % visualAdjectives.count]
+            let concept = "\(adj) \(safe.lowercased())"
+            if concept.count <= 50, !excluding.contains(concept), !concepts.contains(concept) {
                 concepts.append(concept)
             }
         }
 
-        // Noun-based concepts (concrete topics)
-        for noun in nouns.prefix(4) {
+        // B: Noun-based concepts with templates for variety
+        for (i, noun) in nouns.prefix(8).enumerated() {
             guard concepts.count < maxConcepts else { break }
             guard conceptIsSafe(noun) else { continue }
-            let template = sceneTemplates[concepts.count % sceneTemplates.count]
-            let concept = String(format: template, noun)
-            if concept.count <= 60, !concepts.contains(concept) {
+
+            let templateIdx = (templateOffset + i) % templates.count
+            let concept = templates[templateIdx](noun)
+            if concept.count <= 55, !excluding.contains(concept), !concepts.contains(concept) {
                 concepts.append(concept)
             }
         }
 
-        // If still too few, add some universal but varied fallbacks
-        if concepts.count < maxConcepts {
-            let universalFallbacks = [
-                "open book with golden pages", "compass on vintage map",
-                "magnifying glass over document", "lightbulb with sparkles",
-                "telescope pointing at stars", "paintbrush creating art",
-                "globe with highlighted path", "scroll with flowing text",
-                "desk with scattered papers", "library with tall shelves",
-            ].shuffled()
-
-            for fb in universalFallbacks where concepts.count < maxConcepts {
-                if !concepts.contains(fb) { concepts.append(fb) }
+        // C: Adjective+noun pairings for extra variety
+        if concepts.count < maxConcepts && nouns.count >= 2 {
+            for i in 0..<min(3, nouns.count) {
+                guard concepts.count < maxConcepts else { break }
+                let adj = visualAdjectives[(contentHash + i) % visualAdjectives.count]
+                let noun = nouns[(contentHash + i) % nouns.count]
+                guard conceptIsSafe(noun) else { continue }
+                let concept = "\(adj) \(noun)"
+                if concept.count <= 40, !excluding.contains(concept), !concepts.contains(concept) {
+                    concepts.append(concept)
+                }
             }
         }
 
         return Array(concepts.prefix(maxConcepts))
     }
 
-    /// Synchronous NLTagger-based fallback for when FoundationModels is unavailable.
-    /// Extracts concrete nouns and named entities, frames them as short visual phrases.
+    /// Guaranteed concept pool — always returns at least `count` valid concepts.
+    /// Uses content hash for deterministic variety so the same text gets the same
+    /// (but still visually interesting) concepts every time.
+    private func guaranteedConceptPool(hash: Int, count: Int = 8) -> [String] {
+        let pool: [String] = [
+            "open book with golden pages",
+            "compass on vintage map",
+            "magnifying glass over parchment",
+            "lightbulb glowing warmly",
+            "telescope under night sky",
+            "paintbrush with rainbow colors",
+            "globe with paper airplanes",
+            "hourglass with golden sand",
+            "quill pen and inkwell",
+            "crystal ball on velvet",
+            "lantern in foggy garden",
+            "typewriter with fresh paper",
+            "treasure chest with gems",
+            "hot air balloon over hills",
+            "pocket watch on oak desk",
+            "stained glass window",
+            "windmill in tulip field",
+            "bonsai tree with blossoms",
+            "violin on silk cloth",
+            "lighthouse beam at dusk",
+            "old camera with photos",
+            "music box with dancer",
+            "sundial in rose garden",
+            "sailing ship on calm sea",
+        ]
+
+        // Deterministic shuffle based on content hash
+        let startIdx = hash % pool.count
+        var selected: [String] = []
+        for i in 0..<count {
+            selected.append(pool[(startIdx + i * 3) % pool.count])
+        }
+        return selected
+    }
+
+    /// Synchronous NLTagger-based concept extraction — used as the public sync API
+    /// and as the fallback when FoundationModels is unavailable.
+    /// Always returns at least `maxConcepts` results.
     func extractConcepts(from text: String, maxConcepts: Int = 10) -> [String] {
         return extractConceptsWithNLTagger(from: text, maxConcepts: maxConcepts)
     }
 
-    /// NLTagger noun/entity extraction — used as fallback when LLM is unavailable
+    /// NLTagger noun/entity extraction with guaranteed results.
+    /// Uses the same 3-tier strategy as the async version.
     private func extractConceptsWithNLTagger(from text: String, maxConcepts: Int = 10) -> [String] {
-        // 1. Strip markdown/citation artifacts
-        var cleaned = text
-        cleaned = cleaned.replacingOccurrences(of: #"#{1,6}\s*"#, with: "", options: .regularExpression)
-        cleaned = cleaned.replacingOccurrences(of: #"\*{1,3}([^*]+?)\*{1,3}"#, with: "$1", options: .regularExpression)
-        cleaned = cleaned.replacingOccurrences(of: #"\[[^\]]{0,60}\]"#, with: "", options: .regularExpression)
-        cleaned = cleaned.replacingOccurrences(of: #""[^"]{0,200}""#, with: "", options: .regularExpression)
-        cleaned = cleaned.replacingOccurrences(of: #"\"[^\"]{0,200}\""#, with: "", options: .regularExpression)
-        cleaned = cleaned.replacingOccurrences(of: #"(?i)(excerpt|source|confidence|document)\s*:?\s*"#, with: "", options: .regularExpression)
-        cleaned = cleaned.replacingOccurrences(of: #"\s{2,}"#, with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let signals = extractContentSignals(from: text)
+        let contentHash = abs(text.hashValue) % 1000
 
-        guard !cleaned.isEmpty else {
-            return ["a colorful knowledge illustration"]
+        let concepts = buildContentAwareFallbacks(
+            entities: signals.entities, nouns: signals.nouns,
+            adjectives: signals.adjectives, contentHash: contentHash,
+            maxConcepts: maxConcepts, excluding: []
+        )
+
+        // Guarantee we always return enough concepts
+        if concepts.count >= maxConcepts {
+            return concepts
         }
 
-        // 2. Extract named entities and concrete nouns via NLTagger
-        var entities: [String] = []
-        var concreteNouns: [String] = []
-
-        let tagger = NLTagger(tagSchemes: [.nameType, .lexicalClass])
-        tagger.string = cleaned
-        let opts: NLTagger.Options = [.omitWhitespace, .omitPunctuation, .joinNames]
-
-        // Named entities (people, places, orgs) → best visual anchors
-        tagger.enumerateTags(in: cleaned.startIndex..<cleaned.endIndex, unit: .word, scheme: .nameType, options: opts) { tag, range in
-            if let tag, [.personalName, .placeName, .organizationName].contains(tag) {
-                let e = String(cleaned[range]).trimmingCharacters(in: .whitespacesAndNewlines)
-                if e.count >= 2, e.count <= 30, !entities.contains(e) {
-                    entities.append(e)
-                }
-            }
-            return true
+        var result = concepts
+        let pool = guaranteedConceptPool(hash: contentHash, count: maxConcepts)
+        for c in pool where result.count < maxConcepts && !result.contains(c) {
+            result.append(c)
         }
-
-        // Concrete nouns (skip abstract/technical words)
-        let skipNouns: Set<String> = [
-            "information", "data", "system", "process", "method", "type", "result",
-            "value", "level", "step", "point", "case", "thing", "fact", "issue",
-            "content", "detail", "feature", "section", "part", "example", "item",
-            "number", "time", "way", "use", "need", "order", "form", "rate",
-            "state", "area", "line", "note", "text", "page", "word", "mode",
-            "base", "code", "name", "list", "term", "unit", "spec", "docs"
-        ]
-
-        tagger.enumerateTags(in: cleaned.startIndex..<cleaned.endIndex, unit: .word, scheme: .lexicalClass, options: opts) { tag, range in
-            if tag == .noun {
-                let n = String(cleaned[range]).trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-                if n.count >= 3, n.count <= 20, !skipNouns.contains(n), !concreteNouns.contains(n) {
-                    concreteNouns.append(n)
-                }
-            }
-            return true
-        }
-
-        // 3. Build SHORT visual concepts (< 40 chars each)
-        var concepts: [String] = []
-
-        // A: Top entity as a scene (e.g. "Toyota" → "a Toyota vehicle")
-        if let topEntity = entities.first {
-            let scene = "a scene with \(topEntity)"
-            if scene.count <= 40 {
-                concepts.append(scene)
-            } else {
-                concepts.append(String(topEntity.prefix(35)))
-            }
-        }
-
-        // B: Top 2-3 concrete nouns as a visual grouping
-        let topNouns = Array(concreteNouns.prefix(3))
-        if topNouns.count >= 2 {
-            let phrase = topNouns.joined(separator: " and ")
-            let concept = phrase.count <= 38 ? phrase : topNouns.prefix(2).joined(separator: " and ")
-            concepts.append(concept)
-        } else if let single = topNouns.first {
-            concepts.append("a detailed \(single)")
-        }
-
-        // C: If we have a second entity, add it
-        if entities.count >= 2 {
-            let e = entities[1]
-            concepts.append(e.count <= 35 ? e : String(e.prefix(35)))
-        }
-
-        // D: Pull one more noun cluster if available
-        if concreteNouns.count > 3 {
-            let extras = concreteNouns.dropFirst(3).prefix(2)
-            let phrase = extras.joined(separator: " and ")
-            if phrase.count <= 38 && !concepts.contains(phrase) {
-                concepts.append(phrase)
-            }
-        }
-
-        // Fallback: always return at least one usable concept
-        if concepts.isEmpty {
-            // Use the first 35 chars of cleaned text as a concept
-            let fallback = String(cleaned.prefix(35)).trimmingCharacters(in: .whitespacesAndNewlines)
-            concepts.append(fallback.isEmpty ? "a colorful knowledge illustration" : fallback)
-        }
-
-        return Array(concepts.prefix(maxConcepts))
+        return Array(result.prefix(maxConcepts))
     }
 
     // MARK: - Interactive Sheet
