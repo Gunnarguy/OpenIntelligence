@@ -85,6 +85,8 @@ Before OCR even runs, the engine analyzes each page:
 4. **Adaptive Preprocessing**: Based on page quality, one of 5 GPU-accelerated CIFilter strategies is selected — from "minimal" (clean digital PDFs) to "maximum" (faded microfiche/bad phone photos) — applying appropriate sharpening, contrast, denoising, and exposure correction. CIFilter rendering runs on a **concurrent** `DispatchQueue` — CIContext is thread-safe, so multiple pages preprocess in parallel.
 5. **Multi-Candidate Confidence OCR**: Vision returns up to **5** alternative transcriptions per text line. Numeric data requires 90% confidence (vs 85% for text). When a table cell reads "15.5" at 82% confidence but "14.3" at 78%, both alternatives are flagged for verification rather than blindly trusting the first guess.
 
+**Memory-Safe Image Analysis (v1.2):** After OCR parsing completes, the engine analyzes pages for images/diagrams. For 500+ page PDFs, this would previously OOM-kill the app. Now: parsed results are freed before image analysis begins (~100-200MB reclaimed), pages are processed in **5-page batches** (was 20), and image understanding renders use **144 DPI** (2× scale) instead of the 360 DPI used for OCR — each page image is ~4MB instead of ~25MB. All renders wrapped in `autoreleasepool` for immediate Core Graphics cleanup.
+
 ### 1. Chunking
 
 **"Break documents into pieces small enough to embed"**
@@ -129,12 +131,12 @@ When a user asks a question, we need to find the "needle in the haystack" (the r
 
 ### 1. Hybrid Search
 
-We don't rely on just one method. We use two:
+We don't rely on just one method. We use two **independent, parallel** searches:
 
-1.  **Vector Search (Semantic):** Finds concepts (e.g., matching "oil" to "lubricant").
-2.  **BM25 (Keyword):** Finds exact matches (e.g., matching part number "XYZ-123"). Uses AND-first FTS5 queries (all terms must co-occur) with automatic OR fallback. Scoring is per-chunk, not per-document.
+1.  **Vector Search (Semantic):** Finds concepts (e.g., matching "oil" to "lubricant"). Runs via vDSP-accelerated cosine similarity.
+2.  **FTS5 BM25 (Keyword):** Finds exact matches (e.g., matching part number "XYZ-123"). Uses AND-first FTS5 queries (all terms must co-occur) with automatic OR fallback. Scoring uses SQLite's native `bm25()` function with weighted columns (section_title: 10×, section_path: 5×, content: 1×).
 
-We fuse these results using **RRF (Reciprocal Rank Fusion)** to get the top ~50 candidates.
+Both searches run **concurrently** via `async let` — producing two independent ranked lists. We fuse these results using **RRF (Reciprocal Rank Fusion)** to get the top ~50 candidates. FTS5-only matches (chunks that wouldn't appear in vector results) now surface through RRF with fair ranking.
 
 ### 2. Reranking (The Quality Filter)
 
@@ -254,6 +256,30 @@ The system is `Search Engine` + `Logic Controller` + `Writer`.
 1.  **Search Engine:** Finds the raw data (Ingestion/Retrieval).
 2.  **Logic Controller:** Fits data into constraints and iterates (Orchestration).
 3.  **Writer:** Formats the final text (Generation).
+
+### Failure Recovery: Pipeline Reliability Hardening (v1.2)
+
+Apple's on-device FM has rate limits and a 4096-token context window. If compression consumes too many FM calls, the generation call can fail silently — returning 0 tokens. The pipeline now has 11 hardening fixes to prevent this:
+
+**Compression Hardening:**
+
+- Maximum **5 chunks** sent to compression (was unlimited)
+- **Fresh session** (`resetSession()`) before each chunk prevents transcript overflow after 3-4 compressions
+- **Per-chunk error isolation** — one compression failure no longer aborts the batch
+- **12-second time budget** — compression bails early if time runs out, passing remaining chunks through as originals
+- **1-second cooldown** after compression lets FM rate limits recover before generation
+
+**Generation Hardening:**
+
+- **Empty response → fallback** — 0-token LLM output routes to `buildReliabilityFallbackResponse()` instead of throwing
+- **Rate-limit retry** — detects rate-limited errors, sleeps 2s, retries once
+- **Typed LLM errors** — `.rateLimited` and `.concurrentRequests` cases replace fragile string matching
+
+**Fallback Quality:**
+
+- **Extractive Path B rewrite** — 6 chunks × 500 chars with section titles and source names (was 3 × 240 chars, no metadata)
+- **Partial stream threshold** lowered from 24 → 10 chars to salvage more partial output
+- **Error logging** in reliability fallback (was silent `try?`)
 
 ---
 

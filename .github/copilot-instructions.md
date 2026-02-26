@@ -101,21 +101,33 @@ QUERY → RESPONSE (17 steps):
 
 > **Full Reference**: See `Docs/reference/APPLE_DOCUMENT_INTELLIGENCE.md`
 
-## Service Inventory (81 Services)
+### Planned Framework Additions (23 identified gaps from WWDC24/25)
+
+| Target   | Frameworks                                                                                                   |
+| -------- | ------------------------------------------------------------------------------------------------------------ |
+| **v1.3** | Guardrails API, CoreSpotlight, SpeechAnalyzer, Translation, Liquid Glass, UseCase/Locale                     |
+| **v1.4** | Visual Intelligence, Adapter Training, Prompt Evaluation, Metal 4, BNNS Graph, Image Playground, NLGazetteer |
+| **v2.0** | @Observable, WidgetKit, BackgroundTasks, SwiftData, TipKit, Smart Reply, NSUserActivity, Genmoji             |
+
+> **Full Gap Analysis**: See `ROADMAP.md` → "Phase 2.15 — Apple Intelligence Gap Closure"
+
+## Service Inventory (102 Services)
 
 | Category           | Count | Key Services                                                                                                |
 | ------------------ | ----- | ----------------------------------------------------------------------------------------------------------- |
 | **RAG Pipeline**   | 14    | RAGService, RAGEngine, HybridSearchService, VerificationGateService, ContextPackingService                  |
-| **Query**          | 8     | QueryEnhancementService, HyDEService, ContextualCompressionService, QueryRouterService                      |
-| **Document**       | 20    | DocumentProcessor, SemanticChunker, EntityIndexService, AudioTranscriptionService, OCRConfiguration         |
-| **Embedding**      | 2     | EmbeddingService, CoreMLSentenceEmbeddingProvider                                                           |
+| **Query**          | 9     | QueryEnhancementService, HyDEService, ContextualCompressionService, QueryRouterService                      |
+| **Document**       | 23    | DocumentProcessor, SemanticChunker, EntityIndexService, AudioTranscriptionService, OCRConfiguration         |
+| **Embedding**      | 7     | EmbeddingService, CoreMLSentenceEmbeddingProvider                                                           |
 | **Storage**        | 3     | FullTextStorageService, SQLiteFullTextService, DocumentationCacheService                                    |
-| **VectorStore**    | 4     | VectorDatabase (protocol), InMemoryVectorDatabase, BNNSVectorDatabase, VectorStoreRouter                    |
-| **LLM**            | 7     | AppleFoundationLLMService, OnDeviceAnalysisService, LocalOpenAIServerLLMService                             |
-| **Agentic**        | 3     | AgenticOrchestrator, ConversationMemoryService, WritingToolsService                                         |
+| **VectorStore**    | 5     | VectorDatabase (protocol), InMemoryVectorDatabase, BNNSVectorDatabase, VectorStoreRouter                    |
+| **LLM**            | 9     | AppleFoundationLLMService, OnDeviceAnalysisService, LocalOpenAIServerLLMService                             |
+| **Agentic**        | 7     | AgenticOrchestrator, ConversationMemoryService, ResponseTransformService, WritingToolsService               |
 | **Rendering**      | 1     | MarkdownRenderer (block-level parser, inline normalizer, 6 regex patterns for Apple FM output)              |
-| **Infrastructure** | 18    | ContainerService, GPUComputeService (3-tier Metal shaders), HardwareTelemetryState, DeviceCapabilityService |
-| **Billing**        | 1     | StoreKitBillingService                                                                                      |
+| **Infrastructure** | 21    | ContainerService, GPUComputeService (3-tier Metal shaders), HardwareTelemetryState, DeviceCapabilityService |
+
+**Latest additions (v1.2, Feb 24)**: `ResponseTransformService` (5 RAG-grounded transforms using source chunks), AI Hub toolbar, Image Playground LLM concept extraction, BM25 `b` parameter alignment, Accelerate `vDSP.dot()` in Gate E, regex pre-compilation.
+| **Billing** | 2 | StoreKitBillingService |
 
 **Full inventory**: See `ARCHITECTURE.md` → "Complete Service Inventory"
 
@@ -142,3 +154,5 @@ xcodebuild -scheme OpenIntelligence -destination 'platform=iOS Simulator,name=iP
 6. **CSV data** → No row limits; tabs/special chars handled
 7. **Markdown rendering** → Apple FM concatenates markdown on one line; `normalizeInlineMarkdown()` preprocessor handles this
 8. **Response cleaning** → 7 functions in pipeline; do NOT strip markdown from `cleanupResponseText()` or `cleanupFinalAnswer()`
+9. **Large PDF OOM** → 500+ page PDFs must use 5-page image batches with 144 DPI (2×) renders and autoreleasepool; results.removeAll() before image analysis
+10. **Rate-limit cascade** → Apple FM rate limits during compression can cascade to 0-token generation; compression capped at 5 chunks with fresh session per chunk

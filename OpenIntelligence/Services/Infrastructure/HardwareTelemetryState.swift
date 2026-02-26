@@ -31,6 +31,7 @@ import Foundation
 import SwiftUI
 import Combine
 import Metal
+import Observation
 
 // MARK: - Hardware Component Types
 
@@ -115,8 +116,11 @@ enum HardwareActivityType: String, Sendable {
 
 /// Central state manager for hardware activity visualization
 /// Singleton that can be updated from any service to drive the HUD
-@MainActor
-final class HardwareTelemetryState: ObservableObject {
+///
+/// Uses `@Observable` (Observation framework) for efficient SwiftUI tracking —
+/// only views reading specific properties re-render when those properties change.
+@MainActor @Observable
+final class HardwareTelemetryState {
 
     // MARK: - Shared Instance
 
@@ -125,93 +129,93 @@ final class HardwareTelemetryState: ObservableObject {
     // MARK: - Published State (0.0 to 1.0 intensity)
 
     /// Neural Engine (ANE) activity intensity
-    @Published private(set) var aneIntensity: Double = 0.0
+    private(set) var aneIntensity: Double = 0.0
 
     /// GPU activity intensity
-    @Published private(set) var gpuIntensity: Double = 0.0
+    private(set) var gpuIntensity: Double = 0.0
 
     /// CPU activity intensity
-    @Published private(set) var cpuIntensity: Double = 0.0
+    private(set) var cpuIntensity: Double = 0.0
 
     /// Haptic (Taptic Engine) activity intensity
-    @Published private(set) var hapticIntensity: Double = 0.0
+    private(set) var hapticIntensity: Double = 0.0
 
     /// Current activity label for display
-    @Published private(set) var currentActivityLabel: String = ""
+    private(set) var currentActivityLabel: String = ""
 
     /// Whether any component is currently active
-    @Published private(set) var isActive: Bool = false
+    private(set) var isActive: Bool = false
 
     /// History of recent activity for sparkline visualizations
-    @Published private(set) var aneHistory: [Double] = []
-    @Published private(set) var gpuHistory: [Double] = []
-    @Published private(set) var cpuHistory: [Double] = []
-    @Published private(set) var hapticHistory: [Double] = []
+    private(set) var aneHistory: [Double] = []
+    private(set) var gpuHistory: [Double] = []
+    private(set) var cpuHistory: [Double] = []
+    private(set) var hapticHistory: [Double] = []
 
     // MARK: - Real Hardware Metrics (Actual Measurements)
 
     /// Operations counter - ANE (Neural Engine) inference operations
-    @Published private(set) var aneOperationCount: Int = 0
+    private(set) var aneOperationCount: Int = 0
 
     /// Operations counter - GPU compute dispatches
-    @Published private(set) var gpuOperationCount: Int = 0
+    private(set) var gpuOperationCount: Int = 0
 
     /// Operations counter - CPU-bound operations (BM25, chunking, etc.)
-    @Published private(set) var cpuOperationCount: Int = 0
+    private(set) var cpuOperationCount: Int = 0
 
     /// Total embeddings generated this session
-    @Published private(set) var totalEmbeddingsGenerated: Int = 0
+    private(set) var totalEmbeddingsGenerated: Int = 0
 
     /// Total LLM tokens generated this session
-    @Published private(set) var totalLLMTokensGenerated: Int = 0
+    private(set) var totalLLMTokensGenerated: Int = 0
 
     /// Last embedding latency in milliseconds
-    @Published private(set) var lastEmbeddingLatencyMs: Double = 0
+    private(set) var lastEmbeddingLatencyMs: Double = 0
 
     /// Last LLM token latency in milliseconds (time per token)
-    @Published private(set) var lastLLMTokenLatencyMs: Double = 0
+    private(set) var lastLLMTokenLatencyMs: Double = 0
 
     /// Last GPU operation latency in milliseconds
-    @Published private(set) var lastGPULatencyMs: Double = 0
+    private(set) var lastGPULatencyMs: Double = 0
 
     /// GPU memory allocated (bytes) - from MTLDevice
-    @Published private(set) var gpuMemoryAllocated: UInt64 = 0
+    private(set) var gpuMemoryAllocated: UInt64 = 0
 
     /// CPU time consumed by this process (seconds) - from mach_task_info
-    @Published private(set) var cpuTimeConsumed: Double = 0
+    private(set) var cpuTimeConsumed: Double = 0
 
     /// Detailed metrics string for display
-    @Published private(set) var detailedMetricsString: String = ""
+    private(set) var detailedMetricsString: String = ""
 
     // MARK: - REAL CPU Usage (from Mach APIs via SystemStateMonitor)
 
     /// Real system-wide CPU usage (0-100%) - same as Xcode Energy Impact shows
-    @Published private(set) var realSystemCpuPercent: Double = 0
+    private(set) var realSystemCpuPercent: Double = 0
 
     /// Real process (our app) CPU usage (0-100%) - how much CPU WE are using
-    @Published private(set) var realProcessCpuPercent: Double = 0
+    private(set) var realProcessCpuPercent: Double = 0
 
     /// Session start time for metrics
-    private let sessionStartTime = Date()
+    @ObservationIgnored private let sessionStartTime = Date()
 
     // MARK: - Per-Component Active Time Tracking
 
     /// Cumulative active time per component (seconds)
-    @Published private(set) var aneActiveTime: TimeInterval = 0
-    @Published private(set) var gpuActiveTime: TimeInterval = 0
-    @Published private(set) var cpuActiveTime: TimeInterval = 0
-    @Published private(set) var hapticFireCount: Int = 0
+    private(set) var aneActiveTime: TimeInterval = 0
+    private(set) var gpuActiveTime: TimeInterval = 0
+    private(set) var cpuActiveTime: TimeInterval = 0
+    private(set) var hapticFireCount: Int = 0
 
     /// Timestamps when each component last became active (for intensity tracking)
-    private var aneActiveStart: Date?
-    private var gpuActiveStart: Date?
-    private var cpuActiveStart: Date?
+    @ObservationIgnored private var aneActiveStart: Date?
+    @ObservationIgnored private var gpuActiveStart: Date?
+    @ObservationIgnored private var cpuActiveStart: Date?
 
     /// Wall-clock timestamp of first operation per component (for session uptime)
-    private var aneFirstOp: Date?
-    private var gpuFirstOp: Date?
-    private var cpuFirstOp: Date?
-    private var hapticFirstOp: Date?
+    @ObservationIgnored private var aneFirstOp: Date?
+    @ObservationIgnored private var gpuFirstOp: Date?
+    @ObservationIgnored private var cpuFirstOp: Date?
+    @ObservationIgnored private var hapticFirstOp: Date?
 
     /// Structured component activity for legend display
     struct ComponentActivity: Equatable {
@@ -225,10 +229,10 @@ final class HardwareTelemetryState: ObservableObject {
     /// All triggered components with their stats (for legend) - updated every 500ms
     /// CPU: REAL % from Mach APIs (same as Xcode Energy Impact)
     /// ANE/GPU: Activity-based indicators (Apple doesn't expose utilization %)
-    @Published private(set) var componentActivities: [ComponentActivity] = []
+    private(set) var componentActivities: [ComponentActivity] = []
 
     /// Cached previous values to avoid publishing identical arrays
-    private var lastPublishedActivities: [ComponentActivity] = []
+    @ObservationIgnored private var lastPublishedActivities: [ComponentActivity] = []
 
     /// Rebuild the component activities array (stable order, only publish on change)
     /// NOW USES REAL CPU % from Mach APIs (same as Xcode Energy Impact)
@@ -313,16 +317,16 @@ final class HardwareTelemetryState: ObservableObject {
         }
     }
 
-    // MARK: - Internal State
+    // MARK: - Internal State (not observed by views)
 
-    private var sustainedActivities: Set<HardwareActivityType> = []
-    private var decayTimers: [HardwareComponent: Task<Void, Never>] = [:]
-    private var historyTimer: Task<Void, Never>?
-    private var cpuMonitorTask: Task<Void, Never>?
-    private var systemStateSubscription: AnyCancellable?
+    @ObservationIgnored private var sustainedActivities: Set<HardwareActivityType> = []
+    @ObservationIgnored private var decayTimers: [HardwareComponent: Task<Void, Never>] = [:]
+    @ObservationIgnored private var historyTimer: Task<Void, Never>?
+    @ObservationIgnored private var cpuMonitorTask: Task<Void, Never>?
+    @ObservationIgnored private var systemStateSubscription: AnyCancellable?
 
     /// Maximum history entries to keep
-    private let maxHistoryEntries = 30
+    @ObservationIgnored private let maxHistoryEntries = 30
 
     // MARK: - Initialization
 
@@ -452,7 +456,7 @@ final class HardwareTelemetryState: ObservableObject {
     }
 
     /// Pulsing animation for sustained activities - keeps HUD "dancing"
-    private var sustainedPulseTasks: [HardwareActivityType: Task<Void, Never>] = [:]
+    @ObservationIgnored private var sustainedPulseTasks: [HardwareActivityType: Task<Void, Never>] = [:]
 
     private func startSustainedPulse(activity: HardwareActivityType, baseIntensity: Double) {
         // Cancel existing pulse for this activity

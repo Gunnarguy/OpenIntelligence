@@ -227,6 +227,39 @@ struct RAGAppShortcutsProvider: AppShortcutsProvider {
             shortTitle: "Check Embedding",
             systemImageName: "brain.head.profile"
         )
+
+        if #available(iOS 26.0, *) {
+            AppShortcut(
+                intent: AnalyzeImageIntent(),
+                phrases: [
+                    "Analyze this image with \(.applicationName)",
+                    "Read text from photo in \(.applicationName)",
+                    "Extract text with \(.applicationName)"
+                ],
+                shortTitle: "Analyze Image",
+                systemImageName: "eye.fill"
+            )
+
+            AppShortcut(
+                intent: IngestFromCameraIntent(),
+                phrases: [
+                    "Scan a document with \(.applicationName)",
+                    "Capture document for \(.applicationName)"
+                ],
+                shortTitle: "Scan Document",
+                systemImageName: "camera.fill"
+            )
+
+            AppShortcut(
+                intent: VisualSearchIntent(),
+                phrases: [
+                    "Search documents with this photo in \(.applicationName)",
+                    "Visual search in \(.applicationName)"
+                ],
+                shortTitle: "Visual Search",
+                systemImageName: "magnifyingglass"
+            )
+        }
     }
 }
 

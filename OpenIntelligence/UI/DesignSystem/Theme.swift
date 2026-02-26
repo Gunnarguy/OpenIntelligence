@@ -195,6 +195,78 @@ public extension View {
     }
 }
 
+// MARK: - Liquid Glass (iOS 26+)
+
+/// Liquid Glass design system integration for iOS 26
+/// Applies translucent glass effects to surfaces, toolbars, and cards
+public enum DSGlass {
+    /// Apply glass effect to a navigation bar or toolbar
+    @available(iOS 26.0, *)
+    public static func toolbarMaterial() -> some ShapeStyle {
+        .regularMaterial
+    }
+
+    /// Glass card background for elevated content
+    public static var cardBackground: some ShapeStyle {
+        .ultraThinMaterial
+    }
+
+    /// Glass surface for floating panels
+    public static var panelBackground: some ShapeStyle {
+        .thinMaterial
+    }
+}
+
+/// View modifier that applies Liquid Glass styling to a card/surface
+public struct GlassCardModifier: ViewModifier {
+    let cornerRadius: CGFloat
+
+    public init(cornerRadius: CGFloat = DSCorners.card) {
+        self.cornerRadius = cornerRadius
+    }
+
+    public func body(content: Content) -> some View {
+        content
+            .padding(DSSpacing.md)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: cornerRadius))
+    }
+}
+
+/// View modifier for glass-style toolbar appearance
+public struct GlassToolbarModifier: ViewModifier {
+    public func body(content: Content) -> some View {
+        content
+            .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+    }
+}
+
+/// View modifier for glass-style tab bar
+public struct GlassTabBarModifier: ViewModifier {
+    public func body(content: Content) -> some View {
+        content
+            .toolbarBackground(.ultraThinMaterial, for: .tabBar)
+            .toolbarBackground(.visible, for: .tabBar)
+    }
+}
+
+public extension View {
+    /// Apply Liquid Glass card styling
+    func glassCard(cornerRadius: CGFloat = DSCorners.card) -> some View {
+        modifier(GlassCardModifier(cornerRadius: cornerRadius))
+    }
+
+    /// Apply Liquid Glass toolbar styling
+    func glassToolbar() -> some View {
+        modifier(GlassToolbarModifier())
+    }
+
+    /// Apply Liquid Glass tab bar styling
+    func glassTabBar() -> some View {
+        modifier(GlassTabBarModifier())
+    }
+}
+
 // MARK: - Haptics (safe, no-op on macOS)
 
 public enum DSHaptics {

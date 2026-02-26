@@ -50,6 +50,10 @@ struct ContainerSettingsSheet: View {
     @State var containerTopTerms: [SQLiteFullTextService.TermFrequency] = []
     @State var isLoadingNerdStats: Bool = false
 
+    // Per-library AI feature overrides
+    @State var autoTagOnIngestion: Bool = true
+    @State var preferredTranslationLanguage: String = "auto"
+
     var activeContainer: KnowledgeContainer? {
         containerService.containers.first(where: { $0.id == containerService.activeContainerId })
     }
@@ -148,6 +152,7 @@ struct ContainerSettingsSheet: View {
                 accuracyDefaultsSection
                 intelligenceSection
                 chunkingSection
+                aiFeatureOverridesSection
                 // Search behavior presets removed — auto-tuned by AdaptivePipelineOptimizer
                 if settings.developerRAGTuningEnabled {
                     retrievalTuningSection
@@ -199,6 +204,10 @@ struct ContainerSettingsSheet: View {
                     dbKind = c.vectorDBKind
                     retrievalConfig = c.retrievalConfig
                     autoAdaptDimension = c.autoAdaptDimension
+
+                    // Load per-library AI feature overrides
+                    autoTagOnIngestion = c.autoTagOnIngestion ?? true
+                    preferredTranslationLanguage = c.preferredTranslationLanguage ?? "auto"
 
                     // Load chunking settings
                     if let directive = c.chunkingDirective {
@@ -436,6 +445,10 @@ struct ContainerSettingsSheet: View {
         container.vectorDBKind = dbKind
         container.retrievalConfig = retrievalConfig
         container.autoAdaptDimension = autoAdaptDimension
+
+        // Save per-library AI feature overrides
+        container.autoTagOnIngestion = autoTagOnIngestion
+        container.preferredTranslationLanguage = preferredTranslationLanguage == "auto" ? nil : preferredTranslationLanguage
 
         // Update chunking directive if manually changed
         if !autoAdaptDimension || chunkingSource == .manual {

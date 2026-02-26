@@ -361,6 +361,15 @@ struct DocumentLibraryView: View {
         Text("This will permanently delete this library and all documents inside it.")
     }
 }
+// MARK: - NSUserActivity / Handoff
+.userActivity("com.openintelligence.documents") { activity in
+    activity.title = "Browse Document Library"
+    activity.isEligibleForSearch = true
+    activity.isEligibleForHandoff = true
+    if let containerId = containerService.activeContainerId as UUID? {
+        activity.userInfo = ["containerId": containerId]
+    }
+}
     }
 
     /// Launches the file picker if the user still has document quota remaining.

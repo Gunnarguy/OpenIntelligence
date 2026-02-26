@@ -4,76 +4,74 @@
 //
 //  Created by Gunnar Hostetler on 2025.
 //
-//  Dynamically generates suggested questions based on library content.
-//  Analyzes document titles, topics, and content to create relevant starter prompts.
+//  LLM-first suggested question generation from actual document content.
+//  Generates ultra-specific, grounded questions that showcase RAG capabilities.
 //
 
 import Foundation
 import NaturalLanguage
 
-/// Service that generates contextual suggested questions based on ingested documents.
-/// Enables library-specific starter prompts that showcase RAG capabilities.
+#if canImport(FoundationModels)
+import FoundationModels
+#endif
+
+/// Service that generates contextual suggested questions from actual document content.
+///
+/// **Architecture (v2 — LLM-first, content-grounded):**
+///
+/// 1. Select diverse representative chunks across the library (different docs, sections, topics)
+/// 2. Feed chunk TEXT directly to Apple FM with a constrained prompt
+/// 3. Parse structured output into display-ready questions
+/// 4. Fall back to content-phrase extraction when LLM is unavailable (Simulator)
+///
+/// **Why this is 10x:**
+/// - Questions are generated FROM the actual text, not from entity labels
+/// - "What is Analysis?" → "How does the Jaccard similarity threshold detect font-encoded PDFs?"
+/// - Diversity is enforced at the chunk selection level, not post-hoc filtering
+/// - Cache invalidates on document change, not never
 actor SuggestedQuestionsService {
 
     // MARK: - Types
 
-    /// Category of question templates optimized for RAG demonstration
-    enum QuestionCategory: String, CaseIterable {
-        case factRetrieval = "fact"          // Direct fact lookup
-        case comparison = "compare"           // Compare across documents
-        case summarization = "summarize"      // Summarize content
-        case procedural = "how"               // How-to questions
-        case analytical = "analyze"           // Analysis/reasoning
-        case numerical = "numeric"            // Specific numbers/data
+    /// Category of question for display diversity
+    enum QuestionCategory: String, CaseIterable, Sendable {
+        case factRetrieval = "fact"
+        case comparison = "compare"
+        case summarization = "summarize"
+        case procedural = "how"
+        case analytical = "analyze"
+        case numerical = "numeric"
     }
 
-    /// A generated question with metadata for display
+    /// A generated question with metadata
     struct SuggestedQuestion: Identifiable, Sendable {
         let id: UUID
         let text: String
         let category: QuestionCategory
         let relevantDocuments: [String]
-        let confidence: Double  // 0-1 confidence this is a good question
-    }
-
-    /// Analysis result for a document collection
-    struct LibraryAnalysis: Sendable {
-        let documentTitles: [String]
-        let topicKeywords: [String: Int]  // keyword -> frequency
-        let entityMentions: [String: Int] // named entities -> frequency
-        let hasNumericalData: Bool
-        let hasProcedural: Bool           // contains how-to/steps
-        let documentTypes: Set<DocumentType>
-    }
-
-    /// Detected document type for question templating
-    enum DocumentType: String, Sendable {
-        case manual = "manual"
-        case report = "report"
-        case article = "article"
-        case specification = "spec"
-        case guide = "guide"
-        case policy = "policy"
-        case financial = "financial"
-        case technical = "technical"
-        case unknown = "unknown"
+        let confidence: Double
     }
 
     // MARK: - Properties
 
-    private var cachedAnalysis: [UUID: LibraryAnalysis] = [:]
-    private var cachedQuestions: [UUID: [SuggestedQuestion]] = [:]
-    private let nlTagger = NLTagger(tagSchemes: [.nameType, .lexicalClass])
+    private var cachedQuestions: [UUID: CachedEntry] = [:]
+
+    /// Cache entry with timestamp for staleness detection
+    private struct CachedEntry: Sendable {
+        let questions: [SuggestedQuestion]
+        let documentCount: Int
+        let generatedAt: Date
+    }
+
+    /// Maximum cache age before regeneration (5 minutes)
+    private static let cacheMaxAge: TimeInterval = 300
 
     // MARK: - Public API
 
-    /// Generate suggested questions for a specific library container
-    /// - Parameters:
-    ///   - containerId: The library container to analyze
-    ///   - documents: Documents in the container
-    ///   - sampleChunks: Representative chunks for content analysis
-    ///   - count: Number of questions to generate (default 4)
-    /// - Returns: Array of contextual suggested questions
+    /// Generate suggested questions for a specific library container.
+    ///
+    /// Questions are generated directly from chunk content using Apple FM (LLM-first).
+    /// Falls back to content-phrase extraction when LLM is unavailable.
     func generateQuestions(
         for containerId: UUID,
         documents: [Document],
@@ -81,599 +79,481 @@ actor SuggestedQuestionsService {
         count: Int = 4
     ) async -> [SuggestedQuestion] {
 
-        // Check cache first
-        if let cached = cachedQuestions[containerId], !cached.isEmpty {
-            Log.debug("[SuggestedQuestions] Returning \(cached.count) cached questions for container")
-            return Array(cached.prefix(count))
+        // Check cache — but only if document count hasn't changed and cache isn't stale
+        if let cached = cachedQuestions[containerId],
+           cached.documentCount == documents.count,
+           Date().timeIntervalSince(cached.generatedAt) < Self.cacheMaxAge,
+           !cached.questions.isEmpty {
+            Log.debug("[SuggestedQuestions] Returning \(cached.questions.count) cached questions for container")
+            return Array(cached.questions.prefix(count))
         }
 
-        // Analyze library content
-        let analysis = await analyzeLibrary(
-            containerId: containerId,
-            documents: documents,
-            sampleChunks: sampleChunks
+        guard !sampleChunks.isEmpty else {
+            Log.debug("[SuggestedQuestions] No chunks available, returning empty")
+            return []
+        }
+
+        // Step 1: Select diverse representative chunks
+        let diverseChunks = selectDiverseChunks(from: sampleChunks, documents: documents, targetCount: 6)
+
+        // Step 2: Try LLM generation first (iOS 26+)
+        var questions: [SuggestedQuestion] = []
+
+        #if canImport(FoundationModels)
+        if #available(iOS 26.0, *) {
+            questions = await generateWithLLM(chunks: diverseChunks, documents: documents)
+        }
+        #endif
+
+        // Step 3: Fall back to content-grounded extraction if LLM failed or unavailable
+        if questions.isEmpty {
+            questions = generateFromContent(chunks: diverseChunks, documents: documents)
+        }
+
+        // Step 4: Ensure diversity — no two questions from the same document
+        let deduped = enforceDiversity(questions, count: max(count, 6))
+
+        // Cache
+        cachedQuestions[containerId] = CachedEntry(
+            questions: deduped,
+            documentCount: documents.count,
+            generatedAt: Date()
         )
+        Log.info("[SuggestedQuestions] Generated \(deduped.count) questions for container")
 
-        // Generate questions based on analysis
-        let questions = generateQuestionsFromAnalysis(analysis, documents: documents)
-
-        // Cache and return
-        cachedQuestions[containerId] = questions
-        Log.info("[SuggestedQuestions] Generated \(questions.count) questions for container")
-
-        return Array(questions.shuffled().prefix(count))
+        return Array(deduped.prefix(count))
     }
 
-    /// Invalidate cache when documents change
+    /// Invalidate cache when documents change (ingest, delete, container switch)
     func invalidateCache(for containerId: UUID) {
-        cachedAnalysis.removeValue(forKey: containerId)
         cachedQuestions.removeValue(forKey: containerId)
-        Log.debug("[SuggestedQuestions] Cache invalidated for container")
+        Log.debug("[SuggestedQuestions] Cache invalidated for container \(containerId.uuidString.prefix(8))")
     }
 
-    /// Clear all caches
-    func clearAllCaches() {
-        cachedAnalysis.removeAll()
+    /// Invalidate all caches
+    func invalidateAllCaches() {
         cachedQuestions.removeAll()
     }
 
-    // MARK: - Analysis
+    // MARK: - Step 1: Diverse Chunk Selection
 
-    private func analyzeLibrary(
-        containerId: UUID,
+    /// Select chunks that maximally span different documents, sections, and content types.
+    /// This is the most critical step — question diversity is determined HERE, not by post-filtering.
+    private func selectDiverseChunks(
+        from chunks: [DocumentChunk],
         documents: [Document],
-        sampleChunks: [DocumentChunk]
-    ) async -> LibraryAnalysis {
+        targetCount: Int
+    ) -> [DocumentChunk] {
+        guard !chunks.isEmpty else { return [] }
 
-        // Check cache
-        if let cached = cachedAnalysis[containerId] {
-            return cached
+        // Group chunks by document
+        var byDocument: [UUID: [DocumentChunk]] = [:]
+        for chunk in chunks {
+            byDocument[chunk.documentId, default: []].append(chunk)
         }
 
-        var topicKeywords: [String: Int] = [:]
-        var entityMentions: [String: Int] = [:]
-        var hasNumericalData = false
-        var hasProcedural = false
-        var documentTypes: Set<DocumentType> = []
+        var selected: [DocumentChunk] = []
+        var usedSections: Set<String> = []
 
-        // Analyze document titles
-        let titles = documents.map { $0.filename }
-        for title in titles {
-            let type = classifyDocumentType(title)
-            documentTypes.insert(type)
+        // Round-robin across documents, preferring chunks with:
+        // 1. Rich content (higher word count, not just headers)
+        // 2. Different sections (diverse sectionTitle)
+        // 3. Interesting metadata (hasNumericData, entities, abbreviations)
+        let docIds = Array(byDocument.keys)
 
-            // Extract keywords from title
-            let keywords = extractKeywords(from: title)
-            for keyword in keywords {
-                topicKeywords[keyword, default: 0] += 3  // Title keywords weighted higher
-            }
-        }
-
-        // Analyze sample chunks for content patterns
-        for chunk in sampleChunks.prefix(50) {  // Limit analysis to avoid performance issues
-            let text = chunk.content
-
-            // Check for numerical data
-            if containsSignificantNumbers(text) {
-                hasNumericalData = true
-            }
-
-            // Check for procedural content
-            if containsProceduralIndicators(text) {
-                hasProcedural = true
-            }
-
-            // Extract entities
-            let entities = extractNamedEntities(from: text)
-            for entity in entities {
-                entityMentions[entity, default: 0] += 1
-            }
-
-            // Extract topic keywords
-            let keywords = extractKeywords(from: text)
-            for keyword in keywords {
-                topicKeywords[keyword, default: 0] += 1
+        // Sort each document's chunks by "interestingness"
+        for docId in docIds {
+            byDocument[docId]?.sort { a, b in
+                interestingnessScore(a) > interestingnessScore(b)
             }
         }
 
-        let analysis = LibraryAnalysis(
-            documentTitles: titles,
-            topicKeywords: topicKeywords,
-            entityMentions: entityMentions,
-            hasNumericalData: hasNumericalData,
-            hasProcedural: hasProcedural,
-            documentTypes: documentTypes
-        )
+        // Round-robin: take best chunk from each doc, then second-best, etc.
+        var round = 0
+        while selected.count < targetCount {
+            var addedThisRound = false
+            for docId in docIds {
+                guard selected.count < targetCount else { break }
+                guard let docChunks = byDocument[docId], round < docChunks.count else { continue }
 
-        cachedAnalysis[containerId] = analysis
-        return analysis
+                let candidate = docChunks[round]
+                let section = candidate.metadata.sectionTitle ?? "default_\(candidate.id.uuidString.prefix(4))"
+
+                // Skip if we already have a chunk from this exact section (across all docs)
+                if usedSections.contains(section) && selected.count >= docIds.count {
+                    continue
+                }
+
+                selected.append(candidate)
+                usedSections.insert(section)
+                addedThisRound = true
+            }
+            round += 1
+            if !addedThisRound { break }
+        }
+
+        return selected
     }
 
-    // MARK: - Question Generation
+    /// Score a chunk's "interestingness" for question generation.
+    /// Prefers chunks with specific data, entities, structure — not generic filler.
+    private func interestingnessScore(_ chunk: DocumentChunk) -> Double {
+        var score: Double = 0
 
-    private func generateQuestionsFromAnalysis(
-        _ analysis: LibraryAnalysis,
+        // Word count sweet spot: 50-200 words is ideal (enough detail, not overwhelming)
+        let wc = chunk.metadata.wordCount
+        if wc >= 50 && wc <= 200 { score += 3.0 }
+        else if wc >= 30 && wc <= 300 { score += 2.0 }
+        else if wc >= 15 { score += 1.0 }
+
+        // Has numeric data (specs, measurements, dates, statistics)
+        if chunk.metadata.hasNumericData { score += 2.5 }
+
+        // Has named entities (specific people, orgs, places, technical terms)
+        score += min(Double(chunk.metadata.entities.count), 3.0)
+
+        // Has abbreviations (technical domain indicators)
+        score += min(Double(chunk.metadata.abbreviations.count) * 1.5, 3.0)
+
+        // Has a section title (contextualized within document structure)
+        if chunk.metadata.sectionTitle != nil { score += 1.0 }
+
+        // Has list structure (procedures, specifications, comparisons)
+        if chunk.metadata.hasListStructure { score += 1.5 }
+
+        // Structured document content (tables, lists) — richer than plain paragraphs
+        if let structType = chunk.metadata.structureType, structType != "paragraph" {
+            score += 2.0
+        }
+
+        // Penalize very short chunks (likely headers or fragments)
+        if wc < 15 { score -= 5.0 }
+
+        return score
+    }
+
+    // MARK: - Step 2: LLM Generation (iOS 26+)
+
+    #if canImport(FoundationModels)
+    @available(iOS 26.0, *)
+    private func generateWithLLM(
+        chunks: [DocumentChunk],
+        documents: [Document]
+    ) async -> [SuggestedQuestion] {
+
+        guard SystemLanguageModel.default.isAvailable else {
+            Log.debug("[SuggestedQuestions] Apple FM not available, falling back to content extraction")
+            return []
+        }
+
+        // Build content passages from diverse chunks
+        let passages = chunks.prefix(5).enumerated().map { index, chunk in
+            let docName = documents.first(where: { $0.id == chunk.documentId })?.filename ?? "Document"
+            let section = chunk.metadata.sectionTitle.map { " > \($0)" } ?? ""
+            let content = String(chunk.content.prefix(400))
+            return "[\(index + 1)] \(docName)\(section):\n\(content)"
+        }
+        let passageText = passages.joined(separator: "\n\n")
+
+        let prompt = """
+        You are generating suggested questions for a document Q&A system. Below are passages from the user's uploaded documents.
+
+        Generate exactly 6 specific questions that someone would naturally want to ask about this content. Each question must:
+        - Reference specific details, terms, numbers, or concepts FROM the passages (not generic)
+        - Be answerable from the document content (grounded)
+        - Be diverse: cover different passages, topics, and question types
+        - Be concise (under 15 words)
+        - NOT start with "What is" or "Explain" unless asking about a genuinely complex concept
+
+        Good examples: "What oil viscosity does the 2024 Sportage require?", "How does MMR diversification improve retrieval?", "What are the side effects of methylphenidate on emotional regulation?"
+        Bad examples: "What is analysis?", "Explain the data", "Tell me about the document"
+
+        PASSAGES:
+        \(passageText)
+
+        Return ONLY the questions, one per line, numbered 1-6. No other text.
+        """
+
+        do {
+            let session = LanguageModelSession()
+            let response = try await session.respond(to: prompt)
+            let responseText = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            // Parse numbered lines
+            let lines = responseText
+                .components(separatedBy: .newlines)
+                .map { line in
+                    // Strip numbering: "1. What..." or "1) What..." → "What..."
+                    line.replacingOccurrences(of: #"^\d+[\.\)]\s*"#, with: "", options: .regularExpression)
+                        .trimmingCharacters(in: .whitespaces)
+                }
+                .filter { !$0.isEmpty && $0.count >= 10 }
+
+            guard lines.count >= 2 else {
+                Log.warning("[SuggestedQuestions] LLM returned too few valid questions (\(lines.count))")
+                return []
+            }
+
+            let categories: [QuestionCategory] = [.factRetrieval, .analytical, .procedural, .comparison, .summarization, .numerical]
+
+            let questions = lines.prefix(6).enumerated().map { index, text in
+                let cleanText = text.hasSuffix("?") ? text : text + "?"
+                let docNames = documents.map { $0.filename }
+                return SuggestedQuestion(
+                    id: UUID(),
+                    text: cleanText,
+                    category: categories[index % categories.count],
+                    relevantDocuments: docNames,
+                    confidence: 0.95
+                )
+            }
+
+            Log.info("[SuggestedQuestions] LLM generated \(questions.count) grounded questions")
+            return questions
+
+        } catch {
+            Log.warning("[SuggestedQuestions] LLM generation failed: \(error.localizedDescription)")
+            return []
+        }
+    }
+    #endif
+
+    // MARK: - Step 3: Content-Grounded Fallback (no LLM)
+
+    /// Generate questions from actual chunk content when LLM is unavailable.
+    /// Extracts key phrases and specific details — NOT single-word entities.
+    private func generateFromContent(
+        chunks: [DocumentChunk],
         documents: [Document]
     ) -> [SuggestedQuestion] {
 
         var questions: [SuggestedQuestion] = []
 
-        // Get top entities and keywords
-        let topEntities = analysis.entityMentions
-            .sorted { $0.value > $1.value }
-            .prefix(10)
-            .map { $0.key }
+        for chunk in chunks {
+            let docName = documents.first(where: { $0.id == chunk.documentId })?.filename ?? "Document"
+            let content = chunk.content
 
-        let topKeywords = analysis.topicKeywords
-            .sorted { $0.value > $1.value }
-            .prefix(15)
-            .map { $0.key }
+            // Strategy 1: Questions from abbreviation definitions
+            for (abbr, expansion) in chunk.metadata.abbreviations.prefix(2) {
+                questions.append(SuggestedQuestion(
+                    id: UUID(),
+                    text: "What role does \(expansion) (\(abbr)) play in this context?",
+                    category: .factRetrieval,
+                    relevantDocuments: [docName],
+                    confidence: 0.85
+                ))
+            }
 
-        // 1. Generate fact retrieval questions
-        questions.append(contentsOf: generateFactQuestions(
-            entities: topEntities,
-            keywords: topKeywords,
-            documents: documents
-        ))
+            // Strategy 2: Questions from section titles (if specific enough)
+            if let section = chunk.metadata.sectionTitle,
+               section.count >= 8,
+               !isGenericSectionTitle(section) {
+                questions.append(SuggestedQuestion(
+                    id: UUID(),
+                    text: "What are the key points about \(section.lowercased())?",
+                    category: .summarization,
+                    relevantDocuments: [docName],
+                    confidence: 0.80
+                ))
+            }
 
-        // 2. Generate summarization questions
-        questions.append(contentsOf: generateSummaryQuestions(
-            documents: documents,
-            documentTypes: analysis.documentTypes
-        ))
-
-        // 3. Generate numerical questions if data exists
-        if analysis.hasNumericalData {
-            questions.append(contentsOf: generateNumericalQuestions(
-                keywords: topKeywords,
-                entities: topEntities,
-                documents: documents
-            ))
-        }
-
-        // 4. Generate procedural questions if how-to content exists
-        if analysis.hasProcedural {
-            questions.append(contentsOf: generateProceduralQuestions(
-                keywords: topKeywords,
-                documents: documents
-            ))
-        }
-
-        // 5. Generate comparison questions if multiple documents
-        if documents.count > 1 {
-            questions.append(contentsOf: generateComparisonQuestions(
-                documents: documents,
-                entities: topEntities
-            ))
-        }
-
-        // 6. Generate analytical questions
-        questions.append(contentsOf: generateAnalyticalQuestions(
-            keywords: topKeywords,
-            documentTypes: analysis.documentTypes,
-            documents: documents
-        ))
-
-        return questions
-    }
-
-    // MARK: - Question Type Generators
-
-    private func generateFactQuestions(
-        entities: [String],
-        keywords: [String],
-        documents: [Document]
-    ) -> [SuggestedQuestion] {
-
-        var questions: [SuggestedQuestion] = []
-        let templates = [
-            "What is {entity}?",
-            "Tell me about {entity}.",
-            "Explain {entity} based on my documents."
-        ]
-
-        // Filter out entities that make bad questions (too technical, too common, acronyms)
-        let filteredEntities = entities.filter { entity in
-            let lower = entity.lowercased()
-            // Skip if too short (likely an acronym)
-            guard entity.count >= 4 else { return false }
-            // Skip common words that make vague questions
-            let badTerms = ["apple", "google", "microsoft", "data", "system", "model", "user", "hnsw", "bm25", "rag"]
-            return !badTerms.contains(lower)
-        }
-
-        // Generate questions from entities (only filtered ones)
-        for entity in filteredEntities.prefix(3) {
-            let template = templates.randomElement() ?? templates[0]
-            let questionText = template.replacingOccurrences(of: "{entity}", with: entity)
-                .replacingOccurrences(of: "{keyword}", with: entity)
-
-            questions.append(SuggestedQuestion(
-                id: UUID(),
-                text: questionText,
-                category: .factRetrieval,
-                relevantDocuments: findRelevantDocuments(for: entity, in: documents),
-                confidence: 0.8
-            ))
-        }
-
-        return questions
-    }
-
-    private func generateSummaryQuestions(
-        documents: [Document],
-        documentTypes: Set<DocumentType>
-    ) -> [SuggestedQuestion] {
-
-        var questions: [SuggestedQuestion] = []
-
-        // Document-specific summaries
-        for doc in documents.prefix(2) {
-            let cleanName = cleanDocumentName(doc.filename)
-            questions.append(SuggestedQuestion(
-                id: UUID(),
-                text: "Summarize the key points from \(cleanName).",
-                category: .summarization,
-                relevantDocuments: [doc.filename],
-                confidence: 0.9
-            ))
-        }
-
-        // Type-specific templates
-        if documentTypes.contains(.manual) || documentTypes.contains(.guide) {
-            questions.append(SuggestedQuestion(
-                id: UUID(),
-                text: "What are the main features or capabilities described?",
-                category: .summarization,
-                relevantDocuments: documents.map { $0.filename },
-                confidence: 0.85
-            ))
-        }
-
-        if documentTypes.contains(.report) || documentTypes.contains(.financial) {
-            questions.append(SuggestedQuestion(
-                id: UUID(),
-                text: "What are the key findings or conclusions?",
-                category: .summarization,
-                relevantDocuments: documents.map { $0.filename },
-                confidence: 0.85
-            ))
-        }
-
-        return questions
-    }
-
-    private func generateNumericalQuestions(
-        keywords: [String],
-        entities: [String],
-        documents: [Document]
-    ) -> [SuggestedQuestion] {
-
-        var questions: [SuggestedQuestion] = []
-        let templates = [
-            "What are the specific numbers mentioned for {topic}?",
-            "List any statistics or figures related to {topic}.",
-            "What quantitative data is provided about {entity}?",
-            "What are the exact specifications for {topic}?"
-        ]
-
-        // Pick relevant topics for numerical questions
-        let numericalKeywords = keywords.filter { kw in
-            let lower = kw.lowercased()
-            return lower.contains("price") || lower.contains("cost") ||
-                   lower.contains("rate") || lower.contains("percent") ||
-                   lower.contains("capacity") || lower.contains("speed") ||
-                   lower.contains("size") || lower.contains("year") ||
-                   lower.contains("revenue") || lower.contains("budget")
-        }
-
-        if let topic = numericalKeywords.first ?? entities.first {
-            let template = templates.randomElement() ?? templates[0]
-            let questionText = template
-                .replacingOccurrences(of: "{topic}", with: topic)
-                .replacingOccurrences(of: "{entity}", with: topic)
-
-            questions.append(SuggestedQuestion(
-                id: UUID(),
-                text: questionText,
-                category: .numerical,
-                relevantDocuments: documents.map { $0.filename },
-                confidence: 0.75
-            ))
-        }
-
-        return questions
-    }
-
-    private func generateProceduralQuestions(
-        keywords: [String],
-        documents: [Document]
-    ) -> [SuggestedQuestion] {
-
-        var questions: [SuggestedQuestion] = []
-
-        // Find procedural keywords
-        let proceduralTopics = keywords.filter { kw in
-            let lower = kw.lowercased()
-            return lower.contains("install") || lower.contains("setup") ||
-                   lower.contains("config") || lower.contains("connect") ||
-                   lower.contains("start") || lower.contains("create") ||
-                   lower.contains("troubleshoot") || lower.contains("repair") ||
-                   lower.contains("maintain") || lower.contains("charge")
-        }
-
-        let templates = [
-            "How do I {action}?",
-            "What are the steps to {action}?",
-            "Walk me through the process of {action}.",
-            "What's the procedure for {action}?"
-        ]
-
-        for topic in proceduralTopics.prefix(2) {
-            // Convert keyword to action phrase
-            let action = topic.lowercased()
-                .replacingOccurrences(of: "_", with: " ")
-                .replacingOccurrences(of: "-", with: " ")
-
-            let template = templates.randomElement() ?? templates[0]
-            let questionText = template.replacingOccurrences(of: "{action}", with: action)
-
-            questions.append(SuggestedQuestion(
-                id: UUID(),
-                text: questionText,
-                category: .procedural,
-                relevantDocuments: documents.map { $0.filename },
-                confidence: 0.8
-            ))
-        }
-
-        // Skip generic procedural question - it's too vague and often returns nothing useful
-
-        return questions
-    }
-
-    private func generateComparisonQuestions(
-        documents: [Document],
-        entities: [String]
-    ) -> [SuggestedQuestion] {
-
-        var questions: [SuggestedQuestion] = []
-
-        if documents.count >= 2 {
-            let doc1 = cleanDocumentName(documents[0].filename)
-            let doc2 = cleanDocumentName(documents[1].filename)
-
-            questions.append(SuggestedQuestion(
-                id: UUID(),
-                text: "Compare the information in \(doc1) and \(doc2).",
-                category: .comparison,
-                relevantDocuments: [documents[0].filename, documents[1].filename],
-                confidence: 0.7
-            ))
-        }
-
-        // Cross-document comparison - only use meaningful entities
-        let meaningfulEntities = entities.filter { entity in
-            let lower = entity.lowercased()
-            guard entity.count >= 5 else { return false }
-            let badTerms = ["apple", "google", "microsoft", "data", "system", "model", "user", "hnsw", "bm25", "rag"]
-            return !badTerms.contains(lower)
-        }
-        if let entity = meaningfulEntities.first, documents.count > 1 {
-            questions.append(SuggestedQuestion(
-                id: UUID(),
-                text: "How is \(entity) described across my documents?",
-                category: .comparison,
-                relevantDocuments: documents.map { $0.filename },
-                confidence: 0.7
-            ))
-        }
-
-        return questions
-    }
-
-    private func generateAnalyticalQuestions(
-        keywords: [String],
-        documentTypes: Set<DocumentType>,
-        documents: [Document]
-    ) -> [SuggestedQuestion] {
-
-        var questions: [SuggestedQuestion] = []
-
-        if documentTypes.contains(.report) || documentTypes.contains(.financial) {
-            questions.append(SuggestedQuestion(
-                id: UUID(),
-                text: "What trends or patterns are identified in the documents?",
-                category: .analytical,
-                relevantDocuments: documents.map { $0.filename },
-                confidence: 0.75
-            ))
-        }
-
-        if documentTypes.contains(.manual) || documentTypes.contains(.technical) {
-            questions.append(SuggestedQuestion(
-                id: UUID(),
-                text: "What are the limitations or warnings mentioned?",
-                category: .analytical,
-                relevantDocuments: documents.map { $0.filename },
-                confidence: 0.75
-            ))
-        }
-
-        if let topic = keywords.first {
-            questions.append(SuggestedQuestion(
-                id: UUID(),
-                text: "What are the implications of \(topic) as discussed?",
-                category: .analytical,
-                relevantDocuments: documents.map { $0.filename },
-                confidence: 0.65
-            ))
-        }
-
-        return questions
-    }
-
-    // MARK: - Text Analysis Helpers
-
-    private func extractKeywords(from text: String) -> [String] {
-        let tagger = NLTagger(tagSchemes: [.lexicalClass])
-        tagger.string = text
-
-        var keywords: [String] = []
-        let options: NLTagger.Options = [.omitPunctuation, .omitWhitespace]
-
-        tagger.enumerateTags(
-            in: text.startIndex..<text.endIndex,
-            unit: .word,
-            scheme: .lexicalClass,
-            options: options
-        ) { tag, range in
-            if let tag = tag, tag == .noun || tag == .verb {
-                let word = String(text[range])
-                if word.count >= 4 && !isStopWord(word) {
-                    keywords.append(word.capitalized)
+            // Strategy 3: Questions from numeric data
+            if chunk.metadata.hasNumericData {
+                let numbers = extractSpecificNumbers(from: content)
+                if let detail = numbers.first {
+                    questions.append(SuggestedQuestion(
+                        id: UUID(),
+                        text: "What is the significance of \(detail)?",
+                        category: .numerical,
+                        relevantDocuments: [docName],
+                        confidence: 0.82
+                    ))
                 }
             }
-            return true
+
+            // Strategy 4: Questions from named entities (but only specific ones, not generic nouns)
+            let specificEntities = chunk.metadata.entities.filter { entity in
+                entity.count >= 4 &&
+                !Self.genericStopEntities.contains(entity.lowercased()) &&
+                entity.first?.isUppercase == true
+            }
+            if let entity = specificEntities.first {
+                questions.append(SuggestedQuestion(
+                    id: UUID(),
+                    text: "What does the document say about \(entity)?",
+                    category: .factRetrieval,
+                    relevantDocuments: [docName],
+                    confidence: 0.78
+                ))
+            }
+
+            // Strategy 5: Questions from key multi-word phrases in content
+            let keyPhrases = extractKeyPhrases(from: content)
+            if let phrase = keyPhrases.first {
+                questions.append(SuggestedQuestion(
+                    id: UUID(),
+                    text: "How does \(phrase) work according to the documents?",
+                    category: .analytical,
+                    relevantDocuments: [docName],
+                    confidence: 0.75
+                ))
+            }
+
+            // Strategy 6: Procedural questions for list-structured content
+            if chunk.metadata.hasListStructure {
+                let topic = chunk.metadata.sectionTitle ?? keyPhrases.first ?? docName
+                questions.append(SuggestedQuestion(
+                    id: UUID(),
+                    text: "What are the steps for \(topic.lowercased())?",
+                    category: .procedural,
+                    relevantDocuments: [docName],
+                    confidence: 0.77
+                ))
+            }
         }
 
-        return keywords
+        // If we got nothing useful (extremely sparse content), generate doc-level questions
+        if questions.isEmpty {
+            for doc in documents.prefix(4) {
+                let cleanName = doc.filename
+                    .replacingOccurrences(of: "\\.[^.]+$", with: "", options: .regularExpression)
+                    .replacingOccurrences(of: "_", with: " ")
+                    .replacingOccurrences(of: "-", with: " ")
+                questions.append(SuggestedQuestion(
+                    id: UUID(),
+                    text: "What are the main topics covered in \(cleanName)?",
+                    category: .summarization,
+                    relevantDocuments: [doc.filename],
+                    confidence: 0.60
+                ))
+            }
+        }
+
+        return questions
     }
 
-    private func extractNamedEntities(from text: String) -> [String] {
-        nlTagger.string = text
+    // MARK: - Step 4: Diversity Enforcement
 
-        var entities: [String] = []
-        let options: NLTagger.Options = [.omitPunctuation, .omitWhitespace, .joinNames]
+    /// Ensure question diversity: max 2 from same document, spread categories
+    private func enforceDiversity(_ questions: [SuggestedQuestion], count: Int) -> [SuggestedQuestion] {
+        var result: [SuggestedQuestion] = []
+        var docCounts: [String: Int] = [:]
+        var usedCategories: Set<QuestionCategory> = []
 
-        nlTagger.enumerateTags(
-            in: text.startIndex..<text.endIndex,
-            unit: .word,
-            scheme: .nameType,
-            options: options
-        ) { tag, range in
-            if let tag = tag, tag == .personalName || tag == .organizationName || tag == .placeName {
-                let entity = String(text[range])
-                if entity.count >= 2 {
-                    entities.append(entity)
+        // First pass: pick one from each category
+        for question in questions.sorted(by: { $0.confidence > $1.confidence }) {
+            if !usedCategories.contains(question.category) {
+                let docKey = question.relevantDocuments.first ?? ""
+                if (docCounts[docKey] ?? 0) < 2 {
+                    result.append(question)
+                    usedCategories.insert(question.category)
+                    docCounts[docKey, default: 0] += 1
                 }
             }
-            return true
+            if result.count >= count { break }
         }
 
-        return entities
+        // Second pass: fill remaining slots with highest-confidence
+        if result.count < count {
+            let usedIds = Set(result.map { $0.id })
+            for question in questions.sorted(by: { $0.confidence > $1.confidence }) {
+                guard !usedIds.contains(question.id) else { continue }
+                let docKey = question.relevantDocuments.first ?? ""
+                if (docCounts[docKey] ?? 0) < 2 {
+                    result.append(question)
+                    docCounts[docKey, default: 0] += 1
+                }
+                if result.count >= count { break }
+            }
+        }
+
+        return result
     }
 
-    private func containsSignificantNumbers(_ text: String) -> Bool {
-        // Look for numbers with context (not just page numbers)
-        let patterns = [
-            #"\$[\d,]+(?:\.\d{2})?"#,           // Currency
-            #"\d+(?:\.\d+)?%"#,                  // Percentages
-            #"\d{4}"#,                           // Years
-            #"\d+(?:,\d{3})+"#,                  // Large numbers with commas
-            #"\d+\s*(?:mph|kw|kwh|miles|km|hours|minutes|seconds)"#  // Measurements
-        ]
+    // MARK: - Content Extraction Helpers
 
-        for pattern in patterns {
-            if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) {
-                let range = NSRange(text.startIndex..., in: text)
-                if regex.firstMatch(in: text, options: [], range: range) != nil {
-                    return true
+    /// Generic section titles that produce bad questions
+    private func isGenericSectionTitle(_ title: String) -> Bool {
+        let generic: Set<String> = [
+            "introduction", "conclusion", "summary", "overview", "abstract",
+            "references", "bibliography", "appendix", "index", "table of contents",
+            "acknowledgements", "disclaimer", "copyright", "notes", "glossary",
+            "contents", "preface", "foreword", "about"
+        ]
+        return generic.contains(title.lowercased().trimmingCharacters(in: .whitespaces))
+    }
+
+    /// Generic nouns that NLTagger marks as "entities" but are useless for questions
+    private static let genericStopEntities: Set<String> = [
+        "analysis", "data", "system", "method", "model", "approach", "result",
+        "study", "research", "process", "framework", "structure", "design",
+        "implementation", "performance", "evaluation", "table", "figure",
+        "section", "chapter", "page", "document", "paper", "report",
+        "information", "content", "text", "type", "level", "value",
+        "group", "number", "part", "case", "example", "form", "area",
+        "point", "time", "work", "thing", "way", "issue", "problem",
+        "question", "answer", "item", "list", "set", "use", "end"
+    ]
+
+    /// Extract number-in-context phrases like "360 DPI", "0.15 threshold", "$49.99/year"
+    private func extractSpecificNumbers(from text: String) -> [String] {
+        let pattern = #"(\d+[\.,]?\d*)\s*(%|(?:DPI|Hz|MHz|GHz|MB|GB|TB|KB|ms|s|min|hr|mg|ml|kg|lb|oz|ft|in|cm|mm|m|km|mph|rpm|psi|°[CF]|watts?|volts?|amps?|tokens?))\b"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+            return []
+        }
+
+        let nsText = text as NSString
+        let matches = regex.matches(in: text, range: NSRange(location: 0, length: nsText.length))
+        return matches.prefix(3).compactMap { match in
+            let range = match.range
+            guard range.location != NSNotFound else { return nil }
+            return nsText.substring(with: range)
+        }
+    }
+
+    /// Extract multi-word key phrases (2-4 words) that are specific to the content.
+    private func extractKeyPhrases(from text: String) -> [String] {
+        let sentences = text.components(separatedBy: ". ")
+        var phrases: [String] = []
+
+        for sentence in sentences {
+            let words = sentence.split(separator: " ").map(String.init)
+            for windowSize in [3, 2, 4] {
+                guard words.count >= windowSize else { continue }
+                for i in 1..<(words.count - windowSize + 1) {
+                    let window = Array(words[i..<(i + windowSize)])
+                    let phrase = window.joined(separator: " ")
+                        .trimmingCharacters(in: .punctuationCharacters)
+
+                    let hasCapital = window.contains { word in
+                        guard let first = word.first else { return false }
+                        return first.isUppercase && word.count >= 3
+                    }
+
+                    let hasSubstance = window.contains { word in
+                        word.count >= 4 && !Self.genericStopEntities.contains(word.lowercased())
+                    }
+
+                    if hasCapital && hasSubstance && phrase.count >= 8 {
+                        phrases.append(phrase)
+                    }
                 }
             }
         }
-        return false
+
+        return Array(Set(phrases)).sorted { $0.count > $1.count }.prefix(3).map { $0 }
     }
 
-    private func containsProceduralIndicators(_ text: String) -> Bool {
-        let indicators = [
-            "step 1", "step one", "first,", "1.", "1)",
-            "how to", "instructions", "procedure", "process",
-            "install", "setup", "configure", "connect",
-            "follow these", "begin by", "start with",
-            "warning:", "caution:", "note:", "important:"
-        ]
+    // MARK: - Static Fallbacks
 
-        let lower = text.lowercased()
-        return indicators.contains { lower.contains($0) }
-    }
-
-    private func classifyDocumentType(_ filename: String) -> DocumentType {
-        let lower = filename.lowercased()
-
-        if lower.contains("manual") || lower.contains("owner") {
-            return .manual
-        } else if lower.contains("guide") || lower.contains("user") {
-            return .guide
-        } else if lower.contains("report") || lower.contains("annual") {
-            return .report
-        } else if lower.contains("spec") || lower.contains("technical") {
-            return .specification
-        } else if lower.contains("policy") || lower.contains("procedure") {
-            return .policy
-        } else if lower.contains("financial") || lower.contains("budget") || lower.contains("revenue") {
-            return .financial
-        } else if lower.contains("article") || lower.contains("blog") {
-            return .article
-        }
-
-        return .unknown
-    }
-
-    private func cleanDocumentName(_ filename: String) -> String {
-        // Remove extension and clean up
-        var name = filename
-        if let dotIndex = name.lastIndex(of: ".") {
-            name = String(name[..<dotIndex])
-        }
-
-        // Replace underscores/hyphens with spaces
-        name = name.replacingOccurrences(of: "_", with: " ")
-                   .replacingOccurrences(of: "-", with: " ")
-
-        // Truncate if too long
-        if name.count > 40 {
-            name = String(name.prefix(37)) + "..."
-        }
-
-        return name
-    }
-
-    private func findRelevantDocuments(for entity: String, in documents: [Document]) -> [String] {
-        // Simple heuristic - return all docs for now
-        // Could be enhanced to actually search chunk content
-        return documents.map { $0.filename }
-    }
-
-    private func isStopWord(_ word: String) -> Bool {
-        let stopWords: Set<String> = [
-            "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
-            "of", "with", "by", "from", "as", "is", "was", "are", "were", "been",
-            "be", "have", "has", "had", "do", "does", "did", "will", "would",
-            "could", "should", "may", "might", "must", "shall", "can", "this",
-            "that", "these", "those", "it", "its", "they", "them", "their",
-            "we", "us", "our", "you", "your", "he", "she", "him", "her", "his",
-            "which", "who", "whom", "what", "when", "where", "why", "how",
-            "all", "each", "every", "both", "few", "more", "most", "other",
-            "some", "such", "no", "not", "only", "same", "so", "than", "too",
-            "very", "just", "also", "now", "here", "there", "then", "once"
-        ]
-        return stopWords.contains(word.lowercased())
-    }
-}
-
-// MARK: - Fallback Questions
-
-extension SuggestedQuestionsService {
-
-    /// Default questions when no documents are ingested
+    /// Questions shown when no documents are in the library
     static let emptyLibraryQuestions: [String] = [
         "Import documents from the Documents tab to get started.",
         "What types of documents can I add to my library?",
         "How does the search and retrieval system work?"
     ]
 
-    /// Generic fallback questions for any library
+    /// Generic fallback questions (absolute last resort)
     static let genericQuestions: [String] = [
         "Summarize the main topics covered in my documents.",
         "What are the most important facts I should know?",

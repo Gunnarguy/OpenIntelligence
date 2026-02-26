@@ -79,6 +79,7 @@ struct ChatComposerV2: View {
                         .font(.system(size: 16))
                         .focused($isInputFocused)
                         .disabled(isProcessing)
+                        .writingToolsBehavior(.complete)
                         .padding(.vertical, 12)
                         .padding(.leading, 16)
 

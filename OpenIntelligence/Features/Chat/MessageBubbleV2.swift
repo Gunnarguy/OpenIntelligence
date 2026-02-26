@@ -22,12 +22,29 @@ struct MessageBubbleV2: View {
     let onThumbsUp: (() -> Void)?
     let onThumbsDown: (() -> Void)?
 
+    /// Called when user taps Translate on a response
+    let onTranslate: ((String) -> Void)?
+    /// Called when user taps Illustrate on a response
+    let onIllustrate: ((String) -> Void)?
+    /// Called when user taps Proofread on a response
+    let onProofread: ((String) -> Void)?
+    /// Called when user taps Rewrite on a response
+    let onRewrite: ((String) -> Void)?
+    /// Called when user taps Summarize on a response
+    let onSummarize: ((String) -> Void)?
+
     @State private var showActions = false
     @State private var showDetails = false
     @State private var showFullMetrics = false
     @State private var showReportSheet = false
     @State private var sharePayload: SharePayload? = nil
     @State private var showReasoningTrace = false
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    /// Responsive spacer: compact (iPhone) gets more content width, regular (iPad/Mac) keeps roomy margins
+    private var bubbleSpacerMinLength: CGFloat {
+        horizontalSizeClass == .compact ? 24 : 60
+    }
 
     init(
         message: Binding<ChatMessage>,
@@ -35,7 +52,12 @@ struct MessageBubbleV2: View {
         onRegenerate: (() -> Void)? = nil,
         onGoDeeper: (() -> Void)? = nil,
         onThumbsUp: (() -> Void)? = nil,
-        onThumbsDown: (() -> Void)? = nil
+        onThumbsDown: (() -> Void)? = nil,
+        onTranslate: ((String) -> Void)? = nil,
+        onIllustrate: ((String) -> Void)? = nil,
+        onProofread: ((String) -> Void)? = nil,
+        onRewrite: ((String) -> Void)? = nil,
+        onSummarize: ((String) -> Void)? = nil
     ) {
         _message = message
         self.showMetadata = showMetadata
@@ -43,6 +65,11 @@ struct MessageBubbleV2: View {
         self.onGoDeeper = onGoDeeper
         self.onThumbsUp = onThumbsUp
         self.onThumbsDown = onThumbsDown
+        self.onTranslate = onTranslate
+        self.onIllustrate = onIllustrate
+        self.onProofread = onProofread
+        self.onRewrite = onRewrite
+        self.onSummarize = onSummarize
     }
 
     private var isUser: Bool { message.role == .user }
@@ -51,7 +78,7 @@ struct MessageBubbleV2: View {
         VStack(alignment: isUser ? .trailing : .leading, spacing: 6) {
             // Main bubble with tap-to-reveal actions
             HStack(alignment: .bottom, spacing: 0) {
-                if isUser { Spacer(minLength: 60) }
+                if isUser { Spacer(minLength: bubbleSpacerMinLength) }
 
                 VStack(alignment: .leading, spacing: 0) {
                     if !isUser, message.isHidden {
@@ -117,7 +144,7 @@ struct MessageBubbleV2: View {
                     }
                 }
 
-                if !isUser { Spacer(minLength: 60) }
+                if !isUser { Spacer(minLength: bubbleSpacerMinLength) }
             }
 
             // Action bar (appears on tap)
@@ -134,9 +161,19 @@ struct MessageBubbleV2: View {
                     onReport: (!isUser ? { showReportSheet = true } : nil),
                     onExportTrace: (!isUser ? { exportPipelineTrace() } : nil),
                     onGoDeeper: isUser ? nil : onGoDeeper,
+                    onTranslate: (!isUser && onTranslate != nil) ? { onTranslate?(message.content) } : nil,
+                    onIllustrate: (!isUser && onIllustrate != nil) ? { onIllustrate?(message.content) } : nil,
+                    onProofread: (!isUser && onProofread != nil) ? { onProofread?(message.content) } : nil,
+                    onRewrite: (!isUser && onRewrite != nil) ? { onRewrite?(message.content) } : nil,
+                    onSummarize: (!isUser && onSummarize != nil) ? { onSummarize?(message.content) } : nil,
                     onThumbsUp: onThumbsUp,
                     onThumbsDown: onThumbsDown
                 )
+                // User bubbles only show Copy + Share — shrink bar to fit content
+                // and let the parent VStack's .trailing alignment push it right.
+                // Without this, the ScrollView inside MessageActionsBar stretches
+                // full-width, pinning the buttons to the left edge.
+                .fixedSize(horizontal: isUser, vertical: false)
                 .transition(.scale.combined(with: .opacity))
             }
 
@@ -166,6 +203,11 @@ struct MessageBubbleV2: View {
                                     .font(.system(size: 9, weight: .medium))
                             }
                             .foregroundStyle(.blue.opacity(0.6))
+                        }
+
+                        // Verification gate inline badge
+                        if let decision = meta.gatingDecision {
+                            VerificationBadge(gatingDecision: decision)
                         }
                     }
                 }
@@ -390,6 +432,89 @@ private struct ReasoningStepView: View {
         case 0: return .blue      // Analyzing
         case 1: return .purple    // Patterns
         default: return .green    // Synthesis/Other
+        }
+    }
+}
+
+// MARK: - Verification Gate Badge
+
+/// Compact inline badge showing verification gate status parsed from gatingDecision string
+private struct VerificationBadge: View {
+    let gatingDecision: String
+
+    private var status: VerificationStatus {
+        VerificationStatus.from(gatingDecision: gatingDecision)
+    }
+
+    var body: some View {
+        HStack(spacing: 3) {
+            Image(systemName: status.icon)
+                .font(.system(size: 8, weight: .bold))
+            Text(status.label)
+                .font(.system(size: 10, weight: .medium))
+        }
+        .foregroundStyle(status.color)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(
+            Capsule()
+                .fill(status.color.opacity(0.12))
+        )
+        .contentShape(Capsule())
+    }
+
+    enum VerificationStatus {
+        case verified
+        case partiallyVerified
+        case lowConfidence
+        case unverified
+        case noSources
+
+        var icon: String {
+            switch self {
+            case .verified: return "checkmark.shield.fill"
+            case .partiallyVerified: return "shield.lefthalf.filled"
+            case .lowConfidence: return "exclamationmark.triangle.fill"
+            case .unverified: return "xmark.shield.fill"
+            case .noSources: return "questionmark.circle"
+            }
+        }
+
+        var label: String {
+            switch self {
+            case .verified: return "Verified"
+            case .partiallyVerified: return "Partially Verified"
+            case .lowConfidence: return "Low Confidence"
+            case .unverified: return "Unverified"
+            case .noSources: return "No Sources"
+            }
+        }
+
+        var color: Color {
+            switch self {
+            case .verified: return .green
+            case .partiallyVerified: return .yellow
+            case .lowConfidence: return .orange
+            case .unverified: return .red
+            case .noSources: return .secondary
+            }
+        }
+
+        static func from(gatingDecision: String) -> VerificationStatus {
+            let lower = gatingDecision.lowercased()
+            if lower.contains("no_sources") || lower.contains("no_documents") || lower.contains("context_empty") {
+                return .noSources
+            }
+            if lower.contains("verification_gates_failed") || lower.contains("missing_citations") {
+                return .unverified
+            }
+            if lower.contains("low_confidence") || lower.contains("rerank_empty") || lower.contains("mmr_empty") || lower.contains("relevance_gate_failed") {
+                return .lowConfidence
+            }
+            if lower.contains("reliability_fallback") || lower.contains("high_accuracy_blocked") {
+                return .partiallyVerified
+            }
+            return .verified
         }
     }
 }

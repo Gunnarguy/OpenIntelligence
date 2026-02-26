@@ -9,6 +9,9 @@ import Combine
 import CryptoKit
 import Foundation
 import NaturalLanguage
+#if canImport(UIKit)
+import UIKit
+#endif
 
 #if canImport(FoundationModels)
     import FoundationModels
@@ -592,6 +595,9 @@ class RAGService: ObservableObject {
     /// Cached corpus vocabulary per container to avoid expensive rebuilds on each query
     @MainActor private var corpusVocabularyCache: [UUID: CorpusVocabulary] = [:]
 
+    /// Memory warning observer — evicts corpus vocabulary cache under pressure
+    @MainActor private var memoryWarningObserver: (any NSObjectProtocol)?
+
     /// Published model name for UI binding - updates when LLM service changes
     @MainActor @Published private(set) var activeModelName: String = "Loading..."
     @MainActor private var selfTuningInFlight: Set<UUID> = []
@@ -856,6 +862,26 @@ class RAGService: ObservableObject {
 
         // Observe container switches to save/restore transcripts
         observeContainerChanges()
+
+        // MEMORY FIX: Evict caches on memory pressure to prevent OOM jetsam kills
+        #if canImport(UIKit)
+        Task { @MainActor in
+            self.memoryWarningObserver = NotificationCenter.default.addObserver(
+                forName: UIApplication.didReceiveMemoryWarningNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    let count = self.corpusVocabularyCache.count
+                    self.corpusVocabularyCache.removeAll()
+                    if count > 0 {
+                        Log.warning("[RAGService] ⚠️ Memory warning — evicted \(count) corpus vocabulary caches", category: .retrieval)
+                    }
+                }
+            }
+        }
+        #endif
     }
 
     // MARK: - Container Change Observer
@@ -1865,6 +1891,24 @@ class RAGService: ObservableObject {
                     let lineLower = subLine.lowercased()
                     let headingLower = currentHeading.lowercased()
 
+                    // QUERY-ECHO GUARD: If this sentence is essentially the query repeated
+                    // back (from compression LLM hallucination), skip it entirely.
+                    // A sentence like "What's smart mode?" shouldn't score highly just
+                    // because it contains all query keywords — it has no ANSWER content.
+                    let lineWords = Set(lineLower
+                        .components(separatedBy: CharacterSet.alphanumerics.inverted)
+                        .filter { $0.count > 2 && !Self.stopWords.contains($0) })
+                    let queryWords = Set(queryKeywords)
+                    if !lineWords.isEmpty && !queryWords.isEmpty {
+                        let overlap = lineWords.intersection(queryWords).count
+                        let lineUnique = lineWords.subtracting(queryWords).count
+                        // If the sentence has ≥ all query keywords but ≤1 unique word beyond them,
+                        // it's a query echo, not an answer. Skip it.
+                        if overlap >= queryWords.count && lineUnique <= 1 {
+                            continue
+                        }
+                    }
+
                     // Direct keyword hits on THIS line
                     var directHits = 0
                     for kw in queryKeywords {
@@ -1930,8 +1974,16 @@ class RAGService: ObservableObject {
                     // Inherited: the heading says "oil", this line has the spec → 2.0 per hit
                     let keywordScore = Double(directHits) * 3.0 + Double(headingHits) * 2.0
 
-                    let totalScore = keywordScore
-                        + numberBonus + unitBonus + specBonus + kvBonus + codeBonus + rankBonus
+                    // COVERAGE PENALTY: For short queries (2-3 keywords), a sentence matching
+                    // only 1 keyword is often off-topic. "smart key" matches [smart] but not
+                    // [mode] → likely irrelevant for "What's smart mode?". Apply a 60% penalty
+                    // when the sentence covers less than half the query's keywords.
+                    let coverageFraction = Double(totalKeywordHits) / Double(max(1, queryKeywords.count))
+                    let coveragePenalty: Double = (queryKeywords.count >= 2 && coverageFraction < 0.5) ? 0.4 : 1.0
+
+                    let totalScore = (keywordScore
+                        + numberBonus + unitBonus + specBonus + kvBonus + codeBonus + rankBonus)
+                        * coveragePenalty
 
                     // Determine heading context to include when packing
                     let effectiveHeading: String
@@ -1958,12 +2010,59 @@ class RAGService: ObservableObject {
         scoredSentences.sort { $0.score > $1.score }
 
         // Deduplicate: remove near-identical sentences (same text, different chunks)
+        // Phase 1: Exact-match dedup (fast, O(n))
         var seen: Set<String> = []
         scoredSentences = scoredSentences.filter { s in
             let key = s.text.lowercased().filter { $0.isLetter || $0.isNumber }
             if seen.contains(key) { return false }
             seen.insert(key)
             return true
+        }
+
+        // Phase 2: Fuzzy dedup using Jaccard word-set similarity
+        // Catches near-duplicate sentences like "activated when the driver presses the Mode button"
+        // vs "activated by pressing the Mode button" that share >70% of meaningful words.
+        // O(n*m) where n=candidates, m=kept — acceptable since n is typically <100 after Phase 1.
+        do {
+            var keptSentences: [ScoredSentence] = []
+            // Pre-compute word sets for kept sentences to avoid recomputation
+            var keptWordSets: [Set<String>] = []
+
+            for sentence in scoredSentences {
+                let words = Set(
+                    sentence.text.lowercased()
+                        .components(separatedBy: CharacterSet.alphanumerics.inverted)
+                        .filter { $0.count > 2 && !Self.stopWords.contains($0) }
+                )
+                // Very short sentences: skip fuzzy dedup (not enough signal)
+                guard words.count >= 3 else {
+                    keptSentences.append(sentence)
+                    keptWordSets.append(words)
+                    continue
+                }
+
+                var isDuplicate = false
+                for (idx, keptWords) in keptWordSets.enumerated() {
+                    guard keptWords.count >= 3 else { continue }
+                    let intersection = words.intersection(keptWords).count
+                    let union = words.union(keptWords).count
+                    let jaccard = Double(intersection) / Double(max(1, union))
+                    if jaccard > 0.70 {
+                        // Keep the higher-scoring one
+                        if sentence.score > keptSentences[idx].score {
+                            keptSentences[idx] = sentence
+                            keptWordSets[idx] = words
+                        }
+                        isDuplicate = true
+                        break
+                    }
+                }
+                if !isDuplicate {
+                    keptSentences.append(sentence)
+                    keptWordSets.append(words)
+                }
+            }
+            scoredSentences = keptSentences
         }
 
         // Pack into context budget
@@ -1974,41 +2073,91 @@ class RAGService: ObservableObject {
         let headerOverhead = compact ? 30 : 80
         let separatorSize = compact ? 5 : 7
 
-        // Group consecutive sentences from the same source for readability
-        for sentence in scoredSentences {
-            let sourceLabel: String
-            if compact {
-                let filename = URL(fileURLWithPath: sentence.sourceDoc).lastPathComponent
-                sourceLabel = sourcesUsed.contains(sentence.sourceIndex) ? "" :
-                    "[S\(sentence.sourceIndex + 1)] (\(filename))\n"
-            } else {
-                let page = sentence.pageNumber.map { " p.\($0)" } ?? ""
-                sourceLabel = sourcesUsed.contains(sentence.sourceIndex) ? "" :
-                    "[S\(sentence.sourceIndex + 1)] \(sentence.sourceDoc)\(page)\n"
-            }
+        // Group sentences by source into prose paragraphs (not one-per-line lists).
+        // When each sentence is its own line, the FM regurgitates them as bullet lists.
+        // Joining them with ". " creates natural paragraphs the FM will synthesize from.
+        // Track per-source sentence buffers so same-source sentences merge into one block.
+        var sourceBuffers: [Int: [String]] = [:]  // sourceIndex → [sentences]
+        var sourceOrder: [Int] = []  // Track order of first appearance
+        var sourceLabels: [Int: String] = [:]  // sourceIndex → label
 
-            // Include heading context for sentences found via inheritance
-            // e.g. "Engine Oil > SAE 0W-20" gives the LLM section context
+        for sentence in scoredSentences {
             let displayText = sentence.headingContext.isEmpty
                 ? sentence.text
                 : "\(sentence.headingContext) > \(sentence.text)"
 
-            let entry = sourceLabel + displayText + "\n"
-            let overhead = sourcesUsed.contains(sentence.sourceIndex) ? 0 : headerOverhead
+            if sourceBuffers[sentence.sourceIndex] == nil {
+                sourceOrder.append(sentence.sourceIndex)
+                // Build source label — include section title so the LLM knows
+                // what topic/metric each source covers. Critical for health data
+                // and structured documents where compression strips headers,
+                // leaving decontextualized data lines like "2024: 1,821 records,
+                // avg 71.6 ms" with no indication of which metric they belong to.
+                let sectionTag: String
+                if sentence.sourceIndex < candidates.count,
+                   let section = candidates[sentence.sourceIndex].chunk.metadata.sectionTitle,
+                   !section.isEmpty {
+                    sectionTag = " \(section) —"
+                } else {
+                    sectionTag = ""
+                }
+                if compact {
+                    let filename = URL(fileURLWithPath: sentence.sourceDoc).lastPathComponent
+                    sourceLabels[sentence.sourceIndex] = "[S\(sentence.sourceIndex + 1)]\(sectionTag) (\(filename))"
+                } else {
+                    let page = sentence.pageNumber.map { " p.\($0)" } ?? ""
+                    sourceLabels[sentence.sourceIndex] = "[S\(sentence.sourceIndex + 1)]\(sectionTag) \(sentence.sourceDoc)\(page)"
+                }
+            }
+            sourceBuffers[sentence.sourceIndex, default: []].append(displayText)
+        }
 
-            if builder.count + entry.count + overhead + separatorSize <= maxChars {
-                if !sourcesUsed.contains(sentence.sourceIndex) && !builder.isEmpty {
+        // Pack source paragraphs into budget
+        for srcIdx in sourceOrder {
+            guard let sentences = sourceBuffers[srcIdx],
+                  let label = sourceLabels[srcIdx] else { continue }
+
+            // Join sentences into a prose paragraph
+            let paragraph = sentences.map { sent in
+                // Ensure sentence ends with period for natural flow
+                let trimmed = sent.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed.hasSuffix(".") || trimmed.hasSuffix("!") || trimmed.hasSuffix("?") || trimmed.hasSuffix(":") {
+                    return trimmed
+                }
+                return trimmed + "."
+            }.joined(separator: " ")
+
+            let entry = label + "\n" + paragraph + "\n"
+            let overhead = headerOverhead + separatorSize
+
+            if builder.count + entry.count + overhead <= maxChars {
+                if !sourcesUsed.isEmpty {
                     builder += compact ? "\n---\n" : "\n\n---\n\n"
                 }
                 builder += entry
-                sourcesUsed.insert(sentence.sourceIndex)
-                sentenceCount += 1
-            } else if builder.count + displayText.count + 2 <= maxChars && sourcesUsed.contains(sentence.sourceIndex) {
-                // Can fit sentence without new header (same source)
-                builder += displayText + "\n"
-                sentenceCount += 1
+                sourcesUsed.insert(srcIdx)
+                sentenceCount += sentences.count
             } else {
-                // Budget exceeded
+                // Try fitting partial sentences from this source
+                let remaining = maxChars - builder.count - overhead - label.count - 2
+                if remaining > 50 && sourcesUsed.isEmpty || remaining > 100 {
+                    var partial: [String] = []
+                    var partialLen = 0
+                    for sent in sentences {
+                        if partialLen + sent.count + 2 > remaining { break }
+                        partial.append(sent)
+                        partialLen += sent.count + 2
+                    }
+                    if !partial.isEmpty {
+                        let partialParagraph = partial.joined(separator: " ")
+                        if !sourcesUsed.isEmpty {
+                            builder += compact ? "\n---\n" : "\n\n---\n\n"
+                        }
+                        builder += label + "\n" + partialParagraph + "\n"
+                        sourcesUsed.insert(srcIdx)
+                        sentenceCount += partial.count
+                    }
+                }
                 break
             }
         }
@@ -3005,6 +3154,25 @@ class RAGService: ObservableObject {
                 duration: extractionTime
             )
 
+            // Build domain vocabulary from extracted text for improved entity recognition
+            let combinedText = processedChunks.map { $0.text }.joined(separator: " ")
+            await GazetteerService.shared.extractAndAddTerms(from: combinedText, source: filename)
+
+            // Index document in Spotlight for system-wide search
+            let spotlightEnabled = await MainActor.run { self.settingsStore?.enableSpotlightIndexing ?? true }
+            if spotlightEnabled {
+                let cid = activeContainerId
+                let containerName = await MainActor.run { self.containerService.containers.first(where: { $0.id == cid })?.name ?? "Library" }
+                SpotlightIndexService.shared.indexDocument(
+                    id: document.id,
+                    filename: document.filename,
+                    containerId: activeContainerId,
+                    containerName: containerName,
+                    textPreview: String(combinedText.prefix(500)),
+                    chunkCount: processedChunks.count
+                )
+            }
+
             await MainActor.run {
                 updateIngestionItem(
                     id: trackingId,
@@ -3422,7 +3590,9 @@ class RAGService: ObservableObject {
                     hasListStructure: base.hasListStructure,
                     wordCount: base.wordCount,
                     characterCount: base.characterCount,
-                    createdAt: base.createdAt
+                    createdAt: base.createdAt,
+                    entities: base.entities,
+                    abbreviations: base.abbreviations
                 )
                 return DocumentChunk(
                     documentId: document.id,
@@ -3584,7 +3754,8 @@ class RAGService: ObservableObject {
             }
 
             var generatedContentTags: [String]?
-            if #available(iOS 26.0, *) {
+            let contentTaggingEnabled = await MainActor.run { self.settingsStore?.enableContentTagging ?? true }
+            if #available(iOS 26.0, *), contentTaggingEnabled {
                 let taggingService = ContentTaggingService.shared
                 if taggingService.isAvailable {
                     do {
@@ -3819,6 +3990,9 @@ class RAGService: ObservableObject {
         await SQLiteFullTextService.shared.deleteChunks(for: document.id)
         await FullTextStorageService.shared.delete(for: document.id)
 
+        // Remove from Spotlight index
+        SpotlightIndexService.shared.deindexDocument(id: document.id)
+
         // Invalidate visualization cache for active container after removal
         let activeId = await MainActor.run { self.containerService.activeContainerId }
         ProjectionCache.shared.invalidate(forContainer: activeId)
@@ -3856,6 +4030,9 @@ class RAGService: ObservableObject {
         for doc in docsToDelete {
             await FullTextStorageService.shared.delete(for: doc.id)
         }
+
+        // Remove all documents in this container from Spotlight
+        SpotlightIndexService.shared.deindexContainer(id: activeId)
 
         await MainActor.run {
             documents.removeAll { $0.containerId == activeId }
@@ -4614,7 +4791,7 @@ class RAGService: ObservableObject {
             return RAGResponse(
                 queryId: UUID(),
                 retrievedChunks: result.retrievedChunks,
-                generatedResponse: result.finalAnswer,
+                generatedResponse: humanizeCitations(result.finalAnswer, chunks: result.retrievedChunks),
                 metadata: ResponseMetadata(
                     timeToFirstToken: totalTime / Double(max(1, result.steps.count)), // Estimate TTFT per step
                     totalGenerationTime: totalTime,
@@ -5236,6 +5413,20 @@ class RAGService: ObservableObject {
                         }
                     } else {
                         Log.debug("[RAGService] Container vocabulary expansion skipped (quality mode: \(qualityModeDisplayName))", category: .pipeline)
+                    }
+
+                    // Step 1.5c: Gazetteer Domain Vocabulary Enrichment
+                    // Adds domain-specific terms learned during ingestion (NLGazetteer)
+                    let gazetteerMatches = await GazetteerService.shared.matchingTerms(for: effectiveQuery)
+                    if !gazetteerMatches.isEmpty {
+                        let gazetteerTerms = gazetteerMatches.map { $0.term }
+                        let uniqueGazetteerTerms = gazetteerTerms.filter { !expandedQueries.contains($0) }
+                        let gazetteerSpace = qualityModeMaxQueryExpansions - expandedQueries.count
+                        let gazetteerToAdd = Array(uniqueGazetteerTerms.prefix(max(0, gazetteerSpace)))
+                        expandedQueries.append(contentsOf: gazetteerToAdd)
+                        if !gazetteerToAdd.isEmpty {
+                            Log.debug("[RAGService] Gazetteer added \(gazetteerToAdd.count) domain terms", category: .retrieval)
+                        }
                     }
 
                     expansionTime = Date().timeIntervalSince(expansionStartTime)
@@ -6809,16 +7000,30 @@ class RAGService: ObservableObject {
                     // Add buffer of 2 so compression can potentially include slightly more
                     let compressionLimit = min(contextCandidates.count, max(estimatedFit + 2, 5))
 
+                    // Cap compression to max 5 chunks (~15s) to preserve LLM rate-limit
+                    // budget for the actual generation step. Without this cap, 10+ chunks
+                    // at ~3s each = 30s+ of sequential LLM calls that exhaust Apple FM
+                    // rate limits before the main generation even starts.
+                    let maxCompressionChunks = 5
+                    let cappedCompressionLimit = min(compressionLimit, maxCompressionChunks)
+
                     // Skip compression entirely if only 3 or fewer chunks fit — ROI is negative
                     // (3 chunks × 3s = 9s for negligible token savings)
-                    if compressionLimit <= 3 {
+                    if cappedCompressionLimit <= 3 {
                         Log.info("[RAG] Skipping compression - only \(estimatedFit) chunks fit in context budget (ROI negative)", category: .retrieval)
                         emitThinkingEvent(.compression, title: "Compression skipped", detail: "Only \(estimatedFit) chunks fit — ROI negative")
+                    } else if compressionLimit > maxCompressionChunks {
+                        Log.info("[RAG] Capping compression from \(compressionLimit) to \(maxCompressionChunks) chunks to preserve LLM rate budget for generation", category: .retrieval)
+                        emitThinkingEvent(.compression, title: "Compression capped", detail: "\(compressionLimit)→\(maxCompressionChunks) chunks — protecting generation budget")
                     }
 
-                    let chunksToCompress = compressionLimit <= 3 ? [] : Array(contextCandidates.prefix(compressionLimit))
+                    let chunksToCompress = cappedCompressionLimit <= 3 ? [] : Array(contextCandidates.prefix(cappedCompressionLimit))
                     let compressionService = ContextualCompressionService()
                     let chunkTexts = chunksToCompress.map { $0.chunk.text }
+                    // Pass section titles so compression LLM understands chunk topics.
+                    // Without this, abbreviation queries like "HRV" get 319→2 token compression
+                    // because the chunk body has only raw stats without the full metric name.
+                    let sectionTitles = chunksToCompress.map { $0.chunk.metadata.sectionTitle }
 
                     // Select compression config based on query type
                     // "exactly", "detail", "comprehensive", "all about" → verbose (minimal compression)
@@ -6845,6 +7050,7 @@ class RAGService: ObservableObject {
                         let compressionResults = try await compressionService.compressChunks(
                             chunkTexts,
                             forQuery: question,
+                            sectionTitles: sectionTitles,
                             config: compressionConfig
                         )
                         let compressionTime = Date().timeIntervalSince(compressionStartTime)
@@ -6904,6 +7110,14 @@ class RAGService: ObservableObject {
                         // This is critical for procedural content that may trigger false positives
                         Log.warning("[Compression] Failed, using original chunks: \(error.localizedDescription)", category: .retrieval)
                         Log.info("[Compression] Preserving all \(contextCandidates.count) original chunks for procedural safety", category: .retrieval)
+                    }
+
+                    // Cooldown: let Apple FM rate limits recover after sequential compression
+                    // calls before the main generation step. Without this pause, generation
+                    // frequently hits .rateLimited immediately after 5 compression calls.
+                    if compressionSavings > 0 {
+                        Log.debug("[RAG] Post-compression cooldown (1s) to recover FM rate budget", category: .retrieval)
+                        try? await Task.sleep(for: .seconds(1))
                     }
                 }
 
@@ -7646,6 +7860,16 @@ class RAGService: ObservableObject {
 
                 var genConfig = inferenceConfig
 
+                // ═══════════════════════════════════════════════════════════════
+                // Context Homogeneity Detection
+                // ═══════════════════════════════════════════════════════════════
+                // If retrieved chunks are >55% similar to each other (Jaccard),
+                // the source content is repetitive (e.g., inspection reports with
+                // repeated dates/entries). Inject synthesis-focused instructions
+                // into the system prompt to prevent the LLM from enumerating
+                // each chunk separately (which causes repetition loops).
+                let contextIsHomogeneous = detectContextHomogeneity(chunks: includedChunks)
+
                 // Set explicit system prompt for RAG to ensure comprehensive, ACCURATE answers
                 // Keep concise to maximize context budget (every 100 chars = ~70 tokens)
 
@@ -7663,10 +7887,8 @@ class RAGService: ObservableObject {
                 switch answerIntent {
                 case .lookup, .tableLookup:
                     intentSpecificInstructions = """
-                    State the SPECIFIC value/answer FIRST in one clear sentence (e.g., "The recommended oil is SAE 0W-20, API SP certified"). Then add supporting details.
-                    Copy numbers, units, codes, and specs VERBATIM from excerpts. Never paraphrase or substitute.
-                    Do NOT paste raw document fragments — synthesize a clear answer from the data.
-                    If the specific value is NOT in the excerpts, say so, then share what IS available.
+                    Answer in 1-2 clear prose paragraphs. State the answer FIRST, then supporting details.
+                    Copy numbers, units, codes VERBATIM. Many excerpts say similar things in different words — combine them into ONE cohesive explanation. Never repeat the same fact twice. Do NOT paste sentence fragments back-to-back.
                     """
                 case .procedure:
                     if isBehavioralOutcomeQuery {
@@ -7703,7 +7925,9 @@ class RAGService: ObservableObject {
                 \(intentSpecificInstructions)
                 Rules: Cite sources [S1]/[S2]. Copy values VERBATIM. Be thorough. Never say "no information" — always provide what IS there. If the question is vague, interpret it from document topics.
                 CRITICAL: NEVER invent numbers, measurements, or values. Use ONLY values that appear in the excerpts. If a specific value is not in the excerpts, state that clearly.
-                Format: Use ### headers for sections, - bullets for lists, **bold** for key terms. Separate paragraphs with blank lines.
+                ABBREVIATIONS: If an [Abbreviations] glossary appears in the context, use those EXACT definitions when expanding abbreviations. Never expand an abbreviation differently than the glossary defines it. Example: if glossary says "ED = Emotional Dysregulation", NEVER write "oppositional defiant disorder (ED)".
+                Format: Write naturally and match format to the question. Use ### headers to organize multi-topic answers. Use **bold** sparingly for key terms only. Use bullets only for actual lists, sequential steps, or specifications. Write prose paragraphs for explanations. Combine overlapping excerpts into unified sentences — never repeat the same fact.
+                \(contextIsHomogeneous ? "IMPORTANT: The source excerpts contain highly repetitive or redundant entries. SYNTHESIZE across all excerpts into a SINGLE unified answer. Do NOT list or enumerate each excerpt separately. Mention each unique fact, date, or value ONCE. Combine similar entries." : "")
                 """
 
                 // Evidence-First mode: cautious prompt for low retrieval confidence
@@ -7712,8 +7936,10 @@ class RAGService: ObservableObject {
                     EVIDENCE-FIRST MODE (low confidence retrieval). Use ONLY excerpts [S1], [S2], etc.
                     \(intentSpecificInstructions)
                     Rules: Cite every claim. Copy values VERBATIM. Do NOT fill gaps with assumptions. NEVER invent numbers.
+                    ABBREVIATIONS: If an [Abbreviations] glossary appears, use those EXACT definitions. Never expand abbreviations differently.
                     For procedures: preserve exact order, never omit steps, include feedback indicators.
-                    Format: Use ### headers, - bullets, **bold** key terms. Separate sections with blank lines.
+                    Format: Write naturally. Use ### headers to organize multi-topic answers. Use **bold** sparingly for key terms only. Use bullets only for actual lists or sequential steps. Write prose paragraphs for explanations. Merge overlapping excerpts into unified sentences.
+                    \(contextIsHomogeneous ? "IMPORTANT: Excerpts contain repetitive entries. SYNTHESIZE into ONE answer. Mention each fact ONCE." : "")
                     End with: What sources show → What's missing → Confidence note.
                     """
                     // Lower temperature for more conservative output
@@ -8092,7 +8318,7 @@ class RAGService: ObservableObject {
                             retryConfig.executionContext = .onDeviceOnly
                             retryConfig.allowPrivateCloudCompute = false
                             // Use minimal system prompt for on-device fallback to maximize context budget
-                            retryConfig.systemPrompt = "Answer questions using ONLY the provided context. Be concise but complete. Cite sources as [S1], [S2] etc."
+                            retryConfig.systemPrompt = "Answer questions using ONLY the provided context. Be concise but complete. Cite sources as [S1], [S2] etc. Use **bold** sparingly for key terms. Use bullets only for actual lists."
 
                             TelemetryCenter.emit(
                                 .system,
@@ -8327,9 +8553,28 @@ class RAGService: ObservableObject {
                         }
                     }
 
-                    // Verify we got a response
-                    guard !responseText.isEmpty else {
-                        Log.warning("⚠️  Warning: LLM returned empty response", category: .llm)
+                    // Verify we got a response — if empty, route to reliability fallback
+                    // instead of throwing modelNotAvailable (which skips fallback entirely)
+                    if responseText.isEmpty {
+                        Log.warning("⚠️  LLM returned empty response (0 tokens) — routing to reliability fallback", category: .llm)
+                        if !recoveryRetrievedChunks.isEmpty {
+                            let emptyFallback = await buildReliabilityFallbackResponse(
+                                question: question,
+                                ragQuery: ragQuery ?? RAGQuery(query: question, topK: effectiveTopK),
+                                inferenceConfig: inferenceConfig,
+                                retrievalConfig: retrievalConfig,
+                                embeddingProviderId: embeddingProviderId,
+                                retrievedChunks: recoveryRetrievedChunks,
+                                retrievalTime: recoveryRetrievalTime,
+                                reason: "LLM returned empty response"
+                            )
+                            return await finalizeResponse(
+                                query: question,
+                                containerId: selectedId,
+                                containerName: selectedName,
+                                response: emptyFallback
+                            )
+                        }
                         throw RAGServiceError.modelNotAvailable
                     }
 
@@ -8967,12 +9212,13 @@ class RAGService: ObservableObject {
             question
                 + "\n\nAnswer using any available excerpts. If evidence is thin, say so and summarize what is available. Cite sources like [S1]."
 
-        if let llmResponse = try? await generateWithFallback(
-            prompt: fallbackPrompt,
-            context: fallbackContext.isEmpty ? nil : fallbackContext,
-            config: fallbackConfig,
-            sourceChunks: sourceChunks
-        ) {
+        do {
+            let llmResponse = try await generateWithFallback(
+                prompt: fallbackPrompt,
+                context: fallbackContext.isEmpty ? nil : fallbackContext,
+                config: fallbackConfig,
+                sourceChunks: sourceChunks
+            )
             let metadata = ResponseMetadata(
                 timeToFirstToken: llmResponse.timeToFirstToken,
                 totalGenerationTime: llmResponse.totalTime,
@@ -8993,24 +9239,31 @@ class RAGService: ObservableObject {
                 confidenceScore: 0.0,
                 qualityWarnings: warnings
             )
+        } catch {
+            Log.error("[RAG] Reliability fallback LLM also failed: \(error.localizedDescription) — falling through to extractive Path B", category: .pipeline)
         }
 
         let terms = extractQueryTerms(question)
-        let snippetBullets = usedRetrieved.prefix(3).enumerated().map { idx, retrieved in
+        let snippetBullets = usedRetrieved.prefix(6).enumerated().map { idx, retrieved in
+            let sectionLabel = retrieved.chunk.metadata.sectionTitle.flatMap { $0.isEmpty ? nil : "**\($0)**: " } ?? ""
+            let sourceName = retrieved.sourceDocument.isEmpty ? "Document" : retrieved.sourceDocument
             let snippet = extractSnippet(
                 from: retrieved.chunk.content,
                 queryTerms: terms,
-                maxChars: 240
+                maxChars: 500
             )
-            return "• \(snippet) [S\(idx + 1)]"
+            return "• \(sectionLabel)\(snippet) [S\(idx + 1): \(sourceName)]"
         }
         let responseText: String
         if snippetBullets.isEmpty {
             responseText = "I can't reach the model right now, but your documents are still available. Please try again in a moment."
         } else {
             responseText = """
-            Here’s the most relevant evidence I can access right now:
-            \(snippetBullets.joined(separator: "\n"))
+            I wasn’t able to synthesize a full answer right now. Here are the most relevant excerpts from your documents:
+
+            \(snippetBullets.joined(separator: "\n\n"))
+
+            Try asking again — the model may be temporarily rate-limited.
             """
         }
 
@@ -9155,7 +9408,12 @@ class RAGService: ObservableObject {
     }
 
     private static let citationRegex = try? NSRegularExpression(pattern: "\\[S\\d+\\]")
-    private static let emptyListItemRegex = try? NSRegularExpression(pattern: #"\b\d+\.\s*(\.)?(?=\s|$)"#)
+    /// Matches lines that consist ONLY of a number + period (empty numbered list items).
+    /// Uses multiline mode ((?m)) so ^ and $ anchor to line boundaries.
+    /// Previous pattern `\b\d+\.\s*(\.)?(?=\s|$)` falsely matched decimal numbers
+    /// at sentence boundaries in health/numeric data (e.g. "avg 71.6" → "71." matched),
+    /// triggering unnecessary integrity repair cycles (+3-4s per query).
+    private static let emptyListItemRegex = try? NSRegularExpression(pattern: #"(?m)^\s*\d+\.\s*\.?\s*$"#)
     private static let malformedInlineListRunRegex = try? NSRegularExpression(pattern: #"(?:\b\d+\.\s*\.\s*){2,}"#)
     private static let danglingMarkdownRegex = try? NSRegularExpression(pattern: #"\*\*[A-Za-z][A-Za-z\s]{0,30}$"#)
 
@@ -9163,6 +9421,91 @@ class RAGService: ObservableObject {
         guard let regex = Self.citationRegex else { return false }
         let range = NSRange(text.startIndex ..< text.endIndex, in: text)
         return regex.firstMatch(in: text, options: [], range: range) != nil
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // MARK: - Context Homogeneity Detection
+    // ═══════════════════════════════════════════════════════════════════════
+    /// Detects whether retrieved chunks are highly repetitive/homogeneous.
+    /// Uses pairwise Jaccard word similarity with O(n) sampling for large sets.
+    /// Returns `true` if chunks are homogeneous (>55% avg similarity) —
+    /// triggers synthesis-focused system prompt to prevent LLM enumeration loops.
+    ///
+    /// Theory: Inspection reports, repeated forms, and log files produce near-
+    /// identical chunks (same dates, headers, boilerplate). If the LLM sees
+    /// 8 chunks all saying "02/23/2024 inspection passed", it enumerates them
+    /// 8 times. Detecting this BEFORE generation lets us inject a synthesis
+    /// directive: "mention each fact ONCE."
+    private nonisolated func detectContextHomogeneity(chunks: [DocumentChunk]) -> Bool {
+        guard chunks.count >= 3 else { return false }
+
+        // Build word sets for each chunk (lowercased, alpha-only, min 3 chars)
+        let wordSets: [Set<String>] = chunks.map { chunk in
+            Set(
+                chunk.content.lowercased()
+                    .components(separatedBy: CharacterSet.alphanumerics.inverted)
+                    .filter { $0.count >= 3 }
+            )
+        }
+
+        // Pairwise Jaccard similarity with sampling for large chunk sets.
+        // Full pairwise is O(n²) — for >10 chunks, sample up to 30 random pairs.
+        var totalSimilarity: Double = 0
+        var pairCount = 0
+        var highPairCount = 0  // pairs with >0.60 similarity
+
+        let n = wordSets.count
+        if n <= 10 {
+            // Full pairwise comparison
+            for i in 0..<n {
+                for j in (i + 1)..<n {
+                    let intersection = wordSets[i].intersection(wordSets[j]).count
+                    let union = wordSets[i].union(wordSets[j]).count
+                    guard union > 0 else { continue }
+                    let jaccard = Double(intersection) / Double(union)
+                    totalSimilarity += jaccard
+                    pairCount += 1
+                    if jaccard > 0.60 { highPairCount += 1 }
+                }
+            }
+        } else {
+            // Sampled comparison: sequential neighbors + random pairs
+            // (1) Adjacent pairs (capture local repetition)
+            for i in 0..<(n - 1) {
+                let intersection = wordSets[i].intersection(wordSets[i + 1]).count
+                let union = wordSets[i].union(wordSets[i + 1]).count
+                guard union > 0 else { continue }
+                let jaccard = Double(intersection) / Double(union)
+                totalSimilarity += jaccard
+                pairCount += 1
+                if jaccard > 0.60 { highPairCount += 1 }
+            }
+            // (2) Strided pairs for coverage across distant chunks
+            let step = max(2, n / 6)
+            for i in Swift.stride(from: 0, to: n - step, by: step) {
+                let j = i + step
+                let intersection = wordSets[i].intersection(wordSets[j]).count
+                let union = wordSets[i].union(wordSets[j]).count
+                guard union > 0 else { continue }
+                let jaccard = Double(intersection) / Double(union)
+                totalSimilarity += jaccard
+                pairCount += 1
+                if jaccard > 0.60 { highPairCount += 1 }
+            }
+        }
+
+        guard pairCount > 0 else { return false }
+
+        let avgSimilarity = totalSimilarity / Double(pairCount)
+
+        // Dual threshold: average >0.55 OR >50% of pairs are highly similar
+        let isHomogeneous = avgSimilarity > 0.55 || Double(highPairCount) / Double(pairCount) > 0.50
+
+        if isHomogeneous {
+            Log.info("[RAG] Context homogeneity detected: avg Jaccard=\(String(format: "%.2f", avgSimilarity)), high pairs=\(highPairCount)/\(pairCount) — injecting synthesis prompt", category: .retrieval)
+        }
+
+        return isHomogeneous
     }
 
     private func responseIntegrityIssues(_ text: String) -> [String] {
@@ -9188,7 +9531,9 @@ class RAGService: ObservableObject {
             issues.append("dangling_markdown")
         }
 
-        // Sentence repetition dominance detector
+        // ═══════════════════════════════════════════════════════════════
+        // LAYER 1: Sentence-level repetition dominance detector
+        // ═══════════════════════════════════════════════════════════════
         let sentences = text.components(separatedBy: CharacterSet(charactersIn: ".!?\n"))
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
             .filter { $0.count >= 20 }
@@ -9207,11 +9552,120 @@ class RAGService: ObservableObject {
             }
         }
 
+        // ═══════════════════════════════════════════════════════════════
+        // LAYER 2: Intra-sentence / phrase-level repetition detector
+        // ═══════════════════════════════════════════════════════════════
+        // Catches "02/23/2024, 02/23/2024, 02/23/2024..." within a single bullet
+        let commaSegments = text.components(separatedBy: ", ")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            .filter { $0.count >= 4 && $0.count <= 40 }
+        if commaSegments.count >= 6 {
+            var segFreq: [String: Int] = [:]
+            for seg in commaSegments {
+                let key = seg.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+                guard !key.isEmpty else { continue }
+                segFreq[key, default: 0] += 1
+            }
+            if let topCount = segFreq.values.max(),
+               topCount >= 4,
+               Double(topCount) / Double(commaSegments.count) >= 0.35 {
+                if !issues.contains("dominant_repetition") {
+                    issues.append("dominant_repetition")
+                }
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // LAYER 3: N-gram entropy — information-theoretic quality gate
+        // ═══════════════════════════════════════════════════════════════
+        // Calculates Shannon entropy of word bigrams. Low entropy = degenerate
+        // repetition regardless of surface pattern. This catches ALL forms of
+        // repetition universally — including patterns we haven't hard-coded for.
+        //
+        // Theory: English prose has bigram entropy ~4-6 bits.
+        // Repetitive text drops <2.0 bits. Threshold: 2.0 bits.
+        let words = text.lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { $0.count >= 2 }
+        if words.count >= 30 {
+            var bigramCounts: [String: Int] = [:]
+            var totalBigrams = 0
+            for i in 0..<(words.count - 1) {
+                let bigram = "\(words[i]) \(words[i + 1])"
+                bigramCounts[bigram, default: 0] += 1
+                totalBigrams += 1
+            }
+
+            if totalBigrams > 0 {
+                var entropy: Double = 0.0
+                let total = Double(totalBigrams)
+                for (_, count) in bigramCounts {
+                    let p = Double(count) / total
+                    if p > 0 {
+                        entropy -= p * log2(p)
+                    }
+                }
+
+                // Very short responses naturally have lower entropy, scale threshold
+                let entropyThreshold: Double = words.count < 60 ? 1.5 : 2.0
+
+                if entropy < entropyThreshold {
+                    if !issues.contains("dominant_repetition") {
+                        issues.append("dominant_repetition")
+                    }
+                    issues.append("low_entropy")
+                    Log.debug("[IntegrityCheck] Low bigram entropy: \(String(format: "%.2f", entropy)) bits (threshold: \(entropyThreshold))", category: .llm)
+                }
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // LAYER 4: Unique word ratio — redundancy proxy
+        // ═══════════════════════════════════════════════════════════════
+        // High-quality prose has ~40-70% unique words. Repetitive text drops <25%.
+        // This is a compression-ratio proxy: if gzip would compress 4:1, it's junk.
+        if words.count >= 20 {
+            let uniqueWords = Set(words)
+            let uniqueRatio = Double(uniqueWords.count) / Double(words.count)
+            if uniqueRatio < 0.20 {
+                if !issues.contains("dominant_repetition") {
+                    issues.append("dominant_repetition")
+                }
+                issues.append("low_lexical_diversity")
+                Log.debug("[IntegrityCheck] Low unique word ratio: \(String(format: "%.1f%%", uniqueRatio * 100)) (\(uniqueWords.count)/\(words.count))", category: .llm)
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // LAYER 5: Sliding window substring repetition
+        // ═══════════════════════════════════════════════════════════════
+        // Catches non-delimited repetition: "the datadata datadata" etc.
+        // Uses a sliding window of 3-word sequences.
+        if words.count >= 20 {
+            var trigramCounts: [String: Int] = [:]
+            for i in 0..<(words.count - 2) {
+                let trigram = "\(words[i]) \(words[i + 1]) \(words[i + 2])"
+                trigramCounts[trigram, default: 0] += 1
+            }
+            let totalTrigrams = words.count - 2
+            if let topTrigram = trigramCounts.values.max(),
+               topTrigram >= 5,
+               Double(topTrigram) / Double(totalTrigrams) > 0.20 {
+                if !issues.contains("dominant_repetition") {
+                    issues.append("dominant_repetition")
+                }
+            }
+        }
+
         return issues
     }
 
     private func normalizeMalformedResponseArtifacts(_ text: String) -> String {
         var output = text
+
+        // Collapse intra-sentence phrase repetition FIRST (before sentence-level dedup)
+        // This handles "02/23/2024, 02/23/2024, 02/23/2024..." within a single bullet
+        output = collapseIntraLineRepetition(output)
 
         // Remove standalone empty numbered lines such as "2." or "2. ."
         let lines = output.components(separatedBy: .newlines)
@@ -9277,7 +9731,8 @@ class RAGService: ObservableObject {
         - Do not add new facts.
         - \(formatHint)
         - \(citationHint)
-        - Format with ### section headers, - bullet lists, **bold** key terms.
+        - Write in detailed prose with complete sentences. Use ### section headers and **bold** sparingly for key terms only.
+        - Use bullet points only for actual sequential steps or specification values.
         - Separate paragraphs and sections with blank lines for readability.
 
         QUESTION:
@@ -9428,16 +9883,39 @@ class RAGService: ObservableObject {
         guard !candidate.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
         guard candidate.count >= min(40, max(10, original.count / 6)) else { return false }
 
+        // Clear win: fewer issues
         if candidateIssues.count < originalIssues.count {
             return true
         }
 
-        // If issue counts tie, prefer candidate when shorter and less repetitive
-        if candidateIssues.count == originalIssues.count, candidate.count <= original.count {
-            return true
+        // If issue counts tie, use lexical diversity as tiebreaker.
+        // Higher unique-word ratio = more informative, less repetitive.
+        if candidateIssues.count == originalIssues.count {
+            let origRatio = uniqueWordRatio(original)
+            let candRatio = uniqueWordRatio(candidate)
+
+            // Candidate has meaningfully better diversity (≥5% improvement)
+            if candRatio > origRatio + 0.05 {
+                return true
+            }
+
+            // Equal diversity: prefer shorter (more concise = synthesized better)
+            let ratioDiff: Double = candRatio - origRatio
+            if Swift.abs(ratioDiff) < 0.05, candidate.count <= original.count {
+                return true
+            }
         }
 
         return false
+    }
+
+    /// Fraction of unique words in text (0.0–1.0). Higher = more diverse/informative.
+    private nonisolated func uniqueWordRatio(_ text: String) -> Double {
+        let words = text.lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { $0.count >= 2 }
+        guard words.count >= 5 else { return 1.0 }
+        return Double(Set(words).count) / Double(words.count)
     }
 
     // MARK: - Model Management
@@ -9528,20 +10006,89 @@ class RAGService: ObservableObject {
         func attempt(service: LLMService) async throws -> LLMResponse {
             let attemptStart = Date()
 
+            // ═══════════════════════════════════════════════════════════════
+            // StreamCapture with LIVE repetition loop detection
+            // ═══════════════════════════════════════════════════════════════
+            // Monitors tokens as they arrive. If the same n-gram appears
+            // >N times in a sliding window, sets a flag that the generation
+            // task checks on each iteration — aborting generation mid-stream
+            // instead of waiting for full output and cleaning up after.
             actor StreamCapture {
                 private var captured = ""
                 private var firstChunkTime: TimeInterval?
+
+                // Repetition detection state
+                private var recentTokens: [String] = []
+                private var repetitionDetected = false
+                private var cleanPrefixLength = 0 // chars before repetition started
+
+                /// Sliding window size for repetition detection (in tokens/words)
+                private let windowSize = 60
 
                 func record(_ event: LLMStreamEvent, since start: Date) {
                     guard !event.text.isEmpty else { return }
                     if firstChunkTime == nil {
                         firstChunkTime = Date().timeIntervalSince(start)
                     }
+                    let previousLength = captured.count
                     captured += event.text
+
+                    // Don't keep checking after we've already flagged
+                    guard !repetitionDetected else { return }
+
+                    // Tokenize new content into words for n-gram analysis
+                    let newWords = event.text.split(whereSeparator: { $0.isWhitespace || $0 == "," })
+                        .map { String($0).lowercased().trimmingCharacters(in: CharacterSet.alphanumerics.inverted) }
+                        .filter { !$0.isEmpty }
+                    recentTokens.append(contentsOf: newWords)
+
+                    // Only check every 20 words (amortize cost)
+                    guard recentTokens.count >= 40, recentTokens.count % 20 < newWords.count else { return }
+
+                    // Keep a bounded window
+                    if recentTokens.count > windowSize * 2 {
+                        recentTokens = Array(recentTokens.suffix(windowSize * 2))
+                    }
+
+                    // Check for repeated n-grams (bigrams, trigrams, 4-grams)
+                    for n in 2...4 {
+                        guard recentTokens.count >= n * 4 else { continue }
+                        let window = Array(recentTokens.suffix(windowSize))
+                        guard window.count >= n * 4 else { continue }
+
+                        var ngramCounts: [String: Int] = [:]
+                        for i in 0...(window.count - n) {
+                            let gram = window[i..<(i + n)].joined(separator: " ")
+                            ngramCounts[gram, default: 0] += 1
+                        }
+
+                        // If any n-gram appears >30% of possible positions, it's a loop
+                        let maxPositions = window.count - n + 1
+                        if let (_, topCount) = ngramCounts.max(by: { $0.value < $1.value }),
+                           topCount >= 6,
+                           Double(topCount) / Double(maxPositions) > 0.30 {
+                            repetitionDetected = true
+                            cleanPrefixLength = previousLength
+                            Log.warning("[StreamCapture] Live repetition loop detected after \(captured.count) chars (\(n)-gram repeated \(topCount)×)", category: .llm)
+                            return
+                        }
+                    }
                 }
 
                 func snapshot() -> (text: String, firstChunkTime: TimeInterval?) {
                     (captured, firstChunkTime)
+                }
+
+                func isRepetitionDetected() -> Bool {
+                    repetitionDetected
+                }
+
+                /// Returns text up to where repetition started (the "clean" prefix)
+                func cleanPrefix() -> String {
+                    if repetitionDetected, cleanPrefixLength > 0 {
+                        return String(captured.prefix(cleanPrefixLength))
+                    }
+                    return captured
                 }
             }
 
@@ -9570,6 +10117,31 @@ class RAGService: ObservableObject {
                         config: config
                     )
 
+                    // ── Post-generation: check if StreamCapture detected a loop ──
+                    if await streamCapture.isRepetitionDetected() {
+                        Log.warning("[RAG] Streaming repetition detected — using clean prefix instead of full response", category: .llm)
+                        let cleanText = await streamCapture.cleanPrefix()
+                            .trimmingCharacters(in: .whitespacesAndNewlines)
+                        let (_, firstChunkTime) = await streamCapture.snapshot()
+
+                        if LLMStreamingContext.handler != nil {
+                            LLMStreamingContext.emit(text: "", isFinal: true)
+                        }
+
+                        if cleanText.count >= 10 {
+                            return LLMResponse(
+                                text: cleanText,
+                                tokensGenerated: cleanText.split(whereSeparator: { $0.isWhitespace }).count,
+                                timeToFirstToken: response.timeToFirstToken ?? firstChunkTime,
+                                totalTime: max(response.totalTime, Date().timeIntervalSince(attemptStart)),
+                                modelName: response.modelName ?? service.modelName,
+                                toolCallsMade: response.toolCallsMade
+                            )
+                        }
+                        // If clean prefix is too short, fall through to normal response
+                        // (integrity pipeline will catch it downstream)
+                    }
+
                     let (captured, firstChunkTime) = await streamCapture.snapshot()
 
                     let trimmed = response.text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -9596,9 +10168,9 @@ class RAGService: ObservableObject {
                 } catch {
                     let (captured, firstChunkTime) = await streamCapture.snapshot()
                     let capturedTrimmed = captured.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if capturedTrimmed.count >= 24 {
+                    if capturedTrimmed.count >= 10 {
                         // If we already streamed a meaningful partial answer, do not replace it
-                        // with a fallback provider.
+                        // with a fallback provider. Lowered from 24→10 to salvage more partial output.
                         Log.warning(
                             "\(service.modelName) failed after streaming partial output; returning partial response",
                             category: .llm
@@ -9624,6 +10196,30 @@ class RAGService: ObservableObject {
             return try await attempt(service: _llmService)
         } catch {
             let errorDesc = error.localizedDescription
+
+            // Rate-limit retry: Apple FM on-device model can hit transient rate limits
+            // after heavy compression. Wait briefly and retry once before falling through
+            // to fallback services.
+            let isRateLimited: Bool
+            if let llmErr = error as? LLMError {
+                switch llmErr {
+                case .rateLimited, .concurrentRequests: isRateLimited = true
+                default: isRateLimited = errorDesc.lowercased().contains("rate") || errorDesc.contains("concurrent")
+                }
+            } else {
+                isRateLimited = errorDesc.lowercased().contains("rate") || errorDesc.contains("concurrent")
+            }
+            if isRateLimited {
+                Log.info("[RAG] Primary LLM rate-limited — waiting 2s before retry", category: .llm)
+                try? await Task.sleep(for: .seconds(2))
+                do {
+                    let retryResponse = try await attempt(service: _llmService)
+                    Log.info("[RAG] Primary LLM retry succeeded after rate-limit backoff", category: .llm)
+                    return retryResponse
+                } catch {
+                    Log.warning("[RAG] Primary LLM retry also failed after backoff: \(error.localizedDescription)", category: .llm)
+                }
+            }
 
             // Check if it's a Jinja template error (common with some GGUF models)
             let isTemplateError = errorDesc.contains("Jinja") || errorDesc.contains("template")
@@ -9994,11 +10590,12 @@ class RAGService: ObservableObject {
     ) async -> RAGResponse {
         // Clean up the response text (normalize whitespace, preserve markdown formatting)
         let cleanedResponse = cleanupResponseText(response.generatedResponse)
+        let humanizedResponse = humanizeCitations(cleanedResponse, chunks: response.retrievedChunks)
         var finalResponse = response
         finalResponse = RAGResponse(
             queryId: response.queryId,
             retrievedChunks: response.retrievedChunks,
-            generatedResponse: cleanedResponse,
+            generatedResponse: humanizedResponse,
             metadata: response.metadata,
             confidenceScore: response.confidenceScore,
             qualityWarnings: response.qualityWarnings
@@ -10041,6 +10638,17 @@ class RAGService: ObservableObject {
         // MarkdownText renders full block-level markdown as of v1.2.
         // Only whitespace normalization and orphan cleanup remain here.
 
+        // ═══════════════════════════════════════════════════════════════
+        // PHASE 0: Intra-sentence repetition loop detection
+        // ═══════════════════════════════════════════════════════════════
+        // Catches degenerate LLM output like:
+        //   "02/23/2024, 02/23/2024, 02/23/2024, 02/23/2024, ..."
+        // where a phrase repeats >3 times consecutively within a single
+        // sentence or bullet point. The sentence-level dedup in
+        // compactDegenerateResponse can't catch this because it's ONE
+        // long sentence, not repeated sentences.
+        result = collapseIntraLineRepetition(result)
+
         // Remove orphaned list markers with no content (just "-" or "•" or "1." alone on a line)
         result = result.components(separatedBy: .newlines)
             .map { line in
@@ -10063,6 +10671,164 @@ class RAGService: ObservableObject {
         }
 
         return result.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Detects and collapses intra-line/intra-sentence phrase repetition loops.
+    /// e.g. "02/23/2024, 02/23/2024, 02/23/2024, ..." → "02/23/2024."
+    /// Works on comma-separated, space-separated, and semicolon-separated repetition.
+    private nonisolated func collapseIntraLineRepetition(_ text: String) -> String {
+        var lines = text.components(separatedBy: .newlines)
+        var changed = false
+
+        for lineIdx in 0..<lines.count {
+            let line = lines[lineIdx]
+            guard line.count > 60 else { continue } // Short lines can't have meaningful repetition
+
+            // Strategy 1: Comma/semicolon-separated repetition
+            // Split on ", " or "; " and check for dominant phrase
+            for separator in [", ", "; "] {
+                let parts = line.components(separatedBy: separator)
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+                guard parts.count >= 4 else { continue }
+
+                var freq: [String: Int] = [:]
+                for part in parts {
+                    let normalized = part.lowercased()
+                        .trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+                    guard !normalized.isEmpty else { continue }
+                    freq[normalized, default: 0] += 1
+                }
+
+                if let (dominant, count) = freq.max(by: { $0.value < $1.value }),
+                   count >= 3, Double(count) / Double(parts.count) >= 0.4 {
+                    // Find the actual (non-normalized) first occurrence
+                    let firstOccurrence = parts.first {
+                        $0.lowercased().trimmingCharacters(in: CharacterSet.alphanumerics.inverted) == dominant
+                    } ?? dominant
+
+                    // Keep everything before the first repetition starts, then one occurrence
+                    let uniqueParts = parts.filter {
+                        $0.lowercased().trimmingCharacters(in: CharacterSet.alphanumerics.inverted) != dominant
+                    }
+
+                    var replacement: String
+                    if uniqueParts.isEmpty {
+                        // Entire line was repetition — keep just one
+                        // Preserve any leading markdown/bullet prefix
+                        let prefix = extractLeadingPrefix(from: line)
+                        replacement = prefix + firstOccurrence + "."
+                    } else {
+                        // Mix of unique + repeated — keep uniques + one occurrence of repeated
+                        var kept = uniqueParts
+                        kept.append(firstOccurrence)
+                        replacement = kept.joined(separator: separator)
+                    }
+
+                    lines[lineIdx] = replacement
+                    changed = true
+                    Log.info("[RepetitionFilter] Collapsed \(count)× repetition of '\(dominant.prefix(30))' on line \(lineIdx + 1)", category: .llm)
+                    break // Only apply one separator strategy per line
+                }
+            }
+
+            // Strategy 2: Word-level repetition (same word/token 5+ times in a row)
+            // Catches: "the the the the the" or "data data data data"
+            if !changed || lines[lineIdx].count > 200 {
+                let words = lines[lineIdx].split(separator: " ")
+                guard words.count >= 6 else { continue }
+
+                var collapsed: [Substring] = []
+                var consecutiveCount = 1
+
+                for i in 0..<words.count {
+                    if i > 0, words[i].lowercased() == words[i - 1].lowercased() {
+                        consecutiveCount += 1
+                    } else {
+                        consecutiveCount = 1
+                    }
+
+                    if consecutiveCount <= 2 { // Allow max 2 consecutive same words
+                        collapsed.append(words[i])
+                    } else if consecutiveCount == 3 {
+                        // On 3rd+ repetition, don't add
+                        changed = true
+                    }
+                }
+
+                if changed {
+                    lines[lineIdx] = collapsed.joined(separator: " ")
+                    Log.info("[RepetitionFilter] Collapsed word-level repetition on line \(lineIdx + 1)", category: .llm)
+                }
+            }
+        }
+
+        return changed ? lines.joined(separator: "\n") : text
+    }
+
+    /// Extracts leading markdown prefix (bullet, number, header) from a line
+    private nonisolated func extractLeadingPrefix(from line: String) -> String {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        // Match: "* ", "- ", "• ", "1. ", "### ", etc.
+        if let match = trimmed.range(of: #"^(\s*(?:[*•\-]|\d+[.)]|#{1,4})\s+)"#, options: .regularExpression) {
+            return String(trimmed[match])
+        }
+        return ""
+    }
+
+    /// Replace cryptic [S1], [S2] citations with human-readable source references
+    /// e.g., [S1] → [📄 Manual.pdf, p.12] or [Source 1] if chunks unavailable
+    private nonisolated func humanizeCitations(_ text: String, chunks: [RetrievedChunk]) -> String {
+        guard !text.isEmpty else { return text }
+
+        var result = text
+
+        // Match [S1], [S2], [S3], etc. (also handles [S1][S2] adjacent and [S1, S2] combined)
+        // First handle combined citations like [S1, S2]
+        let combinedPattern = #"\[S(\d+)(?:\s*,\s*S(\d+))*\]"#
+        if let combinedRegex = try? NSRegularExpression(pattern: combinedPattern, options: []) {
+            let nsRange = NSRange(result.startIndex..., in: result)
+            let matches = combinedRegex.matches(in: result, options: [], range: nsRange)
+
+            // Process in reverse to preserve string indices
+            for match in matches.reversed() {
+                guard let matchRange = Range(match.range, in: result) else { continue }
+                let matchText = String(result[matchRange])
+
+                // Extract all S-numbers from this match
+                let numPattern = #"S(\d+)"#
+                guard let numRegex = try? NSRegularExpression(pattern: numPattern, options: []) else { continue }
+                let numMatches = numRegex.matches(in: matchText, options: [], range: NSRange(matchText.startIndex..., in: matchText))
+
+                var refs: [String] = []
+                for numMatch in numMatches {
+                    if let numRange = Range(numMatch.range(at: 1), in: matchText),
+                       let idx = Int(matchText[numRange]) {
+                        let chunkIndex = idx - 1 // [S1] = chunks[0]
+                        if chunkIndex >= 0 && chunkIndex < chunks.count {
+                            let chunk = chunks[chunkIndex]
+                            let filename = chunk.sourceDocument.isEmpty
+                                ? "Document"
+                                : URL(fileURLWithPath: chunk.sourceDocument).lastPathComponent
+                            if let page = chunk.pageNumber {
+                                refs.append("📄 \(filename), p.\(page)")
+                            } else {
+                                refs.append("📄 \(filename)")
+                            }
+                        } else {
+                            refs.append("Source \(idx)")
+                        }
+                    }
+                }
+
+                if !refs.isEmpty {
+                    let replacement = "[" + refs.joined(separator: "; ") + "]"
+                    result.replaceSubrange(matchRange, with: replacement)
+                }
+            }
+        }
+
+        return result
     }
 
     private nonisolated func wordCount(of text: String) -> Int {
@@ -11058,7 +11824,18 @@ extension RAGService: RAGToolHandler {
 
         // EXPAND query with synonyms for better keyword matching
         // e.g., "button" → "button switch toggle control key trigger"
-        let expandedQueries = queryEnhancer.expandQuery(query)
+        var expandedQueries = queryEnhancer.expandQuery(query)
+
+        // Gazetteer domain vocabulary enrichment
+        let gazetteerMatchesFR = await GazetteerService.shared.matchingTerms(for: query)
+        if !gazetteerMatchesFR.isEmpty {
+            let uniqueGazetteer = gazetteerMatchesFR.map { $0.term }.filter { !expandedQueries.contains($0) }
+            expandedQueries.append(contentsOf: uniqueGazetteer.prefix(5))
+            if !uniqueGazetteer.isEmpty {
+                Log.debug("[FullRetrieval] Gazetteer added \(min(uniqueGazetteer.count, 5)) domain terms", category: .retrieval)
+            }
+        }
+
         let expandedQueryString = expandedQueries.joined(separator: " ")
         Log.debug("[FullRetrieval] Expanded query: \(expandedQueryString.prefix(100))...", category: .retrieval)
 

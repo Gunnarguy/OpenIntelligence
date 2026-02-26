@@ -404,7 +404,8 @@ class CameraManager: NSObject, ObservableObject {
             sceneLabels: sceneLabels,
             detectedObjects: detectedObjects,
             humanPoses: humanPoses,
-            animalPoses: animalPoses
+            animalPoses: animalPoses,
+            lensSmudgeDetected: false // Smudge detection only in full frame analysis
         )
 
         DispatchQueue.main.async { [weak self] in
@@ -734,6 +735,9 @@ extension CameraManager: AVCaptureVideoDataOutputSampleBufferDelegate {
             }
         }
 
+        // Lens smudge detection placeholder (VNDetectLensSmudgeRequest not yet available)
+        let lensSmudgeDetected = false
+
         // Limit concurrent Vision requests to prevent Metal race conditions
         VisionOCRThrottle.performSync {
             do {
@@ -759,7 +763,8 @@ extension CameraManager: AVCaptureVideoDataOutputSampleBufferDelegate {
             sceneLabels: sceneLabels,
             detectedObjects: detectedObjects,
             humanPoses: humanPoses,
-            animalPoses: animalPoses
+            animalPoses: animalPoses,
+            lensSmudgeDetected: lensSmudgeDetected
         )
 
         DispatchQueue.main.async { [weak self] in
