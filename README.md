@@ -45,7 +45,7 @@ Every pipeline stage is now hardware-aware — tuned to the specific Apple Silic
 - **Concurrent GPU rendering** — CIFilter preprocessing runs in parallel (was serialized)
 - **5-candidate OCR** — Evaluates more transcription alternatives for higher accuracy on ambiguous text
 - **Font-encoded PDF detection** — Automatic PHASE -1 validation detects font substitution ciphers (Kia, Hyundai manuals) that trick every quality check, preventing 93% content loss
-- **RAG-grounded response transforms** — AI Hub toolbar with 5 document-aware transforms (Key Facts, Step-by-Step, Cross-Reference, Deep Dive, Flash Cards) powered by actual source chunks
+- **RAG-grounded response transforms** — AI Hub toolbar with 5 document-aware transforms (Key Facts, Step-by-Step, Plain English, What's Missing?, Illustrate) powered by actual source chunks
 - **Image Playground LLM concepts** — On-device LLM translates domain jargon into visual scene descriptions instead of raw noun extraction
 
 ### Rich Markdown Response Rendering (v1.2)

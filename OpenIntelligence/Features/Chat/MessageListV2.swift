@@ -25,12 +25,6 @@ struct MessageListV2: View {
     var onTranslate: ((String) -> Void)?
     /// Called when user taps Illustrate on a message
     var onIllustrate: ((String) -> Void)?
-    /// Called when user taps Proofread on a message
-    var onProofread: ((String) -> Void)?
-    /// Called when user taps Rewrite on a message
-    var onRewrite: ((String) -> Void)?
-    /// Called when user taps Summarize on a message
-    var onSummarize: ((String) -> Void)?
 
     @State private var scrollProxy: ScrollViewProxy?
 
@@ -44,10 +38,7 @@ struct MessageListV2: View {
         onThumbsUp: (() -> Void)? = nil,
         onThumbsDown: (() -> Void)? = nil,
         onTranslate: ((String) -> Void)? = nil,
-        onIllustrate: ((String) -> Void)? = nil,
-        onProofread: ((String) -> Void)? = nil,
-        onRewrite: ((String) -> Void)? = nil,
-        onSummarize: ((String) -> Void)? = nil
+        onIllustrate: ((String) -> Void)? = nil
     ) {
         _messages = messages
         self.streamingText = streamingText
@@ -59,9 +50,6 @@ struct MessageListV2: View {
         self.onThumbsDown = onThumbsDown
         self.onTranslate = onTranslate
         self.onIllustrate = onIllustrate
-        self.onProofread = onProofread
-        self.onRewrite = onRewrite
-        self.onSummarize = onSummarize
     }
 
     var body: some View {
@@ -83,10 +71,7 @@ struct MessageListV2: View {
                                     onThumbsUp: snapshot.role == .assistant ? onThumbsUp : nil,
                                     onThumbsDown: snapshot.role == .assistant ? onThumbsDown : nil,
                                     onTranslate: snapshot.role == .assistant ? onTranslate : nil,
-                                    onIllustrate: snapshot.role == .assistant ? onIllustrate : nil,
-                                    onProofread: snapshot.role == .assistant ? onProofread : nil,
-                                    onRewrite: snapshot.role == .assistant ? onRewrite : nil,
-                                    onSummarize: snapshot.role == .assistant ? onSummarize : nil
+                                    onIllustrate: snapshot.role == .assistant ? onIllustrate : nil
                                 )
                                 .id(snapshot.id)
                                 .transition(.asymmetric(

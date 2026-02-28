@@ -9,6 +9,10 @@ import Combine
 import Foundation
 import SwiftUI
 
+#if canImport(FoundationModels)
+import FoundationModels
+#endif
+
 // MARK: - Library Profile
 
 /// Comprehensive profile of a library's content and usage patterns
@@ -236,6 +240,52 @@ struct VisualizationInsight: Identifiable, Equatable {
             case stable
         }
     }
+}
+
+// MARK: - Phase 2.15 Interactive Visualization Types
+
+/// Edge between two documents with similarity weight
+struct DocumentEdge: Identifiable {
+    let id = UUID()
+    let sourceIndex: Int
+    let targetIndex: Int
+    let similarity: Float
+}
+
+/// Node for force-directed document graph
+struct DocumentNode: Identifiable {
+    let id: UUID
+    let name: String
+    let chunkCount: Int
+    var position: CGPoint
+    let color: Color
+}
+
+/// Result of a chunk similarity matrix computation
+struct SimilarityMatrix {
+    let labels: [String]
+    let values: [[Float]]
+    let chunkIDs: [UUID]
+}
+
+/// Inspectable chunk detail for tap-to-inspect
+struct ChunkDetail: Identifiable {
+    let id: UUID
+    let documentName: String
+    let snippet: String
+    let chunkIndex: Int
+    let totalChunks: Int
+    let wordCount: Int
+    let topKeywords: [String]
+    let embedding: [Float]?
+}
+
+/// Time-series snapshot for animation
+struct EmbeddingSnapshot: Identifiable {
+    let id = UUID()
+    let date: Date
+    let pointIndex: Int
+    let documentName: String
 }
 
 // MARK: - Library Visualization Engine
@@ -1224,5 +1274,290 @@ final class LibraryVisualizationEngine: ObservableObject {
         views.sort { $0.relevanceScore > $1.relevanceScore }
 
         return views
+    }
+
+    // MARK: - Phase 2.15 Interactive Visualization
+
+    /// Compute document-level similarity graph
+    /// Returns nodes positioned in a circle and edges for pairs above threshold
+    func computeDocumentGraph(
+        documents: [Document],
+        chunks: [DocumentChunk],
+        threshold: Float = 0.3
+    ) -> (nodes: [DocumentNode], edges: [DocumentEdge]) {
+        guard documents.count >= 2 else { return ([], []) }
+
+        let allChunks = chunks
+
+        // Compute average embedding per document
+        var docEmbeddings: [(id: UUID, name: String, count: Int, embedding: [Float])] = []
+
+        for doc in documents {
+            let chunks = allChunks.filter { $0.documentId == doc.id }
+            let embeddings = chunks.compactMap { $0.embedding.isEmpty ? nil : $0.embedding }
+            guard !embeddings.isEmpty else { continue }
+
+            let dim = embeddings[0].count
+            var avg = [Float](repeating: 0, count: dim)
+            for emb in embeddings {
+                for i in 0..<min(dim, emb.count) {
+                    avg[i] += emb[i]
+                }
+            }
+            let scale = 1.0 / Float(embeddings.count)
+            for i in 0..<dim { avg[i] *= scale }
+
+            docEmbeddings.append((id: doc.id, name: doc.filename, count: chunks.count, embedding: avg))
+        }
+
+        // Build nodes with circular initial positions
+        let palette: [Color] = [.blue, .purple, .orange, .green, .red, .cyan, .pink, .yellow, .mint, .teal]
+        var nodes: [DocumentNode] = []
+        for (i, doc) in docEmbeddings.enumerated() {
+            let angle = Double(i) / Double(docEmbeddings.count) * 2.0 * .pi
+            let radius = 120.0
+            let pos = CGPoint(x: 200 + radius * cos(angle), y: 200 + radius * sin(angle))
+            nodes.append(DocumentNode(
+                id: doc.id,
+                name: doc.name,
+                chunkCount: doc.count,
+                position: pos,
+                color: palette[i % palette.count]
+            ))
+        }
+
+        // Compute pairwise cosine similarity → edges
+        var edges: [DocumentEdge] = []
+        for i in 0..<docEmbeddings.count {
+            for j in (i + 1)..<docEmbeddings.count {
+                let sim = Self.cosineSim(docEmbeddings[i].embedding, docEmbeddings[j].embedding)
+                if sim >= threshold {
+                    edges.append(DocumentEdge(sourceIndex: i, targetIndex: j, similarity: sim))
+                }
+            }
+        }
+
+        return (nodes, edges)
+    }
+
+    /// Compute chunk similarity matrix (sampled for performance)
+    func computeSimilarityMatrix(
+        chunks: [DocumentChunk],
+        sampleSize: Int = 20
+    ) -> SimilarityMatrix? {
+        let allChunks = chunks
+        guard allChunks.count >= 2 else { return nil }
+
+        // Stratified sample: take chunks from different documents
+        let sampled: [DocumentChunk]
+        if allChunks.count <= sampleSize {
+            sampled = allChunks
+        } else {
+            // Group by document, take proportionally
+            var byDoc: [UUID: [DocumentChunk]] = [:]
+            for chunk in allChunks {
+                byDoc[chunk.documentId, default: []].append(chunk)
+            }
+            var result: [DocumentChunk] = []
+            let perDoc = max(1, sampleSize / max(1, byDoc.count))
+            for (_, chunks) in byDoc {
+                let take = min(perDoc, chunks.count)
+                let step = max(1, chunks.count / take)
+                for i in Swift.stride(from: 0, to: chunks.count, by: step) {
+                    if result.count < sampleSize {
+                        result.append(chunks[i])
+                    }
+                }
+            }
+            sampled = Array(result.prefix(sampleSize))
+        }
+
+        let n = sampled.count
+        let embeddings = sampled.map { $0.embedding }.filter { !$0.isEmpty }
+        guard embeddings.count == n else { return nil }
+
+        // Build labels (truncated chunk text)
+        let labels = sampled.map { chunk -> String in
+            let text = String(chunk.content.prefix(30))
+            return text.count < chunk.content.count ? text + "…" : text
+        }
+
+        // Compute pairwise similarity matrix
+        var matrix = [[Float]](repeating: [Float](repeating: 0, count: n), count: n)
+        for i in 0..<n {
+            matrix[i][i] = 1.0
+            for j in (i + 1)..<n {
+                let sim = Self.cosineSim(embeddings[i], embeddings[j])
+                matrix[i][j] = sim
+                matrix[j][i] = sim
+            }
+        }
+
+        let ids = sampled.map { $0.id }
+        return SimilarityMatrix(labels: labels, values: matrix, chunkIDs: ids)
+    }
+
+    /// Get detail for a specific chunk by index in the projected points array
+    func chunkDetail(
+        at index: Int,
+        chunks: [DocumentChunk],
+        documents: [Document]
+    ) -> ChunkDetail? {
+        let allChunks = chunks
+        guard index >= 0, index < allChunks.count else { return nil }
+
+        let chunk = allChunks[index]
+        let docChunks = allChunks.filter { $0.documentId == chunk.documentId }
+        let docName = documents.first(where: { $0.id == chunk.documentId })?.filename ?? "Unknown"
+
+        // Extract top keywords via simple frequency
+        let words = chunk.content.lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { $0.count > 3 }
+        let stopWords: Set<String> = [
+            "this", "that", "with", "from", "have", "been", "were", "they",
+            "their", "will", "would", "could", "should", "about", "which",
+            "there", "these", "those", "other", "into", "than", "then",
+            "when", "what", "some", "more", "also", "just", "over", "such", "only"
+        ]
+        var freq: [String: Int] = [:]
+        for w in words where !stopWords.contains(w) {
+            freq[w, default: 0] += 1
+        }
+        let sorted = freq.sorted { $0.value > $1.value }
+        let topKeywords = Array(sorted.prefix(5).map { $0.key })
+
+        let chunkIndex = docChunks.firstIndex(where: { $0.id == chunk.id }).map { $0 + 1 } ?? 0
+
+        return ChunkDetail(
+            id: chunk.id,
+            documentName: docName,
+            snippet: String(chunk.content.prefix(300)),
+            chunkIndex: chunkIndex,
+            totalChunks: docChunks.count,
+            wordCount: chunk.metadata.wordCount,
+            topKeywords: topKeywords,
+            embedding: chunk.embedding.isEmpty ? nil : chunk.embedding
+        )
+    }
+
+    /// Build time-series data for animation (chunks sorted by creation date)
+    func buildTimeSeries(
+        chunks: [DocumentChunk],
+        documents: [Document]
+    ) -> [EmbeddingSnapshot] {
+        let allChunks = chunks
+
+        var snapshots: [EmbeddingSnapshot] = []
+        for (index, chunk) in allChunks.enumerated() {
+            let docName = documents.first(where: { $0.id == chunk.documentId })?.filename ?? "Unknown"
+            snapshots.append(EmbeddingSnapshot(
+                date: chunk.metadata.createdAt,
+                pointIndex: index,
+                documentName: docName
+            ))
+        }
+
+        return snapshots.sorted { $0.date < $1.date }
+    }
+
+    /// Generate cluster labels using Apple Intelligence
+    func generateClusterLabelsWithLLM(clusters: [TopicCluster]) async -> [String: String] {
+        #if canImport(FoundationModels)
+        if #available(iOS 26.0, *) {
+            var labels: [String: String] = [:]
+            for cluster in clusters.prefix(10) {
+                do {
+                    let session = LanguageModelSession()
+                    let prompt = """
+                    Name this document cluster in 2-4 words. Keywords: \(cluster.keywords.prefix(8).joined(separator: ", ")). \
+                    Snippet: \(cluster.representativeSnippet.prefix(100)). Reply with ONLY the name.
+                    """
+                    let response = try await session.respond(to: prompt)
+                    let name = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !name.isEmpty && name.count < 40 {
+                        labels[cluster.name] = name
+                    }
+                } catch {
+                    Log.warning("[LibVizEngine] LLM cluster label failed for \(cluster.name): \(error)", category: .pipeline)
+                }
+            }
+            return labels
+        }
+        #endif
+        return [:]
+    }
+
+    // MARK: - Math Utilities
+
+    /// Cosine similarity between two vectors
+    static func cosineSim(_ a: [Float], _ b: [Float]) -> Float {
+        guard a.count == b.count, !a.isEmpty else { return 0 }
+        var dot: Float = 0
+        var normA: Float = 0
+        var normB: Float = 0
+        for i in 0..<a.count {
+            dot += a[i] * b[i]
+            normA += a[i] * a[i]
+            normB += b[i] * b[i]
+        }
+        let denom = sqrt(normA) * sqrt(normB)
+        return denom > 0 ? dot / denom : 0
+    }
+
+    /// Apply force-directed layout iterations to document nodes
+    static func applyForceLayout(nodes: inout [DocumentNode], edges: [DocumentEdge], iterations: Int = 50) {
+        let area: CGFloat = 400 * 400
+        let k = sqrt(area / CGFloat(max(1, nodes.count)))
+
+        for iteration in 0..<iterations {
+            // Repulsive forces
+            var displacements = [CGPoint](repeating: .zero, count: nodes.count)
+            for i in 0..<nodes.count {
+                for j in (i + 1)..<nodes.count {
+                    let dx = nodes[i].position.x - nodes[j].position.x
+                    let dy = nodes[i].position.y - nodes[j].position.y
+                    let dist = max(sqrt(dx * dx + dy * dy), 0.01)
+                    let force = (k * k) / dist
+                    let fx = (dx / dist) * force
+                    let fy = (dy / dist) * force
+                    displacements[i].x += fx
+                    displacements[i].y += fy
+                    displacements[j].x -= fx
+                    displacements[j].y -= fy
+                }
+            }
+
+            // Attractive forces
+            for edge in edges {
+                let i = edge.sourceIndex
+                let j = edge.targetIndex
+                guard i < nodes.count, j < nodes.count else { continue }
+                let dx = nodes[j].position.x - nodes[i].position.x
+                let dy = nodes[j].position.y - nodes[i].position.y
+                let dist = max(sqrt(dx * dx + dy * dy), 0.01)
+                let force = (dist * dist) / k * CGFloat(edge.similarity)
+                let fx = (dx / dist) * force
+                let fy = (dy / dist) * force
+                displacements[i].x += fx
+                displacements[i].y += fy
+                displacements[j].x -= fx
+                displacements[j].y -= fy
+            }
+
+            // Apply with damping
+            let temp = max(1.0, 10.0 - Double(iteration) * 0.2)
+            for i in 0..<nodes.count {
+                let dx = displacements[i].x
+                let dy = displacements[i].y
+                let dist = max(sqrt(dx * dx + dy * dy), 0.01)
+                let cappedDist = min(dist, CGFloat(temp))
+                nodes[i].position.x += (dx / dist) * cappedDist
+                nodes[i].position.y += (dy / dist) * cappedDist
+                // Keep in bounds
+                nodes[i].position.x = max(20, min(380, nodes[i].position.x))
+                nodes[i].position.y = max(20, min(380, nodes[i].position.y))
+            }
+        }
     }
 }

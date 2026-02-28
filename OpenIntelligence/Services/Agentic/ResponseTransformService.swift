@@ -102,52 +102,11 @@ final class ResponseTransformService: Sendable {
         return try await generate(prompt: prompt)
     }
 
-    /// Show what other parts of the library mention the same topics.
-    /// Highlights agreements, contradictions, and additional details across sources.
-    func crossReference(response: String, chunks: [RetrievedChunk]) async throws -> String {
-        guard isAvailable else { throw ResponseTransformError.notAvailable }
+    // MARK: - Response Refinement Transforms
 
-        let sourceContext = formatChunksForPrompt(chunks)
-
-        // Group sources by document name for the prompt header
-        let docNames = Set(chunks.map { $0.sourceDocument }).filter { !$0.isEmpty }
-        let sourceCount = docNames.count
-
-        let prompt: String
-        if sourceCount <= 1 {
-            // Single-document mode: compare sections within the same document
-            let docName = docNames.first ?? "the document"
-            prompt = """
-            SOURCE DOCUMENTS (all from \(docName)):
-            \(sourceContext)
-
-            These excerpts are all from the same document. Analyze what different SECTIONS say about the same topics:
-            1. **Consistent**: Facts repeated across multiple sections (stronger evidence)
-            2. **Contradicts**: Any section that says something different from another
-            3. **Unique detail**: Important information that appears in only one section
-
-            Quote key phrases and cite page numbers. Return ONLY the analysis.
-            """
-        } else {
-            prompt = """
-            SOURCE DOCUMENTS (from \(sourceCount) documents: \(docNames.joined(separator: ", "))):
-            \(sourceContext)
-
-            Analyze these sources across documents and report:
-            1. **Agrees**: Facts that appear in multiple documents (cite both)
-            2. **Differs**: Contradictions or differing details between documents (cite both, note which is newer if possible)
-            3. **Unique**: Important details that only appear in one document
-
-            Quote key phrases and cite document name + page. Return ONLY the analysis.
-            """
-        }
-
-        return try await generate(prompt: prompt)
-    }
-
-    /// Generate follow-up questions that the user's document library can actually answer.
-    /// Uses the retrieved chunks to identify adjacent topics worth exploring.
-    func deepDive(response: String, chunks: [RetrievedChunk]) async throws -> String {
+    /// Simplify the AI response into plain, everyday language while keeping all source-backed facts.
+    /// Uses source chunks to verify no cited facts are lost during simplification.
+    func simplify(response: String, chunks: [RetrievedChunk]) async throws -> String {
         guard isAvailable else { throw ResponseTransformError.notAvailable }
 
         let sourceContext = formatChunksForPrompt(chunks)
@@ -159,42 +118,53 @@ final class ResponseTransformService: Sendable {
         SOURCE DOCUMENTS:
         \(sourceContext)
 
-        Generate 5 follow-up questions that:
-        1. Are answerable by these same source documents (reference specific topics you see in them)
-        2. Explore related details mentioned in the sources but NOT covered in the AI response
-        3. Would deepen the user's practical understanding
-
-        Each question must reference a specific detail from the sources. \
-        Do NOT ask generic questions like "What else is there?" — ask things the documents CAN answer. \
-        Format as a numbered list. Return ONLY the questions.
+        Rewrite the AI response in simple, everyday language that anyone can understand. \
+        Rules: \
+        (1) Use short sentences and common words. \
+        (2) If the response mentions a technical term, explain it briefly in parentheses. \
+        (3) Keep EVERY fact that is backed by the source documents — do not drop cited information. \
+        (4) Remove jargon, but keep specific values (numbers, measurements, part numbers) from the sources. \
+        Return ONLY the simplified text.
         """
 
         return try await generate(prompt: prompt)
     }
 
-    /// Generate Q&A flash cards from the retrieved content for study/review.
-    func flashCards(response: String, chunks: [RetrievedChunk]) async throws -> String {
+    /// Identify what the user's question asked for that these documents don't cover.
+    /// Genuinely RAG-specific: tells users where the retrieved context has gaps,
+    /// not just gaps in the AI response.
+    func whatsMissing(response: String, question: String, chunks: [RetrievedChunk]) async throws -> String {
         guard isAvailable else { throw ResponseTransformError.notAvailable }
 
         let sourceContext = formatChunksForPrompt(chunks)
+        let questionHint = question.isEmpty ? "(question not provided)" : String(question.prefix(300))
 
         let prompt = """
+        USER'S QUESTION:
+        \(questionHint)
+
+        AI RESPONSE:
+        \(String(response.prefix(Self.maxResponseChars)))
+
         SOURCE DOCUMENTS:
         \(sourceContext)
 
-        Create 5 flash cards from this content for study and review.
-        Each card must have:
-        - A specific, testable question (not yes/no)
-        - A concise answer sourced DIRECTLY from the documents (with page citation)
-        - Cards should cover DIFFERENT topics from the material
+        Identify what the user's question asked for that is NOT answered — either \
+        missing from the AI response or not present in the source documents at all.
 
-        Format exactly:
-        **Q1:** [question]
-        **A1:** [answer] — [Source, p.X]
+        Rules:
+        (1) Only flag things the question specifically asked about.
+        (2) If a gap is in the documents (not just the response), say so clearly.
+        (3) If the response fully answers the question, say that directly — do not invent gaps.
+        (4) For each gap, suggest a more specific follow-up question that might surface the missing info.
+        (5) Be concrete — reference actual topics, specs, sections, or names.
 
-        (repeat for Q2–Q5)
+        Format:
+        **Gap:** [what's missing]
+        **Why:** [missing from documents / mentioned but not explained / only partially covered]
+        **Try asking:** "[specific follow-up question]"
 
-        Return ONLY the flash cards.
+        Return ONLY the gap analysis.
         """
 
         return try await generate(prompt: prompt)
@@ -274,6 +244,25 @@ final class ResponseTransformService: Sendable {
             return result
         }
     }
+
+    // MARK: - Session Pre-warming
+
+    /// Pre-warm the Foundation Models session to reduce first-token latency for AI Hub transforms.
+    ///
+    /// Call when a new assistant response appears in chat (fire-and-forget). The OS loads
+    /// model weights into memory so the first transform action starts with minimal delay.
+    /// Pre-warming is best-effort — errors are silently discarded.
+    ///
+    /// - Parameter responsePrefix: The start of the AI response used as the warm-up prompt
+    ///   prefix so activation patterns match the expected transform input.
+    nonisolated func prewarmSession(responsePrefix: String) {
+        Task.detached(priority: .background) {
+            let warmSession = LanguageModelSession(
+                instructions: Instructions(Self.systemInstructions)
+            )
+            try? await warmSession.prewarm(promptPrefix: Prompt(responsePrefix))
+        }
+    }
 }
 
 #else
@@ -291,17 +280,15 @@ final class ResponseTransformService: Sendable {
         throw ResponseTransformError.notAvailable
     }
 
-    func crossReference(response: String, chunks: [RetrievedChunk]) async throws -> String {
+    func simplify(response: String, chunks: [RetrievedChunk]) async throws -> String {
         throw ResponseTransformError.notAvailable
     }
 
-    func deepDive(response: String, chunks: [RetrievedChunk]) async throws -> String {
+    func whatsMissing(response: String, question: String, chunks: [RetrievedChunk]) async throws -> String {
         throw ResponseTransformError.notAvailable
     }
 
-    func flashCards(response: String, chunks: [RetrievedChunk]) async throws -> String {
-        throw ResponseTransformError.notAvailable
-    }
+    nonisolated func prewarmSession(responsePrefix: String) { }
 }
 
 #endif

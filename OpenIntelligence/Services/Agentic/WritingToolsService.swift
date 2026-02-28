@@ -19,11 +19,28 @@ import FoundationModels
 
 /// Programmatic writing tools powered by Apple Foundation Models.
 /// Replicates proofread / rewrite / summarize using the on-device LLM.
+///
+/// Design notes:
+/// 1. Apple's system Writing Tools are a UI-level UITextView feature, NOT a framework.
+///    This service uses FoundationModels directly for programmatic equivalents.
+/// 2. `generate()` has a 30-second timeout matching ResponseTransformService.
+/// 3. System instructions prime the model for text-refinement tasks.
+/// 4. All methods check for task cancellation before starting LLM work.
 @available(iOS 26.0, *)
-class WritingToolsService {
+final class WritingToolsService: Sendable {
+
+    /// Timeout matches ResponseTransformService for consistency
+    private static let generationTimeoutSeconds: UInt64 = 30
+
+    /// System instructions for text-refinement tasks
+    private static let systemInstructions = """
+    You are a precise text editor. Rules: (1) Return ONLY the edited text — no preamble, \
+    no explanations, no commentary. (2) Preserve all factual content. (3) Do not add \
+    information that was not in the original text.
+    """
 
     /// Check if Apple Foundation Models are available on this device
-    var isAvailable: Bool {
+    nonisolated var isAvailable: Bool {
         SystemLanguageModel.default.isAvailable
     }
 
@@ -34,13 +51,13 @@ class WritingToolsService {
         guard isAvailable else {
             throw WritingToolsError.notAvailable
         }
+        try Task.checkCancellation()
 
         Log.debug("[WritingTools] Proofreading text (chars=\(text.count))", category: .pipeline)
 
         let prompt = """
         Proofread the following text. Fix grammar, spelling, and punctuation errors. \
-        Preserve the original meaning and tone. Return ONLY the corrected text — no \
-        explanations, no commentary, no preamble.
+        Preserve the original meaning and tone. Return ONLY the corrected text.
 
         Text:
         \(text)
@@ -52,17 +69,17 @@ class WritingToolsService {
     }
 
     /// Rewrite text in a given tone
-    func rewrite(_ text: String, tone: RewriteTone) async throws -> [String] {
+    func rewrite(_ text: String, tone: RewriteTone) async throws -> String {
         guard isAvailable else {
             throw WritingToolsError.notAvailable
         }
+        try Task.checkCancellation()
 
         Log.debug("[WritingTools] Rewriting text (chars=\(text.count), tone=\(tone.rawValue))", category: .pipeline)
 
         let prompt = """
         Rewrite the following text in a \(tone.rawValue.lowercased()) tone. \
-        Preserve all factual content. Return ONLY the rewritten text — no \
-        explanations, no commentary, no preamble.
+        Preserve all factual content. Return ONLY the rewritten text.
 
         Text:
         \(text)
@@ -70,7 +87,7 @@ class WritingToolsService {
 
         let result = try await generate(prompt: prompt)
         Log.debug("[WritingTools] Rewrite complete (chars=\(result.count))", category: .pipeline)
-        return [result]
+        return result
     }
 
     /// Summarize text into key points
@@ -78,6 +95,7 @@ class WritingToolsService {
         guard isAvailable else {
             throw WritingToolsError.notAvailable
         }
+        try Task.checkCancellation()
 
         Log.debug("[WritingTools] Summarizing text (chars=\(text.count), style=\(style.rawValue))", category: .pipeline)
 
@@ -93,8 +111,7 @@ class WritingToolsService {
 
         let prompt = """
         \(styleInstruction) \
-        Preserve all important facts. Return ONLY the summary — no \
-        explanations, no commentary, no preamble.
+        Preserve all important facts. Return ONLY the summary.
 
         Text:
         \(text)
@@ -111,13 +128,13 @@ class WritingToolsService {
         guard isAvailable else {
             throw WritingToolsError.notAvailable
         }
+        try Task.checkCancellation()
 
         Log.debug("[WritingTools] Making text concise (chars=\(text.count))", category: .pipeline)
 
         let prompt = """
         Make the following text more concise. Remove redundancy and filler words while \
-        preserving all essential meaning. Return ONLY the concise version — no \
-        explanations, no commentary, no preamble.
+        preserving all essential meaning. Return ONLY the concise version.
 
         Text:
         \(text)
@@ -135,6 +152,7 @@ class WritingToolsService {
         guard isAvailable else {
             throw WritingToolsError.notAvailable
         }
+        try Task.checkCancellation()
 
         Log.debug("[WritingTools] Simplifying text (chars=\(text.count))", category: .pipeline)
 
@@ -142,7 +160,7 @@ class WritingToolsService {
         Rewrite the following text in simple, everyday language that anyone can understand. \
         Use short sentences. Avoid jargon and technical terms — if you must use one, explain it \
         in parentheses. Keep ALL the facts but make it easy to read. \
-        Return ONLY the simplified text — no preamble.
+        Return ONLY the simplified text.
 
         Text:
         \(text)
@@ -158,6 +176,7 @@ class WritingToolsService {
         guard isAvailable else {
             throw WritingToolsError.notAvailable
         }
+        try Task.checkCancellation()
 
         Log.debug("[WritingTools] Making actionable (chars=\(text.count))", category: .pipeline)
 
@@ -166,7 +185,7 @@ class WritingToolsService {
         Each step should start with a verb (Check, Open, Remove, Apply, etc.). \
         If there are warnings or important notes, put them as ⚠️ items. \
         Keep it practical — someone should be able to follow these steps immediately. \
-        Return ONLY the action steps — no preamble or summary.
+        Return ONLY the action steps.
 
         Information:
         \(text)
@@ -223,21 +242,37 @@ class WritingToolsService {
 
     // MARK: - Private LLM Helper
 
-    /// Single-shot LLM generation using Apple Foundation Models
+    /// Single-shot LLM generation with system instructions, timeout, and cancellation support.
+    /// Matches ResponseTransformService pattern for consistency.
     private func generate(prompt: String) async throws -> String {
-        do {
-            let session = LanguageModelSession()
-            let response = try await session.respond(to: prompt)
-            let text = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !text.isEmpty else {
-                throw WritingToolsError.processingFailed("Model returned empty response")
+        try Task.checkCancellation()
+
+        // Create session OUTSIDE the task group to prevent FoundationModels dealloc race
+        // (same pattern as ResponseTransformService — see crash: objc_release_x8)
+        let session = LanguageModelSession(instructions: Instructions(Self.systemInstructions))
+
+        return try await withThrowingTaskGroup(of: String.self) { group in
+            group.addTask {
+                let response = try await session.respond(to: prompt)
+                let text = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !text.isEmpty else {
+                    throw WritingToolsError.processingFailed("Model returned empty response")
+                }
+                return text
             }
-            return text
-        } catch let error as WritingToolsError {
-            throw error
-        } catch {
-            Log.error("[WritingTools] LLM generation failed: \(error)", category: .pipeline)
-            throw WritingToolsError.processingFailed(error.localizedDescription)
+
+            // Timeout task
+            group.addTask {
+                try await Task.sleep(nanoseconds: Self.generationTimeoutSeconds * 1_000_000_000)
+                throw WritingToolsError.processingFailed("Generation timed out after \(Self.generationTimeoutSeconds)s")
+            }
+
+            // Take whichever finishes first
+            guard let result = try await group.next() else {
+                throw WritingToolsError.processingFailed("No generation result")
+            }
+            group.cancelAll()
+            return result
         }
     }
 }
@@ -246,14 +281,14 @@ class WritingToolsService {
 
 // MARK: - Stub for platforms without FoundationModels (macOS, older iOS)
 
-class WritingToolsService {
-    var isAvailable: Bool { false }
+final class WritingToolsService: Sendable {
+    nonisolated var isAvailable: Bool { false }
 
     func proofread(_ text: String) async throws -> String {
         throw WritingToolsError.notAvailable
     }
 
-    func rewrite(_ text: String, tone: RewriteTone) async throws -> [String] {
+    func rewrite(_ text: String, tone: RewriteTone) async throws -> String {
         throw WritingToolsError.notAvailable
     }
 

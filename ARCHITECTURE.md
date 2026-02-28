@@ -30,7 +30,7 @@ OpenIntelligence is a native iOS 26 application implementing a complete Retrieva
 
 **Simple Concept:** Import any document. Ask questions in plain English. Get cited answers powered by on-device AI.
 
-**Latest (v3.7)**: RAG-Grounded Response Transforms (5 document-aware transforms via `ResponseTransformService`). AI Hub toolbar redesign (Key Facts, Step-by-Step, Cross-Reference, Deep Dive, Flash Cards). Image Playground LLM concept extraction (domain jargon → visual scenes). BM25 `b` parameter consistency fix. Accelerate `vDSP.dot()` in Verification Gate E. Regex pre-compilation in RAGEngine. Pipeline Reliability Hardening (11 fixes: compression cap, fresh session/chunk, per-chunk isolation, 12s budget, empty→fallback, cooldown, rate-limit retry, typed LLM errors, Path B rewrite, threshold 24→10, error logging). Memory-Safe Large PDF Ingestion (results release, batch 20→5, 144 DPI image understanding, autoreleasepool). Apple Intelligence Gap Analysis complete (23 framework opportunities identified across WWDC24/25). Font substitution cipher detection (PHASE -1 Jaccard text layer validation). Swift 6 strict concurrency compliance (11 files, zero runtime change). Zero-data-loss ingestion fixes (raw regex, garbled image extraction, dynamic image text budget). Rich Markdown Response Rendering (full block-level parser, inline normalization preprocessor, formatting-preserving pipeline, formatting-aware LLM prompts). Device-Optimized Performance Engine (3-tier Metal shader selection, device-specific OCR concurrency, concurrent cross-encoder predictions, GPU embedding ingestion mode, concurrent CIFilter rendering). MMR crash fix (GPU diversity matrix edge case). Motherboard HUD (real-time Apple Silicon X-ray overlay), Universal Retrieval (8 fixes for needle-in-haystack accuracy), Adaptive Document Intelligence Engine, multi-candidate confidence OCR, 5-strategy adaptive preprocessing, language-agnostic quality detection, centralized OCR configuration factory. 102 services across 11 categories.
+**Latest (v3.7)**: RAG-Grounded Response Transforms (5 document-aware transforms via `ResponseTransformService`). AI Hub toolbar redesign (Key Facts, Step-by-Step, Plain English, What's Missing?, Illustrate). Image Playground LLM concept extraction (domain jargon → visual scenes). BM25 `b` parameter consistency fix. Accelerate `vDSP.dot()` in Verification Gate E. Regex pre-compilation in RAGEngine. Pipeline Reliability Hardening (11 fixes: compression cap, fresh session/chunk, per-chunk isolation, 12s budget, empty→fallback, cooldown, rate-limit retry, typed LLM errors, Path B rewrite, threshold 24→10, error logging). Memory-Safe Large PDF Ingestion (results release, batch 20→5, 144 DPI image understanding, autoreleasepool). Apple Intelligence Gap Analysis complete (23 framework opportunities identified across WWDC24/25). Font substitution cipher detection (PHASE -1 Jaccard text layer validation). Swift 6 strict concurrency compliance (11 files, zero runtime change). Zero-data-loss ingestion fixes (raw regex, garbled image extraction, dynamic image text budget). Rich Markdown Response Rendering (full block-level parser, inline normalization preprocessor, formatting-preserving pipeline, formatting-aware LLM prompts). Device-Optimized Performance Engine (3-tier Metal shader selection, device-specific OCR concurrency, concurrent cross-encoder predictions, GPU embedding ingestion mode, concurrent CIFilter rendering). Iterative BM25 Retrieval for enumeration queries (second-pass keyword scan over all chunks). Entitlement auto-reconciliation on launch. Billing copy/quota alignment. MMR crash fix (GPU diversity matrix edge case). Motherboard HUD (real-time Apple Silicon X-ray overlay), Universal Retrieval (8 fixes for needle-in-haystack accuracy), Adaptive Document Intelligence Engine, multi-candidate confidence OCR, 5-strategy adaptive preprocessing, language-agnostic quality detection, centralized OCR configuration factory. 102 services across 11 categories.
 
 ### RAG Pipeline Summary
 
@@ -423,15 +423,15 @@ OpenIntelligence is composed of **101 distinct services** organized into 11 cate
 
 #### Agentic Services (7 services)
 
-| Service                     | Type        | Purpose                                                                                                                 | File                                      |
-| --------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
-| `AgenticOrchestrator`       | class       | Multi-session reasoning with Self-RAG 2.0 prompting                                                                     | `Agentic/AgenticOrchestrator.swift`       |
-| `ConversationMemoryService` | final class | Persistent conversation memory with summarization                                                                       | `Agentic/ConversationMemoryService.swift` |
-| `ResponseTransformService`  | class       | RAG-grounded response transforms (Key Facts, Step-by-Step, Cross-Reference, Deep Dive, Flash Cards) using source chunks | `Agentic/ResponseTransformService.swift`  |
-| `WritingToolsService`       | class       | Apple Writing Tools (proofread, rewrite, summarize)                                                                     | `Agentic/WritingToolsService.swift`       |
-| `RAGAppIntents`             | struct      | App Intents for Shortcuts and Siri integration                                                                          | `Agentic/RAGAppIntents.swift`             |
-| `ToolCallCounter`           | actor       | Tracks @Tool invocation counts for telemetry                                                                            | `Agentic/ToolCallCounter.swift`           |
-| `VisualIntelligenceIntents` | struct      | Visual Intelligence integration for camera pipeline                                                                     | `Agentic/VisualIntelligenceIntents.swift` |
+| Service                     | Type        | Purpose                                                                                                                    | File                                      |
+| --------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| `AgenticOrchestrator`       | class       | Multi-session reasoning with Self-RAG 2.0 prompting                                                                        | `Agentic/AgenticOrchestrator.swift`       |
+| `ConversationMemoryService` | final class | Persistent conversation memory with summarization                                                                          | `Agentic/ConversationMemoryService.swift` |
+| `ResponseTransformService`  | class       | RAG-grounded response transforms (Key Facts, Step-by-Step, Plain English, What's Missing?, Illustrate) using source chunks | `Agentic/ResponseTransformService.swift`  |
+| `WritingToolsService`       | class       | Apple Writing Tools (proofread, rewrite, summarize)                                                                        | `Agentic/WritingToolsService.swift`       |
+| `RAGAppIntents`             | struct      | App Intents for Shortcuts and Siri integration                                                                             | `Agentic/RAGAppIntents.swift`             |
+| `ToolCallCounter`           | actor       | Tracks @Tool invocation counts for telemetry                                                                               | `Agentic/ToolCallCounter.swift`           |
+| `VisualIntelligenceIntents` | struct      | Visual Intelligence integration for camera pipeline                                                                        | `Agentic/VisualIntelligenceIntents.swift` |
 
 #### Infrastructure Services (21 services)
 
@@ -1981,16 +1981,16 @@ All advanced features are fully compatible with Apple's FoundationModels framewo
 
 | Feature                       | Status | Implementation                                             |
 | ----------------------------- | ------ | ---------------------------------------------------------- |
-| Hybrid Search (Vector + BM25) | ✅      | `HybridSearchService` with true parallel RRF fusion (v1.2) |
-| Cross-Encoder Reranking       | ✅      | `ReRankerModel.mlpackage` in `RAGEngine`                   |
-| MMR Diversification           | ✅      | λ=0.6 in `RAGEngine.rerankWithMMR()`                       |
-| Query Expansion               | ✅      | `QueryEnhancementService.expandQuery()`                    |
-| Multi-Query Search            | ✅      | `AgenticOrchestrator.executeMultiQuerySearch()`            |
-| Semantic Intent Validation    | ✅      | `AgenticOrchestrator.validateSemanticIntent()`             |
-| Query Intent Classification   | ✅      | `QueryIntent` enum with dynamic weights                    |
-| Content-Adaptive Chunking     | ✅      | `ChunkingConfig.recommended(for:)`                         |
-| Lost-in-Middle Mitigation     | ✅      | `applyLostInMiddleReordering()`                            |
-| Auto-Tuning                   | ✅      | `RetrievalConfig.recommended(forDocumentTypes:)`           |
+| Hybrid Search (Vector + BM25) | ✅     | `HybridSearchService` with true parallel RRF fusion (v1.2) |
+| Cross-Encoder Reranking       | ✅     | `ReRankerModel.mlpackage` in `RAGEngine`                   |
+| MMR Diversification           | ✅     | λ=0.6 in `RAGEngine.rerankWithMMR()`                       |
+| Query Expansion               | ✅     | `QueryEnhancementService.expandQuery()`                    |
+| Multi-Query Search            | ✅     | `AgenticOrchestrator.executeMultiQuerySearch()`            |
+| Semantic Intent Validation    | ✅     | `AgenticOrchestrator.validateSemanticIntent()`             |
+| Query Intent Classification   | ✅     | `QueryIntent` enum with dynamic weights                    |
+| Content-Adaptive Chunking     | ✅     | `ChunkingConfig.recommended(for:)`                         |
+| Lost-in-Middle Mitigation     | ✅     | `applyLostInMiddleReordering()`                            |
+| Auto-Tuning                   | ✅     | `RetrievalConfig.recommended(forDocumentTypes:)`           |
 
 ### Research-Backed Advanced RAG Features (12/12 Implemented)
 

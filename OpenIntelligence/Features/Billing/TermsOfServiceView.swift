@@ -12,7 +12,7 @@ struct TermsOfServiceView: View {
                         .font(.largeTitle.weight(.bold))
                         .padding(.bottom, 8)
 
-                    Text("Last updated: November 15, 2025")
+                    Text("Last updated: February 28, 2026")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
@@ -29,11 +29,11 @@ OpenIntelligence provides privacy-first document retrieval and AI-powered questi
 
                         section(title: "3. Subscriptions & Billing", content: """
 • **Free Tier**: 5 documents, 1 library
-    • **Pro**: $5.99 / month or $49.99 / year - Unlimited documents, 5 libraries
-    • **Lifetime**: One - time $59.99 - Unlimited documents, 10 libraries, forever
-    • **Document Packs**: $2.99 consumable - Adds 10 documents(max 3 active packs)
+• **Pro**: Monthly or annual subscription — up to 1,000 documents, 5 libraries
+• **Lifetime Cohort**: One-time purchase — up to 1,000 documents, 10 libraries, forever
+• **Document Packs**: Consumable add-on — adds \(QuotaPolicy.addOnDocumentIncrement) documents (max \(3) active packs)
 
-All subscriptions auto-renew unless cancelled 24 hours before renewal. Manage subscriptions in App Store settings. Cancellation stops future billing but maintains access through the current period.
+Pricing is determined by your App Store region. All subscriptions auto-renew unless cancelled 24 hours before renewal. Manage subscriptions in App Store settings. Cancellation stops future billing but maintains access through the current period.
 """)
 
                         section(title: "4. Privacy & Data Processing", content: """

@@ -98,7 +98,7 @@ struct DocumentQuotaBanner: View {
                         )
                         refillAction()
                     } label: {
-                        Label("Refill +25", systemImage: "plus.rectangle.on.rectangle.fill")
+                        Label("Refill +\(QuotaPolicy.addOnDocumentIncrement)", systemImage: "plus.rectangle.on.rectangle.fill")
                             .font(.caption.weight(.semibold))
                     }
                     .buttonStyle(.borderedProminent)

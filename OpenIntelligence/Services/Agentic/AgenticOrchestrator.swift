@@ -67,6 +67,8 @@ extension ThinkingEvent.Kind {
             return .refining
         case .intentRoute:
             return .planning
+        case .imagePlayground:
+            return .synthesizing
         }
     }
 }

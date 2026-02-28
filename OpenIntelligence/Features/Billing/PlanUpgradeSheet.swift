@@ -29,7 +29,7 @@ struct PlanUpgradeSheet: View {
             tint: .purple,
             isFeatured: false,
             features: [
-                "Unlimited documents",
+                "Up to 1,000 documents",
                 "5 libraries",
                 "Priority ingestion",
                 "Advanced retrieval controls",
@@ -44,7 +44,7 @@ struct PlanUpgradeSheet: View {
             tint: .purple,
             isFeatured: true,
             features: [
-                "Unlimited documents",
+                "Up to 1,000 documents",
                 "5 libraries",
                 "Priority ingestion",
                 "Advanced retrieval controls",
@@ -59,7 +59,7 @@ struct PlanUpgradeSheet: View {
             tint: .orange,
             isFeatured: false,
             features: [
-                "Unlimited documents",
+                "Up to 1,000 documents",
                 "10 libraries",
                 "No renewal — one-time purchase",
                 "Priority support forever",
@@ -82,7 +82,7 @@ struct PlanUpgradeSheet: View {
         ),
         PlanStorySlide(
             title: "Scale without limits",
-            subtitle: "Pro unlocks unlimited documents, full local model access, and up to 10 libraries for power users.",
+            subtitle: "Pro unlocks up to 1,000 documents, full local model access, and up to 10 libraries for power users.",
             icon: "arrow.up.right.circle.fill",
             tint: .purple
         ),

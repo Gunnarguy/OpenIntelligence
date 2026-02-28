@@ -6631,6 +6631,21 @@ class RAGService: ObservableObject {
                 var contextCandidates = diverseChunks
                 var contextStrategy = "mmr"
 
+                // Enumeration queries need ALL chunk slots for detail —
+                // RAPTOR summaries waste 25% of context on generic overviews.
+                // Covers: "how many X", "list all X", "what are all the X", "show every X", etc.
+                let isEnumerationQuery: Bool = {
+                    let lq = question.lowercased()
+                    let quickTriggers = [
+                        "how many", "list all", "list every", "list the", "list each",
+                        "name all", "name every", "show all", "show every",
+                        "what are all", "give me all", "give me every", "enumerate",
+                        "how many kinds", "how many categories",
+                        "count the", "count all", "total number of",
+                    ]
+                    return quickTriggers.contains { lq.contains($0) }
+                }()
+
                 // ═══════════════════════════════════════════════════════════════════════════════
                 // 🔥 GOD MODE: Intelligent Document-Level Context for Research/Findings Queries
                 // ═══════════════════════════════════════════════════════════════════════════════
@@ -6644,7 +6659,7 @@ class RAGService: ObservableObject {
                 // - Smart deduplication to avoid redundant content
                 // - Dynamic chunk count based on available tokens
                 // ═══════════════════════════════════════════════════════════════════════════════
-                if answerIntent.requiresDocumentSummary, let allChunks = cachedAllChunks {
+                if answerIntent.requiresDocumentSummary && !isEnumerationQuery, let allChunks = cachedAllChunks {
                     let summaryChunks = allChunks.filter { $0.metadata.abstractionLevel == .documentSummary }
                     let existingIds = Set(contextCandidates.map { $0.chunk.id })
 
@@ -6822,6 +6837,100 @@ class RAGService: ObservableObject {
 
                         if Log.pipelineTraceEnabled {
                             logChunkTrace(focused, stage: "Post-FocusedWindow", query: question)
+                        }
+                    }
+                }
+
+                // ═══════════════════════════════════════════════════════════════════
+                // ITERATIVE RETRIEVAL: BM25 second-pass for enumeration queries
+                // ═══════════════════════════════════════════════════════════════════
+                // When asking "how many X are available", vector search retrieves
+                // chunks ABOUT the topic but misses the actual enumerated list page
+                // (sparse, low semantic density). A targeted BM25 keyword scan over
+                // ALL chunks in the container finds it.
+                // ═══════════════════════════════════════════════════════════════════
+                if isEnumerationQuery, let allChunks = cachedAllChunks, !allChunks.isEmpty {
+                    let existingIds = Set(contextCandidates.map { $0.chunk.id })
+
+                    // Extract subject noun from enumeration query patterns:
+                    // "how many [NOUN] are available" → NOUN
+                    // "list all [NOUN]"               → NOUN
+                    // "what are all the [NOUN]"       → NOUN
+                    // "show every [NOUN]"             → NOUN
+                    // "total number of [NOUN]"        → NOUN
+                    let lq = question.lowercased()
+                    let stopWords: Set<String> = [
+                        "are", "is", "does", "do", "can", "will", "were", "was",
+                        "have", "has", "for", "the", "in", "on", "at", "to", "of",
+                        "available", "there", "exist", "supported", "included",
+                        "a", "an", "this", "that", "it", "its", "my", "your",
+                    ]
+                    let subjectNoun: String = {
+                        // Try each trigger phrase, extract noun after it
+                        let triggers = [
+                            "how many ", "list all ", "list every ", "list the ", "list each ",
+                            "name all ", "name every ", "show all ", "show every ",
+                            "what are all the ", "what are all ", "what are the ",
+                            "give me all ", "give me every ",
+                            "total number of ", "count the ", "count all ",
+                            "enumerate ",
+                        ]
+                        for trigger in triggers {
+                            if let range = lq.range(of: trigger) {
+                                let afterTrigger = String(lq[range.upperBound...])
+                                let words = afterTrigger.split(separator: " ")
+                                let nouns = words.prefix(4).filter { !stopWords.contains(String($0)) }
+                                if !nouns.isEmpty {
+                                    return nouns.map(String.init).joined(separator: " ")
+                                }
+                            }
+                        }
+                        return ""
+                    }()
+
+                    if !subjectNoun.isEmpty {
+                        let bm25 = BM25Scorer()
+                        bm25.indexDocuments(allChunks)
+                        let queryTerms = bm25.tokenize(subjectNoun)
+
+                        // Score ALL chunks by BM25 keyword match
+                        var scored: [(chunk: DocumentChunk, score: Float)] = []
+                        for chunk in allChunks {
+                            let s = bm25.score(queryTerms: queryTerms, document: chunk.content)
+                            if s > 0 { scored.append((chunk, s)) }
+                        }
+                        scored.sort { $0.score > $1.score }
+
+                        // Inject top BM25 results not already in candidates
+                        var added = 0
+                        for (chunk, bm25Score) in scored.prefix(15) {
+                            guard !existingIds.contains(chunk.id), added < 5 else { continue }
+                            let docName = getDocumentName(for: chunk.documentId)
+                            contextCandidates.append(RetrievedChunk(
+                                chunk: chunk,
+                                similarityScore: min(bm25Score / 10.0, 0.85),
+                                rank: contextCandidates.count,
+                                sourceDocument: docName,
+                                pageNumber: chunk.metadata.pageNumber
+                            ))
+                            added += 1
+                        }
+
+                        if added > 0 {
+                            contextStrategy = "enumeration_iterative"
+                            Log.info(
+                                "[Iterative Retrieval] Enumeration 2nd pass: +\(added) BM25 chunks for '\(subjectNoun)'",
+                                category: .retrieval
+                            )
+                            emitThinkingEvent(
+                                .retrieval,
+                                title: "Iterative Retrieval",
+                                detail: "BM25 2nd pass: +\(added) chunks targeting '\(subjectNoun)' list"
+                            )
+
+                            if Log.pipelineTraceEnabled {
+                                logChunkTrace(contextCandidates, stage: "Post-EnumerationIterative", query: question)
+                            }
                         }
                     }
                 }
@@ -7886,10 +7995,20 @@ class RAGService: ObservableObject {
                 let intentSpecificInstructions: String
                 switch answerIntent {
                 case .lookup, .tableLookup:
-                    intentSpecificInstructions = """
-                    Answer in 1-2 clear prose paragraphs. State the answer FIRST, then supporting details.
-                    Copy numbers, units, codes VERBATIM. Many excerpts say similar things in different words — combine them into ONE cohesive explanation. Never repeat the same fact twice. Do NOT paste sentence fragments back-to-back.
-                    """
+                    // Detect count/enumeration queries that slipped through to lookup
+                    // (e.g., "how many quarts" — single-value with unit)
+                    let isCountQuery = lowerQuestion.contains("how many") || lowerQuestion.contains("how much")
+                    if isCountQuery {
+                        intentSpecificInstructions = """
+                        State the exact count FIRST, then list EVERY item by name. Use bullets for each distinct item.
+                        Copy names, labels, and values VERBATIM from the excerpts. Count carefully — only include items explicitly mentioned in the excerpts. Never duplicate items. Never invent items not in the source.
+                        """
+                    } else {
+                        intentSpecificInstructions = """
+                        Answer in 1-2 clear prose paragraphs. State the answer FIRST, then supporting details.
+                        Copy numbers, units, codes VERBATIM. Many excerpts say similar things in different words — combine them into ONE cohesive explanation. Never repeat the same fact twice. Do NOT paste sentence fragments back-to-back.
+                        """
+                    }
                 case .procedure:
                     if isBehavioralOutcomeQuery {
                         intentSpecificInstructions = """
@@ -7907,9 +8026,23 @@ class RAGService: ObservableObject {
                     Compare the options found. Use a structured format. Copy exact product codes and specs from excerpts.
                     """
                 case .summarize:
-                    intentSpecificInstructions = """
-                    Provide a comprehensive overview covering all major points. Organize by theme.
-                    """
+                    // Detect enumeration queries routed here ("how many X are available")
+                    let isSummarizeEnumeration = lowerQuestion.contains("how many")
+                    if isSummarizeEnumeration {
+                        intentSpecificInstructions = """
+                        The user asked for a COUNT and LIST. Follow these rules STRICTLY:
+                        1. Count ONLY items explicitly named in the excerpts below.
+                        2. List EVERY distinct item by name using bullets — copy names VERBATIM.
+                        3. Include a brief description for each item when available.
+                        4. State the count as "There are N [items]" where N is YOUR count of the bullets below it.
+                        5. If the excerpts don't contain a complete list, say "The excerpts mention N of the following" — NEVER guess the total.
+                        6. NEVER state a number larger than the items you actually list.
+                        """
+                    } else {
+                        intentSpecificInstructions = """
+                        Provide a comprehensive overview covering all major points. Organize by theme.
+                        """
+                    }
                 case .investigate, .compute:
                     intentSpecificInstructions = """
                     Synthesize across sources. Show reasoning and connections. Copy specific values VERBATIM.

@@ -13,9 +13,9 @@ New `ResponseTransformService` provides 5 document-aware transforms that use the
 
 - **Key Facts**: Extracts source-backed bullet points with document attribution
 - **Step-by-Step**: Converts procedures using real specs/part numbers from chunks
-- **Cross-Reference**: Compares information across multiple source documents
-- **Deep Dive**: Identifies follow-up questions the library can answer
-- **Flash Cards**: Generates Q&A pairs from source content for study/review
+- **Plain English**: Simplifies complex technical content into accessible language
+- **What's Missing?**: Identifies gaps between the question and the retrieved answer
+- **Illustrate**: Image Playground visualization powered by LLM concept extraction
 - **System Instructions**: Persistent `Instructions()` keep the LLM grounded in its document analyst role
 - **Token-Aware Budgets**: Each transform type gets a tuned character budget respecting the 4096-token window
 - **Timeout Protection**: 30-second `TaskGroup` timeout prevents hung generations
@@ -23,11 +23,9 @@ New `ResponseTransformService` provides 5 document-aware transforms that use the
 
 ### AI Hub Toolbar Redesign
 
-Replaced the Simplify/Actionable toolbar with a 3-section AI Hub menu:
+Flat 5-item AI Hub menu (replaced 3-section layout):
 
-- **Analyze**: Key Facts, Cross-Reference
-- **Transform**: Step-by-Step, Flash Cards
-- **Explore**: Deep Dive, Illustrate (Image Playground)
+- **Key Facts**, **Step-by-Step**, **Plain English**, **What's Missing?**, **Illustrate**
 - Uses `apple.intelligence` SF Symbol, disabled when no assistant response or during processing
 
 ### Image Playground LLM Concept Extraction
