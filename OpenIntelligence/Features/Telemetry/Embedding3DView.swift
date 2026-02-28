@@ -1354,6 +1354,7 @@ struct EmbeddingSpaceRenderer: View {
             pointScale: CGFloat(pointScale),
             autoRotate: autoRotate,
             showAxes: showAxes,
+            showLines: true,
             depthCue: depthCue,
             backgroundStyle: backgroundStyle,
             projectionMethod: methodKind,
@@ -1576,9 +1577,6 @@ struct EmbeddingSpaceRenderer: View {
                 // Skip if section name is same as document name (already labeled)
                 if section.lowercased() == legendItem.name.lowercased() { continue }
 
-                // Sanitize section name — skip garbage labels entirely
-                guard let cleanSection = sanitizeAnnotationLabel(section) else { continue }
-
                 // Compute section centroid
                 var sx: Float = 0, sy: Float = 0, sz: Float = 0
                 for pt in sectionPts {
@@ -1587,15 +1585,12 @@ struct EmbeddingSpaceRenderer: View {
                 let n = Float(sectionPts.count)
                 let sectionCentroid = SCNVector3(sx / n, sy / n, sz / n)
 
-                // Get unique sanitized keywords for this section
-                let uniqueKW = sanitizeKeywords(
-                    Array(Set(sectionKeywords[section] ?? [])),
-                    excludingTitle: cleanSection
-                ).prefix(2)
+                // Get unique keywords for this section
+                let uniqueKW = Array(Set(sectionKeywords[section] ?? [])).prefix(2)
 
                 result.append(Embedding3DSceneView.AnnotationData(
                     position: sectionCentroid,
-                    title: String(cleanSection.prefix(25)),
+                    title: String(section.prefix(25)),
                     keywords: Array(uniqueKW),
                     color: (docColorMap[legendItem.docId] ?? EmbeddingColorPalette.fallback).withAlphaComponent(0.8),
                     detailLevel: 0, // Smaller label
@@ -2649,19 +2644,18 @@ struct EmbeddingSpaceRenderer: View {
             let docId = docIds[index]
             let docName = docNames[docId] ?? "Document"
             let sectionTitle = chunk.metadata.sectionTitle?.trimmingCharacters(in: .whitespacesAndNewlines)
-            let cleanedSection = sanitizeAnnotationLabel(sectionTitle)
-            let title = cleanedSection ?? docName
+            let title = (sectionTitle?.isEmpty == false) ? sectionTitle! : docName
             let rawDetail = chunk.content.trimmingCharacters(in: .whitespacesAndNewlines)
-            let cleanedKeywords = sanitizeKeywords(chunk.metadata.keywords, excludingTitle: title)
+            let keywords = chunk.metadata.keywords
             let detail: String
-            if cleanedKeywords.isEmpty {
+            if keywords.isEmpty {
                 detail = rawDetail.isEmpty ? docName : String(rawDetail.prefix(64))
             } else {
-                detail = cleanedKeywords.prefix(3).joined(separator: " • ")
+                detail = keywords.prefix(3).joined(separator: " • ")
             }
             let densityScore = Double(chunk.metadata.semanticDensity ?? 0.45)
             let lengthScore = Double(min(chunk.metadata.wordCount, 420)) / 420.0
-            let keywordScore = Double(min(cleanedKeywords.count, 4)) * 0.08
+            let keywordScore = Double(min(keywords.count, 4)) * 0.08
             let numericBonus = chunk.metadata.hasNumericData ? 0.08 : 0
             let score = densityScore + lengthScore + keywordScore + numericBonus
             let baseX = Double(coord.x - minX) / Double(spanX)
@@ -2684,7 +2678,7 @@ struct EmbeddingSpaceRenderer: View {
                 pointIndex: index,
                 title: title,
                 detail: detail,
-                keywords: cleanedKeywords,
+                keywords: keywords,
                 normalizedX: normalizedX,
                 normalizedY: normalizedY,
                 depthHint: depthHint,
@@ -2772,13 +2766,25 @@ struct EmbeddingSpaceRenderer: View {
         // Use FTS5 terms as a reference vocabulary - these are proven meaningful
         let vocabularySet = Set(fts5TopTerms.map { $0.lowercased() })
 
-        // Extract representative keywords for each extreme
-        let xNegLabel = extractExtremeLabel(indices: xNegIndices, chunks: chunks, vocabulary: vocabularySet)
-        let xPosLabel = extractExtremeLabel(indices: xPosIndices, chunks: chunks, vocabulary: vocabularySet)
-        let yNegLabel = extractExtremeLabel(indices: yNegIndices, chunks: chunks, vocabulary: vocabularySet)
-        let yPosLabel = extractExtremeLabel(indices: yPosIndices, chunks: chunks, vocabulary: vocabularySet)
-        let zNegLabel = extractExtremeLabel(indices: zNegIndices, chunks: chunks, vocabulary: vocabularySet)
-        let zPosLabel = extractExtremeLabel(indices: zPosIndices, chunks: chunks, vocabulary: vocabularySet)
+        // Build corpus-wide word frequencies for TF-IDF contrast scoring
+        // Terms appearing uniformly across ALL chunks are noise, not axis-discriminative
+        let globalFreqs = buildGlobalWordFrequencies(chunks: chunks)
+
+        // Greedy deduplication: each axis endpoint claims a unique label
+        // so the same keyword never appears at multiple axis endpoints
+        var usedLabels = Set<String>()
+
+        let xNegLabel = extractExtremeLabel(indices: xNegIndices, chunks: chunks, vocabulary: vocabularySet, excluding: usedLabels, globalFreqs: globalFreqs, totalChunks: chunks.count)
+        if !xNegLabel.isEmpty { usedLabels.insert(xNegLabel.lowercased()) }
+        let xPosLabel = extractExtremeLabel(indices: xPosIndices, chunks: chunks, vocabulary: vocabularySet, excluding: usedLabels, globalFreqs: globalFreqs, totalChunks: chunks.count)
+        if !xPosLabel.isEmpty { usedLabels.insert(xPosLabel.lowercased()) }
+        let yNegLabel = extractExtremeLabel(indices: yNegIndices, chunks: chunks, vocabulary: vocabularySet, excluding: usedLabels, globalFreqs: globalFreqs, totalChunks: chunks.count)
+        if !yNegLabel.isEmpty { usedLabels.insert(yNegLabel.lowercased()) }
+        let yPosLabel = extractExtremeLabel(indices: yPosIndices, chunks: chunks, vocabulary: vocabularySet, excluding: usedLabels, globalFreqs: globalFreqs, totalChunks: chunks.count)
+        if !yPosLabel.isEmpty { usedLabels.insert(yPosLabel.lowercased()) }
+        let zNegLabel = extractExtremeLabel(indices: zNegIndices, chunks: chunks, vocabulary: vocabularySet, excluding: usedLabels, globalFreqs: globalFreqs, totalChunks: chunks.count)
+        if !zNegLabel.isEmpty { usedLabels.insert(zNegLabel.lowercased()) }
+        let zPosLabel = extractExtremeLabel(indices: zPosIndices, chunks: chunks, vocabulary: vocabularySet, excluding: usedLabels, globalFreqs: globalFreqs, totalChunks: chunks.count)
 
         return Embedding3DSceneView.AxisLabels(
             xNeg: xNegLabel, xPos: xPosLabel,
@@ -2787,10 +2793,34 @@ struct EmbeddingSpaceRenderer: View {
         )
     }
 
-    /// Extract the most distinctive keyword from chunks at an axis extreme
-    /// Uses FTS5 vocabulary as a reference for meaningful terms
-    private func extractExtremeLabel(indices: [Int], chunks: [DocumentChunk], vocabulary: Set<String>) -> String {
+    /// Build word → chunk-count map across entire corpus for IDF scoring
+    private func buildGlobalWordFrequencies(chunks: [DocumentChunk]) -> [String: Int] {
+        var docFreq: [String: Int] = [:]
+        for chunk in chunks {
+            let uniqueWords = Set(
+                chunk.text
+                    .components(separatedBy: CharacterSet.alphanumerics.inverted)
+                    .map { $0.lowercased() }
+                    .filter { $0.count >= 3 }
+            )
+            for word in uniqueWords {
+                docFreq[word, default: 0] += 1
+            }
+            for kw in chunk.metadata.keywords {
+                let clean = kw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                if clean.count >= 3 { docFreq[clean, default: 0] += 1 }
+            }
+        }
+        return docFreq
+    }
+
+    /// Extract the most distinctive keyword from chunks at an axis extreme.
+    /// Uses TF-IDF contrast scoring: penalizes terms appearing uniformly across
+    /// all chunks (corpus noise). Prefers terms concentrated at this specific extreme.
+    private func extractExtremeLabel(indices: [Int], chunks: [DocumentChunk], vocabulary: Set<String>, excluding: Set<String> = [], globalFreqs: [String: Int] = [:], totalChunks: Int = 1) -> String {
         guard !indices.isEmpty else { return "" }
+        let extremeCount = Double(indices.count)
+        let totalDocs = max(Double(totalChunks), 1.0)
 
         // First, try to use chunk metadata keywords (already curated)
         var metadataKeywords: [String: Int] = [:]
@@ -2804,9 +2834,21 @@ struct EmbeddingSpaceRenderer: View {
             }
         }
 
-        // If we have metadata keywords, prefer those
+        // If we have metadata keywords, prefer those — but REQUIRE FTS5 validation
+        // with TF-IDF contrast scoring to filter corpus-wide noise
         if !metadataKeywords.isEmpty {
-            if let topKeyword = metadataKeywords.sorted(by: { $0.value > $1.value }).first?.key {
+            let scored = metadataKeywords
+                .filter({ vocabulary.contains($0.key) && !excluding.contains($0.key) })
+                .map { kw, count -> (String, Double) in
+                    let tf = Double(count) / extremeCount
+                    let globalCount = Double(globalFreqs[kw] ?? 1)
+                    let idf = log(totalDocs / max(globalCount, 1.0)) + 1.0
+                    let concentration = Double(count) / max(globalCount, 1.0)
+                    return (kw, tf * idf * (1.0 + concentration))
+                }
+                .sorted(by: { $0.1 > $1.1 })
+
+            if let topKeyword = scored.first?.0 {
                 return topKeyword.prefix(1).uppercased() + topKeyword.dropFirst()
             }
         }
@@ -2874,15 +2916,25 @@ struct EmbeddingSpaceRenderer: View {
             }
         }
 
-        // Prioritize words that appear in FTS5 vocabulary (proven meaningful)
-        // Score = frequency * (vocabulary bonus)
-        var scored: [(word: String, score: Double)] = []
-        for (word, count) in wordCounts {
-            let vocabBonus = vocabulary.contains(word) ? 2.0 : 1.0
-            let lengthBonus = Double(min(word.count, 12)) / 8.0 // Prefer medium-length words
-            let score = Double(count) * vocabBonus * lengthBonus
-            scored.append((word, score))
+        // FTS5-validated terms with TF-IDF contrast scoring
+        var fts5Scored: [(word: String, score: Double)] = []
+        var fallbackScored: [(word: String, score: Double)] = []
+        for (word, count) in wordCounts where !excluding.contains(word) {
+            let tf = Double(count) / extremeCount
+            let globalCount = Double(globalFreqs[word] ?? 1)
+            let idf = log(totalDocs / max(globalCount, 1.0)) + 1.0
+            let concentration = Double(count) / max(globalCount, 1.0)
+            let score = tf * idf * (1.0 + concentration)
+
+            if vocabulary.contains(word) {
+                fts5Scored.append((word, score * 2.0))
+            } else {
+                fallbackScored.append((word, score))
+            }
         }
+
+        // Prefer FTS5-validated, fall back to unvalidated only if empty
+        let scored = fts5Scored.isEmpty ? fallbackScored : fts5Scored
 
         // Get top scoring word
         guard let topWord = scored.sorted(by: { $0.score > $1.score }).first?.word else {
@@ -2989,7 +3041,8 @@ struct EmbeddingSpaceRenderer: View {
             sampledChunks.reserveCapacity(capacity)
 
             // Deterministic sampling per containerId
-            let rngSeed = UInt64(abs(Int64(activeId.uuidString.hashValue)))
+            // Use deterministic seed (not .hashValue which is randomized per process launch)
+            let rngSeed = deterministicSeed(from: activeId.uuidString)
             var prng = VizLCG(seed: rngSeed)
 
             for did in docIds {
@@ -3207,6 +3260,7 @@ struct Embedding3DSceneView: View {
         let pointScale: CGFloat
         let autoRotate: Bool
         let showAxes: Bool
+        let showLines: Bool
         let depthCue: Bool
         let backgroundStyle: EmbeddingSceneBackgroundStyle
         let projectionMethod: ProjectionMethodKind
@@ -3552,13 +3606,16 @@ private func buildScene(points: [SCNVector3], colors: [PlatformColor], options: 
 
     addPointNodes(points, colors, scale: options.pointScale, depthCue: options.depthCue, into: contentRoot)
     addClusterLabels(annotations, backgroundStyle: options.backgroundStyle, into: contentRoot)
+    if options.showLines {
+        addInterClusterLines(annotations, backgroundStyle: options.backgroundStyle, into: contentRoot)
+    }
     addLighting(into: scene.rootNode, depthCue: options.depthCue)
     applyBackground(style: options.backgroundStyle, to: scene)
     applyAutoRotate(options.autoRotate, to: contentRoot)
 
     if options.depthCue {
-        scene.fogStartDistance = 4.0
-        scene.fogEndDistance = 9.0
+        scene.fogStartDistance = 5.0
+        scene.fogEndDistance = 12.0
         scene.fogDensityExponent = 1.0
         #if canImport(UIKit)
         scene.fogColor = options.backgroundStyle.fogColor.withAlphaComponent(0.7)
@@ -3892,12 +3949,12 @@ private func makeCameraNode(depthCue: Bool) -> SCNNode {
     camera.zFar = 100
     camera.wantsDepthOfField = depthCue
     if depthCue {
-        camera.focusDistance = 6.0
-        camera.fStop = 8
+        camera.focusDistance = 5.5
+        camera.fStop = 10
     }
     node.camera = camera
-    // Close enough to see data clearly, far enough to see axes
-    node.position = SCNVector3(4.0, 3.0, 7.0)
+    // Camera positioned for optimal viewing of a 4.5-unit data cube with 5-unit axes
+    node.position = SCNVector3(3.5, 2.5, 6.0)
     node.look(at: SCNVector3(0, 0, 0))
     return node
 }
@@ -3947,7 +4004,8 @@ private func addPointNodes(_ points: [SCNVector3], _ colors: [PlatformColor], sc
         material.diffuse.contents = color
         material.lightingModel = .constant
         material.emission.contents = color
-        material.emission.intensity = 0.7
+        material.emission.intensity = 0.85
+        material.transparency = 0.92
         sharedSphere.materials = [material]
 
         // Create nodes sharing this geometry
@@ -3957,96 +4015,6 @@ private func addPointNodes(_ points: [SCNVector3], _ colors: [PlatformColor], sc
             node.name = "point_\(index)"
             root.addChildNode(node)
         }
-    }
-}
-
-// MARK: - Label Sanitization
-
-/// Cleans annotation labels to remove garbage: pure numbers, markdown artifacts,
-/// common filler words, and short meaningless fragments.
-/// Returns nil if the label is unsalvageable — caller should skip or use docName fallback.
-private func sanitizeAnnotationLabel(_ raw: String?) -> String? {
-    guard let raw = raw, !raw.isEmpty else { return nil }
-
-    // Strip leading markdown artifacts: >, ▸, #, -, •, numbers with dots
-    var cleaned = raw
-        .trimmingCharacters(in: .whitespacesAndNewlines)
-    // Strip leading punctuation/markdown chars
-    while let first = cleaned.first, ">#▸•-–—".contains(first) || first == " " {
-        cleaned = String(cleaned.dropFirst()).trimmingCharacters(in: .whitespaces)
-    }
-    // Strip leading "N." or "N)" patterns (numbered lists)
-    if let range = cleaned.range(of: #"^\d+[\.\)]\s*"#, options: .regularExpression) {
-        cleaned = String(cleaned[range.upperBound...])
-    }
-    // Strip trailing " - N" patterns (like "General - 37")
-    if let range = cleaned.range(of: #"\s*[-–—]\s*\d+\s*$"#, options: .regularExpression) {
-        cleaned = String(cleaned[..<range.lowerBound])
-    }
-
-    cleaned = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
-
-    // Reject if empty after cleaning
-    guard !cleaned.isEmpty else { return nil }
-
-    // Reject if pure numeric (all digits, punctuation, whitespace)
-    let alphaOnly = cleaned.filter { $0.isLetter }
-    guard alphaOnly.count >= 3 else { return nil }
-
-    // Reject common junk / filler labels (case-insensitive)
-    let junkLabels: Set<String> = [
-        "general", "other", "various", "miscellaneous", "section", "part",
-        "page", "chapter", "item", "proper", "support", "unknown",
-        "untitled", "document", "content", "text", "data", "info",
-        "note", "notes", "details", "overview", "summary", "introduction",
-        "conclusion", "appendix", "table", "figure", "index", "header",
-        "footer", "body", "none", "n/a", "na", "tbd"
-    ]
-    let lowerCleaned = cleaned.lowercased()
-    if junkLabels.contains(lowerCleaned) { return nil }
-
-    // Reject single common words that aren't informative
-    let singleWordJunk: Set<String> = [
-        "the", "and", "for", "with", "from", "that", "this", "about",
-        "which", "their", "your", "some", "more", "also", "been", "have"
-    ]
-    if !lowerCleaned.contains(" ") && singleWordJunk.contains(lowerCleaned) { return nil }
-
-    return cleaned
-}
-
-/// Filters a keywords array to remove garbage entries: pure numbers, single chars,
-/// common stopwords, and duplicates of the parent title.
-private func sanitizeKeywords(_ keywords: [String], excludingTitle title: String? = nil) -> [String] {
-    let titleLower = title?.lowercased() ?? ""
-    var seen: Set<String> = []
-
-    return keywords.compactMap { kw -> String? in
-        let trimmed = kw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-
-        // Strip leading ▸, >, #
-        var cleaned = trimmed
-        while let first = cleaned.first, ">#▸•".contains(first) {
-            cleaned = String(cleaned.dropFirst()).trimmingCharacters(in: .whitespaces)
-        }
-
-        // Reject pure numbers
-        if cleaned.allSatisfy({ $0.isNumber || $0.isPunctuation || $0.isWhitespace }) { return nil }
-
-        // Reject if fewer than 3 alphabetic characters
-        let alphaCount = cleaned.filter { $0.isLetter }.count
-        guard alphaCount >= 3 else { return nil }
-
-        // Reject keywords that are just the title
-        let cleanedLower = cleaned.lowercased()
-        if !titleLower.isEmpty && (titleLower.contains(cleanedLower) || cleanedLower.contains(titleLower)) { return nil }
-
-        // Deduplicate (case-insensitive)
-        guard !seen.contains(cleanedLower) else { return nil }
-        seen.insert(cleanedLower)
-
-        return cleaned
     }
 }
 
@@ -4068,71 +4036,49 @@ private func addClusterLabels(_ annotations: [Embedding3DSceneView.AnnotationDat
     // Spread labels VERY far out - at least 2.5x the data spread, minimum 3.5 units
     let baseSpreadRadius = max(maxDistFromCenter * 2.8, 3.5)
 
-    // === PHASE 2: Prioritize labels and cap count to avoid visual clutter ===
-    let prioritized = annotations.sorted { a, b in
+    // === PHASE 2: Sort annotations by importance (document clusters first, larger clusters prioritized) ===
+    let sortedAnnotations = annotations.sorted { a, b in
         if a.isDocumentCluster != b.isDocumentCluster { return a.isDocumentCluster }
         return a.clusterSize > b.clusterSize
     }
-    let maxDocumentLabels = 8
-    let maxSecondaryLabels = 4
-    let documentLabels = prioritized.filter { $0.isDocumentCluster }
-    let secondaryLabels = prioritized.filter { !$0.isDocumentCluster }
-    let sortedAnnotations = Array(documentLabels.prefix(maxDocumentLabels) + secondaryLabels.prefix(maxSecondaryLabels))
-    guard !sortedAnnotations.isEmpty else { return }
 
-    // === PHASE 3: Sector-based outward label placement ===
-    // Spread labels around the scene by angular sectors so they don't collapse into one line.
+    // === PHASE 3: Calculate initial positions using golden angle spiral for maximum spread ===
     var labelPositions: [simd_float3] = []
-    let sectorCount = 12
-    var sectorUsage: [Int: Int] = [:]
-    let worldUp = simd_float3(0, 1, 0)
+    let goldenAngle: Float = .pi * (3.0 - sqrt(5.0)) // ~137.5° - optimal distribution
 
     for (index, annotation) in sortedAnnotations.enumerated() {
         let clusterPos = simd_float3(annotation.position.x, annotation.position.y, annotation.position.z)
 
-        var outwardDir = clusterPos - centroid
-        let outwardLen = simd_length(outwardDir)
-        if outwardLen < 0.01 {
-            let fallbackAngle = Float(index) * (2.0 * .pi / Float(max(sortedAnnotations.count, 1)))
-            outwardDir = simd_float3(cos(fallbackAngle), 0.2, sin(fallbackAngle))
+        // Calculate direction from scene centroid through cluster point (push labels outward)
+        var outwardDir = simd_normalize(clusterPos - centroid)
+        if simd_length(outwardDir) < 0.01 {
+            // Fallback if cluster is at centroid
+            outwardDir = simd_float3(cos(Float(index)), 0.3, sin(Float(index)))
         }
-        outwardDir = simd_normalize(outwardDir)
 
-        var tangentDir = simd_cross(worldUp, outwardDir)
-        if simd_length(tangentDir) < 0.001 {
-            tangentDir = simd_float3(1, 0, 0)
-        }
-        tangentDir = simd_normalize(tangentDir)
+        // Use golden angle spiral for vertical distribution
+        let spiralOffset = goldenAngle * Float(index)
+        let verticalAngle = Float(index) / Float(max(sortedAnnotations.count, 1)) * Float.pi - Float.pi / 2
 
-        let angle = atan2(outwardDir.z, outwardDir.x)
-        let sectorFloat = ((angle + .pi) / (2.0 * .pi)) * Float(sectorCount)
-        let sector = max(0, min(sectorCount - 1, Int(floor(sectorFloat))))
-        let ordinal = sectorUsage[sector, default: 0]
-        sectorUsage[sector] = ordinal + 1
+        // Add rotation around vertical axis based on spiral
+        let rotatedX = outwardDir.x * cos(spiralOffset) - outwardDir.z * sin(spiralOffset)
+        let rotatedZ = outwardDir.x * sin(spiralOffset) + outwardDir.z * cos(spiralOffset)
+        outwardDir = simd_normalize(simd_float3(rotatedX, outwardDir.y + sin(verticalAngle) * 0.5, rotatedZ))
 
-        let ringBase: Float = annotation.isDocumentCluster
-            ? max(baseSpreadRadius * 1.15, 2.6)
-            : max(baseSpreadRadius * 0.95, 2.2)
-        let ringStep: Float = annotation.isDocumentCluster ? 0.28 : 0.18
-        let ring = ringBase + Float(ordinal / 3) * ringStep
+        // Distance varies by type: document clusters further out
+        let distanceMultiplier: Float = annotation.isDocumentCluster ? 1.4 : 1.1
+        let spreadDist = baseSpreadRadius * distanceMultiplier
 
-        let lane = ordinal % 3 // 0=center, 1=left, 2=right
-        let lateralSign: Float = lane == 1 ? -1 : (lane == 2 ? 1 : 0)
-        let lateralMag: Float = annotation.isDocumentCluster ? 0.22 : 0.14
-        let lateralOffset = tangentDir * lateralSign * lateralMag
+        // Add some index-based variation to prevent exact alignments
+        let jitter = Float(index % 3) * 0.2 - 0.2
 
-        let tier = ordinal / 3
-        let verticalSign: Float = (tier % 2 == 0) ? 1 : -1
-        let verticalStep: Float = annotation.isDocumentCluster ? 0.10 : 0.07
-        let verticalOffset = simd_float3(0, Float(tier) * verticalStep * verticalSign, 0)
-
-        let labelPos = clusterPos + outwardDir * ring + lateralOffset + verticalOffset
+        let labelPos = clusterPos + outwardDir * (spreadDist + jitter)
         labelPositions.append(labelPos)
     }
 
-    // === PHASE 4: Collision resolution (directional + radial) ===
-    let minSeparation: Float = 0.30
-    let iterations = 10
+    // === PHASE 4: Collision detection and resolution ===
+    let minSeparation: Float = 0.8 // Minimum distance between labels
+    let iterations = 4 // Number of repulsion passes
 
     for _ in 0..<iterations {
         for i in 0..<labelPositions.count {
@@ -4140,18 +4086,14 @@ private func addClusterLabels(_ annotations: [Embedding3DSceneView.AnnotationDat
                 let delta = labelPositions[j] - labelPositions[i]
                 let dist = simd_length(delta)
 
-                if dist < minSeparation && dist > 0.0001 {
+                if dist < minSeparation && dist > 0.001 {
+                    // Push labels apart
                     let overlap = minSeparation - dist
                     let pushDir = simd_normalize(delta)
-                    let push = pushDir * (overlap * 0.45)
+                    let pushAmount = overlap * 0.6
 
-                    labelPositions[i] -= push
-                    labelPositions[j] += push
-
-                    let radialI = simd_normalize(labelPositions[i] - centroid)
-                    let radialJ = simd_normalize(labelPositions[j] - centroid)
-                    labelPositions[i] += radialI * (overlap * 0.15)
-                    labelPositions[j] += radialJ * (overlap * 0.15)
+                    labelPositions[i] -= pushDir * pushAmount
+                    labelPositions[j] += pushDir * pushAmount
                 }
             }
         }
@@ -4191,6 +4133,112 @@ private func addClusterLabels(_ annotations: [Embedding3DSceneView.AnnotationDat
     root.addChildNode(labelLayer)
 }
 
+// MARK: - Inter-Cluster Relationship Lines
+
+/// Draws faint connection lines between nearby clusters to show semantic relationships.
+/// Only connects clusters whose centroids are within a threshold distance — closer means more related.
+private func addInterClusterLines(_ annotations: [Embedding3DSceneView.AnnotationData], backgroundStyle: EmbeddingSceneBackgroundStyle, into root: SCNNode) {
+    guard annotations.count >= 2 else { return }
+
+    let lineLayer = SCNNode()
+    lineLayer.name = "interClusterLines"
+    lineLayer.renderingOrder = 5 // Behind cluster labels (100) but above points
+
+    // Calculate median pairwise distance to set adaptive threshold
+    var allDists: [Float] = []
+    for i in 0..<annotations.count {
+        for j in (i + 1)..<annotations.count {
+            let pi = simd_float3(annotations[i].position.x, annotations[i].position.y, annotations[i].position.z)
+            let pj = simd_float3(annotations[j].position.x, annotations[j].position.y, annotations[j].position.z)
+            allDists.append(simd_distance(pi, pj))
+        }
+    }
+    allDists.sort()
+
+    // Connect pairs within the 40th percentile of distances (closest ~40%)
+    let threshold: Float
+    if allDists.count >= 2 {
+        let p40Index = Int(Float(allDists.count) * 0.4)
+        threshold = allDists[min(p40Index, allDists.count - 1)]
+    } else {
+        threshold = 3.0
+    }
+
+    // Maximum lines to avoid visual clutter
+    let maxLines = min(annotations.count * 2, 15)
+    var lineCount = 0
+
+    // Sort pairs by distance (closest first) for priority drawing
+    var pairs: [(i: Int, j: Int, dist: Float)] = []
+    for i in 0..<annotations.count {
+        for j in (i + 1)..<annotations.count {
+            let pi = simd_float3(annotations[i].position.x, annotations[i].position.y, annotations[i].position.z)
+            let pj = simd_float3(annotations[j].position.x, annotations[j].position.y, annotations[j].position.z)
+            let dist = simd_distance(pi, pj)
+            if dist <= threshold && dist > 0.1 {
+                pairs.append((i, j, dist))
+            }
+        }
+    }
+    pairs.sort { $0.dist < $1.dist }
+
+    for pair in pairs {
+        guard lineCount < maxLines else { break }
+
+        let a = annotations[pair.i]
+        let b = annotations[pair.j]
+        let posA = simd_float3(a.position.x, a.position.y, a.position.z)
+        let posB = simd_float3(b.position.x, b.position.y, b.position.z)
+
+        // Opacity inversely proportional to distance (closer = slightly more visible)
+        let normalizedDist = pair.dist / max(threshold, 0.01)
+        let alpha = CGFloat(max(0.04, 0.14 * (1.0 - Double(normalizedDist))))
+
+        // Create hair-thin cylinder between the two cluster centroids
+        let midpoint = (posA + posB) * 0.5
+        let length = CGFloat(pair.dist)
+        let lineGeo = SCNCylinder(radius: 0.004, height: length)
+
+        // Use cluster color at very low opacity — visible on rotation, not distracting
+        let lineMat = SCNMaterial()
+        #if canImport(UIKit)
+        lineMat.diffuse.contents = a.color.withAlphaComponent(alpha)
+        lineMat.emission.contents = a.color.withAlphaComponent(alpha * 0.5)
+        #else
+        lineMat.diffuse.contents = a.color.withAlphaComponent(alpha)
+        lineMat.emission.contents = a.color.withAlphaComponent(alpha * 0.5)
+        #endif
+        lineMat.emission.intensity = 0.3
+        lineMat.lightingModel = .constant
+        lineMat.isDoubleSided = true
+        lineMat.writesToDepthBuffer = false
+        lineMat.readsFromDepthBuffer = true
+        lineGeo.materials = [lineMat]
+
+        let lineNode = SCNNode(geometry: lineGeo)
+        lineNode.position = SCNVector3(midpoint.x, midpoint.y, midpoint.z)
+
+        // Rotate cylinder to align between the two points
+        let direction = simd_normalize(posB - posA)
+        let up = simd_float3(0, 1, 0)
+        let dotProduct = simd_dot(direction, up)
+
+        if abs(dotProduct) > 0.999 {
+            // Nearly parallel to Y — minimal rotation needed
+            if dotProduct < 0 { lineNode.eulerAngles.z = .pi }
+        } else {
+            let crossVec = simd_cross(up, direction)
+            let angle = acos(min(max(dotProduct, -1), 1))
+            lineNode.rotation = SCNVector4(crossVec.x, crossVec.y, crossVec.z, angle)
+        }
+
+        lineLayer.addChildNode(lineNode)
+        lineCount += 1
+    }
+
+    root.addChildNode(lineLayer)
+}
+
 /// Creates an arrow line from label position pointing to cluster centroid
 private func makeArrowToCluster(
     from labelPos: SCNVector3,
@@ -4210,17 +4258,17 @@ private func makeArrowToCluster(
     guard length > 0.1 else { return container } // Skip if too short
 
     // Shorten the line so it doesn't overlap with label or cluster
-    let shortenAmount: Float = isDocumentCluster ? 0.06 : 0.04
-    let effectiveLength = max(0.05, length - shortenAmount * 2)
+    let shortenAmount: Float = isDocumentCluster ? 0.15 : 0.1
+    let effectiveLength = max(0.1, length - shortenAmount * 2)
 
-    // Create the line (cylinder)
-    let lineRadius: CGFloat = isDocumentCluster ? 0.003 : 0.002
+    // Create the line (cylinder) — subtle enough to not clutter, visible enough to trace
+    let lineRadius: CGFloat = isDocumentCluster ? 0.005 : 0.003
     let line = SCNCylinder(radius: lineRadius, height: CGFloat(effectiveLength))
 
     let lineMat = SCNMaterial()
-    lineMat.diffuse.contents = color.withAlphaComponent(0.6)
+    lineMat.diffuse.contents = color.withAlphaComponent(0.35)
     lineMat.emission.contents = color
-    lineMat.emission.intensity = backgroundStyle.isDark ? 0.4 : 0.2
+    lineMat.emission.intensity = backgroundStyle.isDark ? 0.25 : 0.12
     lineMat.lightingModel = .constant
     lineMat.writesToDepthBuffer = false
     lineMat.readsFromDepthBuffer = false
@@ -4254,8 +4302,8 @@ private func makeArrowToCluster(
 
     // Create arrowhead (cone) pointing at cluster
     if isDocumentCluster {
-        let coneHeight: CGFloat = 0.025
-        let coneRadius: CGFloat = 0.01
+        let coneHeight: CGFloat = 0.06
+        let coneRadius: CGFloat = 0.025
         let cone = SCNCone(topRadius: 0, bottomRadius: coneRadius, height: coneHeight)
 
         let coneMat = SCNMaterial()
@@ -4318,34 +4366,49 @@ private func makeClusterBadge(
         let truncatedTitle = String(title.prefix(22)) + (title.count > 22 ? "…" : "")
         displayText = "\(truncatedTitle) (\(clusterSize))"
         if detailLevel >= 1 && !keywords.isEmpty {
-            // Filter out keywords that are substrings of the title or garbage
-            let cleanKeywords = sanitizeKeywords(keywords, excludingTitle: title)
-            if !cleanKeywords.isEmpty {
-                let keywordStr = cleanKeywords.prefix(3).joined(separator: " • ")
+            // Filter out keywords that are substrings of the title (avoid "API API" duplication)
+            let titleLower = title.lowercased()
+            let filteredKeywords = keywords.filter { kw in
+                let kwLower = kw.lowercased()
+                return !titleLower.contains(kwLower) && !kwLower.contains(titleLower.prefix(4))
+            }
+            // Deduplicate keywords (case-insensitive)
+            var seenKeywords: Set<String> = []
+            let uniqueKeywords = filteredKeywords.filter { kw in
+                let lower = kw.lowercased()
+                if seenKeywords.contains(lower) { return false }
+                seenKeywords.insert(lower)
+                return true
+            }
+            if !uniqueKeywords.isEmpty {
+                let keywordStr = uniqueKeywords.prefix(3).joined(separator: " • ")
                 displayText += "\n\(keywordStr)"
             }
         }
     } else {
-        // Sub-cluster: Section name only, smaller — sanitized to remove garbage labels
-        let sanitizedTitle = sanitizeAnnotationLabel(title) ?? "Section"
-        let truncatedTitle = String(sanitizedTitle.prefix(18)) + (sanitizedTitle.count > 18 ? "…" : "")
+        // Sub-cluster: Section name only, smaller
+        let truncatedTitle = String(title.prefix(18)) + (title.count > 18 ? "…" : "")
         displayText = "▸ \(truncatedTitle)"
-        let cleanKeywords = sanitizeKeywords(keywords, excludingTitle: title)
-        if let firstKw = cleanKeywords.first {
-            displayText += " • \(firstKw)"
+        if !keywords.isEmpty {
+            // Filter keywords that match section title
+            let titleLower = title.lowercased()
+            let filtered = keywords.filter { !titleLower.contains($0.lowercased()) }
+            if let firstKw = filtered.first {
+                displayText += " • \(firstKw)"
+            }
         }
     }
 
-    let textGeo = SCNText(string: displayText, extrusionDepth: isDocumentCluster ? 0.005 : 0.003)
+    let textGeo = SCNText(string: displayText, extrusionDepth: isDocumentCluster ? 0.02 : 0.012)
 
-    // === DYNAMIC FONT SIZE (scaled for ~6.0 unit viewing cube) ===
+    // === DYNAMIC FONT SIZE (larger for readability) ===
     let baseFontSize: CGFloat
     if isKeywordLabel {
-        baseFontSize = 0.055
+        baseFontSize = 0.18 // Larger for keyword tags
     } else if isDocumentCluster {
-        baseFontSize = 0.06 + CGFloat(min(clusterSize, 80)) / 2000.0 // 0.06–0.10
+        baseFontSize = 0.24 + CGFloat(min(clusterSize, 80)) / 400.0 // Scale with cluster size, bigger base
     } else {
-        baseFontSize = 0.045 // Sub-clusters smaller
+        baseFontSize = 0.16 // Sub-clusters slightly smaller
     }
 
     #if canImport(UIKit)
@@ -4355,8 +4418,8 @@ private func makeClusterBadge(
         let fontWeight: NSFont.Weight = isDocumentCluster ? .semibold : (isKeywordLabel ? .medium : .regular)
         textGeo.font = NSFont.systemFont(ofSize: baseFontSize, weight: fontWeight)
     #endif
-    textGeo.flatness = 0.05 // Balanced smoothness vs geometry count
-    textGeo.chamferRadius = 0.001 // Subtle rounding
+    textGeo.flatness = 0.02 // Much smoother curves (lower = smoother but more geometry)
+    textGeo.chamferRadius = 0.005 // Slightly rounded edges
 
     // === STYLE-SPECIFIC COLORS ===
     let textMat = SCNMaterial()
@@ -4395,12 +4458,12 @@ private func makeClusterBadge(
     )
 
     // === BACKGROUND PILL (style varies by type) ===
-    let paddingH: CGFloat = isDocumentCluster ? 0.025 : 0.015
-    let paddingV: CGFloat = isDocumentCluster ? 0.012 : 0.008
+    let paddingH: CGFloat = isDocumentCluster ? 0.08 : 0.05
+    let paddingV: CGFloat = isDocumentCluster ? 0.04 : 0.03
     let bgWidth = CGFloat(textWidth) + paddingH * 2
     let bgHeight = CGFloat(textHeight) + paddingV * 2
     let bgPlane = SCNPlane(width: bgWidth, height: bgHeight)
-    bgPlane.cornerRadius = min(bgHeight / 2, 0.02)
+    bgPlane.cornerRadius = min(bgHeight / 2, 0.06)
 
     let bgMat = SCNMaterial()
     if isKeywordLabel {
@@ -4427,7 +4490,7 @@ private func makeClusterBadge(
 
     // === ACCENT INDICATOR (only for document clusters) ===
     if isDocumentCluster {
-        let indicatorRadius: CGFloat = 0.008
+        let indicatorRadius: CGFloat = 0.022
         let indicator = SCNSphere(radius: indicatorRadius)
         let indicatorMat = SCNMaterial()
         indicatorMat.diffuse.contents = accentColor
@@ -4438,7 +4501,7 @@ private func makeClusterBadge(
 
         let indicatorNode = SCNNode(geometry: indicator)
         indicatorNode.position = SCNVector3(
-            Float(-bgWidth / 2) - Float(indicatorRadius) - 0.004,
+            Float(-bgWidth / 2) - Float(indicatorRadius) - 0.012,
             0,
             0
         )
@@ -4447,7 +4510,7 @@ private func makeClusterBadge(
 
     // Billboard constraint - always face camera
     let billboard = SCNBillboardConstraint()
-    billboard.freeAxes = [.Y]
+    billboard.freeAxes = [.X, .Y]
     container.constraints = [billboard]
 
     return container

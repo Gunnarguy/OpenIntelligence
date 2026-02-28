@@ -13,7 +13,7 @@ struct PrivacyPolicyView: View {
                         .font(.largeTitle.weight(.bold))
                         .padding(.bottom, 8)
 
-                    Text("Last updated: February 16, 2026")
+                    Text("Last updated: February 28, 2026")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 

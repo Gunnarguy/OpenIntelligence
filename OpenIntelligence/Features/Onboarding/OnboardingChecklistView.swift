@@ -560,12 +560,15 @@ struct OnboardingChecklistView: View {
 
             } catch {
                 Log.error("Sample import failed: \(error)", category: .initialization)
-                processingStatus = "Import failed"
+                processingStatus = "Import failed — tap to retry"
+                processingProgress = 0.0
 
-                // Still complete onboarding after brief delay on error
-                try? await Task.sleep(for: .seconds(1))
-                onboardingStore.skipPermanently()
-                onOpenChat()
+                // Reset so the user can try again — do NOT complete onboarding
+                try? await Task.sleep(for: .seconds(1.5))
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    isProcessing = false
+                }
+                hasSentImportRequest = false
             }
         }
     }

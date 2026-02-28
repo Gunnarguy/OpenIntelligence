@@ -5,9 +5,9 @@ New AI Hub toolbar with 5 document-aware transforms — each uses your actual re
 
 • Key Facts — Source-backed bullet points with document/page attribution
 • Step-by-Step — Real procedures with specs and part numbers from your docs
-• Cross-Reference — Compare information across multiple source documents
-• Deep Dive — Follow-up questions your library can answer
-• Flash Cards — Study Q&A pairs generated from source content
+• Plain English — Simplifies complex technical content into accessible language
+• What's Missing? — Identifies gaps between your question and the retrieved answer
+• Illustrate — Image Playground visualization powered by LLM concept extraction
 
 SEARCH & RETRIEVAL UPGRADES
 • BM25 length normalization aligned (b: 0.75 → 0.5) — better recall on uniform-size chunks

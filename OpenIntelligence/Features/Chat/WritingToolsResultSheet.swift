@@ -13,6 +13,11 @@ struct WritingToolsResultSheet: View {
     let result: String
     let onCopy: () -> Void
     let onInsertAsReply: () -> Void
+    /// Called when the user rates the AI transform quality.
+    /// `true` = helpful, `false` = not helpful.
+    /// Wire to `LanguageModelSession.logFeedbackAttachment` in the calling site
+    /// once the session reference is threaded through.
+    var onFeedback: ((Bool) -> Void)? = nil
 
     @Environment(\.dismiss) private var dismiss
 
@@ -46,6 +51,38 @@ struct WritingToolsResultSheet: View {
                         .font(.body)
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Divider()
+
+                    // Feedback row — rate this AI transform
+                    HStack {
+                        Text("Helpful?")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button {
+                            onFeedback?(true)
+                        } label: {
+                            Image(systemName: "hand.thumbsup")
+                                .font(.system(size: 18))
+                                .foregroundStyle(.green)
+                                .padding(8)
+                                .background(Color.green.opacity(0.1))
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        Button {
+                            onFeedback?(false)
+                        } label: {
+                            Image(systemName: "hand.thumbsdown")
+                                .font(.system(size: 18))
+                                .foregroundStyle(.secondary)
+                                .padding(8)
+                                .background(Color.secondary.opacity(0.1))
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                    }
 
                     Divider()
 
@@ -93,13 +130,8 @@ struct WritingToolsResultSheet: View {
         switch title {
         case "Key Facts": return "list.bullet.rectangle"
         case "Step-by-Step": return "checklist"
-        case "Cross-Reference": return "arrow.triangle.branch"
-        case "Deep Dive": return "magnifyingglass.circle"
-        case "Flash Cards": return "rectangle.on.rectangle.angled"
-        // Legacy fallbacks
-        case "Proofread": return "text.magnifyingglass"
-        case "Rewrite": return "arrow.triangle.2.circlepath"
-        case "Summary": return "text.redaction"
+        case "Plain English": return "text.bubble"
+        case "What's Missing?": return "questionmark.circle"
         default: return "apple.intelligence"
         }
     }
@@ -108,13 +140,8 @@ struct WritingToolsResultSheet: View {
         switch title {
         case "Key Facts": return .blue
         case "Step-by-Step": return .green
-        case "Cross-Reference": return .purple
-        case "Deep Dive": return .orange
-        case "Flash Cards": return .cyan
-        // Legacy fallbacks
-        case "Proofread": return .indigo
-        case "Rewrite": return .teal
-        case "Summary": return .orange
+        case "Plain English": return .mint
+        case "What's Missing?": return .orange
         default: return DSColors.accent
         }
     }

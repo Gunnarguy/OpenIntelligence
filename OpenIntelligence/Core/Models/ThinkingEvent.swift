@@ -40,6 +40,9 @@ struct ThinkingEvent: Identifiable, Sendable, Equatable {
         case intentRoute    // Answer intent routing
         case confidence     // Calibrated confidence calculation
 
+        // Creative Features
+        case imagePlayground // Image Playground concept extraction pipeline
+
         /// Maps each kind to a system icon for quick visual scanning.
         var systemIconName: String {
             switch self {
@@ -74,6 +77,7 @@ struct ThinkingEvent: Identifiable, Sendable, Equatable {
             case .extractive: return "text.quote"
             case .intentRoute: return "arrow.triangle.branch"
             case .confidence: return "chart.bar.fill"
+            case .imagePlayground: return "photo.on.rectangle.angled"
             }
         }
 
@@ -110,6 +114,7 @@ struct ThinkingEvent: Identifiable, Sendable, Equatable {
             case .extractive: return "Extractive Summary"
             case .intentRoute: return "Intent Routing"
             case .confidence: return "Confidence Calibration"
+            case .imagePlayground: return "Image Playground"
             }
         }
 
@@ -132,6 +137,7 @@ struct ThinkingEvent: Identifiable, Sendable, Equatable {
             case .extractive: return "green"
             case .intentRoute: return "blue"
             case .confidence: return "orange"
+            case .imagePlayground: return "mint"
             }
         }
     }

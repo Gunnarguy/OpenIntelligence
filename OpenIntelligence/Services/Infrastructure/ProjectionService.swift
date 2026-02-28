@@ -139,6 +139,12 @@ final class ProjectionService {
                 }
                 v = y
             }
+            // Canonicalize sign: ensure the element with largest absolute value
+            // is positive. This prevents eigenvectors from flipping direction
+            // between runs, keeping axis labels stable.
+            if let maxIdx = v.indices.max(by: { abs(v[$0]) < abs(v[$1]) }), v[maxIdx] < 0 {
+                for i in 0..<D { v[i] = -v[i] }
+            }
             components.append(v)
         }
 
@@ -564,6 +570,19 @@ final class ProjectionService {
         let dot = dotProduct(v, u)
         for i in 0..<v.count { v[i] -= dot * u[i] }
     }
+}
+
+// MARK: - Deterministic Seed from UUID
+// Swift's .hashValue is randomized per process launch (ASLR).
+// This FNV-1a hash produces the SAME seed for the SAME UUID every time.
+
+func deterministicSeed(from uuidString: String) -> UInt64 {
+    var hash: UInt64 = 14695981039346656037 // FNV offset basis
+    for byte in uuidString.utf8 {
+        hash ^= UInt64(byte)
+        hash &*= 1099511628211 // FNV prime
+    }
+    return hash
 }
 
 // MARK: - Deterministic RNG (same as used in Embedding3DView)

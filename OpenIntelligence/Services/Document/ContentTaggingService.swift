@@ -11,6 +11,7 @@
 //  Reference: https://developer.apple.com/documentation/foundationmodels/categorizing-and-organizing-data-with-content-tags
 
 import Foundation
+import NaturalLanguage
 
 #if canImport(FoundationModels)
     import FoundationModels
@@ -184,28 +185,27 @@ import Foundation
                 return tags
 
             } catch let error as LanguageModelSession.GenerationError {
+                HardwareTelemetryState.shared.sustain(.llmInference, active: false)
+
                 switch error {
                 case .exceededContextWindowSize:
-                    HardwareTelemetryState.shared.sustain(.llmInference, active: false)
-                    Log.warning("[ContentTagging] Context overflow, using shorter text sample", category: .llm)
-                    // Retry with much shorter text
+                    Log.warning("[ContentTagging] Context overflow, retrying with shorter text", category: .llm)
                     let shortText = String(text.prefix(2000))
                     return try await generateTags(for: shortText, documentName: documentName)
 
-                case .guardrailViolation:
-                    HardwareTelemetryState.shared.sustain(.llmInference, active: false)
-                    Log.warning("[ContentTagging] Content flagged by guardrails", category: .llm)
-                    return .empty
+                case .guardrailViolation, .refusal:
+                    // Apple FM flagged the document content as sensitive — use NLTagger fallback
+                    Log.info("[ContentTagging] Content flagged by Apple FM safety filter, using NLTagger fallback for \(documentName ?? "document")", category: .llm)
+                    return nlTaggerFallbackTags(for: text)
 
                 default:
-                    HardwareTelemetryState.shared.sustain(.llmInference, active: false)
-                    Log.error("[ContentTagging] Generation error: \(error)", category: .llm)
-                    return .empty
+                    Log.warning("[ContentTagging] Generation error: \(error)", category: .llm)
+                    return nlTaggerFallbackTags(for: text)
                 }
             } catch {
                 HardwareTelemetryState.shared.sustain(.llmInference, active: false)
-                Log.error("[ContentTagging] Unexpected error: \(error)", category: .llm)
-                return .empty
+                Log.warning("[ContentTagging] Unexpected error: \(error), using NLTagger fallback", category: .llm)
+                return nlTaggerFallbackTags(for: text)
             }
         }
 
@@ -234,6 +234,72 @@ import Foundation
             }
 
             return try await generateTags(for: sampleText, documentName: documentName)
+        }
+
+        // MARK: - NLTagger Fallback
+
+        /// When Apple FM refuses the document content (sensitive/medical/legal text),
+        /// extract tags using NLTagger instead — no LLM needed, never refuses.
+        private func nlTaggerFallbackTags(for text: String) -> ContentTags {
+            let sample = String(text.prefix(5000))
+            guard !sample.isEmpty else { return .empty }
+
+            let tagger = NLTagger(tagSchemes: [.nameType, .lexicalClass])
+            tagger.string = sample
+            let opts: NLTagger.Options = [.omitWhitespace, .omitPunctuation, .joinNames]
+
+            var topics: [String] = []
+            var actions: [String] = []
+            var objects: [String] = []
+
+            // Generic filler words to skip
+            let skip: Set<String> = [
+                "information", "data", "system", "process", "method", "type", "result",
+                "value", "level", "step", "point", "case", "thing", "fact", "issue",
+                "content", "detail", "feature", "section", "part", "example", "item",
+                "number", "time", "way", "use", "need", "order", "form", "rate",
+                "state", "area", "line", "note", "text", "page", "word", "mode",
+            ]
+
+            // Named entities → topics
+            tagger.enumerateTags(in: sample.startIndex..<sample.endIndex, unit: .word, scheme: .nameType, options: opts) { tag, range in
+                if let tag, [.personalName, .placeName, .organizationName].contains(tag) {
+                    let entity = String(sample[range]).trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                    if entity.count >= 2, entity.count <= 30, !topics.contains(entity) {
+                        topics.append(entity)
+                    }
+                }
+                return topics.count < 3
+            }
+
+            // Nouns → objects, Verbs → actions
+            tagger.enumerateTags(in: sample.startIndex..<sample.endIndex, unit: .word, scheme: .lexicalClass, options: opts) { tag, range in
+                let word = String(sample[range]).trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                guard word.count >= 3, word.count <= 20, !skip.contains(word) else { return true }
+
+                if tag == .noun, !objects.contains(word) {
+                    objects.append(word)
+                } else if tag == .verb, !actions.contains(word) {
+                    actions.append(word)
+                }
+                return objects.count < 3 && actions.count < 2
+            }
+
+            // If no named entities found, promote top nouns to topics
+            if topics.isEmpty, objects.count >= 2 {
+                topics = Array(objects.prefix(2))
+                objects = Array(objects.dropFirst(2))
+            }
+
+            let tags = ContentTags(
+                topics: Array(topics.prefix(3)),
+                actions: Array(actions.prefix(2)),
+                emotions: ["informative"],  // safe default
+                objects: Array(objects.prefix(3))
+            )
+
+            Log.info("[ContentTagging] NLTagger fallback: \(tags.displayTags.joined(separator: ", "))", category: .llm)
+            return tags
         }
     }
 

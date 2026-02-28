@@ -26,12 +26,6 @@ struct MessageBubbleV2: View {
     let onTranslate: ((String) -> Void)?
     /// Called when user taps Illustrate on a response
     let onIllustrate: ((String) -> Void)?
-    /// Called when user taps Proofread on a response
-    let onProofread: ((String) -> Void)?
-    /// Called when user taps Rewrite on a response
-    let onRewrite: ((String) -> Void)?
-    /// Called when user taps Summarize on a response
-    let onSummarize: ((String) -> Void)?
 
     @State private var showActions = false
     @State private var showDetails = false
@@ -54,10 +48,7 @@ struct MessageBubbleV2: View {
         onThumbsUp: (() -> Void)? = nil,
         onThumbsDown: (() -> Void)? = nil,
         onTranslate: ((String) -> Void)? = nil,
-        onIllustrate: ((String) -> Void)? = nil,
-        onProofread: ((String) -> Void)? = nil,
-        onRewrite: ((String) -> Void)? = nil,
-        onSummarize: ((String) -> Void)? = nil
+        onIllustrate: ((String) -> Void)? = nil
     ) {
         _message = message
         self.showMetadata = showMetadata
@@ -67,9 +58,6 @@ struct MessageBubbleV2: View {
         self.onThumbsDown = onThumbsDown
         self.onTranslate = onTranslate
         self.onIllustrate = onIllustrate
-        self.onProofread = onProofread
-        self.onRewrite = onRewrite
-        self.onSummarize = onSummarize
     }
 
     private var isUser: Bool { message.role == .user }
@@ -163,9 +151,6 @@ struct MessageBubbleV2: View {
                     onGoDeeper: isUser ? nil : onGoDeeper,
                     onTranslate: (!isUser && onTranslate != nil) ? { onTranslate?(message.content) } : nil,
                     onIllustrate: (!isUser && onIllustrate != nil) ? { onIllustrate?(message.content) } : nil,
-                    onProofread: (!isUser && onProofread != nil) ? { onProofread?(message.content) } : nil,
-                    onRewrite: (!isUser && onRewrite != nil) ? { onRewrite?(message.content) } : nil,
-                    onSummarize: (!isUser && onSummarize != nil) ? { onSummarize?(message.content) } : nil,
                     onThumbsUp: onThumbsUp,
                     onThumbsDown: onThumbsDown
                 )

@@ -29,6 +29,19 @@ import FoundationModels
 /// - "What is Analysis?" → "How does the Jaccard similarity threshold detect font-encoded PDFs?"
 /// - Diversity is enforced at the chunk selection level, not post-hoc filtering
 /// - Cache invalidates on document change, not never
+
+#if canImport(FoundationModels)
+/// Structured LLM output for suggested question generation.
+/// @Generable guarantees a typed [String] array — no numbered-line parsing or regex needed.
+/// Constrained sampling enforces the declared schema at the token level.
+@available(iOS 26.0, *)
+@Generable
+struct SuggestedQuestionList: Sendable {
+    @Guide(description: "Specific, answerable questions grounded in the provided document passages. Each question references a concrete detail — a number, term, name, species, process, or measurement — that appears in the text. Questions are diverse in type and topic across the passages. Do not start with 'What is' or 'Explain' for simple concepts.")
+    var questions: [String]
+}
+#endif
+
 actor SuggestedQuestionsService {
 
     // MARK: - Types
@@ -41,6 +54,18 @@ actor SuggestedQuestionsService {
         case procedural = "how"
         case analytical = "analyze"
         case numerical = "numeric"
+
+        /// SF Symbol icon for category badge
+        var icon: String {
+            switch self {
+            case .factRetrieval: return "magnifyingglass"
+            case .comparison: return "arrow.left.arrow.right"
+            case .summarization: return "doc.text"
+            case .procedural: return "list.number"
+            case .analytical: return "chart.bar.xaxis"
+            case .numerical: return "number"
+            }
+        }
     }
 
     /// A generated question with metadata
@@ -72,15 +97,29 @@ actor SuggestedQuestionsService {
     ///
     /// Questions are generated directly from chunk content using Apple FM (LLM-first).
     /// Falls back to content-phrase extraction when LLM is unavailable.
+    ///
+    /// - Parameters:
+    ///   - containerId: Active container UUID
+    ///   - documents: Documents in the container
+    ///   - sampleChunks: Representative chunks (up to 50)
+    ///   - count: Number of questions to return
+    ///   - forceRefresh: Bypass cache and generate fresh questions (e.g. user tapped refresh)
     func generateQuestions(
         for containerId: UUID,
         documents: [Document],
         sampleChunks: [DocumentChunk],
-        count: Int = 4
+        count: Int = 4,
+        forceRefresh: Bool = false
     ) async -> [SuggestedQuestion] {
 
-        // Check cache — but only if document count hasn't changed and cache isn't stale
-        if let cached = cachedQuestions[containerId],
+        // Collect previously-shown questions so refresh can avoid repeats
+        let previousTexts: [String] = forceRefresh
+            ? (cachedQuestions[containerId]?.questions.map { $0.text } ?? [])
+            : []
+
+        // Check cache — but only if not forcing refresh, doc count unchanged, and cache fresh
+        if !forceRefresh,
+           let cached = cachedQuestions[containerId],
            cached.documentCount == documents.count,
            Date().timeIntervalSince(cached.generatedAt) < Self.cacheMaxAge,
            !cached.questions.isEmpty {
@@ -94,14 +133,20 @@ actor SuggestedQuestionsService {
         }
 
         // Step 1: Select diverse representative chunks
-        let diverseChunks = selectDiverseChunks(from: sampleChunks, documents: documents, targetCount: 6)
+        // On refresh, shuffle the input to get different chunks for variety
+        let inputChunks = forceRefresh ? sampleChunks.shuffled() : sampleChunks
+        let diverseChunks = selectDiverseChunks(from: inputChunks, documents: documents, targetCount: 6)
 
         // Step 2: Try LLM generation first (iOS 26+)
         var questions: [SuggestedQuestion] = []
 
         #if canImport(FoundationModels)
         if #available(iOS 26.0, *) {
-            questions = await generateWithLLM(chunks: diverseChunks, documents: documents)
+            questions = await generateWithLLM(
+                chunks: diverseChunks,
+                documents: documents,
+                avoidTexts: previousTexts
+            )
         }
         #endif
 
@@ -119,7 +164,7 @@ actor SuggestedQuestionsService {
             documentCount: documents.count,
             generatedAt: Date()
         )
-        Log.info("[SuggestedQuestions] Generated \(deduped.count) questions for container")
+        Log.info("[SuggestedQuestions] Generated \(deduped.count) questions for container (refresh: \(forceRefresh))")
 
         return Array(deduped.prefix(count))
     }
@@ -238,7 +283,8 @@ actor SuggestedQuestionsService {
     @available(iOS 26.0, *)
     private func generateWithLLM(
         chunks: [DocumentChunk],
-        documents: [Document]
+        documents: [Document],
+        avoidTexts: [String] = []
     ) async -> [SuggestedQuestion] {
 
         guard SystemLanguageModel.default.isAvailable else {
@@ -255,6 +301,17 @@ actor SuggestedQuestionsService {
         }
         let passageText = passages.joined(separator: "\n\n")
 
+        // If refreshing, tell the LLM to avoid previously-shown questions
+        let avoidClause: String
+        if !avoidTexts.isEmpty {
+            let listed = avoidTexts.prefix(6).enumerated()
+                .map { "\($0.offset + 1). \($0.element)" }
+                .joined(separator: "\n")
+            avoidClause = "\n\nIMPORTANT: Do NOT repeat these previously shown questions — generate completely different ones:\n\(listed)\n"
+        } else {
+            avoidClause = ""
+        }
+
         let prompt = """
         You are generating suggested questions for a document Q&A system. Below are passages from the user's uploaded documents.
 
@@ -267,7 +324,7 @@ actor SuggestedQuestionsService {
 
         Good examples: "What oil viscosity does the 2024 Sportage require?", "How does MMR diversification improve retrieval?", "What are the side effects of methylphenidate on emotional regulation?"
         Bad examples: "What is analysis?", "Explain the data", "Tell me about the document"
-
+        \(avoidClause)
         PASSAGES:
         \(passageText)
 
@@ -276,17 +333,10 @@ actor SuggestedQuestionsService {
 
         do {
             let session = LanguageModelSession()
-            let response = try await session.respond(to: prompt)
-            let responseText = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
-
-            // Parse numbered lines
-            let lines = responseText
-                .components(separatedBy: .newlines)
-                .map { line in
-                    // Strip numbering: "1. What..." or "1) What..." → "What..."
-                    line.replacingOccurrences(of: #"^\d+[\.\)]\s*"#, with: "", options: .regularExpression)
-                        .trimmingCharacters(in: .whitespaces)
-                }
+            // @Generable: typed [String] array — eliminates numbered-line regex parsing.
+            // Constrained sampling enforces the declared schema at the token level.
+            let response = try await session.respond(to: prompt, generating: SuggestedQuestionList.self)
+            let lines = response.content.questions
                 .filter { !$0.isEmpty && $0.count >= 10 }
 
             guard lines.count >= 2 else {

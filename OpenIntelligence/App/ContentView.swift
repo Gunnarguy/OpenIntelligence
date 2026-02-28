@@ -123,6 +123,9 @@ struct ContentView: View {
         // this will emit a single warning if no StoreKit configuration is present.
         .task {
             await entitlementStore.billingService.refreshProducts()
+            // Auto-reconcile existing purchases on launch so paid users
+            // are recognized immediately after reinstall or device change.
+            await entitlementStore.reconcileEntitlementsOnLaunch()
 
             if screenshotMode.shouldImportSamples {
                 await importSamplesIfNeeded()

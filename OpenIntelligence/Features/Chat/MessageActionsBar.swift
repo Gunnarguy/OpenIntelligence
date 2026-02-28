@@ -32,13 +32,6 @@ struct MessageActionsBar: View {
     /// Called when user taps "Illustrate" to open Image Playground
     var onIllustrate: (() -> Void)?
 
-    /// Called when user taps "Proofread" to polish the response via WritingTools
-    var onProofread: (() -> Void)?
-    /// Called when user taps "Rewrite" to get a rewritten version via WritingTools
-    var onRewrite: (() -> Void)?
-    /// Called when user taps "Summarize" to get a summary via WritingTools
-    var onSummarize: (() -> Void)?
-
     // iOS 26+: Thumbs up/down feedback for Apple Foundation Models
     let onThumbsUp: (() -> Void)?
     let onThumbsDown: (() -> Void)?
@@ -168,25 +161,6 @@ struct MessageActionsBar: View {
                         onIllustrate()
                     }
                 }
-
-                // WritingTools actions (assistant only)
-                if !isUser, let onProofread {
-                    ActionButton(icon: "text.magnifyingglass", label: "Proofread", color: .indigo) {
-                        onProofread()
-                    }
-                }
-
-                if !isUser, let onRewrite {
-                    ActionButton(icon: "arrow.triangle.2.circlepath", label: "Rewrite", color: .teal) {
-                        onRewrite()
-                    }
-                }
-
-                if !isUser, let onSummarize {
-                    ActionButton(icon: "text.redaction", label: "Summarize", color: .orange) {
-                        onSummarize()
-                    }
-                }
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
@@ -220,8 +194,6 @@ private struct ActionButton: View {
     let label: String
     let color: Color
     let action: () -> Void
-
-    @State private var isPressed = false
 
     var body: some View {
         Button(action: {
