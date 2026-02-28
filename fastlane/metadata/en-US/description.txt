@@ -39,10 +39,10 @@ PDF (native + OCR), Word, Excel, PowerPoint, Markdown, CSV, RTF, TXT, and images
 
 SUBSCRIPTION OPTIONS
 
-• Pro Monthly: Unlimited documents, all features
+• Pro Monthly: Up to 1,000 documents, all features
 • Pro Annual: Save 30% compared to monthly
 • Lifetime: One-time purchase, forever access
-• Free tier includes core functionality with document limits
+• Free tier includes core functionality with 5 document limit
 
 Payment is charged to your Apple ID account at purchase confirmation. Subscriptions automatically renew unless canceled at least 24 hours before the end of the current period. Manage subscriptions in Settings > Apple ID > Subscriptions.
 

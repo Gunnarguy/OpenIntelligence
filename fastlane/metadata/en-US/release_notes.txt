@@ -1,4 +1,4 @@
-Version 1.2.0
+Version 2.0
 
 AI-POWERED DOCUMENT TRANSFORMS
 New AI Hub toolbar with 5 document-aware transforms — each uses your actual retrieved source chunks, not just the AI response text.

@@ -14,7 +14,7 @@ platform :ios do
       output_name: "OpenIntelligence.ipa",
       export_options: {
         signingStyle: "automatic",
-        teamID: "G4DLR3K35G"  # Your Apple Developer Team ID
+        teamID: "Z3E334EXZD"  # Your Apple Developer Team ID
       }
     )
   end
