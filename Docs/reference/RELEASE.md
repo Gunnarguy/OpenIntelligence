@@ -1,7 +1,7 @@
 # Release & Operations Guide
 
-**Last Updated**: January 2026
-**Status**: Production (App Store Submitted - Build 4)
+**Last Updated**: February 2026
+**Status**: Production (v1.2.0 — Build 14)
 
 This is the consolidated guide for releasing OpenIntelligence to the App Store. It combines release checklists, smoke testing, StoreKit configuration, and App Store Connect setup.
 
@@ -191,12 +191,10 @@ This repo uses **two schemes** so local StoreKit testing never leaks into “rea
 
 | Product ID        | Type           | Price     | Notes                                  |
 | ----------------- | -------------- | --------- | -------------------------------------- |
-| `starter_monthly` | Subscription   | $2.99/mo  | 3-day trial                            |
-| `starter_annual`  | Subscription   | $24.99/yr | 7-day trial                            |
-| `pro_monthly`     | Subscription   | $8.99/mo  | 7-day trial                            |
-| `pro_annual`      | Subscription   | $89.99/yr | Family Sharing                         |
+| `pro_monthly`     | Subscription   | $5.99/mo  | 7-day trial                            |
+| `pro_annual`      | Subscription   | $49.99/yr | Family Sharing                         |
 | `lifetime_cohort` | Non-consumable | $59.99    | Limited availability (lifetime unlock) |
-| `doc_pack_addon`  | Consumable     | $4.99     | +25 documents                          |
+| `doc_pack_addon`  | Consumable     | $2.99     | +10 documents                          |
 
 ### Validate Catalog
 
@@ -253,7 +251,7 @@ xcodebuild -exportArchive \
 - Ensure the **Paid Applications / Agreements, Tax, and Banking** setup is completed for the account.
 - Ensure you’re inside the correct app: **My Apps → OpenIntelligence**.
 - Use **Monetization → In-App Purchases and Subscriptions** and then select the correct sub-section:
-  - **Subscriptions** (for Starter/Pro plans)
+  - **Subscriptions** (for Pro plans)
   - **In-App Purchases** (for lifetime + consumables)
 
 #### Subscriptions (Auto-Renewable)
@@ -283,12 +281,10 @@ For each product:
 
 | SKU               | Apple Tier | Display Price |
 | ----------------- | ---------- | ------------- |
-| `starter_monthly` | S3         | $2.99         |
-| `starter_annual`  | S15        | $24.99        |
-| `pro_monthly`     | S9         | $8.99         |
-| `pro_annual`      | S69        | $89.99        |
+| `pro_monthly`     | S6         | $5.99         |
+| `pro_annual`      | S39        | $49.99        |
 | `lifetime_cohort` | Tier TBD   | $59.99        |
-| `doc_pack_addon`  | Tier 5     | $4.99         |
+| `doc_pack_addon`  | Tier 3     | $2.99         |
 
 ### App Store Metadata
 
@@ -317,13 +313,12 @@ For each product:
 
 ### Success Metrics
 
-| Metric                  | Target |
-| ----------------------- | ------ |
-| Download → Trial        | ≥10%   |
-| Trial → Paid            | ≥45%   |
-| Monthly Churn (Starter) | ≤9%    |
-| Monthly Churn (Pro)     | ≤6%    |
-| Refund Rate             | <4%    |
+| Metric              | Target |
+| ------------------- | ------ |
+| Download → Trial    | ≥10%   |
+| Trial → Paid        | ≥45%   |
+| Monthly Churn (Pro) | ≤6%    |
+| Refund Rate         | <4%    |
 
 ---
 
