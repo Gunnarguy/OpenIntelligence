@@ -35,11 +35,11 @@
         },
         "de-DE": {
           "name": "Pro Monatsabo",
-          "description": "Unbegrenzte Dokumente, 5 Bibliotheken und erweiterte Retrieval-Einstellungen."
+          "description": "Bis zu 1.000 Dokumente, 5 Bibliotheken und erweiterte Retrieval-Einstellungen."
         },
         "ja-JP": {
           "name": "プロプラン（月額）",
-          "description": "無制限のドキュメント、5 つのライブラリ、高度な検索コントロールを提供します。"
+          "description": "最大1,000件のドキュメント、5つのライブラリ、高度な検索コントロールを提供します。"
         }
       }
     },
@@ -67,7 +67,7 @@
         },
         "es-ES": {
           "name": "Pro Anual",
-          "description": "Facturación anual para documentos ilimitados y 5 bibliotecas. Ahorra 30%."
+          "description": "Facturación anual para hasta 1.000 documentos y 5 bibliotecas. Ahorra 30%."
         }
       }
     }
@@ -94,11 +94,11 @@
         },
         "de-DE": {
           "name": "Lifetime-Paket",
-          "description": "Einmaliger Kauf für unbegrenzte Dokumente, 10 Bibliotheken und alle Pro-Funktionen für immer."
+          "description": "Einmaliger Kauf für bis zu 1.000 Dokumente, 10 Bibliotheken und alle Pro-Funktionen für immer."
         },
         "ja-JP": {
           "name": "ライフタイム・コホート",
-          "description": "1 回の購入で無制限のドキュメント、10 のライブラリ、すべての Pro 機能を永久にアンロック。"
+          "description": "1回の購入で最大1,000件のドキュメント、10のライブラリ、すべてのPro機能を永久にアンロック。"
         }
       }
     }

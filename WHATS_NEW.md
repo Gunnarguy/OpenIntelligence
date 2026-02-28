@@ -1,6 +1,6 @@
-# What's New in OpenIntelligence v1.2
+# What's New in OpenIntelligence v2.0
 
-**Released**: February 24, 2026 (Build 14)
+**Released**: February 28, 2026 (Build 19)
 
 ---
 
@@ -207,13 +207,13 @@ Test suite expanded from **44 tests across 7 files** to **200+ tests across 15 f
 
 ---
 
-## Cumulative Changes Since App Store Launch (v1.0.0 → v1.2.0)
+## Cumulative Changes Since App Store Launch (v1.0.0 → v2.0)
 
 For the complete build-by-build changelog, see [CHANGELOG.md](CHANGELOG.md).
 
 ### What changed at a glance
 
-| Area                       | v1.0.0 (Launch)                         | v1.2.0 (Current)                                                                                |
+| Area                       | v1.0.0 (Launch)                         | v2.0 (Current)                                                                                |
 | -------------------------- | --------------------------------------- | ----------------------------------------------------------------------------------------------- |
 | Pipeline steps             | 23                                      | 25                                                                                              |
 | Services                   | 79                                      | 102                                                                                             |

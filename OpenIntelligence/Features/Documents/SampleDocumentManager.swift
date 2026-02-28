@@ -36,14 +36,14 @@ OpenIntelligence is a privacy-first AI document assistant that runs entirely on 
 ### Pro Subscription
 - **Monthly**: $5.99/month
 - **Annual**: $49.99/year (save 30%)
-- Unlimited documents
+- Up to 1,000 documents
 - 5 libraries for organization
 - Priority ingestion queue
 - Advanced RAG features
 
 ### Lifetime License
 - **One-time**: $59.99
-- Unlimited documents forever
+- Up to 1,000 documents forever
 - 10 libraries maximum
 - All Pro features included
 - No recurring payments

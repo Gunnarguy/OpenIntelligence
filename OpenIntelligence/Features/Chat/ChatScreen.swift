@@ -841,7 +841,7 @@ struct ChatScreen: View {
                     content:
                     "• Privacy-first: Your docs stay on-device by default, with optional Private Cloud Compute.\n" +
                         "• Fast, grounded answers: Hybrid search + re-ranking helps keep responses tied to your library.\n" +
-                        "• Upgrade when ready: Pro unlocks unlimited docs, more libraries, and priority ingestion."
+                        "• Upgrade when ready: Pro unlocks up to 1,000 docs, more libraries, and priority ingestion."
                 ),
             ]
 
@@ -879,7 +879,7 @@ struct ChatScreen: View {
                         rank: 1,
                         title: "Value Ladder",
                         page: 1,
-                        snippet: "Pro unlocks unlimited docs, 5 libraries, and priority ingestion. Lifetime gives you all Pro features forever.",
+                        snippet: "Pro unlocks up to 1,000 docs, 5 libraries, and priority ingestion. Lifetime gives you all Pro features forever.",
                         score: 0.86
                     ),
                     makeChunk(
@@ -979,7 +979,7 @@ struct ChatScreen: View {
 
                 ## Pricing Tiers
                 • **Free**: 5 documents, 1 library, full privacy dashboard
-                • **Pro** ($5.99/mo or $49.99/yr): Unlimited docs, 5 libraries, priority ingestion
+                • **Pro** ($5.99/mo or $49.99/yr): Up to 1,000 docs, 5 libraries, priority ingestion
                 • **Lifetime** ($59.99): All Pro features forever, 10 libraries
 
                 ## Privacy Architecture
@@ -1025,7 +1025,7 @@ struct ChatScreen: View {
                 rank: 1,
                 title: "Value Ladder",
                 page: 1,
-                snippet: "Free: 5 docs, 1 library. Pro ($5.99/mo): Unlimited docs, 5 libraries. Lifetime ($59.99): All Pro features forever.",
+                snippet: "Free: 5 docs, 1 library. Pro ($5.99/mo): Up to 1,000 docs, 5 libraries. Lifetime ($59.99): All Pro features forever.",
                 score: 0.92
             ),
             makeChunk(

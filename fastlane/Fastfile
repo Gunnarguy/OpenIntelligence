@@ -114,7 +114,7 @@ platform :ios do
     end
 
     # Load StoreKit config
-    storekit_path = File.join(Dir.pwd, "..", "OpenIntelligence", "StoreKit", "StoreKitConfiguration.storekit")
+    storekit_path = File.join(Dir.pwd, "..", "OpenIntelligence", "Resources", "StoreKit", "StoreKitConfiguration.storekit")
     unless File.exist?(storekit_path)
       UI.user_error!("StoreKitConfiguration.storekit not found")
     end

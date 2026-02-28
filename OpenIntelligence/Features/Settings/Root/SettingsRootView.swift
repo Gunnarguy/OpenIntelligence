@@ -549,7 +549,7 @@ struct AboutSettingsView: View {
             .init(
                 name: "Pro",
                 price: "$5.99/mo or $49.99/yr",
-                allowances: "Unlimited docs · 5 libraries",
+                allowances: "Up to 1,000 docs · 5 libraries",
                 highlights: [
                     "Full hybrid retrieval with MMR tuning",
                     "Priority ingestion",
@@ -559,7 +559,7 @@ struct AboutSettingsView: View {
             .init(
                 name: "Lifetime",
                 price: "$59.99 one-time",
-                allowances: "Unlimited docs · 10 libraries",
+                allowances: "Up to 1,000 docs · 10 libraries",
                 highlights: [
                     "All Pro features forever",
                     "No recurring charges",
