@@ -4,7 +4,7 @@ import Foundation
 enum QuotaPolicy {
     /// Base document allowance for each tier prior to add-on credits.
     static let freeDocumentLimit: Int = 5
-    static let proDocumentLimit: Int = 1_000  // Soft cap; UI treats as "unlimited"
+    static let proDocumentLimit: Int = 1_000  // Hard cap per QuotaPolicy
     static let lifetimeDocumentLimit: Int = 1_000
 
     /// Base workspace (container) allowance.

@@ -1,7 +1,7 @@
 # OpenIntelligence Roadmap
 
-**Last Updated**: February 24, 2026
-**Version**: 1.2.0 (Build 14)
+**Last Updated**: February 28, 2026
+**Version**: 2.0 (Build 19)
 **Status**: App Store Live
 **Maturity**: Production RAG pipeline with 8 agentic tools + Motherboard HUD + Device-Optimized Performance Engine + Rich Markdown Rendering + Zero-Data-Loss Ingestion + Swift 6 Compliance + Pipeline Reliability Hardening + Memory-Safe Large PDF Ingestion
 **Next Milestone**: v1.3 — Apple Intelligence Gap Closure (Guardrails, Table Recognition, CoreSpotlight, SpeechAnalyzer, Translation, Liquid Glass)

@@ -1,7 +1,7 @@
 # Release & Operations Guide
 
 **Last Updated**: February 2026
-**Status**: Production (v1.2.0 — Build 14)
+**Status**: Production (v2.0 — Build 19)
 
 This is the consolidated guide for releasing OpenIntelligence to the App Store. It combines release checklists, smoke testing, StoreKit configuration, and App Store Connect setup.
 

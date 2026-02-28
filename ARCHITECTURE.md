@@ -1,8 +1,8 @@
 # OpenIntelligence Technical Architecture
 
-**Version**: 3.7
-**Date**: February 24, 2026
-**Status**: Production (App Store v1.2)
+**Version**: 3.8
+**Date**: February 28, 2026
+**Status**: Production (App Store v2.0)
 
 ## Table of Contents
 

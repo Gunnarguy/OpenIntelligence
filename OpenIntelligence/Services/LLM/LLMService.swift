@@ -2094,7 +2094,7 @@ class ScreenshotMockLLMService: LLMService {
             Based on your pricing brief, OpenIntelligence offers a clear value ladder:
 
             **Free Tier**: 5 documents, 1 library, full privacy dashboard
-            **Pro ($5.99/mo or $49.99/yr)**: Unlimited docs, 5 libraries, priority ingestion
+            **Pro ($5.99/mo or $49.99/yr)**: Up to 1,000 docs, 5 libraries, priority ingestion
             **Lifetime ($59.99)**: All Pro features forever
 
             The messaging pillars emphasize privacy-first design (data stays on-device or Apple PCC), fast retrieval through hybrid search, and simple pricing with one upgrade path.

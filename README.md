@@ -11,7 +11,7 @@
 
 ## Table of Contents
 
-1. [What's New in v1.2](#whats-new-in-v12-february-2026)
+1. [What's New in v2.0](#whats-new-in-v20-february-2026)
 2. [What It Does](#what-it-does)
 3. [Supported File Formats](#supported-file-formats)
 4. [Core Technology](#core-technology)
@@ -32,7 +32,7 @@ OpenIntelligence is a document question-answering app powered by Apple Intellige
 
 ---
 
-## What's New in v1.2 (February 2026)
+## What's New in v2.0 (February 2026)
 
 ### Device-Optimized Performance Engine
 
@@ -48,7 +48,7 @@ Every pipeline stage is now hardware-aware — tuned to the specific Apple Silic
 - **RAG-grounded response transforms** — AI Hub toolbar with 5 document-aware transforms (Key Facts, Step-by-Step, Plain English, What's Missing?, Illustrate) powered by actual source chunks
 - **Image Playground LLM concepts** — On-device LLM translates domain jargon into visual scene descriptions instead of raw noun extraction
 
-### Rich Markdown Response Rendering (v1.2)
+### Rich Markdown Response Rendering (v2.0)
 
 Responses now render with full markdown formatting — headers, bullets, bold text, code blocks, and block quotes — instead of a single unformatted paragraph.
 
@@ -57,11 +57,11 @@ Responses now render with full markdown formatting — headers, bullets, bold te
 - **Formatting-aware prompts** — All LLM synthesis prompts instruct the model to use `### headers`, `- bullets`, and `**bold**` for key terms
 - **Pipeline preservation** — 7 response-cleaning functions audited; markdown is no longer stripped from responses
 
-### MMR Stability Fix (v1.2)
+### MMR Stability Fix (v2.0)
 
 - Fixed crash in `RAGEngine.applyMMR()` when GPU diversity matrix returned malformed results for edge-case embeddings (dimension 0)
 
-### True Parallel Hybrid Search (v1.2)
+### True Parallel Hybrid Search (v2.0)
 
 Hybrid search rewritten from "FTS5 injection into vector pool" to **two fully independent searches merged via Reciprocal Rank Fusion**:
 
@@ -70,7 +70,7 @@ Hybrid search rewritten from "FTS5 injection into vector pool" to **two fully in
 - **FTS5-only matches visible** — Chunks found only by keyword search (no semantic similarity) now get fair RRF scores
 - **True RRF fusion** — Two independently ranked lists merged via UNION semantics
 
-### Test Coverage Expansion (v1.2)
+### Test Coverage Expansion (v2.0)
 
 Test suite expanded from **44 tests** (7 files) to **200+ tests** (15 files), covering the 8 highest-risk untested services: BM25 scoring, semantic chunking, verification gates, context packing, query enhancement, extractive QA, markdown rendering, and OCR configuration.
 
@@ -96,11 +96,11 @@ Near-perfect needle-in-haystack accuracy across any document type:
 - Year/integer exemption in numeric verification
 - Proportional hit-rate weighting in RRF fusion
 
-### Swift 6 Concurrency Compliance (v1.2)
+### Swift 6 Concurrency Compliance (v2.0)
 
 - 11 files updated with strict concurrency annotations — zero runtime change, eliminates all Swift 6 language mode warnings
 
-### Pipeline Reliability Hardening (v1.2)
+### Pipeline Reliability Hardening (v2.0)
 
 11 targeted fixes across the compression → generation → fallback chain that eliminated 0-token responses caused by rate-limited Apple FM calls cascading through the pipeline:
 
@@ -108,7 +108,7 @@ Near-perfect needle-in-haystack accuracy across any document type:
 - **Generation hardening** — Empty LLM output routes to reliability fallback instead of throwing; 2s rate-limit retry with typed `.rateLimited`/`.concurrentRequests` error cases
 - **Fallback quality** — Extractive Path B rewritten: 6 chunks × 500 chars with section titles and source names (was 3 × 240 chars, no metadata)
 
-### Memory-Safe Large PDF Ingestion (v1.2)
+### Memory-Safe Large PDF Ingestion (v2.0)
 
 Prevents OOM watchdog kills during ingestion of 500+ page PDFs:
 

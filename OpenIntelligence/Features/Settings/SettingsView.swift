@@ -241,7 +241,7 @@ struct SettingsView: View {
         case .pro:
             return "Pro plan • Active"
         case .lifetime:
-            return "Lifetime • Unlimited"
+            return "Lifetime • Up to 1,000 docs"
         }
     }
 
