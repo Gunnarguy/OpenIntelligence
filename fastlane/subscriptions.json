@@ -19,7 +19,7 @@
       "subscription_group": "com.openintelligence.subscriptions",
       "subscription_group_level": 1,
       "family_shareable": false,
-      "review_notes": "Unlocks unlimited documents, 5 knowledge libraries, and priority ingestion. All processing uses on-device AI with optional Private Cloud Compute.",
+      "review_notes": "Unlocks up to 1,000 documents, 5 knowledge libraries, and priority ingestion. All processing uses on-device AI with optional Private Cloud Compute.",
       "pricing": {
         "USD": 5.99,
         "tier": "Tier 6"
@@ -27,11 +27,11 @@
       "localizations": {
         "en-US": {
           "name": "Pro Monthly",
-          "description": "Unlimited documents, 5 libraries, and premium retrieval controls."
+          "description": "Up to 1,000 documents, 5 libraries, and premium retrieval controls."
         },
         "en-GB": {
           "name": "Pro Monthly",
-          "description": "Unlimited documents, 5 libraries, and premium retrieval controls."
+          "description": "Up to 1,000 documents, 5 libraries, and premium retrieval controls."
         },
         "de-DE": {
           "name": "Pro Monatsabo",
@@ -51,7 +51,7 @@
       "subscription_group": "com.openintelligence.subscriptions",
       "subscription_group_level": 1,
       "family_shareable": true,
-      "review_notes": "Annual billing for Pro features. Save 30% compared to monthly. Unlocks unlimited documents, 5 libraries, priority ingestion.",
+      "review_notes": "Annual billing for Pro features. Save 30% compared to monthly. Unlocks up to 1,000 documents, 5 libraries, priority ingestion.",
       "pricing": {
         "USD": 49.99,
         "tier": "Tier 50"
@@ -59,11 +59,11 @@
       "localizations": {
         "en-US": {
           "name": "Pro Annual",
-          "description": "Annual billing for unlimited documents and 5 libraries. Save 30%."
+          "description": "Annual billing for up to 1,000 documents and 5 libraries. Save 30%."
         },
         "en-GB": {
           "name": "Pro Annual",
-          "description": "Annual billing for unlimited documents and 5 libraries. Save 30%."
+          "description": "Annual billing for up to 1,000 documents and 5 libraries. Save 30%."
         },
         "es-ES": {
           "name": "Pro Anual",
@@ -78,7 +78,7 @@
       "reference_name": "Lifetime Cohort",
       "type": "non-consumable",
       "family_shareable": true,
-      "review_notes": "One-time purchase that permanently unlocks all Pro features: unlimited documents, 10 libraries, priority support. No subscription required. Early supporter pricing.",
+      "review_notes": "One-time purchase that permanently unlocks all Pro features: up to 1,000 documents, 10 libraries, priority support. No subscription required. Early supporter pricing.",
       "pricing": {
         "USD": 59.99,
         "tier": "Tier 60"
@@ -86,11 +86,11 @@
       "localizations": {
         "en-US": {
           "name": "Lifetime Cohort",
-          "description": "One-time unlock for unlimited documents, 10 libraries, and all Pro features forever."
+          "description": "One-time unlock for up to 1,000 documents, 10 libraries, and all Pro features forever."
         },
         "en-GB": {
           "name": "Lifetime Cohort",
-          "description": "One-time unlock for unlimited documents, 10 libraries, and all Pro features forever."
+          "description": "One-time unlock for up to 1,000 documents, 10 libraries, and all Pro features forever."
         },
         "de-DE": {
           "name": "Lifetime-Paket",
