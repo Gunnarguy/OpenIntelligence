@@ -25,9 +25,11 @@ struct OnboardingChecklistView: View {
                     Button {
                         if currentPage == totalPages - 1 {
                             // On final page, skip permanently
+                            DSHaptics.light()
                             onboardingStore.skipPermanently()
                             onOpenChat()
                         } else {
+                            DSHaptics.soft()
                             onboardingStore.dismissChecklist()
                         }
                     } label: {
@@ -76,6 +78,7 @@ struct OnboardingChecklistView: View {
                     // Navigation buttons
                     if currentPage < totalPages - 1 {
                         Button {
+                            DSHaptics.selection()
                             withAnimation { currentPage += 1 }
                         } label: {
                             Text("Continue")
@@ -90,6 +93,7 @@ struct OnboardingChecklistView: View {
                     } else {
                         // Final page - primary CTA
                         Button {
+                            DSHaptics.medium()
                             startWithSamples()
                         } label: {
                             HStack(spacing: 8) {
@@ -108,6 +112,7 @@ struct OnboardingChecklistView: View {
                         .opacity(isProcessing ? 0 : 1)
 
                         Button {
+                            DSHaptics.light()
                             onboardingStore.skipPermanently()
                             onOpenChat()
                         } label: {
@@ -166,6 +171,8 @@ struct OnboardingChecklistView: View {
                         .font(.subheadline)
                         .foregroundColor(.white.opacity(0.7))
                 }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("RAG Pipeline: \(overallStatus)")
 
                 Spacer()
             }
@@ -548,20 +555,22 @@ struct OnboardingChecklistView: View {
                 // Brief pause to show completion
                 processingStatus = "Ready!"
                 processingProgress = 1.0
+                DSHaptics.success()
                 try? await Task.sleep(for: .milliseconds(400))
 
                 // Reset LLM session to ensure fresh context budget for first queries
                 // This prevents transcript tokens from eating into context window
                 ragService.resetLLMSession()
 
-                // Mark onboarding complete - user tapped Get Started, they're onboarded
-                onboardingStore.skipPermanently()
+                // Mark onboarding properly completed (not skipped) for analytics
+                onboardingStore.markOnboardingCompleted()
                 onOpenChat()
 
             } catch {
                 Log.error("Sample import failed: \(error)", category: .initialization)
-                processingStatus = "Import failed — tap to retry"
+                processingStatus = "Import failed — please try again"
                 processingProgress = 0.0
+                DSHaptics.error()
 
                 // Reset so the user can try again — do NOT complete onboarding
                 try? await Task.sleep(for: .seconds(1.5))
@@ -828,6 +837,9 @@ private struct OnboardingIngestionRow: View {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(Color.white.opacity(0.08))
         )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(item.filename), \(item.stage.displayName)")
+        .accessibilityValue(metricsDetail ?? "")
     }
 
     private func elapsedString(from start: Date) -> String {
@@ -880,6 +892,9 @@ private struct PipelineStageBadge: View {
                 .font(.system(size: 9, weight: isActive ? .bold : .medium))
                 .foregroundColor(isActive ? .white : .white.opacity(0.4))
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(label) stage")
+        .accessibilityValue(isActive ? "Active" : "Inactive")
         .onAppear {
             if isActive { isPulsing = true }
         }

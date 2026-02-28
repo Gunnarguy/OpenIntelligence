@@ -205,6 +205,17 @@ Test suite expanded from **44 tests across 7 files** to **200+ tests across 15 f
 - **MarkdownRendererTests** (18): All block types, Unicode, LLM-concatenated output
 - **OCRConfigurationTests** (18): Custom words, recognition languages, garbage text detection
 
+### Onboarding Polish
+
+Six first-launch experience improvements:
+
+- **Haptic Feedback**: 6 touch points across onboarding — `light` on skip/dismiss, `selection` on continue, `medium` on get started, `success`/`error` on import result
+- **Analytics Separation**: New `markOnboardingCompleted()` path distinct from `skipPermanently()` — `completionMethod` UserDefaults key tracks `"completed"` vs `"skipped"` for conversion analytics
+- **Sample Import on Completion**: `markSamplesImported()` now called through the primary success path via `markOnboardingCompleted()`
+- **Pipeline Accessibility**: `PipelineStageBadge`, processing header, and `OnboardingIngestionRow` have VoiceOver labels and values — screen reader users can follow ingestion progress
+- **Error Message Fix**: "Import failed — tap to retry" → "Import failed — please try again" (previous wording implied a non-existent tap target)
+- **Microphone Permission**: `NSMicrophoneUsageDescription` added to both build configs for Speech framework voice input
+
 ---
 
 ## Cumulative Changes Since App Store Launch (v1.0.0 → v2.0)
@@ -213,7 +224,7 @@ For the complete build-by-build changelog, see [CHANGELOG.md](CHANGELOG.md).
 
 ### What changed at a glance
 
-| Area                       | v1.0.0 (Launch)                         | v2.0 (Current)                                                                                |
+| Area                       | v1.0.0 (Launch)                         | v2.0 (Current)                                                                                  |
 | -------------------------- | --------------------------------------- | ----------------------------------------------------------------------------------------------- |
 | Pipeline steps             | 23                                      | 25                                                                                              |
 | Services                   | 79                                      | 102                                                                                             |

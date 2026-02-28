@@ -452,6 +452,7 @@
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Take photos of documents or whiteboards for OCR and semantic search.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Record voice queries or dictate text for hands-free document search.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Select images from your library to extract text and add to your knowledge base.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Transcribe audio and video files you import to add their content to your knowledge base.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
@@ -506,6 +507,7 @@
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Take photos of documents or whiteboards for OCR and semantic search.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Record voice queries or dictate text for hands-free document search.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Select images from your library to extract text and add to your knowledge base.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Transcribe audio and video files you import to add their content to your knowledge base.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
