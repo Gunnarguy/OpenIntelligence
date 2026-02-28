@@ -242,6 +242,33 @@ Test suite expanded from 44 tests (7 files) to 200+ tests (15 files), covering t
 
 ---
 
+### Onboarding Polish
+
+Six targeted improvements to the first-launch experience covering haptic feedback, accessibility, analytics, error messaging, and privacy permissions.
+
+#### Haptic Feedback
+
+- **6 Haptic Touch Points**: Added `DSHaptics` feedback across every onboarding interaction — `light` on Skip/dismiss, `selection` on Continue, `medium` on Get Started, `light` on "I'll add my own documents", `success` on import completion, `error` on import failure
+
+#### Onboarding Analytics Separation
+
+- **`markOnboardingCompleted()` vs `skipPermanently()`**: Previously both paths used `skipPermanently()`, making it impossible to distinguish users who completed onboarding from those who dismissed it. New `completionMethod` UserDefaults key records `"completed"` or `"skipped"`. New `wasCompletedProperly` computed property for analytics
+- **`markSamplesImported()` called on completion**: The primary success path now properly calls `markSamplesImported()` through `markOnboardingCompleted()`, ensuring the checklist reflects actual sample import state
+
+#### Accessibility
+
+- **Pipeline Visualization Labels**: `PipelineStageBadge`, processing overlay header, and `OnboardingIngestionRow` now have `.accessibilityElement(children: .combine)` with descriptive `.accessibilityLabel` and `.accessibilityValue` — VoiceOver users can follow ingestion progress
+
+#### Error UX
+
+- **Import Failure Message**: Changed "Import failed — tap to retry" to "Import failed — please try again" — the previous wording implied a tap target that didn't exist
+
+#### Privacy Permissions
+
+- **`NSMicrophoneUsageDescription`**: Added to both Debug and Release build configurations — "Record voice queries or dictate text for hands-free document search." Required for Speech framework voice input
+
+---
+
 ## [1.1.0] - 2026-02-13 (Build 12)
 
 ### Motherboard HUD — Real-Time Apple Silicon X-Ray Overlay
