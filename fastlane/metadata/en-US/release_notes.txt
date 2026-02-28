@@ -1,53 +1,49 @@
 Version 2.0
 
 AI-POWERED DOCUMENT TRANSFORMS
-New AI Hub toolbar with 5 document-aware transforms — each uses your actual retrieved source chunks, not just the AI response text.
+New AI Hub toolbar with 5 document-aware transforms -- each uses your actual retrieved source chunks, not just the AI response text.
 
-• Key Facts — Source-backed bullet points with document/page attribution
-• Step-by-Step — Real procedures with specs and part numbers from your docs
-• Plain English — Simplifies complex technical content into accessible language
-• What's Missing? — Identifies gaps between your question and the retrieved answer
-• Illustrate — Image Playground visualization powered by LLM concept extraction
+- Key Facts: Source-backed bullet points with document/page attribution
+- Step-by-Step: Real procedures with specs and part numbers from your docs
+- Plain English: Simplifies complex technical content into accessible language
+- What's Missing?: Identifies gaps between your question and the retrieved answer
+- Illustrate: Image Playground visualization powered by LLM concept extraction
 
 SEARCH & RETRIEVAL UPGRADES
-• BM25 length normalization aligned (b: 0.75 → 0.5) — better recall on uniform-size chunks
-• 5 regex patterns pre-compiled as static constants — no per-query recompilation
-• NLTagger lemmatization in keyword search — "studies" now matches "study"
-• Anti-hallucination Gate E uses Accelerate vDSP.dot() — hardware-optimized cosine similarity
-• Verification Gate A threshold: 0.55 → 0.40 (fewer false abstentions)
-• Verification Gate B threshold: 70% → 40% (more answers pass evidence coverage)
+- BM25 length normalization aligned for better recall on uniform-size chunks
+- 5 regex patterns pre-compiled as static constants
+- NLTagger lemmatization in keyword search
+- Anti-hallucination Gate E uses hardware-optimized cosine similarity
+- Verification Gate thresholds tuned to reduce false abstentions
 
 IMAGE PLAYGROUND
-On-device LLM translates domain jargon into visual scenes. No more "try another description" on technical content.
+On-device LLM translates domain jargon into visual scenes. No more try another description on technical content.
 
 FORMATTED RESPONSES
-Full markdown rendering — headers, bullets, bold, code blocks, block quotes. 6 regex patterns normalize Apple FM single-line output. 2 response-cleaning functions that stripped formatting have been rewritten.
+Full markdown rendering: headers, bullets, bold, code blocks, block quotes. 6 regex patterns normalize Apple FM single-line output.
 
 PERFORMANCE (per Apple Silicon chip)
-• 2-4× parallel cross-encoder reranking (was sequential) via TaskGroup
-• 3× faster MLMultiArray fills — dataPointer bulk copy vs per-element NSNumber
-• OCR concurrency: A19 Pro 8 ops, A18 Pro 6, A17 Pro 4, older 2
-• 50-80% OCR skip rate on clean digital PDFs via PageComplexityAnalyzer
-• 3-tier Metal GPU: threadgroup/SIMD4/scalar auto-selected per query size
-• GPU embedding mode during ingestion frees Neural Engine for OCR
-• 5 OCR candidates evaluated per recognition (was 3)
+- 2-4x parallel cross-encoder reranking via TaskGroup
+- 3x faster MLMultiArray fills with dataPointer bulk copy
+- Device-specific OCR concurrency (A19 Pro 8 ops, A18 Pro 6, A17 Pro 4)
+- 50-80% OCR skip rate on clean digital PDFs
+- 3-tier Metal GPU: threadgroup/SIMD4/scalar auto-selected per query size
+- 5 OCR candidates evaluated per recognition (was 3)
 
-RELIABILITY (11 fixes)
-• Compression capped at 5 chunks with fresh LLM session per chunk
-• 12-second compression time budget — remaining chunks pass through as-is
-• Rate-limit retry: 2s backoff, typed .rateLimited/.concurrentRequests errors
-• Extractive fallback upgraded: 6 chunks × 500 chars with section titles
-• Empty LLM response → reliability fallback (was: generic error shown)
+RELIABILITY
+- Compression capped at 5 chunks with fresh LLM session per chunk
+- 12-second compression time budget
+- Rate-limit retry with 2s backoff
+- Extractive fallback upgraded: 6 chunks x 500 chars with section titles
 
 ZERO-DATA-LOSS INGESTION
-• Font cipher detection: Jaccard < 0.15 triggers full OCR — prevents 93% content loss on font-encoded PDFs (Kia, Hyundai manuals)
-• 5 Unicode regex patterns fixed (CJK bullets, en-dash, em-dash)
-• Image extraction fixed on garbled text layers
-• Image batch: 20 → 5 pages (~200MB → ~50MB peak memory)
+- Font cipher detection prevents 93% content loss on font-encoded PDFs
+- 5 Unicode regex patterns fixed
+- Image batch reduced from 20 to 5 pages for lower memory usage
 
 STABILITY
-• MMR crash fixed (GPU matrix edge case)
-• StoreKit 5s timeout (was 30-60s hang offline)
-• BGTask registration fixed
-• Swift 6 concurrency: 11 files updated, zero runtime change
-• 102 services, 175+ tests across 15 files
+- MMR crash fixed (GPU matrix edge case)
+- StoreKit 5s timeout (was 30-60s hang offline)
+- BGTask registration fixed
+- Swift 6 concurrency: 11 files updated, zero runtime change
+- 102 services, 175+ tests across 15 files
