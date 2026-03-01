@@ -5493,8 +5493,8 @@ extension AgenticOrchestrator {
 
         // Sort documents by total relevance (sum of chunk scores)
         let sortedDocs = docToChunks.keys.sorted { doc1, doc2 in
-            let score1 = docToChunks[doc1]!.reduce(0.0) { $0 + $1.similarityScore }
-            let score2 = docToChunks[doc2]!.reduce(0.0) { $0 + $1.similarityScore }
+            let score1 = docToChunks[doc1, default: []].reduce(0.0) { $0 + $1.similarityScore }
+            let score2 = docToChunks[doc2, default: []].reduce(0.0) { $0 + $1.similarityScore }
             return score1 > score2
         }
 
@@ -5508,7 +5508,7 @@ extension AgenticOrchestrator {
         for (idx, docName) in sortedDocs.enumerated() {
             let clusterIdx = idx % numClusters
             clusters[clusterIdx].documents.append(docName)
-            clusters[clusterIdx].chunks.append(contentsOf: docToChunks[docName]!)
+            clusters[clusterIdx].chunks.append(contentsOf: docToChunks[docName, default: []])
         }
 
         // Sort chunks within each cluster by relevance

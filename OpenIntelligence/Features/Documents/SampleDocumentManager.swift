@@ -192,7 +192,9 @@ Apple publishes:
 
     /// Persists each sample document in the app's Documents directory (permanent storage).
     private func writeSamplesToDocumentsDirectory() throws -> [URL] {
-        let documentsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+        guard let documentsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            throw NSError(domain: "SampleDocumentManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Documents directory unavailable"])
+        }
         let samplesDir = documentsDir.appendingPathComponent("SampleDocuments", isDirectory: true)
 
         try FileManager.default.createDirectory(at: samplesDir, withIntermediateDirectories: true)

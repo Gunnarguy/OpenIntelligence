@@ -191,7 +191,7 @@ final class ContextualCompressionService: @unchecked Sendable {
             // the 4096-token context window after 3-4 compressions
             resetSession()
 
-            let title = (sectionTitles != nil && index < sectionTitles!.count) ? sectionTitles![index] : nil
+            let title = sectionTitles.flatMap { index < $0.count ? $0[index] : nil }
 
             // Per-chunk error isolation: one failure doesn't kill the batch
             do {

@@ -901,7 +901,9 @@ class MmapVectorDatabase: VectorDatabase {
     }
 
     convenience init() {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            fatalError("Application Support directory unavailable")
+        }
         let dir = appSupport.appendingPathComponent("OpenIntelligence/mmap_vectors", isDirectory: true)
         self.init(storageURL: dir, dimension: 512)
     }
