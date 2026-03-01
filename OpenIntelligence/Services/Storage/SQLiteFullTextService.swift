@@ -54,7 +54,9 @@ actor SQLiteFullTextService {
 
     /// Database file location
     private var databasePath: URL {
-        let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        guard let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            fatalError("Application Support directory unavailable")
+        }
         let dir = appSupport.appendingPathComponent("OpenIntelligence/FTS5", isDirectory: true)
         try? fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir.appendingPathComponent("fulltext.sqlite")
@@ -1493,7 +1495,8 @@ actor SQLiteFullTextService {
         let fileManager = FileManager.default
 
         // Get the file-based storage directory
-        let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+        guard let appSupport else { return 0 }
         let oldDir = appSupport.appendingPathComponent("OpenIntelligence/FullText", isDirectory: true)
 
         guard fileManager.fileExists(atPath: oldDir.path) else {

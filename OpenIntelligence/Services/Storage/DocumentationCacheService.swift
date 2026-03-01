@@ -111,7 +111,9 @@ actor DocumentationCacheService {
 
     init() {
         // Use Documents/cached_docs/ for persistent storage
-        let documentsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+        guard let documentsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            fatalError("Documents directory unavailable")
+        }
         cacheDirectory = documentsDir.appendingPathComponent("cached_docs", isDirectory: true)
         indexURL = cacheDirectory.appendingPathComponent("index.json")
 

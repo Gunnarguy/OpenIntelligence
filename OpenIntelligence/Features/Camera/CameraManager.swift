@@ -569,8 +569,7 @@ class CameraManager: NSObject, ObservableObject {
             let objectList = detectedObjects.prefix(3).map { $0.lowercased() }
             if objectList.count == 1 {
                 parts.append("containing a \(objectList[0])")
-            } else {
-                let lastObject = objectList.last!
+            } else if let lastObject = objectList.last {
                 let otherObjects = objectList.dropLast().joined(separator: ", ")
                 parts.append("containing \(otherObjects) and \(lastObject)")
             }

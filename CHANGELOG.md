@@ -172,6 +172,46 @@ Critical fixes that prevent silent content loss on font-encoded PDFs and correct
 
 ---
 
+### Pre-Launch Safety Hardening (P0–P3)
+
+Comprehensive force-unwrap elimination and defensive coding pass across the entire codebase. 37 force-unwrap sites eliminated across 26 files — zero runtime behavior change for valid inputs, crash prevention for edge cases.
+
+#### P0: Crash-Site Elimination (13 files)
+
+- **`ContainerService`**: `loaded.first!` → `guard let` with early return
+- **`ContainerVocabularyService`**: `Bundle.main.url(...)!` → `guard let` with early return
+- **`IterativeRetrievalService`**: `refinementSession!` → `guard let` with throw
+- **`QueryRewriterService`**: `session!` → `guard let` with fallback to original query
+- **`SpatialDocumentAnalyzer`**: 4× `.min()!`/`.max()!` → `guard let` multi-binding
+- **`ConversationMemoryService`**: `cleaned.first!` → `guard let` with continue
+- **`LLMService`**: `trimmed.last!` → `guard let`, `suffixes.last!` → nil-coalesce
+- **`LibraryVisualizationEngine`**: 4× `profile.*.first!` → `if let` bindings
+- **`SettingsStore`**: `firstCandidates.first!` → `if let` fallback
+- **`RAGService`**: `firstIndex(of: "|")!` → guard, `sectionBoostedChunks!` → if-let, 13× `verificationResult!` → if-let block
+- **`SpecificationDetector`**: 4× `grouped[key]!` → `grouped[key, default: []]`
+- **`SettingsRootView`/`AboutView`**: Hardcoded "Version 1.0.0" → dynamic `Bundle.main` version
+
+#### P1: User-Visible Bug Fixes (5 files)
+
+- **`CachedDocsView`**: `.constant()` alert binding → proper `@State Bool` (alert was undismissable)
+- **`DocumentLibraryView`**: `.constant()` alert → `Binding(get:set:)` (alert was undismissable)
+- **`AdaptiveVisualizationsView`**: Implemented "Show All Insights" sheet (was empty TODO)
+- **`StoreKitBillingService`**: Replaced IUO `var streamContinuation!` with `AsyncStream.makeStream()`
+- **`SettingsRootView`**: Removed stub System Status and Developer categories from navigation
+
+#### P2: Code Quality (2 files)
+
+- **`ContextualCompressionService`**: Triple force-unwrap `sectionTitles!` → `.flatMap` pattern
+- **`AgenticOrchestrator`**: 3× `docToChunks[key]!` → `docToChunks[key, default: []]`
+
+#### P3: Defensive FileManager & Optional Safety (16 files)
+
+- **12× `FileManager.urls(...).first!`** across 10 storage/service files → `guard let` with descriptive `fatalError` message or safe return
+- **`DocumentProcessor`**: 9× `pageText!` → nil-coalescing `(pageText ?? "")` and `.map` patterns
+- **`CameraManager`**: `objectList.last!` → `if let` binding
+
+---
+
 ### Pipeline Reliability Hardening
 
 11 targeted fixes across the compression → generation → fallback chain to eliminate 0-token LLM responses. Previously, a single rate-limited Apple FM call could cascade into a completely empty answer with no fallback.

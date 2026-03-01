@@ -110,7 +110,9 @@ final class AdapterManager: ObservableObject {
     // MARK: - Initialization
 
     private init() {
-        let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        guard let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            fatalError("Application Support directory unavailable")
+        }
         self.adaptersDirectory = appSupport
             .appendingPathComponent("OpenIntelligence", isDirectory: true)
             .appendingPathComponent("Adapters", isDirectory: true)

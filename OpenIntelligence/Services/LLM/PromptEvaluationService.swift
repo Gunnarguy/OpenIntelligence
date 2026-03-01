@@ -68,7 +68,9 @@ actor PromptEvaluationService {
     private var evaluationHistory: [PromptEvalSuiteResult] = []
 
     private let persistenceURL: URL = {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            fatalError("Application Support directory unavailable")
+        }
         let dir = appSupport.appendingPathComponent("OpenIntelligence/PromptEval", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir.appendingPathComponent("test_suites.json")

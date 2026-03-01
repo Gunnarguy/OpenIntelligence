@@ -1607,17 +1607,17 @@ class DocumentProcessor {
                             }
                             let pageTime = Date().timeIntervalSince(pageStartTime)
                             let method = isSpatial ? "spatial" : "text"
-                            Log.debug("   ✓ Page \(pageNumber): \(pageText!.count) chars (\(method), \(String(format: "%.2f", pageTime))s)", category: .ingestion)
+                            Log.debug("   ✓ Page \(pageNumber): \(pageText?.count ?? 0) chars (\(method), \(String(format: "%.2f", pageTime))s)", category: .ingestion)
                             self.traceIngestionOutcome(
                                 pageNumber: pageNumber,
                                 path: isSpatial ? "spatial-ordering" : "native-text",
-                                chars: pageText!.count,
+                                chars: pageText?.count ?? 0,
                                 duration: pageTime
                             )
 
                             return PageExtractionResult(
                                 pageIndex: pageIndex,
-                                text: pageText!,
+                                text: pageText ?? "",
                                 usedOCR: false,
                                 usedSpatial: isSpatial,
                                 ocrCharCount: 0,
@@ -1667,7 +1667,7 @@ class DocumentProcessor {
                             )
                             return PageExtractionResult(
                                 pageIndex: pageIndex,
-                                text: pageText!,
+                                text: pageText ?? "",
                                 usedOCR: false,
                                 usedSpatial: false,
                                 ocrCharCount: 0,
@@ -3417,17 +3417,18 @@ class DocumentProcessor {
 
             // Try standard text extraction first
             let pageText = page.string
-            let hasText = pageText != nil && !pageText!.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            let textQualityOK = hasText && isTextQualityAcceptable(pageText!)
+            let trimmedText = pageText?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let hasText = trimmedText.map { !$0.isEmpty } ?? false
+            let textQualityOK = hasText && isTextQualityAcceptable(pageText ?? "")
 
             if hasText && textQualityOK {
                 progressHandler?("page \(pageIndex + 1)/\(pageCount)")
                 await Task.yield()
 
-                fullText += pageText! + "\n\n"
+                fullText += (pageText ?? "") + "\n\n"
 
                 let pageTime = Date().timeIntervalSince(pageStartTime)
-                Log.debug("   ✓ Page \(pageIndex + 1): \(pageText!.count) chars (\(String(format: "%.2f", pageTime))s)", category: .ingestion)
+                Log.debug("   ✓ Page \(pageIndex + 1): \(pageText?.count ?? 0) chars (\(String(format: "%.2f", pageTime))s)", category: .ingestion)
             } else if hasText && !textQualityOK {
                 // Text exists but quality is poor - try OCR instead
                 Log.debug("   ⚠️ Page \(pageIndex + 1): Text layer quality poor, trying OCR...", category: .ingestion)
@@ -3445,7 +3446,7 @@ class DocumentProcessor {
                     Log.debug("   ✓ Page \(pageIndex + 1): OCR replaced garbage text (\(ocrText.count) chars, \(String(format: "%.2f", pageTime))s)", category: .ingestion)
                 } else {
                     // OCR didn't help - fall back to original text
-                    fullText += pageText! + "\n\n"
+                    fullText += (pageText ?? "") + "\n\n"
                     Log.warning("   ⚠️ Page \(pageIndex + 1): Using original text despite quality concerns", category: .ingestion)
                 }
             } else {
