@@ -24,6 +24,7 @@ struct CachedDocsView: View {
     @State private var docToDelete: CachedDocMetadata?
     @State private var ingestingDocId: UUID?
     @State private var showingPreview = false
+    @State private var showingError = false
     @State private var errorMessage: String?
 
     private var filteredDocs: [CachedDocMetadata] {
@@ -95,7 +96,7 @@ struct CachedDocsView: View {
                     Text("This will remove \"\(doc.title)\" from the cache. The original source remains available online.")
                 }
             }
-            .alert("Error", isPresented: .constant(errorMessage != nil)) {
+            .alert("Error", isPresented: $showingError) {
                 Button("OK") {
                     errorMessage = nil
                 }
@@ -184,6 +185,7 @@ struct CachedDocsView: View {
             // Export cached doc for RAG ingestion
             guard let url = try await DocumentationCacheService.shared.exportForIngestion(id: doc.id) else {
                 errorMessage = "Failed to prepare document for ingestion"
+                showingError = true
                 return
             }
 
@@ -193,6 +195,7 @@ struct CachedDocsView: View {
             }
         } catch {
             errorMessage = "Failed to export document: \(error.localizedDescription)"
+            showingError = true
         }
     }
 
@@ -201,6 +204,7 @@ struct CachedDocsView: View {
             try await DocumentationCacheService.shared.delete(id: doc.id)
         } catch {
             errorMessage = "Failed to delete: \(error.localizedDescription)"
+            showingError = true
         }
         await loadCachedDocs()
         docToDelete = nil
@@ -212,9 +216,11 @@ struct CachedDocsView: View {
             await loadCachedDocs()
             if count > 0 {
                 errorMessage = "Removed \(count) expired document\(count == 1 ? "" : "s")"
+                showingError = true
             }
         } catch {
             errorMessage = "Prune failed: \(error.localizedDescription)"
+            showingError = true
         }
     }
 
@@ -223,6 +229,7 @@ struct CachedDocsView: View {
             try await DocumentationCacheService.shared.clearAll()
         } catch {
             errorMessage = "Clear failed: \(error.localizedDescription)"
+            showingError = true
         }
         await loadCachedDocs()
     }

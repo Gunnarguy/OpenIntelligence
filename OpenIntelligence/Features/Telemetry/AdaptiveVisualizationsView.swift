@@ -19,6 +19,7 @@ struct AdaptiveVisualizationsView: View {
     @State private var selectedInsight: VisualizationInsight?
     @State private var expandedView: LibraryVisualizationEngine.RecommendedView.ViewType?
     @State private var showAllViews = false
+    @State private var showAllInsights = false
     @State private var show3DFullscreen = false
     @State private var atlasMode: AtlasMode = .compact
     @State private var showAtlasSettings = false
@@ -139,6 +140,31 @@ struct AdaptiveVisualizationsView: View {
             Fullscreen3DAtlasView()
                 .environmentObject(ragService)
                 .environmentObject(containerService)
+        }
+        .sheet(isPresented: $showAllInsights) {
+            NavigationStack {
+                List(engine.insights) { insight in
+                    HStack(spacing: 12) {
+                        Image(systemName: insight.icon)
+                            .foregroundStyle(insight.color)
+                            .frame(width: 28)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(insight.title)
+                                .font(.subheadline.weight(.medium))
+                            Text(insight.subtitle)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .navigationTitle("All Insights")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") { showAllInsights = false }
+                    }
+                }
+            }
         }
         .onChange(of: show3DFullscreen) { _, entering in
             if entering {
@@ -548,7 +574,7 @@ struct AdaptiveVisualizationsView: View {
 
                 if engine.insights.count > 3 {
                     Button("See All") {
-                        // TODO: Show all insights sheet
+                        showAllInsights = true
                     }
                     .font(.caption)
                 }

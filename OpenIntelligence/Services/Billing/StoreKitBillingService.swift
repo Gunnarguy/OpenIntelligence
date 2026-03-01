@@ -22,10 +22,8 @@ final class StoreKitBillingService: BillingService {
     private let continuation: AsyncStream<BillingEvent>.Continuation
 
     init() {
-        var streamContinuation: AsyncStream<BillingEvent>.Continuation!
-        events = AsyncStream { continuation in
-            streamContinuation = continuation
-        }
+        let (stream, streamContinuation) = AsyncStream<BillingEvent>.makeStream()
+        events = stream
         continuation = streamContinuation
 
         updatesTask = Task { [weak self] in await self?.listenForTransactions() }
