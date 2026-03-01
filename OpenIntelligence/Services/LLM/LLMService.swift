@@ -2661,7 +2661,8 @@ class OnDeviceAnalysisService: LLMService {
 
             Log.debug("[AssistChatIntent] Invoking \(provider.displayName)", category: .llm)
 
-            // TEMPORARY: Until full Apple Intelligence API is available
+            // NOTE: Returns informational dialog until Apple Intelligence entitlements are granted.
+            // AssistChatIntent is used by sendChatGPTRequest() — do not remove.
             // For now, return an error result
             return .result(
                 dialog: IntentDialog(
