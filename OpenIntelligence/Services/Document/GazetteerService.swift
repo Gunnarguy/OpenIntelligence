@@ -35,18 +35,16 @@ actor GazetteerService {
 
     /// Gazetteer data file for persistence
     private let gazetteersURL: URL = {
-        guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
-            fatalError("Application Support directory unavailable")
-        }
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? URL.temporaryDirectory
         let dir = appSupport.appendingPathComponent("OpenIntelligence/Gazetteers", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir.appendingPathComponent("custom_gazetteer.json")
     }()
 
     private let compiledGazetteerURL: URL = {
-        guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
-            fatalError("Application Support directory unavailable")
-        }
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? URL.temporaryDirectory
         let dir = appSupport.appendingPathComponent("OpenIntelligence/Gazetteers", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir.appendingPathComponent("compiled_gazetteer.mlgazetteer")

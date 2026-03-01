@@ -66,9 +66,8 @@ actor EntityIndexService {
     // MARK: - Persistence
 
     private let persistenceURL: URL = {
-        guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
-            fatalError("Application Support directory unavailable")
-        }
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? URL.temporaryDirectory
         let dir = appSupport.appendingPathComponent("OpenIntelligence", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir.appendingPathComponent("entity_index.json")

@@ -80,9 +80,8 @@ actor ContainerVocabularyService {
     private let storageURL: URL
 
     private init() {
-        guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
-            fatalError("Application Support directory unavailable")
-        }
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? URL.temporaryDirectory
         storageURL = appSupport.appendingPathComponent("ContainerVocabularies", isDirectory: true)
 
         // Ensure directory exists

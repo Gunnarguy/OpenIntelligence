@@ -28,9 +28,8 @@ actor FullTextStorageService {
     private let fileManager = FileManager.default
 
     private var storageDirectory: URL {
-        guard let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
-            fatalError("Application Support directory unavailable")
-        }
+        let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? URL.temporaryDirectory
         let dir = appSupport.appendingPathComponent("OpenIntelligence/FullText", isDirectory: true)
         try? fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
