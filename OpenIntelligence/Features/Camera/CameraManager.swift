@@ -742,7 +742,7 @@ extension CameraManager: AVCaptureVideoDataOutputSampleBufferDelegate {
             do {
                 try requestHandler.perform([textRequest, documentRequest, classifyRequest, animalRequest, faceRequest, humanRequest, humanPoseRequest, animalPoseRequest])
             } catch {
-                // Silent failure for frame analysis
+                Log.debug("Frame analysis Vision failed: \(error)", category: .pipeline)
             }
         }
 
