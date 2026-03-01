@@ -277,7 +277,10 @@ struct DocumentLibraryView: View {
                     Text(message)
                 }
             }
-            .alert("Error Processing Document", isPresented: .constant(ragService.lastError != nil)) {
+            .alert("Error Processing Document", isPresented: Binding(
+                get: { ragService.lastError != nil },
+                set: { if !$0 { ragService.lastError = nil } }
+            )) {
                 Button("OK", role: .cancel) {
                     ragService.lastError = nil
                 }

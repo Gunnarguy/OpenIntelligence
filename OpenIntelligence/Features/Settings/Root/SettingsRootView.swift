@@ -116,8 +116,6 @@ struct SettingsRootView: View {
                 .fallbacks,
                 .generation,
 .retrieval,
-                .systemStatus,
-                .developer,
                 .about,
             ]
         #else
@@ -127,8 +125,6 @@ struct SettingsRootView: View {
 .fallbacks,
                 .generation,
 .retrieval,
-                .systemStatus,
-                .developer,
                 .about,
             ]
         #endif
