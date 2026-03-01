@@ -418,59 +418,6 @@ enum VectorDatabaseError: LocalizedError {
     }
 }
 
-// MARK: - VecturaKit Integration (Optional Enhancement)
-// Uncomment when VecturaKit is added via Swift Package Manager
-
-/*
-import VecturaKit
-
-class VecturaVectorDatabase: VectorDatabase {
-    private let vectura: VecturaDB
-
-    init() throws {
-        // Initialize VecturaKit with hybrid search enabled
-        self.vectura = try VecturaDB(
-            dimension: 512,
-            enableHybridSearch: true
-        )
-    }
-
-    func store(chunk: DocumentChunk) async throws {
-        try await vectura.insert(
-            id: chunk.id.uuidString,
-            vector: chunk.embedding,
-            metadata: [
-                "content": chunk.content,
-                "documentId": chunk.documentId.uuidString,
-                "chunkIndex": chunk.metadata.chunkIndex
-            ]
-        )
-    }
-
-    func search(embedding: [Float], topK: Int) async throws -> [RetrievedChunk] {
-        let results = try await vectura.search(
-            query: embedding,
-            topK: topK,
-            filter: nil
-        )
-
-        // Map VecturaKit results to RetrievedChunk
-        return results.enumerated().map { index, result in
-            // Reconstruct chunk from metadata
-            // Implementation details depend on VecturaKit's API
-            // This is a placeholder structure
-            RetrievedChunk(
-                chunk: reconstructChunk(from: result),
-                similarityScore: result.score,
-                rank: index + 1
-            )
-        }
-    }
-
-    // Additional implementations...
-}
-*/
-
 // MARK: - Persistent Vector Database
 
 /// Persistent vector database that saves chunks to disk
