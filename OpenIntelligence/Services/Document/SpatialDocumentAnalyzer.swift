@@ -547,10 +547,10 @@ actor SpatialDocumentAnalyzer {
     private func calculateRegionBounds(region: [(x: Int, y: Int)], gridSize: Int) -> CGRect {
         guard !region.isEmpty else { return .zero }
 
-        let minX = region.map { $0.x }.min()!
-        let maxX = region.map { $0.x }.max()!
-        let minY = region.map { $0.y }.min()!
-        let maxY = region.map { $0.y }.max()!
+        guard let minX = region.map({ $0.x }).min(),
+              let maxX = region.map({ $0.x }).max(),
+              let minY = region.map({ $0.y }).min(),
+              let maxY = region.map({ $0.y }).max() else { return .zero }
 
         let cellSize = 1.0 / CGFloat(gridSize)
 

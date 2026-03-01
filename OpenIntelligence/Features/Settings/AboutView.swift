@@ -40,7 +40,7 @@ struct AboutView: View {
                                 .font(.title.bold())
                             Text("Privacy-First RAG Application")
                                 .foregroundColor(.secondary)
-                            Text("Version 1.0.0")
+                            Text("Version \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.0") (Build \(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "19"))")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }

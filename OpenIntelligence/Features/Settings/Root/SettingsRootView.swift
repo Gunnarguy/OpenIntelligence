@@ -585,7 +585,7 @@ struct AboutSettingsView: View {
             Section("About") {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("OpenIntelligence is a privacy-first RAG assistant. All inference stays on-device or within Apple's Private Cloud Compute unless you explicitly connect a reviewer-only provider.")
-                    Text("Version 1.0.0 · Build target iOS 26+")
+                    Text("Version \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.0") (Build \(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "19")) · iOS 26+")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }

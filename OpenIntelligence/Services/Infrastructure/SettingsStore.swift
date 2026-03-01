@@ -773,16 +773,16 @@ private extension SettingsStore {
         if firstCandidates.isEmpty {
             firstFallback = selectedModel
             enableFirstFallback = false
-        } else if !firstCandidates.contains(firstFallback) {
-            firstFallback = firstCandidates.first!
+        } else if let first = firstCandidates.first, !firstCandidates.contains(firstFallback) {
+            firstFallback = first
         }
 
         let secondCandidates = fallbackUniverse.filter { $0 != selectedModel && $0 != firstFallback }
         if secondCandidates.isEmpty {
             secondFallback = firstFallback
             enableSecondFallback = false
-        } else if !secondCandidates.contains(secondFallback) {
-            secondFallback = secondCandidates.first!
+        } else if let second = secondCandidates.first, !secondCandidates.contains(secondFallback) {
+            secondFallback = second
         }
     }
 }

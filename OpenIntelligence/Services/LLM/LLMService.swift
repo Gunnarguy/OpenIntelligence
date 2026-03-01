@@ -1383,7 +1383,7 @@ struct LLMResponse {
             if containsRepetition(trimmed) { return false }
 
             // Check for obvious truncation indicators
-            let lastChar = trimmed.last!
+            guard let lastChar = trimmed.last else { return false }
 
             // Response ends mid-sentence (no terminal punctuation)
             let terminalPunctuation: Set<Character> = [".", "!", "?", ":", ";", "\"", "'", ")", "]", "}"]
@@ -1826,7 +1826,7 @@ struct LLMResponse {
                     merged = prefixText + " " + suffixes[0] + " or " + suffixes[1]
                 } else {
                     let allButLast = suffixes.dropLast().joined(separator: ", ")
-                    merged = prefixText + " " + allButLast + ", or " + suffixes.last!
+                    merged = prefixText + " " + allButLast + ", or " + (suffixes.last ?? "")
                 }
 
                 replacements[indices[0]] = merged

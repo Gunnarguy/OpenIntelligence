@@ -4623,7 +4623,7 @@ class RAGService: ObservableObject {
                         // This preserves the original ThinkingEvent.Kind (e.g., .vectorSearch, .bm25, .mmr)
                         if step.tokensUsed == 0 && step.output.contains("|") {
                             // Parse the encoded format: "kindRawValue|Title: Detail"
-                            let pipeIndex = step.output.firstIndex(of: "|")!
+                            guard let pipeIndex = step.output.firstIndex(of: "|") else { return }
                             let kindRaw = String(step.output[..<pipeIndex])
                             let rest = String(step.output[step.output.index(after: pipeIndex)...])
 
@@ -5957,8 +5957,8 @@ class RAGService: ObservableObject {
                     query: question
                 )
 
-                if sectionBoostedChunks != nil {
-                    chunksWithSources = sectionBoostedChunks!
+                if let boosted = sectionBoostedChunks {
+                    chunksWithSources = boosted
                     Log.debug("[RAGService] Applied section metadata boost to \(chunksWithSources.count) chunks", category: .retrieval)
                 }
 
@@ -8801,22 +8801,23 @@ class RAGService: ObservableObject {
                         )
                         verificationTime = Date().timeIntervalSince(verificationStartTime)
 
+                        if let vr = verificationResult {
                         Log.pipelineStep("7.5", title: "Verification Gates", details: [
-                            ("passed", verificationResult!.passed ? "✓" : "✗"),
-                            ("confidence", String(format: "%.2f", verificationResult!.overallConfidence)),
-                            ("gates", verificationResult!.gateResults.map { "\($0.gate.rawValue):\($0.passed ? "✓" : "✗")" }.joined(separator: " "))
+                            ("passed", vr.passed ? "✓" : "✗"),
+                            ("confidence", String(format: "%.2f", vr.overallConfidence)),
+                            ("gates", vr.gateResults.map { "\($0.gate.rawValue):\($0.passed ? "✓" : "✗")" }.joined(separator: " "))
                         ])
 
                         // Emit verification thinking event
                         emitThinkingEvent(
                             .verification,
-                            title: verificationResult!.passed ? "Gates passed ✓" : "Gates failed ✗",
-                            detail: "Confidence: \(String(format: "%.0f", verificationResult!.overallConfidence * 100))%"
+                            title: vr.passed ? "Gates passed ✓" : "Gates failed ✗",
+                            detail: "Confidence: \(String(format: "%.0f", vr.overallConfidence * 100))%"
                         )
 
-                        if !verificationResult!.passed {
+                        if !vr.passed {
                             Log.warning("⚠️ Verification gates failed - response may contain unsupported claims", category: .pipeline)
-                            for gateResult in verificationResult!.gateResults where !gateResult.passed {
+                            for gateResult in vr.gateResults where !gateResult.passed {
                                 Log.warning("   • Gate \(gateResult.gate.rawValue): \(gateResult.details)", category: .pipeline)
                             }
 
@@ -8834,7 +8835,7 @@ class RAGService: ObservableObject {
                             }
 
                             // Check if confidence is below quality mode threshold (Maximum mode requires 98%)
-                            let belowConfidenceThreshold = verificationResult!.overallConfidence < effectiveThreshold
+                            let belowConfidenceThreshold = vr.overallConfidence < effectiveThreshold
 
                             // If grounded-only mode and verification fails, abstain
                             if !allowUngroundedFallback || belowConfidenceThreshold {
@@ -8842,12 +8843,12 @@ class RAGService: ObservableObject {
                                     ? "\(qualityModeDisplayName) threshold \(String(format: "%.0f", effectiveThreshold * 100))% (relaxed for extractive)"
                                     : "\(qualityModeDisplayName) threshold \(String(format: "%.0f", effectiveThreshold * 100))%"
                                 let reason = belowConfidenceThreshold
-                                    ? "confidence \(String(format: "%.0f", verificationResult!.overallConfidence * 100))% below \(thresholdDisplay)"
+                                    ? "confidence \(String(format: "%.0f", vr.overallConfidence * 100))% below \(thresholdDisplay)"
                                     : "grounded-only mode"
                                 Log.info("🛑 Abstaining: \(reason)", category: .pipeline)
                                 let abstainResponse = verificationGateService.generateAbstentionResponse(
                                     query: question,
-                                    verificationResult: verificationResult!,
+                                    verificationResult: vr,
                                     retrievedChunks: generationRetrievedChunks
                                 )
                                 let response = await makeGroundedAbstainResponse(
@@ -8858,7 +8859,7 @@ class RAGService: ObservableObject {
                                     retrievalConfig: retrievalConfig,
                                     embeddingProviderId: embeddingProviderId,
                                     reason: abstainResponse,
-                                    gatingDecision: "verification_gates_failed:\(verificationResult!.gateResults.filter { !$0.passed }.map { $0.gate.rawValue }.joined(separator: ","))"
+                                    gatingDecision: "verification_gates_failed:\(vr.gateResults.filter { !$0.passed }.map { $0.gate.rawValue }.joined(separator: ","))"
                                 )
                                 return await finalizeResponse(
                                     query: question,
@@ -8868,8 +8869,9 @@ class RAGService: ObservableObject {
                                 )
                             }
                         } else {
-                            Log.info("✓ All verification gates passed (confidence: \(String(format: "%.0f", verificationResult!.overallConfidence * 100))%)", category: .pipeline)
+                            Log.info("✓ All verification gates passed (confidence: \(String(format: "%.0f", vr.overallConfidence * 100))%)", category: .pipeline)
                         }
+                        } // end if let vr
                     } else {
                         Log.info("[RAG] Verification gates skipped (quality mode: \(qualityModeDisplayName))", category: .pipeline)
                         emitThinkingEvent(
