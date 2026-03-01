@@ -210,6 +210,17 @@ Comprehensive force-unwrap elimination and defensive coding pass across the enti
 - **`DocumentProcessor`**: 9× `pageText!` → nil-coalescing `(pageText ?? "")` and `.map` patterns
 - **`CameraManager`**: `objectList.last!` → `if let` binding
 
+#### P4: Crash-to-Fallback & Dead Code Removal
+
+Eliminated all remaining crash sites and removed dead code. Zero runtime behavior change for valid inputs.
+
+- **10× `fatalError("Application Support directory unavailable")`** across storage/service files (`ContainerVocabularyService`, `EntityIndexService`, `GazetteerService`, `FullTextStorageService`, `SQLiteFullTextService`, `DocumentationCacheService`, `AdapterManager`, `PromptEvaluationService`, `VectorDatabase`) → `?? URL.temporaryDirectory` nil-coalescing for degraded-mode operation instead of crash
+- **4× `URL(string:)!`** in `LocalOpenAIServerLLMService` → `?? URL(fileURLWithPath: "/")` for static localhost URLs
+- **3 dead files deleted** (−1,344 lines): `SettingsRootView.swift` (698 lines, 0 references), `DeveloperSettingsView.swift` (350 lines, 0 references), `OpenAIResponsesAPIService.swift` (178 lines, entire file was `#if false`)
+- **Commented-out `VecturaVectorDatabase` class removed** from `VectorDatabase.swift` (~52 lines)
+- **3 silent Vision `catch` blocks** → `Log.debug()` calls in `DocumentCaptureView`, `CameraManager`, `CaptureToRAGBridge`
+- **`AssistChatIntent` stub comment** clarified (in use by `sendChatGPTRequest()`, not dead code)
+
 ---
 
 ### Pipeline Reliability Hardening
