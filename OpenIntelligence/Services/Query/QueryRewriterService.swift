@@ -247,7 +247,10 @@ final class QueryRewriterService: @unchecked Sendable {
                 conversationContext: conversationContext
             )
 
-            let response = try await session!.respond(to: prompt)
+            guard let activeSession = session else {
+                return query
+            }
+            let response = try await activeSession.respond(to: prompt)
             let clarified = response.content
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .replacingOccurrences(of: "\"", with: "")

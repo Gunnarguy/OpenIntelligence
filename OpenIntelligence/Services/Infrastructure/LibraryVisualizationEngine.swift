@@ -1043,8 +1043,7 @@ final class LibraryVisualizationEngine: ObservableObject {
         }
 
         // Recent additions - high priority if present
-        if !profile.recentAdditions.isEmpty {
-            let addition = profile.recentAdditions.first!
+        if let addition = profile.recentAdditions.first {
             let fitDescription = addition.integrationScore > 0.7 ? "fits well" :
                 addition.integrationScore > 0.4 ? "partially related" : "explores new territory"
 
@@ -1065,8 +1064,7 @@ final class LibraryVisualizationEngine: ObservableObject {
         }
 
         // Topic distribution - for diverse libraries
-        if profile.isDiverse && profile.dominantTopics.count >= 2 {
-            let topTopic = profile.dominantTopics.first!
+        if profile.isDiverse && profile.dominantTopics.count >= 2, let topTopic = profile.dominantTopics.first {
             insights.append(VisualizationInsight(
                 type: .topicMap,
                 priority: .medium,
@@ -1084,8 +1082,7 @@ final class LibraryVisualizationEngine: ObservableObject {
         }
 
         // Focused library
-        if profile.isFocused && !profile.dominantTopics.isEmpty {
-            let topic = profile.dominantTopics.first!
+        if profile.isFocused, let topic = profile.dominantTopics.first {
             insights.append(VisualizationInsight(
                 type: .focusedLibrary,
                 priority: .medium,
@@ -1102,8 +1099,7 @@ final class LibraryVisualizationEngine: ObservableObject {
         }
 
         // Retrieval hotspots - for active libraries
-        if profile.isHighlyActive && !profile.hotChunks.isEmpty {
-            let topChunk = profile.hotChunks.first!
+        if profile.isHighlyActive, let topChunk = profile.hotChunks.first {
             insights.append(VisualizationInsight(
                 type: .retrievalHotspots,
                 priority: .high,

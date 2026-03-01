@@ -615,7 +615,7 @@ final class ConversationMemoryService {
             let cleaned = word.trimmingCharacters(in: .punctuationCharacters)
             guard !cleaned.isEmpty else { continue }
 
-            let firstChar = cleaned.first!
+            guard let firstChar = cleaned.first else { continue }
             if firstChar.isUppercase, cleaned.count > 1 {
                 currentPhrase.append(cleaned)
             } else {
