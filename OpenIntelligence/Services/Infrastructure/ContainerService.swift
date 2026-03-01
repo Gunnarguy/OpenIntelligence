@@ -31,8 +31,8 @@ final class ContainerService: ObservableObject {
                let uuid = UUID(uuidString: savedActive),
                loaded.contains(where: { $0.id == uuid }) {
                 activeContainerId = uuid
-            } else if let first = loaded.first {
-                activeContainerId = first.id
+            } else {
+                activeContainerId = loaded[0].id
             }
         }
         // Persist active ID
