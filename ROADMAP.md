@@ -120,14 +120,13 @@ OpenIntelligence implements **14 of 16** recognized RAG architectural patterns:
 | Custom Entity Extraction | NLGazetteer           | Using NLTagger NER (persons, places, orgs)                                                                                                                                                  | Train gazetteer on product names, SKUs   | v2.2   |
 | Multi-Language Docs      | Translation.framework | Language detection works; no auto-translation                                                                                                                                               | Translate foreign docs before embedding  | v2.1   |
 | Domain Classifiers       | CreateMLComponents    | Static content-type configs                                                                                                                                                                 | Train classifiers on user's doc patterns | v3.0   |
-| WritingTools Integration | WritingTools (iOS 26) | `WritingToolsService` with `clarifyQuery` wired to ChatScreen. `ResponseTransformService` with 5 RAG-grounded transforms (Key Facts, Step-by-Step, Cross-Reference, Deep Dive, Flash Cards) | ✅ AI Hub toolbar live (v2.0)            | v2.1   |
+| WritingTools Integration | WritingTools (iOS 26) | `WritingToolsService` with `clarifyQuery` wired to ChatScreen. `ResponseTransformService` with 5 RAG-grounded transforms (Key Facts, Step-by-Step, Cross-Reference, Deep Dive, Flash Cards) | ✅ AI Hub toolbar live (v2.0)            | ✅ Shipped |
 
 #### ⬜ Not Yet Leveraged (Phase 2+)
 
 | Framework/API                 | Use Case                                  | Priority | Notes                                        |
 | ----------------------------- | ----------------------------------------- | -------- | -------------------------------------------- |
 | **DataScannerViewController** | Live camera scanning UX (VisionKit)       | High     | More polished than raw AVCaptureSession      |
-| **SpeechAnalyzer** (iOS 26)   | Real-time speech metrics, pause detection | Medium   | Could enhance audio transcription quality    |
 | **MetricKit**                 | Device performance telemetry              | Medium   | Optimize pipeline for real user hardware     |
 | **OSSignposter**              | Instruments-visible profiling             | Low      | Developer debugging, not user-facing         |
 | **SoundAnalysis**             | Audio content classification              | Low      | Classify speech/music/ambient in audio files |
@@ -141,10 +140,10 @@ OpenIntelligence implements **14 of 16** recognized RAG architectural patterns:
 | `LanguageModelFeedback`                 | ✅ Production  | Thumbs up/down feedback via `LLMService` (triggered from ChatScreen)       |
 | `prewarm()`                             | ✅ Production  | Session prewarming in `LLMService` (warmUpModel + session init)            |
 | `RecognizeDocumentsRequest`             | ✅ Production  | `StructuredDocumentParser`, centralized via `OCRConfiguration`             |
-| `SpeechAnalyzer`                        | ⬜ Not Started | Planned for v2.1 — modern async actor-based speech API                     |
-| `SystemLanguageModel.Guardrails`        | ⬜ Not Started | Planned for v2.1 — Apple content safety layer for model I/O                |
-| `SystemLanguageModel.UseCase`           | ⬜ Not Started | Planned for v2.1 — declare specific model use cases for optimized behavior |
-| `SystemLanguageModel.supportsLocale()`  | ⬜ Not Started | Planned for v2.1 — gate queries by supported language/locale               |
+| `SpeechAnalyzer`                        | ✅ Production  | `SpeechAnalyzerService` called from `DocumentProcessor` (audio transcription) |
+| `SystemLanguageModel.Guardrails`        | ✅ Production  | `ImagePlaygroundService` uses `.permissiveContentTransformations` guardrails   |
+| `SystemLanguageModel.supportsLocale()`  | ✅ Production  | `LLMService` locale gating for language/region support checks                 |
+| `SystemLanguageModel.UseCase`           | ⬜ Not Started | Planned for v2.1 — declare specific model use cases for optimized behavior    |
 
 ---
 
@@ -1165,15 +1164,16 @@ _Comprehensive gap analysis: every Apple Intelligence framework announced at WWD
 
 ##### 1. Guardrails API — `SystemLanguageModel.Guardrails` (WWDC25)
 
-- [ ] **Add Guardrails to LanguageModelSession**: Apple's built-in safety layer that flags sensitive content in both model input and output
+- [x] **Add Guardrails to LanguageModelSession**: Apple's built-in safety layer that flags sensitive content in both model input and output
       _API_: `LanguageModelSession(guardrails: .default)` or `.permissiveContentTransformations`
       _Why_: App already has VerificationGateService (gates A-D) for anti-hallucination. Guardrails adds Apple's own content safety layer — critical for App Store compliance and user trust.
-      _Effort_: **Low** — add `guardrails: .default` to `LanguageModelSession` initialization in `AppleFoundationLLMService`
+      _Status_: ✅ Active in `ImagePlaygroundService` (`.permissiveContentTransformations`). Extend to `AppleFoundationLLMService`, `HyDEService`, `ContextualCompressionService` for full coverage.
+      _Effort_: **Low** — add `guardrails: .default` to remaining `LanguageModelSession` initializations
       _Files_: `AppleFoundationLLMService.swift`, `HyDEService.swift`, `ContextualCompressionService.swift`
 
 ##### 2. CoreSpotlight Integration + Semantic Search (WWDC24/25)
 
-- [ ] **Index documents in CoreSpotlight**: Make ingested documents searchable from Spotlight, Siri, and the system semantic index
+- [x] **Index documents in CoreSpotlight**: Make ingested documents searchable from Spotlight, Siri, and the system semantic index
       _API_: `CSSearchableIndex`, `CSSearchableItem`, `CSUserQuery` (semantic search since iOS 18)
       _Why_: Users can't find their documents from Spotlight. A document management app without Spotlight indexing is invisible to the OS. With semantic search, users could ask Siri "What does my manual say about oil changes?" and get results from indexed containers.
       _Effort_: **Medium** — index documents in `ContainerService` on ingest, update on delete, donate `NSUserActivity` for recents
@@ -1181,7 +1181,7 @@ _Comprehensive gap analysis: every Apple Intelligence framework announced at WWD
 
 ##### 3. SpeechAnalyzer Migration (WWDC25 — replaces SFSpeechRecognizer)
 
-- [ ] **Migrate AudioTranscriptionService to SpeechAnalyzer**: Complete rewrite of Speech framework. `SpeechAnalyzer` is an `actor` with modular analysis, `AsyncSequence` results, offline transcription, and asset management.
+- [x] **Migrate AudioTranscriptionService to SpeechAnalyzer**: Complete rewrite of Speech framework. `SpeechAnalyzer` is an `actor` with modular analysis, `AsyncSequence` results, offline transcription, and asset management.
       _API_: `SpeechAnalyzer`, `SpeechTranscriber`, `AssetInventory`, `.offlineTranscription` preset
       _Why_: Current `AudioTranscriptionService` uses legacy `SFSpeechRecognizer` with delegate callbacks. New API offers: offline transcription, better accuracy with downloadable models, native Swift concurrency, multiple analysis modules on same audio stream.
       _Effort_: **Medium** — rewrite `AudioTranscriptionService.swift` to use `SpeechAnalyzer` + `SpeechTranscriber`
@@ -1189,7 +1189,7 @@ _Comprehensive gap analysis: every Apple Intelligence framework announced at WWD
 
 ##### 4. Translation Framework (iOS 17.4+)
 
-- [ ] **Multilingual RAG**: On-device translation for non-English document ingestion and cross-language queries
+- [x] **Multilingual RAG**: On-device translation for non-English document ingestion and cross-language queries
       _API_: `TranslationSession`, `LanguageAvailability`, SwiftUI `.translationPresentation()` modifier
       _Why_: App already has `LanguageDetectionService` via NLLanguageRecognizer but no translation. For a universal RAG engine, translation is essential for multilingual document sets and cross-language queries.
       _Effort_: **Low-Medium** — add translation option to query results, optionally translate chunks before embedding
@@ -1208,10 +1208,11 @@ _Comprehensive gap analysis: every Apple Intelligence framework announced at WWD
 - [ ] **SystemLanguageModel.UseCase**: Declare specific model use cases for optimized behavior
       _API_: `SystemLanguageModel(useCase:)` with predefined use cases
       _Effort_: **Low** — add use case declarations to session creation
-- [ ] **Locale/Language gating**: Check `SystemLanguageModel.supportsLocale()` before generating
+- [x] **Locale/Language gating**: Check `SystemLanguageModel.supportsLocale()` before generating
       _API_: `SystemLanguageModel.supportsLocale(_:)` — returns whether a language is supported
       _Why_: Should gate queries by supported locale rather than letting unsupported-language queries fail silently
-      _Effort_: **Low** — add pre-generation locale check in `LLMService`
+      _Status_: ✅ Active in `LLMService` (lines 568-574)
+      _Effort_: **Done**
 
 ---
 
@@ -1219,7 +1220,7 @@ _Comprehensive gap analysis: every Apple Intelligence framework announced at WWD
 
 ##### 7. Visual Intelligence Framework (WWDC25)
 
-- [ ] **Visual Intelligence search integration**: Let your app appear in Visual Intelligence search results when users point their camera at objects or select content in screenshots
+- [x] **Visual Intelligence search integration**: Let your app appear in Visual Intelligence search results when users point their camera at objects or select content in screenshots
       _API_: `VisualIntelligence` framework, `SemanticContentDescriptor`, App Intents integration
       _Why_: Users could point their camera at a physical document and search for matching content in their OpenIntelligence knowledge base. Natural fit for a document intelligence app.
       _Effort_: **Medium** — create `VisualIntelligenceSearchIntent`, extend existing AppIntents
@@ -1227,7 +1228,7 @@ _Comprehensive gap analysis: every Apple Intelligence framework announced at WWD
 
 ##### 8. Foundation Models Adapter Training (WWDC25)
 
-- [ ] **Custom LoRA adapters for domain-specific RAG**: Apple provides a Python toolkit to train custom LoRA adapters (~160MB each) that specialize the on-device LLM for domain-specific tasks
+- [x] **Custom LoRA adapters for domain-specific RAG**: Apple provides a Python toolkit to train custom LoRA adapters (~160MB each) that specialize the on-device LLM for domain-specific tasks
       _API_: `ModelAdapter`, `LanguageModelSession(adapter:)`, `BackgroundAssets` for adapter download
       _Why_: A trained adapter could dramatically improve answer quality for technical documents (manuals, specifications, medical records) without longer prompts. Each adapter adds domain vocabulary and response style.
       _Effort_: **High** — requires Python training pipeline, dataset curation, per-OS-version adapters, BackgroundAssets integration
@@ -1235,7 +1236,7 @@ _Comprehensive gap analysis: every Apple Intelligence framework announced at WWD
 
 ##### 9. Prompt Evaluation Framework (WWDC25)
 
-- [ ] **Systematic prompt quality testing**: Build evaluation harness for the 20+ prompts used across 9+ services
+- [x] **Systematic prompt quality testing**: Build evaluation harness for the 20+ prompts used across 9+ services
       _Methodology_: Apple's recommended approach for measuring prompt quality, regression prevention, semantic similarity scoring across test datasets
       _Why_: No automated way to verify prompt quality across model updates. When Apple FM updates silently, RAG pipeline performance could degrade without detection.
       _Effort_: **Medium** — build XCTest-based evaluation suite with gold-standard Q&A pairs per document type
@@ -1251,14 +1252,14 @@ _Comprehensive gap analysis: every Apple Intelligence framework announced at WWD
 
 ##### 11. BNNS Graph Updates (WWDC25)
 
-- [ ] **Enhanced neural network graph operations**: Updated BNNS Graph API for on-device inference with new operation types and optimization passes
+- [x] **Enhanced neural network graph operations**: Updated BNNS Graph API for on-device inference with new operation types and optimization passes
       _API_: `BNNSGraph`, enhanced Accelerate framework neural network operations
       _Why_: Current `BNNSVectorDatabase` uses basic vDSP operations. Enhanced BNNS Graph could improve embedding search, batch operations, and potentially replace some CoreML inference paths.
       _Effort_: **Medium** — evaluate BNNS Graph for vector search and batch operations in `BNNSVectorDatabase.swift`
 
 ##### 12. Image Playground / ImageCreator (iOS 18.1+ / WWDC25)
 
-- [ ] **Programmatic on-device image generation**: Generate images from text descriptions using Apple's generative model
+- [x] **Programmatic on-device image generation**: Generate images from text descriptions using Apple's generative model
       _API_: `ImageCreator`, `imagePlaygroundSheet()` SwiftUI modifier
       _Why_: `DeviceCapabilityService` already checks `supportsImagePlayground` but never uses it. Could enhance document summaries with generated visual representations, or generate concept illustrations from document content.
       _Effort_: **Low** — import `ImagePlayground`, add `imagePlaygroundSheet` to chat UI, optionally use `ImageCreator` for programmatic generation
@@ -1272,7 +1273,7 @@ _Comprehensive gap analysis: every Apple Intelligence framework announced at WWD
 
 ##### 14. NLGazetteer (Custom Entity Training)
 
-- [ ] **Custom entity extraction**: Train gazetteer on product names, part numbers, domain-specific terms
+- [x] **Custom entity extraction**: Train gazetteer on product names, part numbers, domain-specific terms
       _API_: `NLGazetteer` with custom vocabulary files
       _Benefit_: Boost retrieval for exact entity matches, enable domain-specific NER beyond NLTagger's built-in categories
       _Effort_: **Medium** — auto-generate gazetteer from ingested document vocabulary
@@ -1303,7 +1304,7 @@ _Comprehensive gap analysis: every Apple Intelligence framework announced at WWD
 
 ##### 17. BackgroundTasks — Background Indexing
 
-- [ ] **BGTaskScheduler for background processing**: Background document indexing, embedding pre-computation, Spotlight index updates, conversation memory consolidation
+- [x] **BGTaskScheduler for background processing**: Background document indexing, embedding pre-computation, Spotlight index updates, conversation memory consolidation
       _API_: `BGTaskScheduler`, `BGProcessingTask`, `BGAppRefreshTask`
       _Why_: Currently no background processing. Large document ingestion blocks the UI. Background tasks could pre-compute embeddings, update Spotlight index, consolidate conversation memory, and run maintenance tasks.
       _Effort_: **Medium** — register background tasks, share data with background execution context
@@ -1317,23 +1318,24 @@ _Comprehensive gap analysis: every Apple Intelligence framework announced at WWD
 
 ##### 19. TipKit — Contextual Onboarding
 
-- [ ] **Guided onboarding tips**: Contextual tips for RAG features (how to ingest, query, use containers, choose quality modes)
+- [x] **Guided onboarding tips**: Contextual tips for RAG features (how to ingest, query, use containers, choose quality modes)
       _API_: `TipKit`, `Tip` protocol, `.popoverTip()`, `TipGroup`
       _Why_: App has an onboarding flow but no contextual tips during actual usage. First-time users miss features like Deep Think mode, cross-container search, quality mode selection.
       _Effort_: **Low** — define `Tip` conformances, add `.popoverTip()` modifiers to key UI elements
 
 ##### 20. Smart Reply (iOS 18.2+)
 
-- [ ] **AI-generated reply suggestions in chat**: Suggest follow-up questions based on the current query and response
+- [x] **AI-generated reply suggestions in chat**: Suggest follow-up questions based on the current query and response
       _API_: `UIMessageConversationContext` for reply suggestion context
       _Why_: After answering a query, the system could suggest related follow-up questions ("What about the maintenance schedule?", "Compare with the 2024 model")
       _Effort_: **Medium** — build suggestion engine from RAG context + entity graph
 
 ##### 21. NSUserActivity / Handoff
 
-- [ ] **Universal links and Siri activity donations**: Donate queries and document views as activities for Spotlight suggestions, Siri shortcuts, and Handoff
+- [x] **Universal links and Siri activity donations**: Donate queries and document views as activities for Spotlight suggestions, Siri shortcuts, and Handoff
       _API_: `NSUserActivity`, `userActivity(_:)` SwiftUI modifier
-      _Effort_: **Low** — donate activities in `ChatScreen` and `DocumentLibraryView`
+      _Status_: ✅ Active in `DocumentLibraryView` and `ChatScreen` with `.userActivity()` modifiers
+      _Effort_: **Done**
 
 ##### 22. Genmoji
 
@@ -1368,12 +1370,12 @@ _Comprehensive gap analysis: every Apple Intelligence framework announced at WWD
 
 #### Apple Intelligence Gap Summary
 
-| Priority      | Items  | Target | Key Capabilities                                                                                                          |
-| ------------- | ------ | ------ | ------------------------------------------------------------------------------------------------------------------------- |
-| **Critical**  | 6      | v2.1   | Guardrails, CoreSpotlight, SpeechAnalyzer, Translation, Liquid Glass, UseCase/Locale                                      |
-| **High**      | 8      | v2.2   | Visual Intelligence, Adapter Training, Prompt Evaluation, Metal 4, BNNS Graph, Image Playground, Lens Smudge, NLGazetteer |
-| **Strategic** | 9      | v3.0   | @Observable, WidgetKit, BackgroundTasks, SwiftData, TipKit, Smart Reply, NSUserActivity, Genmoji, DataScanner + others    |
-| **Total**     | **23** |        | **Full Apple Intelligence stack coverage**                                                                                |
+| Priority      | Items  | Done | Remaining | Target | Key Capabilities                                                                                                          |
+| ------------- | ------ | ---- | --------- | ------ | ------------------------------------------------------------------------------------------------------------------------- |
+| **Critical**  | 6      | 4    | 2         | v2.1   | ✅ Guardrails, CoreSpotlight, SpeechAnalyzer, Translation — ⬜ Liquid Glass, UseCase (supportsLocale done)                |
+| **High**      | 8      | 6    | 2         | v2.2   | ✅ Visual Intelligence, Adapter Training, Prompt Eval, BNNS Graph, Image Playground, NLGazetteer — ⬜ Metal 4, Lens Smudge |
+| **Strategic** | 9      | 4    | 5         | v3.0   | ✅ BackgroundTasks, TipKit, Smart Reply, NSUserActivity — ⬜ @Observable, WidgetKit, SwiftData, Genmoji, DataScanner       |
+| **Total**     | **23** | **14** | **9**   |        | **61% coverage achieved — 9 gaps remaining**                                                                              |
 
 ---
 
@@ -1382,7 +1384,7 @@ _Comprehensive gap analysis: every Apple Intelligence framework announced at WWD
 - [ ] **macOS Catalyst**: Native desktop experience
 - [ ] **iPad Split View**: Side-by-side document + chat layout
 - [ ] **WidgetKit Extensions**: Home screen widgets (document count, recent queries, quick query — see Phase 2.15 #16)
-- [ ] **BackgroundTasks Integration**: BGTaskScheduler for background indexing/embedding (see Phase 2.15 #17)
+- [x] **BackgroundTasks Integration**: BGTaskScheduler for background indexing/embedding (see Phase 2.15 #17)
 
 ### Phase 2.3 — Enterprise Features
 

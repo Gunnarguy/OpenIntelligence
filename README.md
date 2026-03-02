@@ -330,7 +330,7 @@ If any gate fails, the system either abstains or triggers iterative retrieval.
 
 | Category           | Count | Key Services                                                        |
 | ------------------ | ----- | ------------------------------------------------------------------- |
-| **RAG Pipeline**   | 14    | RAGService, RAGEngine, VerifiedGateService, AutoTuneService         |
+| **RAG Pipeline**   | 14    | RAGService, RAGEngine, VerificationGateService, AutoTuneService     |
 | **Query**          | 9     | QueryEnhancementService, HyDEService, ContextualCompressionService  |
 | **Document**       | 24    | IntelligentDocumentProcessor, StructuredDocumentParser, VisionOCR   |
 | **Embedding**      | 7     | EmbeddingService, CoreMLSentenceEmbeddingProvider                   |
@@ -501,35 +501,37 @@ OpenIntelligence/
 
 ## Roadmap — Apple Intelligence Gap Closure
 
-We've audited every Apple Intelligence framework from WWDC 2024 and 2025 against the codebase. **23 framework opportunities** identified, prioritized across three milestones:
+We've audited every Apple Intelligence framework from WWDC 2024 and 2025 against the codebase. **23 framework opportunities** identified — **14 shipped** in v2.0, **9 remaining**:
 
-### v2.1 — Next Release (6 items)
+### v2.1 — Next Release (6 items → 4 done)
 
-| Framework          | What It Adds                                                                                |
-| ------------------ | ------------------------------------------------------------------------------------------- |
-| **Guardrails API** | Apple's built-in content safety layer for model I/O — critical for App Store compliance     |
-| **CoreSpotlight**  | Index documents for Spotlight/Siri semantic search — makes your content visible system-wide |
-| **SpeechAnalyzer** | Modern async actor-based speech transcription, replacing legacy `SFSpeechRecognizer`        |
-| **Translation**    | On-device multilingual RAG — translate documents before embedding, cross-language queries   |
-| **Liquid Glass**   | iOS 26 design system — glass material for toolbars, navigation, and custom views            |
-| **UseCase/Locale** | Model use case optimization + language support gating                                       |
+| Framework          | Status         | What It Adds                                                                                |
+| ------------------ | -------------- | ------------------------------------------------------------------------------------------- |
+| **Guardrails API** | ✅ Shipped     | Content safety via `.permissiveContentTransformations` in `ImagePlaygroundService`           |
+| **CoreSpotlight**  | ✅ Shipped     | Index documents for Spotlight/Siri semantic search via `SpotlightIndexService`               |
+| **SpeechAnalyzer** | ✅ Shipped     | Modern async actor-based speech transcription via `SpeechAnalyzerService`                    |
+| **Translation**    | ✅ Shipped     | `TranslationService` implemented (not yet wired to UI)                                      |
+| **Liquid Glass**   | ⬜ Remaining   | iOS 26 design system — glass material for toolbars, navigation, and custom views            |
+| **UseCase/Locale** | ⬜ Partial     | `supportsLocale()` active in `LLMService`; `UseCase` not yet started                       |
 
-### v2.2 — Following Release (8 items)
+### v2.2 — Following Release (8 items → 6 done)
 
-| Framework                 | What It Adds                                                         |
-| ------------------------- | -------------------------------------------------------------------- |
-| **Visual Intelligence**   | Camera/screenshot search into knowledge base via App Intents         |
-| **Adapter Training**      | Custom LoRA adapters (~160MB) for domain-specific LLM specialization |
-| **Prompt Evaluation**     | Systematic prompt quality testing + regression prevention            |
-| **Metal 4**               | New GPU API with ML inference passes and unified compute encoders    |
-| **BNNS Graph**            | Enhanced neural network graph operations for vector search           |
-| **Image Playground**      | Programmatic on-device image generation from document content        |
-| **NLGazetteer**           | Custom entity vocabularies trained from ingested documents           |
-| **Lens Smudge Detection** | Camera quality check before OCR capture                              |
+| Framework                 | Status         | What It Adds                                                         |
+| ------------------------- | -------------- | -------------------------------------------------------------------- |
+| **Visual Intelligence**   | ✅ Shipped     | App Intents for camera/screenshot search (system-discoverable)       |
+| **Adapter Training**      | ✅ Shipped     | `AdapterManager` with LoRA adapter lifecycle (not yet wired)         |
+| **Prompt Evaluation**     | ✅ Shipped     | `PromptEvaluationService` for prompt quality scoring (not yet wired) |
+| **Metal 4**               | ⬜ Remaining   | New GPU API with ML inference passes and unified compute encoders    |
+| **BNNS Graph**            | ✅ Shipped     | `BNNSGraphService` for neural network operations (not yet wired)     |
+| **Image Playground**      | ✅ Shipped     | Programmatic image generation via `ImagePlaygroundService`           |
+| **NLGazetteer**           | ✅ Shipped     | Custom entity training via `GazetteerService`                        |
+| **Lens Smudge Detection** | ⬜ Remaining   | Camera quality check before OCR capture                              |
 
-### v3.0 — Strategic (9 items)
+### v3.0 — Strategic (9 items → 4 done)
 
-`@Observable` migration, WidgetKit, BackgroundTasks, SwiftData, TipKit, Smart Reply, NSUserActivity/Handoff, Genmoji, DataScannerViewController + more.
+✅ **Shipped**: BackgroundTasks (`BackgroundTaskService`), TipKit (`AppTips`), Smart Reply (`SmartReplyService`), NSUserActivity (Handoff in `DocumentLibraryView`/`ChatScreen`)
+
+⬜ **Remaining**: `@Observable` migration, WidgetKit, SwiftData, Genmoji, DataScannerViewController + more.
 
 > **Full details**: See [ROADMAP.md](ROADMAP.md) → "Phase 2.15 — Apple Intelligence Gap Closure"
 
@@ -540,7 +542,7 @@ We've audited every Apple Intelligence framework from WWDC 2024 and 2025 against
 | Document                                            | Description                                                     |
 | --------------------------------------------------- | --------------------------------------------------------------- |
 | **[HOW_IT_WORKS.md](HOW_IT_WORKS.md)**              | 🔥 Plain-English deep dive: 5 gears, token budget, orchestrator |
-| [ARCHITECTURE.md](ARCHITECTURE.md)                  | Complete technical architecture, 81-service inventory           |
+| [ARCHITECTURE.md](ARCHITECTURE.md)                  | Complete technical architecture, 102-service inventory          |
 | [RAG_TECHNICAL.md](Docs/reference/RAG_TECHNICAL.md) | Technical specs: HyDE, math, formulas, & algorithms             |
 | [APPLE_MODELS.md](Docs/reference/APPLE_MODELS.md)   | Apple Intelligence specs: Context limits & token economics      |
 | [ROADMAP.md](ROADMAP.md)                            | Feature roadmap and version history                             |

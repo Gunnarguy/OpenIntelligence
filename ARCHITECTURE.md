@@ -17,7 +17,7 @@
    - [Storage Services](#storage-services-3-services)
    - [VectorStore Services](#vectorstore-services-5-services)
    - [LLM Services](#llm-services-8-services)
-   - [Agentic Services](#agentic-services-6-services)
+   - [Agentic Services](#agentic-services-7-services)
    - [Infrastructure Services](#infrastructure-services-22-services)
    - [Billing Services](#billing-services-2-services)
 5. [DocumentProcessor Deep Dive](#documentprocessor)
@@ -74,41 +74,46 @@ OpenIntelligence is built entirely on Apple's native frameworks—**no third-par
 | **Metal**            | GPU acceleration              | `GPUComputeService` (3-tier shaders), `VisionOCRThrottle`, `DocumentProcessor`       |
 | **StoreKit 2**       | Subscription billing          | `StoreKitBillingService`                                                             |
 
-### iOS 26+ APIs in Production
+### iOS 26+ APIs Status
 
-| API                             | Usage                                                     |
-| ------------------------------- | --------------------------------------------------------- |
-| `LanguageModelSession`          | All LLM queries via Apple Intelligence                    |
-| `@Generable`, `@Guide`, `@Tool` | 8 agentic tools + structured response types               |
-| `LanguageModelFeedback`         | User feedback submission via `LLMService`                 |
-| `prewarm()`                     | Session prewarming in `LLMService` for faster first query |
+| API                             | Status        | Usage                                                                          |
+| ------------------------------- | ------------- | ------------------------------------------------------------------------------ |
+| `LanguageModelSession`          | ✅ Active      | All LLM queries via Apple Intelligence                                         |
+| `@Generable`, `@Guide`, `@Tool` | ✅ Active      | 8 agentic tools + structured response types                                    |
+| `LanguageModelFeedback`         | ✅ Active      | User feedback submission via `LLMService`                                      |
+| `prewarm()`                     | ✅ Active      | Session prewarming in `LLMService` for faster first query                      |
+| `RecognizeDocumentsRequest`     | ✅ Active      | Structured document parsing via `StructuredDocumentParser`                     |
+| `CoreSpotlight`                 | ✅ Active      | Index documents for Spotlight/Siri semantic search                             |
+| `SpeechAnalyzer`                | ✅ Active      | Modern async actor-based speech transcription                                  |
+| `NLGazetteer`                   | ✅ Active      | Custom entity training (product names, SKUs)                                   |
+| `BackgroundTasks`               | ✅ Active      | BGTaskScheduler for background indexing/embedding                              |
+| `TipKit`                        | ✅ Active      | Contextual onboarding tips for RAG features                                    |
+| `Smart Reply`                   | ✅ Active      | Contextual quick replies for chat interface                                    |
+| `Image Playground`              | ✅ Active      | Programmatic on-device image generation                                        |
+| `Visual Intelligence`           | 📦 Implemented | Camera/screenshot search via App Intents (system-discoverable, not app-called) |
+| `Translation.framework`         | 📦 Implemented | Multi-language document translation (service exists, not yet wired to UI)      |
+| `Adapter Training`              | 📦 Implemented | Custom LoRA adapter lifecycle management (service exists, not yet wired)       |
+| `Prompt Evaluation`             | 📦 Implemented | Prompt quality scoring and optimization (service exists, not yet wired)        |
+| `BNNS Graph`                    | 📦 Implemented | Neural network graph operations (service exists, not yet wired)                |
+
+> **Legend**: ✅ Active = called in production app flow | 📦 Implemented = real code exists but not yet integrated into any user-facing flow | ⬜ Not Started = planned
 
 ### Framework Opportunities (v2.1 → v3.0)
 
-> **Full Gap Analysis**: See [ROADMAP.md](ROADMAP.md) → "Phase 2.15 — Apple Intelligence Gap Closure" for complete 23-item breakdown.
+> **Full Gap Analysis**: See [ROADMAP.md](ROADMAP.md) → "Phase 2.15 — Apple Intelligence Gap Closure" for complete 23-item breakdown (14 done, 9 remaining).
 
-| Framework                        | Planned Use                                                 | Target | Priority |
-| -------------------------------- | ----------------------------------------------------------- | ------ | -------- |
-| **Guardrails API** (iOS 26)      | Apple content safety layer for model I/O                    | v2.1   | Critical |
-| **CoreSpotlight**                | Index documents for Spotlight/Siri semantic search          | v2.1   | Critical |
-| **SpeechAnalyzer** (iOS 26)      | Modern async actor-based speech transcription               | v2.1   | Critical |
-| **Translation.framework**        | Multi-language document translation                         | v2.1   | High     |
-| **Liquid Glass** (iOS 26)        | iOS 26 glass material design system for UI                  | v2.1   | High     |
-| **UseCase / Locale** (iOS 26)    | Model use case declaration + locale gating                  | v2.1   | Medium   |
-| **Visual Intelligence** (iOS 26) | Camera/screenshot search into app content                   | v2.2   | High     |
-| **Adapter Training** (iOS 26)    | Custom LoRA adapters for domain-specific LLM                | v2.2   | High     |
-| **Metal 4** (iOS 26)             | New core API, ML inference passes, unified compute encoders | v2.2   | Medium   |
-| **BNNS Graph** (iOS 26)          | Enhanced neural network graph operations                    | v2.2   | Medium   |
-| **Image Playground**             | Programmatic on-device image generation                     | v2.2   | Medium   |
-| **NLGazetteer**                  | Custom entity training (product names, SKUs)                | v2.2   | Medium   |
-| **@Observable**                  | Replace ObservableObject/Combine with modern Observation    | v3.0   | High     |
-| **WidgetKit**                    | Home screen widgets for doc count, queries, status          | v3.0   | Medium   |
-| **BackgroundTasks**              | BGTaskScheduler for background indexing/embedding           | v3.0   | Medium   |
-| **SwiftData**                    | Modern persistence layer (evaluate vs raw sqlite3)          | v3.0   | Medium   |
-| **TipKit**                       | Contextual onboarding tips for RAG features                 | v3.0   | Low      |
-| **VisionKit** (DataScanner)      | Live camera document scanning                               | v3.0   | Medium   |
-| **CreateMLComponents**           | On-device classifier training                               | v3.0   | Medium   |
-| **MetricKit**                    | Production performance telemetry                            | v3.0   | Low      |
+| Framework                     | Planned Use                                                 | Target | Priority |
+| ----------------------------- | ----------------------------------------------------------- | ------ | -------- |
+| **Guardrails API** (iOS 26)   | ✅ Active via `ImagePlaygroundService`; extend to all LLM calls | v2.1   | Medium   |
+| **Liquid Glass** (iOS 26)     | iOS 26 glass material design system for UI                      | v2.1   | High     |
+| **UseCase** (iOS 26)          | Model use case declaration for optimized behavior               | v2.1   | Medium   |
+| **Metal 4** (iOS 26)          | New core API, ML inference passes, unified compute encoders | v2.2   | Medium   |
+| **@Observable**               | Replace ObservableObject/Combine with modern Observation    | v3.0   | High     |
+| **WidgetKit**                 | Home screen widgets for doc count, queries, status          | v3.0   | Medium   |
+| **SwiftData**                 | Modern persistence layer (evaluate vs raw sqlite3)          | v3.0   | Medium   |
+| **VisionKit** (DataScanner)   | Live camera document scanning                               | v3.0   | Medium   |
+| **CreateMLComponents**        | On-device classifier training                               | v3.0   | Medium   |
+| **MetricKit**                 | Production performance telemetry                            | v3.0   | Low      |
 
 ## System Architecture
 
