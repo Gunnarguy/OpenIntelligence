@@ -77,6 +77,16 @@ final class SettingsStore: ObservableObject {
         static let hudGlowIntensity = "hudGlowIntensity" // Double 0.0-1.0 - HUD glow brightness
         static let hudShowMetrics = "hudShowMetrics" // Bool - Show real-time metrics in legend
         static let hudShowTaptic = "hudShowTaptic" // Bool - Show Taptic Engine on HUD
+
+        // Apple Intelligence Features
+        static let enableSmartReplies = "enableSmartReplies" // Bool
+        static let enableContentTagging = "enableContentTagging" // Bool
+        static let enableSpotlightIndexing = "enableSpotlightIndexing" // Bool
+        static let enableBackgroundMaintenance = "enableBackgroundMaintenance" // Bool
+        static let enableWritingTools = "enableWritingTools" // Bool
+        static let enableTranslation = "enableTranslation" // Bool
+        static let enableSpeechAnalysis = "enableSpeechAnalysis" // Bool
+        static let smartReplyCount = "smartReplyCount" // Int (1-5)
     }
 
     // MARK: - Published Settings (bind from UI)
@@ -218,6 +228,32 @@ final class SettingsStore: ObservableObject {
 
     /// Show Taptic Engine activity on the HUD
     @Published var hudShowTaptic: Bool
+
+    // MARK: - Apple Intelligence Features
+
+    /// Enable Smart Reply suggestions for conversational follow-ups.
+    @Published var enableSmartReplies: Bool
+
+    /// Enable automatic content tagging using NaturalLanguage NER.
+    @Published var enableContentTagging: Bool
+
+    /// Enable Core Spotlight indexing for system-wide search integration.
+    @Published var enableSpotlightIndexing: Bool
+
+    /// Enable background maintenance tasks (index compaction, stale cleanup).
+    @Published var enableBackgroundMaintenance: Bool
+
+    /// Enable Writing Tools integration (summarize, rewrite, proofread).
+    @Published var enableWritingTools: Bool
+
+    /// Enable Translation service for multilingual document queries.
+    @Published var enableTranslation: Bool
+
+    /// Enable Speech Analysis for audio transcription and voice queries.
+    @Published var enableSpeechAnalysis: Bool
+
+    /// Number of smart reply suggestions to generate (1-5).
+    @Published var smartReplyCount: Int
 
     // MARK: - Infra
 
@@ -417,6 +453,16 @@ final class SettingsStore: ObservableObject {
         hudShowMetrics = defaults.object(forKey: Keys.hudShowMetrics) as? Bool ?? true
         hudShowTaptic = defaults.object(forKey: Keys.hudShowTaptic) as? Bool ?? true
 
+        // Apple Intelligence Features
+        enableSmartReplies = defaults.object(forKey: Keys.enableSmartReplies) as? Bool ?? true
+        enableContentTagging = defaults.object(forKey: Keys.enableContentTagging) as? Bool ?? true
+        enableSpotlightIndexing = defaults.object(forKey: Keys.enableSpotlightIndexing) as? Bool ?? true
+        enableBackgroundMaintenance = defaults.object(forKey: Keys.enableBackgroundMaintenance) as? Bool ?? true
+        enableWritingTools = defaults.object(forKey: Keys.enableWritingTools) as? Bool ?? true
+        enableTranslation = defaults.object(forKey: Keys.enableTranslation) as? Bool ?? true
+        enableSpeechAnalysis = defaults.object(forKey: Keys.enableSpeechAnalysis) as? Bool ?? true
+        smartReplyCount = defaults.object(forKey: Keys.smartReplyCount) as? Int ?? 3
+
         // Quality mode - load from UserDefaults or default to standard
         if let savedMode = defaults.string(forKey: Keys.ragQualityMode),
            let mode = RAGQualityMode(rawValue: savedMode)
@@ -493,6 +539,14 @@ final class SettingsStore: ObservableObject {
             $hudGlowIntensity.map { _ in () }.eraseToAnyPublisher(),
             $hudShowMetrics.map { _ in () }.eraseToAnyPublisher(),
             $hudShowTaptic.map { _ in () }.eraseToAnyPublisher(),
+            $enableSmartReplies.map { _ in () }.eraseToAnyPublisher(),
+            $enableContentTagging.map { _ in () }.eraseToAnyPublisher(),
+            $enableSpotlightIndexing.map { _ in () }.eraseToAnyPublisher(),
+            $enableBackgroundMaintenance.map { _ in () }.eraseToAnyPublisher(),
+            $enableWritingTools.map { _ in () }.eraseToAnyPublisher(),
+            $enableTranslation.map { _ in () }.eraseToAnyPublisher(),
+            $enableSpeechAnalysis.map { _ in () }.eraseToAnyPublisher(),
+            $smartReplyCount.map { _ in () }.eraseToAnyPublisher(),
         ]
         Publishers.MergeMany(publishers)
             .sink { [weak self] in
@@ -626,6 +680,16 @@ final class SettingsStore: ObservableObject {
         defaults.set(hudGlowIntensity, forKey: Keys.hudGlowIntensity)
         defaults.set(hudShowMetrics, forKey: Keys.hudShowMetrics)
         defaults.set(hudShowTaptic, forKey: Keys.hudShowTaptic)
+
+        // Apple Intelligence Features
+        defaults.set(enableSmartReplies, forKey: Keys.enableSmartReplies)
+        defaults.set(enableContentTagging, forKey: Keys.enableContentTagging)
+        defaults.set(enableSpotlightIndexing, forKey: Keys.enableSpotlightIndexing)
+        defaults.set(enableBackgroundMaintenance, forKey: Keys.enableBackgroundMaintenance)
+        defaults.set(enableWritingTools, forKey: Keys.enableWritingTools)
+        defaults.set(enableTranslation, forKey: Keys.enableTranslation)
+        defaults.set(enableSpeechAnalysis, forKey: Keys.enableSpeechAnalysis)
+        defaults.set(smartReplyCount, forKey: Keys.smartReplyCount)
     }
 
     // MARK: - Side Effects (Debounced)
@@ -709,16 +773,16 @@ private extension SettingsStore {
         if firstCandidates.isEmpty {
             firstFallback = selectedModel
             enableFirstFallback = false
-        } else if !firstCandidates.contains(firstFallback) {
-            firstFallback = firstCandidates.first!
+        } else if let first = firstCandidates.first, !firstCandidates.contains(firstFallback) {
+            firstFallback = first
         }
 
         let secondCandidates = fallbackUniverse.filter { $0 != selectedModel && $0 != firstFallback }
         if secondCandidates.isEmpty {
             secondFallback = firstFallback
             enableSecondFallback = false
-        } else if !secondCandidates.contains(secondFallback) {
-            secondFallback = secondCandidates.first!
+        } else if let second = secondCandidates.first, !secondCandidates.contains(secondFallback) {
+            secondFallback = second
         }
     }
 }

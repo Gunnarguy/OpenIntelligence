@@ -26,6 +26,12 @@ struct MessageActionsBar: View {
     /// Called when user taps "Go Deeper" to re-query with agentic mode
     var onGoDeeper: (() -> Void)?
 
+    /// Called when user taps "Translate" to show translation overlay
+    var onTranslate: (() -> Void)?
+
+    /// Called when user taps "Illustrate" to open Image Playground
+    var onIllustrate: (() -> Void)?
+
     // iOS 26+: Thumbs up/down feedback for Apple Foundation Models
     let onThumbsUp: (() -> Void)?
     let onThumbsDown: (() -> Void)?
@@ -47,102 +53,119 @@ struct MessageActionsBar: View {
     }
 
     var body: some View {
-        HStack(spacing: 2) {
-            // "Go Deeper" button for single-pass responses that could benefit from agentic mode
-            if !isUser, canGoDeeper, let onGoDeeper {
-                ActionButton(
-                    icon: "brain",
-                    label: "Go Deeper",
-                    color: .purple
-                ) {
-                    onGoDeeper()
-                }
-            }
-
-            // Thumbs up/down for Apple Intelligence responses (iOS 26+)
-            if !isUser, isAppleIntelligenceResponse {
-                if let onThumbsUp {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 2) {
+                // "Go Deeper" button for single-pass responses that could benefit from agentic mode
+                if !isUser, canGoDeeper, let onGoDeeper {
                     ActionButton(
-                        icon: feedbackSubmitted == true ? "hand.thumbsup.fill" : "hand.thumbsup",
-                        label: "Good",
-                        color: feedbackSubmitted == true ? .green : .secondary
+                        icon: "brain",
+                        label: "Go Deeper",
+                        color: .purple
                     ) {
-                        feedbackSubmitted = true
-                        onThumbsUp()
+                        onGoDeeper()
                     }
-                    .disabled(feedbackSubmitted != nil)
                 }
 
-                if let onThumbsDown {
-                    ActionButton(
-                        icon: feedbackSubmitted == false ? "hand.thumbsdown.fill" : "hand.thumbsdown",
-                        label: "Bad",
-                        color: feedbackSubmitted == false ? .red : .secondary
-                    ) {
-                        feedbackSubmitted = false
-                        onThumbsDown()
+                // Thumbs up/down for Apple Intelligence responses (iOS 26+)
+                if !isUser, isAppleIntelligenceResponse {
+                    if let onThumbsUp {
+                        ActionButton(
+                            icon: feedbackSubmitted == true ? "hand.thumbsup.fill" : "hand.thumbsup",
+                            label: "Good",
+                            color: feedbackSubmitted == true ? .green : .secondary
+                        ) {
+                            feedbackSubmitted = true
+                            onThumbsUp()
+                        }
+                        .disabled(feedbackSubmitted != nil)
                     }
-                    .disabled(feedbackSubmitted != nil)
+
+                    if let onThumbsDown {
+                        ActionButton(
+                            icon: feedbackSubmitted == false ? "hand.thumbsdown.fill" : "hand.thumbsdown",
+                            label: "Bad",
+                            color: feedbackSubmitted == false ? .red : .secondary
+                        ) {
+                            feedbackSubmitted = false
+                            onThumbsDown()
+                        }
+                        .disabled(feedbackSubmitted != nil)
+                    }
                 }
-            }
 
-            // Copy button
-            ActionButton(
-                icon: copiedFeedback ? "checkmark" : "doc.on.doc",
-                label: copiedFeedback ? "Copied" : "Copy",
-                color: copiedFeedback ? .green : .secondary
-            ) {
-                copyToClipboard()
-            }
-
-            // Regenerate (assistant only)
-            if !isUser, let onRegenerate {
-                ActionButton(icon: "arrow.clockwise", label: "Retry", color: .orange) {
-                    onRegenerate()
-                }
-            }
-
-            // Details (assistant only, if has metadata)
-            if !isUser, message.metadata != nil, let onShowDetails {
-                ActionButton(icon: "info.circle", label: "Details", color: .blue) {
-                    onShowDetails()
-                }
-            }
-
-            // Export Trace (assistant only, if has pipeline trace or metadata)
-            if !isUser, (message.pipelineTrace != nil || message.metadata != nil), let onExportTrace {
-                ActionButton(icon: "doc.text.magnifyingglass", label: "Trace", color: .cyan) {
-                    onExportTrace()
-                }
-            }
-
-            // Hide / Unhide (assistant only)
-            if !isUser, let onToggleHidden {
+                // Copy button
                 ActionButton(
-                    icon: message.isHidden ? "eye" : "eye.slash",
-                    label: message.isHidden ? "Unhide" : "Hide",
-                    color: .secondary
+                    icon: copiedFeedback ? "checkmark" : "doc.on.doc",
+                    label: copiedFeedback ? "Copied" : "Copy",
+                    color: copiedFeedback ? .green : .secondary
                 ) {
-                    onToggleHidden()
+                    copyToClipboard()
                 }
-            }
 
-            // Report (assistant only)
-            if !isUser, let onReport {
-                ActionButton(icon: "flag", label: "Report", color: .red) {
-                    onReport()
+                // Regenerate (assistant only)
+                if !isUser, let onRegenerate {
+                    ActionButton(icon: "arrow.clockwise", label: "Retry", color: .orange) {
+                        onRegenerate()
+                    }
                 }
-            }
 
-            // Share
-            if let onShare {
-                ActionButton(icon: "square.and.arrow.up", label: "Share", color: .purple) {
-                    onShare()
+                // Details (assistant only, if has metadata)
+                if !isUser, message.metadata != nil, let onShowDetails {
+                    ActionButton(icon: "info.circle", label: "Details", color: .blue) {
+                        onShowDetails()
+                    }
+                }
+
+                // Export Trace (assistant only, if has pipeline trace or metadata)
+                if !isUser, (message.pipelineTrace != nil || message.metadata != nil), let onExportTrace {
+                    ActionButton(icon: "doc.text.magnifyingglass", label: "Trace", color: .cyan) {
+                        onExportTrace()
+                    }
+                }
+
+                // Hide / Unhide (assistant only)
+                if !isUser, let onToggleHidden {
+                    ActionButton(
+                        icon: message.isHidden ? "eye" : "eye.slash",
+                        label: message.isHidden ? "Unhide" : "Hide",
+                        color: .secondary
+                    ) {
+                        onToggleHidden()
+                    }
+                }
+
+                // Report (assistant only)
+                if !isUser, let onReport {
+                    ActionButton(icon: "flag", label: "Report", color: .red) {
+                        onReport()
+                    }
+                }
+
+                // Share
+                if let onShare {
+                    ActionButton(icon: "square.and.arrow.up", label: "Share", color: .purple) {
+                        onShare()
+                    }
+                }
+
+                // Translate (assistant only)
+                if !isUser, let onTranslate {
+                    ActionButton(icon: "translate", label: "Translate", color: .cyan) {
+                        onTranslate()
+                    }
+                }
+
+                // Illustrate (assistant only)
+                if !isUser, let onIllustrate {
+                    ActionButton(icon: "photo.on.rectangle.angled", label: "Illustrate", color: .mint) {
+                        onIllustrate()
+                    }
                 }
             }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
+        .scrollClipDisabled()
         .background(
             Capsule()
                 .fill(.ultraThinMaterial)
@@ -171,8 +194,6 @@ private struct ActionButton: View {
     let label: String
     let color: Color
     let action: () -> Void
-
-    @State private var isPressed = false
 
     var body: some View {
         Button(action: {

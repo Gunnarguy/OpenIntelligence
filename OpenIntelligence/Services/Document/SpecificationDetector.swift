@@ -181,8 +181,8 @@ enum SpecificationDetector: Sendable {
             if grouped[spec.category] == nil {
                 grouped[spec.category] = []
             }
-            if !grouped[spec.category]!.contains(normalizedValue) {
-                grouped[spec.category]!.append(normalizedValue)
+            if !grouped[spec.category, default: []].contains(normalizedValue) {
+                grouped[spec.category, default: []].append(normalizedValue)
             }
         }
 
@@ -228,8 +228,8 @@ enum SpecificationDetector: Sendable {
                 grouped[spec.category] = []
             }
             let normalized = spec.value.trimmingCharacters(in: .whitespaces)
-            if !grouped[spec.category]!.contains(normalized) {
-                grouped[spec.category]!.append(normalized)
+            if !grouped[spec.category, default: []].contains(normalized) {
+                grouped[spec.category, default: []].append(normalized)
             }
         }
 

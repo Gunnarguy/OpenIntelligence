@@ -42,6 +42,10 @@ struct KnowledgeContainer: Identifiable, Codable, Equatable, Sendable {
     var dbSizeBytes: Int64
     var lastIndexedAt: Date?
 
+    // Per-library AI feature overrides
+    var autoTagOnIngestion: Bool?
+    var preferredTranslationLanguage: String?
+
     // MARK: - Coding Keys for Migration
 
     private enum CodingKeys: String, CodingKey {
@@ -50,6 +54,7 @@ struct KnowledgeContainer: Identifiable, Codable, Equatable, Sendable {
         case autoAdaptDimension, chunkingDirective, lastSelfTuneAt
         case retrievalConfig
         case totalDocuments, totalChunks, dbSizeBytes, lastIndexedAt
+        case autoTagOnIngestion, preferredTranslationLanguage
         // Legacy key for migration
         case strictMode
     }
@@ -73,6 +78,9 @@ struct KnowledgeContainer: Identifiable, Codable, Equatable, Sendable {
         totalChunks = try container.decodeIfPresent(Int.self, forKey: .totalChunks) ?? 0
         dbSizeBytes = try container.decodeIfPresent(Int64.self, forKey: .dbSizeBytes) ?? 0
         lastIndexedAt = try container.decodeIfPresent(Date.self, forKey: .lastIndexedAt)
+
+        autoTagOnIngestion = try container.decodeIfPresent(Bool.self, forKey: .autoTagOnIngestion)
+        preferredTranslationLanguage = try container.decodeIfPresent(String.self, forKey: .preferredTranslationLanguage)
 
         // Migration: convert legacy strictMode to retrievalConfig
         if let config = try container.decodeIfPresent(RetrievalConfig.self, forKey: .retrievalConfig) {
@@ -104,6 +112,8 @@ struct KnowledgeContainer: Identifiable, Codable, Equatable, Sendable {
         try container.encode(totalChunks, forKey: .totalChunks)
         try container.encode(dbSizeBytes, forKey: .dbSizeBytes)
         try container.encodeIfPresent(lastIndexedAt, forKey: .lastIndexedAt)
+        try container.encodeIfPresent(autoTagOnIngestion, forKey: .autoTagOnIngestion)
+        try container.encodeIfPresent(preferredTranslationLanguage, forKey: .preferredTranslationLanguage)
     }
 
     init(
@@ -123,7 +133,9 @@ struct KnowledgeContainer: Identifiable, Codable, Equatable, Sendable {
         totalDocuments: Int = 0,
         totalChunks: Int = 0,
         dbSizeBytes: Int64 = 0,
-        lastIndexedAt: Date? = nil
+        lastIndexedAt: Date? = nil,
+        autoTagOnIngestion: Bool? = nil,
+        preferredTranslationLanguage: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -142,6 +154,8 @@ struct KnowledgeContainer: Identifiable, Codable, Equatable, Sendable {
         self.totalChunks = totalChunks
         self.dbSizeBytes = dbSizeBytes
         self.lastIndexedAt = lastIndexedAt
+        self.autoTagOnIngestion = autoTagOnIngestion
+        self.preferredTranslationLanguage = preferredTranslationLanguage
     }
 
     // MARK: - Factory Methods

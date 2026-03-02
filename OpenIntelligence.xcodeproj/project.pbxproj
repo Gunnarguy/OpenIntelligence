@@ -12,8 +12,10 @@
 		B016E7B92F0F5F5F00AABA0C /* Transformers in Frameworks */ = {isa = PBXBuildFile; productRef = B016E7B82F0F5F5F00AABA0C /* Transformers */; };
 /* End PBXBuildFile section */
 
+
 /* Begin PBXFileReference section */
 		B0D565DE2E98AC50001274A2 /* OpenIntelligence.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OpenIntelligence.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		DDFD1600670D479C7075E2C2 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -41,6 +43,7 @@
 		B0B991682F0F4BC700BBE97E /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				E36190526DA1ED2ACAD0DA42 /* iOS */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -60,6 +63,14 @@
 				B0D565DE2E98AC50001274A2 /* OpenIntelligence.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		E36190526DA1ED2ACAD0DA42 /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				DDFD1600670D479C7075E2C2 /* Foundation.framework */,
+			);
+			name = iOS;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -146,6 +157,7 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
 
 /* Begin XCBuildConfiguration section */
 		B0D565E72E98AC51001274A2 /* Debug */ = {
@@ -274,24 +286,27 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 18;
+				CURRENT_PROJECT_VERSION = 19;
 				DEVELOPMENT_TEAM = Z3E334EXZD;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = OpenIntelligence;
 				INFOPLIST_KEY_CFBundleName = OpenIntelligence;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Take photos of documents or whiteboards for OCR and semantic search.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Record voice queries or dictate text for hands-free document search.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Select images from your library to extract text and add to your knowledge base.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Transcribe audio and video files you import to add their content to your knowledge base.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphonesimulator*]" = YES;
+				INFOPLIST_KEY_UIBackgroundModes = "fetch processing";
 				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphoneos*]" = UIStatusBarStyleDefault;
@@ -302,7 +317,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.2;
+				MARKETING_VERSION = 2;
 				PRODUCT_BUNDLE_IDENTIFIER = Gunndamental.OpenIntelligence;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -328,22 +343,25 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 18;
+				CURRENT_PROJECT_VERSION = 19;
 				DEVELOPMENT_TEAM = Z3E334EXZD;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Take photos of documents or whiteboards for OCR and semantic search.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Record voice queries or dictate text for hands-free document search.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Select images from your library to extract text and add to your knowledge base.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Transcribe audio and video files you import to add their content to your knowledge base.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphonesimulator*]" = YES;
+				INFOPLIST_KEY_UIBackgroundModes = "fetch processing";
 				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphoneos*]" = UIStatusBarStyleDefault;
@@ -354,7 +372,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.2;
+				MARKETING_VERSION = 2;
 				PRODUCT_BUNDLE_IDENTIFIER = Gunndamental.OpenIntelligence;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;

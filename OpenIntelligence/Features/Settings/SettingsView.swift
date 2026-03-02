@@ -39,6 +39,9 @@ struct SettingsView: View {
                         // Intelligence Mode (Standard vs Deep Think)
                         retrievalCard
 
+                        // Apple Intelligence Features
+                        appleIntelligenceFeaturesCard
+
                         // Generation Tuning (exposed hidden settings)
                         generationTuningCard
 
@@ -133,8 +136,8 @@ struct SettingsView: View {
                 )
                 statusPill(
                     icon: "cloud.fill",
-                    text: "PCC",
-                    active: true
+                    text: "PCC Fallback",
+                    active: false
                 )
             }
         }
@@ -238,7 +241,7 @@ struct SettingsView: View {
         case .pro:
             return "Pro plan • Active"
         case .lifetime:
-            return "Lifetime • Unlimited"
+            return "Lifetime • Up to 1,000 docs"
         }
     }
 
@@ -316,7 +319,7 @@ Text(label)
                 VStack(alignment: .leading, spacing: 4) {
                     Text("On-Device Foundation Model")
                         .font(.subheadline.weight(.medium))
-                    Text("~3B parameters • 2-bit quantized • Neural Engine optimized")
+                    Text("~3B parameters • 2-bit QAT • Apple Silicon optimized")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -371,7 +374,7 @@ Text(label)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Privacy & Execution")
                         .font(.headline)
-                    Text("Apple Intelligence routing")
+                    Text("Primarily on-device processing")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -382,32 +385,36 @@ Text(label)
                     Circle()
 .fill(Color.green)
                         .frame(width: 8, height: 8)
-                    Text("Automatic")
+                    Text("On-Device")
                         .font(.caption2.weight(.medium))
 .foregroundColor(.green)
                 }
             }
 
-            // Automatic Routing Explanation
+            // On-Device Execution Explanation
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
-                    Image(systemName: "gearshape.2.fill")
+                    Image(systemName: "iphone.gen3")
                         .font(.caption)
                         .foregroundColor(.accentColor)
-                    Text("How Apple Routes Queries")
+                    Text("On-Device First Execution")
                         .font(.subheadline.weight(.medium))
                 }
 
-                Text("OpenIntelligence is reliability-first: for library queries it prefers Private Cloud Compute when allowed, then additionally uses Apple's routing (complexity, context length, thermals, battery, privacy).")
+                Text("All AI inference runs on your device using Apple's ~3B Foundation Model via the Neural Engine, GPU, and CPU. Apple's FoundationModels framework may automatically route to Private Cloud Compute if context exceeds on-device capacity, but this is Apple system-level routing — no data is sent to OpenIntelligence servers.")
                     .font(.caption)
                     .foregroundColor(.secondary)
 
-                // Routing factors visualization
-                HStack(spacing: 8) {
-                    routingFactorPill(icon: "brain.head.profile", label: "Complexity")
-                    routingFactorPill(icon: "thermometer.medium", label: "Thermals")
-                    routingFactorPill(icon: "battery.100percent", label: "Battery")
+                // On-device benefits
+                VStack(alignment: .leading, spacing: 6) {
+                    pccBenefitRow(icon: "checkmark.shield.fill", text: "Works fully offline — no OpenIntelligence servers", color: .green)
+                    pccBenefitRow(icon: "eye.slash.fill", text: "No data sent to OpenIntelligence or third parties", color: .green)
+                    pccBenefitRow(icon: "bolt.fill", text: "Low latency — primarily on-device inference", color: .blue)
+                    pccBenefitRow(icon: "cpu", text: "Neural Engine + GPU + CPU (Apple Silicon)", color: .purple)
+                    pccBenefitRow(icon: "icloud.and.arrow.up", text: "Apple may route to PCC for complex queries (encrypted, zero retention)", color: .secondary)
                 }
+                .padding(.leading, 4)
+                .padding(.top, 4)
             }
             .padding(10)
             .background(Color.accentColor.opacity(0.06))
@@ -415,21 +422,25 @@ Text(label)
 
             Divider()
 
-            // Private Cloud Compute Benefits (automatic routing, no picker needed)
+            // Private Cloud Compute context
             VStack(alignment: .leading, spacing: 10) {
-                Text("Private Cloud Compute")
-                    .font(.subheadline.weight(.medium))
+                HStack(spacing: 8) {
+                    Image(systemName: "cloud.fill")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text("About Private Cloud Compute")
+                        .font(.subheadline.weight(.medium))
+                }
 
-                Text("OpenIntelligence automatically uses on-device processing when possible, and seamlessly escalates to Private Cloud Compute for complex queries or large documents.")
+                Text("Apple's Private Cloud Compute (PCC) is a secure cloud AI system used by Apple's own features (Siri, Writing Tools, etc.). Third-party apps like OpenIntelligence use the on-device model exclusively — PCC access is reserved for Apple.")
                     .font(.caption)
 .foregroundColor(.secondary)
 
-                // PCC Benefits
+                // PCC info (what it is, not what we use)
                 VStack(alignment: .leading, spacing: 6) {
-                    pccBenefitRow(icon: "checkmark.shield.fill", text: "End-to-end encrypted, no data retention", color: .green)
-                    pccBenefitRow(icon: "eye.slash.fill", text: "Apple cannot see your prompts or responses", color: .green)
-                    pccBenefitRow(icon: "doc.viewfinder", text: "Cryptographically verifiable by security researchers", color: .green)
-                    pccBenefitRow(icon: "brain", text: "Handles complex reasoning tasks", color: .blue)
+                    pccBenefitRow(icon: "lock.shield.fill", text: "PCC: Apple-only, end-to-end encrypted, zero retention", color: .secondary)
+                    pccBenefitRow(icon: "doc.viewfinder", text: "Cryptographically verifiable by security researchers", color: .secondary)
+                    pccBenefitRow(icon: "info.circle", text: "OpenIntelligence does not use PCC — all processing is on-device", color: .accentColor)
                 }
                 .padding(.leading, 4)
                     .padding(.top, 4)
@@ -535,7 +546,7 @@ Text(deviceService.chipName)
                     .foregroundColor(.secondary)
 
                 HStack(spacing: 12) {
-                    deviceCapabilityPill(icon: "brain.head.profile", label: "Deep Think", value: "Up to \(deviceService.maxConcurrentAgenticSteps) steps")
+                    deviceCapabilityPill(icon: "brain.head.profile", label: "Deep Think", value: "\(deviceService.optimizedAgenticConfig().maxSteps) max sessions")
                     deviceCapabilityPill(icon: "flame", label: "Thermal", value: deviceService.hasThermalHeadroom ? "High" : "Standard")
                 }
             }
@@ -556,16 +567,17 @@ Text(deviceService.chipName)
                 }
 
                 // Dynamic explanation based on mode
+                let agenticConfig = DeviceCapabilityService.shared.optimizedAgenticConfig()
                 if settings.ragQualityMode.canonical == .maximum {
-                    Text("Maximum mode chains up to 50 reasoning sessions with verification gates (anti-hallucination), graph-based context packing, and calibrated confidence until 98% confident.")
+                    Text("Maximum mode chains up to 50 serial reasoning sessions, each with a 4K-token Apple FM window. Compressed insights pass between sessions via Self-RAG 2.0 enrichment. Stops at 98% confidence. Minimum 8 sessions before early stop.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 } else if settings.ragQualityMode.canonical == .deepThink {
-                    Text("Deep Think chains 4-8 reasoning sessions with intent routing, extractive summarization for summaries, and verification gates. Stops when 85% confident.")
+                    Text("Deep Think chains \(max(4, agenticConfig.maxSteps - 2))–\(agenticConfig.maxSteps) serial reasoning sessions (device-optimized for your \(DeviceCapabilityService.shared.chipName)). Each session gets a fresh 4K-token window with compressed prior insights. Stops at 85% confidence.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 } else {
-                    Text("Standard mode uses verification gates, graph context packing, and extractive QA. Activates multi-session reasoning for complex queries.")
+                    Text("Standard mode runs a single 4K-token LLM pass with verification gates and graph context packing. Complex queries (high retrieval similarity, multiple chunks) automatically escalate to a 3-session reasoning chain.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -573,13 +585,15 @@ Text(deviceService.chipName)
                 HStack(spacing: 12) {
                     if settings.ragQualityMode.canonical == .maximum {
                         contextInfoPill(icon: "square.3.layers.3d", label: "Per Session", value: "4K tokens")
-                        contextInfoPill(icon: "flame.fill", label: "Total Budget", value: "200K+ tokens")
+                        contextInfoPill(icon: "flame.fill", label: "Sessions", value: "Up to 50")
                     } else if settings.ragQualityMode.canonical == .deepThink {
+                        let maxSessions = agenticConfig.maxSteps
+                        let effectiveTokens = maxSessions * 4096
                         contextInfoPill(icon: "square.3.layers.3d", label: "Per Session", value: "4K tokens")
-                        contextInfoPill(icon: "arrow.trianglehead.2.clockwise.rotate.90", label: "Effective", value: "16-32K tokens")
+                        contextInfoPill(icon: "arrow.trianglehead.2.clockwise.rotate.90", label: "Sessions", value: "\(max(4, maxSessions - 2))–\(maxSessions) (\(effectiveTokens / 1000)K effective)")
                     } else {
-                        contextInfoPill(icon: "square.3.layers.3d", label: "Per Session", value: "4K tokens")
-                        contextInfoPill(icon: "arrow.trianglehead.2.clockwise.rotate.90", label: "Chain Mode", value: "12K+ tokens")
+                        contextInfoPill(icon: "square.3.layers.3d", label: "Single Pass", value: "4K tokens")
+                        contextInfoPill(icon: "arrow.trianglehead.2.clockwise.rotate.90", label: "If Complex", value: "3 sessions (12K)")
                     }
                 }
             }
@@ -615,9 +629,18 @@ Text(deviceService.chipName)
                         .font(.subheadline.weight(.medium))
                 }
 
-                Text("Apple Intelligence supports English, Spanish, French, German, Italian, Japanese, Korean, Portuguese, and Chinese.")
+                Text("Apple Intelligence supports multiple languages for text generation. OCR and document processing support additional languages via Vision and NaturalLanguage frameworks.")
                     .font(.caption)
                     .foregroundColor(.secondary)
+
+                // Language list — verified Apple Intelligence languages as of iOS 18.4+
+                Text("English, Spanish, French, German, Italian, Japanese, Korean, Portuguese, Chinese, Hindi, Vietnamese, Indonesian, Thai, Dutch, Arabic, Turkish, Polish, Romanian, Swedish, Vietnamese")
+                    .font(.caption2)
+                    .foregroundColor(.secondary.opacity(0.8))
+
+                Text("On-device Foundation Model language support may vary. Apple routes automatically.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary.opacity(0.6))
             }
 .padding(10)
     .background(Color.blue.opacity(0.08))
@@ -705,7 +728,7 @@ Text(deviceService.chipName)
                     .clipShape(Capsule())
             }
 
-            Text("Vector operations use Apple's Accelerate framework for Neural Engine acceleration. Batch sizes are tuned for your \(deviceService.chipName).")
+            Text("Vector math uses Apple's Accelerate framework (vDSP/BLAS) for CPU SIMD acceleration. Metal shaders handle bulk cosine similarity and MMR diversity when GPU level ≥ 60%. Batch sizes are tuned for your \(deviceService.chipName).")
                 .font(.caption)
                 .foregroundColor(.secondary)
 
@@ -714,12 +737,12 @@ Text(deviceService.chipName)
                 siliconFeatureRow(
                     icon: "function",
                     label: "vDSP Vector Math",
-                    detail: "Hardware-accelerated similarity"
+                    detail: "CPU SIMD-accelerated similarity"
                 )
                 siliconFeatureRow(
                     icon: "square.grid.3x3.fill",
-                    label: "Batch Matrix Ops",
-                    detail: "Threshold: \(deviceService.batchMatrixMultiplyThreshold)+ chunks"
+                    label: "Metal GPU Shaders",
+                    detail: "3-tier: threadgroup/SIMD4/scalar"
                 )
                 siliconFeatureRow(
                     icon: "text.line.first.and.arrowtriangle.forward",
@@ -744,6 +767,11 @@ Text(deviceService.chipName)
                     icon: "text.badge.checkmark",
                     label: "Embed Batch",
                     value: "\(deviceService.embeddingBatchSize)"
+                )
+                siliconInfoPill(
+                    icon: "square.grid.3x3.fill",
+                    label: "Matrix @",
+                    value: "\(deviceService.batchMatrixMultiplyThreshold)+"
                 )
             }
         }
@@ -789,41 +817,9 @@ Text(deviceService.chipName)
 
     @State private var gpuLevel: Double = DeviceCapabilityService.shared.gpuAccelerationLevel
 
-    // Computed concurrency values that react to gpuLevel changes
-    private var currentVisionConcurrency: Int {
-        let gpuBoost = gpuLevel > 0.7
-        let tier = DeviceCapabilityService.shared.tier
-        switch tier {
-        case .unsupported: return 2
-        case .baseline: return gpuBoost ? 5 : 3
-        case .enhanced: return gpuBoost ? 8 : 5
-        case .advanced: return gpuBoost ? 10 : 6
-        case .ultraAdvanced: return gpuBoost ? 12 : 8
-        }
-    }
-
-    private var currentEmbeddingConcurrency: Int {
-        let gpuBoost = gpuLevel > 0.7
-        let tier = DeviceCapabilityService.shared.tier
-        switch tier {
-        case .unsupported: return 2
-        case .baseline: return gpuBoost ? 10 : 6
-        case .enhanced: return gpuBoost ? 14 : 8
-        case .advanced: return gpuBoost ? 16 : 10
-        case .ultraAdvanced: return gpuBoost ? 20 : 12
-        }
-    }
-
-    private var currentOCRConcurrency: Int {
-        let gpuBoost = gpuLevel > 0.7
-        let tier = DeviceCapabilityService.shared.tier
-        switch tier {
-        case .unsupported: return 2
-        case .baseline: return gpuBoost ? 6 : 4
-        case .enhanced: return gpuBoost ? 10 : 6
-        case .advanced: return gpuBoost ? 12 : 8
-        case .ultraAdvanced: return gpuBoost ? 16 : 10
-        }
+    // GPU concurrency from DeviceCapabilityService (reflects actual pipeline values)
+    private var currentGPUConcurrency: Int {
+        DeviceCapabilityService.shared.gpuConcurrency
     }
     private func gpuAccelerationSection(deviceService: DeviceCapabilityService) -> some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -890,27 +886,22 @@ Text(deviceService.chipName)
                 gpuSettingRow(
                     icon: "cpu",
                     label: "CoreML Compute",
-                    value: gpuLevel >= 0.9 ? "GPU + CPU" : (gpuLevel >= 0.6 ? "All (Auto)" : "Neural Engine")
+                    value: gpuLevel >= 0.9 ? "GPU + CPU" : (gpuLevel >= 0.6 ? "All (Auto)" : "CPU + Neural Engine")
                 )
                 gpuSettingRow(
                     icon: "doc.text.image",
-                    label: "PDF Processing",
-                    value: gpuLevel >= 0.3 ? "GPU-Accelerated" : "CPU"
+                    label: "PDF Rendering",
+                    value: gpuLevel >= 0.3 ? "Metal CIContext (GPU)" : "CPU CIContext"
                 )
                 gpuSettingRow(
-                    icon: "arrow.triangle.branch",
-                    label: "Vision Concurrency",
-                    value: gpuLevel > 0.7 ? "\(currentVisionConcurrency) pages ⚡" : "\(currentVisionConcurrency) pages"
+                    icon: "function",
+                    label: "Metal Vector Ops",
+                    value: gpuLevel >= 0.6 ? "Active (cosine/MMR/normalize)" : "Off (Accelerate CPU)"
                 )
                 gpuSettingRow(
-                    icon: "waveform",
-                    label: "OCR Concurrency",
-                    value: gpuLevel > 0.7 ? "\(currentOCRConcurrency) pages ⚡" : "\(currentOCRConcurrency) pages"
-                )
-                gpuSettingRow(
-                    icon: "cube.transparent",
-                    label: "Embedding Concurrency",
-                    value: gpuLevel > 0.7 ? "\(currentEmbeddingConcurrency) parallel ⚡" : "\(currentEmbeddingConcurrency) parallel"
+                    icon: "square.stack.3d.up",
+                    label: "GPU Op Concurrency",
+                    value: "\(currentGPUConcurrency) concurrent"
                 )
                 gpuSettingRow(
                     icon: "thermometer.medium",
@@ -920,15 +911,50 @@ Text(deviceService.chipName)
             }
             .animation(.easeInOut(duration: 0.2), value: gpuLevel)
 
+            Divider()
+                .padding(.vertical, 2)
+
+            // Pipeline concurrency (tier-based, not GPU-slider dependent)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Pipeline Concurrency")
+                    .font(.caption.weight(.medium))
+                Text("Set by device tier, not GPU slider. Optimized for your \(deviceService.chipName).")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+
+                gpuSettingRow(
+                    icon: "doc.text.image",
+                    label: "Vision Parsing",
+                    value: "\(deviceService.visionParsingConcurrency) pages"
+                )
+                gpuSettingRow(
+                    icon: "waveform",
+                    label: "OCR Extraction",
+                    value: "\(deviceService.ocrExtractionConcurrency) pages"
+                )
+                gpuSettingRow(
+                    icon: "photo.stack",
+                    label: "PDF Render Slots",
+                    value: "\(deviceService.pdfRenderingConcurrency) concurrent (360 DPI)"
+                )
+                gpuSettingRow(
+                    icon: "cube.transparent",
+                    label: "Embedding",
+                    value: "\(deviceService.embeddingConcurrency) parallel"
+                )
+            }
+            .animation(.easeInOut(duration: 0.2), value: gpuLevel)
+
             // Speed estimate for 400-page PDF
             VStack(alignment: .leading, spacing: 4) {
                 Text("📄 400-Page PDF Estimate")
                     .font(.caption.weight(.medium))
-                let batches = 400 / currentVisionConcurrency
-                let estimatedSeconds = batches * 2  // ~2s per batch average
+                let renderSlots = deviceService.pdfRenderingConcurrency
+                let batches = 400 / renderSlots
+                let estimatedSeconds = batches * 3  // ~3s per render+OCR batch average (360 DPI)
                 let minutes = estimatedSeconds / 60
                 let seconds = estimatedSeconds % 60
-                Text("~\(minutes)m \(seconds)s extraction • \(batches) batches")
+                Text("~\(minutes)m \(seconds)s extraction • \(batches) batches of \(renderSlots) pages")
                     .font(.caption2.monospacedDigit())
                     .foregroundColor(.secondary)
             }
@@ -1119,64 +1145,26 @@ Text(deviceService.chipName)
                         .font(.caption.weight(.medium))
                 }
 
+                // Data-driven feature list — avoids stack overflow from
+                // 25+ inline featureRow calls generating a massive generic type.
                 VStack(alignment: .leading, spacing: 6) {
-                    // Common features for all modes (Ingestion & Retrieval)
-                    featureRow(icon: "doc.badge.gearshape", label: "Contextual Embeddings", description: "Document title + section baked into every vector", color: .green)
-                    featureRow(icon: "tablecells", label: "Smart Table Extraction", description: "iOS 26 Vision API preserves tables with captions", color: .green)
-                    featureRow(icon: "link", label: "Cross-Document Entity Linking", description: "Global entity index finds related info across library", color: .green)
-                    featureRow(icon: "doc.on.doc", label: "Parent Document Retrieval", description: "Expands chunk window ±5 for full paragraph context", color: .green)
-                    featureRow(icon: "lightbulb", label: "Query Understanding", description: "NLTagger resolves pronouns, NER extracts key entities", color: .green)
-                    featureRow(icon: "arrow.triangle.merge", label: "Hybrid Search + RRF", description: "Vector + BM25 keyword search with Reciprocal Rank Fusion", color: .green)
-                    featureRow(icon: "arrow.up.arrow.down", label: "Cross-Encoder Reranking", description: "TinyBERT reranker scores query-document relevance", color: .green)
-                    featureRow(icon: "shuffle", label: "MMR Diversification", description: "Maximal Marginal Relevance for diverse results", color: .green)
-                    featureRow(icon: "arrow.left.arrow.right", label: "Lost-in-Middle Mitigation", description: "Best evidence at start AND end of context window", color: .green)
-                    featureRow(icon: "tree", label: "RAPTOR-lite Summaries", description: "Document-level summaries route overview queries", color: .green)
-
-                    // Standard mode only features
-                    if !settings.ragQualityMode.usesAgenticOrchestrator {
-                        Divider()
-                            .padding(.vertical, 4)
-                        featureRow(icon: "sparkles", label: "HyDE Query Expansion", description: "LLM generates hypothetical doc, embedded for cosine retrieval", color: .blue)
-                        featureRow(icon: "text.redaction", label: "Contextual Compression", description: "LLM extracts query-relevant sentences from chunks", color: .blue)
-                    }
-
-                    // Deep Think and Maximum shared features
-                    if settings.ragQualityMode.usesAgenticOrchestrator {
-                        Divider()
-                            .padding(.vertical, 4)
-                        featureRow(icon: "signpost.right.and.left", label: "Intent Routing", description: "Classifies query as lookup/procedure/compare/summarize", color: .purple)
-                        featureRow(icon: "magnifyingglass.circle.fill", label: "Multi-Query Decomposition", description: "LLM generates 4-5 sub-queries for faceted retrieval", color: .purple)
-                        featureRow(icon: "point.3.connected.trianglepath.dotted", label: "2-Hop Graph Expansion", description: "Entity-based traversal finds related chunks", color: .purple)
-                        featureRow(icon: "arrow.trianglehead.2.clockwise.rotate.90", label: "Recursive Research Loop", description: "Autonomous [SEARCH:]/[ANSWER] protocol until confident", color: .purple)
-                        featureRow(icon: "checkmark.seal.fill", label: "Verification Gates A-D", description: "4-stage anti-hallucination checks before answering", color: .purple)
-                        featureRow(icon: "function", label: "Confidence Calibration", description: "Platt-scaled scores from rerank + margin + coverage", color: .purple)
-                        featureRow(icon: "text.line.first.and.arrowtriangle.forward", label: "Extractive Summarization", description: "Sentence selection via bi-encoder for summarize intent", color: .purple)
-                        featureRow(icon: "rectangle.compress.vertical", label: "Graph Context Packing", description: "Optimal token budget allocation across evidence", color: .purple)
-                        featureRow(icon: "brain.head.profile", label: "Agentic Orchestrator", description: "4-8 dynamic sessions targeting 85% confidence", color: .purple)
-                        featureRow(icon: "hammer.fill", label: "8 @Tool Functions", description: "SearchDocs, ListDocs, GetSummary, CountPattern, ExactSearch, Stats, Related, Compare", color: .purple)
-                        featureRow(icon: "arrow.trianglehead.2.clockwise.rotate.90", label: "Iterative Retrieval", description: "Retrieve → assess gaps → refine query → retrieve more", color: .purple)
-                    }
-
-                    // Maximum-exclusive features
-                    if settings.ragQualityMode.isUnlimitedMode {
-                        Divider()
-                            .padding(.vertical, 4)
-                        featureRow(icon: "infinity", label: "Unlimited Reasoning", description: "Up to 50 sessions until 98% confident", color: .orange)
-                        featureRow(icon: "wand.and.stars", label: "Exhaustive Synthesis", description: "Final pass synthesizes all session insights", color: .orange)
-                        featureRow(icon: "cpu", label: "200K+ Token Budget", description: "50 sessions × 4K = deep exploration", color: .orange)
-
-                        // Warning for Maximum mode
-                        HStack(spacing: 6) {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundColor(.orange)
-                                .font(.caption)
-                            Text("Can take several minutes. Use for complex research tasks.")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
+                    ForEach(currentModeFeatures) { feature in
+                        if feature.isDivider {
+                            Divider()
+                                .padding(.vertical, 4)
+                        } else if feature.isWarning {
+                            HStack(spacing: 6) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundColor(.orange)
+                                    .font(.caption)
+                                Text(feature.label)
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding(.top, 4)
+                        } else {
+                            featureRow(icon: feature.icon, label: feature.label, description: feature.desc, color: feature.color)
                         }
-                        .padding(.top, 4)
-                    } else if !settings.ragQualityMode.usesAgenticOrchestrator {
-                        featureRow(icon: "brain.head.profile", label: "Conversation Memory", description: "Remembers context across turns", color: .green)
                     }
                 }
             }
@@ -1188,6 +1176,83 @@ Text(deviceService.chipName)
 .padding()
     .background(DSColors.surface)
     .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    // MARK: - Feature List Data Model
+
+    /// Lightweight value type for data-driven feature rows.
+    /// Using ForEach with Identifiable items instead of 25+ inline @ViewBuilder
+    /// calls prevents the compiler from generating a massive nested generic
+    /// type, which was causing a stack overflow (___chkstk_darwin crash).
+    private struct FeatureItem: Identifiable {
+        let id: String
+        let icon: String
+        let label: String
+        let desc: String
+        let color: Color
+        var isDivider: Bool = false
+        var isWarning: Bool = false
+
+        static func divider(id: String) -> FeatureItem {
+            FeatureItem(id: id, icon: "", label: "", desc: "", color: .clear, isDivider: true)
+        }
+
+        static func warning(id: String, text: String) -> FeatureItem {
+            FeatureItem(id: id, icon: "exclamationmark.triangle.fill", label: text, desc: "", color: .orange, isWarning: true)
+        }
+    }
+
+    /// Build the feature list as data, not views.
+    private var currentModeFeatures: [FeatureItem] {
+        var items: [FeatureItem] = []
+
+        // Common features (all modes)
+        items.append(.init(id: "contextual-embed", icon: "doc.badge.gearshape", label: "Contextual Embeddings", desc: "Document title + section baked into every vector", color: .green))
+        items.append(.init(id: "table-extract", icon: "tablecells", label: "Smart Table Extraction", desc: "iOS 26 Vision API preserves tables with captions", color: .green))
+        items.append(.init(id: "entity-link", icon: "link", label: "Cross-Document Entity Linking", desc: "Global entity index finds related info across library", color: .green))
+        items.append(.init(id: "parent-doc", icon: "doc.on.doc", label: "Parent Document Retrieval", desc: "Expands chunk window ±5 for full paragraph context", color: .green))
+        items.append(.init(id: "query-understand", icon: "lightbulb", label: "Query Understanding", desc: "NLTagger resolves pronouns, NER extracts key entities", color: .green))
+        items.append(.init(id: "hybrid-rrf", icon: "arrow.triangle.merge", label: "Hybrid Search + RRF", desc: "Vector + BM25 keyword search with Reciprocal Rank Fusion", color: .green))
+        items.append(.init(id: "cross-encoder", icon: "arrow.up.arrow.down", label: "Cross-Encoder Reranking", desc: "TinyBERT reranker scores query-document relevance", color: .green))
+        items.append(.init(id: "mmr", icon: "shuffle", label: "MMR Diversification", desc: "Maximal Marginal Relevance for diverse results", color: .green))
+        items.append(.init(id: "lost-middle", icon: "arrow.left.arrow.right", label: "Lost-in-Middle Mitigation", desc: "Best evidence at start AND end of context window", color: .green))
+        items.append(.init(id: "raptor", icon: "tree", label: "RAPTOR-lite Summaries", desc: "Document-level summaries route overview queries", color: .green))
+
+        // Standard mode only
+        if !settings.ragQualityMode.usesAgenticOrchestrator {
+            items.append(.divider(id: "div-standard"))
+            items.append(.init(id: "hyde", icon: "sparkles", label: "HyDE Query Expansion", desc: "LLM generates hypothetical doc, embedded for cosine retrieval", color: .blue))
+            items.append(.init(id: "compression", icon: "text.redaction", label: "Contextual Compression", desc: "LLM extracts query-relevant sentences from chunks", color: .blue))
+        }
+
+        // Deep Think + Maximum shared
+        if settings.ragQualityMode.usesAgenticOrchestrator {
+            items.append(.divider(id: "div-agentic"))
+            items.append(.init(id: "intent-route", icon: "signpost.right.and.left", label: "Intent Routing", desc: "Classifies query as lookup/procedure/compare/summarize", color: .purple))
+            items.append(.init(id: "multi-query", icon: "magnifyingglass.circle.fill", label: "Multi-Query Expansion", desc: "LLM generates diverse search queries for broader retrieval", color: .purple))
+            items.append(.init(id: "graph-expand", icon: "point.3.connected.trianglepath.dotted", label: "2-Hop Graph Expansion", desc: "Entity-based traversal finds related chunks", color: .purple))
+            items.append(.init(id: "recursive-loop", icon: "arrow.trianglehead.2.clockwise.rotate.90", label: "Recursive Research Loop", desc: "Autonomous [SEARCH:]/[ANSWER] protocol until confident", color: .purple))
+            items.append(.init(id: "verify-gates", icon: "checkmark.seal.fill", label: "Verification Gates A-D", desc: "4-stage anti-hallucination checks before answering", color: .purple))
+            items.append(.init(id: "confidence-cal", icon: "function", label: "Confidence Calibration", desc: "Sigmoid-calibrated scores from rerank + margin + evidence count", color: .purple))
+            items.append(.init(id: "extract-summary", icon: "text.line.first.and.arrowtriangle.forward", label: "Extractive Summarization", desc: "Sentence selection via bi-encoder for summarize intent", color: .purple))
+            items.append(.init(id: "graph-pack", icon: "rectangle.compress.vertical", label: "Graph Context Packing", desc: "Optimal token budget allocation across evidence", color: .purple))
+            items.append(.init(id: "orchestrator", icon: "brain.head.profile", label: "Agentic Orchestrator", desc: "4-8 dynamic sessions targeting 85% confidence", color: .purple))
+            items.append(.init(id: "tool-funcs", icon: "hammer.fill", label: "8 Tool Functions", desc: "SearchDocs, ListDocs, GetSummary, CountPattern, ExactSearch, Stats, Related, Compare", color: .purple))
+            items.append(.init(id: "iterative-ret", icon: "arrow.trianglehead.2.clockwise.rotate.90", label: "Iterative Retrieval", desc: "Retrieve → assess gaps → refine query → retrieve more", color: .purple))
+        }
+
+        // Maximum-exclusive
+        if settings.ragQualityMode.isUnlimitedMode {
+            items.append(.divider(id: "div-maximum"))
+            items.append(.init(id: "unlimited", icon: "infinity", label: "Unlimited Reasoning", desc: "Up to 50 sessions until 98% confident", color: .orange))
+            items.append(.init(id: "exhaustive", icon: "wand.and.stars", label: "Exhaustive Synthesis", desc: "Final pass synthesizes all session insights", color: .orange))
+            items.append(.init(id: "token-budget", icon: "cpu", label: "200K+ Token Budget", desc: "50 sessions × 4K = deep exploration", color: .orange))
+            items.append(.warning(id: "max-warning", text: "Can take several minutes. Use for complex research tasks."))
+        } else if !settings.ragQualityMode.usesAgenticOrchestrator {
+            items.append(.init(id: "conv-memory", icon: "brain.head.profile", label: "Conversation Memory", desc: "Remembers context across turns", color: .green))
+        }
+
+        return items
     }
 
     @ViewBuilder
@@ -1257,6 +1322,243 @@ Text(mode.description)
     }
 
     // MARK: - Appearance Card
+
+    // MARK: - Apple Intelligence Features Card
+
+    /// Count of currently enabled Apple Intelligence features.
+    private var activeAIFeatureCount: Int {
+        [
+            settings.enableSmartReplies,
+            settings.enableContentTagging,
+            settings.enableSpotlightIndexing,
+            settings.enableBackgroundMaintenance,
+            settings.enableWritingTools,
+            settings.enableTranslation,
+            settings.enableSpeechAnalysis,
+        ].filter { $0 }.count
+    }
+
+    @ViewBuilder
+    private var appleIntelligenceFeaturesCard: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [Color.blue.opacity(0.2), Color.purple.opacity(0.2)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 32, height: 32)
+                    Image(systemName: "apple.intelligence")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [.blue, .purple],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                }
+                Text("Apple Intelligence")
+                    .font(.headline)
+                Spacer()
+                Text("\(activeAIFeatureCount)/7")
+                    .font(.caption.weight(.semibold).monospacedDigit())
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(activeAIFeatureCount == 7 ? Color.green : Color.orange)
+                    .clipShape(Capsule())
+            }
+            .padding()
+
+            Divider().padding(.horizontal)
+
+            VStack(spacing: 2) {
+                // Toggleable features
+                aiFeatureToggleRow(
+                    icon: "text.bubble.fill",
+                    color: .blue,
+                    title: "Smart Replies",
+                    subtitle: "Conversational follow-up suggestions",
+                    isOn: $settings.enableSmartReplies
+                )
+
+                aiFeatureToggleRow(
+                    icon: "tag.fill",
+                    color: .orange,
+                    title: "Content Tagging",
+                    subtitle: "LLM-powered topic, action & object tagging",
+                    isOn: $settings.enableContentTagging
+                )
+
+                aiFeatureToggleRow(
+                    icon: "magnifyingglass",
+                    color: .pink,
+                    title: "Spotlight Indexing",
+                    subtitle: "System-wide search integration",
+                    isOn: $settings.enableSpotlightIndexing
+                )
+
+                aiFeatureToggleRow(
+                    icon: "arrow.clockwise.circle.fill",
+                    color: .teal,
+                    title: "Background Maintenance",
+                    subtitle: "Scheduled index health checks & Spotlight refresh",
+                    isOn: $settings.enableBackgroundMaintenance
+                )
+
+                aiFeatureToggleRow(
+                    icon: "pencil.and.outline",
+                    color: .indigo,
+                    title: "Writing Tools",
+                    subtitle: "Summarize, rewrite, proofread",
+                    isOn: $settings.enableWritingTools
+                )
+
+                aiFeatureToggleRow(
+                    icon: "translate",
+                    color: .cyan,
+                    title: "Translation",
+                    subtitle: "Multilingual document queries",
+                    isOn: $settings.enableTranslation
+                )
+
+                aiFeatureToggleRow(
+                    icon: "waveform",
+                    color: .green,
+                    title: "Speech Analysis",
+                    subtitle: "Audio transcription & voice input",
+                    isOn: $settings.enableSpeechAnalysis
+                )
+
+                Divider().padding(.horizontal)
+
+                // Smart Reply count stepper
+                HStack(spacing: 12) {
+                    Image(systemName: "number.circle.fill")
+                        .font(.caption2)
+                        .foregroundColor(.blue)
+                        .frame(width: 16)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Smart Reply Count")
+                            .font(.caption.weight(.medium))
+                        Text("Suggestions per response")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    Stepper(value: $settings.smartReplyCount, in: 1...5) {
+                        Text("\(settings.smartReplyCount)")
+                            .font(.subheadline.monospacedDigit().weight(.semibold))
+                            .foregroundColor(.accentColor)
+                    }
+                    .fixedSize()
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+
+                Divider().padding(.horizontal)
+
+                // Info-only features (always active when available)
+                aiFeatureInfoRow(
+                    icon: "photo.on.rectangle.angled",
+                    color: .mint,
+                    title: "Image Playground",
+                    subtitle: "Interactive image creation from document content"
+                )
+
+                aiFeatureInfoRow(
+                    icon: "lightbulb.max.fill",
+                    color: .yellow,
+                    title: "App Tips",
+                    subtitle: "Contextual guidance & onboarding"
+                )
+
+                aiFeatureInfoRow(
+                    icon: "text.book.closed.fill",
+                    color: .brown,
+                    title: "Gazetteer",
+                    subtitle: "Builds domain vocabulary during ingestion"
+                )
+            }
+            .padding(.vertical, 4)
+        }
+        .background(DSColors.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    /// A toggleable Apple Intelligence feature row.
+    @ViewBuilder
+    private func aiFeatureToggleRow(
+        icon: String,
+        color: Color,
+        title: String,
+        subtitle: String,
+        isOn: Binding<Bool>
+    ) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.caption2)
+                .foregroundColor(color)
+                .frame(width: 16)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.caption.weight(.medium))
+                Text(subtitle)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
+            Toggle("", isOn: isOn)
+                .labelsHidden()
+                .tint(.accentColor)
+                .onChange(of: isOn.wrappedValue) { _, _ in
+                    DSHaptics.selection()
+                }
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 6)
+    }
+
+    /// An info-only (always active) Apple Intelligence feature row.
+    @ViewBuilder
+    private func aiFeatureInfoRow(
+        icon: String,
+        color: Color,
+        title: String,
+        subtitle: String
+    ) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.caption2)
+                .foregroundColor(color)
+                .frame(width: 16)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.caption.weight(.medium))
+                Text(subtitle)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
+            Text("Always On")
+                .font(.caption2.weight(.medium))
+                .foregroundColor(.green)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Color.green.opacity(0.12))
+                .clipShape(Capsule())
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 6)
+    }
+
+    // MARK: - Appearance Card (continued)
 
     @ViewBuilder
     private var appearanceCard: some View {

@@ -404,7 +404,8 @@ class CameraManager: NSObject, ObservableObject {
             sceneLabels: sceneLabels,
             detectedObjects: detectedObjects,
             humanPoses: humanPoses,
-            animalPoses: animalPoses
+            animalPoses: animalPoses,
+            lensSmudgeDetected: false // Smudge detection only in full frame analysis
         )
 
         DispatchQueue.main.async { [weak self] in
@@ -568,8 +569,7 @@ class CameraManager: NSObject, ObservableObject {
             let objectList = detectedObjects.prefix(3).map { $0.lowercased() }
             if objectList.count == 1 {
                 parts.append("containing a \(objectList[0])")
-            } else {
-                let lastObject = objectList.last!
+            } else if let lastObject = objectList.last {
                 let otherObjects = objectList.dropLast().joined(separator: ", ")
                 parts.append("containing \(otherObjects) and \(lastObject)")
             }
@@ -734,12 +734,15 @@ extension CameraManager: AVCaptureVideoDataOutputSampleBufferDelegate {
             }
         }
 
+        // Lens smudge detection placeholder (VNDetectLensSmudgeRequest not yet available)
+        let lensSmudgeDetected = false
+
         // Limit concurrent Vision requests to prevent Metal race conditions
         VisionOCRThrottle.performSync {
             do {
                 try requestHandler.perform([textRequest, documentRequest, classifyRequest, animalRequest, faceRequest, humanRequest, humanPoseRequest, animalPoseRequest])
             } catch {
-                // Silent failure for frame analysis
+                Log.debug("Frame analysis Vision failed: \(error)", category: .pipeline)
             }
         }
 
@@ -759,7 +762,8 @@ extension CameraManager: AVCaptureVideoDataOutputSampleBufferDelegate {
             sceneLabels: sceneLabels,
             detectedObjects: detectedObjects,
             humanPoses: humanPoses,
-            animalPoses: animalPoses
+            animalPoses: animalPoses,
+            lensSmudgeDetected: lensSmudgeDetected
         )
 
         DispatchQueue.main.async { [weak self] in

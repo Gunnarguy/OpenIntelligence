@@ -1,14 +1,14 @@
 # RAG Technical Specifications
 
 **Version**: 1.4
-**Updated**: February 16, 2026
+**Updated**: February 23, 2026
 **Compatibility**: iOS 26+ / Apple Intelligence
 
 This document provides the technical formulas, algorithms, and deep dive specifications for the RAG pipeline.
 
 > **For the High-Level Flow**: See [HOW_IT_WORKS.md](../../HOW_IT_WORKS.md)
 
-> **Full Architecture**: See [ARCHITECTURE.md](../../ARCHITECTURE.md) → "Complete Service Inventory (81 Services)"
+> **Full Architecture**: See [ARCHITECTURE.md](../../ARCHITECTURE.md) → "Complete Service Inventory (102 Services)"
 
 ---
 

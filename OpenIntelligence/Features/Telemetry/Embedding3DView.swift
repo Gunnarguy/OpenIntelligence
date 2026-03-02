@@ -207,6 +207,16 @@ enum EmbeddingSceneBackgroundStyle: String, CaseIterable, Identifiable {
     }
 }
 
+/// Shared legend item for per-document coloring in embedding visualizations.
+/// Used by both EmbeddingSpaceRenderer and Fullscreen3DAtlasView.
+struct VizLegendItem: Identifiable {
+    let docId: UUID
+    let name: String
+    let color: Color
+    let count: Int
+    var id: UUID { docId }
+}
+
 struct EmbeddingSpaceRenderer: View {
     @EnvironmentObject var ragService: RAGService
     @EnvironmentObject var containerService: ContainerService
@@ -218,13 +228,6 @@ struct EmbeddingSpaceRenderer: View {
     @State private var isLoading = true
     @State private var points: [SCNVector3] = []
     @State private var pointColorsUI: [PlatformColor] = []
-    struct VizLegendItem: Identifiable {
-        let docId: UUID
-        let name: String
-        let color: Color
-        let count: Int
-        var id: UUID { docId }
-    }
     @State private var legendItems: [VizLegendItem] = []
     @State private var errorText: String? = nil
 
@@ -1351,6 +1354,7 @@ struct EmbeddingSpaceRenderer: View {
             pointScale: CGFloat(pointScale),
             autoRotate: autoRotate,
             showAxes: showAxes,
+            showLines: true,
             depthCue: depthCue,
             backgroundStyle: backgroundStyle,
             projectionMethod: methodKind,
@@ -2314,7 +2318,7 @@ struct EmbeddingSpaceRenderer: View {
 
     // Extracted legend chips to reduce type-checking complexity
     struct LegendChipsView: View {
-        let items: [EmbeddingSpaceRenderer.VizLegendItem]
+        let items: [VizLegendItem]
         @Binding var selectedDocFilters: Set<UUID>
         let totalPoints: Int
 
@@ -2352,7 +2356,7 @@ struct EmbeddingSpaceRenderer: View {
     }
 
     struct LegendChip: View {
-        let item: EmbeddingSpaceRenderer.VizLegendItem
+        let item: VizLegendItem
         let selected: Bool
         let totalPoints: Int
 
@@ -2762,13 +2766,25 @@ struct EmbeddingSpaceRenderer: View {
         // Use FTS5 terms as a reference vocabulary - these are proven meaningful
         let vocabularySet = Set(fts5TopTerms.map { $0.lowercased() })
 
-        // Extract representative keywords for each extreme
-        let xNegLabel = extractExtremeLabel(indices: xNegIndices, chunks: chunks, vocabulary: vocabularySet)
-        let xPosLabel = extractExtremeLabel(indices: xPosIndices, chunks: chunks, vocabulary: vocabularySet)
-        let yNegLabel = extractExtremeLabel(indices: yNegIndices, chunks: chunks, vocabulary: vocabularySet)
-        let yPosLabel = extractExtremeLabel(indices: yPosIndices, chunks: chunks, vocabulary: vocabularySet)
-        let zNegLabel = extractExtremeLabel(indices: zNegIndices, chunks: chunks, vocabulary: vocabularySet)
-        let zPosLabel = extractExtremeLabel(indices: zPosIndices, chunks: chunks, vocabulary: vocabularySet)
+        // Build corpus-wide word frequencies for TF-IDF contrast scoring
+        // Terms appearing uniformly across ALL chunks are noise, not axis-discriminative
+        let globalFreqs = buildGlobalWordFrequencies(chunks: chunks)
+
+        // Greedy deduplication: each axis endpoint claims a unique label
+        // so the same keyword never appears at multiple axis endpoints
+        var usedLabels = Set<String>()
+
+        let xNegLabel = extractExtremeLabel(indices: xNegIndices, chunks: chunks, vocabulary: vocabularySet, excluding: usedLabels, globalFreqs: globalFreqs, totalChunks: chunks.count)
+        if !xNegLabel.isEmpty { usedLabels.insert(xNegLabel.lowercased()) }
+        let xPosLabel = extractExtremeLabel(indices: xPosIndices, chunks: chunks, vocabulary: vocabularySet, excluding: usedLabels, globalFreqs: globalFreqs, totalChunks: chunks.count)
+        if !xPosLabel.isEmpty { usedLabels.insert(xPosLabel.lowercased()) }
+        let yNegLabel = extractExtremeLabel(indices: yNegIndices, chunks: chunks, vocabulary: vocabularySet, excluding: usedLabels, globalFreqs: globalFreqs, totalChunks: chunks.count)
+        if !yNegLabel.isEmpty { usedLabels.insert(yNegLabel.lowercased()) }
+        let yPosLabel = extractExtremeLabel(indices: yPosIndices, chunks: chunks, vocabulary: vocabularySet, excluding: usedLabels, globalFreqs: globalFreqs, totalChunks: chunks.count)
+        if !yPosLabel.isEmpty { usedLabels.insert(yPosLabel.lowercased()) }
+        let zNegLabel = extractExtremeLabel(indices: zNegIndices, chunks: chunks, vocabulary: vocabularySet, excluding: usedLabels, globalFreqs: globalFreqs, totalChunks: chunks.count)
+        if !zNegLabel.isEmpty { usedLabels.insert(zNegLabel.lowercased()) }
+        let zPosLabel = extractExtremeLabel(indices: zPosIndices, chunks: chunks, vocabulary: vocabularySet, excluding: usedLabels, globalFreqs: globalFreqs, totalChunks: chunks.count)
 
         return Embedding3DSceneView.AxisLabels(
             xNeg: xNegLabel, xPos: xPosLabel,
@@ -2777,10 +2793,34 @@ struct EmbeddingSpaceRenderer: View {
         )
     }
 
-    /// Extract the most distinctive keyword from chunks at an axis extreme
-    /// Uses FTS5 vocabulary as a reference for meaningful terms
-    private func extractExtremeLabel(indices: [Int], chunks: [DocumentChunk], vocabulary: Set<String>) -> String {
+    /// Build word → chunk-count map across entire corpus for IDF scoring
+    private func buildGlobalWordFrequencies(chunks: [DocumentChunk]) -> [String: Int] {
+        var docFreq: [String: Int] = [:]
+        for chunk in chunks {
+            let uniqueWords = Set(
+                chunk.text
+                    .components(separatedBy: CharacterSet.alphanumerics.inverted)
+                    .map { $0.lowercased() }
+                    .filter { $0.count >= 3 }
+            )
+            for word in uniqueWords {
+                docFreq[word, default: 0] += 1
+            }
+            for kw in chunk.metadata.keywords {
+                let clean = kw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                if clean.count >= 3 { docFreq[clean, default: 0] += 1 }
+            }
+        }
+        return docFreq
+    }
+
+    /// Extract the most distinctive keyword from chunks at an axis extreme.
+    /// Uses TF-IDF contrast scoring: penalizes terms appearing uniformly across
+    /// all chunks (corpus noise). Prefers terms concentrated at this specific extreme.
+    private func extractExtremeLabel(indices: [Int], chunks: [DocumentChunk], vocabulary: Set<String>, excluding: Set<String> = [], globalFreqs: [String: Int] = [:], totalChunks: Int = 1) -> String {
         guard !indices.isEmpty else { return "" }
+        let extremeCount = Double(indices.count)
+        let totalDocs = max(Double(totalChunks), 1.0)
 
         // First, try to use chunk metadata keywords (already curated)
         var metadataKeywords: [String: Int] = [:]
@@ -2794,9 +2834,21 @@ struct EmbeddingSpaceRenderer: View {
             }
         }
 
-        // If we have metadata keywords, prefer those
+        // If we have metadata keywords, prefer those — but REQUIRE FTS5 validation
+        // with TF-IDF contrast scoring to filter corpus-wide noise
         if !metadataKeywords.isEmpty {
-            if let topKeyword = metadataKeywords.sorted(by: { $0.value > $1.value }).first?.key {
+            let scored = metadataKeywords
+                .filter({ vocabulary.contains($0.key) && !excluding.contains($0.key) })
+                .map { kw, count -> (String, Double) in
+                    let tf = Double(count) / extremeCount
+                    let globalCount = Double(globalFreqs[kw] ?? 1)
+                    let idf = log(totalDocs / max(globalCount, 1.0)) + 1.0
+                    let concentration = Double(count) / max(globalCount, 1.0)
+                    return (kw, tf * idf * (1.0 + concentration))
+                }
+                .sorted(by: { $0.1 > $1.1 })
+
+            if let topKeyword = scored.first?.0 {
                 return topKeyword.prefix(1).uppercased() + topKeyword.dropFirst()
             }
         }
@@ -2864,15 +2916,25 @@ struct EmbeddingSpaceRenderer: View {
             }
         }
 
-        // Prioritize words that appear in FTS5 vocabulary (proven meaningful)
-        // Score = frequency * (vocabulary bonus)
-        var scored: [(word: String, score: Double)] = []
-        for (word, count) in wordCounts {
-            let vocabBonus = vocabulary.contains(word) ? 2.0 : 1.0
-            let lengthBonus = Double(min(word.count, 12)) / 8.0 // Prefer medium-length words
-            let score = Double(count) * vocabBonus * lengthBonus
-            scored.append((word, score))
+        // FTS5-validated terms with TF-IDF contrast scoring
+        var fts5Scored: [(word: String, score: Double)] = []
+        var fallbackScored: [(word: String, score: Double)] = []
+        for (word, count) in wordCounts where !excluding.contains(word) {
+            let tf = Double(count) / extremeCount
+            let globalCount = Double(globalFreqs[word] ?? 1)
+            let idf = log(totalDocs / max(globalCount, 1.0)) + 1.0
+            let concentration = Double(count) / max(globalCount, 1.0)
+            let score = tf * idf * (1.0 + concentration)
+
+            if vocabulary.contains(word) {
+                fts5Scored.append((word, score * 2.0))
+            } else {
+                fallbackScored.append((word, score))
+            }
         }
+
+        // Prefer FTS5-validated, fall back to unvalidated only if empty
+        let scored = fts5Scored.isEmpty ? fallbackScored : fts5Scored
 
         // Get top scoring word
         guard let topWord = scored.sorted(by: { $0.score > $1.score }).first?.word else {
@@ -2979,7 +3041,8 @@ struct EmbeddingSpaceRenderer: View {
             sampledChunks.reserveCapacity(capacity)
 
             // Deterministic sampling per containerId
-            let rngSeed = UInt64(abs(Int64(activeId.uuidString.hashValue)))
+            // Use deterministic seed (not .hashValue which is randomized per process launch)
+            let rngSeed = deterministicSeed(from: activeId.uuidString)
             var prng = VizLCG(seed: rngSeed)
 
             for did in docIds {
@@ -3197,6 +3260,7 @@ struct Embedding3DSceneView: View {
         let pointScale: CGFloat
         let autoRotate: Bool
         let showAxes: Bool
+        let showLines: Bool
         let depthCue: Bool
         let backgroundStyle: EmbeddingSceneBackgroundStyle
         let projectionMethod: ProjectionMethodKind
@@ -3542,13 +3606,16 @@ private func buildScene(points: [SCNVector3], colors: [PlatformColor], options: 
 
     addPointNodes(points, colors, scale: options.pointScale, depthCue: options.depthCue, into: contentRoot)
     addClusterLabels(annotations, backgroundStyle: options.backgroundStyle, into: contentRoot)
+    if options.showLines {
+        addInterClusterLines(annotations, backgroundStyle: options.backgroundStyle, into: contentRoot)
+    }
     addLighting(into: scene.rootNode, depthCue: options.depthCue)
     applyBackground(style: options.backgroundStyle, to: scene)
     applyAutoRotate(options.autoRotate, to: contentRoot)
 
     if options.depthCue {
-        scene.fogStartDistance = 4.0
-        scene.fogEndDistance = 9.0
+        scene.fogStartDistance = 5.0
+        scene.fogEndDistance = 12.0
         scene.fogDensityExponent = 1.0
         #if canImport(UIKit)
         scene.fogColor = options.backgroundStyle.fogColor.withAlphaComponent(0.7)
@@ -3882,12 +3949,12 @@ private func makeCameraNode(depthCue: Bool) -> SCNNode {
     camera.zFar = 100
     camera.wantsDepthOfField = depthCue
     if depthCue {
-        camera.focusDistance = 6.0
-        camera.fStop = 8
+        camera.focusDistance = 5.5
+        camera.fStop = 10
     }
     node.camera = camera
-    // Close enough to see data clearly, far enough to see axes
-    node.position = SCNVector3(4.0, 3.0, 7.0)
+    // Camera positioned for optimal viewing of a 4.5-unit data cube with 5-unit axes
+    node.position = SCNVector3(3.5, 2.5, 6.0)
     node.look(at: SCNVector3(0, 0, 0))
     return node
 }
@@ -3937,7 +4004,8 @@ private func addPointNodes(_ points: [SCNVector3], _ colors: [PlatformColor], sc
         material.diffuse.contents = color
         material.lightingModel = .constant
         material.emission.contents = color
-        material.emission.intensity = 0.7
+        material.emission.intensity = 0.85
+        material.transparency = 0.92
         sharedSphere.materials = [material]
 
         // Create nodes sharing this geometry
@@ -4065,6 +4133,112 @@ private func addClusterLabels(_ annotations: [Embedding3DSceneView.AnnotationDat
     root.addChildNode(labelLayer)
 }
 
+// MARK: - Inter-Cluster Relationship Lines
+
+/// Draws faint connection lines between nearby clusters to show semantic relationships.
+/// Only connects clusters whose centroids are within a threshold distance — closer means more related.
+private func addInterClusterLines(_ annotations: [Embedding3DSceneView.AnnotationData], backgroundStyle: EmbeddingSceneBackgroundStyle, into root: SCNNode) {
+    guard annotations.count >= 2 else { return }
+
+    let lineLayer = SCNNode()
+    lineLayer.name = "interClusterLines"
+    lineLayer.renderingOrder = 5 // Behind cluster labels (100) but above points
+
+    // Calculate median pairwise distance to set adaptive threshold
+    var allDists: [Float] = []
+    for i in 0..<annotations.count {
+        for j in (i + 1)..<annotations.count {
+            let pi = simd_float3(annotations[i].position.x, annotations[i].position.y, annotations[i].position.z)
+            let pj = simd_float3(annotations[j].position.x, annotations[j].position.y, annotations[j].position.z)
+            allDists.append(simd_distance(pi, pj))
+        }
+    }
+    allDists.sort()
+
+    // Connect pairs within the 40th percentile of distances (closest ~40%)
+    let threshold: Float
+    if allDists.count >= 2 {
+        let p40Index = Int(Float(allDists.count) * 0.4)
+        threshold = allDists[min(p40Index, allDists.count - 1)]
+    } else {
+        threshold = 3.0
+    }
+
+    // Maximum lines to avoid visual clutter
+    let maxLines = min(annotations.count * 2, 15)
+    var lineCount = 0
+
+    // Sort pairs by distance (closest first) for priority drawing
+    var pairs: [(i: Int, j: Int, dist: Float)] = []
+    for i in 0..<annotations.count {
+        for j in (i + 1)..<annotations.count {
+            let pi = simd_float3(annotations[i].position.x, annotations[i].position.y, annotations[i].position.z)
+            let pj = simd_float3(annotations[j].position.x, annotations[j].position.y, annotations[j].position.z)
+            let dist = simd_distance(pi, pj)
+            if dist <= threshold && dist > 0.1 {
+                pairs.append((i, j, dist))
+            }
+        }
+    }
+    pairs.sort { $0.dist < $1.dist }
+
+    for pair in pairs {
+        guard lineCount < maxLines else { break }
+
+        let a = annotations[pair.i]
+        let b = annotations[pair.j]
+        let posA = simd_float3(a.position.x, a.position.y, a.position.z)
+        let posB = simd_float3(b.position.x, b.position.y, b.position.z)
+
+        // Opacity inversely proportional to distance (closer = slightly more visible)
+        let normalizedDist = pair.dist / max(threshold, 0.01)
+        let alpha = CGFloat(max(0.04, 0.14 * (1.0 - Double(normalizedDist))))
+
+        // Create hair-thin cylinder between the two cluster centroids
+        let midpoint = (posA + posB) * 0.5
+        let length = CGFloat(pair.dist)
+        let lineGeo = SCNCylinder(radius: 0.004, height: length)
+
+        // Use cluster color at very low opacity — visible on rotation, not distracting
+        let lineMat = SCNMaterial()
+        #if canImport(UIKit)
+        lineMat.diffuse.contents = a.color.withAlphaComponent(alpha)
+        lineMat.emission.contents = a.color.withAlphaComponent(alpha * 0.5)
+        #else
+        lineMat.diffuse.contents = a.color.withAlphaComponent(alpha)
+        lineMat.emission.contents = a.color.withAlphaComponent(alpha * 0.5)
+        #endif
+        lineMat.emission.intensity = 0.3
+        lineMat.lightingModel = .constant
+        lineMat.isDoubleSided = true
+        lineMat.writesToDepthBuffer = false
+        lineMat.readsFromDepthBuffer = true
+        lineGeo.materials = [lineMat]
+
+        let lineNode = SCNNode(geometry: lineGeo)
+        lineNode.position = SCNVector3(midpoint.x, midpoint.y, midpoint.z)
+
+        // Rotate cylinder to align between the two points
+        let direction = simd_normalize(posB - posA)
+        let up = simd_float3(0, 1, 0)
+        let dotProduct = simd_dot(direction, up)
+
+        if abs(dotProduct) > 0.999 {
+            // Nearly parallel to Y — minimal rotation needed
+            if dotProduct < 0 { lineNode.eulerAngles.z = .pi }
+        } else {
+            let crossVec = simd_cross(up, direction)
+            let angle = acos(min(max(dotProduct, -1), 1))
+            lineNode.rotation = SCNVector4(crossVec.x, crossVec.y, crossVec.z, angle)
+        }
+
+        lineLayer.addChildNode(lineNode)
+        lineCount += 1
+    }
+
+    root.addChildNode(lineLayer)
+}
+
 /// Creates an arrow line from label position pointing to cluster centroid
 private func makeArrowToCluster(
     from labelPos: SCNVector3,
@@ -4087,14 +4261,14 @@ private func makeArrowToCluster(
     let shortenAmount: Float = isDocumentCluster ? 0.15 : 0.1
     let effectiveLength = max(0.1, length - shortenAmount * 2)
 
-    // Create the line (cylinder)
-    let lineRadius: CGFloat = isDocumentCluster ? 0.008 : 0.005
+    // Create the line (cylinder) — subtle enough to not clutter, visible enough to trace
+    let lineRadius: CGFloat = isDocumentCluster ? 0.005 : 0.003
     let line = SCNCylinder(radius: lineRadius, height: CGFloat(effectiveLength))
 
     let lineMat = SCNMaterial()
-    lineMat.diffuse.contents = color.withAlphaComponent(0.6)
+    lineMat.diffuse.contents = color.withAlphaComponent(0.35)
     lineMat.emission.contents = color
-    lineMat.emission.intensity = backgroundStyle.isDark ? 0.4 : 0.2
+    lineMat.emission.intensity = backgroundStyle.isDark ? 0.25 : 0.12
     lineMat.lightingModel = .constant
     lineMat.writesToDepthBuffer = false
     lineMat.readsFromDepthBuffer = false

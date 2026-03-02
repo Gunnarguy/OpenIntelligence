@@ -1,1 +1,1 @@
-NEW in 1.2: Markdown rendering. 3-tier Metal GPU search. Device-specific OCR. Concurrent reranking. Zero-data-loss ingestion. 100% on-device.
+NEW in 2.0: 25-step RAG pipeline. Rich markdown rendering. 3-tier Metal GPU search. Device-specific OCR. AI Hub document transforms. Image Playground. 100% on-device.

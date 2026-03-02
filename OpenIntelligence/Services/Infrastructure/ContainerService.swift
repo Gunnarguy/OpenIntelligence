@@ -7,6 +7,7 @@
 
 import Foundation
 import Combine
+import CoreSpotlight
 
 @MainActor
 final class ContainerService: ObservableObject {
@@ -31,7 +32,7 @@ final class ContainerService: ObservableObject {
                loaded.contains(where: { $0.id == uuid }) {
                 activeContainerId = uuid
             } else {
-                activeContainerId = loaded.first!.id
+                activeContainerId = loaded[0].id
             }
         }
         // Persist active ID
@@ -78,6 +79,9 @@ final class ContainerService: ObservableObject {
         )
         containers.append(container)
         Self.saveContainers(containers)
+        if UserDefaults.standard.object(forKey: "enableSpotlightIndexing") as? Bool ?? true {
+            SpotlightIndexService.shared.indexContainer(container)
+        }
         return container
     }
 
@@ -85,6 +89,9 @@ final class ContainerService: ObservableObject {
         guard let idx = containers.firstIndex(where: { $0.id == updated.id }) else { return }
         containers[idx] = updated
         Self.saveContainers(containers)
+        if UserDefaults.standard.object(forKey: "enableSpotlightIndexing") as? Bool ?? true {
+            SpotlightIndexService.shared.indexContainer(updated)
+        }
     }
 
     func deleteContainer(id: UUID) {
@@ -96,6 +103,9 @@ final class ContainerService: ObservableObject {
             UserDefaults.standard.set(first.id.uuidString, forKey: "activeContainerId")
         }
         Self.saveContainers(containers)
+        // Always deindex on delete regardless of setting
+        SpotlightIndexService.shared.deindexAllDocuments(in: id)
+        SpotlightIndexService.shared.deindexContainer(id: id)
 
         // Optionally, clean up per-container files (documents + vectors)
         // Leave files in place for safety unless we add a confirmed destructive action elsewhere.

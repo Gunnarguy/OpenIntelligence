@@ -22,6 +22,9 @@ import Foundation
 @preconcurrency import Metal
 import MetalPerformanceShaders
 import Accelerate
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - Metal Buffer Pool (MLX-inspired)
 
@@ -48,24 +51,27 @@ final class MetalBufferPool: @unchecked Sendable {
         self.device = device
 
         // Device-tier-aware cache sizing based on Metal Feature Set Tables
-        // Apple9+ (A17/A18 Pro, M3+) have improved memory bandwidth and 8GB+ RAM
+        // CONSERVATIVE: iOS apps get ~2-3GB before jetsam on 8GB devices.
+        // Previous 192MB cap consumed ~10% of app jetsam budget just for buffer reuse.
+        // New caps: 48/32/24/16 MB — still effective for RAG vector searches
+        // (typical search buffer = 1943×384×4 = ~3MB, so 32MB caches ~10 searches).
         let deviceName = device.name.lowercased()
         if deviceName.contains("a19") || deviceName.contains("m5") || deviceName.contains("m4") {
-            // Apple10 / Next-gen: Maximum caching for fastest throughput
-            self.maxCacheBytes = 256 * 1024 * 1024  // 256MB
-            self.maxBuffersPerBucket = 16
+            // Apple10 / Next-gen: Moderate caching
+            self.maxCacheBytes = 48 * 1024 * 1024   // 48MB (was 256MB)
+            self.maxBuffersPerBucket = 6
         } else if deviceName.contains("a18") || deviceName.contains("m3") {
-            // Apple9: Aggressive caching, 256KB imageblock support
-            self.maxCacheBytes = 192 * 1024 * 1024  // 192MB
-            self.maxBuffersPerBucket = 12
+            // Apple9: Moderate caching
+            self.maxCacheBytes = 32 * 1024 * 1024   // 32MB (was 192MB)
+            self.maxBuffersPerBucket = 4
         } else if deviceName.contains("a17") || deviceName.contains("m2") {
-            // Apple9: Good caching with 8GB unified memory
-            self.maxCacheBytes = 128 * 1024 * 1024  // 128MB
-            self.maxBuffersPerBucket = 10
+            // Apple8/9: Conservative caching
+            self.maxCacheBytes = 24 * 1024 * 1024   // 24MB (was 128MB)
+            self.maxBuffersPerBucket = 4
         } else {
-            // Older devices or unknown: Conservative defaults
-            self.maxCacheBytes = 64 * 1024 * 1024   // 64MB
-            self.maxBuffersPerBucket = 8
+            // Older devices or unknown: Minimal caching
+            self.maxCacheBytes = 16 * 1024 * 1024   // 16MB (was 64MB)
+            self.maxBuffersPerBucket = 3
         }
 
         Log.info("[MetalBufferPool] 📦 Cache configured: \(maxCacheBytes / (1024*1024))MB, \(maxBuffersPerBucket) buffers/bucket", category: .initialization)
@@ -171,6 +177,9 @@ final class GPUComputeService: @unchecked Sendable {
     /// Buffer pool for efficient memory reuse
     private let bufferPool: MetalBufferPool?
 
+    /// Memory warning observer — clears buffer cache under pressure
+    private var memoryWarningObserver: (any NSObjectProtocol)?
+
     // Custom compute pipelines (set once during init, never mutated)
     private let cosineSimilarityPipeline: MTLComputePipelineState?
     private let batchNormalizePipeline: MTLComputePipelineState?
@@ -209,6 +218,7 @@ final class GPUComputeService: @unchecked Sendable {
             self.cosineSimilaritySIMDPipeline = nil
             self.batchNormalizeSIMDPipeline = nil
             self.cosineSimilarityThreadgroupPipeline = nil
+            self.residencySet = nil
             Log.warning("[GPUComputeService] Metal unavailable. Using Accelerate CPU backend.", category: .initialization)
             return
         }
@@ -283,6 +293,13 @@ final class GPUComputeService: @unchecked Sendable {
         self.batchNormalizeSIMDPipeline = normSIMDPipeline
         self.cosineSimilarityThreadgroupPipeline = cosineThreadgroupPipeline
 
+        // Metal 4 residency set for persistent buffer management
+        if let cq = self.commandQueue {
+            self.residencySet = Self.createResidencySet(device: mtlDevice, commandQueue: cq)
+        } else {
+            self.residencySet = nil
+        }
+
         Log.info("[GPUComputeService] 🚀 Metal GPU initialized: \(mtlDevice.name)", category: .initialization)
         if let pool = self.bufferPool {
             let stats = pool.stats
@@ -291,12 +308,83 @@ final class GPUComputeService: @unchecked Sendable {
         if cosineSimilarityPipeline != nil {
             Log.info("[GPUComputeService] ✓ Batch cosine similarity pipeline ready", category: .initialization)
         }
+
+        // MEMORY FIX: Release buffer cache on memory pressure to prevent OOM jetsam kills
+        #if canImport(UIKit)
+        self.memoryWarningObserver = NotificationCenter.default.addObserver(
+            forName: UIApplication.didReceiveMemoryWarningNotification,
+            object: nil,
+            queue: .main
+        ) { [weak bufferPool] _ in
+            bufferPool?.clear()
+            Log.warning("[GPUComputeService] ⚠️ Memory warning — buffer cache cleared", category: .retrieval)
+        }
+        #endif
+    }
+
+    deinit {
+        if let observer = memoryWarningObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
     }
 
     /// Clear buffer pool cache (call during memory pressure)
     nonisolated func clearBufferCache() {
         bufferPool?.clear()
         Log.info("[GPUComputeService] Buffer cache cleared", category: .retrieval)
+    }
+
+    // MARK: - Metal 4 Resource Management
+
+    /// Metal 4 residency set for persistent buffer management (iOS 26+)
+    /// Keeps frequently-used embedding buffers resident in GPU memory,
+    /// reducing page faults and improving latency for repeated vector operations.
+    private let residencySet: (any MTLResidencySet)?
+
+    /// Initialize Metal 4 residency set for persistent buffer management
+    private static func createResidencySet(device: MTLDevice, commandQueue: MTLCommandQueue) -> (any MTLResidencySet)? {
+        if #available(iOS 26.0, *) {
+            do {
+                let descriptor = MTLResidencySetDescriptor()
+                descriptor.label = "OpenIntelligence Embedding Residency"
+                descriptor.initialCapacity = 64  // Pre-allocate for 64 buffers
+                let set = try device.makeResidencySet(descriptor: descriptor)
+                set.commit()
+                Log.info("[GPUComputeService] ✓ Metal 4 residency set initialized (capacity: 64)", category: .initialization)
+                return set
+            } catch {
+                Log.warning("[GPUComputeService] Metal 4 residency set unavailable: \(error.localizedDescription)", category: .initialization)
+                return nil
+            }
+        }
+        return nil
+    }
+
+    /// Add a buffer to the Metal 4 residency set for persistent GPU memory residency
+    /// Call this for embedding buffers that will be reused across multiple queries
+    func makeResident(_ buffer: MTLBuffer) {
+        if #available(iOS 26.0, *) {
+            guard let rs = residencySet else { return }
+            rs.addAllocation(buffer)
+            rs.commit()
+        }
+    }
+
+    /// Remove a buffer from the residency set
+    func evictFromResidency(_ buffer: MTLBuffer) {
+        if #available(iOS 26.0, *) {
+            guard let rs = residencySet else { return }
+            rs.removeAllocation(buffer)
+            rs.commit()
+        }
+    }
+
+    /// Check if Metal 4 features are available
+    nonisolated var supportsMetal4: Bool {
+        if #available(iOS 26.0, *) {
+            return device != nil
+        }
+        return false
     }
 
     // MARK: - Batch Cosine Similarity (GPU)

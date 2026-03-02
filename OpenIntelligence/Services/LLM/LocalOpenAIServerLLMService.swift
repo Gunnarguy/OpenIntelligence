@@ -32,7 +32,7 @@ import Foundation
             let headers: [String: String]?
 
             init(
-                baseURL: URL = URL(string: "http://127.0.0.1:17860")!,
+                baseURL: URL = URL(string: "http://127.0.0.1:17860") ?? URL(fileURLWithPath: "/"),
                 model: String = "local-model",
                 chatCompletionsPath: String = "/v1/chat/completions",
                 stream: Bool = false,
@@ -337,7 +337,7 @@ import Foundation
             set { inner.toolHandler = newValue }
         }
 
-        init(baseURL: URL = URL(string: "http://127.0.0.1:17860")!,
+        init(baseURL: URL = URL(string: "http://127.0.0.1:17860") ?? URL(fileURLWithPath: "/"),
              model: String = "local-mlx-model",
              stream: Bool = false)
         {
@@ -363,7 +363,7 @@ import Foundation
             set { inner.toolHandler = newValue }
         }
 
-        init(baseURL: URL = URL(string: "http://127.0.0.1:8080")!,
+        init(baseURL: URL = URL(string: "http://127.0.0.1:8080") ?? URL(fileURLWithPath: "/"),
              model: String = "local-llama-model",
              stream: Bool = true)
         {
@@ -389,7 +389,7 @@ import Foundation
             set { inner.toolHandler = newValue }
         }
 
-        init(baseURL: URL = URL(string: "http://127.0.0.1:11434")!,
+        init(baseURL: URL = URL(string: "http://127.0.0.1:11434") ?? URL(fileURLWithPath: "/"),
              model: String = "llama3.1",
              stream: Bool = true)
         {

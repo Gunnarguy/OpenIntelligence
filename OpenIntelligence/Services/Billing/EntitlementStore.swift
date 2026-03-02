@@ -221,6 +221,30 @@ final class EntitlementStore: ObservableObject {
         currentCount < libraryLimit
     }
 
+    /// Reconciles entitlements from `Transaction.currentEntitlements` on launch.
+    /// This ensures paid users retain their tier and add-ons across reinstalls,
+    /// device changes, and family sharing without requiring manual "Restore Purchases".
+    /// Unlike `restorePurchases()`, this does NOT call `AppStore.sync()` (no sign-in prompt).
+    func reconcileEntitlementsOnLaunch() async {
+        var reconciledCount = 0
+        for await result in Transaction.currentEntitlements {
+            switch result {
+            case .verified(let transaction):
+                guard let billingProduct = BillingProduct(rawValue: transaction.productID) else { continue }
+                // Skip revoked transactions
+                guard transaction.revocationDate == nil else { continue }
+                applyPurchase(for: billingProduct, transaction: transaction)
+                reconciledCount += 1
+                Log.info("✅ Reconciled entitlement: \(billingProduct.rawValue)", category: .billing)
+            case .unverified(_, let error):
+                Log.warning("Entitlement reconciliation skipped unverified transaction: \(error.localizedDescription)", category: .billing)
+            }
+        }
+        if reconciledCount > 0 {
+            Log.info("Entitlement reconciliation complete — tier: \(activeTier.rawValue), docs: \(documentLimit), libs: \(libraryLimit)", category: .billing)
+        }
+    }
+
     func product(for product: BillingProduct) -> Product? {
         availableProducts[product]
     }
@@ -290,7 +314,7 @@ final class EntitlementStore: ObservableObject {
     #if DEBUG
         /// DEBUG-only helper to force the active tier without a StoreKit transaction.
         /// Used by local purchase simulation and developer tooling.
-        func setDebugTier(_ tier: WorkspaceTier) { 
+        func setDebugTier(_ tier: WorkspaceTier) {
             activeTier = tier
             persistState()
             recalculateAllowances()
@@ -325,7 +349,7 @@ final class EntitlementStore: ObservableObject {
     }
 
     private func applyPurchase(for product: BillingProduct, transaction: Transaction) {
-        if let tier = product.associatedTier { 
+        if let tier = product.associatedTier {
             upgradeTierIfNeeded(to: tier)
         }
         if product == .documentPackAddOn {
@@ -343,7 +367,7 @@ final class EntitlementStore: ObservableObject {
     }
 
     private func handleRevocation(for product: BillingProduct, transaction: Transaction) {
-        if product.associatedTier == activeTier { 
+        if product.associatedTier == activeTier {
             activeTier = .free
         }
         if product == .documentPackAddOn {

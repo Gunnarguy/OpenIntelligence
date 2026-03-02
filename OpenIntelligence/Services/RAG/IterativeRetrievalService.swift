@@ -352,7 +352,10 @@ final class IterativeRetrievalService: @unchecked Sendable {
             Output ONLY the refined query, no explanation:
             """
 
-            let response = try await refinementSession!.respond(to: prompt)
+            guard let session = refinementSession else {
+                throw IterativeRetrievalError.invalidRefinement
+            }
+            let response = try await session.respond(to: prompt)
             let refined = response.content
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .replacingOccurrences(of: "\"", with: "")

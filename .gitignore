@@ -120,3 +120,15 @@ OpenIntelligence.app.dSYM.zip
 
 # Sensitive pricing docs (kept local only)
 Docs/reference/PRICING_STRATEGY.md
+
+# Debug/ingestion log dumps (local debugging only)
+LOGSFROMINGESTION.TXT
+Latestingestion.txt
+Latestingestion1.txt
+Latestingestion2.txt
+OUTPUTLOLWUT.txt
+Blaper.txt
+Blog.txt
+exampledocument2.txt
+exampledocumentingestedindexedcontent.txt
+ingestedresultinsqlite3.txt

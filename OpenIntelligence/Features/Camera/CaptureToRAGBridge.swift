@@ -381,7 +381,7 @@ actor LiveAnalysisService {
                 do {
                     try requestHandler.perform([textRequest, documentRequest, barcodeRequest, classifyRequest, animalRequest, faceRequest, humanRequest])
                 } catch {
-                    // Silent failure for live analysis
+                    Log.debug("Live analysis Vision failed: \(error)", category: .pipeline)
                 }
             }
 
@@ -392,7 +392,8 @@ actor LiveAnalysisService {
                 sceneLabels: sceneLabels,
                 detectedObjects: detectedObjects,
                 humanPoses: [],  // Not needed for bridge
-                animalPoses: []  // Not needed for bridge
+                animalPoses: [],  // Not needed for bridge
+                lensSmudgeDetected: false
             ))
         }
     }

@@ -277,7 +277,10 @@ struct DocumentLibraryView: View {
                     Text(message)
                 }
             }
-            .alert("Error Processing Document", isPresented: .constant(ragService.lastError != nil)) {
+            .alert("Error Processing Document", isPresented: Binding(
+                get: { ragService.lastError != nil },
+                set: { if !$0 { ragService.lastError = nil } }
+            )) {
                 Button("OK", role: .cancel) {
                     ragService.lastError = nil
                 }
@@ -359,6 +362,15 @@ struct DocumentLibraryView: View {
         Text("This will permanently delete \"\(lib.name)\" and all \(docCount) document\(docCount == 1 ? "" : "s") inside it. This cannot be undone.")
     } else {
         Text("This will permanently delete this library and all documents inside it.")
+    }
+}
+// MARK: - NSUserActivity / Handoff
+.userActivity("com.openintelligence.documents") { activity in
+    activity.title = "Browse Document Library"
+    activity.isEligibleForSearch = true
+    activity.isEligibleForHandoff = true
+    if let containerId = containerService.activeContainerId as UUID? {
+        activity.userInfo = ["containerId": containerId]
     }
 }
     }

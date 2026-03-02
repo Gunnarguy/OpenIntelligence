@@ -406,7 +406,7 @@ class SmartCaptureManager: NSObject, ObservableObject {
             do {
                 try handler.perform([documentRequest, textRequest, barcodeRequest])
             } catch {
-                // Silent failure
+                Log.debug("Vision request failed: \(error)", category: .pipeline)
             }
         }
 

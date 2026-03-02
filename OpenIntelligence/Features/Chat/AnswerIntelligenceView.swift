@@ -667,6 +667,8 @@ extension AnswerIntelligence {
         case .numericSanity: return "Numeric Accuracy"
         case .contradictionSweep: return "Contradiction Check"
         case .semanticGrounding: return "Semantic Grounding"
+        case .quoteFaithfulness: return "Quote Faithfulness"
+        case .generationQuality: return "Generation Quality"
         }
     }
 
@@ -677,6 +679,8 @@ extension AnswerIntelligence {
         case .numericSanity: return "number"
         case .contradictionSweep: return "arrow.triangle.branch"
         case .semanticGrounding: return "brain.head.profile"
+        case .quoteFaithfulness: return "quote.bubble"
+        case .generationQuality: return "waveform.path.ecg"
         }
     }
 }

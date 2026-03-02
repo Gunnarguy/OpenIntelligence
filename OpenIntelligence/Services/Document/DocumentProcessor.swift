@@ -352,6 +352,102 @@ class DocumentProcessor {
 
         // Determine document type
         let documentType = detectDocumentType(url: url)
+
+        // ═══════════════════════════════════════════════════════════════
+        // STREAMING PATH: Large XML files (>50 MB)
+        // Uses SAX parser — never loads full file into memory.
+        // Apple Health export.xml (2.4 GB) → ~100 dense aggregated chunks.
+        // ═══════════════════════════════════════════════════════════════
+        if documentType == .xml && fileSizeMB > 50 {
+            Log.info("[DocumentProcessor] Large XML detected (\(String(format: "%.0f", fileSizeMB)) MB) — using streaming SAX parser", category: .ingestion)
+            progressHandler?("streaming large XML…")
+            let processor = StreamingXMLProcessor()
+            processor.progressHandler = { [weak self] msg in
+                self?.progressHandler?(msg)
+            }
+            let xmlChunks = try processor.processLargeXML(at: url)
+
+            guard !xmlChunks.isEmpty else {
+                throw DocumentProcessingError.emptyDocument
+            }
+
+            // Convert streaming chunks → ProcessedChunk
+            let processedChunks: [ProcessedChunk] = xmlChunks.enumerated().map { index, chunk in
+                let metadata = ChunkMetadata(
+                    chunkIndex: index,
+                    startPosition: 0,
+                    endPosition: chunk.text.count,
+                    pageNumber: nil,
+                    sectionTitle: chunk.section,
+                    keywords: [],
+                    semanticDensity: 0.5,
+                    hasNumericData: chunk.text.rangeOfCharacter(from: .decimalDigits) != nil,
+                    hasListStructure: chunk.text.contains("\n•") || chunk.text.contains("\n-"),
+                    wordCount: chunk.text.split(separator: " ").count,
+                    characterCount: chunk.text.count,
+                    structureType: "streamed_xml",
+                    sectionPath: chunk.section.map { [$0] }
+                )
+                return ProcessedChunk(text: chunk.text, parentText: nil, metadata: metadata)
+            }
+
+            // Store aggregated text in FTS5 for full-text search
+            let storedText = xmlChunks.map { chunk in
+                let header = chunk.section.map { "--- \($0) ---\n" } ?? ""
+                return header + chunk.text
+            }.joined(separator: "\n\n")
+
+            if let containerId = containerId {
+                await SQLiteFullTextService.shared.store(text: storedText, for: documentId, containerId: containerId)
+            } else {
+                await FullTextStorageService.shared.store(text: storedText, for: documentId)
+            }
+
+            let totalTime = Date().timeIntervalSince(startTime)
+            Log.info("[DocumentProcessor] Streaming XML complete: \(processedChunks.count) chunks in \(String(format: "%.1f", totalTime))s", category: .ingestion)
+
+            let chunkLengths = processedChunks.map { $0.metadata.characterCount }
+            let streamChunkStats = ChunkStatistics(
+                averageChars: chunkLengths.isEmpty ? 0 : chunkLengths.reduce(0, +) / chunkLengths.count,
+                minChars: chunkLengths.min() ?? 0,
+                maxChars: chunkLengths.max() ?? 0
+            )
+
+            let metadata = ProcessingMetadata(
+                fileSizeMB: fileSizeMB,
+                totalCharacters: storedText.count,
+                totalWords: storedText.split(separator: " ").count,
+                extractionTimeSeconds: totalTime,
+                chunkingTimeSeconds: 0,
+                embeddingTimeSeconds: 0,
+                totalProcessingTimeSeconds: totalTime,
+                pagesProcessed: 1,
+                ocrPagesCount: nil,
+                chunkStats: streamChunkStats
+            )
+
+            let document = Document(
+                id: documentId,
+                filename: filename,
+                fileURL: url,
+                contentType: documentType,
+                totalChunks: processedChunks.count,
+                processingMetadata: metadata
+            )
+
+            return (document, processedChunks)
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // FILE SIZE GUARD: Reject non-streamable files > 500 MB
+        // Loading a 500MB+ file into a String would consume 1.5-2 GB
+        // with normalization copies — guaranteed OOM on 8 GB devices.
+        // ═══════════════════════════════════════════════════════════════
+        let maxNonStreamableSizeMB: Double = 500
+        if fileSizeMB > maxNonStreamableSizeMB && documentType != .xml {
+            Log.error("[DocumentProcessor] File too large: \(String(format: "%.0f", fileSizeMB)) MB (limit: \(String(format: "%.0f", maxNonStreamableSizeMB)) MB)", category: .ingestion)
+            throw DocumentProcessingError.fileTooLarge(sizeMB: fileSizeMB, limitMB: maxNonStreamableSizeMB)
+        }
         Log.debug("[DocumentProcessor] Document type: \(documentType)", category: .ingestion)
 
         // Track structured elements for structure-aware chunking (iOS 26+ PDFs)
@@ -551,6 +647,8 @@ class DocumentProcessor {
                     wordCount: chunk.metadata.wordCount,
                     characterCount: chunk.metadata.characterCount,
                     structureType: nil,  // Legacy flat text extraction
+                    entities: chunk.metadata.entities,
+                    abbreviations: chunk.metadata.abbreviations,
                     sectionPath: chunk.metadata.sectionPath.isEmpty ? nil : chunk.metadata.sectionPath
                 )
                 return ProcessedChunk(text: chunk.content, parentText: chunk.parentContent, metadata: metadata)
@@ -744,6 +842,8 @@ class DocumentProcessor {
             pageInfo = PageInfo(totalPages: 1, ocrPagesUsed: 1, pageNumbers: [1])
 
         // Code files - Preserve as-is with syntax
+        // NOTE: .xml is handled separately above for large files (streaming path)
+        // Small XML files (<50 MB) still go through extractTextFromCode here.
         case .swift, .python, .javascript, .typescript, .java, .cpp, .c, .objc,
              .go, .rust, .ruby, .php, .html, .css, .json, .xml, .yaml, .sql, .shell, .code:
             Log.debug("[DocumentProcessor] Code file detected; preserving syntax", category: .ingestion)
@@ -1212,8 +1312,45 @@ class DocumentProcessor {
                 let pdfSample = Array(pdfKitWords.prefix(5)).joined(separator: ", ")
                 Log.info("[DocumentProcessor] OCR sample: [\(ocrSample)] vs PDFKit sample: [\(pdfSample)]", category: .ingestion)
             } else {
-                documentTextLayerGarbled = false
-                Log.debug("[DocumentProcessor] ✓ Text layer validated: matches OCR output (Jaccard=\(String(format: "%.3f", jaccard)))", category: .ingestion)
+                // Main Jaccard passed. For marginal scores (0.15–0.45), run a secondary
+                // check for AutoCAD SHX / CAD font encoding (Gap 3 fix).
+                // SHX fonts score Jaccard 0.20–0.40 because ASCII digits survive, but
+                // dimension symbols (±, °, Ø) and special chars are remapped.
+                // Numeric tokens (dimensions, part numbers) are format-stable and DON'T
+                // survive SHX encoding — "M10" becomes garbage, "25.4" becomes "253".
+                var shxGarbled = false
+                if jaccard < 0.45 {
+                    let numericPattern = #"\b\d+\.?\d*\s*[A-Za-z]{0,4}\b"#
+                    if let numericRegex = try? NSRegularExpression(pattern: numericPattern) {
+                        let extractNumerics = { (text: String) -> Set<String> in
+                            let range = NSRange(text.startIndex..., in: text)
+                            return Set(
+                                numericRegex.matches(in: text, range: range)
+                                    .compactMap { Range($0.range, in: text).map { String(text[$0]).lowercased().trimmingCharacters(in: .whitespaces) } }
+                                    .filter { $0.count >= 2 }
+                            )
+                        }
+                        let ocrText = ocrObservations.compactMap { $0.topCandidates(1).first?.string }.joined(separator: " ")
+                        let ocrNumerics = extractNumerics(ocrText)
+                        let pdfNumerics = extractNumerics(bestSampleText)
+                        // Only fire if there's enough numeric content to be meaningful
+                        // (5+ tokens ensures we're looking at a real engineering/CAD document)
+                        if pdfNumerics.count >= 5 {
+                            let numIntersection = ocrNumerics.intersection(pdfNumerics).count
+                            let numUnion = ocrNumerics.union(pdfNumerics).count
+                            let numericJaccard = numUnion > 0 ? Double(numIntersection) / Double(numUnion) : 1.0
+                            Log.info("[DocumentProcessor] SHX secondary check: \(pdfNumerics.count) PDF numerics, \(ocrNumerics.count) OCR numerics, numeric Jaccard=\(String(format: "%.3f", numericJaccard))", category: .ingestion)
+                            if numericJaccard < 0.25 {
+                                shxGarbled = true
+                                Log.warning("[DocumentProcessor] ⚠️ SHX FONT ENCODING DETECTED (numeric Jaccard=\(String(format: "%.3f", numericJaccard)), text Jaccard=\(String(format: "%.3f", jaccard))). Likely AutoCAD/CAD/SHX PDF. ALL pages → Vision OCR.", category: .ingestion)
+                            }
+                        }
+                    }
+                }
+                documentTextLayerGarbled = shxGarbled
+                if !shxGarbled {
+                    Log.debug("[DocumentProcessor] ✓ Text layer validated: matches OCR output (Jaccard=\(String(format: "%.3f", jaccard)))", category: .ingestion)
+                }
             }
         }
 
@@ -1470,17 +1607,17 @@ class DocumentProcessor {
                             }
                             let pageTime = Date().timeIntervalSince(pageStartTime)
                             let method = isSpatial ? "spatial" : "text"
-                            Log.debug("   ✓ Page \(pageNumber): \(pageText!.count) chars (\(method), \(String(format: "%.2f", pageTime))s)", category: .ingestion)
+                            Log.debug("   ✓ Page \(pageNumber): \(pageText?.count ?? 0) chars (\(method), \(String(format: "%.2f", pageTime))s)", category: .ingestion)
                             self.traceIngestionOutcome(
                                 pageNumber: pageNumber,
                                 path: isSpatial ? "spatial-ordering" : "native-text",
-                                chars: pageText!.count,
+                                chars: pageText?.count ?? 0,
                                 duration: pageTime
                             )
 
                             return PageExtractionResult(
                                 pageIndex: pageIndex,
-                                text: pageText!,
+                                text: pageText ?? "",
                                 usedOCR: false,
                                 usedSpatial: isSpatial,
                                 ocrCharCount: 0,
@@ -1530,7 +1667,7 @@ class DocumentProcessor {
                             )
                             return PageExtractionResult(
                                 pageIndex: pageIndex,
-                                text: pageText!,
+                                text: pageText ?? "",
                                 usedOCR: false,
                                 usedSpatial: false,
                                 ocrCharCount: 0,
@@ -1809,8 +1946,43 @@ class DocumentProcessor {
                 let pdfSample = Array(pdfKitWords.prefix(5)).joined(separator: ", ")
                 Log.info("[DocumentProcessor] [iOS26] OCR sample: [\(ocrSample)] vs PDFKit sample: [\(pdfSample)]", category: .ingestion)
             } else {
-                documentTextLayerGarbled = false
-                Log.debug("[DocumentProcessor] [iOS26] ✓ Text layer validated (Jaccard=\(String(format: "%.3f", jaccard)))", category: .ingestion)
+                // Main Jaccard passed. For marginal scores (0.15–0.45), run a secondary
+                // check for AutoCAD SHX / CAD font encoding (Gap 3 fix).
+                // SHX fonts score Jaccard 0.20–0.40 because ASCII digits survive, but
+                // dimension symbols and special chars are remapped to garbage.
+                // Numeric tokens (part numbers, dimensions) don't survive SHX — they're
+                // the most reliable signal for this encoding class.
+                var shxGarbled = false
+                if jaccard < 0.45 {
+                    let numericPattern = #"\b\d+\.?\d*\s*[A-Za-z]{0,4}\b"#
+                    if let numericRegex = try? NSRegularExpression(pattern: numericPattern) {
+                        let extractNumerics = { (text: String) -> Set<String> in
+                            let range = NSRange(text.startIndex..., in: text)
+                            return Set(
+                                numericRegex.matches(in: text, range: range)
+                                    .compactMap { Range($0.range, in: text).map { String(text[$0]).lowercased().trimmingCharacters(in: .whitespaces) } }
+                                    .filter { $0.count >= 2 }
+                            )
+                        }
+                        let ocrText = ocrObservations.compactMap { $0.topCandidates(1).first?.string }.joined(separator: " ")
+                        let ocrNumerics = extractNumerics(ocrText)
+                        let pdfNumerics = extractNumerics(bestSampleText)
+                        if pdfNumerics.count >= 5 {
+                            let numIntersection = ocrNumerics.intersection(pdfNumerics).count
+                            let numUnion = ocrNumerics.union(pdfNumerics).count
+                            let numericJaccard = numUnion > 0 ? Double(numIntersection) / Double(numUnion) : 1.0
+                            Log.info("[DocumentProcessor] [iOS26] SHX secondary check: \(pdfNumerics.count) PDF numerics, \(ocrNumerics.count) OCR numerics, numeric Jaccard=\(String(format: "%.3f", numericJaccard))", category: .ingestion)
+                            if numericJaccard < 0.25 {
+                                shxGarbled = true
+                                Log.warning("[DocumentProcessor] ⚠️ [iOS26] SHX FONT ENCODING DETECTED (numeric Jaccard=\(String(format: "%.3f", numericJaccard)), text Jaccard=\(String(format: "%.3f", jaccard))). Likely AutoCAD/CAD/SHX PDF. ALL pages → Vision OCR.", category: .ingestion)
+                            }
+                        }
+                    }
+                }
+                documentTextLayerGarbled = shxGarbled
+                if !shxGarbled {
+                    Log.debug("[DocumentProcessor] [iOS26] ✓ Text layer validated (Jaccard=\(String(format: "%.3f", jaccard)))", category: .ingestion)
+                }
             }
         }
 
@@ -2078,6 +2250,11 @@ class DocumentProcessor {
                     let renderData = batchRenderData[batchOffset]
                     let isHybridMode = useHybridMode  // Capture for sendable closure
                     let isGarbled = documentTextLayerGarbled  // Capture for sendable closure
+                    // Gap 1 fix: capture customWords by value here (not via actor state on shared
+                    // parser). If two documents ingest concurrently, setDocumentCustomWords() on
+                    // the shared singleton clobbers vocabulary mid-parse for the first document.
+                    // Capturing here binds this task to doc1's vocabulary regardless of doc2.
+                    let capturedCustomWords = currentDocumentCustomWords
 
                     group.addTask {
                         let pageNumber = pageIndex + 1
@@ -2117,7 +2294,12 @@ class DocumentProcessor {
 
                         do {
                             // MAXIMUM QUALITY: Run full Vision structured parsing for tables/lists/headers
-                            let structuredContent = try await parser.parsePageImage(pageImage, pageNumber: pageNumber)
+                            // customWords: passed explicitly per-task (not actor state) to prevent
+                            //   concurrent-document vocab clobbering (Gap 1 fix).
+                            // nativeWordCount: PDFKit word count as quality score ground truth
+                            //   (Gap 2 fix). nil when garbled (PDFKit text untrustworthy).
+                            let nativeCount = !isGarbled ? renderData.plainText?.split(separator: " ").count : nil
+                            let structuredContent = try await parser.parsePageImage(pageImage, pageNumber: pageNumber, customWords: capturedCustomWords, nativeWordCount: nativeCount)
 
                             var elements: [StructuredElementWrapper] = []
                             var pageTablesCount = 0
@@ -2371,6 +2553,12 @@ class DocumentProcessor {
             if result.hasStructure { pagesWithStructure += 1 }
             if result.usedOCR { ocrUsedCount += 1 }
         }
+
+        // MEMORY OPTIMIZATION: Release the heavy results array before image analysis.
+        // For a 542-page PDF, results holds ~100-200MB of PageParseResult objects.
+        // Image analysis adds another ~200MB+ of CIImages — without this release,
+        // the combined pressure causes watchdog kills on A18 Pro.
+        results.removeAll()
 
         Log.info("[DocumentProcessor] Structured parsing complete: \(pagesWithStructure)/\(pageCount) pages with tables/lists, \(allElements.count) elements extracted", category: .ingestion)
 
@@ -3229,17 +3417,18 @@ class DocumentProcessor {
 
             // Try standard text extraction first
             let pageText = page.string
-            let hasText = pageText != nil && !pageText!.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            let textQualityOK = hasText && isTextQualityAcceptable(pageText!)
+            let trimmedText = pageText?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let hasText = trimmedText.map { !$0.isEmpty } ?? false
+            let textQualityOK = hasText && isTextQualityAcceptable(pageText ?? "")
 
             if hasText && textQualityOK {
                 progressHandler?("page \(pageIndex + 1)/\(pageCount)")
                 await Task.yield()
 
-                fullText += pageText! + "\n\n"
+                fullText += (pageText ?? "") + "\n\n"
 
                 let pageTime = Date().timeIntervalSince(pageStartTime)
-                Log.debug("   ✓ Page \(pageIndex + 1): \(pageText!.count) chars (\(String(format: "%.2f", pageTime))s)", category: .ingestion)
+                Log.debug("   ✓ Page \(pageIndex + 1): \(pageText?.count ?? 0) chars (\(String(format: "%.2f", pageTime))s)", category: .ingestion)
             } else if hasText && !textQualityOK {
                 // Text exists but quality is poor - try OCR instead
                 Log.debug("   ⚠️ Page \(pageIndex + 1): Text layer quality poor, trying OCR...", category: .ingestion)
@@ -3257,7 +3446,7 @@ class DocumentProcessor {
                     Log.debug("   ✓ Page \(pageIndex + 1): OCR replaced garbage text (\(ocrText.count) chars, \(String(format: "%.2f", pageTime))s)", category: .ingestion)
                 } else {
                     // OCR didn't help - fall back to original text
-                    fullText += pageText! + "\n\n"
+                    fullText += (pageText ?? "") + "\n\n"
                     Log.warning("   ⚠️ Page \(pageIndex + 1): Using original text despite quality concerns", category: .ingestion)
                 }
             } else {
@@ -3425,10 +3614,11 @@ class DocumentProcessor {
     private func analyzeEmbeddedImages(pdfDocument: PDFDocument, pageCount: Int) async -> [StructuredElementWrapper] {
         var imageElements: [StructuredElementWrapper] = []
 
-        // MEMORY OPTIMIZATION: Process images in batches to avoid OOM on large PDFs
-        // Previous implementation loaded ALL images (100+ pages × 48MB = 5GB+) before analysis
-        // Now we process in batches of 20 pages, keeping memory under ~960MB for images
-        let imageBatchSize = 20
+        // MEMORY OPTIMIZATION: Process images in small batches to avoid OOM on large PDFs.
+        // Previous batch size of 20 pages accumulated up to ~200MB of CIImages before analysis.
+        // With 542 pages of parsed text already in memory, this caused watchdog kills.
+        // 5-page batches keep peak image memory under ~50MB.
+        let imageBatchSize = 5
         var totalImagesProcessed = 0
 
         emitProgress(stage: "visual", detail: "🖼 Scanning for embedded images...", page: 0, totalPages: pageCount)
@@ -3587,9 +3777,15 @@ class DocumentProcessor {
         // Strategy 2: Page has no usable text — entire page is a visual element
         // This catches: empty pages, scanned images, garbled text layers, diagrams
         if !hasUsableText {
-            if let fullPageImage = renderPDFPageAsImage(page: page) {
-                let normalizedBounds = CGRect(x: 0, y: 0, width: 1, height: 1)
-                extractedImages.append((fullPageImage, normalizedBounds))
+            // Use 2x scale (144 DPI) instead of default 5x (360 DPI) for image understanding.
+            // Vision classification and OCR don't need 360 DPI — 144 DPI is sufficient.
+            // Each page drops from ~25MB (2100×2975) to ~4MB (840×1190), preventing OOM
+            // when multiple pages fail quality checks in the same batch.
+            autoreleasepool {
+                if let fullPageImage = renderPDFPageAsImage(page: page, scale: 2.0) {
+                    let normalizedBounds = CGRect(x: 0, y: 0, width: 1, height: 1)
+                    extractedImages.append((fullPageImage, normalizedBounds))
+                }
             }
         }
 
@@ -3771,10 +3967,7 @@ class DocumentProcessor {
         }
 
         // Convert CIImage to CGImage using GPU-accelerated context (CIContext is thread-safe)
-        var cgImageResult: CGImage?
-        Self.gpuQueue.sync {
-            cgImageResult = Self.gpuContext.createCGImage(image, from: image.extent)
-        }
+        let cgImageResult = Self.gpuContext.createCGImage(image, from: image.extent)
         guard let cgImage = cgImageResult else {
             throw NSError(domain: "DocumentProcessor", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create CGImage for OCR"])
         }
@@ -3945,10 +4138,7 @@ class DocumentProcessor {
     /// Perform a single OCR attempt on an image (no retry logic)
     private func performOCRSingleAttempt(on image: CIImage) async throws -> String {
         // Convert CIImage to CGImage using GPU-accelerated context (CIContext is thread-safe)
-        var cgImageResult: CGImage?
-        Self.gpuQueue.sync {
-            cgImageResult = Self.gpuContext.createCGImage(image, from: image.extent)
-        }
+        let cgImageResult = Self.gpuContext.createCGImage(image, from: image.extent)
         guard let cgImage = cgImageResult else {
             Log.error("[DocumentProcessor] Failed to create CGImage for OCR", category: .ingestion)
             return ""
@@ -4045,10 +4235,7 @@ class DocumentProcessor {
     /// GPU-accelerated via Metal-backed CGImage conversion
     private func performOCRWithObservationsAsync(on image: CIImage) async throws -> [VNRecognizedTextObservation] {
         // Convert CIImage to CGImage using GPU-accelerated context (CIContext is thread-safe)
-        var cgImageResult: CGImage?
-        Self.gpuQueue.sync {
-            cgImageResult = Self.gpuContext.createCGImage(image, from: image.extent)
-        }
+        let cgImageResult = Self.gpuContext.createCGImage(image, from: image.extent)
         guard let cgImage = cgImageResult else {
             throw NSError(domain: "DocumentProcessor", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create CGImage for OCR"])
         }
@@ -4706,43 +4893,44 @@ class DocumentProcessor {
 
     /// Extract text from audio/video files using Speech.framework
     private func extractTextFromAudioVideo(url: URL) async throws -> String {
-        let transcriptionService = AudioTranscriptionService.shared
+        let speechService = SpeechAnalyzerService.shared
 
-        // Check authorization first
-        let authorized = await transcriptionService.checkAuthorization()
-        if !authorized {
-            Log.warning("[DocumentProcessor] Speech recognition not authorized; requesting permission", category: .ingestion)
-            try await transcriptionService.requestAuthorization()
+        // Check if SpeechAnalyzer can handle this file
+        guard speechService.canAnalyze(url: url) else {
+            throw DocumentProcessingError.audioTranscriptionFailed("Unsupported audio/video format")
         }
 
         // Detect language from filename or default to English
         let filename = url.lastPathComponent.lowercased()
-        var language: NLLanguage = .english
+        var language = "en-US"
 
         // Simple language hints from filename
         if filename.contains("_es") || filename.contains("spanish") {
-            language = .spanish
+            language = "es-ES"
         } else if filename.contains("_fr") || filename.contains("french") {
-            language = .french
+            language = "fr-FR"
         } else if filename.contains("_de") || filename.contains("german") {
-            language = .german
+            language = "de-DE"
         } else if filename.contains("_zh") || filename.contains("chinese") {
-            language = .simplifiedChinese
+            language = "zh-CN"
         } else if filename.contains("_ja") || filename.contains("japanese") {
-            language = .japanese
+            language = "ja-JP"
         }
 
         progressHandler?("transcribing audio")
 
         do {
-            let result = try await transcriptionService.transcribe(url: url, language: language)
+            let result = try await speechService.analyze(url: url, language: language)
 
             if result.isSuccessful {
-                Log.info("[DocumentProcessor] Transcribed \(result.wordCount) words from \(url.lastPathComponent)", category: .ingestion)
-                return transcriptionService.transcriptionToDocument(result, sourceFile: url.lastPathComponent)
+                Log.info("[DocumentProcessor] Transcribed \(result.wordCount) words from \(url.lastPathComponent) via SpeechAnalyzer", category: .ingestion)
+                return speechService.analysisToDocument(result, sourceFile: url.lastPathComponent)
             } else {
                 throw DocumentProcessingError.audioTranscriptionEmpty
             }
+        } catch let error as SpeechAnalysisError {
+            Log.error("[DocumentProcessor] Speech analysis failed: \(error.localizedDescription)", category: .ingestion)
+            throw DocumentProcessingError.audioTranscriptionFailed(error.localizedDescription)
         } catch let error as TranscriptionError {
             Log.error("[DocumentProcessor] Transcription failed: \(error.localizedDescription)", category: .ingestion)
             throw DocumentProcessingError.audioTranscriptionFailed(error.localizedDescription)
@@ -5460,6 +5648,7 @@ enum DocumentProcessingError: LocalizedError {
     case iWorkExtractionFailed
     case audioTranscriptionFailed(String)
     case audioTranscriptionEmpty
+    case fileTooLarge(sizeMB: Double, limitMB: Double)
 
     var errorDescription: String? {
         switch self {
@@ -5495,6 +5684,8 @@ enum DocumentProcessingError: LocalizedError {
             return "Audio transcription failed: \(reason)"
         case .audioTranscriptionEmpty:
             return "Audio transcription produced no text. The audio may be silent or incompatible."
+        case let .fileTooLarge(sizeMB, limitMB):
+            return "File is too large (\(String(format: "%.0f", sizeMB)) MB). Maximum supported size is \(String(format: "%.0f", limitMB)) MB. Try splitting the file into smaller parts."
         }
     }
 }

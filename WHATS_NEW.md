@@ -1,6 +1,6 @@
-# What's New in OpenIntelligence v1.2
+# What's New in OpenIntelligence v2.0
 
-**Released**: February 17, 2026 (Build 14)
+**Released**: March 2, 2026 (Build 19)
 
 ---
 
@@ -12,13 +12,15 @@ Search got smarter, GPU actually gets used, OCR runs in parallel, tables don't g
 
 ## The Short Version
 
-Three big changes:
+Four big changes:
 
 1. **Responses look good now.** Headers, bullet lists, bold text, code blocks — instead of one giant paragraph. We rewrote the renderer from scratch and audited every function in the response pipeline that was stripping formatting.
 
 2. **Everything runs faster on your specific chip.** GPU vector search picks the fastest Metal shader automatically. OCR runs 2-8 operations in parallel depending on your chip. Neural reranking scores multiple candidates simultaneously. Embedding generation offloads to GPU during ingestion so the Neural Engine can focus on OCR.
 
-3. **The app doesn't hang on airplane mode anymore**, and a crash in the diversity algorithm was fixed.
+3. **You can transform any AI response 5 ways** — extract key facts, step-by-step instructions, plain English simplification, gap analysis (what's missing?), or illustrated visualizations. All grounded in your actual source documents, not hallucinated.
+
+4. **The app doesn't hang on airplane mode anymore**, and a crash in the diversity algorithm was fixed.
 
 ---
 
@@ -87,6 +89,35 @@ During document ingestion, `CoreMLSentenceEmbeddingProvider` switches compute un
 
 `StructuredDocumentParser` now evaluates `topCandidates(5)` (was 3) for richer candidate selection, improving accuracy on ambiguous text.
 
+### RAG-Grounded Response Transforms
+
+A new AI Hub toolbar (top-right, `apple.intelligence` icon) provides 5 document-aware transforms on any AI response:
+
+| Transform           | What It Does                                                   |
+| ------------------- | -------------------------------------------------------------- |
+| **Key Facts**       | Source-backed bullet points with document/page attribution     |
+| **Step-by-Step**    | Procedures using real specs and part numbers from chunks       |
+| **Plain English**   | Simplifies complex technical content into accessible language  |
+| **What's Missing?** | Identifies gaps between your question and the retrieved answer |
+| **Illustrate**      | Image Playground visualization via LLM concept extraction      |
+
+Each transform receives the retrieved chunks (not just the response text), so output is grounded in the user's actual documents. Uses `Instructions()` for persistent system context, token-aware budgets per transform type, 30-second timeout, and task cancellation support.
+
+### Image Playground — LLM Concept Extraction
+
+Image Playground previously used NLTagger to extract raw nouns/entities from RAG responses. Domain-specific terms ("TPB", "SAE 0W-20") caused "try another description" errors.
+
+Now uses the on-device LLM to translate response content into 3-5 short, concrete visual scene descriptions (<35 chars each). The LLM understands technical jargon in context and converts it to simple visual imagery. Falls back to NLTagger if FoundationModels is unavailable.
+
+### Pipeline Quality Fixes
+
+| Fix                       | Details                                                                                                                                                             |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **BM25 `b` alignment**    | RAGEngine used `b=0.75`, HybridSearchService used `b=0.5`. Uniform chunk size means length normalization should be minimal. Aligned both to `b=0.5` — better recall |
+| **Accelerate Gate E**     | VerificationGateService cosine similarity replaced with `vDSP.dot()` — hardware-optimized                                                                           |
+| **Regex pre-compilation** | RAGEngine regex patterns compiled once as `static let` instead of per-query                                                                                         |
+| **BM25 lemmatization**    | `tokenize()` uses NLTagger `.lemma` scheme: "studies" → "study", "running" → "run"                                                                                  |
+
 ### Stability & Hardening
 
 | Fix                       | Details                                                                                                                                                                                                                                                                                                                                                |
@@ -120,39 +151,102 @@ Critical fixes preventing silent content loss on font-encoded PDFs:
 - `nonisolated(unsafe)` on `BNNSVectorDatabase.loadTask` for nonisolated init access
 - Dead code removal (`var bestConfidence`), `var` → `let` fixes
 
+### Pipeline Reliability Hardening
+
+11 targeted fixes across the compression → generation → fallback chain. Previously, a rate-limited Apple FM call during compression could cascade into a 0-token response with no fallback — the user saw a generic error instead of document content.
+
+| Fix                           | Details                                                                                                                                        |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Compression Cap**           | Maximum 5 chunks sent to compression (was unlimited) — reduces sequential FM calls that exhaust rate limits                                    |
+| **Fresh Session Per Chunk**   | `resetSession()` before each compression prevents transcript accumulation that overflowed the 4096-token context window after 3-4 compressions |
+| **Per-Chunk Error Isolation** | Each `compressChunk()` wrapped in `do/catch` with passthrough fallback — one failure no longer aborts the batch                                |
+| **12-Second Time Budget**     | Compression batch bails out after 12s, passing remaining chunks through as originals                                                           |
+| **Empty Response → Fallback** | LLM returning 0 tokens now routes to `buildReliabilityFallbackResponse()` instead of throwing an error that bypassed fallback entirely         |
+| **Post-Compression Cooldown** | 1s sleep after compression lets Apple FM rate limits recover before generation                                                                 |
+| **Rate-Limit Retry**          | `generateWithFallback()` detects rate-limited errors, sleeps 2s, retries once                                                                  |
+| **Typed LLM Errors**          | New `.rateLimited` and `.concurrentRequests` cases in `LLMError` — replaces fragile string matching                                            |
+| **Extractive Path B Rewrite** | Fallback now uses 6 chunks × 500 chars with section titles and source names (was 3 × 240 chars)                                                |
+| **Partial Stream Threshold**  | Lowered from 24 → 10 characters to salvage more partial output                                                                                 |
+| **Error Logging**             | Reliability fallback LLM failure now logged via `do/catch` (was silent `try?`)                                                                 |
+
+### Memory-Safe Large PDF Ingestion
+
+Prevents OOM watchdog kills during ingestion of 500+ page PDFs. A 542-page owner's manual was killed during post-parsing image analysis.
+
+| Fix                             | Details                                                                                                     |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| **Results Array Release**       | `results.removeAll()` frees ~100-200MB of parsed page data before image analysis begins                     |
+| **Image Batch 20 → 5**          | Peak CIImage memory per batch drops from ~200MB to ~50MB                                                    |
+| **144 DPI Image Understanding** | Full-page renders for Vision classification use 2× scale (was 5×/360 DPI) — each page ~4MB instead of ~25MB |
+| **autoreleasepool**             | Core Graphics intermediates released immediately instead of accumulating                                    |
+
+### True Parallel Hybrid Search
+
+Replaced the sequential "vector-first, then BM25 re-score" pipeline with true parallel hybrid retrieval:
+
+| Before (v1.1)                                   | After (v1.2)                                                   |
+| ----------------------------------------------- | -------------------------------------------------------------- |
+| Vector search runs first                        | Vector + FTS5 run concurrently via `async let`                 |
+| BM25 re-scores the same vector candidates       | Two independent ranked lists merged via RRF                    |
+| In-memory `BM25Scorer` with per-query snapshots | Native SQLite `bm25()` with corpus-wide IDF                    |
+| FTS5-only matches invisible                     | FTS5-only hits surface through RRF with fair ranking           |
+| BM25 column weights: uniform                    | Weighted: section_title (10×), section_path (5×), content (1×) |
+
+### Test Suite Removal
+
+The unit test suite was removed — all tests relied on mock objects and could not exercise real behavior since Apple's on-device frameworks (FoundationModels, Vision OCR, CoreML) are unavailable on the iOS Simulator. BM25 tests crashed the simulator process. Quality is validated through on-device testing.
+
+### Onboarding Polish
+
+Six first-launch experience improvements:
+
+- **Haptic Feedback**: 6 touch points across onboarding — `light` on skip/dismiss, `selection` on continue, `medium` on get started, `success`/`error` on import result
+- **Analytics Separation**: New `markOnboardingCompleted()` path distinct from `skipPermanently()` — `completionMethod` UserDefaults key tracks `"completed"` vs `"skipped"` for conversion analytics
+- **Sample Import on Completion**: `markSamplesImported()` now called through the primary success path via `markOnboardingCompleted()`
+- **Pipeline Accessibility**: `PipelineStageBadge`, processing header, and `OnboardingIngestionRow` have VoiceOver labels and values — screen reader users can follow ingestion progress
+- **Error Message Fix**: "Import failed — tap to retry" → "Import failed — please try again" (previous wording implied a non-existent tap target)
+- **Microphone Permission**: `NSMicrophoneUsageDescription` added to both build configs for Speech framework voice input
+
 ---
 
-## Cumulative Changes Since App Store Launch (v1.0.0 → v1.2.0)
+## Cumulative Changes Since App Store Launch (v1.0.0 → v2.0)
 
 For the complete build-by-build changelog, see [CHANGELOG.md](CHANGELOG.md).
 
 ### What changed at a glance
 
-| Area                       | v1.0.0 (Launch)                         | v1.2.0 (Current)                                        |
-| -------------------------- | --------------------------------------- | ------------------------------------------------------- |
-| Pipeline steps             | 23                                      | 25                                                      |
-| Services                   | 79                                      | 81                                                      |
-| Categories                 | 10                                      | 11                                                      |
-| GPU vector search          | Scalar kernel only                      | 3-tier auto-selection (threadgroup/SIMD4/scalar)        |
-| OCR concurrency            | Fixed for all devices                   | Per-chip (2-8 concurrent ops)                           |
-| OCR page filtering         | Process every page                      | 50-80% skip rate via PageComplexityAnalyzer             |
-| CIFilter rendering         | Serial queue                            | Concurrent queue                                        |
-| Cross-encoder reranking    | Sequential, tokenized in-loop           | Concurrent TaskGroup, pre-tokenized, bulk memory writes |
-| Embedding during ingestion | Neural Engine                           | GPU (frees Neural Engine for OCR)                       |
-| FTS5 queries               | OR-joined (matched everything)          | AND-first with automatic OR fallback                    |
-| BM25 scoring               | Document-level (all chunks same score)  | Per-chunk via in-memory scorer                          |
-| HyDE embedding             | 100% hypothetical                       | 70/30 blend with original query                         |
-| Iterative retrieval        | Implemented but hardcoded off           | Auto-enabled for multi-hop intents                      |
-| Table handling in chunker  | Could split tables mid-row              | Table-block detection, atomic preservation              |
-| OCR candidates             | topCandidates(3)                        | topCandidates(5)                                        |
-| Response rendering         | Single unformatted paragraph            | Full block-level markdown parser                        |
-| Response cleaning          | Stripped all markdown                   | Preserves all formatting                                |
-| LLM prompts                | No formatting instructions              | Headers, bullets, bold instructions in all 6 prompts    |
-| Cross-encoder pool cap     | Fixed 100                               | Adaptive: min(count, max(100, topK×5))                  |
-| Token budget               | Tool schema always reserved             | Conditional — reclaims ~24% when tools unused           |
-| Verification Gate C        | Years/integers penalized, 80% threshold | Years/integers exempt, 70% threshold                    |
-| Spec detection             | Matched any letter+digit combo          | Matches only actual patterns (e.g., oil viscosity)      |
-| StoreKit offline           | Hangs 30-60 seconds                     | 5-second timeout                                        |
-| Motherboard HUD            | —                                       | Real-time Apple Silicon X-ray overlay                   |
-| Font-encoded PDFs          | Silently lost 93% of content            | PHASE -1 Jaccard detection, full OCR forced             |
-| Swift 6 concurrency        | Warnings in 11 files                    | All annotations complete, zero warnings                 |
+| Area                       | v1.0.0 (Launch)                         | v2.0 (Current)                                                                                  |
+| -------------------------- | --------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Pipeline steps             | 23                                      | 25                                                                                              |
+| Services                   | 79                                      | 102                                                                                             |
+| Categories                 | 10                                      | 11                                                                                              |
+| GPU vector search          | Scalar kernel only                      | 3-tier auto-selection (threadgroup/SIMD4/scalar)                                                |
+| OCR concurrency            | Fixed for all devices                   | Per-chip (2-8 concurrent ops)                                                                   |
+| OCR page filtering         | Process every page                      | 50-80% skip rate via PageComplexityAnalyzer                                                     |
+| CIFilter rendering         | Serial queue                            | Concurrent queue                                                                                |
+| Cross-encoder reranking    | Sequential, tokenized in-loop           | Concurrent TaskGroup, pre-tokenized, bulk memory writes                                         |
+| Embedding during ingestion | Neural Engine                           | GPU (frees Neural Engine for OCR)                                                               |
+| FTS5 queries               | OR-joined (matched everything)          | AND-first with automatic OR fallback                                                            |
+| BM25 scoring               | Document-level (all chunks same score)  | Native SQLite `bm25()` with weighted columns (10/5/1)                                           |
+| HyDE embedding             | 100% hypothetical                       | 70/30 blend with original query                                                                 |
+| Iterative retrieval        | Implemented but hardcoded off           | Auto-enabled for multi-hop intents                                                              |
+| Table handling in chunker  | Could split tables mid-row              | Table-block detection, atomic preservation                                                      |
+| OCR candidates             | topCandidates(3)                        | topCandidates(5)                                                                                |
+| Response rendering         | Single unformatted paragraph            | Full block-level markdown parser                                                                |
+| Response transforms        | —                                       | 5 RAG-grounded transforms (Key Facts, Step-by-Step, Plain English, What's Missing?, Illustrate) |
+| Image Playground concepts  | —                                       | LLM-powered visual scene extraction (domain jargon → concrete imagery)                          |
+| BM25 `b` parameter         | Inconsistent (0.75 vs 0.5)              | Aligned to 0.5 (correct for uniform chunk size)                                                 |
+| Response cleaning          | Stripped all markdown                   | Preserves all formatting                                                                        |
+| LLM prompts                | No formatting instructions              | Headers, bullets, bold instructions in all 6 prompts                                            |
+| Cross-encoder pool cap     | Fixed 100                               | Adaptive: min(count, max(100, topK×5))                                                          |
+| Token budget               | Tool schema always reserved             | Conditional — reclaims ~24% when tools unused                                                   |
+| Verification Gate C        | Years/integers penalized, 80% threshold | Years/integers exempt, 70% threshold                                                            |
+| Spec detection             | Matched any letter+digit combo          | Matches only actual patterns (e.g., oil viscosity)                                              |
+| StoreKit offline           | Hangs 30-60 seconds                     | 5-second timeout                                                                                |
+| Motherboard HUD            | —                                       | Real-time Apple Silicon X-ray overlay                                                           |
+| Font-encoded PDFs          | Silently lost 93% of content            | PHASE -1 Jaccard detection, full OCR forced                                                     |
+| Swift 6 concurrency        | Warnings in 11 files                    | All annotations complete, zero warnings                                                         |
+| Hybrid search architecture | Sequential vector → BM25 re-score       | True parallel vector + FTS5, merged via RRF                                                     |
+| Test coverage              | 44 tests across 7 files                 | Removed — all tests were mock-based, Apple frameworks untestable on simulator                   |
+| LLM reliability            | 0-token responses on rate limit         | 11-fix hardening: compression cap, retry, typed errors                                          |
+| Large PDF memory           | OOM kill on 500+ pages                  | Batch 5-page, 144 DPI image, results release                                                    |

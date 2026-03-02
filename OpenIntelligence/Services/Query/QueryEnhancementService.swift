@@ -127,6 +127,8 @@ enum AnswerIntent: String, Sendable, CaseIterable {
 
     /// Whether this intent should auto-inject document summary (L1) chunks
     /// GOD MODE: Ensures document-level context is always available
+    /// NOTE: Overridden to false for enumeration queries in RAGService —
+    ///        the summary steals chunk slots from detail chunks that contain the actual list.
     var requiresDocumentSummary: Bool {
         switch self {
         case .findings, .summarize, .investigate:
@@ -428,6 +430,10 @@ final class QueryEnhancementService {
         // MUST be checked BEFORE lookup/tableLookup/embedded patterns, which would
         // short-circuit to ExtractiveQA and return a single value like "SPY-PHI"
         // when the user wants a comprehensive listing of ALL matching values.
+        //
+        // CRITICAL: "How many X are available/there" is an enumeration, not a lookup.
+        // The user wants a COUNT + full LIST. Sentence extraction (lookup) strips the
+        // surrounding list context, causing the LLM to hallucinate counts and duplicate items.
         let enumerationPatterns: [String] = [
             "list all", "list every", "list the", "list each",
             "name all", "name every", "name each",
@@ -435,6 +441,17 @@ final class QueryEnhancementService {
             "show all", "show every", "show each",
             "give me all", "give me every",
             "enumerate", "all the .* numbers", "all .* reference",
+            // "How many X are available/there/exist/does it have" → enumeration
+            // Distinct from "how many quarts" (single-value lookup with unit)
+            "how many .* available", "how many .* are there",
+            "how many .* exist", "how many .* does .* have",
+            "how many .* can .* use", "how many .* supported",
+            "how many .* included", "how many .* types",
+            "how many .* options", "how many .* commands",
+            "how many .* features", "how many .* modes",
+            "how many .* settings", "how many .* functions",
+            "how many .* methods", "how many .* ways",
+            "how many kinds", "how many categories",
         ]
         for pattern in enumerationPatterns {
             if pattern.contains(".*"), let _ = lower.range(of: pattern, options: .regularExpression) {
@@ -986,10 +1003,13 @@ extension CorpusVocabulary {
             }
 
             // Only keep text snippets with high ASCII ratio (reject garbled OCR)
-            let snippet = String(chunk.content.prefix(500))
-            let asciiCount = snippet.filter { $0.isASCII }.count
-            if Float(asciiCount) / max(Float(snippet.count), 1) > 0.85 {
-                textSnippets.append(snippet)
+            // MEMORY FIX: Cap at 300 entries × 200 chars ≈ 120KB (was uncapped × 500 ≈ 1.9MB)
+            if textSnippets.count < 300 {
+                let snippet = String(chunk.content.prefix(200))
+                let asciiCount = snippet.filter { $0.isASCII }.count
+                if Float(asciiCount) / max(Float(snippet.count), 1) > 0.85 {
+                    textSnippets.append(snippet)
+                }
             }
         }
 

@@ -5,7 +5,10 @@
 //  Created by Gunnar Hostetler on 10/9/25.
 //
 
+import Combine
+import CoreSpotlight
 import SwiftUI
+import TipKit
 
 struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
@@ -79,6 +82,21 @@ struct ContentView: View {
             }
         }
 .tint(appAccentColor)
+        .glassTabBar()
+        .onContinueUserActivity(CSSearchableItemActionType) { activity in
+            // Handle Spotlight search result tap — navigate to the document's container
+            if activity.userInfo?[CSSearchableItemActivityIdentifier] is String {
+                // The identifier is the document UUID; extract containerId from the activity
+                if let containerIdString = activity.userInfo?["containerId"] as? String,
+                   let containerId = UUID(uuidString: containerIdString) {
+                    containerService.activeContainerId = containerId
+                    selectedTab = .documents
+                } else {
+                    // Fallback: just navigate to documents tab
+                    selectedTab = .documents
+                }
+            }
+        }
         .overlay(alignment: .bottomTrailing) {
             if shouldShowChecklistLauncher {
                 OnboardingChecklistLauncher(
@@ -105,6 +123,9 @@ struct ContentView: View {
         // this will emit a single warning if no StoreKit configuration is present.
         .task {
             await entitlementStore.billingService.refreshProducts()
+            // Auto-reconcile existing purchases on launch so paid users
+            // are recognized immediately after reinstall or device change.
+            await entitlementStore.reconcileEntitlementsOnLaunch()
 
             if screenshotMode.shouldImportSamples {
                 await importSamplesIfNeeded()
@@ -125,64 +146,61 @@ struct ContentView: View {
     @ViewBuilder
     private var tabViewContent: some View {
         TabView(selection: $selectedTab) {
-            NavigationView {
+            NavigationStack {
                 ChatScreen(ragService: ragService)
+                    .overlay(alignment: .top) {
+                        InlineTipView(tip: FirstQueryTip())
+                    }
             }
-            #if os(iOS)
-            .navigationViewStyle(.stack)
-            #endif
             .tabItem {
                 Label("Chat", systemImage: "bubble.left.and.bubble.right")
             }
             .tag(Tab.chat)
 
-            NavigationView {
+            NavigationStack {
                 DocumentLibraryView(
                     ragService: ragService,
                     containerService: containerService,
                     onViewVisualizations: { selectedTab = .visualizations }
                 )
+                .overlay(alignment: .top) {
+                    InlineTipView(tip: IngestDocumentTip())
+                }
             }
-            #if os(iOS)
-            .navigationViewStyle(.stack)
-            #endif
             .tabItem {
                 Label("Documents", systemImage: "doc.text.magnifyingglass")
             }
             .tag(Tab.documents)
 
-            NavigationView {
+            NavigationStack {
                 AdaptiveVisualizationsView()
                     .environmentObject(ragService)
                     .environmentObject(containerService)
+                    .overlay(alignment: .top) {
+                        InlineTipView(tip: AtlasTip())
+                    }
             }
-            #if os(iOS)
-            .navigationViewStyle(.stack)
-            #endif
             .tabItem {
                 Label("Atlas", systemImage: "globe.americas")
             }
             .tag(Tab.visualizations)
 
-            NavigationView {
+            NavigationStack {
                 DatabaseDashboardView()
                     .environmentObject(ragService)
                     .environmentObject(containerService)
             }
-            #if os(iOS)
-            .navigationViewStyle(.stack)
-            #endif
             .tabItem {
                 Label("Database", systemImage: "cylinder.split.1x2")
             }
             .tag(Tab.database)
 
-            NavigationView {
+            NavigationStack {
                 SettingsView(ragService: ragService)
+                    .overlay(alignment: .top) {
+                        InlineTipView(tip: ModelConfigTip())
+                    }
             }
-            #if os(iOS)
-            .navigationViewStyle(.stack)
-            #endif
             .environmentObject(settingsStore)
             .environmentObject(entitlementStore)
             .tabItem {
@@ -216,6 +234,15 @@ struct ContentView: View {
             Task { @MainActor in
                 ragService.saveSessionTranscript()
                 Log.debug("[App] Scene entered background - saved transcript", category: .initialization)
+            }
+
+            // Schedule background tasks if enabled
+            if settingsStore.enableBackgroundMaintenance {
+                BackgroundTaskService.shared.scheduleIndexMaintenance()
+                BackgroundTaskService.shared.scheduleAppRefresh()
+                if settingsStore.enableSpotlightIndexing {
+                    BackgroundTaskService.shared.scheduleSpotlightReindex()
+                }
             }
 
         case .active:

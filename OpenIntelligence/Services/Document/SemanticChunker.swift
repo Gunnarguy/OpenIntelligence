@@ -243,6 +243,9 @@ class SemanticChunker {
             /// Named entities extracted via NLTagger (persons, organizations, places, technical terms)
             /// Used by EntityIndexService for cross-document correlation and GraphRAG-lite expansion
             let entities: [String]
+            /// Abbreviation→expansion mappings extracted from inline definitions.
+            /// Example: ["ED": "Emotional Dysregulation", "ODD": "Oppositional Defiant Disorder"]
+            let abbreviations: [String: String]
         }
     }
 
@@ -453,7 +456,8 @@ class SemanticChunker {
                     hasListStructure: prev.metadata.hasListStructure || chunk.metadata.hasListStructure,
                     startOffset: prev.metadata.startOffset,
                     endOffset: chunk.metadata.endOffset,
-                    entities: Array(Set(prev.metadata.entities + chunk.metadata.entities))
+                    entities: Array(Set(prev.metadata.entities + chunk.metadata.entities)),
+                    abbreviations: prev.metadata.abbreviations.merging(chunk.metadata.abbreviations) { first, _ in first }
                 )
                 mergedChunks.append(EnhancedChunk(content: mergedContent, parentContent: mergedParent, metadata: mergedMeta, embedding: nil))
                 Log.debug("[SemanticChunker] Merged micro-chunk (\(chunk.metadata.wordCount) words) into previous", category: .ingestion)
@@ -1376,6 +1380,9 @@ class SemanticChunker {
         // Extract named entities via NLTagger (persons, organizations, places, technical nouns)
         let entities = extractEntities(chunkText)
 
+        // Extract abbreviation→expansion mappings from inline definitions
+        let abbreviations = extractAbbreviations(chunkText)
+
         return EnhancedChunk.ChunkMetadata(
             documentId: documentId,
             chunkIndex: chunkIndex,
@@ -1391,7 +1398,8 @@ class SemanticChunker {
             hasListStructure: hasList,
             startOffset: startOffset,
             endOffset: endOffset,
-            entities: entities
+            entities: entities,
+            abbreviations: abbreviations
         )
     }
 
@@ -1494,7 +1502,110 @@ class SemanticChunker {
         return Array(entities.prefix(15))
     }
 
-    /// Extract top keywords using TF-IDF approximation
+    // MARK: - Abbreviation Extraction (Anti-Hallucination)
+
+    /// Extract abbreviation→expansion mappings from inline definitions in text.
+    ///
+    /// Academic papers, technical manuals, and medical documents consistently define
+    /// abbreviations inline using patterns like:
+    /// - "Emotional Dysregulation (ED)" → ED = Emotional Dysregulation
+    /// - "ED: Emotional Dysregulation" → ED = Emotional Dysregulation
+    /// - "ODD, Oppositional Defiant Disorder" → ODD = Oppositional Defiant Disorder
+    /// - "ECU — Electronic Control Unit" → ECU = Electronic Control Unit
+    ///
+    /// These mappings are injected as a glossary into the LLM context, preventing the model
+    /// from cross-contaminating abbreviations (e.g., expanding "ED" as "Oppositional Defiant
+    /// Disorder" when the document defines it as "Emotional Dysregulation").
+    ///
+    /// Pre-compiled static regex patterns for performance (called once per chunk during ingestion).
+    private static let abbreviationPatterns: [(regex: NSRegularExpression, abbrGroup: Int, expansionGroup: Int)] = {
+        var patterns: [(NSRegularExpression, Int, Int)] = []
+
+        // Pattern 1: "Full Name (ABBR)" — most common in academic/medical papers
+        // Matches: "Emotional Dysregulation (ED)", "Oppositional Defiant Disorder (ODD)"
+        // Requires: 2-6 uppercase letters in parens, preceded by 2-5 capitalized words
+        if let r = try? NSRegularExpression(
+            pattern: #"((?:[A-Z][a-zA-Z]+\s+){1,5}[A-Z][a-zA-Z]+)\s*\(([A-Z]{2,8})\)"#,
+            options: []
+        ) {
+            patterns.append((r, 2, 1))  // group 2 = abbr, group 1 = expansion
+        }
+
+        // Pattern 2: "ABBR: Full Name" or "ABBR - Full Name" or "ABBR — Full Name"
+        // Matches: "ECU: Electronic Control Unit", "OBD — On-Board Diagnostics"
+        if let r = try? NSRegularExpression(
+            pattern: #"\b([A-Z]{2,8})\s*[:\-—–]\s*((?:[A-Z][a-zA-Z]+\s+){1,5}[A-Z][a-zA-Z]+)"#,
+            options: []
+        ) {
+            patterns.append((r, 1, 2))  // group 1 = abbr, group 2 = expansion
+        }
+
+        // Pattern 3: "ABBR, Full Name" (common in glossary/table sections)
+        // Matches: "ODD, Oppositional Defiant Disorder"
+        // Requires comma-separated with capitalized expansion words
+        if let r = try? NSRegularExpression(
+            pattern: #"\b([A-Z]{2,8}),\s+((?:[A-Z][a-zA-Z]+\s+){1,5}[A-Z][a-zA-Z]+)"#,
+            options: []
+        ) {
+            patterns.append((r, 1, 2))
+        }
+
+        // Pattern 4: Glossary-style "ABBR  Full Name" (tab or multi-space separated)
+        // Matches lines in glossary tables: "ODD     Oppositional Defiant Disorder"
+        if let r = try? NSRegularExpression(
+            pattern: #"^([A-Z]{2,8})\s{2,}((?:[A-Z][a-zA-Z]+\s+){1,5}[A-Z][a-zA-Z]+)"#,
+            options: .anchorsMatchLines
+        ) {
+            patterns.append((r, 1, 2))
+        }
+
+        return patterns
+    }()
+
+    /// Extract abbreviation mappings from a chunk of text
+    private func extractAbbreviations(_ text: String) -> [String: String] {
+        guard text.count >= 10 else { return [:] }
+
+        var abbreviations: [String: String] = [:]
+        let nsText = text as NSString
+        let fullRange = NSRange(location: 0, length: nsText.length)
+
+        for (regex, abbrGroup, expansionGroup) in Self.abbreviationPatterns {
+            let matches = regex.matches(in: text, options: [], range: fullRange)
+            for match in matches {
+                guard match.numberOfRanges > max(abbrGroup, expansionGroup) else { continue }
+
+                let abbrRange = match.range(at: abbrGroup)
+                let expRange = match.range(at: expansionGroup)
+                guard abbrRange.location != NSNotFound, expRange.location != NSNotFound else { continue }
+
+                let abbr = nsText.substring(with: abbrRange).trimmingCharacters(in: .whitespaces)
+                let expansion = nsText.substring(with: expRange).trimmingCharacters(in: .whitespaces)
+
+                // Validate: abbreviation should be initials of expansion words
+                // e.g., "ED" matches "Emotional Dysregulation" (E+D)
+                let expansionWords = expansion.split(separator: " ").map { String($0) }
+                let initials = String(expansionWords.compactMap { $0.first })
+
+                // Accept if initials match, or if at least 60% of abbr chars are in initials
+                // (handles cases like "ADHD" for "Attention Deficit Hyperactivity Disorder")
+                let initialsUpper = initials.uppercased()
+                let abbrUpper = abbr.uppercased()
+
+                let matchingChars = abbrUpper.filter { initialsUpper.contains($0) }.count
+                let matchRatio = Float(matchingChars) / Float(max(abbrUpper.count, 1))
+
+                if abbrUpper == initialsUpper || matchRatio >= 0.6 {
+                    // Don't overwrite existing entry (first definition wins — most authoritative)
+                    if abbreviations[abbrUpper] == nil {
+                        abbreviations[abbrUpper] = expansion
+                    }
+                }
+            }
+        }
+
+        return abbreviations
+    }
     /// Also extracts capitalized multi-word phrases (e.g., "Record Button", "Note Recording")
     /// ENHANCED: Also extracts specification values (SAE 0W-20, API SN, etc.) via SpecificationDetector
     private func extractKeywords(_ text: String, topN: Int) -> [String] {
@@ -1626,7 +1737,8 @@ class SemanticChunker {
             hasListStructure: hasList,
             startOffset: 0,
             endOffset: text.count,
-            entities: entities
+            entities: entities,
+            abbreviations: extractAbbreviations(text)
         )
 
         return EnhancedChunk(

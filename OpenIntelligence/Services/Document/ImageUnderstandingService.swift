@@ -444,7 +444,8 @@ class ImageUnderstandingService {
 
     /// Analyze all images in a document and return aggregated metadata
     /// Performs full semantic extraction: classification, OCR, captions, and context
-    /// OPTIMIZED: Uses parallel TaskGroup for ~5x speedup on A18 Pro (5 concurrent Vision ops)
+    /// THROTTLED: Max 2 concurrent analyses to prevent memory pressure on large docs.
+    /// At 542 pages + 8 images, unbounded parallelism caused watchdog kills.
     func analyzeDocumentImages(
         images: [(image: CIImage, pageNumber: Int, bounds: CGRect)],
         textObservations: [[VNRecognizedTextObservation]] // Per-page text
@@ -460,36 +461,59 @@ class ImageUnderstandingService {
             ))
         }
 
-        Log.info("[ImageUnderstanding] 🚀 Parallel analyzing \(images.count) images with TaskGroup", category: .ingestion)
+        // Throttle concurrency to prevent memory spikes on large documents.
+        // Each image analysis involves Vision classification + OCR + description.
+        // With 542 pages of parsed text already in memory, launching all images
+        // concurrently caused watchdog kills on A18 Pro.
+        let maxConcurrent = 2
+        Log.info("[ImageUnderstanding] 🚀 Analyzing \(images.count) images (max \(maxConcurrent) concurrent)", category: .ingestion)
 
-        // PARALLEL PROCESSING: Use TaskGroup to analyze images concurrently
-        // VisionOCRThrottle gates actual Vision ops (5 concurrent on A18 Pro)
-        // This provides ~5x speedup vs sequential processing
         let results = await withTaskGroup(of: AnalyzedImage?.self) { group in
-            for (image, pageNumber, bounds) in images {
-                // Capture textObservations for this page before entering task
-                let pageTextObs = pageNumber <= textObservations.count ? textObservations[pageNumber - 1] : []
+            var index = 0
+            var collected: [AnalyzedImage] = []
 
-                group.addTask {
+            // Seed the group with initial batch
+            while index < min(maxConcurrent, images.count) {
+                let (image, pageNumber, bounds) = images[index]
+                let pageTextObs = pageNumber <= textObservations.count ? textObservations[pageNumber - 1] : []
+                let capturedIndex = index
+                group.addTask { [self] in
                     do {
                         return try await self.analyzeOneImage(
-                            image: image,
-                            pageNumber: pageNumber,
-                            bounds: bounds,
-                            pageTextObs: pageTextObs
+                            image: image, pageNumber: pageNumber,
+                            bounds: bounds, pageTextObs: pageTextObs
                         )
                     } catch {
-                        Log.warning("[ImageUnderstanding] Failed to analyze image on page \(pageNumber): \(error.localizedDescription)", category: .ingestion)
+                        Log.warning("[ImageUnderstanding] Failed image \(capturedIndex) on page \(pageNumber): \(error.localizedDescription)", category: .ingestion)
                         return nil
                     }
                 }
+                index += 1
             }
 
-            // Collect results as they complete
-            var collected: [AnalyzedImage] = []
+            // As each completes, add the next one — sliding window
             for await result in group {
                 if let analyzed = result {
                     collected.append(analyzed)
+                }
+
+                // Launch next image if any remain
+                if index < images.count {
+                    let (image, pageNumber, bounds) = images[index]
+                    let pageTextObs = pageNumber <= textObservations.count ? textObservations[pageNumber - 1] : []
+                    let capturedIndex = index
+                    group.addTask { [self] in
+                        do {
+                            return try await self.analyzeOneImage(
+                                image: image, pageNumber: pageNumber,
+                                bounds: bounds, pageTextObs: pageTextObs
+                            )
+                        } catch {
+                            Log.warning("[ImageUnderstanding] Failed image \(capturedIndex) on page \(pageNumber): \(error.localizedDescription)", category: .ingestion)
+                            return nil
+                        }
+                    }
+                    index += 1
                 }
             }
             return collected

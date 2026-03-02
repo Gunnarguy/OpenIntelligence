@@ -8,6 +8,7 @@
 import Combine
 import Foundation
 import SwiftUI
+import Translation
 
 /// Data container for unified metrics bar (shown during streaming AND after completion)
 private struct ConsolidatedMetrics {
@@ -50,6 +51,11 @@ struct ChatScreen: View {
     @EnvironmentObject private var onboardingStore: OnboardingStateStore
     @EnvironmentObject private var settings: SettingsStore
     @ObservedObject var ragService: RAGService
+
+    init(ragService: RAGService) {
+        self.ragService = ragService
+    }
+
     @AppStorage("retrievalTopK") private var retrievalTopK: Int = 3
     @State private var showScrollToBottom: Bool = false
     @State private var messages: [ChatMessage] = []
@@ -58,6 +64,7 @@ struct ChatScreen: View {
     @State private var streamingBuffer: String = ""
     @State private var streamingPumpTask: Task<Void, Never>? = nil
     @State private var currentQueryTask: Task<Void, Never>? = nil // Track current query for cancellation
+    @State private var currentQuerySessionId: UUID? = nil
     @State private var hasReceivedStreamToken: Bool = false
     @State private var generationStart: Date? = nil
     // Per-stage timing
@@ -67,10 +74,9 @@ struct ChatScreen: View {
     @State private var embeddingElapsedFinal: TimeInterval? = nil
     @State private var searchingElapsedFinal: TimeInterval? = nil
     @State private var generatingElapsedFinal: TimeInterval? = nil
-    // Live clock tick to drive elapsed UI
+    // Live clock tick to drive elapsed UI — only connected during processing to save battery
     @State private var nowTick: Date = Date()
     @State private var processingClock = Timer.publish(every: 0.2, on: .main, in: .common)
-        .autoconnect()
     // Ephemeral UI and retrieval
     @StateObject private var toastManager = ToastManager()
     @State private var currentRetrievedChunks: [RetrievedChunk] = []
@@ -95,16 +101,31 @@ struct ChatScreen: View {
     // Cloud consent prompt state
     @State private var activeCloudConsent: CloudTransmissionRecord? = nil
 
+    // Translation overlay
+    @State private var translationText: String = ""
+    @State private var showTranslation: Bool = false
+
+    // WritingTools overlay
+    @State private var writingToolsResult: String = ""
+    @State private var writingToolsTitle: String = ""
+    @State private var showWritingToolsResult: Bool = false
+    @State private var writingToolsProcessing: Bool = false
+
     // Vision Capture overlay
     @State private var showVisionCapture: Bool = false
 
     // Hardware telemetry for Motherboard HUD visibility
-    @ObservedObject private var hardwareTelemetry = HardwareTelemetryState.shared
+    private var hardwareTelemetry = HardwareTelemetryState.shared
 
     // Dynamic suggested questions
     @State private var dynamicSuggestedQuestions: [String] = []
+    @State private var dynamicQuestionCategories: [String: SuggestedQuestionsService.QuestionCategory] = [:]
     @State private var suggestedQuestionsTask: Task<Void, Never>? = nil
+    @State private var isRefreshingSuggestions = false
     private let suggestedQuestionsService = SuggestedQuestionsService()
+
+    // Smart Reply follow-up suggestions (shown after AI response)
+    @State private var followUpSuggestions: [SmartReply] = []
 
     // Speed history for sparkline graph
     @State private var speedHistory: [Double] = []
@@ -302,109 +323,11 @@ struct ChatScreen: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            // Main content VStack
-            VStack(spacing: 0) {
-                // Compact header with container, model status, and stats
-                CompactChatHeader(
-                    containerService: ragService.containerService,
-                    docCount: activeDocCount,
-                    chunkCount: activeChunkCount,
-                    ragService: ragService,
-                    messageContainerOverride: $messageContainerOverride
-                )
-
-                // UNIFIED METRICS BAR - The ONE bar to rule them all
-                // Shows execution location, context usage, generation speed, sources, quality mode
-                // Visible during processing and persists after completion
-                if let metricsData = consolidatedMetricsData {
-                    primaryMetricsBar(metricsData: metricsData)
-                        .padding(.horizontal, 12)
-                        .padding(.bottom, 6)
-                        .transition(.opacity)
-                        .animation(.easeInOut(duration: 0.15), value: metricsData.tokens)
-                } else if isProcessing || currentRetrievedChunks.count > 0 {
-                    // Show minimal bar when processing starts (before generating)
-                    minimalMetricsBar()
-                        .padding(.horizontal, 12)
-                        .padding(.bottom, 6)
-                        .transition(.opacity)
-                }
-
-                // Main content area
-                if shouldShowFirstQueryHero {
-                    FirstQueryPromptView(
-                        hasDocuments: activeDocCount > 0,
-                        prompts: starterPrompts,
-                        onPromptSelected: sendSuggestedPrompt
-                    )
-                    .padding(.horizontal, DSSpacing.md)
-                    .padding(.vertical, DSSpacing.md)
-                } else {
-                    MessageListV2(
-                        messages: $messages,
-                        streamingText: streamingText,
-                        isStreaming: isProcessing,
-                        generationStart: generationStart,
-                        onRegenerate: { message in
-                            regenerateResponse(for: message)
-                        },
-                        onGoDeeper: {
-                            goDeeper()
-                        },
-                        onThumbsUp: {
-                                #if canImport(FoundationModels)
-                                    if #available(iOS 26.0, *) {
-                                        ragService.submitPositiveFeedback()
-                                        DSHaptics.success()
-                                    }
-                                #endif
-                            },
-                        onThumbsDown: {
-                                #if canImport(FoundationModels)
-                                    if #available(iOS 26.0, *) {
-                                        ragService.submitNegativeFeedback()
-                                        DSHaptics.warning()
-                                    }
-                                #endif
-                        }
-                    )
-                }
-
-                // NOTE: Sources are shown inline in MessageBubbleV2 for completed messages.
-                // The RetrievalSourcesTray is removed to avoid duplication.
-                // Status is now handled by UnifiedMetricsBar above
-
-                // Collapsible thinking stream (already compact)
-                if !thinkingEvents.isEmpty {
-                    ThinkingStreamView(events: thinkingEvents)
-                        .padding(.horizontal, DSSpacing.md)
-                        .padding(.bottom, DSSpacing.xs)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                }
-
-                Divider()
-                    .opacity(0.5)
-
-                // Modern composer with stop button support and attachments
-                // Uses combined send to ensure attachments are processed BEFORE query
-                ChatComposerV2(
-                    isProcessing: isProcessing,
-                    onSend: sendMessage,
-                    onStop: stopGeneration,
-                    onAttach: nil,
-                    onSendWithAttachments: sendMessageWithAttachments,
-                    // MARK: - Vision Capture (v2 feature - disabled for v1 App Store release)
-                    onVisionCapture: nil
-                    // onVisionCapture: {
-                    //     showVisionCapture = true
-                    //     DSHaptics.selection()
-                    // }
-                )
-            }
+            mainContentArea
 
             // Toast overlay (appears above everything) - minimal use
             ToastStackView(items: toastManager.toasts, maxVisible: 1)
-                .padding(.top, 60) // Below nav bar
+                .padding(.top, 60)
 
             IngestionQueueOverlay(items: ragService.ingestionItems)
                 .padding(.horizontal, 16)
@@ -412,13 +335,13 @@ struct ChatScreen: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
 
             // Motherboard HUD - Full-screen X-ray overlay
-            // Shows glowing borders at the ACTUAL physical locations where
-            // the Neural Engine, GPU, and CPU sit behind the screen
             if settings.showSiliconHUD {
                 HardwareXRayOverlay()
-                    .allowsHitTesting(false) // Don't block touches
+                    .allowsHitTesting(false)
                     .transition(.opacity)
             }
+
+            writingToolsProgressOverlay
         }
         // MARK: - Vision Capture (v2 feature - disabled for v1 App Store release)
         // .fullScreenCover(isPresented: $showVisionCapture) {
@@ -428,6 +351,7 @@ struct ChatScreen: View {
         //     )
         // }
 .navigationTitle("Chat")
+        .imagePlaygroundSupport()
         #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
         #endif
@@ -436,8 +360,27 @@ struct ChatScreen: View {
                 nowTick = Date()
             }
         }
+        // Start/stop the 5 Hz timer based on processing state — saves battery when idle
+        .onChange(of: isProcessing) { _, newValue in
+            if newValue {
+                processingClock = Timer.publish(every: 0.2, on: .main, in: .common)
+                _ = processingClock.connect()
+            }
+        }
         // Recalculate counts when active container changes
         .task(id: ragService.containerService.activeContainerId) {
+            // Cancel any in-flight query from the previous library to prevent cross-container bleed
+            currentQuerySessionId = nil
+            currentQueryTask?.cancel()
+            currentQueryTask = nil
+
+            // Reset transient generation state for the newly active library
+            if isProcessing {
+                resetStreamingState()
+                isProcessing = false
+                stage = .idle
+            }
+
             // Don't load persisted history in screenshot demo mode - let seedFullDemoContent() handle it
             #if DEBUG
             if didSeedScreenshotDemo { return }
@@ -446,6 +389,11 @@ struct ChatScreen: View {
             messages = ragService.chatHistory(for: activeId)
             await recalcActiveCounts()
 
+            // Clear stale per-conversation state from previous library
+            followUpSuggestions = []
+            thinkingEvents = []
+            speedHistory = []
+
             // Generate dynamic suggested questions based on library content
             refreshDynamicQuestions()
         }
@@ -453,7 +401,9 @@ struct ChatScreen: View {
         .onReceive(ragService.$documents) { _ in
             Task {
                 await recalcActiveCounts()
-                // Regenerate suggested questions when documents change
+                // Invalidate stale questions and regenerate from new content
+                let containerId = ragService.containerService.activeContainerId
+                await suggestedQuestionsService.invalidateCache(for: containerId)
                 refreshDynamicQuestions()
             }
         }
@@ -469,6 +419,12 @@ struct ChatScreen: View {
         }
         .toolbar {
             #if os(iOS)
+                // MARK: - AI Hub (RAG Transforms + Image Playground)
+                ToolbarItem(placement: .topBarTrailing) {
+                    aiHubToolbarButton
+                }
+
+                // MARK: - Chat Actions (New / Clear)
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Button {
@@ -569,6 +525,59 @@ struct ChatScreen: View {
     let activeId = ragService.containerService.activeContainerId
     messages = ragService.chatHistory(for: activeId)
     #endif
+}
+// MARK: - NSUserActivity / Handoff
+.userActivity("com.openintelligence.chat") { activity in
+    activity.title = "Chat with Documents"
+    activity.isEligibleForSearch = true
+    activity.isEligibleForHandoff = true
+    activity.isEligibleForPrediction = true
+    if let containerId = ragService.containerService.activeContainerId as UUID? {
+        activity.userInfo = ["containerId": containerId]
+    }
+}
+// MARK: - Translation Overlay
+.translationPresentation(isPresented: $showTranslation, text: translationText)
+// MARK: - WritingTools Result Sheet
+.sheet(isPresented: $showWritingToolsResult) {
+    WritingToolsResultSheet(
+        title: writingToolsTitle,
+        result: writingToolsResult,
+        onCopy: {
+            #if canImport(UIKit)
+            UIPasteboard.general.string = writingToolsResult
+            #endif
+            DSHaptics.success()
+            toastManager.show(
+                ToastItem(title: "Copied to clipboard", icon: "doc.on.doc", tint: .green),
+                duration: 1.5
+            )
+        },
+        onInsertAsReply: {
+            showWritingToolsResult = false
+            let writingMessage = ChatMessage(
+                role: .assistant,
+                content: "**\(writingToolsTitle):**\n\n\(writingToolsResult)"
+            )
+            messages.append(writingMessage)
+        },
+        onFeedback: { isPositive in
+            // Log quality signal to pipeline observability.
+            // When LanguageModelSession.logFeedbackAttachment is wired through the
+            // service layer, re-route here for official Apple FM telemetry.
+            let signal = isPositive ? "positive" : "negative"
+            Log.info("[AIHub] User feedback '\(signal)' for \(writingToolsTitle)", category: .pipeline)
+            DSHaptics.selection()
+            toastManager.show(
+                ToastItem(
+                    title: isPositive ? "Thanks for the feedback!" : "Got it — we'll improve",
+                    icon: isPositive ? "hand.thumbsup.fill" : "hand.thumbsdown.fill",
+                    tint: isPositive ? .green : .orange
+                ),
+                duration: 2.0
+            )
+        }
+    )
 }
     }
 
@@ -845,7 +854,7 @@ struct ChatScreen: View {
                     content:
                     "• Privacy-first: Your docs stay on-device by default, with optional Private Cloud Compute.\n" +
                         "• Fast, grounded answers: Hybrid search + re-ranking helps keep responses tied to your library.\n" +
-                        "• Upgrade when ready: Pro unlocks unlimited docs, more libraries, and priority ingestion."
+                        "• Upgrade when ready: Pro unlocks up to 1,000 docs, more libraries, and priority ingestion."
                 ),
             ]
 
@@ -883,7 +892,7 @@ struct ChatScreen: View {
                         rank: 1,
                         title: "Value Ladder",
                         page: 1,
-                        snippet: "Pro unlocks unlimited docs, 5 libraries, and priority ingestion. Lifetime gives you all Pro features forever.",
+                        snippet: "Pro unlocks up to 1,000 docs, 5 libraries, and priority ingestion. Lifetime gives you all Pro features forever.",
                         score: 0.86
                     ),
                     makeChunk(
@@ -983,7 +992,7 @@ struct ChatScreen: View {
 
                 ## Pricing Tiers
                 • **Free**: 5 documents, 1 library, full privacy dashboard
-                • **Pro** ($5.99/mo or $49.99/yr): Unlimited docs, 5 libraries, priority ingestion
+                • **Pro** ($5.99/mo or $49.99/yr): Up to 1,000 docs, 5 libraries, priority ingestion
                 • **Lifetime** ($59.99): All Pro features forever, 10 libraries
 
                 ## Privacy Architecture
@@ -1029,7 +1038,7 @@ struct ChatScreen: View {
                 rank: 1,
                 title: "Value Ladder",
                 page: 1,
-                snippet: "Free: 5 docs, 1 library. Pro ($5.99/mo): Unlimited docs, 5 libraries. Lifetime ($59.99): All Pro features forever.",
+                snippet: "Free: 5 docs, 1 library. Pro ($5.99/mo): Up to 1,000 docs, 5 libraries. Lifetime ($59.99): All Pro features forever.",
                 score: 0.92
             ),
             makeChunk(
@@ -1124,7 +1133,11 @@ struct ChatScreen: View {
 
     // MARK: - Send Message
     private var shouldShowFirstQueryHero: Bool {
-        messages.isEmpty && !onboardingStore.hasAskedFirstQuery
+        // Show the hero (with dynamic suggested questions) whenever the chat is empty —
+        // not just before the first-ever query. hasAskedFirstQuery is an onboarding
+        // completion flag, not a display gate. Gating on it permanently hides suggested
+        // questions after the very first message the user ever sends.
+        messages.isEmpty
     }
 
     /// Starter prompts - uses dynamic questions if available, falls back to sample doc prompts
@@ -1155,7 +1168,15 @@ struct ChatScreen: View {
 
     /// Generate dynamic suggested questions based on library content
     private func refreshDynamicQuestions() {
+        refreshSuggestedQuestions(force: false)
+    }
+
+    /// Generate suggested questions, optionally forcing a refresh (bypasses cache, avoids repeats)
+    private func refreshSuggestedQuestions(force: Bool) {
         suggestedQuestionsTask?.cancel()
+        if force {
+            isRefreshingSuggestions = true
+        }
         suggestedQuestionsTask = Task {
             let containerId = ragService.containerService.activeContainerId
 
@@ -1169,6 +1190,8 @@ struct ChatScreen: View {
 
             guard !documents.isEmpty else {
                 dynamicSuggestedQuestions = []
+                dynamicQuestionCategories = [:]
+                isRefreshingSuggestions = false
                 return
             }
 
@@ -1180,22 +1203,40 @@ struct ChatScreen: View {
                     for: containerId,
                     documents: documents,
                     sampleChunks: sampleChunks,
-                    count: 4
+                    count: 4,
+                    forceRefresh: force
                 )
 
                 guard !Task.isCancelled else { return }
 
                 dynamicSuggestedQuestions = questions.map { $0.text }
-                Log.debug("[ChatScreen] Generated \(questions.count) dynamic suggested questions")
+                dynamicQuestionCategories = Dictionary(
+                    uniqueKeysWithValues: questions.map { ($0.text, $0.category) }
+                )
+                Log.debug("[ChatScreen] Generated \(questions.count) dynamic suggested questions (force: \(force))")
             } catch {
                 Log.warning("[ChatScreen] Failed to generate dynamic questions: \(error.localizedDescription)")
                 dynamicSuggestedQuestions = []
+                dynamicQuestionCategories = [:]
             }
+            isRefreshingSuggestions = false
         }
     }
 
     private func persistChatHistory(for containerId: UUID?) {
         ragService.persistChatHistory(messages, for: containerId)
+    }
+
+    private func appendAndPersistMessage(_ message: ChatMessage, for containerId: UUID) {
+        if ragService.containerService.activeContainerId == containerId {
+            messages.append(message)
+            persistChatHistory(for: containerId)
+            return
+        }
+
+        var history = ragService.chatHistory(for: containerId)
+        history.append(message)
+        ragService.persistChatHistory(history, for: containerId)
     }
 
     private func newChat() {
@@ -1390,6 +1431,325 @@ struct ChatScreen: View {
         }
     }
 
+    // MARK: - AI Hub Helpers
+
+    /// Whether there are any assistant messages to operate on
+    private var hasAssistantMessages: Bool {
+        messages.contains { $0.role == .assistant }
+    }
+
+    /// Text content of the last assistant message (for Writing Tools / Image Playground)
+    private var lastAssistantMessageText: String? {
+        messages.last(where: { $0.role == .assistant })?.content
+    }
+
+    /// Present Image Playground with enriched concepts from the last assistant response
+    private func illustrateLastResponse() {
+        guard let text = lastAssistantMessageText else { return }
+
+        // Wire Image Playground pipeline events into the thinking stream
+        ImagePlaygroundService.shared.onThinkingEvent = { event in
+            Task { @MainActor in
+                thinkingEvents.append(event)
+            }
+        }
+
+        ImagePlaygroundService.shared.presentPlaygroundFromResponse(text)
+    }
+
+    // MARK: - Main Content Area
+
+    @ViewBuilder private var mainContentArea: some View {
+        VStack(spacing: 0) {
+            CompactChatHeader(
+                containerService: ragService.containerService,
+                docCount: activeDocCount,
+                chunkCount: activeChunkCount,
+                ragService: ragService,
+                messageContainerOverride: $messageContainerOverride
+            )
+
+            if let metricsData = consolidatedMetricsData {
+                primaryMetricsBar(metricsData: metricsData)
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 6)
+                    .transition(.opacity)
+                    .animation(.easeInOut(duration: 0.15), value: metricsData.tokens)
+            } else if isProcessing || currentRetrievedChunks.count > 0 {
+                minimalMetricsBar()
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 6)
+                    .transition(.opacity)
+            }
+
+            chatContentArea
+            followUpSuggestionsBar
+
+            if !thinkingEvents.isEmpty {
+                ThinkingStreamView(events: thinkingEvents)
+                    .padding(.horizontal, DSSpacing.md)
+                    .padding(.bottom, DSSpacing.xs)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+
+            Divider().opacity(0.5)
+
+            ChatComposerV2(
+                isProcessing: isProcessing,
+                onSend: sendMessage,
+                onStop: stopGeneration,
+                onAttach: nil,
+                onSendWithAttachments: sendMessageWithAttachments,
+                onVisionCapture: nil
+            )
+        }
+    }
+
+    @ViewBuilder private var chatContentArea: some View {
+        if shouldShowFirstQueryHero {
+            ScrollView {
+                FirstQueryPromptView(
+                    hasDocuments: activeDocCount > 0,
+                    prompts: starterPrompts,
+                    categories: dynamicQuestionCategories,
+                    isRefreshing: isRefreshingSuggestions,
+                    onPromptSelected: sendSuggestedPrompt,
+                    onRefresh: { refreshSuggestedQuestions(force: true) }
+                )
+                .padding(.horizontal, DSSpacing.md)
+                .padding(.vertical, DSSpacing.md)
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .onTapGesture {
+                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+            }
+        } else {
+            MessageListV2(
+                messages: $messages,
+                streamingText: streamingText,
+                isStreaming: isProcessing,
+                generationStart: generationStart,
+                onRegenerate: { message in regenerateResponse(for: message) },
+                onGoDeeper: { goDeeper() },
+                onThumbsUp: {
+                    #if canImport(FoundationModels)
+                    if #available(iOS 26.0, *) {
+                        ragService.submitPositiveFeedback()
+                        DSHaptics.success()
+                    }
+                    #endif
+                },
+                onThumbsDown: {
+                    #if canImport(FoundationModels)
+                    if #available(iOS 26.0, *) {
+                        ragService.submitNegativeFeedback()
+                        DSHaptics.warning()
+                    }
+                    #endif
+                },
+                onTranslate: { text in
+                    translationText = text
+                    showTranslation = true
+                }
+            )
+        }
+    }
+
+    @ViewBuilder private var followUpSuggestionsBar: some View {
+        if !followUpSuggestions.isEmpty && !isProcessing {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(followUpSuggestions) { suggestion in
+                        Button {
+                            DSHaptics.selection()
+                            followUpSuggestions = []
+                            sendMessage(suggestion.text)
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: suggestion.category.iconName)
+                                    .font(.caption2)
+                                Text(suggestion.text)
+                                    .font(.caption)
+                                    .lineLimit(3)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(DSColors.surface)
+                            .foregroundColor(.accentColor)
+                            .clipShape(Capsule())
+                            .overlay(Capsule().stroke(Color.accentColor.opacity(0.3), lineWidth: 1))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, DSSpacing.md)
+            }
+            .padding(.vertical, 4)
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+            .animation(.easeInOut(duration: 0.25), value: followUpSuggestions.isEmpty)
+        }
+    }
+
+    @ViewBuilder private var writingToolsProgressOverlay: some View {
+        if writingToolsProcessing {
+            VStack(spacing: 12) {
+                Spacer()
+                HStack(spacing: 10) {
+                    ProgressView().tint(.white)
+                    Text("\(writingToolsTitle)…")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.white)
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+                .background(.ultraThinMaterial.opacity(0.95))
+                .background(DSColors.accent.opacity(0.6))
+                .clipShape(Capsule())
+                .shadow(color: .black.opacity(0.15), radius: 8, y: 4)
+                .padding(.bottom, 100)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .allowsHitTesting(false)
+            .transition(.opacity.combined(with: .scale(scale: 0.9)))
+            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: writingToolsProcessing)
+        }
+    }
+
+    // MARK: - AI Hub Toolbar Button
+
+    /// Extracted into its own @ViewBuilder to prevent type-checker timeout in body.
+    @ViewBuilder private var aiHubToolbarButton: some View {
+        Menu {
+            Button {
+                guard let text = lastAssistantMessageText else { return }
+                performTransformAction(.keyFacts, on: text)
+            } label: {
+                Label("Key Facts", systemImage: "list.bullet.rectangle")
+            }
+
+            Button {
+                guard let text = lastAssistantMessageText else { return }
+                performTransformAction(.stepByStep, on: text)
+            } label: {
+                Label("Step-by-Step", systemImage: "checklist")
+            }
+
+            Button {
+                guard let text = lastAssistantMessageText else { return }
+                performTransformAction(.simplify, on: text)
+            } label: {
+                Label("Plain English", systemImage: "text.bubble")
+            }
+
+            Button {
+                guard let text = lastAssistantMessageText else { return }
+                let q = messages.last(where: { $0.role == .user })?.content ?? ""
+                performTransformAction(.whatsMissing, on: text, question: q)
+            } label: {
+                Label("What's Missing?", systemImage: "questionmark.circle")
+            }
+
+            Button {
+                illustrateLastResponse()
+            } label: {
+                Label("Illustrate", systemImage: "photo.on.rectangle.angled")
+            }
+        } label: {
+            Image(systemName: "apple.intelligence")
+                .imageScale(.large)
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(hasAssistantMessages ? DSColors.accent : .secondary)
+        }
+        .disabled(!hasAssistantMessages || isProcessing || writingToolsProcessing)
+    }
+
+    // MARK: - WritingTools Actions
+
+    // MARK: - Response Transform Actions (RAG-grounded)
+
+    enum TransformAction {
+        case keyFacts, stepByStep, simplify, whatsMissing
+
+        var title: String {
+            switch self {
+            case .keyFacts: return "Key Facts"
+            case .stepByStep: return "Step-by-Step"
+            case .simplify: return "Plain English"
+            case .whatsMissing: return "What's Missing?"
+            }
+        }
+
+        var icon: String {
+            switch self {
+            case .keyFacts: return "list.bullet.rectangle"
+            case .stepByStep: return "checklist"
+            case .simplify: return "text.bubble"
+            case .whatsMissing: return "questionmark.circle"
+            }
+        }
+    }
+
+    /// Transforms the last AI response using RAG-grounded context (source chunks + response).
+    /// Each action receives the retrieved chunks so output is backed by the user's actual documents.
+    private func performTransformAction(_ action: TransformAction, on text: String, question: String = "") {
+        guard !writingToolsProcessing else { return }
+        DSHaptics.selection()
+
+        writingToolsProcessing = true
+        writingToolsTitle = action.title
+
+        // Capture the source chunks that backed this response
+        let chunks = currentRetrievedChunks
+
+        // Pre-warm the FM session — reduces first-token latency for the transform.
+        // Fire-and-forget: best-effort, silently ignores errors.
+        let prewarmService = ResponseTransformService()
+        prewarmService.prewarmSession(responsePrefix: String(text.prefix(300)))
+
+        Task {
+            do {
+                let service = ResponseTransformService()
+                let result: String
+
+                switch action {
+                case .keyFacts:
+                    result = try await service.keyFacts(response: text, chunks: chunks)
+                case .stepByStep:
+                    result = try await service.stepByStep(response: text, chunks: chunks)
+                case .simplify:
+                    result = try await service.simplify(response: text, chunks: chunks)
+                case .whatsMissing:
+                    result = try await service.whatsMissing(response: text, question: question, chunks: chunks)
+                }
+
+                await MainActor.run {
+                    writingToolsResult = result
+                    showWritingToolsResult = true
+                    writingToolsProcessing = false
+                    DSHaptics.success()
+                }
+            } catch {
+                await MainActor.run {
+                    writingToolsProcessing = false
+                    let errorMsg = error.localizedDescription
+                    let isRateLimit = errorMsg.lowercased().contains("rate") || errorMsg.lowercased().contains("limit")
+
+                    toastManager.show(
+                        ToastItem(
+                            title: isRateLimit
+                                ? "\(action.title) rate-limited — try again"
+                                : "\(action.title) failed — try again",
+                            icon: "exclamationmark.triangle",
+                            tint: .orange
+                        ),
+                        duration: 4.0
+                    )
+                }
+            }
+        }
+    }
+
     // MARK: - Attachment Handling
 
     /// Combined send: process attachments FIRST, wait for completion, THEN send query
@@ -1567,6 +1927,7 @@ struct ChatScreen: View {
         // Cancel any existing query - "cancel and replace" strategy
         // This prevents memory leaks from orphaned tasks on back-to-back queries
         if let existingTask = currentQueryTask {
+            currentQuerySessionId = nil
             existingTask.cancel()
             currentQueryTask = nil
             // Brief yield to let cancellation propagate
@@ -1618,6 +1979,8 @@ struct ChatScreen: View {
         let capturedAllowPCC = baseExecutionContext != .onDeviceOnly
         requestedExecutionContext = capturedExecutionContext
         let capturedUsedContainerId = usedContainerId
+        let querySessionId = UUID()
+        currentQuerySessionId = querySessionId
         resetStreamingState()
 
         // Track this task for potential cancellation
@@ -1627,6 +1990,8 @@ struct ChatScreen: View {
             // Guarantee cleanup even on cancellation or error
             defer {
                 Task { @MainActor in
+                    guard self.currentQuerySessionId == querySessionId else { return }
+                    self.currentQuerySessionId = nil
                     self.currentQueryTask = nil
                     self.isProcessing = false
                     if self.stage == .generating || self.stage == .searching || self.stage == .embedding {
@@ -1652,7 +2017,8 @@ struct ChatScreen: View {
                 try Task.checkCancellation()
 
                 // Clarify the user's query using Writing Tools if available (improves retrieval quality)
-                if !isLowSignal, let clarified = try? await WritingToolsService().clarifyQuery(query) {
+                let writingToolsEnabled = await MainActor.run { self.settings.enableWritingTools }
+                if !isLowSignal, writingToolsEnabled, let clarified = try? await WritingToolsService().clarifyQuery(query) {
                     capturedQuery = clarified
                 }
 
@@ -1735,6 +2101,9 @@ struct ChatScreen: View {
                 )
 
                 await MainActor.run {
+                    guard self.currentQuerySessionId == querySessionId,
+                          self.ragService.containerService.activeContainerId == capturedUsedContainerId
+                    else { return }
                     self.currentRetrievedChunks = response.retrievedChunks
                     self.currentMetadata = response.metadata
                     // Sources tray will show this - no separate toast needed
@@ -1744,6 +2113,9 @@ struct ChatScreen: View {
                 // Only upgrade to PCC if TTFT indicates cloud latency (>1s)
                 if let first = response.metadata.timeToFirstToken {
                     await MainActor.run {
+                        guard self.currentQuerySessionId == querySessionId,
+                              self.ragService.containerService.activeContainerId == capturedUsedContainerId
+                        else { return }
                         self.ttft = first
                         // If TTFT > 1 second, it likely went through PCC
                         if first >= 1.0 {
@@ -1777,25 +2149,49 @@ struct ChatScreen: View {
                 }
 
                 await MainActor.run {
+                    guard self.currentQuerySessionId == querySessionId else { return }
                     // flushStreamingBufferToVisibleText already handled cleanup when isFinal arrived
                     // No need to reset again here - would race with final flush
-                    self.messages.append(assistant)
-                    self.persistChatHistory(for: capturedUsedContainerId)
-                    self.stage = .complete
+                    self.appendAndPersistMessage(assistant, for: capturedUsedContainerId)
 
-                    // Show completion toast with token count
-                    let tokenCount = response.metadata.tokensGenerated
-                    self.toastManager.clearAll()
-                    self.pushToast(
-                        tokenCount > 0 ? "Done • \(tokenCount) tokens" : "Complete",
-                        icon: "checkmark.circle.fill",
-                        tint: .green
+                    if self.ragService.containerService.activeContainerId == capturedUsedContainerId {
+                        self.stage = .complete
+
+                        // Show completion toast with token count
+                        let tokenCount = response.metadata.tokensGenerated
+                        self.toastManager.clearAll()
+                        self.pushToast(
+                            tokenCount > 0 ? "Done • \(tokenCount) tokens" : "Complete",
+                            icon: "checkmark.circle.fill",
+                            tint: .green
+                        )
+                    }
+                }
+
+                // Generate follow-up suggestions if Smart Replies are enabled
+                let enableSmartReplies = await MainActor.run { self.settings.enableSmartReplies }
+                let smartReplyCount = await MainActor.run { self.settings.smartReplyCount }
+                if enableSmartReplies {
+                    let suggestions = await SmartReplyService.shared.generateFollowUps(
+                        query: capturedQuery,
+                        response: response.generatedResponse,
+                        retrievedChunks: response.retrievedChunks,
+                        maxSuggestions: smartReplyCount
                     )
+                    await MainActor.run {
+                        guard self.currentQuerySessionId == querySessionId,
+                              self.ragService.containerService.activeContainerId == capturedUsedContainerId
+                        else { return }
+                        self.followUpSuggestions = suggestions
+                    }
                 }
 
                 try? await Task.sleep(nanoseconds: 200_000_000)
 
                 await MainActor.run {
+                    guard self.currentQuerySessionId == querySessionId,
+                          self.ragService.containerService.activeContainerId == capturedUsedContainerId
+                    else { return }
                     if let genStart = self.generatingStartTS {
                         self.generatingElapsedFinal = Date().timeIntervalSince(genStart)
                     }
@@ -1806,6 +2202,16 @@ struct ChatScreen: View {
             } catch {
                 Log.error("Query failed: \(error.localizedDescription)", category: .llm)
                 await MainActor.run {
+                    guard self.currentQuerySessionId == querySessionId else { return }
+
+                    // If the user switched libraries, suppress stale cancellation/error UI in the new context
+                    guard self.ragService.containerService.activeContainerId == capturedUsedContainerId else {
+                        self.stage = .idle
+                        self.resetStreamingState()
+                        self.generationStart = nil
+                        return
+                    }
+
                     let friendlyMessage = userFacingErrorMessage(error)
 
                     self.toastManager.clearAll()
@@ -1822,17 +2228,15 @@ struct ChatScreen: View {
                             content: partial + note
                         )
                         partialMessage.containerId = capturedUsedContainerId
-                        self.messages.append(partialMessage)
+                        self.appendAndPersistMessage(partialMessage, for: capturedUsedContainerId)
                     } else {
                         var errorMsg = ChatMessage(
                             role: .assistant,
                             content: "\(friendlyMessage)\n\nPlease try again."
                         )
                         errorMsg.containerId = capturedUsedContainerId
-                        self.messages.append(errorMsg)
+                        self.appendAndPersistMessage(errorMsg, for: capturedUsedContainerId)
                     }
-
-                    self.persistChatHistory(for: capturedUsedContainerId)
 
                     self.stage = .idle
                     self.resetStreamingState()
@@ -2067,6 +2471,10 @@ struct ChatScreen: View {
                 return "Apple Intelligence isn't available. Enable it in Settings."
             case .notImplemented:
                 return "This feature isn't available yet."
+            case .rateLimited:
+                return "AI is temporarily busy. Please wait a moment and try again."
+            case .concurrentRequests:
+                return "A request is already in progress. Please wait for it to finish."
             }
         }
 
@@ -2458,7 +2866,10 @@ struct MessageListEmptyContent: View {
 private struct FirstQueryPromptView: View {
     let hasDocuments: Bool
     let prompts: [String]
+    let categories: [String: SuggestedQuestionsService.QuestionCategory]
+    let isRefreshing: Bool
     let onPromptSelected: (String) -> Void
+    let onRefresh: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: DSSpacing.md) {
@@ -2467,13 +2878,36 @@ private struct FirstQueryPromptView: View {
                     .imageScale(.large)
                     .foregroundStyle(DSColors.accent)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Ask your first grounded question")
+                    Text(hasDocuments ? "Ask a question" : "Get started")
                         .font(DSTypography.title)
                     Text(hasDocuments
-                        ? "These prompts lean on your imported workspace so you can feel the retrieval stack in action."
-                        : "Import documents from the Documents tab, then try one of these prompts to exercise retrieval.")
+                        ? "These suggestions are grounded in your documents."
+                        : "Import documents from the Documents tab, then try one of these prompts.")
                         .font(DSTypography.body)
                         .foregroundStyle(DSColors.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+                // Refresh button — only show when we have document-grounded suggestions
+                if hasDocuments && !prompts.isEmpty {
+                    Button {
+                        DSHaptics.selection()
+                        onRefresh()
+                    } label: {
+                        Image(systemName: "arrow.trianglehead.2.clockwise")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundStyle(DSColors.accent)
+                            .rotationEffect(.degrees(isRefreshing ? 360 : 0))
+                            .animation(
+                                isRefreshing
+                                    ? .linear(duration: 0.8).repeatForever(autoreverses: false)
+                                    : .default,
+                                value: isRefreshing
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isRefreshing)
+                    .accessibilityLabel("Refresh suggestions")
                 }
             }
 
@@ -2482,10 +2916,18 @@ private struct FirstQueryPromptView: View {
                     Button {
                         onPromptSelected(prompt)
                     } label: {
-                        HStack {
+                        HStack(spacing: DSSpacing.sm) {
+                            // Category icon badge
+                            if let category = categories[prompt] {
+                                Image(systemName: category.icon)
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundStyle(DSColors.accent.opacity(0.7))
+                                    .frame(width: 20, height: 20)
+                            }
                             Text(prompt)
                                 .font(DSTypography.body)
                                 .multilineTextAlignment(.leading)
+                                .fixedSize(horizontal: false, vertical: true)
                             Spacer(minLength: DSSpacing.sm)
                             Image(systemName: "arrow.up.circle.fill")
                                 .foregroundStyle(DSColors.accent)

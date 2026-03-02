@@ -198,6 +198,7 @@ struct ThinkingStreamView: View {
         case "pink": return .pink
         case "red": return .red
         case "indigo": return .indigo
+        case "mint": return .mint
         default: return DSColors.secondaryText
         }
     }
@@ -221,6 +222,7 @@ private struct ConsoleLogRow: View {
         case "pink": return .pink
         case "red": return .red
         case "indigo": return .indigo
+        case "mint": return .mint
         default: return .gray
         }
     }
@@ -308,6 +310,7 @@ private struct ConsoleLogRow: View {
         case .extractive: return "EXTRACT"
         case .intentRoute: return "INTENT"
         case .confidence: return "CONFID"
+        case .imagePlayground: return "IMAGIN"
         }
     }
 }

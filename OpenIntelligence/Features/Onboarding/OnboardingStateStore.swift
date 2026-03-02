@@ -10,6 +10,7 @@ final class OnboardingStateStore: ObservableObject {
         static let hasAcknowledgedModel = "onboarding.hasAcknowledgedModel"
         static let hasCompleted = "onboarding.hasCompleted"
         static let hasDismissedPermanently = "onboarding.hasDismissedPermanently"
+        static let completionMethod = "onboarding.completionMethod" // "completed" vs "skipped"
     }
 
     @Published private(set) var hasImportedSamples: Bool
@@ -47,10 +48,28 @@ final class OnboardingStateStore: ObservableObject {
     /// Indicates whether any onboarding tasks remain unfinished and user hasn't dismissed permanently.
     var hasOutstandingSteps: Bool { !hasCompletedOnboarding && !hasDismissedPermanently }
 
+    /// Whether onboarding was completed via the full flow (vs skipped).
+    var wasCompletedProperly: Bool {
+        defaults.string(forKey: Keys.completionMethod) == "completed"
+    }
+
+    /// Marks onboarding as fully completed (user went through the flow and imported samples).
+    /// Distinct from `skipPermanently()` for analytics — both hide the checklist.
+    func markOnboardingCompleted() {
+        markSamplesImported()
+        hasDismissedPermanently = true
+        defaults.set(true, forKey: Keys.hasDismissedPermanently)
+        defaults.set("completed", forKey: Keys.completionMethod)
+        defaults.set(true, forKey: Keys.hasCompleted)
+        isChecklistVisible = false
+    }
+
     /// Permanently dismisses the onboarding checklist - won't show launcher anymore.
+    /// Use when the user explicitly skips without completing the full flow.
     func skipPermanently() {
         hasDismissedPermanently = true
         defaults.set(true, forKey: Keys.hasDismissedPermanently)
+        defaults.set("skipped", forKey: Keys.completionMethod)
         isChecklistVisible = false
     }
 
@@ -98,6 +117,7 @@ final class OnboardingStateStore: ObservableObject {
         defaults.removeObject(forKey: Keys.hasAcknowledgedModel)
         defaults.removeObject(forKey: Keys.hasCompleted)
         defaults.removeObject(forKey: Keys.hasDismissedPermanently)
+        defaults.removeObject(forKey: Keys.completionMethod)
     }
 
     private func evaluateCompletion() {

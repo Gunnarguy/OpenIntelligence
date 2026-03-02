@@ -80,7 +80,8 @@ actor ContainerVocabularyService {
     private let storageURL: URL
 
     private init() {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? URL.temporaryDirectory
         storageURL = appSupport.appendingPathComponent("ContainerVocabularies", isDirectory: true)
 
         // Ensure directory exists
@@ -404,7 +405,7 @@ actor ContainerVocabularyService {
      let batchProvider = ContrastiveBatchProvider(feedback)
 
      // 2. Load updatable adapter model
-     let modelURL = Bundle.main.url(forResource: "EmbeddingAdapter", withExtension: "mlmodelc")!
+     guard let modelURL = Bundle.main.url(forResource: "EmbeddingAdapter", withExtension: "mlmodelc") else { return }
 
      // 3. Create update task
      let updateTask = try MLUpdateTask(

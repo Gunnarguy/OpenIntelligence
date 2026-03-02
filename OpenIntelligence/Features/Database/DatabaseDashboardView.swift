@@ -178,22 +178,52 @@ struct DatabaseDashboardView: View {
         isLoading = true
         let service = SQLiteFullTextService.shared
 
-        // Load in parallel
-        async let statsTask = service.getStatistics()
-        async let indexTask = service.getIndexInfo()
-        async let docsTask = service.getDocumentStats(containerId: containerService.activeContainerId)
-        async let diagTask = service.getDeepDiagnostics()
-        async let termsTask = service.getTopTerms(limit: 100)
-        async let distTask = service.getTermDistribution()
+        // Watchdog: if Phase 1 doesn't complete in 10 seconds, force-show the UI.
+        // Prevents infinite loading state if the actor is deadlocked or DB is corrupt.
+        let watchdog = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(10))
+            if isLoading {
+                Log.warning("[DatabaseDash] ⚠️ Watchdog fired — Phase 1 did not complete in 10s, forcing UI", category: .vectorDB)
+                isLoading = false
+            }
+        }
 
-        stats = await statsTask
-        indexInfo = await indexTask
-        documentStats = await docsTask
-        deepDiagnostics = await diagTask
-        topTerms = await termsTask
-        termDistribution = await distTask
+        // PHASE 1: Essential data (fast metadata queries on document_meta table).
+        // Sequential calls — simpler to debug than async let.
+        Log.info("[DatabaseDash] Phase 1: requesting getStatistics()", category: .vectorDB)
+        stats = await service.getStatistics()
+        Log.info("[DatabaseDash] Phase 1: getStatistics() complete, requesting getDocumentStats()", category: .vectorDB)
+        documentStats = await service.getDocumentStats(containerId: containerService.activeContainerId)
+        Log.info("[DatabaseDash] Phase 1: getDocumentStats() complete — showing UI", category: .vectorDB)
 
+        watchdog.cancel()
         isLoading = false
+
+        // PHASE 2: Diagnostic & vocabulary data — loaded in a separate unstructured Task
+        // so it can NEVER block the UI. Even if these queries hang, the user can browse
+        // documents and see basic stats.
+        Task { @MainActor [weak containerService] in
+            guard let containerService = containerService else { return }
+            _ = containerService // suppress unused warning, used for capture
+
+            Log.info("[DatabaseDash] Phase 2: loading diagnostics/vocabulary", category: .vectorDB)
+            async let indexTask = service.getIndexInfo()
+            async let diagTask = service.getDeepDiagnostics()
+            async let termsTask = service.getTopTerms(limit: 100)
+            async let distTask = service.getTermDistribution()
+
+            indexInfo = await indexTask
+            deepDiagnostics = await diagTask
+            topTerms = await termsTask
+            termDistribution = await distTask
+            Log.info("[DatabaseDash] Phase 2: complete", category: .vectorDB)
+
+            // PHASE 3: Background-populate document_content table for any
+            // pre-migration documents so tapping a document loads instantly.
+            Task.detached(priority: .utility) {
+                SQLiteFullTextService.backgroundPopulateContentTable()
+            }
+        }
     }
     // MARK: - Header
 
@@ -2132,16 +2162,42 @@ struct IntelligenceExplanationRow: View {
 
 // MARK: - Document Preview Sheet
 
-/// Full preview of a document's FTS5 content and metadata
+/// Full preview of a document's FTS5 content and metadata.
+///
+/// Large documents (947KB+, 28K+ lines) require special handling:
+/// - SwiftUI `Text` chokes rendering >100K chars of monospaced text → white canvas
+/// - `.filter{}` / `.components(separatedBy:)` on main thread freezes UI
+/// Solution: truncate display to 100K chars, pre-compute analysis off main thread,
+/// share full content via share sheet.
 struct DocumentPreviewSheet: View {
     let documentId: UUID
     let documentName: String
     let characterCount: Int
     let wordCount: Int
 
-    @State private var content: String = ""
+    /// Maximum characters to render in the Text view.
+    /// 100K chars ≈ 3K lines — plenty for browsing, won't kill SwiftUI layout.
+    private static let displayLimit = 100_000
+
+    @State private var fullContent: String = ""
+    @State private var displayContent: String = ""
+    @State private var isTruncated = false
     @State private var isLoading = true
+    @State private var analysisStats: AnalysisStats?
     @Environment(\.dismiss) private var dismiss
+
+    /// Pre-computed analysis stats (computed off main thread)
+    struct AnalysisStats {
+        let lines: Int
+        let sentences: Int
+        let paragraphs: Int
+        let uppercaseCount: Int
+        let lowercaseCount: Int
+        let digitCount: Int
+        let whitespaceCount: Int
+        let punctuationCount: Int
+        let totalChars: Int
+    }
 
     var body: some View {
         NavigationView {
@@ -2177,9 +2233,16 @@ struct DocumentPreviewSheet: View {
                                 .font(.headline)
                             Spacer()
 
-                            if !content.isEmpty {
+                            if !fullContent.isEmpty {
+                                ShareLink(item: fullContent) {
+                                    Label("Share Full", systemImage: "square.and.arrow.up")
+                                        .font(.caption)
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+
                                 Button {
-                                    UIPasteboard.general.string = content
+                                    UIPasteboard.general.string = fullContent
                                 } label: {
                                     Label("Copy", systemImage: "doc.on.doc")
                                         .font(.caption)
@@ -2193,13 +2256,27 @@ struct DocumentPreviewSheet: View {
                             ProgressView("Loading content...")
                                 .frame(maxWidth: .infinity, alignment: .center)
                                 .padding(40)
-                        } else if content.isEmpty {
+                        } else if displayContent.isEmpty {
                             Text("No content available")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                                 .padding()
                         } else {
-                            Text(content)
+                            if isTruncated {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "info.circle.fill")
+                                        .foregroundColor(.orange)
+                                    Text("Showing first \(Self.displayLimit.formatted()) of \(fullContent.count.formatted()) characters. Use Share to export full content.")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 6)
+                                .background(Color.orange.opacity(0.1))
+                                .cornerRadius(8)
+                            }
+
+                            Text(displayContent)
                                 .font(.system(.caption, design: .monospaced))
                                 .textSelection(.enabled)
                                 .padding()
@@ -2216,8 +2293,8 @@ struct DocumentPreviewSheet: View {
                     .background(Color(.systemGray6))
                     .cornerRadius(12)
 
-                    // Analysis
-                    if !content.isEmpty {
+                    // Analysis — uses pre-computed stats (NOT computed in view body)
+                    if let stats = analysisStats {
                         VStack(alignment: .leading, spacing: 12) {
                             HStack {
                                 Image(systemName: "chart.bar.fill")
@@ -2227,33 +2304,22 @@ struct DocumentPreviewSheet: View {
                                 Spacer()
                             }
 
-                            let lines = content.components(separatedBy: .newlines).count
-                            let sentences = content.components(separatedBy: CharacterSet(charactersIn: ".!?")).count - 1
-                            let paragraphs = content.components(separatedBy: "\n\n").count
-
                             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                                AnalysisCard(label: "Lines", value: "\(lines)", icon: "list.number", color: .blue)
-                                AnalysisCard(label: "Sentences", value: "\(max(1, sentences))", icon: "text.quote", color: .green)
-                                AnalysisCard(label: "Paragraphs", value: "\(paragraphs)", icon: "text.alignleft", color: .orange)
+                                AnalysisCard(label: "Lines", value: "\(stats.lines)", icon: "list.number", color: .blue)
+                                AnalysisCard(label: "Sentences", value: "\(max(1, stats.sentences))", icon: "text.quote", color: .green)
+                                AnalysisCard(label: "Paragraphs", value: "\(stats.paragraphs)", icon: "text.alignleft", color: .orange)
                             }
-
-                            // Character breakdown
-                            let uppercaseCount = content.filter { $0.isUppercase }.count
-                            let lowercaseCount = content.filter { $0.isLowercase }.count
-                            let digitCount = content.filter { $0.isNumber }.count
-                            let whitespaceCount = content.filter { $0.isWhitespace }.count
-                            let punctuationCount = content.filter { $0.isPunctuation }.count
 
                             VStack(alignment: .leading, spacing: 6) {
                                 Text("Character Breakdown")
                                     .font(.caption.weight(.semibold))
                                     .foregroundColor(.secondary)
 
-                                CharacterBreakdownRow(label: "Uppercase", count: uppercaseCount, total: characterCount, color: .blue)
-                                CharacterBreakdownRow(label: "Lowercase", count: lowercaseCount, total: characterCount, color: .green)
-                                CharacterBreakdownRow(label: "Digits", count: digitCount, total: characterCount, color: .orange)
-                                CharacterBreakdownRow(label: "Whitespace", count: whitespaceCount, total: characterCount, color: .gray)
-                                CharacterBreakdownRow(label: "Punctuation", count: punctuationCount, total: characterCount, color: .purple)
+                                CharacterBreakdownRow(label: "Uppercase", count: stats.uppercaseCount, total: stats.totalChars, color: .blue)
+                                CharacterBreakdownRow(label: "Lowercase", count: stats.lowercaseCount, total: stats.totalChars, color: .green)
+                                CharacterBreakdownRow(label: "Digits", count: stats.digitCount, total: stats.totalChars, color: .orange)
+                                CharacterBreakdownRow(label: "Whitespace", count: stats.whitespaceCount, total: stats.totalChars, color: .gray)
+                                CharacterBreakdownRow(label: "Punctuation", count: stats.punctuationCount, total: stats.totalChars, color: .purple)
                             }
                         }
                         .padding()
@@ -2275,11 +2341,50 @@ struct DocumentPreviewSheet: View {
         }
         .task {
             isLoading = true
-            // Load FULL content — no artificial truncation
-            content = await SQLiteFullTextService.shared.getFullContent(
-                documentId: documentId
-            ) ?? ""
+            let docId = documentId
+            // Read content off the actor (bypasses serial queue contention)
+            let result = await Task.detached(priority: .userInitiated) {
+                SQLiteFullTextService.readContentDirectly(documentId: docId)
+            }.value
+
+            let loaded = result ?? ""
+            fullContent = loaded
+
+            // Truncate for display — SwiftUI Text chokes on >100K monospaced chars
+            if loaded.count > Self.displayLimit {
+                displayContent = String(loaded.prefix(Self.displayLimit))
+                isTruncated = true
+            } else {
+                displayContent = loaded
+                isTruncated = false
+            }
+
             isLoading = false
+
+            // Compute analysis stats off main thread AFTER content is visible
+            if !loaded.isEmpty {
+                let text = loaded
+                let stats = await Task.detached(priority: .utility) {
+                    let lines = text.components(separatedBy: .newlines).count
+                    let sentences = text.components(separatedBy: CharacterSet(charactersIn: ".!?")).count - 1
+                    let paragraphs = text.components(separatedBy: "\n\n").count
+                    var upper = 0, lower = 0, digits = 0, whitespace = 0, punctuation = 0
+                    for char in text {
+                        if char.isUppercase { upper += 1 }
+                        else if char.isLowercase { lower += 1 }
+                        if char.isNumber { digits += 1 }
+                        if char.isWhitespace { whitespace += 1 }
+                        if char.isPunctuation { punctuation += 1 }
+                    }
+                    return AnalysisStats(
+                        lines: lines, sentences: sentences, paragraphs: paragraphs,
+                        uppercaseCount: upper, lowercaseCount: lower, digitCount: digits,
+                        whitespaceCount: whitespace, punctuationCount: punctuation,
+                        totalChars: text.count
+                    )
+                }.value
+                analysisStats = stats
+            }
         }
     }
 }

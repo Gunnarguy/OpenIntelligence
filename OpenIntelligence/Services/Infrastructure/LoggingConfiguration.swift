@@ -137,7 +137,9 @@ nonisolated enum LoggingConfiguration {
         let titlePad = title.padding(toLength: 28, withPad: " ", startingAt: 0)
         let timePad = timeStr.padding(toLength: 8, withPad: " ", startingAt: 0)
 
+        #if DEBUG
         print("🔹 \(stepBox) \(titlePad) \(timePad) │ \(detailStr)")
+        #endif
     }
 
     /// Log pipeline mode header (quality mode, RAPTOR-lite status)
@@ -150,6 +152,7 @@ nonisolated enum LoggingConfiguration {
         guard pipelineTraceEnabled else { return }
 
         let separator = String(repeating: "═", count: 70)
+        #if DEBUG
         print("\n\(separator)")
         print("🚀 PIPELINE TRACE: \(mode.uppercased()) MODE")
 
@@ -161,6 +164,7 @@ nonisolated enum LoggingConfiguration {
             print("   Query Type: \(qType)")
         }
         print(separator)
+        #endif
     }
 
     /// Log pipeline completion summary
@@ -180,9 +184,11 @@ nonisolated enum LoggingConfiguration {
             summary += " │ confidence: \(String(format: "%.0f%%", conf * 100))"
         }
 
+        #if DEBUG
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         print("✅ PIPELINE COMPLETE: \(String(format: "%.0fms", totalDuration * 1000)) │ \(summary)")
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+        #endif
     }
 
     /// Check if logging is enabled for a given level
@@ -346,7 +352,9 @@ nonisolated enum LoggingConfiguration {
         case .verbose: prefix = "📝"
         }
 
+        #if DEBUG
         print("\(prefix) \(message)")
+        #endif
 
         // Also write to trace file for pipeline-relevant categories
         writeToFile(message, category: category)
@@ -378,9 +386,11 @@ nonisolated enum LoggingConfiguration {
         guard isEnabled(level) else { return }
         if let category = category, !isEnabled(category) { return }
         let separator = String(repeating: "━", count: 60)
+        #if DEBUG
         print("\n\(separator)")
         print("  \(title)")
         print("\(separator)")
+        #endif
     }
 
     /// Print a boxed message (respects level and category)
@@ -388,6 +398,7 @@ nonisolated enum LoggingConfiguration {
         guard isEnabled(level) else { return }
         if let category = category, !isEnabled(category) { return }
         let width = 62
+        #if DEBUG
         print("\n╔" + String(repeating: "═", count: width) + "╗")
         print("║ \(title.padding(toLength: width - 2, withPad: " ", startingAt: 0)) ║")
         if !content.isEmpty {
@@ -397,6 +408,7 @@ nonisolated enum LoggingConfiguration {
             }
         }
         print("╚" + String(repeating: "═", count: width) + "╝")
+        #endif
     }
 }
 
