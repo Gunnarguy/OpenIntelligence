@@ -472,7 +472,7 @@ OpenIntelligence/
 │   └── Protocols/              # Service protocols
 ├── Features/
 │   ├── Billing/                # StoreKit subscription UI
-│   ├── Camera/                 # Vision camera overlay (v2.0)
+│   ├── Camera/                 # Vision camera overlay (v3.0)
 │   ├── Chat/                   # Chat interface, message bubbles
 │   ├── Database/               # Container management UI
 │   ├── Diagnostics/            # Debug dashboards
@@ -503,7 +503,7 @@ OpenIntelligence/
 
 We've audited every Apple Intelligence framework from WWDC 2024 and 2025 against the codebase. **23 framework opportunities** identified, prioritized across three milestones:
 
-### v1.3 — Immediate (6 items)
+### v2.1 — Next Release (6 items)
 
 | Framework          | What It Adds                                                                                |
 | ------------------ | ------------------------------------------------------------------------------------------- |
@@ -514,7 +514,7 @@ We've audited every Apple Intelligence framework from WWDC 2024 and 2025 against
 | **Liquid Glass**   | iOS 26 design system — glass material for toolbars, navigation, and custom views            |
 | **UseCase/Locale** | Model use case optimization + language support gating                                       |
 
-### v1.4 — Next Release (8 items)
+### v2.2 — Following Release (8 items)
 
 | Framework                 | What It Adds                                                         |
 | ------------------------- | -------------------------------------------------------------------- |
@@ -527,7 +527,7 @@ We've audited every Apple Intelligence framework from WWDC 2024 and 2025 against
 | **NLGazetteer**           | Custom entity vocabularies trained from ingested documents           |
 | **Lens Smudge Detection** | Camera quality check before OCR capture                              |
 
-### v2.0 — Strategic (9 items)
+### v3.0 — Strategic (9 items)
 
 `@Observable` migration, WidgetKit, BackgroundTasks, SwiftData, TipKit, Smart Reply, NSUserActivity/Handoff, Genmoji, DataScannerViewController + more.
 

@@ -83,32 +83,32 @@ OpenIntelligence is built entirely on Apple's native frameworks—**no third-par
 | `LanguageModelFeedback`         | User feedback submission via `LLMService`                 |
 | `prewarm()`                     | Session prewarming in `LLMService` for faster first query |
 
-### Framework Opportunities (v1.3 → v2.0)
+### Framework Opportunities (v2.1 → v3.0)
 
 > **Full Gap Analysis**: See [ROADMAP.md](ROADMAP.md) → "Phase 2.15 — Apple Intelligence Gap Closure" for complete 23-item breakdown.
 
 | Framework                        | Planned Use                                                 | Target | Priority |
 | -------------------------------- | ----------------------------------------------------------- | ------ | -------- |
-| **Guardrails API** (iOS 26)      | Apple content safety layer for model I/O                    | v1.3   | Critical |
-| **CoreSpotlight**                | Index documents for Spotlight/Siri semantic search          | v1.3   | Critical |
-| **SpeechAnalyzer** (iOS 26)      | Modern async actor-based speech transcription               | v1.3   | Critical |
-| **Translation.framework**        | Multi-language document translation                         | v1.3   | High     |
-| **Liquid Glass** (iOS 26)        | iOS 26 glass material design system for UI                  | v1.3   | High     |
-| **UseCase / Locale** (iOS 26)    | Model use case declaration + locale gating                  | v1.3   | Medium   |
-| **Visual Intelligence** (iOS 26) | Camera/screenshot search into app content                   | v1.4   | High     |
-| **Adapter Training** (iOS 26)    | Custom LoRA adapters for domain-specific LLM                | v1.4   | High     |
-| **Metal 4** (iOS 26)             | New core API, ML inference passes, unified compute encoders | v1.4   | Medium   |
-| **BNNS Graph** (iOS 26)          | Enhanced neural network graph operations                    | v1.4   | Medium   |
-| **Image Playground**             | Programmatic on-device image generation                     | v1.4   | Medium   |
-| **NLGazetteer**                  | Custom entity training (product names, SKUs)                | v1.4   | Medium   |
-| **@Observable**                  | Replace ObservableObject/Combine with modern Observation    | v2.0   | High     |
-| **WidgetKit**                    | Home screen widgets for doc count, queries, status          | v2.0   | Medium   |
-| **BackgroundTasks**              | BGTaskScheduler for background indexing/embedding           | v2.0   | Medium   |
-| **SwiftData**                    | Modern persistence layer (evaluate vs raw sqlite3)          | v2.0   | Medium   |
-| **TipKit**                       | Contextual onboarding tips for RAG features                 | v2.0   | Low      |
-| **VisionKit** (DataScanner)      | Live camera document scanning                               | v2.0   | Medium   |
-| **CreateMLComponents**           | On-device classifier training                               | v2.0   | Medium   |
-| **MetricKit**                    | Production performance telemetry                            | v2.0   | Low      |
+| **Guardrails API** (iOS 26)      | Apple content safety layer for model I/O                    | v2.1   | Critical |
+| **CoreSpotlight**                | Index documents for Spotlight/Siri semantic search          | v2.1   | Critical |
+| **SpeechAnalyzer** (iOS 26)      | Modern async actor-based speech transcription               | v2.1   | Critical |
+| **Translation.framework**        | Multi-language document translation                         | v2.1   | High     |
+| **Liquid Glass** (iOS 26)        | iOS 26 glass material design system for UI                  | v2.1   | High     |
+| **UseCase / Locale** (iOS 26)    | Model use case declaration + locale gating                  | v2.1   | Medium   |
+| **Visual Intelligence** (iOS 26) | Camera/screenshot search into app content                   | v2.2   | High     |
+| **Adapter Training** (iOS 26)    | Custom LoRA adapters for domain-specific LLM                | v2.2   | High     |
+| **Metal 4** (iOS 26)             | New core API, ML inference passes, unified compute encoders | v2.2   | Medium   |
+| **BNNS Graph** (iOS 26)          | Enhanced neural network graph operations                    | v2.2   | Medium   |
+| **Image Playground**             | Programmatic on-device image generation                     | v2.2   | Medium   |
+| **NLGazetteer**                  | Custom entity training (product names, SKUs)                | v2.2   | Medium   |
+| **@Observable**                  | Replace ObservableObject/Combine with modern Observation    | v3.0   | High     |
+| **WidgetKit**                    | Home screen widgets for doc count, queries, status          | v3.0   | Medium   |
+| **BackgroundTasks**              | BGTaskScheduler for background indexing/embedding           | v3.0   | Medium   |
+| **SwiftData**                    | Modern persistence layer (evaluate vs raw sqlite3)          | v3.0   | Medium   |
+| **TipKit**                       | Contextual onboarding tips for RAG features                 | v3.0   | Low      |
+| **VisionKit** (DataScanner)      | Live camera document scanning                               | v3.0   | Medium   |
+| **CreateMLComponents**           | On-device classifier training                               | v3.0   | Medium   |
+| **MetricKit**                    | Production performance telemetry                            | v3.0   | Low      |
 
 ## System Architecture
 
@@ -772,11 +772,11 @@ PDF/Image Input
 
 | Model           | Size  | Use Case                                   | Integration Target |
 | --------------- | ----- | ------------------------------------------ | ------------------ |
-| BERT-SQuAD      | 217MB | Extractive QA for simulator/legacy devices | v2.0               |
-| DepthAnythingV2 | 49MB  | 3D document scanning, AR overlay           | v2.0               |
-| MobileNetV2     | 12MB  | Classify embedded images                   | v2.0               |
-| YOLOv3 Tiny     | 17MB  | Real-time camera document detection        | v2.0               |
-| ResNet-50       | 51MB  | High-accuracy image classification         | v2.0               |
+| BERT-SQuAD      | 217MB | Extractive QA for simulator/legacy devices | v3.0               |
+| DepthAnythingV2 | 49MB  | 3D document scanning, AR overlay           | v3.0               |
+| MobileNetV2     | 12MB  | Classify embedded images                   | v3.0               |
+| YOLOv3 Tiny     | 17MB  | Real-time camera document detection        | v3.0               |
+| ResNet-50       | 51MB  | High-accuracy image classification         | v3.0               |
 
 **Note**: All models available from Apple at https://developer.apple.com/machine-learning/models/
 
@@ -2266,7 +2266,7 @@ The system is designed to be domain-agnostic—able to understand any document t
 
 ---
 
-### Deferred to v2.0.0 (Q2 2026)
+### Deferred to v3.0 (Q2 2026)
 
 #### CameraVisionOverlayView
 
@@ -2452,7 +2452,7 @@ Query: "What is the recommended oil viscosity?"
 
 See [ROADMAP.md](../../ROADMAP.md) Phase 2.06 for implementation details.
 
-## Advanced RAG Intelligence (v2.0)
+## Advanced RAG Intelligence (v2.0 — Shipped)
 
 The retrieval pipeline has been enhanced with three major intelligence upgrades:
 

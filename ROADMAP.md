@@ -4,7 +4,7 @@
 **Version**: 2.0 (Build 19)
 **Status**: App Store Live
 **Maturity**: Production RAG pipeline with 8 agentic tools + Motherboard HUD + Device-Optimized Performance Engine + Rich Markdown Rendering + Zero-Data-Loss Ingestion + Swift 6 Compliance + Pipeline Reliability Hardening + Memory-Safe Large PDF Ingestion
-**Next Milestone**: v1.3 — Apple Intelligence Gap Closure (Guardrails, Table Recognition, CoreSpotlight, SpeechAnalyzer, Translation, Liquid Glass)
+**Next Milestone**: v2.1 — Apple Intelligence Gap Closure (Guardrails, CoreSpotlight, SpeechAnalyzer, Translation, Liquid Glass, UseCase/Locale)
 
 ---
 
@@ -88,7 +88,7 @@ OpenIntelligence implements **14 of 16** recognized RAG architectural patterns:
 
 ### � Apple Technology Integration Assessment
 
-**Summary**: OpenIntelligence leverages **8 major Apple frameworks** extensively. We've identified **23 additional Apple Intelligence framework opportunities** across v1.3/v1.4/v2.0 milestones (see Phase 2.15 — Apple Intelligence Gap Closure).
+**Summary**: OpenIntelligence leverages **8 major Apple frameworks** extensively. We've identified **23 additional Apple Intelligence framework opportunities** across v2.1/v2.2/v3.0 milestones (see Phase 2.15 — Apple Intelligence Gap Closure).
 
 > **Reference**: See [Docs/reference/APPLE_DOCUMENT_INTELLIGENCE.md](Docs/reference/APPLE_DOCUMENT_INTELLIGENCE.md) for comprehensive Apple framework documentation.
 
@@ -109,18 +109,18 @@ OpenIntelligence implements **14 of 16** recognized RAG architectural patterns:
 
 | Feature                 | Framework        | Status                                                              | Target |
 | ----------------------- | ---------------- | ------------------------------------------------------------------- | ------ |
-| Camera Vision Overlay   | Vision + FM      | `/Features/Camera/` complete; RecognizeDocumentsRequest implemented | v2.0   |
-| Live Document Detection | VisionKit        | `DataScannerViewController` not yet wired; code ready               | v2.0   |
-| Image Description       | FoundationModels | Image prompts work; awaiting Apple Intelligence image support GA    | v2.0   |
+| Camera Vision Overlay   | Vision + FM      | `/Features/Camera/` complete; RecognizeDocumentsRequest implemented | v3.0   |
+| Live Document Detection | VisionKit        | `DataScannerViewController` not yet wired; code ready               | v3.0   |
+| Image Description       | FoundationModels | Image prompts work; awaiting Apple Intelligence image support GA    | v3.0   |
 
 #### 🟡 Partial Integration (Opportunities Identified)
 
 | Opportunity              | Framework             | Current State                                                                                                                                                                               | Planned Enhancement                      | Target |
 | ------------------------ | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- | ------ |
-| Custom Entity Extraction | NLGazetteer           | Using NLTagger NER (persons, places, orgs)                                                                                                                                                  | Train gazetteer on product names, SKUs   | v1.3   |
-| Multi-Language Docs      | Translation.framework | Language detection works; no auto-translation                                                                                                                                               | Translate foreign docs before embedding  | v1.3   |
-| Domain Classifiers       | CreateMLComponents    | Static content-type configs                                                                                                                                                                 | Train classifiers on user's doc patterns | v2.0   |
-| WritingTools Integration | WritingTools (iOS 26) | `WritingToolsService` with `clarifyQuery` wired to ChatScreen. `ResponseTransformService` with 5 RAG-grounded transforms (Key Facts, Step-by-Step, Cross-Reference, Deep Dive, Flash Cards) | ✅ AI Hub toolbar live (v1.2)            | v1.3   |
+| Custom Entity Extraction | NLGazetteer           | Using NLTagger NER (persons, places, orgs)                                                                                                                                                  | Train gazetteer on product names, SKUs   | v2.2   |
+| Multi-Language Docs      | Translation.framework | Language detection works; no auto-translation                                                                                                                                               | Translate foreign docs before embedding  | v2.1   |
+| Domain Classifiers       | CreateMLComponents    | Static content-type configs                                                                                                                                                                 | Train classifiers on user's doc patterns | v3.0   |
+| WritingTools Integration | WritingTools (iOS 26) | `WritingToolsService` with `clarifyQuery` wired to ChatScreen. `ResponseTransformService` with 5 RAG-grounded transforms (Key Facts, Step-by-Step, Cross-Reference, Deep Dive, Flash Cards) | ✅ AI Hub toolbar live (v2.0)            | v2.1   |
 
 #### ⬜ Not Yet Leveraged (Phase 2+)
 
@@ -141,21 +141,21 @@ OpenIntelligence implements **14 of 16** recognized RAG architectural patterns:
 | `LanguageModelFeedback`                 | ✅ Production  | Thumbs up/down feedback via `LLMService` (triggered from ChatScreen)       |
 | `prewarm()`                             | ✅ Production  | Session prewarming in `LLMService` (warmUpModel + session init)            |
 | `RecognizeDocumentsRequest`             | ✅ Production  | `StructuredDocumentParser`, centralized via `OCRConfiguration`             |
-| `SpeechAnalyzer`                        | ⬜ Not Started | Planned for v1.3 — modern async actor-based speech API                     |
-| `SystemLanguageModel.Guardrails`        | ⬜ Not Started | Planned for v1.3 — Apple content safety layer for model I/O                |
-| `SystemLanguageModel.UseCase`           | ⬜ Not Started | Planned for v1.3 — declare specific model use cases for optimized behavior |
-| `SystemLanguageModel.supportsLocale()`  | ⬜ Not Started | Planned for v1.3 — gate queries by supported language/locale               |
+| `SpeechAnalyzer`                        | ⬜ Not Started | Planned for v2.1 — modern async actor-based speech API                     |
+| `SystemLanguageModel.Guardrails`        | ⬜ Not Started | Planned for v2.1 — Apple content safety layer for model I/O                |
+| `SystemLanguageModel.UseCase`           | ⬜ Not Started | Planned for v2.1 — declare specific model use cases for optimized behavior |
+| `SystemLanguageModel.supportsLocale()`  | ⬜ Not Started | Planned for v2.1 — gate queries by supported language/locale               |
 
 ---
 
-### �🎯 NEXT FEATURES (v1.2.0)
+### Shipped Features (v2.0)
 
 #### 1. Apple CoreML Vision Models Integration
 
 _Leverage Apple's pre-trained CoreML models for enhanced document understanding_
 
 **Status**: ✅ Infrastructure Complete (Services Ready, Models Optional)
-**Target**: v1.2.0 (March 2026)
+**Target**: v2.0 (March 2026)
 **Impact**: 10-20x smarter document ingestion with region detection and classification
 
 **V1 Priority Models** (Immediate Integration):
@@ -210,11 +210,11 @@ PDF → FastViT (classify: photo? diagram? text? form?)
 
 | Model               | Size  | Use Case                                            | Target |
 | ------------------- | ----- | --------------------------------------------------- | ------ |
-| **BERT-SQuAD**      | 217MB | Extractive QA for simulator testing & older devices | v2.0   |
-| **DepthAnythingV2** | 49MB  | 3D document scanning, AR overlay                    | v2.0   |
-| **MobileNetV2**     | 12MB  | Classify images within documents                    | v2.0   |
-| **YOLOv3 Tiny**     | 17MB  | Real-time camera document detection                 | v2.0   |
-| **ResNet-50**       | 51MB  | High-accuracy image classification                  | v2.0   |
+| **BERT-SQuAD**      | 217MB | Extractive QA for simulator testing & older devices | v3.0   |
+| **DepthAnythingV2** | 49MB  | 3D document scanning, AR overlay                    | v3.0   |
+| **MobileNetV2**     | 12MB  | Classify images within documents                    | v3.0   |
+| **YOLOv3 Tiny**     | 17MB  | Real-time camera document detection                 | v3.0   |
+| **ResNet-50**       | 51MB  | High-accuracy image classification                  | v3.0   |
 
 **Downloads**: https://developer.apple.com/machine-learning/models/
 
@@ -222,8 +222,8 @@ PDF → FastViT (classify: photo? diagram? text? form?)
 
 _Live camera analysis using iOS 26 Vision framework + FoundationModels_
 
-**Status**: ⏸️ Deferred to v2.0 (Code Complete, UI Disabled)
-**Target**: v2.0.0 (Q2 2026)
+**Status**: ⏸️ Deferred to v3.0 (Code Complete, UI Disabled)
+**Target**: v3.0 (Q2 2026)
 **Impact**: Real-time document capture and analysis
 
 > **Note**: Implementation complete but disabled for v1.0 App Store release. Code exists in `/Features/Camera/` folder. UI hooks commented out pending further testing of iOS 26 Vision APIs.
@@ -257,7 +257,7 @@ _Live camera analysis using iOS 26 Vision framework + FoundationModels_
 _Automatically save fetched web documentation locally for offline access_
 
 **Status**: 📋 Planning
-**Target**: v1.2.0 (March 2026)
+**Target**: v2.1 (Q2 2026)
 **Impact**: No repeated web fetches; persistent knowledge base
 
 **Architecture**:
@@ -281,7 +281,7 @@ _Automatically save fetched web documentation locally for offline access_
 _Use Apple Intelligence to DESCRIBE image contents, not just classify_
 
 **Status**: 📋 Planning
-**Target**: v1.2.0 (March 2026)
+**Target**: v2.1 (Q2 2026)
 **Impact**: Rich semantic understanding of diagrams, charts, photos
 
 **Current Capability** (v1.0):
@@ -302,12 +302,12 @@ _Use Apple Intelligence to DESCRIBE image contents, not just classify_
 
 ---
 
-### 🚀 NEXT: SQLite FTS5 Full-Text Search Engine (v1.1.0)
+### 🚀 Shipped: SQLite FTS5 Full-Text Search Engine (v1.1 → v2.0)
 
 _Native SQLite FTS5 integration for 10-100X faster keyword search and pattern counting_
 
 **Status**: ✅ Core Implementation Complete
-**Target**: v1.1.0 (February 2026)
+**Target**: Shipped in v2.0
 **Impact**: Critical performance upgrade for large document corpora
 
 #### Architecture
@@ -672,7 +672,7 @@ _These FoundationModels framework features have been fully integrated:_
       _Status_: Package removed entirely - no longer needed
 
 - [ ] **Dead Code Cleanup**: Remove `#if false` wrapped files
-      _Files_: `OpenAIResponsesAPIService.swift`, `LocalOpenAIServerLLMService.swift`
+      _Files_: `LocalOpenAIServerLLMService.swift`
       _Impact_: Reduces cognitive load and project clutter
 
 ---
@@ -1157,11 +1157,11 @@ _Next-level 3D embedding space exploration with agentic intelligence_
 
 ### Phase 2.15 — Apple Intelligence Gap Closure (WWDC 2024 + 2025)
 
-_Comprehensive gap analysis: every Apple Intelligence framework announced at WWDC24/25 evaluated against OpenIntelligence. 23 items identified, prioritized across v1.3/v1.4/v2.0._
+_Comprehensive gap analysis: every Apple Intelligence framework announced at WWDC24/25 evaluated against OpenIntelligence. 23 items identified, prioritized across v2.1/v2.2/v3.0._
 
 ---
 
-#### v1.3 — Immediate (Critical Apple Intelligence Gaps)
+#### v2.1 — Next Release (Critical Apple Intelligence Gaps)
 
 ##### 1. Guardrails API — `SystemLanguageModel.Guardrails` (WWDC25)
 
@@ -1215,7 +1215,7 @@ _Comprehensive gap analysis: every Apple Intelligence framework announced at WWD
 
 ---
 
-#### v1.4 — Next Release (High-Impact Apple Intelligence Features)
+#### v2.2 — Following Release (High-Impact Apple Intelligence Features)
 
 ##### 7. Visual Intelligence Framework (WWDC25)
 
@@ -1280,7 +1280,7 @@ _Comprehensive gap analysis: every Apple Intelligence framework announced at WWD
 
 ---
 
-#### v2.0 — Strategic (Platform Evolution)
+#### v3.0 — Strategic (Platform Evolution)
 
 ##### 15. @Observable Migration (iOS 17+ — Observation Framework)
 
@@ -1370,9 +1370,9 @@ _Comprehensive gap analysis: every Apple Intelligence framework announced at WWD
 
 | Priority      | Items  | Target | Key Capabilities                                                                                                          |
 | ------------- | ------ | ------ | ------------------------------------------------------------------------------------------------------------------------- |
-| **Critical**  | 6      | v1.3   | Guardrails, CoreSpotlight, SpeechAnalyzer, Translation, Liquid Glass, UseCase/Locale                                      |
-| **High**      | 8      | v1.4   | Visual Intelligence, Adapter Training, Prompt Evaluation, Metal 4, BNNS Graph, Image Playground, Lens Smudge, NLGazetteer |
-| **Strategic** | 9      | v2.0   | @Observable, WidgetKit, BackgroundTasks, SwiftData, TipKit, Smart Reply, NSUserActivity, Genmoji, DataScanner + others    |
+| **Critical**  | 6      | v2.1   | Guardrails, CoreSpotlight, SpeechAnalyzer, Translation, Liquid Glass, UseCase/Locale                                      |
+| **High**      | 8      | v2.2   | Visual Intelligence, Adapter Training, Prompt Evaluation, Metal 4, BNNS Graph, Image Playground, Lens Smudge, NLGazetteer |
+| **Strategic** | 9      | v3.0   | @Observable, WidgetKit, BackgroundTasks, SwiftData, TipKit, Smart Reply, NSUserActivity, Genmoji, DataScanner + others    |
 | **Total**     | **23** |        | **Full Apple Intelligence stack coverage**                                                                                |
 
 ---
