@@ -39,7 +39,7 @@ Ingest ANY document, ANY size. Answer questions using Apple Intelligence. **ZERO
 - **FullTextStorageService** (`actor`): Complete original document storage for exact queries
 - **AgenticOrchestrator**: Multi-session reasoning with Self-RAG 2.0 enrichment prompting
 
-### Pipeline (25 Steps End-to-End)
+### Pipeline (29 Steps End-to-End)
 
 ```
 INGESTION (6 steps):
@@ -55,7 +55,7 @@ INGESTION (6 steps):
   5. Embedding (384-dim MiniLM)
   6. Store (HNSW index + FullTextStorage + EntityIndex)
 
-QUERY → RESPONSE (17 steps):
+QUERY → RESPONSE (23 steps):
   Step 0:   Corpus Analysis (vocabulary cache)
   Step 1:   Query Understanding (pronoun resolution, NER)
   Step 1.5: Query Expansion (corpus + container vocab)
@@ -107,12 +107,12 @@ QUERY → RESPONSE (17 steps):
 
 **📦 Code Complete / Not Wired (5):** Visual Intelligence (App Intents), Translation.framework, Adapter Training, Prompt Evaluation, BNNS Graph
 
-**Remaining Gaps (8):**
+**Remaining Gaps (9):**
 
 | Target   | Frameworks                                                          |
 | -------- | ------------------------------------------------------------------- |
 | **v2.1** | Liquid Glass, UseCase                                               |
-| **v2.2** | Metal 4                                                             |
+| **v2.2** | Metal 4, Lens Smudge Detection                                      |
 | **v3.0** | @Observable, WidgetKit, SwiftData, Genmoji, DataScanner (VisionKit) |
 
 > **Full Gap Analysis**: See `ROADMAP.md` → "Phase 2.15 — Apple Intelligence Gap Closure"

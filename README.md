@@ -17,7 +17,7 @@
 4. [Core Technology](#core-technology)
 5. [Apple's On-Device Language Model](#apples-on-device-language-model)
 6. [Quality Modes](#quality-modes)
-7. [25-Step Pipeline](#25-step-pipeline)
+7. [29-Step Pipeline](#29-step-pipeline)
 8. [Verification Gates](#verification-gates-anti-hallucination)
 9. [Architecture](#architecture)
 10. [Documentation](#documentation)
@@ -32,7 +32,7 @@ OpenIntelligence is a document question-answering app powered by Apple Intellige
 
 ---
 
-## What's New in v2.0 (February 2026)
+## What's New in v2.0 (March 2026)
 
 ### Device-Optimized Performance Engine
 
@@ -263,9 +263,9 @@ Deep Think and Maximum modes use **Self-RAG 2.0**: multiple reasoning sessions t
 
 ---
 
-## 25-Step Pipeline
+## 29-Step Pipeline
 
-OpenIntelligence processes every query through 25 distinct steps:
+OpenIntelligence processes every query through 29 distinct steps:
 
 ```
 INGESTION (6 steps):
@@ -276,7 +276,7 @@ INGESTION (6 steps):
   5. Embed         → CoreML MiniLM-L6-v2 (384-dim vectors)
   6. Store         → HNSW index + SQLite FTS5 + EntityIndex
 
-RETRIEVAL & GENERATION (17 steps):
+RETRIEVAL & GENERATION (21 steps):
   Step 0    Corpus Analysis        → Build vocabulary cache per container
   Step 1    Query Understanding    → Pronoun resolution, NER extraction
   Step 1.5  Query Expansion        → Corpus-aware synonym expansion
@@ -505,8 +505,8 @@ We've audited every Apple Intelligence framework from WWDC 2024 and 2025 against
 
 ### v2.1 — Next Release (6 items → 4 done)
 
-| Framework          | Status      | What It Adds                                                                       |
-| ------------------ | ----------- | ---------------------------------------------------------------------------------- |
+| Framework          | Status       | What It Adds                                                                       |
+| ------------------ | ------------ | ---------------------------------------------------------------------------------- |
 | **Guardrails API** | ✅ Shipped   | Content safety via `.permissiveContentTransformations` in `ImagePlaygroundService` |
 | **CoreSpotlight**  | ✅ Shipped   | Index documents for Spotlight/Siri semantic search via `SpotlightIndexService`     |
 | **SpeechAnalyzer** | ✅ Shipped   | Modern async actor-based speech transcription via `SpeechAnalyzerService`          |
@@ -516,8 +516,8 @@ We've audited every Apple Intelligence framework from WWDC 2024 and 2025 against
 
 ### v2.2 — Following Release (8 items → 6 done)
 
-| Framework                 | Status      | What It Adds                                                         |
-| ------------------------- | ----------- | -------------------------------------------------------------------- |
+| Framework                 | Status       | What It Adds                                                         |
+| ------------------------- | ------------ | -------------------------------------------------------------------- |
 | **Visual Intelligence**   | ✅ Shipped   | App Intents for camera/screenshot search (system-discoverable)       |
 | **Adapter Training**      | ✅ Shipped   | `AdapterManager` with LoRA adapter lifecycle (not yet wired)         |
 | **Prompt Evaluation**     | ✅ Shipped   | `PromptEvaluationService` for prompt quality scoring (not yet wired) |

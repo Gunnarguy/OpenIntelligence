@@ -12,7 +12,7 @@ This document provides the technical formulas, algorithms, and deep dive specifi
 
 ---
 
-## Pipeline Overview (25 Steps)
+## Pipeline Overview (29 Steps)
 
 ```
 INGESTION (6 steps):
@@ -23,7 +23,7 @@ INGESTION (6 steps):
   5. Embedding (384-dim MiniLM)
   6. Store (HNSW index + FTS5 + EntityIndex)
 
-QUERY → RESPONSE (17 steps):
+QUERY → RESPONSE (23 steps):
   Step 0:   Corpus Analysis (vocabulary cache)
   Step 1:   Query Understanding (pronoun resolution, NER)
   Step 1.5: Query Expansion (corpus + container vocab)
@@ -42,6 +42,7 @@ QUERY → RESPONSE (17 steps):
   Step 5.9: Extractive Summarization (for summarize intent)
   Step 5.10: Extractive QA (for lookup intent)
   Step 6:   LLM Generation (Apple FM / PCC)
+  Step 6.5: Response Formatting (markdown preservation pipeline)
   Step 7:   Quality Assessment (confidence scoring)
   Step 7.5: Verification Gates A-D (anti-hallucination)
   Step 8:   Package Results

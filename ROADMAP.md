@@ -21,7 +21,7 @@ OpenIntelligence implements **14 of 16** recognized RAG architectural patterns:
 
 | #   | Pattern                      | Status | Implementation                                                                            |
 | --- | ---------------------------- | ------ | ----------------------------------------------------------------------------------------- |
-| 1   | **Standard RAG**             | ✅     | Foundation - 25-step pipeline                                                             |
+| 1   | **Standard RAG**             | ✅     | Foundation - 29-step pipeline                                                             |
 | 2   | **Agentic RAG**              | ✅     | `AgenticOrchestrator`, 8 @Tool functions, recursive research loops                        |
 | 3   | **Graph RAG**                | ✅     | `EntityIndexService` + 2-hop entity expansion (GraphRAG-Lite)                             |
 | 4   | **Modular RAG**              | ✅     | Protocol-oriented design, 102 swappable services                                          |
@@ -40,7 +40,7 @@ OpenIntelligence implements **14 of 16** recognized RAG architectural patterns:
 
 **Legend**: ✅ Implemented | 🟡 Partial | ⬜ Not Applicable
 
-**RAG Pipeline: 25 Steps End-to-End (102 Services)**
+**RAG Pipeline: 29 Steps End-to-End (102 Services)**
 
 | Phase            | Steps | Details                                                                                                                                               |
 | ---------------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -55,7 +55,7 @@ OpenIntelligence implements **14 of 16** recognized RAG architectural patterns:
 
 **Core Features Shipped:**
 
-- ✅ Full RAG pipeline (25-step, 102 services: hybrid search, neural reranking, MMR, verification gates)
+- ✅ Full RAG pipeline (29-step, 102 services: hybrid search, neural reranking, MMR, verification gates)
 - ✅ Apple Intelligence integration (iOS 26 Foundation Models)
 - ✅ Multi-format support: PDF, DOCX, XLSX, PPTX, TXT, MD, CSV, RTF, images
 - ✅ 8 agentic @Tool functions for intelligent document analysis
@@ -78,7 +78,7 @@ OpenIntelligence implements **14 of 16** recognized RAG architectural patterns:
 - ✅ **Pipeline Reliability Hardening** — 11 targeted fixes across compression → generation → fallback chain: compression cap (5 chunks), fresh session per chunk, per-chunk error isolation, 12s time budget, empty→fallback routing, 1s post-compression cooldown, 2s rate-limit retry, typed `.rateLimited`/`.concurrentRequests` LLM errors, extractive Path B rewrite (6×500 chars), partial stream threshold 24→10, error logging in reliability fallback
 - ✅ **Memory-Safe Large PDF Ingestion** — OOM prevention for 500+ page PDFs: `results.removeAll()` before image analysis, batch 20→5 pages, 144 DPI (2×) image understanding renders (was 360 DPI/5×), autoreleasepool for Core Graphics intermediates
 - ✅ **Typed LLM Error Cases** — `.rateLimited` and `.concurrentRequests` cases in `LLMError` enum with exhaustive `switch` handling in ChatScreen, replacing fragile string matching
-- ✅ **RAG-Grounded Response Transforms** — `ResponseTransformService` with 5 document-aware transforms (Key Facts, Step-by-Step, Cross-Reference, Deep Dive, Flash Cards) using retrieved source chunks. AI Hub toolbar redesign with `apple.intelligence` icon
+- ✅ **RAG-Grounded Response Transforms** — `ResponseTransformService` with 5 document-aware transforms (Key Facts, Step-by-Step, Plain English, What's Missing?, Illustrate) using retrieved source chunks. AI Hub toolbar redesign with `apple.intelligence` icon
 - ✅ **Image Playground LLM Concepts** — On-device LLM translates domain jargon into visual scene descriptions for Image Playground (eliminates "try another description" errors)
 - ✅ **BM25 `b` Parameter Fix** — Aligned RAGEngine `b=0.75` to `b=0.5` (matches HybridSearchService; correct for uniform chunk sizes)
 - ✅ **Accelerate Gate E** — `vDSP.dot()` replaces manual cosine similarity loop in VerificationGateService
@@ -115,12 +115,12 @@ OpenIntelligence implements **14 of 16** recognized RAG architectural patterns:
 
 #### 🟡 Partial Integration (Opportunities Identified)
 
-| Opportunity              | Framework             | Current State                                                                                                                                                                               | Planned Enhancement                      | Target     |
-| ------------------------ | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- | ---------- |
-| Custom Entity Extraction | NLGazetteer           | Using NLTagger NER (persons, places, orgs)                                                                                                                                                  | Train gazetteer on product names, SKUs   | v2.2       |
-| Multi-Language Docs      | Translation.framework | Language detection works; no auto-translation                                                                                                                                               | Translate foreign docs before embedding  | v2.1       |
-| Domain Classifiers       | CreateMLComponents    | Static content-type configs                                                                                                                                                                 | Train classifiers on user's doc patterns | v3.0       |
-| WritingTools Integration | WritingTools (iOS 26) | `WritingToolsService` with `clarifyQuery` wired to ChatScreen. `ResponseTransformService` with 5 RAG-grounded transforms (Key Facts, Step-by-Step, Cross-Reference, Deep Dive, Flash Cards) | ✅ AI Hub toolbar live (v2.0)            | ✅ Shipped |
+| Opportunity              | Framework             | Current State                                                                                                                                                                                  | Planned Enhancement                      | Target    |
+| ------------------------ | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- | --------- |
+| Custom Entity Extraction | NLGazetteer           | Using NLTagger NER (persons, places, orgs)                                                                                                                                                     | Train gazetteer on product names, SKUs   | v2.2      |
+| Multi-Language Docs      | Translation.framework | Language detection works; no auto-translation                                                                                                                                                  | Translate foreign docs before embedding  | v2.1      |
+| Domain Classifiers       | CreateMLComponents    | Static content-type configs                                                                                                                                                                    | Train classifiers on user's doc patterns | v3.0      |
+| WritingTools Integration | WritingTools (iOS 26) | `WritingToolsService` with `clarifyQuery` wired to ChatScreen. `ResponseTransformService` with 5 RAG-grounded transforms (Key Facts, Step-by-Step, Plain English, What's Missing?, Illustrate) | ✅ AI Hub toolbar live (v2.0)             | ✅ Shipped |
 
 #### ⬜ Not Yet Leveraged (Phase 2+)
 
@@ -1370,12 +1370,12 @@ _Comprehensive gap analysis: every Apple Intelligence framework announced at WWD
 
 #### Apple Intelligence Gap Summary
 
-| Priority      | Items  | Done   | Remaining | Target | Key Capabilities                                                                                                         |
-| ------------- | ------ | ------ | --------- | ------ | ------------------------------------------------------------------------------------------------------------------------ |
+| Priority      | Items  | Done   | Remaining | Target | Key Capabilities                                                                                                           |
+| ------------- | ------ | ------ | --------- | ------ | -------------------------------------------------------------------------------------------------------------------------- |
 | **Critical**  | 6      | 4      | 2         | v2.1   | ✅ Guardrails, CoreSpotlight, SpeechAnalyzer, Translation — ⬜ Liquid Glass, UseCase (supportsLocale done)                 |
 | **High**      | 8      | 6      | 2         | v2.2   | ✅ Visual Intelligence, Adapter Training, Prompt Eval, BNNS Graph, Image Playground, NLGazetteer — ⬜ Metal 4, Lens Smudge |
 | **Strategic** | 9      | 4      | 5         | v3.0   | ✅ BackgroundTasks, TipKit, Smart Reply, NSUserActivity — ⬜ @Observable, WidgetKit, SwiftData, Genmoji, DataScanner       |
-| **Total**     | **23** | **14** | **9**     |        | **61% coverage achieved — 9 gaps remaining**                                                                             |
+| **Total**     | **23** | **14** | **9**     |        | **61% coverage achieved — 9 gaps remaining**                                                                               |
 
 ---
 

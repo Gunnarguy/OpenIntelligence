@@ -34,7 +34,7 @@ OpenIntelligence is a native iOS 26 application implementing a complete Retrieva
 
 ### RAG Pipeline Summary
 
-The system implements a **25-step end-to-end pipeline** powered by **102 services**:
+The system implements a **29-step end-to-end pipeline** powered by **102 services**:
 
 | Phase                | Steps | Key Services                                                                           |
 | -------------------- | ----- | -------------------------------------------------------------------------------------- |
@@ -102,18 +102,18 @@ OpenIntelligence is built entirely on Apple's native frameworks—**no third-par
 
 > **Full Gap Analysis**: See [ROADMAP.md](ROADMAP.md) → "Phase 2.15 — Apple Intelligence Gap Closure" for complete 23-item breakdown (14 done, 9 remaining).
 
-| Framework                   | Planned Use                                                    | Target | Priority |
-| --------------------------- | -------------------------------------------------------------- | ------ | -------- |
+| Framework                   | Planned Use                                                     | Target | Priority |
+| --------------------------- | --------------------------------------------------------------- | ------ | -------- |
 | **Guardrails API** (iOS 26) | ✅ Active via `ImagePlaygroundService`; extend to all LLM calls | v2.1   | Medium   |
-| **Liquid Glass** (iOS 26)   | iOS 26 glass material design system for UI                     | v2.1   | High     |
-| **UseCase** (iOS 26)        | Model use case declaration for optimized behavior              | v2.1   | Medium   |
-| **Metal 4** (iOS 26)        | New core API, ML inference passes, unified compute encoders    | v2.2   | Medium   |
-| **@Observable**             | Replace ObservableObject/Combine with modern Observation       | v3.0   | High     |
-| **WidgetKit**               | Home screen widgets for doc count, queries, status             | v3.0   | Medium   |
-| **SwiftData**               | Modern persistence layer (evaluate vs raw sqlite3)             | v3.0   | Medium   |
-| **VisionKit** (DataScanner) | Live camera document scanning                                  | v3.0   | Medium   |
-| **CreateMLComponents**      | On-device classifier training                                  | v3.0   | Medium   |
-| **MetricKit**               | Production performance telemetry                               | v3.0   | Low      |
+| **Liquid Glass** (iOS 26)   | iOS 26 glass material design system for UI                      | v2.1   | High     |
+| **UseCase** (iOS 26)        | Model use case declaration for optimized behavior               | v2.1   | Medium   |
+| **Metal 4** (iOS 26)        | New core API, ML inference passes, unified compute encoders     | v2.2   | Medium   |
+| **@Observable**             | Replace ObservableObject/Combine with modern Observation        | v3.0   | High     |
+| **WidgetKit**               | Home screen widgets for doc count, queries, status              | v3.0   | Medium   |
+| **SwiftData**               | Modern persistence layer (evaluate vs raw sqlite3)              | v3.0   | Medium   |
+| **VisionKit** (DataScanner) | Live camera document scanning                                   | v3.0   | Medium   |
+| **CreateMLComponents**      | On-device classifier training                                   | v3.0   | Medium   |
+| **MetricKit**               | Production performance telemetry                                | v3.0   | Low      |
 
 ## System Architecture
 
