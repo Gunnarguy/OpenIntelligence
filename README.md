@@ -4,7 +4,7 @@
 [![Platform](https://img.shields.io/badge/platform-iOS%2026.0%2B-blue.svg)](https://developer.apple.com/ios/)
 [![Swift](https://img.shields.io/badge/Swift-6.0-orange.svg)](https://swift.org)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Services](https://img.shields.io/badge/services-101-purple.svg)](ARCHITECTURE.md)
+[![Services](https://img.shields.io/badge/services-102-purple.svg)](ARCHITECTURE.md)
 [![How It Works](https://img.shields.io/badge/Deep%20Dive-HOW%20IT%20WORKS-orange.svg)](HOW_IT_WORKS.md)
 
 **Ask your documents anything. Get cited answers.**
@@ -69,10 +69,6 @@ Hybrid search rewritten from "FTS5 injection into vector pool" to **two fully in
 - **Native SQLite `bm25()` scoring** — Replaces in-memory BM25 scorer; eliminates local IDF bias from small candidate pools
 - **FTS5-only matches visible** — Chunks found only by keyword search (no semantic similarity) now get fair RRF scores
 - **True RRF fusion** — Two independently ranked lists merged via UNION semantics
-
-### Test Coverage Expansion (v2.0)
-
-Test suite expanded from **44 tests** (7 files) to **200+ tests** (15 files), covering the 8 highest-risk untested services: BM25 scoring, semantic chunking, verification gates, context packing, query enhancement, extractive QA, markdown rendering, and OCR configuration.
 
 ### Motherboard HUD — X-Ray Your iPhone (v1.1)
 
@@ -330,7 +326,7 @@ If any gate fails, the system either abstains or triggers iterative retrieval.
 
 ## Architecture
 
-**101 services** organized into **11 categories**:
+**102 services** organized into **11 categories**:
 
 | Category           | Count | Key Services                                                        |
 | ------------------ | ----- | ------------------------------------------------------------------- |
@@ -346,7 +342,7 @@ If any gate fails, the system either abstains or triggers iterative retrieval.
 | **Rendering**      | 1     | MarkdownRenderer (block-level parser + inline normalizer)           |
 | **Billing**        | 2     | StoreKitBillingService, EntitlementStore                            |
 
-**Full inventory**: See [ARCHITECTURE.md](ARCHITECTURE.md) → "Complete Service Inventory (101 Services)"
+**Full inventory**: See [ARCHITECTURE.md](ARCHITECTURE.md) → "Complete Service Inventory (102 Services)"
 
 ### Data Flow
 

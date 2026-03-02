@@ -46,4 +46,4 @@ STABILITY
 - StoreKit 5s timeout (was 30-60s hang offline)
 - BGTask registration fixed
 - Swift 6 concurrency: 11 files updated, zero runtime change
-- 102 services, 175+ tests across 15 files
+- 102 services powering the 25-step pipeline

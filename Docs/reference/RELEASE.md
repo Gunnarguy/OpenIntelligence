@@ -324,16 +324,9 @@ For each product:
 
 ## Quick Reference
 
-### Test Setup
+### Testing
 
-```bash
-# Add test target to Xcode
-# File → New → Target → iOS Unit Testing Bundle → "OpenIntelligenceTests"
-# Add files from OpenIntelligenceTests/ folder
-
-# Run tests
-xcodebuild test -scheme OpenIntelligence -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max'
-```
+The unit test suite was removed — all tests relied on mock objects and could not exercise real Apple framework behavior on the iOS Simulator (FoundationModels, Vision OCR, CoreML Neural Engine are unavailable). BM25 tests crashed the simulator process due to an Apple NaturalLanguage framework bug. Quality is validated through on-device testing.
 
 ### GGUF Local Model Setup
 
