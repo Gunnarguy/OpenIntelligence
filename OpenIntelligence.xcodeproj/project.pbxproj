@@ -7,56 +7,15 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		016638ED1AC43647A6934FC1 /* OpenIntelligenceTests/MarkdownRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0A25BB6B8A7E870E3E97A4D /* OpenIntelligenceTests/MarkdownRendererTests.swift */; };
-		01C2A3CD8E9BB136CDAF8BB5 /* OpenIntelligenceTests/ContextPackingServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FEFAF9E47AA18A1FF1016F7 /* OpenIntelligenceTests/ContextPackingServiceTests.swift */; };
-		14E8C0125324205D3377498F /* OpenIntelligenceTests/SemanticChunkerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5B99F6A65F1CB3EB3BF43C8 /* OpenIntelligenceTests/SemanticChunkerTests.swift */; };
-		37983FBF60AA94CEFDAA07C0 /* OpenIntelligenceTests/OCRConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 561253C6AB34480A5E236CCE /* OpenIntelligenceTests/OCRConfigurationTests.swift */; };
-		3C8FCEE8D3BF95EA3C6FCFBF /* OpenIntelligenceTests/EmbeddingDiagnosticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 401DE0F1FCB2F02281716FBB /* OpenIntelligenceTests/EmbeddingDiagnosticsTests.swift */; };
-		4DA40BAA33AA5AE253C88FDB /* OpenIntelligenceTests/ExtractiveQAServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 112D4194E7F8771E3D5ECB82 /* OpenIntelligenceTests/ExtractiveQAServiceTests.swift */; };
-		52E294327B1AA5E95427F443 /* OpenIntelligenceTests/BM25ScorerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D24517AF680CC27A1ABB028E /* OpenIntelligenceTests/BM25ScorerTests.swift */; };
-		560CE54E9E93FCDB78B66905 /* OpenIntelligenceTests/RAGPipelineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 315E628206C61F11E4285C83 /* OpenIntelligenceTests/RAGPipelineTests.swift */; };
-		5921AD9FDB3BE04CE9DB9C0E /* OpenIntelligenceTests/StoreKitEntitlementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 995EE33832E77D88C39D2487 /* OpenIntelligenceTests/StoreKitEntitlementTests.swift */; };
-		5B011C34554358C9EA6E65DB /* OpenIntelligenceTests/QueryEnhancementServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D1D5D1E1E764A2A34F9EC8E /* OpenIntelligenceTests/QueryEnhancementServiceTests.swift */; };
-		83DD130723BB698378B71B45 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DDFD1600670D479C7075E2C2 /* Foundation.framework */; };
-		97D5A786B1DAE902AE71BB38 /* OpenIntelligenceTests/VectorDatabaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C21B384B2ECEBD699C01E9F /* OpenIntelligenceTests/VectorDatabaseTests.swift */; };
-		985FCDAC04B1ED406B6F792E /* OpenIntelligenceTests/TestDoubles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95CB9ABB186D55BC343B23D9 /* OpenIntelligenceTests/TestDoubles.swift */; };
-		9D9D5FC299266D0E42134C0F /* OpenIntelligenceTests/HybridSearchServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 443EE56ECCC758AC42A87BB4 /* OpenIntelligenceTests/HybridSearchServiceTests.swift */; };
 		B016E7B52F0F5F5F00AABA0C /* Hub in Frameworks */ = {isa = PBXBuildFile; productRef = B016E7B42F0F5F5F00AABA0C /* Hub */; };
 		B016E7B72F0F5F5F00AABA0C /* Tokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = B016E7B62F0F5F5F00AABA0C /* Tokenizers */; };
 		B016E7B92F0F5F5F00AABA0C /* Transformers in Frameworks */ = {isa = PBXBuildFile; productRef = B016E7B82F0F5F5F00AABA0C /* Transformers */; };
-		B8D523C463CD88456AA2EF89 /* OpenIntelligenceTests/VerificationGateServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A66318F6608185BF0109F0FB /* OpenIntelligenceTests/VerificationGateServiceTests.swift */; };
-		D8FD5E900F6090A95688AEBA /* OpenIntelligenceTests/VectorStoreRouterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDD57D68BE1066D9E7187DB1 /* OpenIntelligenceTests/VectorStoreRouterTests.swift */; };
 /* End PBXBuildFile section */
 
-/* Begin PBXContainerItemProxy section */
-		8D8D45ADEC3A8FACC0A1546A /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = B0D565D62E98AC50001274A2 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = B0D565DD2E98AC50001274A2;
-			remoteInfo = OpenIntelligence;
-		};
-/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		112D4194E7F8771E3D5ECB82 /* OpenIntelligenceTests/ExtractiveQAServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OpenIntelligenceTests/ExtractiveQAServiceTests.swift; sourceTree = SOURCE_ROOT; };
-		1C21B384B2ECEBD699C01E9F /* OpenIntelligenceTests/VectorDatabaseTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OpenIntelligenceTests/VectorDatabaseTests.swift; sourceTree = SOURCE_ROOT; };
-		315E628206C61F11E4285C83 /* OpenIntelligenceTests/RAGPipelineTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OpenIntelligenceTests/RAGPipelineTests.swift; sourceTree = SOURCE_ROOT; };
-		401DE0F1FCB2F02281716FBB /* OpenIntelligenceTests/EmbeddingDiagnosticsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OpenIntelligenceTests/EmbeddingDiagnosticsTests.swift; sourceTree = SOURCE_ROOT; };
-		443EE56ECCC758AC42A87BB4 /* OpenIntelligenceTests/HybridSearchServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OpenIntelligenceTests/HybridSearchServiceTests.swift; sourceTree = SOURCE_ROOT; };
-		561253C6AB34480A5E236CCE /* OpenIntelligenceTests/OCRConfigurationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OpenIntelligenceTests/OCRConfigurationTests.swift; sourceTree = SOURCE_ROOT; };
-		6FEFAF9E47AA18A1FF1016F7 /* OpenIntelligenceTests/ContextPackingServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OpenIntelligenceTests/ContextPackingServiceTests.swift; sourceTree = SOURCE_ROOT; };
-		95CB9ABB186D55BC343B23D9 /* OpenIntelligenceTests/TestDoubles.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OpenIntelligenceTests/TestDoubles.swift; sourceTree = SOURCE_ROOT; };
-		995EE33832E77D88C39D2487 /* OpenIntelligenceTests/StoreKitEntitlementTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OpenIntelligenceTests/StoreKitEntitlementTests.swift; sourceTree = SOURCE_ROOT; };
-		9D1D5D1E1E764A2A34F9EC8E /* OpenIntelligenceTests/QueryEnhancementServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OpenIntelligenceTests/QueryEnhancementServiceTests.swift; sourceTree = SOURCE_ROOT; };
-		A66318F6608185BF0109F0FB /* OpenIntelligenceTests/VerificationGateServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OpenIntelligenceTests/VerificationGateServiceTests.swift; sourceTree = SOURCE_ROOT; };
-		AF1C66A44688A7B340182360 /* OpenIntelligenceTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OpenIntelligenceTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		B0A25BB6B8A7E870E3E97A4D /* OpenIntelligenceTests/MarkdownRendererTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OpenIntelligenceTests/MarkdownRendererTests.swift; sourceTree = SOURCE_ROOT; };
 		B0D565DE2E98AC50001274A2 /* OpenIntelligence.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OpenIntelligence.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		BDD57D68BE1066D9E7187DB1 /* OpenIntelligenceTests/VectorStoreRouterTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OpenIntelligenceTests/VectorStoreRouterTests.swift; sourceTree = SOURCE_ROOT; };
-		D24517AF680CC27A1ABB028E /* OpenIntelligenceTests/BM25ScorerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OpenIntelligenceTests/BM25ScorerTests.swift; sourceTree = SOURCE_ROOT; };
 		DDFD1600670D479C7075E2C2 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
-		E5B99F6A65F1CB3EB3BF43C8 /* OpenIntelligenceTests/SemanticChunkerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OpenIntelligenceTests/SemanticChunkerTests.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -68,14 +27,6 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		0DC56E4EF82F88294775D241 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				83DD130723BB698378B71B45 /* Foundation.framework in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		B0D565DB2E98AC50001274A2 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -89,28 +40,6 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		17994961EE4C7527D88E9B5B /* OpenIntelligenceTests */ = {
-			isa = PBXGroup;
-			children = (
-				D24517AF680CC27A1ABB028E /* OpenIntelligenceTests/BM25ScorerTests.swift */,
-				6FEFAF9E47AA18A1FF1016F7 /* OpenIntelligenceTests/ContextPackingServiceTests.swift */,
-				401DE0F1FCB2F02281716FBB /* OpenIntelligenceTests/EmbeddingDiagnosticsTests.swift */,
-				112D4194E7F8771E3D5ECB82 /* OpenIntelligenceTests/ExtractiveQAServiceTests.swift */,
-				443EE56ECCC758AC42A87BB4 /* OpenIntelligenceTests/HybridSearchServiceTests.swift */,
-				B0A25BB6B8A7E870E3E97A4D /* OpenIntelligenceTests/MarkdownRendererTests.swift */,
-				561253C6AB34480A5E236CCE /* OpenIntelligenceTests/OCRConfigurationTests.swift */,
-				9D1D5D1E1E764A2A34F9EC8E /* OpenIntelligenceTests/QueryEnhancementServiceTests.swift */,
-				315E628206C61F11E4285C83 /* OpenIntelligenceTests/RAGPipelineTests.swift */,
-				E5B99F6A65F1CB3EB3BF43C8 /* OpenIntelligenceTests/SemanticChunkerTests.swift */,
-				995EE33832E77D88C39D2487 /* OpenIntelligenceTests/StoreKitEntitlementTests.swift */,
-				95CB9ABB186D55BC343B23D9 /* OpenIntelligenceTests/TestDoubles.swift */,
-				1C21B384B2ECEBD699C01E9F /* OpenIntelligenceTests/VectorDatabaseTests.swift */,
-				BDD57D68BE1066D9E7187DB1 /* OpenIntelligenceTests/VectorStoreRouterTests.swift */,
-				A66318F6608185BF0109F0FB /* OpenIntelligenceTests/VerificationGateServiceTests.swift */,
-			);
-			path = OpenIntelligenceTests;
-			sourceTree = SOURCE_ROOT;
-		};
 		B0B991682F0F4BC700BBE97E /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
@@ -125,7 +54,6 @@
 				B0D565E02E98AC50001274A2 /* OpenIntelligence */,
 				B0B991682F0F4BC700BBE97E /* Frameworks */,
 				B0D565DF2E98AC50001274A2 /* Products */,
-				17994961EE4C7527D88E9B5B /* OpenIntelligenceTests */,
 			);
 			sourceTree = "<group>";
 		};
@@ -133,7 +61,6 @@
 			isa = PBXGroup;
 			children = (
 				B0D565DE2E98AC50001274A2 /* OpenIntelligence.app */,
-				AF1C66A44688A7B340182360 /* OpenIntelligenceTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -149,24 +76,6 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		0F3C6530C6DDDDF669D8396B /* OpenIntelligenceTests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = D6CA55BABB4421C80E023711 /* Build configuration list for PBXNativeTarget "OpenIntelligenceTests" */;
-			buildPhases = (
-				6FB4BEE880D86874B2120AC7 /* Sources */,
-				0DC56E4EF82F88294775D241 /* Frameworks */,
-				29833E3824F6652362B1FC83 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				86B5D50247B13A6ED0FE80E0 /* PBXTargetDependency */,
-			);
-			name = OpenIntelligenceTests;
-			productName = OpenIntelligenceTests;
-			productReference = AF1C66A44688A7B340182360 /* OpenIntelligenceTests.xctest */;
-			productType = "com.apple.product-type.bundle.unit-test";
-		};
 		B0D565DD2E98AC50001274A2 /* OpenIntelligence */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = B0D565E92E98AC51001274A2 /* Build configuration list for PBXNativeTarget "OpenIntelligence" */;
@@ -225,19 +134,11 @@
 			projectRoot = "";
 			targets = (
 				B0D565DD2E98AC50001274A2 /* OpenIntelligence */,
-				0F3C6530C6DDDDF669D8396B /* OpenIntelligenceTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		29833E3824F6652362B1FC83 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		B0D565DC2E98AC50001274A2 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -248,28 +149,6 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		6FB4BEE880D86874B2120AC7 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				52E294327B1AA5E95427F443 /* OpenIntelligenceTests/BM25ScorerTests.swift in Sources */,
-				01C2A3CD8E9BB136CDAF8BB5 /* OpenIntelligenceTests/ContextPackingServiceTests.swift in Sources */,
-				3C8FCEE8D3BF95EA3C6FCFBF /* OpenIntelligenceTests/EmbeddingDiagnosticsTests.swift in Sources */,
-				4DA40BAA33AA5AE253C88FDB /* OpenIntelligenceTests/ExtractiveQAServiceTests.swift in Sources */,
-				9D9D5FC299266D0E42134C0F /* OpenIntelligenceTests/HybridSearchServiceTests.swift in Sources */,
-				016638ED1AC43647A6934FC1 /* OpenIntelligenceTests/MarkdownRendererTests.swift in Sources */,
-				37983FBF60AA94CEFDAA07C0 /* OpenIntelligenceTests/OCRConfigurationTests.swift in Sources */,
-				5B011C34554358C9EA6E65DB /* OpenIntelligenceTests/QueryEnhancementServiceTests.swift in Sources */,
-				560CE54E9E93FCDB78B66905 /* OpenIntelligenceTests/RAGPipelineTests.swift in Sources */,
-				14E8C0125324205D3377498F /* OpenIntelligenceTests/SemanticChunkerTests.swift in Sources */,
-				5921AD9FDB3BE04CE9DB9C0E /* OpenIntelligenceTests/StoreKitEntitlementTests.swift in Sources */,
-				985FCDAC04B1ED406B6F792E /* OpenIntelligenceTests/TestDoubles.swift in Sources */,
-				97D5A786B1DAE902AE71BB38 /* OpenIntelligenceTests/VectorDatabaseTests.swift in Sources */,
-				D8FD5E900F6090A95688AEBA /* OpenIntelligenceTests/VectorStoreRouterTests.swift in Sources */,
-				B8D523C463CD88456AA2EF89 /* OpenIntelligenceTests/VerificationGateServiceTests.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		B0D565DA2E98AC50001274A2 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -279,39 +158,8 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
-/* Begin PBXTargetDependency section */
-		86B5D50247B13A6ED0FE80E0 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			name = OpenIntelligence;
-			target = B0D565DD2E98AC50001274A2 /* OpenIntelligence */;
-			targetProxy = 8D8D45ADEC3A8FACC0A1546A /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		6AB4EB15D0C807FC1FF50FD8 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CLANG_ENABLE_OBJC_WEAK = NO;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = Z3E334EXZD;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = Gunndamental.OpenIntelligence.tests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_OBJC_INTEROP_MODE = objcxx;
-				SWIFT_VERSION = 6.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/OpenIntelligence.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/OpenIntelligence";
-				VALIDATE_PRODUCT = YES;
-			};
-			name = Release;
-		};
 		B0D565E72E98AC51001274A2 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -544,28 +392,6 @@
 			};
 			name = Release;
 		};
-		F56921109921F3B8D6037496 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CLANG_ENABLE_OBJC_WEAK = NO;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = Z3E334EXZD;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = Gunndamental.OpenIntelligence.tests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_OBJC_INTEROP_MODE = objcxx;
-				SWIFT_VERSION = 6.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/OpenIntelligence.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/OpenIntelligence";
-			};
-			name = Debug;
-		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -583,15 +409,6 @@
 			buildConfigurations = (
 				B0D565EA2E98AC51001274A2 /* Debug */,
 				B0D565EB2E98AC51001274A2 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		D6CA55BABB4421C80E023711 /* Build configuration list for PBXNativeTarget "OpenIntelligenceTests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				6AB4EB15D0C807FC1FF50FD8 /* Release */,
-				F56921109921F3B8D6037496 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

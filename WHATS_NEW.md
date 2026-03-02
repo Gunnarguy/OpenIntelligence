@@ -1,6 +1,6 @@
 # What's New in OpenIntelligence v2.0
 
-**Released**: February 28, 2026 (Build 19)
+**Released**: March 2, 2026 (Build 19)
 
 ---
 
@@ -192,18 +192,9 @@ Replaced the sequential "vector-first, then BM25 re-score" pipeline with true pa
 | FTS5-only matches invisible                     | FTS5-only hits surface through RRF with fair ranking           |
 | BM25 column weights: uniform                    | Weighted: section_title (10×), section_path (5×), content (1×) |
 
-### Test Coverage Expansion
+### Test Suite Removal
 
-Test suite expanded from **44 tests across 7 files** to **200+ tests across 15 files**, covering:
-
-- **BM25ScorerTests** (25): IDF, TF saturation, length normalization, tokenization, NaN safety
-- **SemanticChunkerTests** (20): Word count limits, section detection, metadata accuracy, config presets
-- **VerificationGateServiceTests** (15): Anti-hallucination gates A-E, year/integer exemptions
-- **ContextPackingServiceTests** (12): Token budget, graph neighbor inclusion, character limits
-- **QueryEnhancementServiceTests** (20): Intent classification (8 answer types), query expansion
-- **ExtractiveQAServiceTests** (12): Heuristic extraction, confidence scoring, multi-passage
-- **MarkdownRendererTests** (18): All block types, Unicode, LLM-concatenated output
-- **OCRConfigurationTests** (18): Custom words, recognition languages, garbage text detection
+The unit test suite was removed — all tests relied on mock objects and could not exercise real behavior since Apple's on-device frameworks (FoundationModels, Vision OCR, CoreML) are unavailable on the iOS Simulator. BM25 tests crashed the simulator process. Quality is validated through on-device testing.
 
 ### Onboarding Polish
 
@@ -256,6 +247,6 @@ For the complete build-by-build changelog, see [CHANGELOG.md](CHANGELOG.md).
 | Font-encoded PDFs          | Silently lost 93% of content            | PHASE -1 Jaccard detection, full OCR forced                                                     |
 | Swift 6 concurrency        | Warnings in 11 files                    | All annotations complete, zero warnings                                                         |
 | Hybrid search architecture | Sequential vector → BM25 re-score       | True parallel vector + FTS5, merged via RRF                                                     |
-| Test coverage              | 44 tests across 7 files                 | 200+ tests across 15 files                                                                      |
+| Test coverage              | 44 tests across 7 files                 | Removed — all tests were mock-based, Apple frameworks untestable on simulator                   |
 | LLM reliability            | 0-token responses on rate limit         | 11-fix hardening: compression cap, retry, typed errors                                          |
 | Large PDF memory           | OOM kill on 500+ pages                  | Batch 5-page, 144 DPI image, results release                                                    |

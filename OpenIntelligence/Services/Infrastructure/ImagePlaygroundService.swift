@@ -422,18 +422,13 @@ final class ImagePlaygroundService: ObservableObject {
             do {
                 // Step 2: Ask LLM to literally illustrate the response
                 let prompt = """
-                List \(maxConcepts + 2) visible objects from this text. 1-2 words each. Concrete nouns only.
+                You are an illustrator. Read the response below and pick \(maxConcepts + 2) \
+                concrete, visible objects that capture what it is about. \
+                Each object should be 1-2 words — something a camera could photograph. \
+                Do NOT reuse the same theme. Focus on the specific subject matter of the response.
 
+                RESPONSE:
                 \(truncated)
-
-                Example — "Ford Mustang requires SAE 0W-20 oil changed every 10,000 miles":
-                Mustang
-                oil bottle
-                engine
-                odometer
-                mechanic
-
-                Now list objects:
                 """
 
                 emit("LLM illustrate", detail: "Requesting \(maxConcepts) illustration components via Apple Intelligence")

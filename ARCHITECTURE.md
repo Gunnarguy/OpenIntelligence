@@ -1,7 +1,7 @@
 # OpenIntelligence Technical Architecture
 
-**Version**: 3.8
-**Date**: February 28, 2026
+**Version**: 3.9
+**Date**: March 2, 2026
 **Status**: Production (App Store v2.0)
 
 ## Table of Contents
@@ -30,7 +30,7 @@ OpenIntelligence is a native iOS 26 application implementing a complete Retrieva
 
 **Simple Concept:** Import any document. Ask questions in plain English. Get cited answers powered by on-device AI.
 
-**Latest (v3.7)**: RAG-Grounded Response Transforms (5 document-aware transforms via `ResponseTransformService`). AI Hub toolbar redesign (Key Facts, Step-by-Step, Plain English, What's Missing?, Illustrate). Image Playground LLM concept extraction (domain jargon → visual scenes). BM25 `b` parameter consistency fix. Accelerate `vDSP.dot()` in Verification Gate E. Regex pre-compilation in RAGEngine. Pipeline Reliability Hardening (11 fixes: compression cap, fresh session/chunk, per-chunk isolation, 12s budget, empty→fallback, cooldown, rate-limit retry, typed LLM errors, Path B rewrite, threshold 24→10, error logging). Memory-Safe Large PDF Ingestion (results release, batch 20→5, 144 DPI image understanding, autoreleasepool). Apple Intelligence Gap Analysis complete (23 framework opportunities identified across WWDC24/25). Font substitution cipher detection (PHASE -1 Jaccard text layer validation). Swift 6 strict concurrency compliance (11 files, zero runtime change). Zero-data-loss ingestion fixes (raw regex, garbled image extraction, dynamic image text budget). Rich Markdown Response Rendering (full block-level parser, inline normalization preprocessor, formatting-preserving pipeline, formatting-aware LLM prompts). Device-Optimized Performance Engine (3-tier Metal shader selection, device-specific OCR concurrency, concurrent cross-encoder predictions, GPU embedding ingestion mode, concurrent CIFilter rendering). Iterative BM25 Retrieval for enumeration queries (second-pass keyword scan over all chunks). Entitlement auto-reconciliation on launch. Billing copy/quota alignment. MMR crash fix (GPU diversity matrix edge case). Motherboard HUD (real-time Apple Silicon X-ray overlay), Universal Retrieval (8 fixes for needle-in-haystack accuracy), Adaptive Document Intelligence Engine, multi-candidate confidence OCR, 5-strategy adaptive preprocessing, language-agnostic quality detection, centralized OCR configuration factory. 102 services across 11 categories.
+**Latest (v3.9)**: BM25Scorer class→struct refactor with internal Storage reference type (nonmutating methods, per-call NLTokenizer, division-by-zero guard). Image Playground zero-shot prompt (eliminates car/Mustang theme bias from few-shot example). Test suite removed (mock-based tests untestable on simulator). RAG-Grounded Response Transforms (5 document-aware transforms via `ResponseTransformService`). AI Hub toolbar redesign (Key Facts, Step-by-Step, Plain English, What's Missing?, Illustrate). Image Playground LLM concept extraction (domain jargon → visual scenes). BM25 `b` parameter consistency fix. Accelerate `vDSP.dot()` in Verification Gate E. Regex pre-compilation in RAGEngine. Pipeline Reliability Hardening (11 fixes: compression cap, fresh session/chunk, per-chunk isolation, 12s budget, empty→fallback, cooldown, rate-limit retry, typed LLM errors, Path B rewrite, threshold 24→10, error logging). Memory-Safe Large PDF Ingestion (results release, batch 20→5, 144 DPI image understanding, autoreleasepool). Apple Intelligence Gap Analysis complete (23 framework opportunities identified across WWDC24/25). Font substitution cipher detection (PHASE -1 Jaccard text layer validation). Swift 6 strict concurrency compliance (11 files, zero runtime change). Zero-data-loss ingestion fixes (raw regex, garbled image extraction, dynamic image text budget). Rich Markdown Response Rendering (full block-level parser, inline normalization preprocessor, formatting-preserving pipeline, formatting-aware LLM prompts). Device-Optimized Performance Engine (3-tier Metal shader selection, device-specific OCR concurrency, concurrent cross-encoder predictions, GPU embedding ingestion mode, concurrent CIFilter rendering). Iterative BM25 Retrieval for enumeration queries (second-pass keyword scan over all chunks). Entitlement auto-reconciliation on launch. Billing copy/quota alignment. MMR crash fix (GPU diversity matrix edge case). Motherboard HUD (real-time Apple Silicon X-ray overlay), Universal Retrieval (8 fixes for needle-in-haystack accuracy), Adaptive Document Intelligence Engine, multi-candidate confidence OCR, 5-strategy adaptive preprocessing, language-agnostic quality detection, centralized OCR configuration factory. 102 services across 11 categories.
 
 ### RAG Pipeline Summary
 
@@ -2672,12 +2672,9 @@ Docs/
 │   └── RELEASE.md                 # Release checklist, smoke tests
 └── TestDocuments/                 # Sample files for testing
 
-OpenIntelligenceTests/             # 200+ unit tests across 15 test files
-#   BM25ScorerTests, SemanticChunkerTests, VerificationGateServiceTests,
-#   ContextPackingServiceTests, QueryEnhancementServiceTests,
-#   ExtractiveQAServiceTests, MarkdownRendererTests, OCRConfigurationTests,
-#   HybridSearchServiceTests, RAGPipelineTests, VectorDatabaseTests,
-#   VectorStoreRouterTests, EmbeddingDiagnosticsTests, StoreKitEntitlementTests
+# OpenIntelligenceTests/ removed — mock-based tests could not exercise
+#   real Apple framework behavior on iOS Simulator (FoundationModels,
+#   Vision OCR, CoreML unavailable). Quality validated on-device.
 scripts/                           # CI/CD helpers (secret_scan, preflight_check)
 fastlane/                          # App Store deployment automation
 ```

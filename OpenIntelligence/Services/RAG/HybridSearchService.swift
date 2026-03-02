@@ -37,21 +37,20 @@ struct BM25Snapshot: Sendable {
 
 
 /// BM25 (Best Matching 25) keyword scoring for hybrid search
-class BM25Scorer {
+struct BM25Scorer {
+    private final class Storage {
+        var documentFrequencies: [String: Int] = [:]
+        var avgDocLength: Float = 0
+        var totalDocuments: Int = 0
+    }
+
     private let k1: Float = 1.5  // Term frequency saturation parameter
     private let b: Float = 0.5   // Length normalization: lowered from 0.75 because all chunks are ~260 words (uniform length makes length normalization less important)
-    // OPTIMIZED: Cached tokenizer instead of allocating per tokenize() call
-    private let cachedTokenizer = NLTokenizer(unit: .word)
-    // Lemmatizer for stemming: "running"→"run", "configurations"→"configuration"
-    private let cachedTagger = NLTagger(tagSchemes: [.lemma])
-
-    private var documentFrequencies: [String: Int] = [:]
-    private var avgDocLength: Float = 0
-    private var totalDocuments: Int = 0
+    private let storage = Storage()
 
     /// Index documents for BM25 scoring
     func indexDocuments(_ chunks: [DocumentChunk]) {
-        totalDocuments = chunks.count
+        storage.totalDocuments = chunks.count
         var docLengths: [Float] = []
         var termDocCounts: [String: Set<UUID>] = [:]
 
@@ -67,8 +66,8 @@ class BM25Scorer {
         }
 
         // Calculate document frequencies and average length
-        documentFrequencies = termDocCounts.mapValues { $0.count }
-        avgDocLength = docLengths.reduce(0, +) / Float(max(totalDocuments, 1))
+        storage.documentFrequencies = termDocCounts.mapValues { $0.count }
+        storage.avgDocLength = docLengths.reduce(0, +) / Float(max(storage.totalDocuments, 1))
     }
 
     /// Calculate BM25 score for a query against a document
@@ -91,14 +90,14 @@ class BM25Scorer {
         var score: Float = 0
         for queryTerm in queryTerms {
             let tf = Float(termFreqs[queryTerm] ?? 0)
-            let df = Float(documentFrequencies[queryTerm] ?? 1)
+            let df = Float(storage.documentFrequencies[queryTerm] ?? 1)
 
             // IDF (Inverse Document Frequency)
-            let idf = log((Float(totalDocuments) - df + 0.5) / (df + 0.5) + 1)
+            let idf = log((Float(storage.totalDocuments) - df + 0.5) / (df + 0.5) + 1)
 
             // BM25 formula
             let numerator = tf * (k1 + 1)
-            let denominator = tf + k1 * (1 - b + b * (docLength / avgDocLength))
+            let denominator = tf + k1 * (1 - b + b * (docLength / max(storage.avgDocLength, 0.0001)))
 
             score += idf * (numerator / denominator)
         }
@@ -108,18 +107,12 @@ class BM25Scorer {
 
     func tokenize(_ text: String) -> [String] {
         let normalized = text.lowercased()
-        cachedTokenizer.string = normalized
-        cachedTagger.string = normalized
+        let tokenizer = NLTokenizer(unit: .word)
+        tokenizer.string = normalized
 
-        return cachedTokenizer.tokens(for: normalized.startIndex ..< normalized.endIndex).compactMap { range in
+        return tokenizer.tokens(for: normalized.startIndex ..< normalized.endIndex).compactMap { range in
             let token = String(normalized[range]).trimmingCharacters(in: .punctuationCharacters)
             guard !token.isEmpty else { return nil }
-            // Apply lemmatization: "running"→"run", "configurations"→"configuration"
-            // Falls back to the original token if no lemma is found
-            if let lemmaTag = cachedTagger.tag(at: range.lowerBound, unit: .word, scheme: .lemma).0 {
-                let lemma = lemmaTag.rawValue.trimmingCharacters(in: .punctuationCharacters)
-                if !lemma.isEmpty { return lemma }
-            }
             return token
         }
     }
@@ -129,9 +122,9 @@ extension BM25Scorer {
     /// Build a snapshot of current BM25 stats for use by RAGEngine
     func makeSnapshot() -> BM25Snapshot {
         return BM25Snapshot(
-            documentFrequencies: documentFrequencies,
-            avgDocLength: avgDocLength,
-            totalDocuments: totalDocuments
+            documentFrequencies: storage.documentFrequencies,
+            avgDocLength: storage.avgDocLength,
+            totalDocuments: storage.totalDocuments
         )
     }
 
@@ -166,7 +159,7 @@ extension BM25Scorer {
 /// Hybrid search combining vector similarity and BM25 keyword matching
 class HybridSearchService {
     private let vectorDatabase: VectorDatabase
-    private let bm25Scorer = BM25Scorer()
+    private var bm25Scorer = BM25Scorer()
     private var engine: RAGEngine { RAGEngine.shared }
     // OPTIMIZED: Cached tokenizer for keyword extraction and BM25 scoring
     private let cachedTokenizer = NLTokenizer(unit: .word)

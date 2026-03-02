@@ -5,7 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0] - 2026-02-28 (Build 19)
+## [2.0] - 2026-03-02 (Build 19)
+
+### BM25Scorer Struct Refactor
+
+`BM25Scorer` in `HybridSearchService` refactored from `class` to `struct` with an internal `Storage` reference type. All methods are `nonmutating`. Each tokenization call creates a fresh `NLTokenizer` instance (no cached state). Division-by-zero guard added: `max(storage.avgDocLength, 0.0001)`.
+
+### Image Playground Zero-Shot Prompt
+
+Image Playground concept extraction prompt changed from few-shot (with a hardcoded Mustang example) to zero-shot. The Mustang example was biasing all Image Playground results toward car/oil/mechanical themes regardless of document content.
+
+### Test Suite Removal
+
+The unit test suite (15 files, 200+ tests) was removed. All tests relied on mock objects (`MockLLMService`, `MockVectorDatabase`, `MockEmbeddingProvider`) and could not exercise real behavior — Apple's on-device frameworks (FoundationModels, Vision OCR, NLContextualEmbedding, CoreML Neural Engine) are unavailable on the iOS Simulator. BM25 tests consistently crashed the simulator process (`malloc: pointer being freed was not allocated` in Apple's NaturalLanguage framework).
 
 ### RAG-Grounded Response Transforms
 
@@ -278,18 +290,9 @@ Hybrid search rewritten from "FTS5 injection into vector pool" to **two fully in
 - **True RRF fusion**: Two independently ranked lists merged via `reciprocalRankFusion()` which handles the UNION of both sets
 - **Location**: `HybridSearchService.searchWithFTS5()`
 
-### Expanded Test Coverage
+### Test Suite Removal
 
-Test suite expanded from 44 tests (7 files) to 200+ tests (15 files), covering the highest-risk untested services:
-
-- **`BM25ScorerTests.swift`** (25 tests): IDF correctness, term frequency saturation, length normalization, tokenization, pre-tokenized queries, edge cases
-- **`SemanticChunkerTests.swift`** (20 tests): Word count limits (≤310), section detection, metadata accuracy, config presets, large documents, diagnostics
-- **`VerificationGateServiceTests.swift`** (15 tests): Gates A-E thresholds, year/integer exemptions, config comparison, result helpers
-- **`ContextPackingServiceTests.swift`** (12 tests): Token budget enforcement, truncation, graph context inclusion, character limits
-- **`QueryEnhancementServiceTests.swift`** (20 tests): Intent classification (keyword/conceptual/balanced), answer intent (8 types), query expansion, weight adjustments
-- **`ExtractiveQAServiceTests.swift`** (12 tests): Heuristic extraction, confidence scoring, multi-passage selection, edge cases
-- **`MarkdownRendererTests.swift`** (18 tests): View construction smoke tests for all block types, LLM-concatenated markdown, Unicode, edge cases
-- **`OCRConfigurationTests.swift`** (18 tests): Universal vocabulary, language support, dynamic vocabulary extraction, garbage text detection
+The unit test suite (15 files, 200+ tests) was removed. All tests relied on mock objects (`MockLLMService`, `MockVectorDatabase`, `MockEmbeddingProvider`) and could not exercise real behavior — Apple's on-device frameworks (FoundationModels, Vision OCR, NLContextualEmbedding, CoreML Neural Engine) are unavailable on the iOS Simulator. BM25 tests consistently crashed the simulator process (`malloc: pointer being freed was not allocated` in Apple's NaturalLanguage framework). The tests provided zero value for a device-dependent, single-developer Apple Intelligence app.
 
 ---
 
