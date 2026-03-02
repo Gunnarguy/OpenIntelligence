@@ -115,33 +115,33 @@ OpenIntelligence implements **14 of 16** recognized RAG architectural patterns:
 
 #### 🟡 Partial Integration (Opportunities Identified)
 
-| Opportunity              | Framework             | Current State                                                                                                                                                                               | Planned Enhancement                      | Target |
-| ------------------------ | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- | ------ |
-| Custom Entity Extraction | NLGazetteer           | Using NLTagger NER (persons, places, orgs)                                                                                                                                                  | Train gazetteer on product names, SKUs   | v2.2   |
-| Multi-Language Docs      | Translation.framework | Language detection works; no auto-translation                                                                                                                                               | Translate foreign docs before embedding  | v2.1   |
-| Domain Classifiers       | CreateMLComponents    | Static content-type configs                                                                                                                                                                 | Train classifiers on user's doc patterns | v3.0   |
+| Opportunity              | Framework             | Current State                                                                                                                                                                               | Planned Enhancement                      | Target     |
+| ------------------------ | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- | ---------- |
+| Custom Entity Extraction | NLGazetteer           | Using NLTagger NER (persons, places, orgs)                                                                                                                                                  | Train gazetteer on product names, SKUs   | v2.2       |
+| Multi-Language Docs      | Translation.framework | Language detection works; no auto-translation                                                                                                                                               | Translate foreign docs before embedding  | v2.1       |
+| Domain Classifiers       | CreateMLComponents    | Static content-type configs                                                                                                                                                                 | Train classifiers on user's doc patterns | v3.0       |
 | WritingTools Integration | WritingTools (iOS 26) | `WritingToolsService` with `clarifyQuery` wired to ChatScreen. `ResponseTransformService` with 5 RAG-grounded transforms (Key Facts, Step-by-Step, Cross-Reference, Deep Dive, Flash Cards) | ✅ AI Hub toolbar live (v2.0)            | ✅ Shipped |
 
 #### ⬜ Not Yet Leveraged (Phase 2+)
 
-| Framework/API                 | Use Case                                  | Priority | Notes                                        |
-| ----------------------------- | ----------------------------------------- | -------- | -------------------------------------------- |
-| **DataScannerViewController** | Live camera scanning UX (VisionKit)       | High     | More polished than raw AVCaptureSession      |
-| **MetricKit**                 | Device performance telemetry              | Medium   | Optimize pipeline for real user hardware     |
-| **OSSignposter**              | Instruments-visible profiling             | Low      | Developer debugging, not user-facing         |
-| **SoundAnalysis**             | Audio content classification              | Low      | Classify speech/music/ambient in audio files |
+| Framework/API                 | Use Case                            | Priority | Notes                                        |
+| ----------------------------- | ----------------------------------- | -------- | -------------------------------------------- |
+| **DataScannerViewController** | Live camera scanning UX (VisionKit) | High     | More polished than raw AVCaptureSession      |
+| **MetricKit**                 | Device performance telemetry        | Medium   | Optimize pipeline for real user hardware     |
+| **OSSignposter**              | Instruments-visible profiling       | Low      | Developer debugging, not user-facing         |
+| **SoundAnalysis**             | Audio content classification        | Low      | Classify speech/music/ambient in audio files |
 
 #### iOS 26+ New APIs Status
 
-| API                                     | Status         | Location                                                                   |
-| --------------------------------------- | -------------- | -------------------------------------------------------------------------- |
-| `FoundationModels.LanguageModelSession` | ✅ Production  | `AppleFoundationLLMService`, `HyDEService`, `ContextualCompressionService` |
-| `@Generable`, `@Guide`, `@Tool`         | ✅ Production  | 8 agentic tools, RAGAnswer/RAGSearchResults responses                      |
-| `LanguageModelFeedback`                 | ✅ Production  | Thumbs up/down feedback via `LLMService` (triggered from ChatScreen)       |
-| `prewarm()`                             | ✅ Production  | Session prewarming in `LLMService` (warmUpModel + session init)            |
-| `RecognizeDocumentsRequest`             | ✅ Production  | `StructuredDocumentParser`, centralized via `OCRConfiguration`             |
+| API                                     | Status         | Location                                                                      |
+| --------------------------------------- | -------------- | ----------------------------------------------------------------------------- |
+| `FoundationModels.LanguageModelSession` | ✅ Production  | `AppleFoundationLLMService`, `HyDEService`, `ContextualCompressionService`    |
+| `@Generable`, `@Guide`, `@Tool`         | ✅ Production  | 8 agentic tools, RAGAnswer/RAGSearchResults responses                         |
+| `LanguageModelFeedback`                 | ✅ Production  | Thumbs up/down feedback via `LLMService` (triggered from ChatScreen)          |
+| `prewarm()`                             | ✅ Production  | Session prewarming in `LLMService` (warmUpModel + session init)               |
+| `RecognizeDocumentsRequest`             | ✅ Production  | `StructuredDocumentParser`, centralized via `OCRConfiguration`                |
 | `SpeechAnalyzer`                        | ✅ Production  | `SpeechAnalyzerService` called from `DocumentProcessor` (audio transcription) |
-| `SystemLanguageModel.Guardrails`        | ✅ Production  | `ImagePlaygroundService` uses `.permissiveContentTransformations` guardrails   |
+| `SystemLanguageModel.Guardrails`        | ✅ Production  | `ImagePlaygroundService` uses `.permissiveContentTransformations` guardrails  |
 | `SystemLanguageModel.supportsLocale()`  | ✅ Production  | `LLMService` locale gating for language/region support checks                 |
 | `SystemLanguageModel.UseCase`           | ⬜ Not Started | Planned for v2.1 — declare specific model use cases for optimized behavior    |
 
@@ -1370,12 +1370,12 @@ _Comprehensive gap analysis: every Apple Intelligence framework announced at WWD
 
 #### Apple Intelligence Gap Summary
 
-| Priority      | Items  | Done | Remaining | Target | Key Capabilities                                                                                                          |
-| ------------- | ------ | ---- | --------- | ------ | ------------------------------------------------------------------------------------------------------------------------- |
-| **Critical**  | 6      | 4    | 2         | v2.1   | ✅ Guardrails, CoreSpotlight, SpeechAnalyzer, Translation — ⬜ Liquid Glass, UseCase (supportsLocale done)                |
-| **High**      | 8      | 6    | 2         | v2.2   | ✅ Visual Intelligence, Adapter Training, Prompt Eval, BNNS Graph, Image Playground, NLGazetteer — ⬜ Metal 4, Lens Smudge |
-| **Strategic** | 9      | 4    | 5         | v3.0   | ✅ BackgroundTasks, TipKit, Smart Reply, NSUserActivity — ⬜ @Observable, WidgetKit, SwiftData, Genmoji, DataScanner       |
-| **Total**     | **23** | **14** | **9**   |        | **61% coverage achieved — 9 gaps remaining**                                                                              |
+| Priority      | Items  | Done   | Remaining | Target | Key Capabilities                                                                                                         |
+| ------------- | ------ | ------ | --------- | ------ | ------------------------------------------------------------------------------------------------------------------------ |
+| **Critical**  | 6      | 4      | 2         | v2.1   | ✅ Guardrails, CoreSpotlight, SpeechAnalyzer, Translation — ⬜ Liquid Glass, UseCase (supportsLocale done)                 |
+| **High**      | 8      | 6      | 2         | v2.2   | ✅ Visual Intelligence, Adapter Training, Prompt Eval, BNNS Graph, Image Playground, NLGazetteer — ⬜ Metal 4, Lens Smudge |
+| **Strategic** | 9      | 4      | 5         | v3.0   | ✅ BackgroundTasks, TipKit, Smart Reply, NSUserActivity — ⬜ @Observable, WidgetKit, SwiftData, Genmoji, DataScanner       |
+| **Total**     | **23** | **14** | **9**     |        | **61% coverage achieved — 9 gaps remaining**                                                                             |
 
 ---
 

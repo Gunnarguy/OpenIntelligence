@@ -109,11 +109,11 @@ QUERY → RESPONSE (17 steps):
 
 **Remaining Gaps (8):**
 
-| Target   | Frameworks                                                                          |
-| -------- | ----------------------------------------------------------------------------------- |
-| **v2.1** | Liquid Glass, UseCase                                                               |
-| **v2.2** | Metal 4                                                                             |
-| **v3.0** | @Observable, WidgetKit, SwiftData, Genmoji, DataScanner (VisionKit)                 |
+| Target   | Frameworks                                                          |
+| -------- | ------------------------------------------------------------------- |
+| **v2.1** | Liquid Glass, UseCase                                               |
+| **v2.2** | Metal 4                                                             |
+| **v3.0** | @Observable, WidgetKit, SwiftData, Genmoji, DataScanner (VisionKit) |
 
 > **Full Gap Analysis**: See `ROADMAP.md` → "Phase 2.15 — Apple Intelligence Gap Closure"
 

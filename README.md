@@ -505,27 +505,27 @@ We've audited every Apple Intelligence framework from WWDC 2024 and 2025 against
 
 ### v2.1 — Next Release (6 items → 4 done)
 
-| Framework          | Status         | What It Adds                                                                                |
-| ------------------ | -------------- | ------------------------------------------------------------------------------------------- |
-| **Guardrails API** | ✅ Shipped     | Content safety via `.permissiveContentTransformations` in `ImagePlaygroundService`           |
-| **CoreSpotlight**  | ✅ Shipped     | Index documents for Spotlight/Siri semantic search via `SpotlightIndexService`               |
-| **SpeechAnalyzer** | ✅ Shipped     | Modern async actor-based speech transcription via `SpeechAnalyzerService`                    |
-| **Translation**    | ✅ Shipped     | `TranslationService` implemented (not yet wired to UI)                                      |
-| **Liquid Glass**   | ⬜ Remaining   | iOS 26 design system — glass material for toolbars, navigation, and custom views            |
-| **UseCase/Locale** | ⬜ Partial     | `supportsLocale()` active in `LLMService`; `UseCase` not yet started                       |
+| Framework          | Status      | What It Adds                                                                       |
+| ------------------ | ----------- | ---------------------------------------------------------------------------------- |
+| **Guardrails API** | ✅ Shipped   | Content safety via `.permissiveContentTransformations` in `ImagePlaygroundService` |
+| **CoreSpotlight**  | ✅ Shipped   | Index documents for Spotlight/Siri semantic search via `SpotlightIndexService`     |
+| **SpeechAnalyzer** | ✅ Shipped   | Modern async actor-based speech transcription via `SpeechAnalyzerService`          |
+| **Translation**    | ✅ Shipped   | `TranslationService` implemented (not yet wired to UI)                             |
+| **Liquid Glass**   | ⬜ Remaining | iOS 26 design system — glass material for toolbars, navigation, and custom views   |
+| **UseCase/Locale** | ⬜ Partial   | `supportsLocale()` active in `LLMService`; `UseCase` not yet started               |
 
 ### v2.2 — Following Release (8 items → 6 done)
 
-| Framework                 | Status         | What It Adds                                                         |
-| ------------------------- | -------------- | -------------------------------------------------------------------- |
-| **Visual Intelligence**   | ✅ Shipped     | App Intents for camera/screenshot search (system-discoverable)       |
-| **Adapter Training**      | ✅ Shipped     | `AdapterManager` with LoRA adapter lifecycle (not yet wired)         |
-| **Prompt Evaluation**     | ✅ Shipped     | `PromptEvaluationService` for prompt quality scoring (not yet wired) |
-| **Metal 4**               | ⬜ Remaining   | New GPU API with ML inference passes and unified compute encoders    |
-| **BNNS Graph**            | ✅ Shipped     | `BNNSGraphService` for neural network operations (not yet wired)     |
-| **Image Playground**      | ✅ Shipped     | Programmatic image generation via `ImagePlaygroundService`           |
-| **NLGazetteer**           | ✅ Shipped     | Custom entity training via `GazetteerService`                        |
-| **Lens Smudge Detection** | ⬜ Remaining   | Camera quality check before OCR capture                              |
+| Framework                 | Status      | What It Adds                                                         |
+| ------------------------- | ----------- | -------------------------------------------------------------------- |
+| **Visual Intelligence**   | ✅ Shipped   | App Intents for camera/screenshot search (system-discoverable)       |
+| **Adapter Training**      | ✅ Shipped   | `AdapterManager` with LoRA adapter lifecycle (not yet wired)         |
+| **Prompt Evaluation**     | ✅ Shipped   | `PromptEvaluationService` for prompt quality scoring (not yet wired) |
+| **Metal 4**               | ⬜ Remaining | New GPU API with ML inference passes and unified compute encoders    |
+| **BNNS Graph**            | ✅ Shipped   | `BNNSGraphService` for neural network operations (not yet wired)     |
+| **Image Playground**      | ✅ Shipped   | Programmatic image generation via `ImagePlaygroundService`           |
+| **NLGazetteer**           | ✅ Shipped   | Custom entity training via `GazetteerService`                        |
+| **Lens Smudge Detection** | ⬜ Remaining | Camera quality check before OCR capture                              |
 
 ### v3.0 — Strategic (9 items → 4 done)
 

@@ -76,8 +76,8 @@ OpenIntelligence is built entirely on Apple's native frameworks—**no third-par
 
 ### iOS 26+ APIs Status
 
-| API                             | Status        | Usage                                                                          |
-| ------------------------------- | ------------- | ------------------------------------------------------------------------------ |
+| API                             | Status         | Usage                                                                          |
+| ------------------------------- | -------------- | ------------------------------------------------------------------------------ |
 | `LanguageModelSession`          | ✅ Active      | All LLM queries via Apple Intelligence                                         |
 | `@Generable`, `@Guide`, `@Tool` | ✅ Active      | 8 agentic tools + structured response types                                    |
 | `LanguageModelFeedback`         | ✅ Active      | User feedback submission via `LLMService`                                      |
@@ -102,18 +102,18 @@ OpenIntelligence is built entirely on Apple's native frameworks—**no third-par
 
 > **Full Gap Analysis**: See [ROADMAP.md](ROADMAP.md) → "Phase 2.15 — Apple Intelligence Gap Closure" for complete 23-item breakdown (14 done, 9 remaining).
 
-| Framework                     | Planned Use                                                 | Target | Priority |
-| ----------------------------- | ----------------------------------------------------------- | ------ | -------- |
-| **Guardrails API** (iOS 26)   | ✅ Active via `ImagePlaygroundService`; extend to all LLM calls | v2.1   | Medium   |
-| **Liquid Glass** (iOS 26)     | iOS 26 glass material design system for UI                      | v2.1   | High     |
-| **UseCase** (iOS 26)          | Model use case declaration for optimized behavior               | v2.1   | Medium   |
-| **Metal 4** (iOS 26)          | New core API, ML inference passes, unified compute encoders | v2.2   | Medium   |
-| **@Observable**               | Replace ObservableObject/Combine with modern Observation    | v3.0   | High     |
-| **WidgetKit**                 | Home screen widgets for doc count, queries, status          | v3.0   | Medium   |
-| **SwiftData**                 | Modern persistence layer (evaluate vs raw sqlite3)          | v3.0   | Medium   |
-| **VisionKit** (DataScanner)   | Live camera document scanning                               | v3.0   | Medium   |
-| **CreateMLComponents**        | On-device classifier training                               | v3.0   | Medium   |
-| **MetricKit**                 | Production performance telemetry                            | v3.0   | Low      |
+| Framework                   | Planned Use                                                    | Target | Priority |
+| --------------------------- | -------------------------------------------------------------- | ------ | -------- |
+| **Guardrails API** (iOS 26) | ✅ Active via `ImagePlaygroundService`; extend to all LLM calls | v2.1   | Medium   |
+| **Liquid Glass** (iOS 26)   | iOS 26 glass material design system for UI                     | v2.1   | High     |
+| **UseCase** (iOS 26)        | Model use case declaration for optimized behavior              | v2.1   | Medium   |
+| **Metal 4** (iOS 26)        | New core API, ML inference passes, unified compute encoders    | v2.2   | Medium   |
+| **@Observable**             | Replace ObservableObject/Combine with modern Observation       | v3.0   | High     |
+| **WidgetKit**               | Home screen widgets for doc count, queries, status             | v3.0   | Medium   |
+| **SwiftData**               | Modern persistence layer (evaluate vs raw sqlite3)             | v3.0   | Medium   |
+| **VisionKit** (DataScanner) | Live camera document scanning                                  | v3.0   | Medium   |
+| **CreateMLComponents**      | On-device classifier training                                  | v3.0   | Medium   |
+| **MetricKit**               | Production performance telemetry                               | v3.0   | Low      |
 
 ## System Architecture
 
