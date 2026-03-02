@@ -35,7 +35,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "0F3C6530C6DDDDF669D8396B"
-               BuildableName = ".xctest"
+               BuildableName = "OpenIntelligenceTests.xctest"
                BlueprintName = "OpenIntelligenceTests"
                ReferencedContainer = "container:OpenIntelligence.xcodeproj">
             </BuildableReference>

@@ -64,6 +64,7 @@ struct ChatScreen: View {
     @State private var streamingBuffer: String = ""
     @State private var streamingPumpTask: Task<Void, Never>? = nil
     @State private var currentQueryTask: Task<Void, Never>? = nil // Track current query for cancellation
+    @State private var currentQuerySessionId: UUID? = nil
     @State private var hasReceivedStreamToken: Bool = false
     @State private var generationStart: Date? = nil
     // Per-stage timing
@@ -368,6 +369,18 @@ struct ChatScreen: View {
         }
         // Recalculate counts when active container changes
         .task(id: ragService.containerService.activeContainerId) {
+            // Cancel any in-flight query from the previous library to prevent cross-container bleed
+            currentQuerySessionId = nil
+            currentQueryTask?.cancel()
+            currentQueryTask = nil
+
+            // Reset transient generation state for the newly active library
+            if isProcessing {
+                resetStreamingState()
+                isProcessing = false
+                stage = .idle
+            }
+
             // Don't load persisted history in screenshot demo mode - let seedFullDemoContent() handle it
             #if DEBUG
             if didSeedScreenshotDemo { return }
@@ -1214,6 +1227,18 @@ struct ChatScreen: View {
         ragService.persistChatHistory(messages, for: containerId)
     }
 
+    private func appendAndPersistMessage(_ message: ChatMessage, for containerId: UUID) {
+        if ragService.containerService.activeContainerId == containerId {
+            messages.append(message)
+            persistChatHistory(for: containerId)
+            return
+        }
+
+        var history = ragService.chatHistory(for: containerId)
+        history.append(message)
+        ragService.persistChatHistory(history, for: containerId)
+    }
+
     private func newChat() {
         // Cancel any in-flight query task
         currentQueryTask?.cancel()
@@ -1902,6 +1927,7 @@ struct ChatScreen: View {
         // Cancel any existing query - "cancel and replace" strategy
         // This prevents memory leaks from orphaned tasks on back-to-back queries
         if let existingTask = currentQueryTask {
+            currentQuerySessionId = nil
             existingTask.cancel()
             currentQueryTask = nil
             // Brief yield to let cancellation propagate
@@ -1953,6 +1979,8 @@ struct ChatScreen: View {
         let capturedAllowPCC = baseExecutionContext != .onDeviceOnly
         requestedExecutionContext = capturedExecutionContext
         let capturedUsedContainerId = usedContainerId
+        let querySessionId = UUID()
+        currentQuerySessionId = querySessionId
         resetStreamingState()
 
         // Track this task for potential cancellation
@@ -1962,6 +1990,8 @@ struct ChatScreen: View {
             // Guarantee cleanup even on cancellation or error
             defer {
                 Task { @MainActor in
+                    guard self.currentQuerySessionId == querySessionId else { return }
+                    self.currentQuerySessionId = nil
                     self.currentQueryTask = nil
                     self.isProcessing = false
                     if self.stage == .generating || self.stage == .searching || self.stage == .embedding {
@@ -2071,6 +2101,9 @@ struct ChatScreen: View {
                 )
 
                 await MainActor.run {
+                    guard self.currentQuerySessionId == querySessionId,
+                          self.ragService.containerService.activeContainerId == capturedUsedContainerId
+                    else { return }
                     self.currentRetrievedChunks = response.retrievedChunks
                     self.currentMetadata = response.metadata
                     // Sources tray will show this - no separate toast needed
@@ -2080,6 +2113,9 @@ struct ChatScreen: View {
                 // Only upgrade to PCC if TTFT indicates cloud latency (>1s)
                 if let first = response.metadata.timeToFirstToken {
                     await MainActor.run {
+                        guard self.currentQuerySessionId == querySessionId,
+                              self.ragService.containerService.activeContainerId == capturedUsedContainerId
+                        else { return }
                         self.ttft = first
                         // If TTFT > 1 second, it likely went through PCC
                         if first >= 1.0 {
@@ -2113,20 +2149,23 @@ struct ChatScreen: View {
                 }
 
                 await MainActor.run {
+                    guard self.currentQuerySessionId == querySessionId else { return }
                     // flushStreamingBufferToVisibleText already handled cleanup when isFinal arrived
                     // No need to reset again here - would race with final flush
-                    self.messages.append(assistant)
-                    self.persistChatHistory(for: capturedUsedContainerId)
-                    self.stage = .complete
+                    self.appendAndPersistMessage(assistant, for: capturedUsedContainerId)
 
-                    // Show completion toast with token count
-                    let tokenCount = response.metadata.tokensGenerated
-                    self.toastManager.clearAll()
-                    self.pushToast(
-                        tokenCount > 0 ? "Done • \(tokenCount) tokens" : "Complete",
-                        icon: "checkmark.circle.fill",
-                        tint: .green
-                    )
+                    if self.ragService.containerService.activeContainerId == capturedUsedContainerId {
+                        self.stage = .complete
+
+                        // Show completion toast with token count
+                        let tokenCount = response.metadata.tokensGenerated
+                        self.toastManager.clearAll()
+                        self.pushToast(
+                            tokenCount > 0 ? "Done • \(tokenCount) tokens" : "Complete",
+                            icon: "checkmark.circle.fill",
+                            tint: .green
+                        )
+                    }
                 }
 
                 // Generate follow-up suggestions if Smart Replies are enabled
@@ -2140,6 +2179,9 @@ struct ChatScreen: View {
                         maxSuggestions: smartReplyCount
                     )
                     await MainActor.run {
+                        guard self.currentQuerySessionId == querySessionId,
+                              self.ragService.containerService.activeContainerId == capturedUsedContainerId
+                        else { return }
                         self.followUpSuggestions = suggestions
                     }
                 }
@@ -2147,6 +2189,9 @@ struct ChatScreen: View {
                 try? await Task.sleep(nanoseconds: 200_000_000)
 
                 await MainActor.run {
+                    guard self.currentQuerySessionId == querySessionId,
+                          self.ragService.containerService.activeContainerId == capturedUsedContainerId
+                    else { return }
                     if let genStart = self.generatingStartTS {
                         self.generatingElapsedFinal = Date().timeIntervalSince(genStart)
                     }
@@ -2157,6 +2202,16 @@ struct ChatScreen: View {
             } catch {
                 Log.error("Query failed: \(error.localizedDescription)", category: .llm)
                 await MainActor.run {
+                    guard self.currentQuerySessionId == querySessionId else { return }
+
+                    // If the user switched libraries, suppress stale cancellation/error UI in the new context
+                    guard self.ragService.containerService.activeContainerId == capturedUsedContainerId else {
+                        self.stage = .idle
+                        self.resetStreamingState()
+                        self.generationStart = nil
+                        return
+                    }
+
                     let friendlyMessage = userFacingErrorMessage(error)
 
                     self.toastManager.clearAll()
@@ -2173,17 +2228,15 @@ struct ChatScreen: View {
                             content: partial + note
                         )
                         partialMessage.containerId = capturedUsedContainerId
-                        self.messages.append(partialMessage)
+                        self.appendAndPersistMessage(partialMessage, for: capturedUsedContainerId)
                     } else {
                         var errorMsg = ChatMessage(
                             role: .assistant,
                             content: "\(friendlyMessage)\n\nPlease try again."
                         )
                         errorMsg.containerId = capturedUsedContainerId
-                        self.messages.append(errorMsg)
+                        self.appendAndPersistMessage(errorMsg, for: capturedUsedContainerId)
                     }
-
-                    self.persistChatHistory(for: capturedUsedContainerId)
 
                     self.stage = .idle
                     self.resetStreamingState()

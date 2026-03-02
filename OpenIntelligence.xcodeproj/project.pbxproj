@@ -50,7 +50,7 @@
 		995EE33832E77D88C39D2487 /* OpenIntelligenceTests/StoreKitEntitlementTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OpenIntelligenceTests/StoreKitEntitlementTests.swift; sourceTree = SOURCE_ROOT; };
 		9D1D5D1E1E764A2A34F9EC8E /* OpenIntelligenceTests/QueryEnhancementServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OpenIntelligenceTests/QueryEnhancementServiceTests.swift; sourceTree = SOURCE_ROOT; };
 		A66318F6608185BF0109F0FB /* OpenIntelligenceTests/VerificationGateServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OpenIntelligenceTests/VerificationGateServiceTests.swift; sourceTree = SOURCE_ROOT; };
-		AF1C66A44688A7B340182360 /* OpenIntelligenceTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; name = OpenIntelligenceTests.xctest; path = .xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		AF1C66A44688A7B340182360 /* OpenIntelligenceTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OpenIntelligenceTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B0A25BB6B8A7E870E3E97A4D /* OpenIntelligenceTests/MarkdownRendererTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OpenIntelligenceTests/MarkdownRendererTests.swift; sourceTree = SOURCE_ROOT; };
 		B0D565DE2E98AC50001274A2 /* OpenIntelligence.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OpenIntelligence.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BDD57D68BE1066D9E7187DB1 /* OpenIntelligenceTests/VectorStoreRouterTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OpenIntelligenceTests/VectorStoreRouterTests.swift; sourceTree = SOURCE_ROOT; };
@@ -301,8 +301,10 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = Gunndamental.OpenIntelligence.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_OBJC_INTEROP_MODE = objcxx;
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/OpenIntelligence.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/OpenIntelligence";
@@ -554,8 +556,10 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = Gunndamental.OpenIntelligence.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_OBJC_INTEROP_MODE = objcxx;
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/OpenIntelligence.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/OpenIntelligence";
