@@ -113,21 +113,22 @@ QUERY → RESPONSE (17 steps):
 
 ## Service Inventory (102 Services)
 
-| Category           | Count | Key Services                                                                                                |
-| ------------------ | ----- | ----------------------------------------------------------------------------------------------------------- |
-| **RAG Pipeline**   | 14    | RAGService, RAGEngine, HybridSearchService, VerificationGateService, ContextPackingService                  |
-| **Query**          | 9     | QueryEnhancementService, HyDEService, ContextualCompressionService, QueryRouterService                      |
-| **Document**       | 23    | DocumentProcessor, SemanticChunker, EntityIndexService, AudioTranscriptionService, OCRConfiguration         |
-| **Embedding**      | 7     | EmbeddingService, CoreMLSentenceEmbeddingProvider                                                           |
-| **Storage**        | 3     | FullTextStorageService, SQLiteFullTextService, DocumentationCacheService                                    |
-| **VectorStore**    | 5     | VectorDatabase (protocol), InMemoryVectorDatabase, BNNSVectorDatabase, VectorStoreRouter                    |
-| **LLM**            | 9     | AppleFoundationLLMService, OnDeviceAnalysisService, LocalOpenAIServerLLMService                             |
-| **Agentic**        | 7     | AgenticOrchestrator, ConversationMemoryService, ResponseTransformService, WritingToolsService               |
-| **Rendering**      | 1     | MarkdownRenderer (block-level parser, inline normalizer, 6 regex patterns for Apple FM output)              |
-| **Infrastructure** | 21    | ContainerService, GPUComputeService (3-tier Metal shaders), HardwareTelemetryState, DeviceCapabilityService |
+| Category           | Count | Key Services                                                                                                            |
+| ------------------ | ----- | ----------------------------------------------------------------------------------------------------------------------- |
+| **RAG Pipeline**   | 14    | RAGService, RAGEngine, HybridSearchService, VerificationGateService, ContextPackingService                              |
+| **Query**          | 9     | QueryEnhancementService, HyDEService, ContextualCompressionService, QueryRouterService                                  |
+| **Document**       | 24    | DocumentProcessor, SemanticChunker, EntityIndexService, AudioTranscriptionService, OCRConfiguration, TranslationService |
+| **Embedding**      | 7     | EmbeddingService, CoreMLSentenceEmbeddingProvider                                                                       |
+| **Storage**        | 3     | FullTextStorageService, SQLiteFullTextService, DocumentationCacheService                                                |
+| **VectorStore**    | 5     | VectorDatabase (protocol), InMemoryVectorDatabase, BNNSVectorDatabase, VectorStoreRouter                                |
+| **LLM**            | 8     | AppleFoundationLLMService, OnDeviceAnalysisService, LocalOpenAIServerLLMService                                         |
+| **Agentic**        | 7     | AgenticOrchestrator, ConversationMemoryService, ResponseTransformService, WritingToolsService                           |
+| **Rendering**      | 1     | MarkdownRenderer (block-level parser, inline normalizer, 6 regex patterns for Apple FM output)                          |
+| **Infrastructure** | 22    | ContainerService, GPUComputeService (3-tier Metal shaders), HardwareTelemetryState, DeviceCapabilityService, AppTips    |
 
-**Latest additions (v1.2, Feb 24)**: `ResponseTransformService` (5 RAG-grounded transforms using source chunks), AI Hub toolbar, Image Playground LLM concept extraction, BM25 `b` parameter alignment, Accelerate `vDSP.dot()` in Gate E, regex pre-compilation.
-| **Billing** | 2 | StoreKitBillingService |
+| **Billing** | 2 | StoreKitBillingService, EntitlementStore |
+
+**Latest additions (v2.0, Mar 2)**: `ResponseTransformService` (5 RAG-grounded transforms using source chunks), AI Hub toolbar, Image Playground LLM concept extraction, BM25 struct refactor, Image Playground zero-shot prompt, test suite removed.
 
 **Full inventory**: See `ARCHITECTURE.md` → "Complete Service Inventory"
 

@@ -12,13 +12,13 @@
 4. [Core Services Inventory](#core-services)
    - [RAG Pipeline Services](#rag-pipeline-services-14-services)
    - [Query Services](#query-services-9-services)
-   - [Document Processing Services](#document-processing-services-23-services)
+   - [Document Processing Services](#document-processing-services-24-services)
    - [Embedding Services](#embedding-services-7-services)
    - [Storage Services](#storage-services-3-services)
    - [VectorStore Services](#vectorstore-services-5-services)
-   - [LLM Services](#llm-services-9-services)
+   - [LLM Services](#llm-services-8-services)
    - [Agentic Services](#agentic-services-6-services)
-   - [Infrastructure Services](#infrastructure-services-21-services)
+   - [Infrastructure Services](#infrastructure-services-22-services)
    - [Billing Services](#billing-services-2-services)
 5. [DocumentProcessor Deep Dive](#documentprocessor)
 6. [Token Budget Management](#token-budget-management)
@@ -314,7 +314,7 @@ User Query Input
 
 ### Complete Service Inventory (102 Services)
 
-OpenIntelligence is composed of **101 distinct services** organized into 11 categories. This inventory provides a complete reference.
+OpenIntelligence is composed of **102 distinct services** organized into 11 categories. This inventory provides a complete reference.
 
 #### RAG Pipeline Services (14 services)
 
@@ -349,7 +349,7 @@ OpenIntelligence is composed of **101 distinct services** organized into 11 cate
 | `SpecificationExtractor`       | struct      | Extracts technical specs (dimensions, tolerances)                    | `Query/SpecificationExtractor.swift`       |
 | `SmartReplyService`            | actor       | Generates contextual reply suggestions based on conversation history | `Query/SmartReplyService.swift`            |
 
-#### Document Processing Services (23 services)
+#### Document Processing Services (24 services)
 
 | Service                        | Type        | Purpose                                                          | File                                          |
 | ------------------------------ | ----------- | ---------------------------------------------------------------- | --------------------------------------------- |
@@ -376,6 +376,7 @@ OpenIntelligence is composed of **101 distinct services** organized into 11 cate
 | `GazetteerService`             | actor       | NLGazetteer-based domain-specific entity recognition             | `Document/GazetteerService.swift`             |
 | `SpeechAnalyzerService`        | actor       | Advanced speech analysis with prosody and emotion detection      | `Document/SpeechAnalyzerService.swift`        |
 | `StreamingXMLProcessor`        | struct      | Streaming XML parser for structured document ingestion           | `Document/StreamingXMLProcessor.swift`        |
+| `TranslationService`           | actor       | On-device multilingual translation via Translation.framework     | `Document/TranslationService.swift`           |
 
 #### Embedding Services (7 services)
 
@@ -407,7 +408,7 @@ OpenIntelligence is composed of **101 distinct services** organized into 11 cate
 | `VectorStoreRouter`      | final class | Per-container routing with multi-container RRF merge            | `VectorStore/VectorStoreRouter.swift`     |
 | `VecturaVectorDatabase`  | actor       | Vectura-backed persistent vector store with disk-mapped indexes | `VectorStore/VecturaVectorDatabase.swift` |
 
-#### LLM Services (9 services)
+#### LLM Services (8 services)
 
 | Service                       | Type        | Purpose                                                      | File                                    |
 | ----------------------------- | ----------- | ------------------------------------------------------------ | --------------------------------------- |
@@ -416,7 +417,6 @@ OpenIntelligence is composed of **101 distinct services** organized into 11 cate
 | `OnDeviceAnalysisService`     | class       | NaturalLanguage-based extractive QA fallback                 | `LLM/LLMService.swift`                  |
 | `ScreenshotMockLLMService`    | class       | Mock responses for App Store screenshot generation           | `LLM/LLMService.swift`                  |
 | `LocalOpenAIServerLLMService` | final class | OpenAI-compatible local server client (MLX/llama.cpp/Ollama) | `LLM/LocalOpenAIServerLLMService.swift` |
-| `OpenAIResponsesAPIService`   | class       | GPT-5 Responses API client (disabled, `#if false`)           | `LLM/OpenAIResponsesAPIService.swift`   |
 | `ModelResolutionService`      | final class | Model selection transparency layer                           | `LLM/ModelResolutionService.swift`      |
 | `AdapterManager`              | actor       | LoRA adapter lifecycle management for fine-tuned models      | `LLM/AdapterManager.swift`              |
 | `PromptEvaluationService`     | actor       | Prompt quality scoring and optimization                      | `LLM/PromptEvaluationService.swift`     |
@@ -433,7 +433,7 @@ OpenIntelligence is composed of **101 distinct services** organized into 11 cate
 | `ToolCallCounter`           | actor       | Tracks @Tool invocation counts for telemetry                                                                               | `Agentic/ToolCallCounter.swift`           |
 | `VisualIntelligenceIntents` | struct      | Visual Intelligence integration for camera pipeline                                                                        | `Agentic/VisualIntelligenceIntents.swift` |
 
-#### Infrastructure Services (21 services)
+#### Infrastructure Services (22 services)
 
 | Service                        | Type        | Purpose                                                                                            | File                                                |
 | ------------------------------ | ----------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
@@ -458,6 +458,7 @@ OpenIntelligence is composed of **101 distinct services** organized into 11 cate
 | `BNNSGraphService`             | actor       | BNNS Graph-based neural network inference acceleration                                             | `Infrastructure/BNNSGraphService.swift`             |
 | `ImagePlaygroundService`       | actor       | Image Playground with LLM-powered concept extraction (domain jargon → visual scenes)               | `Infrastructure/ImagePlaygroundService.swift`       |
 | `SpotlightIndexService`        | actor       | CoreSpotlight indexing for system-wide document search                                             | `Infrastructure/SpotlightIndexService.swift`        |
+| `AppTips`                      | struct      | TipKit integration — contextual tips for first-time users                                          | `Infrastructure/AppTips.swift`                      |
 
 #### Billing Services (2 services)
 
@@ -2686,7 +2687,7 @@ fastlane/                          # App Store deployment automation
 3. **New Views**: Group by feature under `Features/{FeatureName}/`
 4. **Shared Components**: Reusable UI goes in `UI/Components/`
 5. **Design Tokens**: Theme, colors in `UI/DesignSystem/`
-6. **Tests**: Mirror source structure under `OpenIntelligenceTests/`
+6. **Tests**: Removed — Apple on-device frameworks untestable on simulator. Quality validated on-device.
 
 ---
 

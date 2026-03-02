@@ -332,13 +332,13 @@ If any gate fails, the system either abstains or triggers iterative retrieval.
 | ------------------ | ----- | ------------------------------------------------------------------- |
 | **RAG Pipeline**   | 14    | RAGService, RAGEngine, VerifiedGateService, AutoTuneService         |
 | **Query**          | 9     | QueryEnhancementService, HyDEService, ContextualCompressionService  |
-| **Document**       | 23    | IntelligentDocumentProcessor, StructuredDocumentParser, VisionOCR   |
+| **Document**       | 24    | IntelligentDocumentProcessor, StructuredDocumentParser, VisionOCR   |
 | **Embedding**      | 7     | EmbeddingService, CoreMLSentenceEmbeddingProvider                   |
 | **Storage**        | 3     | FullTextStorageService, SQLiteFullTextService                       |
 | **VectorStore**    | 5     | VectorDatabase, BNNSVectorDatabase, VectorStoreRouter               |
-| **LLM**            | 9     | AppleFoundationLLMService, OnDeviceAnalysisService                  |
-| **Agentic**        | 6     | AgenticOrchestrator, ConversationMemoryService, WritingToolsService |
-| **Infrastructure** | 21    | ContainerService, GPUComputeService, HardwareTelemetryState         |
+| **LLM**            | 8     | AppleFoundationLLMService, OnDeviceAnalysisService                  |
+| **Agentic**        | 7     | AgenticOrchestrator, ConversationMemoryService, WritingToolsService |
+| **Infrastructure** | 22    | ContainerService, GPUComputeService, HardwareTelemetryState         |
 | **Rendering**      | 1     | MarkdownRenderer (block-level parser + inline normalizer)           |
 | **Billing**        | 2     | StoreKitBillingService, EntitlementStore                            |
 

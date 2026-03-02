@@ -1,6 +1,6 @@
 # Release & Operations Guide
 
-**Last Updated**: February 2026
+**Last Updated**: March 2026
 **Status**: Production (v2.0 — Build 19)
 
 This is the consolidated guide for releasing OpenIntelligence to the App Store. It combines release checklists, smoke testing, StoreKit configuration, and App Store Connect setup.
@@ -23,7 +23,7 @@ This is the consolidated guide for releasing OpenIntelligence to the App Store. 
 
 ### Code Quality
 
-- [ ] All tests pass (`⌘U` in Xcode)
+- [ ] Clean build (`⌘B` in Xcode) — no test target (removed, see Quick Reference below)
 - [ ] No compiler warnings
 - [ ] SwiftLint passes: `swiftlint`
 - [ ] Secret scan passes: `python3 scripts/secret_scan.py`
