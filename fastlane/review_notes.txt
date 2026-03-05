@@ -1,50 +1,75 @@
 No login required. The app works entirely offline.
 
-VERSION 1.2.0 — WHAT'S NEW SINCE v1.1 (Feb 16, 2026):
+VERSION 2.0.1 — WHAT'S NEW SINCE v2.0 (Feb 28, 2026):
 
-NEW FEATURE — RICH MARKDOWN RESPONSE RENDERING:
-- LLM responses now render with full formatting: headers, bullets, numbered lists, bold text, code blocks, block quotes
-- Previously all responses displayed as a single unformatted paragraph
-- Full block-level markdown parser replaces the inline-only renderer
-- Inline normalization preprocessor splits Apple FM single-line output into proper blocks (6 regex patterns)
-- All LLM synthesis prompts updated with formatting instructions
-- 7 response-cleaning functions audited to preserve markdown structure
+ONBOARDING REWRITE:
+- Complete rebuild of first-run experience into a 2-page flow
+- Page 1: Welcome screen with use-case cards (Research, Work, Study)
+- Page 2: Live pipeline theater — 3 built-in sample documents auto-import with real-time progress
+- Compact capsule phase strip (Extract → Chunk → Embed → Index)
+- Live metrics dashboard showing words, chunks, vectors, and elapsed time
+- Fixed-height streaming log ticker with fade gradient
+- Retry button if sample import fails
+- accessibilityReduceMotion support — animations skip when enabled
+- VoiceOver labels on Skip button, progress indicators, and all interactive elements
 
-NEW FEATURE — DEVICE-OPTIMIZED PERFORMANCE ENGINE:
-- 3-tier Metal GPU shaders (threadgroup/SIMD4/scalar) adapt to corpus size
-- Device-specific OCR concurrency (A19 Pro: 8 ops/1ms, A18 Pro: 6/2ms, A17 Pro: 4/3ms)
-- Concurrent cross-encoder reranking with pre-tokenized bulk memory writes
-- GPU embedding ingestion mode frees Neural Engine for OCR
-- 5-candidate OCR evaluates more alternatives for ambiguous text
+EDUCATIONAL SAMPLE DOCUMENTS:
+- 3 curated documents are auto-imported during onboarding: Pricing Guide, RAG Architecture, Apple Intelligence & PCC
+- These teach the user what the app does and how the pipeline works
+- Sample imports bypass the free tier quota so onboarding always succeeds even if user already has documents
 
-STABILITY FIX:
-- Fixed crash in MMR diversification (array index out of bounds when GPU matrix returned edge-case results)
+SUGGESTED QUESTIONS FIX:
+- Fixed prompt contamination: LLM examples had hardcoded Kia Sportage questions that biased all suggestions toward car topics regardless of document content
+- Now generates 4 content-grounded questions per library from actual document passages
+- Stale questions from previous library no longer flash when switching libraries
 
-PREVIOUS FEATURES (from v1.1):
-- Motherboard HUD: Real-time Apple Silicon X-ray overlay
-- Universal Retrieval: 8 needle-in-haystack accuracy fixes
+CONTAINER ISOLATION:
+- Entity index now tracks per-container document mapping — entity lookups are library-scoped
+- Full-text corpus search accepts document ID filters — no cross-library results
+- Deleting a library properly cleans up all entity index entries
 
-TO TEST RICH MARKDOWN RENDERING:
-1. Launch the app and import any PDF or text file
-2. Wait for processing to complete
-3. Ask a question about the document
-4. Verify the response shows formatted headers (###), bullet lists (-), and bold text (**)
-5. Compare with previous versions where responses were a single paragraph
+SAFETY HARDENING:
+- 37 force-unwrap crash sites eliminated across 26 files
+- 10 fatalError() calls replaced with graceful URL.temporaryDirectory fallbacks
+- 1,278 lines of dead code removed (3 unused files + 1 commented-out class)
+- 3 silent Vision framework catch blocks now log errors via Log.debug()
 
-TO TEST THE MOTHERBOARD HUD:
-1. Go to Settings → Telemetry section
-2. Toggle "Motherboard HUD" on
-3. Return to Chat tab
-4. The X-ray overlay appears showing real chip positions
-5. Ask a question — watch the SoC and Neural Engine indicators pulse during processing
-6. Toggle off from Settings when done
+BUG FIXES:
+- Fixed cross-container chat bleed — queries no longer leak between knowledge libraries
+- Fixed undismissable alert dialogs in Documents and Cached Docs views
+- Fixed empty "Show All Insights" sheet (was a TODO stub, now displays content)
+- Fixed StoreKit stream continuation crash (IUO replaced with AsyncStream.makeStream())
+- Fixed ContainerService initialization stored-property error
+- Removed stub System Status and Developer categories from Settings navigation
 
-SAMPLE TEST: Import any PDF from Files. A simple Wikipedia article export works well. Ask questions like "What is the main topic?" or "Summarize the key points."
+SEARCH & RETRIEVAL:
+- BM25Scorer refactored from class to struct for thread safety
+- Image Playground concept extraction changed from few-shot to zero-shot prompt
 
-SUBSCRIPTION TESTING: The Free tier allows 3 documents. Pro features unlock with subscription purchase.
+TO TEST THE NEW ONBOARDING:
+1. Delete and reinstall the app (or Settings → Reset Onboarding)
+2. Page 1: See the welcome screen with 3 use-case cards — tap "Get Started"
+3. Page 2: Watch 3 sample documents auto-import with live progress. Capsule strip shows phase progression, metrics dashboard counts up, log ticker streams events
+4. After completion, tap "Start Exploring" to enter the app
+5. Verify the 3 sample documents appear in your default library
+6. Go to Chat and verify suggested questions are relevant to the sample documents (not about cars or random topics)
+7. Test with VoiceOver enabled — all progress elements should be announced
+8. Test with Reduce Motion enabled — entrance animations should not play
+
+TO TEST CONTAINER ISOLATION:
+1. Create a second library and import a different document into it
+2. Switch between libraries — suggested questions should change immediately (no stale questions)
+3. Ask a question in Library B — verify zero results from Library A's documents
+4. Delete Library B — verify its entity data is cleaned up (no ghost results in search)
+
+TO TEST BUG FIXES:
+1. In Documents view, long-press a document to trigger the delete alert — verify it dismisses properly
+2. Ask any question, then tap the lightbulb icon — verify the Insights sheet shows content
+
+SAMPLE TEST: The 3 onboarding documents are sufficient for testing. Ask questions like "What are the pricing tiers?" or "How does the RAG pipeline work?"
+
+SUBSCRIPTION TESTING: The Free tier allows 5 documents. Onboarding sample documents bypass this limit. Pro features unlock with subscription purchase.
 
 PRIVACY FEATURES: All processing runs on-device by default. The app uses iOS Foundation Models which may use Private Cloud Compute for complex queries — this is handled automatically by iOS with zero data retention.
-
-NO DEMO CREDENTIALS NEEDED — the app does not require sign-in or account creation.
 
 NO DEMO CREDENTIALS NEEDED — the app does not require sign-in or account creation.

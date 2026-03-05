@@ -46,10 +46,8 @@ struct WritingToolsResultSheet: View {
 
                     Divider()
 
-                    // Result content
-                    Text(result)
-                        .font(.body)
-                        .textSelection(.enabled)
+                    // Result content — rendered with full block-level markdown
+                    MarkdownText(result)
                         .frame(maxWidth: .infinity, alignment: .leading)
 
                     Divider()
@@ -92,6 +90,16 @@ struct WritingToolsResultSheet: View {
                             onCopy()
                         } label: {
                             Label("Copy", systemImage: "doc.on.doc")
+                                .font(.subheadline.weight(.medium))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                                .background(.ultraThinMaterial)
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                        }
+                        .buttonStyle(.plain)
+
+                        ShareLink(item: result) {
+                            Label("Share", systemImage: "square.and.arrow.up")
                                 .font(.subheadline.weight(.medium))
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 10)

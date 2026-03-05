@@ -36,11 +36,11 @@ final class ResponseTransformService: Sendable {
 
     private static let maxResponseChars = 1800
     private static let maxSourceChars = 2400
-    private static let generationTimeoutSeconds: UInt64 = 30
+    nonisolated(unsafe) private static let generationTimeoutSeconds: UInt64 = 30
 
     /// System instructions that prime the model for document-grounded transforms.
     /// Set once per session — saves ~100 tokens vs repeating in every prompt.
-    private static let systemInstructions = """
+    nonisolated(unsafe) private static let systemInstructions = """
     You are a document analysis assistant. You ONLY work with source documents provided by the user. \
     Rules: (1) Never fabricate information not in the sources. (2) If a fact cannot be traced to a \
     specific source document, omit it entirely. (3) Cite source names and page numbers when available. \
@@ -260,7 +260,7 @@ final class ResponseTransformService: Sendable {
             let warmSession = LanguageModelSession(
                 instructions: Instructions(Self.systemInstructions)
             )
-            try? await warmSession.prewarm(promptPrefix: Prompt(responsePrefix))
+            warmSession.prewarm(promptPrefix: Prompt(responsePrefix))
         }
     }
 }

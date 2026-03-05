@@ -1,1 +1,1 @@
-NEW in 2.0: 29-step RAG pipeline. Rich markdown rendering. 3-tier Metal GPU search. Device-specific OCR. AI Hub document transforms. Image Playground. 100% on-device.
+v2.0.1: 37 crash sites fixed. 1,278 lines of dead code removed. Cross-container chat bleed fixed. Onboarding haptics & VoiceOver. 29-step RAG pipeline. 100% on-device.

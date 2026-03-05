@@ -30,10 +30,10 @@ import FoundationModels
 final class WritingToolsService: Sendable {
 
     /// Timeout matches ResponseTransformService for consistency
-    private static let generationTimeoutSeconds: UInt64 = 30
+    nonisolated(unsafe) private static let generationTimeoutSeconds: UInt64 = 30
 
     /// System instructions for text-refinement tasks
-    private static let systemInstructions = """
+    nonisolated(unsafe) private static let systemInstructions = """
     You are a precise text editor. Rules: (1) Return ONLY the edited text — no preamble, \
     no explanations, no commentary. (2) Preserve all factual content. (3) Do not add \
     information that was not in the original text.

@@ -1,8 +1,72 @@
-# What's New in OpenIntelligence v2.0
+# What's New in OpenIntelligence v2.0.1
 
-**Released**: March 2, 2026 (Build 19)
+**Released**: March 4, 2026 (Build 19)
 
 ---
+
+## v2.0.1 — Post-Release Hardening (since v2.0 on Feb 28)
+
+### Safety Hardening (P0–P4)
+
+37 force-unwrap crash sites eliminated across 26 files. 10 `fatalError()` calls replaced with graceful `URL.temporaryDirectory` fallbacks. 1,278 lines of dead code removed (3 unused files + 1 commented-out class). 3 silent Vision `catch` blocks now log via `Log.debug()`.
+
+### Bug Fixes
+
+- **Cross-Container Chat Bleed**: Queries no longer leak between knowledge libraries
+- **Undismissable Alerts**: `.constant()` alert bindings in `CachedDocsView` and `DocumentLibraryView` replaced with proper `@State Bool` / `Binding(get:set:)`
+- **Insights Sheet**: "Show All Insights" in `AdaptiveVisualizationsView` now displays content (was empty TODO)
+- **StoreKit Stream Crash**: `var streamContinuation!` (IUO) replaced with `AsyncStream.makeStream()`
+- **ContainerService Init**: Fixed stored-property initialization error
+- **Settings Cleanup**: Removed stub System Status and Developer categories from navigation
+
+### Onboarding Polish
+
+- 6 haptic touch points (light/selection/medium/success/error)
+- VoiceOver labels on pipeline stage badges, processing overlay, and ingestion rows
+- Analytics: `markOnboardingCompleted()` vs `skipPermanently()` with `completionMethod` tracking
+- Error message: "tap to retry" → "please try again" (no tap target existed)
+- `NSMicrophoneUsageDescription` added for Speech framework voice input
+
+### Onboarding Rewrite — Pipeline Theater
+
+Complete rebuild of the first-run experience into a 2-page flow: welcome with use-case cards → live pipeline theater with compact capsule phase strip, real-time metrics dashboard (words/chunks/vectors/time), fixed-height streaming log ticker, and per-document status lines. Retry button on failure. `accessibilityReduceMotion` support. `foregroundColor` → `foregroundStyle` migration (34 sites). Dead code and performance cleanup.
+
+### Educational Sample Documents
+
+3 curated docs teach users the app's architecture: OpenIntelligence Pricing, RAG Technical Architecture, and Apple Intelligence & Private Cloud Compute. Sample imports bypass the free tier document quota to prevent first-run failures.
+
+### Search & Retrieval
+
+- `BM25Scorer` refactored from class to struct with internal `Storage` reference type (thread safety)
+- Image Playground concept extraction changed from few-shot (hardcoded Mustang example) to zero-shot prompt
+
+### Suggested Questions
+
+- Fixed few-shot contamination: LLM prompt had Kia Sportage examples that biased all suggestions toward car topics regardless of actual documents. Replaced with domain-neutral templates.
+- Fixed 2-question cap bug: diversity filter was too aggressive — now returns 4 grounded questions per library.
+- Stale questions no longer flash when switching libraries — cleared immediately before regeneration.
+- Stronger grounding: every suggested question must reference content from actual document passages.
+
+### AI Hub Result Sheet
+
+- **Markdown Rendering**: AI Hub transform results (Key Facts, Step-by-Step, etc.) now render with full markdown formatting — bullets, bold, headers, code fences — instead of showing raw `**` and `-` characters.
+- **Share Button**: New Share option alongside Copy and Insert in Chat for sending results to Messages, Notes, Mail, etc.
+- **Sheet Sizing**: Result sheet starts at half-height and is draggable to full-height — appropriate sizing for both short and long results.
+
+### Anti-Hallucination: Topical Mismatch Detection
+
+- **Prompt Grounding**: LLM system prompt no longer says "Never say no information." The model can now acknowledge when retrieved excerpts don't address the question instead of fabricating from unrelated context.
+- **Evidence-First Topical Gate**: When query keywords don't appear in retrieved chunks (lexical relevance < 20%), Evidence-First mode activates regardless of similarity score. Prevents high-similarity but off-topic chunks from causing hallucination.
+
+### Container Isolation
+
+- EntityIndexService now tracks per-container document mapping — entity lookups are library-scoped.
+- FullTextStorageService legacy methods now accept document ID filters — no more cross-library corpus searches.
+- Document and library deletion properly cleans up entity index entries.
+
+---
+
+## v2.0 — Major Release
 
 ## The One-Liner
 
@@ -192,10 +256,6 @@ Replaced the sequential "vector-first, then BM25 re-score" pipeline with true pa
 | FTS5-only matches invisible                     | FTS5-only hits surface through RRF with fair ranking           |
 | BM25 column weights: uniform                    | Weighted: section_title (10×), section_path (5×), content (1×) |
 
-### Test Suite Removal
-
-The unit test suite was removed — all tests relied on mock objects and could not exercise real behavior since Apple's on-device frameworks (FoundationModels, Vision OCR, CoreML) are unavailable on the iOS Simulator. BM25 tests crashed the simulator process. Quality is validated through on-device testing.
-
 ### Onboarding Polish
 
 Six first-launch experience improvements:
@@ -247,6 +307,5 @@ For the complete build-by-build changelog, see [CHANGELOG.md](CHANGELOG.md).
 | Font-encoded PDFs          | Silently lost 93% of content            | PHASE -1 Jaccard detection, full OCR forced                                                     |
 | Swift 6 concurrency        | Warnings in 11 files                    | All annotations complete, zero warnings                                                         |
 | Hybrid search architecture | Sequential vector → BM25 re-score       | True parallel vector + FTS5, merged via RRF                                                     |
-| Test coverage              | 44 tests across 7 files                 | Removed — all tests were mock-based, Apple frameworks untestable on simulator                   |
 | LLM reliability            | 0-token responses on rate limit         | 11-fix hardening: compression cap, retry, typed errors                                          |
 | Large PDF memory           | OOM kill on 500+ pages                  | Batch 5-page, 144 DPI image, results release                                                    |

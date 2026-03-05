@@ -394,6 +394,13 @@ struct ChatScreen: View {
             thinkingEvents = []
             speedHistory = []
 
+            // Immediately clear old suggested questions so stale pills never flash
+            dynamicSuggestedQuestions = []
+            dynamicQuestionCategories = [:]
+
+            // Invalidate cached questions for the new container before regenerating
+            await suggestedQuestionsService.invalidateCache(for: activeId)
+
             // Generate dynamic suggested questions based on library content
             refreshDynamicQuestions()
         }
@@ -578,6 +585,7 @@ struct ChatScreen: View {
             )
         }
     )
+    .presentationDetents([.medium, .large])
 }
     }
 
@@ -1150,19 +1158,20 @@ struct ChatScreen: View {
         // If no documents, show onboarding prompts
         if activeDocCount == 0 {
             return [
-                "Import documents from the Documents tab to get started.",
-                "What types of documents can I analyze?",
-                "How does the privacy-first search work?"
+                "Import a document from the Documents tab to get started.",
+                "What file types can I import?",
+                "How does on-device search work?",
+                "What kinds of questions can I ask?"
             ]
         }
 
         // Fallback prompts relevant to sample documents
         // These are specific enough to get good answers but not too nuanced
         return [
-            "How much does the Pro annual subscription cost?",
-            "What embedding model is used and how many dimensions?",
-            "What privacy guarantees does Private Cloud Compute provide?",
-            "What file formats does OpenIntelligence support?"
+            "What are the most important numbers or specs here?",
+            "Are there any step-by-step instructions?",
+            "Any warnings or safety info I should know about?",
+            "Summarize the key points."
         ]
     }
 
@@ -1208,6 +1217,13 @@ struct ChatScreen: View {
                 )
 
                 guard !Task.isCancelled else { return }
+
+                // Verify we're still on the same container — prevents race where
+                // a slow LLM generation from container A overwrites container B's state
+                guard ragService.containerService.activeContainerId == containerId else {
+                    Log.debug("[ChatScreen] Discarding stale questions for container \(containerId.uuidString.prefix(8)) — user switched")
+                    return
+                }
 
                 dynamicSuggestedQuestions = questions.map { $0.text }
                 dynamicQuestionCategories = Dictionary(

@@ -57,7 +57,8 @@ actor EntityIndexService {
 
     /// Document → chunks mapping for bulk deletion
     private var documentToChunks: [UUID: Set<UUID>] = [:]
-
+    /// Document → container mapping for container-scoped lookups
+    private var documentToContainer: [UUID: UUID] = [:]
     /// Statistics
     private(set) var totalEntities: Int = 0
     private(set) var totalIndexedChunks: Int = 0
@@ -87,12 +88,18 @@ actor EntityIndexService {
     /// Index a single chunk's entities
     /// - Parameters:
     ///   - chunk: The document chunk with extracted entities in metadata
-    func indexChunk(_ chunk: DocumentChunk) {
+    ///   - containerId: Container the chunk belongs to (enables container-scoped lookups)
+    func indexChunk(_ chunk: DocumentChunk, containerId: UUID? = nil) {
         guard !chunk.metadata.entities.isEmpty else { return }
 
         let chunkId = chunk.id
         let documentId = chunk.documentId
         var normalizedEntities = Set<String>()
+
+        // Track document → container mapping
+        if let containerId = containerId {
+            documentToContainer[documentId] = containerId
+        }
 
         for entity in chunk.metadata.entities {
             let normalized = normalizeEntity(entity)
@@ -125,9 +132,9 @@ actor EntityIndexService {
     }
 
     /// Index multiple chunks (batch operation)
-    func indexChunks(_ chunks: [DocumentChunk]) {
+    func indexChunks(_ chunks: [DocumentChunk], containerId: UUID? = nil) {
         for chunk in chunks {
-            indexChunk(chunk)
+            indexChunk(chunk, containerId: containerId)
         }
         Log.info("[EntityIndex] Batch indexed \(chunks.count) chunks", category: .retrieval)
     }
@@ -151,6 +158,47 @@ actor EntityIndexService {
             result.formUnion(chunksForEntity(entity))
         }
         return result
+    }
+
+    /// Find all chunk IDs containing a given entity, scoped to a specific container.
+    /// Returns only chunks whose parent document belongs to the specified container.
+    /// - Parameters:
+    ///   - entity: The entity name to search for (case-insensitive)
+    ///   - containerId: Container to restrict results to
+    /// - Returns: Set of chunk UUIDs within this container containing this entity
+    func chunksForEntity(_ entity: String, in containerId: UUID) -> Set<UUID> {
+        let allChunks = chunksForEntity(entity)
+        return filterByContainer(allChunks, containerId: containerId)
+    }
+
+    /// Find all chunk IDs containing any of the given entities, scoped to a specific container.
+    /// - Parameters:
+    ///   - entities: Array of entity names to search for
+    ///   - containerId: Container to restrict results to
+    /// - Returns: Set of chunk UUIDs within this container containing any of these entities
+    func chunksForEntities(_ entities: [String], in containerId: UUID) -> Set<UUID> {
+        var result = Set<UUID>()
+        for entity in entities {
+            result.formUnion(chunksForEntity(entity, in: containerId))
+        }
+        return result
+    }
+
+    /// Filter chunk IDs to only those belonging to a specific container
+    private func filterByContainer(_ chunkIds: Set<UUID>, containerId: UUID) -> Set<UUID> {
+        // Build set of documents in this container
+        let containerDocIds = Set(documentToContainer.filter { $0.value == containerId }.map { $0.key })
+        // For each chunk, check if its parent document is in the container
+        return chunkIds.filter { chunkId in
+            guard chunkToEntities[chunkId] != nil else { return false }
+            // Find which document this chunk belongs to via documentToChunks reverse lookup
+            for (docId, docChunks) in documentToChunks {
+                if docChunks.contains(chunkId) {
+                    return containerDocIds.contains(docId)
+                }
+            }
+            return false
+        }
     }
 
     /// Find entities shared between multiple chunks (for relatedness scoring)
@@ -216,7 +264,17 @@ actor EntityIndexService {
         }
 
         documentToChunks.removeValue(forKey: documentId)
+        documentToContainer.removeValue(forKey: documentId)
         Log.info("[EntityIndex] Removed \(chunkIds.count) chunks for document \(documentId.uuidString.prefix(8))", category: .retrieval)
+    }
+
+    /// Remove all entities for an entire container (all its documents)
+    func removeContainer(_ containerId: UUID) {
+        let docIds = documentToContainer.filter { $0.value == containerId }.map { $0.key }
+        for docId in docIds {
+            removeDocument(docId)
+        }
+        Log.info("[EntityIndex] Removed \(docIds.count) documents for container \(containerId.uuidString.prefix(8))", category: .retrieval)
     }
 
     /// Clear the entire index
@@ -224,6 +282,7 @@ actor EntityIndexService {
         entityToChunks.removeAll()
         chunkToEntities.removeAll()
         documentToChunks.removeAll()
+        documentToContainer.removeAll()
         totalEntities = 0
         totalIndexedChunks = 0
         lastUpdated = Date()
@@ -238,6 +297,7 @@ actor EntityIndexService {
         let snapshotData = EntityIndexSnapshotData(
             entityToChunks: entityToChunks.mapValues { Array($0) },
             documentToChunks: documentToChunks.mapValues { Array($0) },
+            documentToContainer: documentToContainer,
             lastUpdated: lastUpdated
         )
         let url = persistenceURL
@@ -286,6 +346,7 @@ actor EntityIndexService {
         // Rebuild indices from snapshot
         entityToChunks = snapshot.entityToChunks.mapValues { Set($0) }
         documentToChunks = snapshot.documentToChunks.mapValues { Set($0) }
+        documentToContainer = snapshot.documentToContainer ?? [:]
 
         // Rebuild reverse index
         chunkToEntities.removeAll()
@@ -351,6 +412,7 @@ actor EntityIndexService {
 struct EntityIndexSnapshotData: Sendable {
     let entityToChunks: [String: [UUID]]
     let documentToChunks: [UUID: [UUID]]
+    let documentToContainer: [UUID: UUID]?
     let lastUpdated: Date
 }
 
@@ -359,6 +421,7 @@ extension EntityIndexSnapshotData: Codable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         entityToChunks = try container.decode([String: [UUID]].self, forKey: .entityToChunks)
         documentToChunks = try container.decode([UUID: [UUID]].self, forKey: .documentToChunks)
+        documentToContainer = try container.decodeIfPresent([UUID: UUID].self, forKey: .documentToContainer)
         lastUpdated = try container.decode(Date.self, forKey: .lastUpdated)
     }
 
@@ -366,11 +429,12 @@ extension EntityIndexSnapshotData: Codable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(entityToChunks, forKey: .entityToChunks)
         try container.encode(documentToChunks, forKey: .documentToChunks)
+        try container.encode(documentToContainer, forKey: .documentToContainer)
         try container.encode(lastUpdated, forKey: .lastUpdated)
     }
 
     private enum CodingKeys: String, CodingKey {
-        case entityToChunks, documentToChunks, lastUpdated
+        case entityToChunks, documentToChunks, documentToContainer, lastUpdated
     }
 }
 

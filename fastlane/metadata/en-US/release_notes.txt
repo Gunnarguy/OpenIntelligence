@@ -1,49 +1,59 @@
-Version 2.0
+Version 2.0.1
 
-AI-POWERED DOCUMENT TRANSFORMS
-New AI Hub toolbar with 5 document-aware transforms -- each uses your actual retrieved source chunks, not just the AI response text.
+SAFETY HARDENING
+- 37 force-unwrap crash sites eliminated across 26 files
+- 10 fatalError() calls replaced with graceful fallbacks
+- 1,278 lines of dead code removed (3 unused files + commented-out class)
+- 3 silent Vision error handlers now log properly
 
-- Key Facts: Source-backed bullet points with document/page attribution
-- Step-by-Step: Real procedures with specs and part numbers from your docs
-- Plain English: Simplifies complex technical content into accessible language
-- What's Missing?: Identifies gaps between your question and the retrieved answer
-- Illustrate: Image Playground visualization powered by LLM concept extraction
+BUG FIXES
+- Fixed cross-container chat bleed (queries no longer leak between libraries)
+- Fixed undismissable alert dialogs in Documents and Cached Docs views
+- Fixed empty Insights sheet (Show All Insights now displays content)
+- Fixed StoreKit stream continuation crash (IUO replaced with AsyncStream)
+- Fixed ContainerService initialization error
+- Removed stub System Status and Developer categories from Settings
 
-SEARCH & RETRIEVAL UPGRADES
-- BM25 length normalization aligned for better recall on uniform-size chunks
-- 5 regex patterns pre-compiled as static constants
-- NLTagger lemmatization in keyword search
-- Anti-hallucination Gate E uses hardware-optimized cosine similarity
-- Verification Gate thresholds tuned to reduce false abstentions
+ONBOARDING POLISH
+- Haptic feedback on all 6 onboarding interactions
+- VoiceOver labels for pipeline progress, ingestion rows, and stage badges
+- Analytics now distinguishes completed vs skipped onboarding
+- Fixed misleading "tap to retry" error message
+- Added microphone permission for voice input
 
-IMAGE PLAYGROUND
-On-device LLM translates domain jargon into visual scenes. No more try another description on technical content.
+ONBOARDING REWRITE
+- Complete rebuild: 2-page flow with live pipeline theater
+- Compact phase capsules (Extract → Chunk → Embed → Index)
+- Real-time metrics dashboard (words, chunks, vectors, time)
+- Fixed-height streaming log ticker with fade gradient
+- Retry button when sample import fails
+- Reduce motion and VoiceOver accessibility support
+- Swift 6 concurrency migration + dead code cleanup
 
-FORMATTED RESPONSES
-Full markdown rendering: headers, bullets, bold, code blocks, block quotes. 6 regex patterns normalize Apple FM single-line output.
+EDUCATIONAL SAMPLE DOCS
+- 3 built-in docs teach you how the app works: Pricing, RAG Architecture, Apple Intelligence & PCC
+- Sample imports bypass free tier limit so onboarding always succeeds
 
-PERFORMANCE (per Apple Silicon chip)
-- 2-4x parallel cross-encoder reranking via TaskGroup
-- 3x faster MLMultiArray fills with dataPointer bulk copy
-- Device-specific OCR concurrency (A19 Pro 8 ops, A18 Pro 6, A17 Pro 4)
-- 50-80% OCR skip rate on clean digital PDFs
-- 3-tier Metal GPU: threadgroup/SIMD4/scalar auto-selected per query size
-- 5 OCR candidates evaluated per recognition (was 3)
+SEARCH & RETRIEVAL
+- BM25Scorer refactored from class to struct for thread safety
+- Image Playground concept extraction uses zero-shot prompt (removed hardcoded Mustang bias)
 
-RELIABILITY
-- Compression capped at 5 chunks with fresh LLM session per chunk
-- 12-second compression time budget
-- Rate-limit retry with 2s backoff
-- Extractive fallback upgraded: 6 chunks x 500 chars with section titles
+SUGGESTED QUESTIONS
+- Fixed prompt contamination causing off-topic suggestions (car questions on unrelated docs)
+- Now generates 4 grounded questions per library from actual document content
+- Stale questions cleared instantly when switching libraries
 
-ZERO-DATA-LOSS INGESTION
-- Font cipher detection prevents 93% content loss on font-encoded PDFs
-- 5 Unicode regex patterns fixed
-- Image batch reduced from 20 to 5 pages for lower memory usage
+CONTAINER ISOLATION
+- Entity index, full-text search, and suggested questions fully scoped per library
+- Document and library deletion properly cleans all cross-references
 
-STABILITY
-- MMR crash fixed (GPU matrix edge case)
-- StoreKit 5s timeout (was 30-60s hang offline)
-- BGTask registration fixed
-- Swift 6 concurrency: 11 files updated, zero runtime change
-- 102 services powering the 29-step pipeline
+AI HUB RESULT SHEET
+- Transform results (Key Facts, Step-by-Step, etc.) now render with full markdown formatting
+- New Share button alongside Copy and Insert in Chat
+- Sheet starts at half-height, draggable to full for longer results
+
+ANTI-HALLUCINATION
+- LLM can now acknowledge when documents don't cover the question (was forced to fabricate)
+- Topical mismatch detection: Evidence-First mode activates when query keywords don't match retrieved chunks
+
+Includes all v2.0 features: 29-step RAG pipeline, AI Hub transforms, 3-tier Metal GPU search, device-specific OCR, rich markdown rendering, 102 services.

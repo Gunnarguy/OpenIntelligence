@@ -250,6 +250,7 @@ We use the on-device ~3 billion parameter model (Quantized to 3.7 bits).
   - **VerificationGateService** runs after generation.
   - It checks: "Did the model hallucinate?"
   - If the model claims a number that isn't in the source chunks, the answer is flagged or discarded.
+  - **Topical Mismatch Detection**: Before generation, if query keywords don't appear in retrieved chunks (lexical relevance < 20%), the system switches to Evidence-First mode — a cautious prompt that says "Do NOT fill gaps with assumptions" and forces a confidence disclosure.
 
 ### Summary
 

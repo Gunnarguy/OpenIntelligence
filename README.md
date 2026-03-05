@@ -45,7 +45,8 @@ Every pipeline stage is now hardware-aware — tuned to the specific Apple Silic
 - **Concurrent GPU rendering** — CIFilter preprocessing runs in parallel (was serialized)
 - **5-candidate OCR** — Evaluates more transcription alternatives for higher accuracy on ambiguous text
 - **Font-encoded PDF detection** — Automatic PHASE -1 validation detects font substitution ciphers (Kia, Hyundai manuals) that trick every quality check, preventing 93% content loss
-- **RAG-grounded response transforms** — AI Hub toolbar with 5 document-aware transforms (Key Facts, Step-by-Step, Plain English, What's Missing?, Illustrate) powered by actual source chunks
+- **RAG-grounded response transforms** — AI Hub toolbar with 5 document-aware transforms (Key Facts, Step-by-Step, Plain English, What's Missing?, Illustrate) powered by actual source chunks. Results render with full markdown formatting, Share button, and adaptive sheet sizing
+- **Anti-hallucination topical mismatch** — LLM prompt now allows acknowledging when excerpts don't cover the question (was forced to fabricate). Evidence-First mode triggers on lexical relevance < 20% regardless of similarity score
 - **Image Playground LLM concepts** — On-device LLM translates domain jargon into visual scene descriptions instead of raw noun extraction
 
 ### Rich Markdown Response Rendering (v2.0)
@@ -111,6 +112,15 @@ Prevents OOM watchdog kills during ingestion of 500+ page PDFs:
 - **Results release** — Parsed page data freed before image analysis begins (~100-200MB reclaimed)
 - **Batch 20 → 5** — Peak CIImage memory per batch drops from ~200MB to ~50MB
 - **144 DPI image understanding** — Full-page renders for Vision classification use 2× scale (was 5×/360 DPI)
+
+### Post-Release Hardening (v2.0.1)
+
+- **Onboarding rewrite** — Complete rebuild of first-run experience: 2-page flow with use-case cards → live pipeline theater showing real-time capsule phases, metrics dashboard, and streaming pipeline log
+- **Educational sample documents** — 3 curated docs (Pricing Guide, RAG Architecture, Apple Intelligence & PCC) auto-imported during onboarding with quota bypass
+- **Suggested questions fix** — Removed hardcoded Kia Sportage examples that contaminated all suggestions; now generates 4 content-grounded questions per library
+- **Container isolation** — Entity index, full-text search, and corpus analysis fully scoped per library
+- **37 force-unwrap eliminations** — Crash-proofing across 26 files with zero runtime behavior change
+- **5 bug fixes** — Cross-container chat bleed, undismissable alerts, empty Insights sheet, StoreKit stream crash, ContainerService init
 
 ---
 
@@ -311,14 +321,15 @@ RENDERING (2 steps):
 
 ## Verification Gates (Anti-Hallucination)
 
-Every response passes through 4 verification gates:
+Every response passes through 4 verification gates + a pre-generation topical check:
 
-| Gate  | Name                 | What It Checks                                            |
-| ----- | -------------------- | --------------------------------------------------------- |
-| **A** | Retrieval Confidence | `max(score) ≥ τ` AND `margin ≥ μ` between top results     |
-| **B** | Evidence Coverage    | All claims must cite `evidence_ids` from retrieved chunks |
-| **C** | Numeric Sanity       | Numbers in response must match source documents           |
-| **D** | Contradiction Sweep  | Detect conflicting evidence across chunks                 |
+| Gate    | Name                 | What It Checks                                                                        |
+| ------- | -------------------- | ------------------------------------------------------------------------------------- |
+| **Pre** | Topical Relevance    | Query keywords must appear in chunks (lexical ≥ 20%) or Evidence-First mode activates |
+| **A**   | Retrieval Confidence | `max(score) ≥ τ` AND `margin ≥ μ` between top results                                 |
+| **B**   | Evidence Coverage    | All claims must cite `evidence_ids` from retrieved chunks                             |
+| **C**   | Numeric Sanity       | Numbers in response must match source documents                                       |
+| **D**   | Contradiction Sweep  | Detect conflicting evidence across chunks                                             |
 
 If any gate fails, the system either abstains or triggers iterative retrieval.
 

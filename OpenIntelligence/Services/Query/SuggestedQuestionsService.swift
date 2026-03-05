@@ -37,7 +37,7 @@ import FoundationModels
 @available(iOS 26.0, *)
 @Generable
 struct SuggestedQuestionList: Sendable {
-    @Guide(description: "Specific, answerable questions grounded in the provided document passages. Each question references a concrete detail — a number, term, name, species, process, or measurement — that appears in the text. Questions are diverse in type and topic across the passages. Do not start with 'What is' or 'Explain' for simple concepts.")
+    @Guide(description: "Short, natural questions someone would actually ask after reading these documents. Each question targets a specific fact, number, name, or procedure from the text. Questions sound casual and direct — like texting a coworker, not writing an exam. Never start with 'What role does' or 'What is the significance of'.")
     var questions: [String]
 }
 #endif
@@ -313,17 +313,23 @@ actor SuggestedQuestionsService {
         }
 
         let prompt = """
-        You are generating suggested questions for a document Q&A system. Below are passages from the user's uploaded documents.
+        You are writing suggested questions for a document Q&A app. Below are passages from the user's documents.
 
-        Generate exactly 6 specific questions that someone would naturally want to ask about this content. Each question must:
-        - Reference specific details, terms, numbers, or concepts FROM the passages (not generic)
-        - Be answerable from the document content (grounded)
-        - Be diverse: cover different passages, topics, and question types
-        - Be concise (under 15 words)
-        - NOT start with "What is" or "Explain" unless asking about a genuinely complex concept
+        Write 6 short questions that sound like a real person casually asking about their documents.
 
-        Good examples: "What oil viscosity does the 2024 Sportage require?", "How does MMR diversification improve retrieval?", "What are the side effects of methylphenidate on emotional regulation?"
-        Bad examples: "What is analysis?", "Explain the data", "Tell me about the document"
+        Rules:
+        - Every question MUST reference a specific detail FROM the passages below — a name, number, date, step, requirement, or spec that actually appears in the text
+        - Sound natural and direct — under 12 words each
+        - Mix question types: some "how much/many", some "what happens if", some "which", some "why"
+        - Do NOT use phrases like "What role does", "What is the significance of", "What are the key", "Can you explain"
+        - Do NOT ask about the documents themselves ("What does the document say about...")
+        - Do NOT copy or rephrase any example below — your questions must come ONLY from the passages
+        - Ask about the CONTENT as if you read it and want to know more
+
+        Style guide (for tone only — do NOT reuse these topics):
+        - "[specific thing from passage] — how does that work?"
+        - "How many [unit] does [thing from passage] need?"
+        - "What happens if [condition from passage]?"
         \(avoidClause)
         PASSAGES:
         \(passageText)
@@ -346,14 +352,23 @@ actor SuggestedQuestionsService {
 
             let categories: [QuestionCategory] = [.factRetrieval, .analytical, .procedural, .comparison, .summarization, .numerical]
 
+            // Map each question to the passage/doc it most likely came from
+            // (by index alignment with the passages we sent)
+            let docNamesFromPassages = chunks.prefix(5).map { chunk in
+                documents.first(where: { $0.id == chunk.documentId })?.filename ?? "Document"
+            }
+
             let questions = lines.prefix(6).enumerated().map { index, text in
                 let cleanText = text.hasSuffix("?") ? text : text + "?"
-                let docNames = documents.map { $0.filename }
+                // Assign to the passage doc at the corresponding index (wraps around)
+                let sourceDoc = index < docNamesFromPassages.count
+                    ? docNamesFromPassages[index]
+                    : (docNamesFromPassages.first ?? "Document")
                 return SuggestedQuestion(
                     id: UUID(),
                     text: cleanText,
                     category: categories[index % categories.count],
-                    relevantDocuments: docNames,
+                    relevantDocuments: [sourceDoc],
                     confidence: 0.95
                 )
             }
@@ -387,7 +402,7 @@ actor SuggestedQuestionsService {
             for (abbr, expansion) in chunk.metadata.abbreviations.prefix(2) {
                 questions.append(SuggestedQuestion(
                     id: UUID(),
-                    text: "What role does \(expansion) (\(abbr)) play in this context?",
+                    text: "What does \(abbr) (\(expansion)) do?",
                     category: .factRetrieval,
                     relevantDocuments: [docName],
                     confidence: 0.85
@@ -400,7 +415,7 @@ actor SuggestedQuestionsService {
                !isGenericSectionTitle(section) {
                 questions.append(SuggestedQuestion(
                     id: UUID(),
-                    text: "What are the key points about \(section.lowercased())?",
+                    text: "What's covered under \(section.lowercased())?",
                     category: .summarization,
                     relevantDocuments: [docName],
                     confidence: 0.80
@@ -413,7 +428,7 @@ actor SuggestedQuestionsService {
                 if let detail = numbers.first {
                     questions.append(SuggestedQuestion(
                         id: UUID(),
-                        text: "What is the significance of \(detail)?",
+                        text: "Why is \(detail) important here?",
                         category: .numerical,
                         relevantDocuments: [docName],
                         confidence: 0.82
@@ -430,7 +445,7 @@ actor SuggestedQuestionsService {
             if let entity = specificEntities.first {
                 questions.append(SuggestedQuestion(
                     id: UUID(),
-                    text: "What does the document say about \(entity)?",
+                    text: "What does \(entity) actually do?",
                     category: .factRetrieval,
                     relevantDocuments: [docName],
                     confidence: 0.78
@@ -442,7 +457,7 @@ actor SuggestedQuestionsService {
             if let phrase = keyPhrases.first {
                 questions.append(SuggestedQuestion(
                     id: UUID(),
-                    text: "How does \(phrase) work according to the documents?",
+                    text: "How does \(phrase) work?",
                     category: .analytical,
                     relevantDocuments: [docName],
                     confidence: 0.75
@@ -471,7 +486,7 @@ actor SuggestedQuestionsService {
                     .replacingOccurrences(of: "-", with: " ")
                 questions.append(SuggestedQuestion(
                     id: UUID(),
-                    text: "What are the main topics covered in \(cleanName)?",
+                    text: "What's the main point of \(cleanName)?",
                     category: .summarization,
                     relevantDocuments: [doc.filename],
                     confidence: 0.60
@@ -484,17 +499,23 @@ actor SuggestedQuestionsService {
 
     // MARK: - Step 4: Diversity Enforcement
 
-    /// Ensure question diversity: max 2 from same document, spread categories
+    /// Ensure question diversity: spread categories, limit per-document concentration
+    /// The per-doc cap scales with how many documents exist — a single-doc library
+    /// can still produce 4+ questions without being artificially cut to 2.
     private func enforceDiversity(_ questions: [SuggestedQuestion], count: Int) -> [SuggestedQuestion] {
         var result: [SuggestedQuestion] = []
         var docCounts: [String: Int] = [:]
         var usedCategories: Set<QuestionCategory> = []
 
+        // Dynamic per-doc cap: allow more questions from same doc when few docs exist
+        let uniqueDocs = Set(questions.flatMap { $0.relevantDocuments })
+        let perDocCap = uniqueDocs.count <= 2 ? count : max(2, count / uniqueDocs.count + 1)
+
         // First pass: pick one from each category
         for question in questions.sorted(by: { $0.confidence > $1.confidence }) {
             if !usedCategories.contains(question.category) {
                 let docKey = question.relevantDocuments.first ?? ""
-                if (docCounts[docKey] ?? 0) < 2 {
+                if (docCounts[docKey] ?? 0) < perDocCap {
                     result.append(question)
                     usedCategories.insert(question.category)
                     docCounts[docKey, default: 0] += 1
@@ -509,7 +530,7 @@ actor SuggestedQuestionsService {
             for question in questions.sorted(by: { $0.confidence > $1.confidence }) {
                 guard !usedIds.contains(question.id) else { continue }
                 let docKey = question.relevantDocuments.first ?? ""
-                if (docCounts[docKey] ?? 0) < 2 {
+                if (docCounts[docKey] ?? 0) < perDocCap {
                     result.append(question)
                     docCounts[docKey, default: 0] += 1
                 }
@@ -598,16 +619,17 @@ actor SuggestedQuestionsService {
 
     /// Questions shown when no documents are in the library
     static let emptyLibraryQuestions: [String] = [
-        "Import documents from the Documents tab to get started.",
-        "What types of documents can I add to my library?",
-        "How does the search and retrieval system work?"
+        "Import a document from the Documents tab to get started.",
+        "What file types can I import?",
+        "How does the on-device search work?",
+        "What kinds of questions can I ask?"
     ]
 
     /// Generic fallback questions (absolute last resort)
     static let genericQuestions: [String] = [
-        "Summarize the main topics covered in my documents.",
-        "What are the most important facts I should know?",
-        "List the key entities or subjects mentioned.",
-        "What questions can these documents answer?"
+        "What are the most important numbers or specs here?",
+        "Are there any step-by-step instructions?",
+        "Any warnings or safety info I should know about?",
+        "What deadlines or dates are mentioned?"
     ]
 }

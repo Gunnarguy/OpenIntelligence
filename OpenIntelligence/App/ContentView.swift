@@ -8,7 +8,6 @@
 import Combine
 import CoreSpotlight
 import SwiftUI
-import TipKit
 
 struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
@@ -148,9 +147,6 @@ struct ContentView: View {
         TabView(selection: $selectedTab) {
             NavigationStack {
                 ChatScreen(ragService: ragService)
-                    .overlay(alignment: .top) {
-                        InlineTipView(tip: FirstQueryTip())
-                    }
             }
             .tabItem {
                 Label("Chat", systemImage: "bubble.left.and.bubble.right")
@@ -163,9 +159,6 @@ struct ContentView: View {
                     containerService: containerService,
                     onViewVisualizations: { selectedTab = .visualizations }
                 )
-                .overlay(alignment: .top) {
-                    InlineTipView(tip: IngestDocumentTip())
-                }
             }
             .tabItem {
                 Label("Documents", systemImage: "doc.text.magnifyingglass")
@@ -176,9 +169,6 @@ struct ContentView: View {
                 AdaptiveVisualizationsView()
                     .environmentObject(ragService)
                     .environmentObject(containerService)
-                    .overlay(alignment: .top) {
-                        InlineTipView(tip: AtlasTip())
-                    }
             }
             .tabItem {
                 Label("Atlas", systemImage: "globe.americas")
@@ -197,9 +187,6 @@ struct ContentView: View {
 
             NavigationStack {
                 SettingsView(ragService: ragService)
-                    .overlay(alignment: .top) {
-                        InlineTipView(tip: ModelConfigTip())
-                    }
             }
             .environmentObject(settingsStore)
             .environmentObject(entitlementStore)

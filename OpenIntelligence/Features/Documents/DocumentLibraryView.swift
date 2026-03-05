@@ -495,6 +495,11 @@ struct DocumentLibraryView: View {
         // Invalidate visualization cache
         LibraryVisualizationEngine.shared.invalidateCache(for: container.id)
 
+        // Clean up entity index for deleted container
+        Task {
+            await EntityIndexService.shared.removeContainer(container.id)
+        }
+
         libraryToDelete = nil
     }
 

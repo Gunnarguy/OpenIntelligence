@@ -1,581 +1,760 @@
 import SwiftUI
 
-/// Full-screen onboarding splash shown on first launch.
-/// Clean, benefit-focused design that guides users to value quickly.
-/// Sample documents import in background after dismissal - no blocking UI.
+// MARK: - Display Helpers
+
+private func fmtNumber(_ n: Int) -> String {
+    if n >= 1_000_000 { return String(format: "%.1fM", Double(n) / 1_000_000) }
+    if n >= 1000 { return String(format: "%.1fK", Double(n) / 1000) }
+    return "\(n)"
+}
+
+private func fmtMs(_ ms: Int) -> String {
+    if ms >= 60000 { return String(format: "%.1fm", Double(ms) / 60000) }
+    if ms >= 1000 { return String(format: "%.1fs", Double(ms) / 1000) }
+    return "\(ms)ms"
+}
+
+// MARK: - Pipeline Log Entry
+
+private struct PipelineLogEntry: Identifiable {
+    let id = UUID()
+    let timestamp = Date()
+    let icon: String
+    let color: Color
+    let text: String
+}
+
+// MARK: - OnboardingChecklistView
+
+/// Full-screen onboarding: 2-page flow.
+/// Page 1 - Welcome with real-world use cases.
+/// Page 2 - Live pipeline theater: compact metrics dashboard + streaming log.
 struct OnboardingChecklistView: View {
     @EnvironmentObject private var onboardingStore: OnboardingStateStore
-    @EnvironmentObject private var entitlementStore: EntitlementStore
     @ObservedObject var ragService: RAGService
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let onOpenSettings: () -> Void
     let onOpenChat: () -> Void
 
     @State private var currentPage = 0
+    private let totalPages = 2
 
-    private let totalPages = 3
+    // Staggered entrance animation
+    @State private var showHeadline = false
+    @State private var showSubtitle = false
+    @State private var cardsRevealed = 0
+
+    // Processing state
+    @State private var hasSentImportRequest = false
+    @State private var isProcessing = false
+    @State private var processingStatus = "Preparing documents..."
+    @State private var processingComplete = false
+    @State private var processingFailed = false
+
+    // Streaming log
+    @State private var logEntries: [PipelineLogEntry] = []
+    @State private var lastSnapshotPerItem: [UUID: MetricsSnapshot] = [:]
 
     var body: some View {
         ZStack {
             SplashBackdrop()
 
             VStack(spacing: 0) {
-                // Skip button - permanent skip on final page
+                // Skip button
                 HStack {
                     Spacer()
                     Button {
-                        if currentPage == totalPages - 1 {
-                            // On final page, skip permanently
-                            DSHaptics.light()
-                            onboardingStore.skipPermanently()
-                            onOpenChat()
-                        } else {
-                            DSHaptics.soft()
-                            onboardingStore.dismissChecklist()
-                        }
+                        DSHaptics.light()
+                        onboardingStore.skipPermanently()
+                        onOpenChat()
                     } label: {
                         Text("Skip")
                             .font(.body.weight(.medium))
-                            .foregroundColor(.white.opacity(0.7))
+                            .foregroundStyle(.white.opacity(0.7))
                             .padding(.horizontal, 16)
                             .padding(.vertical, 8)
                     }
                     .buttonStyle(.plain)
-                    .opacity(isProcessing ? 0 : 1)
-                    .disabled(isProcessing)
+                    .accessibilityLabel("Skip onboarding")
+                    .opacity(isProcessing && !processingComplete ? 0 : 1)
+                    .disabled(isProcessing && !processingComplete)
                 }
                 .padding(.top, 16)
                 .padding(.trailing, 8)
 
-                Spacer()
-
                 // Page content
                 TabView(selection: $currentPage) {
                     welcomePage.tag(0)
-                    featuresPage.tag(1)
-                    getStartedPage.tag(2)
+                    pipelineTheaterPage.tag(1)
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
-                .animation(.easeInOut(duration: 0.3), value: currentPage)
-                .opacity(isProcessing ? 0.3 : 1)
-                .blur(radius: isProcessing ? 8 : 0)
+                .animation(.easeInOut(duration: 0.4), value: currentPage)
 
-                Spacer()
-
-                // Page indicator and navigation
-                VStack(spacing: 24) {
-                    // Custom page dots
-                    HStack(spacing: 8) {
-                        ForEach(0 ..< totalPages, id: \.self) { index in
-                            Circle()
-                                .fill(index == currentPage ? Color.white : Color.white.opacity(0.3))
-                                .frame(width: 8, height: 8)
-                                .scaleEffect(index == currentPage ? 1.2 : 1.0)
-                                .animation(.spring(response: 0.3), value: currentPage)
-                        }
-                    }
-                    .opacity(isProcessing ? 0 : 1)
-
-                    // Navigation buttons
-                    if currentPage < totalPages - 1 {
-                        Button {
-                            DSHaptics.selection()
-                            withAnimation { currentPage += 1 }
-                        } label: {
-                            Text("Continue")
-                                .font(.headline)
-                                .foregroundColor(.black)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 16)
-                                .background(Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.horizontal, 32)
-                    } else {
-                        // Final page - primary CTA
-                        Button {
-                            DSHaptics.medium()
-                            startWithSamples()
-                        } label: {
-                            HStack(spacing: 8) {
-                                Image(systemName: "arrow.right.circle.fill")
-                                Text("Get Started")
-                                    .font(.headline)
-                            }
-                            .foregroundColor(.black)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 16)
-                            .background(Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.horizontal, 32)
-                        .disabled(isProcessing)
-                        .opacity(isProcessing ? 0 : 1)
-
-                        Button {
-                            DSHaptics.light()
-                            onboardingStore.skipPermanently()
-                            onOpenChat()
-                        } label: {
-                            Text("I'll add my own documents")
-                                .font(.subheadline.weight(.medium))
-                                .foregroundColor(.white.opacity(0.8))
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.top, 4)
-                        .disabled(isProcessing)
-                        .opacity(isProcessing ? 0 : 1)
-                    }
-                }
-                .padding(.bottom, 48)
+                // Bottom navigation
+                bottomNavigation
             }
-
-            // Processing overlay
-            if isProcessing {
-                processingOverlay
-                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
-            }
+        }
+        .onAppear { animateEntrance() }
+        .onChange(of: ragService.ingestionItems) { _, newItems in
+            diffAndEmitLogEntries(newItems)
         }
         .accessibilityElement(children: .contain)
     }
 
-    // MARK: - Processing Overlay
+    // MARK: - Bottom Navigation
 
-    private var processingOverlay: some View {
+    private var bottomNavigation: some View {
         VStack(spacing: 20) {
-            // Header with pulsing icon
-            HStack(spacing: 12) {
-                ZStack {
-                    Circle()
-                        .fill(Color.accentColor.opacity(0.2))
-                        .frame(width: 48, height: 48)
-                        .scaleEffect(pulseAnimation ? 1.1 : 1.0)
-                        .animation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true), value: pulseAnimation)
-
-                    Image(systemName: "cpu")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [.accentColor, .purple],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
+            HStack(spacing: 8) {
+                ForEach(0..<totalPages, id: \.self) { index in
+                    Capsule()
+                        .fill(index == currentPage ? Color.white : Color.white.opacity(0.3))
+                        .frame(width: index == currentPage ? 24 : 8, height: 8)
+                        .animation(.spring(response: 0.3), value: currentPage)
                 }
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("RAG Pipeline Active")
-                        .font(.headline)
-                        .foregroundColor(.white)
-
-                    Text(overallStatus)
-                        .font(.subheadline)
-                        .foregroundColor(.white.opacity(0.7))
-                }
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("RAG Pipeline: \(overallStatus)")
-
-                Spacer()
             }
-            .padding(.horizontal, 4)
+            .opacity(isProcessing && !processingComplete ? 0 : 1)
 
-            // Pipeline legend - shows which phase is active
-            HStack(spacing: 12) {
-                PipelineStageBadge(
-                    label: "Extract",
-                    icon: "doc.text",
-                    isActive: currentPipelinePhase == .extract
-                )
-
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 8, weight: .bold))
-                    .foregroundColor(.white.opacity(0.3))
-
-                PipelineStageBadge(
-                    label: "Chunk",
-                    icon: "rectangle.split.3x1",
-                    isActive: currentPipelinePhase == .chunk
-                )
-
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 8, weight: .bold))
-                    .foregroundColor(.white.opacity(0.3))
-
-                PipelineStageBadge(
-                    label: "Embed",
-                    icon: "point.3.connected.trianglepath.dotted",
-                    isActive: currentPipelinePhase == .embed
-                )
-
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 8, weight: .bold))
-                    .foregroundColor(.white.opacity(0.3))
-
-                PipelineStageBadge(
-                    label: "Index",
-                    icon: "magnifyingglass",
-                    isActive: currentPipelinePhase == .index
-                )
-            }
-            .padding(.horizontal, 8)
-
-            // Real-time ingestion queue
-            if !ragService.ingestionItems.isEmpty {
-                VStack(spacing: 8) {
-                    ForEach(ragService.ingestionItems.prefix(5)) { item in
-                        OnboardingIngestionRow(item: item)
+            if currentPage == 0 {
+                Button {
+                    DSHaptics.medium()
+                    withAnimation(.easeInOut(duration: 0.4)) { currentPage = 1 }
+                    Task { try? await Task.sleep(for: .milliseconds(500)); startWithSamples() }
+                } label: {
+                    HStack(spacing: 8) {
+                        Text("See It in Action").font(.headline)
+                        Image(systemName: "play.fill").font(.system(size: 13))
                     }
-
-                    if ragService.ingestionItems.count > 5 {
-                        Text("+\(ragService.ingestionItems.count - 5) more...")
-                            .font(.caption)
-                            .foregroundColor(.white.opacity(0.5))
-                    }
+                    .foregroundStyle(.black)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 32)
+
+                Button {
+                    DSHaptics.light()
+                    onboardingStore.skipPermanently()
+                    onOpenChat()
+                } label: {
+                    Text("I'll add my own documents")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.white.opacity(0.7))
+                }
+                .buttonStyle(.plain)
+            } else if processingComplete {
+                Button {
+                    DSHaptics.medium()
+                    onboardingStore.markOnboardingCompleted()
+                    onOpenChat()
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "bubble.left.and.text.bubble.right.fill").font(.system(size: 14))
+                        Text("Start Asking").font(.headline)
+                    }
+                    .foregroundStyle(.black)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 32)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            } else if processingFailed {
+                Button {
+                    DSHaptics.medium()
+                    processingFailed = false
+                    startWithSamples()
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "arrow.clockwise").font(.system(size: 13))
+                        Text("Retry").font(.headline)
+                    }
+                    .foregroundStyle(.black)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 32)
             } else {
-                // Fallback when queue is empty but still processing
-                HStack(spacing: 12) {
-                    ProgressView()
-                        .tint(.white)
+                Color.clear.frame(height: 52)
+            }
+        }
+        .padding(.bottom, 48)
+    }
 
-                    Text(processingStatus)
-                        .font(.subheadline)
-                        .foregroundColor(.white.opacity(0.7))
+    // MARK: - Page 1: Welcome
 
-                    Spacer()
-                }
-                .padding(.vertical, 8)
+    private var welcomePage: some View {
+        VStack(spacing: 0) {
+            Spacer()
+
+            ZStack {
+                Circle()
+                    .fill(LinearGradient(colors: [Color.accentColor.opacity(0.3), Color.purple.opacity(0.2)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .frame(width: 100, height: 100)
+                    .blur(radius: 20)
+                Image(systemName: "brain.head.profile")
+                    .font(.system(size: 56, weight: .light))
+                    .foregroundStyle(LinearGradient(colors: [.white, .white.opacity(0.8)], startPoint: .top, endPoint: .bottom))
+            }
+            .padding(.bottom, 16)
+            .opacity(showHeadline ? 1 : 0)
+            .offset(y: showHeadline ? 0 : 10)
+
+            VStack(spacing: 10) {
+                Text("Import anything.\nAsk anything.")
+                    .font(.title.bold())
+                    .foregroundStyle(.white)
+                    .multilineTextAlignment(.center)
+                    .opacity(showHeadline ? 1 : 0)
+                    .offset(y: showHeadline ? 0 : 15)
+
+                Text("AI that reads your documents and answers questions from them. 100% on-device, powered by Apple Intelligence.")
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.75))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 36)
+                    .opacity(showSubtitle ? 1 : 0)
+                    .offset(y: showSubtitle ? 0 : 10)
             }
 
-            // Overall progress bar
-            VStack(spacing: 6) {
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule()
-                            .fill(Color.white.opacity(0.15))
-                            .frame(height: 8)
+            Spacer().frame(height: 32)
 
-                        Capsule()
-                            .fill(
-                                LinearGradient(
-                                    colors: [.accentColor, .purple],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
-                            .frame(width: max(0, geo.size.width * overallProgress), height: 8)
-                            .animation(.easeInOut(duration: 0.3), value: overallProgress)
-                    }
-                }
-                .frame(height: 8)
+            VStack(spacing: 12) {
+                UseCaseCard(icon: "tag.fill", iconColor: .blue, docType: "Pricing Guide", exampleQuestion: "How much is the Lifetime license?")
+                    .opacity(cardsRevealed > 0 ? 1 : 0).offset(y: cardsRevealed > 0 ? 0 : 20)
+                UseCaseCard(icon: "cpu.fill", iconColor: .orange, docType: "RAG Architecture", exampleQuestion: "How does hybrid search work?")
+                    .opacity(cardsRevealed > 1 ? 1 : 0).offset(y: cardsRevealed > 1 ? 0 : 20)
+                UseCaseCard(icon: "lock.shield.fill", iconColor: .purple, docType: "Apple Intelligence & PCC", exampleQuestion: "What happens to my data in Private Cloud Compute?")
+                    .opacity(cardsRevealed > 2 ? 1 : 0).offset(y: cardsRevealed > 2 ? 0 : 20)
+            }
+            .padding(.horizontal, 28)
 
-                HStack {
-                    Text("\(completedItemsCount)/\(totalItemsCount) documents")
-                        .font(.caption)
-                        .foregroundColor(.white.opacity(0.6))
+            Spacer()
+            Spacer()
+        }
+    }
 
+    // MARK: - Page 2: Pipeline Theater
+
+    private var pipelineTheaterPage: some View {
+        VStack(spacing: 0) {
+            // Compact header
+            VStack(spacing: 4) {
+                Text("Watch the AI read your documents")
+                    .font(.title3.bold())
+                    .foregroundStyle(.white)
+                    .multilineTextAlignment(.center)
+                Text(stageExplainer)
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.6))
+                    .multilineTextAlignment(.center)
+                    .animation(.easeInOut(duration: 0.3), value: stageExplainer)
+                    .contentTransition(.numericText())
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 8)
+
+            // Compact pipeline capsules
+            pipelineProgressStrip
+                .padding(.horizontal, 20)
+                .padding(.top, 10)
+
+            // Live metrics
+            if isProcessing || processingComplete {
+                liveMetricsDashboard
+                    .padding(.horizontal, 20)
+                    .padding(.top, 8)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+
+            // Active documents — simple text lines
+            if !ragService.ingestionItems.isEmpty {
+                activeDocsTicker
+                    .padding(.horizontal, 20)
+                    .padding(.top, 10)
+            } else if isProcessing {
+                HStack(spacing: 8) {
+                    ProgressView().scaleEffect(0.6).tint(.white)
+                    Text(processingStatus).font(.caption).foregroundStyle(.white.opacity(0.6))
                     Spacer()
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 10)
+            }
 
-                    Text("\(Int(overallProgress * 100))%")
-                        .font(.caption.monospacedDigit())
-                        .foregroundColor(.white.opacity(0.6))
+            // Streaming log ticker (fixed-height, last few entries)
+            if !logEntries.isEmpty && !processingComplete {
+                logTickerView
+                    .padding(.horizontal, 20)
+                    .padding(.top, 8)
+            }
+
+            Spacer(minLength: 8)
+
+            // Completion
+            if processingComplete {
+                completionView
+                    .padding(.horizontal, 20)
+                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
+            }
+
+            Spacer(minLength: 0)
+        }
+    }
+
+    // MARK: - Live Metrics Dashboard
+
+    private var liveMetricsDashboard: some View {
+        let items = ragService.ingestionItems
+        let words = items.reduce(0) { $0 + $1.metrics.totalWords }
+        let chunks = items.reduce(0) { $0 + $1.metrics.chunkCount }
+        let vectors = items.reduce(0) { $0 + $1.metrics.embeddingsGenerated }
+        let timeMs = items.reduce(0) { $0 + $1.metrics.totalTimeMs }
+
+        return HStack(spacing: 0) {
+            dashCounter(value: fmtNumber(words), label: "Words", icon: "textformat", color: .orange)
+            Rectangle().fill(Color.white.opacity(0.08)).frame(width: 1, height: 28)
+            dashCounter(value: fmtNumber(chunks), label: "Chunks", icon: "square.split.2x2", color: .purple)
+            Rectangle().fill(Color.white.opacity(0.08)).frame(width: 1, height: 28)
+            dashCounter(value: fmtNumber(vectors), label: "Vectors", icon: "brain.head.profile", color: .green)
+            Rectangle().fill(Color.white.opacity(0.08)).frame(width: 1, height: 28)
+            dashCounter(value: timeMs > 0 ? fmtMs(timeMs) : "\u{2014}", label: "Time", icon: "clock", color: .cyan)
+        }
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.white.opacity(0.06))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                )
+        )
+    }
+
+    @ViewBuilder
+    private func dashCounter(value: String, label: String, icon: String, color: Color) -> some View {
+        VStack(spacing: 2) {
+            HStack(spacing: 3) {
+                Image(systemName: icon)
+                    .font(.system(size: 8))
+                    .foregroundStyle(color)
+                Text(value)
+                    .font(.system(size: 14, weight: .bold, design: .monospaced))
+                    .foregroundStyle(.white)
+                    .contentTransition(.numericText())
+            }
+            Text(label)
+                .font(.system(size: 8, weight: .medium))
+                .foregroundStyle(.white.opacity(0.4))
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - Compact Pipeline Strip
+
+    private var pipelineProgressStrip: some View {
+        HStack(spacing: 3) {
+            pipelineCapsule("Extract", icon: "doc.text", phase: .extract)
+            chevronDot
+            pipelineCapsule("Chunk", icon: "rectangle.split.3x1", phase: .chunk)
+            chevronDot
+            pipelineCapsule("Embed", icon: "brain.head.profile", phase: .embed)
+            chevronDot
+            pipelineCapsule("Index", icon: "magnifyingglass", phase: .index)
+        }
+    }
+
+    @ViewBuilder
+    private func pipelineCapsule(_ label: String, icon: String, phase: PipelinePhase) -> some View {
+        let isActive = currentPipelinePhase == phase
+        let isComplete = isPipelinePhaseComplete(phase)
+        HStack(spacing: 3) {
+            Image(systemName: isComplete ? "checkmark" : icon)
+                .font(.system(size: 7, weight: .bold))
+            Text(label)
+                .font(.system(size: 9, weight: isActive ? .bold : .medium))
+        }
+        .foregroundStyle(isComplete ? .white : (isActive ? .white : .white.opacity(0.4)))
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(
+            Capsule().fill(
+                isComplete ? Color.green.opacity(0.5) :
+                    (isActive ? Color.accentColor.opacity(0.5) : Color.white.opacity(0.06))
+            )
+        )
+        .animation(.easeInOut(duration: 0.3), value: isActive)
+        .animation(.easeInOut(duration: 0.3), value: isComplete)
+    }
+
+    private var chevronDot: some View {
+        Image(systemName: "chevron.right")
+            .font(.system(size: 6, weight: .bold))
+            .foregroundStyle(.white.opacity(0.2))
+    }
+
+    // MARK: - Active Documents Ticker
+
+    private var activeDocsTicker: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            ForEach(ragService.ingestionItems) { item in
+                HStack(spacing: 6) {
+                    Image(systemName: item.stage == .complete ? "checkmark.circle.fill" : (item.stage == .failed ? "xmark.circle.fill" : "circle.fill"))
+                        .font(.system(size: 7))
+                        .foregroundStyle(item.stage == .complete ? .green : (item.stage == .failed ? .red : .accentColor))
+                        .frame(width: 10)
+                    Text(item.filename)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.white.opacity(item.stage.isTerminal ? 0.5 : 0.9))
+                        .lineLimit(1)
+                    if !item.stage.isTerminal {
+                        Text("\u{2014} \(item.stage.displayName)")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.white.opacity(0.4))
+                        if let detail = compactDetail(for: item) {
+                            Text("\u{00b7} \(detail)")
+                                .font(.system(size: 9, design: .monospaced))
+                                .foregroundStyle(.white.opacity(0.3))
+                        }
+                    }
+                    Spacer(minLength: 0)
                 }
             }
         }
-        .padding(24)
-        .frame(maxWidth: 400)
+    }
+
+    private func compactDetail(for item: IngestionItem) -> String? {
+        let m = item.metrics
+        switch item.stage {
+        case .extracting: return m.totalWords > 0 ? "\(fmtNumber(m.totalWords))w" : nil
+        case .chunking: return m.chunkCount > 0 ? "\(m.chunkCount) chunks" : nil
+        case .embedding: return m.embeddingsGenerated > 0 ? "\(m.embeddingsGenerated)/\(m.chunkCount)" : nil
+        default: return nil
+        }
+    }
+
+    // MARK: - Log Ticker (Fixed Height)
+
+    private var logTickerView: some View {
+        let visible = Array(logEntries.suffix(6))
+
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 5) {
+                Image(systemName: "terminal")
+                    .font(.system(size: 7, weight: .bold))
+                    .foregroundStyle(Color.accentColor)
+                Text("PIPELINE")
+                    .font(.system(size: 8, weight: .bold, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.3))
+                Spacer()
+                Text("\(logEntries.count)")
+                    .font(.system(size: 8, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.2))
+            }
+            .padding(.bottom, 3)
+
+            ZStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 1) {
+                    ForEach(visible) { entry in
+                        PipelineLogRow(entry: entry)
+                            .transition(.opacity.combined(with: .move(edge: .bottom)))
+                    }
+                }
+
+                if logEntries.count > 6 {
+                    LinearGradient(
+                        colors: [Color(red: 0.04, green: 0.07, blue: 0.15).opacity(0.95), .clear],
+                        startPoint: .top, endPoint: .bottom
+                    )
+                    .frame(height: 14)
+                    .allowsHitTesting(false)
+                }
+            }
+        }
+        .padding(8)
         .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(.ultraThinMaterial)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
-                )
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.white.opacity(0.03))
         )
-        .padding(.horizontal, 24)
-        .onAppear { pulseAnimation = true }
+        .animation(.easeOut(duration: 0.2), value: logEntries.count)
     }
 
-    // MARK: - Ingestion Computed Properties
+    // MARK: - Completion View
 
-    @State private var pulseAnimation = false
+    private var completionView: some View {
+        VStack(spacing: 16) {
+            ZStack {
+                Circle().fill(Color.green.opacity(0.15)).frame(width: 64, height: 64)
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 36))
+                    .foregroundStyle(LinearGradient(colors: [.green, .green.opacity(0.8)], startPoint: .top, endPoint: .bottom))
+            }
 
-    private var totalItemsCount: Int {
-        max(ragService.ingestionItems.count, 1)
+            VStack(spacing: 6) {
+                Text("Your documents are ready")
+                    .font(.title3.bold()).foregroundStyle(.white)
+
+                let items = ragService.ingestionItems
+                let totalChunks = items.reduce(0) { $0 + $1.metrics.chunkCount }
+                let totalWords = items.reduce(0) { $0 + $1.metrics.totalWords }
+                if totalChunks > 0 {
+                    Text("\(items.count) docs \u{00b7} \(totalWords.formatted()) words \u{00b7} \(totalChunks) chunks")
+                        .font(.caption).foregroundStyle(.white.opacity(0.5))
+                }
+            }
+
+            Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1).padding(.horizontal, 16)
+
+            VStack(spacing: 10) {
+                Text("Try asking something like:")
+                    .font(.subheadline.weight(.medium)).foregroundStyle(.white.opacity(0.6))
+                VStack(spacing: 6) {
+                    ExampleQuestionPill(text: "What\u{2019}s the difference between Pro and Lifetime?", icon: "tag.fill", color: .blue)
+                    ExampleQuestionPill(text: "How does the RAG pipeline find relevant chunks?", icon: "cpu.fill", color: .orange)
+                    ExampleQuestionPill(text: "Is my data ever sent to Apple\u{2019}s servers?", icon: "lock.shield.fill", color: .purple)
+                }
+            }
+        }
     }
 
-    private var completedItemsCount: Int {
-        ragService.ingestionItems.filter { $0.stage == .complete }.count
+    // MARK: - Log Diffing Engine
+
+    private struct MetricsSnapshot: Equatable {
+        let stage: IngestionStage
+        let words: Int
+        let chunks: Int
+        let vectors: Int
+        let tables: Int
+        let lists: Int
+        let headers: Int
+        let entities: Int
+        let pages: Int
+        let ocrPages: Int
+        let domain: String
+        let sections: Int
+        let topics: Int
+        let embBoundaries: Int
+        let vision: Bool
+        let totalTime: Int
+
+        init(from item: IngestionItem) {
+            stage = item.stage
+            words = item.metrics.totalWords
+            chunks = item.metrics.chunkCount
+            vectors = item.metrics.embeddingsGenerated
+            tables = item.metrics.tablesExtracted
+            lists = item.metrics.listsExtracted
+            headers = item.metrics.titlesDetected
+            entities = item.metrics.entitiesExtracted
+            pages = item.metrics.pageCount
+            ocrPages = item.metrics.ocrPagesCount
+            domain = item.metrics.documentDomain
+            sections = item.metrics.sectionsDetected
+            topics = item.metrics.topicBoundaries
+            embBoundaries = item.metrics.embeddingBoundaries
+            vision = item.metrics.usedStructuredParsing
+            totalTime = item.metrics.totalTimeMs
+        }
     }
 
-    /// Check if any active item is in one of the specified stages
-    private func hasActiveStage(_ stages: [IngestionStage]) -> Bool {
-        ragService.ingestionItems.contains { stages.contains($0.stage) }
+    private func diffAndEmitLogEntries(_ items: [IngestionItem]) {
+        var newEntries: [PipelineLogEntry] = []
+
+        for item in items {
+            let current = MetricsSnapshot(from: item)
+            let previous = lastSnapshotPerItem[item.id]
+
+            // Stage change
+            if previous == nil || previous?.stage != current.stage {
+                if let entry = logEntryForStageChange(item: item) {
+                    newEntries.append(entry)
+                }
+            }
+
+            // Vision detected (one-shot)
+            if current.vision && previous?.vision != true {
+                var parts = ["RecognizeDocuments"]
+                if current.pages > 0 { parts.append("\(current.pages) pg") }
+                newEntries.append(PipelineLogEntry(icon: "eye.fill", color: .green, text: "[\(item.filename)] Vision \u{00b7} " + parts.joined(separator: " \u{00b7} ")))
+            }
+
+            // Tables/Lists/Headers
+            if current.tables > 0 && current.tables != previous?.tables {
+                var parts: [String] = []
+                parts.append("\(current.tables) table\(current.tables > 1 ? "s" : "")")
+                if current.lists > 0 { parts.append("\(current.lists) list\(current.lists > 1 ? "s" : "")") }
+                if current.headers > 0 { parts.append("\(current.headers) header\(current.headers > 1 ? "s" : "")") }
+                newEntries.append(PipelineLogEntry(icon: "tablecells", color: .cyan, text: "[\(item.filename)] Layout \u{00b7} " + parts.joined(separator: " \u{00b7} ")))
+            }
+
+            // Words extracted
+            if current.words > 0 && current.words != previous?.words && current.stage == .extracting {
+                var parts = ["\(current.words.formatted()) words"]
+                if current.pages > 0 { parts.append("\(current.pages) pg") }
+                if current.ocrPages > 0 { parts.append("\(current.ocrPages) OCR") }
+                newEntries.append(PipelineLogEntry(icon: "doc.text.magnifyingglass", color: .blue, text: "[\(item.filename)] Extract \u{00b7} " + parts.joined(separator: " \u{00b7} ")))
+            }
+
+            // Chunks created
+            if current.chunks > 0 && current.chunks != previous?.chunks {
+                var parts = ["\(current.chunks) chunks"]
+                let avg = item.metrics.avgChunkWords
+                if avg > 0 { parts.append("\(avg)w avg") }
+                if current.sections > 0 { parts.append("\(current.sections) sec") }
+                if current.topics > 0 { parts.append("\(current.topics) topics") }
+                if current.embBoundaries > 0 { parts.append("\(current.embBoundaries) \u{2207}sim") }
+                newEntries.append(PipelineLogEntry(icon: "square.split.2x2", color: .purple, text: "[\(item.filename)] Chunk \u{00b7} " + parts.joined(separator: " \u{00b7} ")))
+            }
+
+            // Entities extracted
+            if current.entities > 0 && current.entities != previous?.entities {
+                var parts = ["\(current.entities) entities"]
+                let top = item.metrics.topEntities.prefix(3)
+                if !top.isEmpty { parts.append(top.joined(separator: ", ")) }
+                newEntries.append(PipelineLogEntry(icon: "tag", color: .mint, text: "[\(item.filename)] NER \u{00b7} " + parts.joined(separator: " \u{00b7} ")))
+            }
+
+            // Domain classified
+            if !current.domain.isEmpty && current.domain != previous?.domain {
+                newEntries.append(PipelineLogEntry(icon: "brain", color: .indigo, text: "[\(item.filename)] Classified \u{2192} \(current.domain)"))
+            }
+
+            // Embeddings generated
+            if current.vectors > 0 && current.vectors != previous?.vectors {
+                var parts = ["\(current.vectors) \u{2192} \(item.metrics.embeddingDimension)D"]
+                let provider = item.metrics.embeddingProvider
+                if !provider.isEmpty { parts.append(provider) }
+                newEntries.append(PipelineLogEntry(icon: "brain.head.profile", color: .green, text: "[\(item.filename)] Embed \u{00b7} " + parts.joined(separator: " \u{00b7} ")))
+            }
+
+            // Done
+            if current.stage == .complete && previous?.stage != .complete {
+                let time = current.totalTime > 0 ? " \u{00b7} \(fmtMs(current.totalTime))" : ""
+                newEntries.append(PipelineLogEntry(icon: "checkmark.circle.fill", color: .green, text: "[\(item.filename)] Done\(time)"))
+            }
+
+            lastSnapshotPerItem[item.id] = current
+        }
+
+        if !newEntries.isEmpty {
+            withAnimation(.easeOut(duration: 0.2)) {
+                logEntries.append(contentsOf: newEntries)
+                if logEntries.count > 100 {
+                    logEntries.removeFirst(logEntries.count - 100)
+                }
+            }
+        }
     }
 
-    /// Simplified pipeline phase for UI display
-    private enum PipelinePhase {
-        case none, extract, chunk, embed, index
+    private func logEntryForStageChange(item: IngestionItem) -> PipelineLogEntry? {
+        let fn = item.filename
+        switch item.stage {
+        case .queued: return PipelineLogEntry(icon: "clock", color: .white.opacity(0.5), text: "[\(fn)] Queued")
+        case .loading: return PipelineLogEntry(icon: "arrow.down.circle", color: .white.opacity(0.6), text: "[\(fn)] Loading file...")
+        case .transcribing: return PipelineLogEntry(icon: "waveform", color: .orange, text: "[\(fn)] Transcribing audio...")
+        case .extracting: return PipelineLogEntry(icon: "doc.text.magnifyingglass", color: .blue, text: "[\(fn)] Extracting text...")
+        case .chunking: return PipelineLogEntry(icon: "rectangle.split.3x1", color: .purple, text: "[\(fn)] Semantic chunking...")
+        case .analyzing: return PipelineLogEntry(icon: "brain", color: .indigo, text: "[\(fn)] Corpus intelligence analysis...")
+        case .adapting: return PipelineLogEntry(icon: "gearshape.2", color: .yellow, text: "[\(fn)] Adapting config...")
+        case .reindexing: return PipelineLogEntry(icon: "arrow.triangle.2.circlepath", color: .orange, text: "[\(fn)] Re-indexing with adapted config...")
+        case .embedding: return PipelineLogEntry(icon: "point.3.connected.trianglepath.dotted", color: .green, text: "[\(fn)] Generating embeddings...")
+        case .indexing: return PipelineLogEntry(icon: "magnifyingglass", color: .teal, text: "[\(fn)] BM25 + HNSW indexing...")
+        case .storing: return PipelineLogEntry(icon: "externaldrive", color: .gray, text: "[\(fn)] Persisting to vector store...")
+        case .complete: return nil
+        case .failed:
+            let err = item.errorMessage ?? "Unknown error"
+            return PipelineLogEntry(icon: "xmark.circle.fill", color: .red, text: "[\(fn)] Failed: \(err)")
+        }
     }
 
-    /// Current pipeline phase based on active ingestion items
+    // MARK: - Stage Explainer
+
+    private var stageExplainer: String {
+        switch currentPipelinePhase {
+        case .extract: return "Reading every word from your documents..."
+        case .chunk: return "Breaking content into searchable pieces..."
+        case .embed: return "Converting text to AI-readable vectors..."
+        case .index: return "Building your personal search index..."
+        case .none: return isProcessing ? "Preparing the pipeline..." : "Ready to process"
+        }
+    }
+
+    // MARK: - Animations
+
+    private func animateEntrance() {
+        if reduceMotion {
+            showHeadline = true; showSubtitle = true; cardsRevealed = 3
+            return
+        }
+        withAnimation(.easeOut(duration: 0.5).delay(0.2)) { showHeadline = true }
+        withAnimation(.easeOut(duration: 0.5).delay(0.5)) { showSubtitle = true }
+        withAnimation(.easeOut(duration: 0.5).delay(0.7)) { cardsRevealed = 1 }
+        withAnimation(.easeOut(duration: 0.5).delay(0.9)) { cardsRevealed = 2 }
+        withAnimation(.easeOut(duration: 0.5).delay(1.1)) { cardsRevealed = 3 }
+    }
+
+    // MARK: - Computed Properties
+
+    private enum PipelinePhase: Int, Comparable {
+        case none = 0, extract = 1, chunk = 2, embed = 3, index = 4
+        static func < (lhs: PipelinePhase, rhs: PipelinePhase) -> Bool { lhs.rawValue < rhs.rawValue }
+    }
+
     private var currentPipelinePhase: PipelinePhase {
         let items = ragService.ingestionItems
         guard !items.isEmpty else { return .none }
-
-        // Find the first non-terminal item's stage
         for item in items where !item.stage.isTerminal {
             switch item.stage {
-            case .queued, .loading, .transcribing, .extracting:
-                return .extract
-            case .chunking, .analyzing, .adapting, .reindexing:
-                return .chunk
-            case .embedding:
-                return .embed
-            case .indexing, .storing:
-                return .index
-            default:
-                continue
+            case .queued, .loading, .transcribing, .extracting: return .extract
+            case .chunking, .analyzing, .adapting, .reindexing: return .chunk
+            case .embedding: return .embed
+            case .indexing, .storing: return .index
+            default: continue
             }
         }
         return .none
     }
 
-    private var overallProgress: Double {
+    private func isPipelinePhaseComplete(_ phase: PipelinePhase) -> Bool {
         let items = ragService.ingestionItems
-        guard !items.isEmpty else { return processingProgress }
-
-        let totalProgress = items.reduce(0.0) { sum, item in
-            sum + (item.progress ?? (item.stage == .complete ? 1.0 : 0.0))
-        }
-        return totalProgress / Double(items.count)
-    }
-
-    private var overallStatus: String {
-        let items = ragService.ingestionItems
-        let active = items.filter { !$0.stage.isTerminal }
-        let completed = items.filter { $0.stage == .complete }
-        let failed = items.filter { $0.stage == .failed }
-
-        if failed.count > 0 {
-            return "\(completed.count) done, \(failed.count) failed"
-        } else if active.isEmpty && !items.isEmpty {
-            return "All documents processed!"
-        } else if let current = active.first {
-            return current.stage.displayName
-        }
-        return processingStatus
-    }
-
-    // MARK: - Welcome Page
-
-    private var welcomePage: some View {
-        VStack(spacing: 24) {
-            Spacer()
-
-            // App icon or logo
-            ZStack {
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [Color.accentColor.opacity(0.3), Color.purple.opacity(0.2)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-.frame(width: 100, height: 100)
-    .blur(radius: 20)
-
-                Image(systemName: "brain.head.profile")
-                    .font(.system(size: 56, weight: .light))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.white, .white.opacity(0.8)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-            }
-.padding(.bottom, 8)
-
-            VStack(spacing: 12) {
-                Text("Welcome to OpenIntelligence")
-                    .font(.title.bold())
-                    .foregroundColor(.white)
-                    .multilineTextAlignment(.center)
-
-                Text("Your private AI assistant that actually understands your documents.")
-                    .font(.body)
-                    .foregroundColor(.white.opacity(0.8))
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
-            }
-
-            Spacer()
-            Spacer()
-        }
-    }
-
-    // MARK: - Features Page
-
-    private var featuresPage: some View {
-        VStack(spacing: 32) {
-            Spacer()
-
-            Text("Built for Privacy")
-                .font(.title2.bold())
-                .foregroundColor(.white)
-
-            VStack(alignment: .leading, spacing: 20) {
-                OnboardingFeatureRow(
-                    icon: "lock.shield.fill",
-                    iconColor: .green,
-                    title: "100% Private",
-                    description: "Everything stays on your device or Apple's secure cloud"
-                )
-
-                OnboardingFeatureRow(
-                    icon: "brain.head.profile",
-                    iconColor: .purple,
-                    title: "Auto Intelligence",
-                    description: "Automatically learns your documents to give better answers"
-                )
-
-                OnboardingFeatureRow(
-                    icon: "doc.text.magnifyingglass",
-                    iconColor: .blue,
-                    title: "Smart Search",
-                    description: "Ask questions and get answers from your own documents"
-                )
-
-                OnboardingFeatureRow(
-                    icon: "airplane",
-                    iconColor: .orange,
-                    title: "Works in Airplane Mode",
-                    description: "Search and get answers even without internet"
-                )
-            }
-.padding(.horizontal, 32)
-
-            Spacer()
-            Spacer()
-        }
-    }
-
-    // MARK: - Get Started Page
-
-    private var getStartedPage: some View {
-        VStack(spacing: 24) {
-            Spacer()
-
-            ZStack {
-                Circle()
-                    .fill(Color.accentColor.opacity(0.15))
-                    .frame(width: 80, height: 80)
-
-                Image(systemName: "sparkles")
-                    .font(.system(size: 36))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.yellow, .orange],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-            }
-
-            VStack(spacing: 12) {
-                Text("Ready to Try It?")
-                    .font(.title2.bold())
-                    .foregroundColor(.white)
-
-                Text("We'll add some sample documents so you can see how it works. You can remove them anytime.")
-                    .font(.body)
-                    .foregroundColor(.white.opacity(0.8))
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
-            }
-
-            // Quick preview of what's included
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Sample documents include:")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundColor(.white.opacity(0.7))
-
-                HStack(spacing: 8) {
-                    SampleDocChip(title: "Pricing Guide", icon: "dollarsign.circle")
-                    SampleDocChip(title: "RAG Tech Guide", icon: "cpu")
-                }
-
-                HStack(spacing: 8) {
-                    SampleDocChip(title: "Private Cloud Compute", icon: "cloud.fill")
-                }
-            }
-            .padding(.horizontal, 32)
-            .padding(.top, 8)
-
-            Spacer()
-            Spacer()
-        }
+        guard !items.isEmpty else { return false }
+        if items.allSatisfy({ $0.stage.isTerminal }) { return true }
+        return currentPipelinePhase > phase
     }
 
     // MARK: - Actions
 
-    /// Track whether we've already triggered sample import to prevent duplicates
-    @State private var hasSentImportRequest = false
-
-    /// Show loading overlay while processing documents
-    @State private var isProcessing = false
-
-    /// Current processing status message
-    @State private var processingStatus = "Preparing documents..."
-
-    /// Processing progress (0.0 to 1.0)
-    @State private var processingProgress: Double = 0.0
-
     private func startWithSamples() {
         guard !hasSentImportRequest else { return }
         hasSentImportRequest = true
+        processingFailed = false
+        withAnimation(.easeInOut(duration: 0.3)) { isProcessing = true }
 
-        // Show processing overlay
-        withAnimation(.easeInOut(duration: 0.3)) {
-            isProcessing = true
-        }
-
-        // Import samples and wait for completion before navigating
         Task { @MainActor in
             do {
                 try await SampleDocumentManager.shared.importSamples(into: ragService) { current, total, filename in
-                    // Update progress on main thread
                     Task { @MainActor in
                         processingStatus = "Processing \(filename)..."
-                        processingProgress = Double(current) / Double(total)
                     }
                 }
 
-                // Brief pause to show completion
-                processingStatus = "Ready!"
-                processingProgress = 1.0
                 DSHaptics.success()
-                try? await Task.sleep(for: .milliseconds(400))
-
-                // Reset LLM session to ensure fresh context budget for first queries
-                // This prevents transcript tokens from eating into context window
+                try? await Task.sleep(for: .milliseconds(600))
+                withAnimation(.easeInOut(duration: 0.5)) { processingComplete = true }
                 ragService.resetLLMSession()
-
-                // Mark onboarding properly completed (not skipped) for analytics
-                onboardingStore.markOnboardingCompleted()
-                onOpenChat()
 
             } catch {
                 Log.error("Sample import failed: \(error)", category: .initialization)
-                processingStatus = "Import failed — please try again"
-                processingProgress = 0.0
+                processingStatus = "Import failed \u{2014} tap Retry"
                 DSHaptics.error()
-
-                // Reset so the user can try again — do NOT complete onboarding
-                try? await Task.sleep(for: .seconds(1.5))
+                try? await Task.sleep(for: .seconds(1))
                 withAnimation(.easeInOut(duration: 0.3)) {
                     isProcessing = false
+                    processingFailed = true
                 }
                 hasSentImportRequest = false
             }
@@ -583,323 +762,111 @@ struct OnboardingChecklistView: View {
     }
 }
 
-// MARK: - Supporting Views
+// MARK: - Pipeline Log Row
 
-private struct OnboardingFeatureRow: View {
-    let icon: String
-    let iconColor: Color
-    let title: String
-    let description: String
+private struct PipelineLogRow: View {
+    let entry: PipelineLogEntry
 
     var body: some View {
-        HStack(alignment: .top, spacing: 16) {
-            ZStack {
-                Circle()
-                    .fill(iconColor.opacity(0.15))
-                    .frame(width: 44, height: 44)
+        HStack(alignment: .top, spacing: 6) {
+            Image(systemName: entry.icon)
+                .font(.system(size: 8, weight: .semibold))
+                .foregroundStyle(entry.color)
+                .frame(width: 12, alignment: .center)
 
-                Image(systemName: icon)
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(iconColor)
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.headline)
-                    .foregroundColor(.white)
-
-                Text(description)
-                    .font(.subheadline)
-                    .foregroundColor(.white.opacity(0.7))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            Text(entry.text)
+                .font(.system(size: 10, weight: .regular, design: .monospaced))
+                .foregroundStyle(.white.opacity(0.7))
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
 
             Spacer(minLength: 0)
+
+            Text(timestampString(entry.timestamp))
+                .font(.system(size: 8, design: .monospaced))
+                .foregroundStyle(.white.opacity(0.2))
         }
+        .padding(.vertical, 2)
+    }
+
+    private static let timestampFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "ss.SSS"
+        return f
+    }()
+
+    private func timestampString(_ date: Date) -> String {
+        Self.timestampFormatter.string(from: date)
     }
 }
 
-private struct SampleDocChip: View {
-    let title: String
+// MARK: - Use Case Card
+
+private struct UseCaseCard: View {
     let icon: String
+    let iconColor: Color
+    let docType: String
+    let exampleQuestion: String
 
     var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: icon)
-                .font(.caption)
-            Text(title)
-                .font(.caption.weight(.medium))
+        HStack(spacing: 14) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 10, style: .continuous).fill(iconColor.opacity(0.15)).frame(width: 40, height: 40)
+                Image(systemName: icon).font(.system(size: 16, weight: .semibold)).foregroundStyle(iconColor)
+            }
+            VStack(alignment: .leading, spacing: 3) {
+                Text(docType).font(.subheadline.weight(.semibold)).foregroundStyle(.white)
+                Text("\"\(exampleQuestion)\"").font(.caption).foregroundStyle(.white.opacity(0.6)).italic().lineLimit(2)
+            }
+            Spacer(minLength: 0)
+            Image(systemName: "arrow.right").font(.system(size: 11, weight: .semibold)).foregroundStyle(.white.opacity(0.3))
         }
-        .foregroundColor(.white.opacity(0.8))
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Color.white.opacity(0.1), in: Capsule())
+        .padding(.horizontal, 16).padding(.vertical, 14)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.white.opacity(0.08))
+                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.white.opacity(0.08), lineWidth: 1))
+        )
     }
 }
+
+// MARK: - Example Question Pill
+
+private struct ExampleQuestionPill: View {
+    let text: String
+    let icon: String
+    let color: Color
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon).font(.system(size: 12)).foregroundStyle(color)
+            Text(text).font(.subheadline).foregroundStyle(.white.opacity(0.85))
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 16).padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.white.opacity(0.06))
+                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(color.opacity(0.2), lineWidth: 1))
+        )
+    }
+}
+
+// MARK: - Splash Backdrop
 
 private struct SplashBackdrop: View {
     var body: some View {
         ZStack {
             LinearGradient(
-                colors: [
-                    Color(red: 0.03, green: 0.05, blue: 0.12),
-                    Color(red: 0.05, green: 0.11, blue: 0.22),
-                    Color(red: 0.08, green: 0.16, blue: 0.31)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
-
+                colors: [Color(red: 0.03, green: 0.05, blue: 0.12), Color(red: 0.05, green: 0.11, blue: 0.22), Color(red: 0.08, green: 0.16, blue: 0.31)],
+                startPoint: .topLeading, endPoint: .bottomTrailing
+            ).ignoresSafeArea()
             ZStack {
-                Circle()
-                    .fill(Color.accentColor.opacity(0.35))
-                    .frame(width: 320, height: 320)
-                    .blur(radius: 140)
-                    .offset(x: -140, y: -200)
-                Circle()
-                    .fill(Color.purple.opacity(0.25))
-                    .frame(width: 260, height: 260)
-                    .blur(radius: 120)
-                    .offset(x: 140, y: 160)
-                Circle()
-                    .fill(Color.orange.opacity(0.18))
-                    .frame(width: 200, height: 200)
-                    .blur(radius: 100)
-                    .offset(x: -80, y: 260)
+                Circle().fill(Color.accentColor.opacity(0.35)).frame(width: 320, height: 320).blur(radius: 140).offset(x: -140, y: -200)
+                Circle().fill(Color.purple.opacity(0.25)).frame(width: 260, height: 260).blur(radius: 120).offset(x: 140, y: 160)
+                Circle().fill(Color.orange.opacity(0.18)).frame(width: 200, height: 200).blur(radius: 100).offset(x: -80, y: 260)
             }
+            .compositingGroup()
             .ignoresSafeArea()
-
             Color.black.opacity(0.35).ignoresSafeArea()
-        }
-    }
-}
-
-// MARK: - Onboarding Ingestion Row
-
-/// Transparent, nerdy row for showing document processing pipeline during onboarding
-/// Gives users a taste of the app's detailed transparency philosophy
-private struct OnboardingIngestionRow: View {
-    let item: IngestionItem
-
-    private var stageIcon: String {
-        switch item.stage {
-        case .queued: return "clock"
-        case .loading: return "arrow.down.circle"
-        case .transcribing: return "waveform"
-        case .extracting: return "doc.text.magnifyingglass"
-        case .chunking: return "rectangle.split.3x1"
-        case .analyzing: return "brain"
-        case .embedding: return "point.3.connected.trianglepath.dotted"
-        case .storing: return "externaldrive"
-        case .adapting: return "gearshape.2"
-        case .reindexing: return "arrow.triangle.2.circlepath"
-        case .indexing: return "magnifyingglass"
-        case .complete: return "checkmark.circle.fill"
-        case .failed: return "xmark.circle.fill"
-        }
-    }
-
-    private var stageColor: Color {
-        switch item.stage {
-        case .complete: return .green
-        case .failed: return .red
-        case .queued: return .white.opacity(0.5)
-        default: return .accentColor
-        }
-    }
-
-    /// Real-time metrics string based on current stage
-    private var metricsDetail: String? {
-        let m = item.metrics
-
-        switch item.stage {
-        case .extracting:
-            if m.totalWords > 0 {
-                return "\(m.totalWords.formatted()) words"
-            }
-        case .chunking:
-            if m.chunkCount > 0 {
-                return "\(m.chunkCount) chunks @ ~\(m.avgChunkWords)w"
-            }
-        case .embedding:
-            if m.embeddingsGenerated > 0 {
-                return "\(m.embeddingsGenerated)/\(m.chunkCount) → 384d"
-            } else if m.chunkCount > 0 {
-                return "0/\(m.chunkCount) → 384d vectors"
-            }
-        case .indexing:
-            return "BM25 + HNSW"
-        case .complete:
-            // Show final stats
-            let timeStr = m.totalTimeMs > 0 ? "\(m.totalTimeMs)ms" : ""
-            if m.chunkCount > 0 && !timeStr.isEmpty {
-                return "\(m.chunkCount) chunks in \(timeStr)"
-            } else if m.chunkCount > 0 {
-                return "\(m.chunkCount) chunks indexed"
-            }
-        default:
-            break
-        }
-        return nil
-    }
-
-    /// Pipeline progress (which stage out of total)
-    private var pipelineProgress: (current: Int, total: Int)? {
-        guard let idx = item.stage.pipelineIndex else { return nil }
-        return (idx + 1, IngestionStage.pipelineStages.count)
-    }
-
-    var body: some View {
-        HStack(spacing: 10) {
-            // Stage icon with pulse animation for active stages
-            ZStack {
-                if !item.stage.isTerminal {
-                    Circle()
-                        .fill(stageColor.opacity(0.2))
-                        .frame(width: 28, height: 28)
-                        .scaleEffect(1.2)
-                        .opacity(0.5)
-                        .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: item.stage)
-                }
-
-                Image(systemName: stageIcon)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(stageColor)
-                    .frame(width: 28, height: 28)
-            }
-
-            VStack(alignment: .leading, spacing: 2) {
-                // Filename
-                Text(item.filename)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(.white)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-
-                // Stage name + pipeline position
-                HStack(spacing: 4) {
-                    Text(item.stage.displayName)
-                        .font(.caption2.weight(.medium))
-                        .foregroundColor(stageColor)
-
-                    if let (current, total) = pipelineProgress {
-                        Text("•")
-                            .font(.caption2)
-                            .foregroundColor(.white.opacity(0.3))
-                        Text("\(current)/\(total)")
-                            .font(.caption2.monospacedDigit())
-                            .foregroundColor(.white.opacity(0.4))
-                    }
-                }
-
-                // Metrics detail (nerdy stats)
-                if let detail = metricsDetail {
-                    Text(detail)
-                        .font(.system(size: 10, weight: .regular, design: .monospaced))
-                        .foregroundColor(.white.opacity(0.5))
-                }
-            }
-
-            Spacer()
-
-            // Status indicator
-            VStack(alignment: .trailing, spacing: 2) {
-                if item.stage == .complete {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(.green)
-                } else if item.stage == .failed {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 10))
-                        .foregroundColor(.red)
-                } else if let progress = item.progress {
-                    Text("\(Int(progress * 100))%")
-                        .font(.caption2.monospacedDigit())
-                        .foregroundColor(.white.opacity(0.6))
-                } else {
-                    ProgressView()
-                        .scaleEffect(0.6)
-                        .tint(.white.opacity(0.6))
-                }
-
-                // Elapsed time for active items
-                if let started = item.startedAt, !item.stage.isTerminal {
-                    Text(elapsedString(from: started))
-                        .font(.system(size: 9, design: .monospaced))
-                        .foregroundColor(.white.opacity(0.4))
-                }
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color.white.opacity(0.08))
-        )
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(item.filename), \(item.stage.displayName)")
-        .accessibilityValue(metricsDetail ?? "")
-    }
-
-    private func elapsedString(from start: Date) -> String {
-        let elapsed = Date().timeIntervalSince(start)
-        if elapsed < 1 {
-            return "<1s"
-        } else if elapsed < 60 {
-            return String(format: "%.1fs", elapsed)
-        } else {
-            return String(format: "%.0fm", elapsed / 60)
-        }
-    }
-}
-
-// MARK: - Pipeline Stage Badge
-
-/// Visual indicator for pipeline stages during onboarding
-private struct PipelineStageBadge: View {
-    let label: String
-    let icon: String
-    let isActive: Bool
-
-    @State private var isPulsing = false
-
-    var body: some View {
-        VStack(spacing: 4) {
-            ZStack {
-                // Outer pulse ring for active state
-                if isActive {
-                    Circle()
-                        .stroke(Color.accentColor.opacity(0.4), lineWidth: 2)
-                        .frame(width: 36, height: 36)
-                        .scaleEffect(isPulsing ? 1.3 : 1.0)
-                        .opacity(isPulsing ? 0 : 0.8)
-                        .animation(.easeOut(duration: 1.0).repeatForever(autoreverses: false), value: isPulsing)
-                }
-
-                Circle()
-                    .fill(isActive ? Color.accentColor : Color.white.opacity(0.1))
-                    .frame(width: 32, height: 32)
-
-                Image(systemName: icon)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(isActive ? .white : .white.opacity(0.4))
-            }
-            .scaleEffect(isActive ? 1.1 : 1.0)
-            .animation(.easeInOut(duration: 0.2), value: isActive)
-
-            Text(label)
-                .font(.system(size: 9, weight: isActive ? .bold : .medium))
-                .foregroundColor(isActive ? .white : .white.opacity(0.4))
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(label) stage")
-        .accessibilityValue(isActive ? "Active" : "Inactive")
-        .onAppear {
-            if isActive { isPulsing = true }
-        }
-        .onChange(of: isActive) { _, newValue in
-            isPulsing = newValue
         }
     }
 }

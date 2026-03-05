@@ -143,6 +143,16 @@ actor FullTextStorageService {
     /// - Returns: Dictionary of documentId -> count
     func countPatternInCorpus(pattern: String) async -> [UUID: Int] {
         let documentIds = getAllStoredDocumentIds()
+        return await countPatternInCorpus(pattern: pattern, documentIds: documentIds)
+    }
+
+    /// Count occurrences of a pattern across specific documents only
+    /// Use this overload for container-scoped counting to avoid cross-container bleed.
+    /// - Parameters:
+    ///   - pattern: Text pattern to search for (case-insensitive)
+    ///   - documentIds: Restrict search to these document IDs
+    /// - Returns: Dictionary of documentId -> count
+    func countPatternInCorpus(pattern: String, documentIds: [UUID]) async -> [UUID: Int] {
         var results: [UUID: Int] = [:]
 
         for docId in documentIds {
@@ -223,6 +233,17 @@ actor FullTextStorageService {
     /// - Returns: List of SearchMatch objects sorted by occurrence count
     func searchCorpus(pattern: String, maxResults: Int = 10) async -> [SearchMatch] {
         let documentIds = getAllStoredDocumentIds()
+        return await searchCorpus(pattern: pattern, documentIds: documentIds, maxResults: maxResults)
+    }
+
+    /// Search for documents containing a pattern, scoped to specific documents only.
+    /// Use this overload for container-scoped search to avoid cross-container bleed.
+    /// - Parameters:
+    ///   - pattern: Text pattern to search for (case-insensitive)
+    ///   - documentIds: Restrict search to these document IDs
+    ///   - maxResults: Maximum number of results to return
+    /// - Returns: List of SearchMatch objects sorted by occurrence count
+    func searchCorpus(pattern: String, documentIds: [UUID], maxResults: Int = 10) async -> [SearchMatch] {
         let results = await searchCorpus(for: pattern, in: documentIds, contextChars: 80)
 
         return results.prefix(maxResults).map { result in

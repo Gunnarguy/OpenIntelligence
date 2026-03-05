@@ -5,7 +5,53 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0] - 2026-03-02 (Build 19)
+## [2.0.1] - 2026-03-04 (Build 19) — Post-Release Hardening
+
+### Pre-Launch Safety Hardening (P0–P4)
+
+Comprehensive force-unwrap elimination and defensive coding pass across the entire codebase. 37 force-unwrap sites eliminated across 26 files — zero runtime behavior change for valid inputs, crash prevention for edge cases. 10 `fatalError()` calls replaced with graceful `URL.temporaryDirectory` fallbacks. 1,278 lines of dead code removed (3 unused files + 1 commented-out class). 3 silent Vision `catch` blocks now log via `Log.debug()`.
+
+### Bug Fixes
+
+- **Cross-Container Chat Bleed**: Fixed queries leaking between knowledge libraries
+- **Undismissable Alerts**: `.constant()` alert bindings in `CachedDocsView` and `DocumentLibraryView` replaced with proper `@State Bool` / `Binding(get:set:)`
+- **Insights Sheet**: "Show All Insights" in `AdaptiveVisualizationsView` implemented (was empty TODO)
+- **StoreKit Stream Crash**: `var streamContinuation!` (IUO) replaced with `AsyncStream.makeStream()`
+- **ContainerService Init**: Fixed stored-property initialization error
+- **Settings Cleanup**: Removed stub System Status and Developer categories from navigation
+
+### Onboarding Polish
+
+- 6 haptic touch points across onboarding (light/selection/medium/success/error)
+- VoiceOver labels on pipeline stage badges, processing overlay, and ingestion rows
+- Analytics: `markOnboardingCompleted()` vs `skipPermanently()` with `completionMethod` tracking
+- Error message: "tap to retry" → "please try again" (no tap target existed)
+- `NSMicrophoneUsageDescription` added for Speech framework voice input
+
+### Onboarding Rewrite — Pipeline Theater
+
+Complete UI rebuild of the first-run experience. 2-page flow: welcome with use-case cards → live pipeline theater.
+
+- **Compact capsule strip**: Extract → Chunk → Embed → Index phase indicators replace large circle badges
+- **Live metrics dashboard**: Words / Chunks / Vectors / Time counters with `contentTransition(.numericText())`
+- **Fixed-height log ticker**: Last 6 pipeline events with top fade gradient (replaces unbounded scroll)
+- **Per-document status lines**: Inline filename + stage + metrics (replaces heavy card-style rows)
+- **Retry on failure**: `processingFailed` state with visible Retry button (previously user was stuck)
+- **`accessibilityReduceMotion`**: Entrance animations skip when reduce motion enabled
+- **`accessibilityLabel`**: Skip button labeled for VoiceOver
+- **Swift 6 migration**: `DispatchQueue.main.asyncAfter` → `Task.sleep(for:)`, `foregroundColor` → `foregroundStyle` (34 sites)
+- **Dead code removal**: `entitlementStore` (unused EnvironmentObject), `pulseAnimation`, `processingProgress`, `overallProgress`, `showCards` array → `cardsRevealed` Int
+- **Performance**: Static `DateFormatter` singleton, `.compositingGroup()` on SplashBackdrop, removed redundant `.animation()` modifiers
+
+### Educational Sample Documents
+
+3 curated onboarding documents teach users what the app does and how it works:
+
+- **OpenIntelligence Pricing** — tiers, capabilities, AI Hub transforms, privacy architecture
+- **RAG Technical Architecture** — full 6-step ingestion + 10-step query pipeline, tech specs, performance targets
+- **Apple Intelligence & Private Cloud Compute** — Foundation Model specs, PCC privacy guarantees, 23 Apple frameworks
+
+Onboarding sample imports bypass the free tier document quota (`context == .onboarding` in `addDocument()`). Prevents first-run failures when user already has documents.
 
 ### BM25Scorer Struct Refactor
 
@@ -15,9 +61,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Image Playground concept extraction prompt changed from few-shot (with a hardcoded Mustang example) to zero-shot. The Mustang example was biasing all Image Playground results toward car/oil/mechanical themes regardless of document content.
 
-### Test Suite Removal
+### Suggested Questions Overhaul
 
-The unit test suite (15 files, 200+ tests) was removed. All tests relied on mock objects (`MockLLMService`, `MockVectorDatabase`, `MockEmbeddingProvider`) and could not exercise real behavior — Apple's on-device frameworks (FoundationModels, Vision OCR, NLContextualEmbedding, CoreML Neural Engine) are unavailable on the iOS Simulator. BM25 tests consistently crashed the simulator process (`malloc: pointer being freed was not allocated` in Apple's NaturalLanguage framework).
+- **Few-Shot Contamination Fix**: LLM prompt examples used hardcoded Kia Sportage questions ("What oil viscosity does the 2024 Sportage require?", "How do I reset the maintenance indicator light?"). Apple FM mimicked the car theme regardless of actual document content. Replaced with domain-neutral structural templates using placeholders. Added explicit grounding instruction preventing off-topic generation.
+- **2-Question Bug Fix**: `enforceDiversity()` had a hardcoded per-document cap of 2. Since LLM questions all shared the same `relevantDocuments` (full doc list), diversity filtering killed all but 2. Fixed with dynamic per-doc cap and per-passage document attribution.
+- **Stale Questions on Container Switch**: Switching libraries showed old suggested questions until async regeneration completed. Now clears `dynamicSuggestedQuestions` immediately on container switch, invalidates cache before regenerating.
+- **Improved Fallback Templates**: Content-grounded extraction patterns replace generic templates. Static fallback arrays updated to 4 items each.
+
+### AI Hub Result Sheet Improvements
+
+- **Markdown Rendering**: `WritingToolsResultSheet` now uses `MarkdownText` (full block-level parser) instead of plain `Text()`. Bullets, bold, headers, code fences, and block quotes from `ResponseTransformService` output now render properly.
+- **Share Button**: Added `ShareLink` to result sheet alongside Copy and Insert in Chat — users can send AI Hub transform results to Messages, Notes, Mail, etc.
+- **Presentation Detents**: Sheet uses `.presentationDetents([.medium, .large])` — starts at half-height for short results, draggable to full for longer output.
+
+### Anti-Hallucination: Topical Mismatch Detection
+
+- **Prompt Grounding Fix**: Removed `"Never say 'no information'"` instruction from the LLM system prompt — this was literally forcing the model to fabricate answers from unrelated context. Replaced with explicit instruction allowing the LLM to acknowledge when retrieved excerpts don't address the user's question.
+- **Topical Mismatch Evidence-First Mode**: Added `lexicalRelevance < 0.20` as a new evidence-weakness signal. When query keywords barely appear in retrieved chunks (e.g., billing question answered with PCC encryption chunks), Evidence-First mode now activates regardless of similarity score or query intent. The cautious prompt says "Do NOT fill gaps with assumptions" and forces a confidence note at the end.
+- **Decoupled Evidence-First from Procedural Intent**: Previously `useEvidenceFirstMode` required `isProceduralQuery`. Now topical mismatch alone triggers Evidence-First mode for any intent.
+
+### Container Isolation Hardening
+
+- **EntityIndexService Container Scoping**: Added `documentToContainer` mapping, container-scoped `chunksForEntity(_:in:)` and `chunksForEntities(_:in:)`, `removeContainer()`, and `filterByContainer()`. Updated persistence model.
+- **FullTextStorageService Container Scoping**: Added `countPatternInCorpus(pattern:documentIds:)` and `searchCorpus(pattern:documentIds:maxResults:)` overloads. Legacy unscoped methods now delegate to scoped versions.
+- **RAGService Legacy Fallbacks**: `countPatternInCorpus()` and `searchExactPattern()` now pass container-filtered document IDs instead of searching globally.
+- **Entity Cleanup on Delete**: `removeDocument()` now calls `EntityIndexService.shared.removeDocument()`. Library deletion calls `EntityIndexService.shared.removeContainer()`.
+
+---
+
+## [2.0] - 2026-02-28 (Build 19)
 
 ### RAG-Grounded Response Transforms
 
@@ -289,10 +361,6 @@ Hybrid search rewritten from "FTS5 injection into vector pool" to **two fully in
 - **FTS5-only matches no longer invisible**: Chunks found only by FTS5 (exact keyword match, no semantic similarity) get a fair RRF score from their BM25 rank alone
 - **True RRF fusion**: Two independently ranked lists merged via `reciprocalRankFusion()` which handles the UNION of both sets
 - **Location**: `HybridSearchService.searchWithFTS5()`
-
-### Test Suite Removal
-
-The unit test suite (15 files, 200+ tests) was removed. All tests relied on mock objects (`MockLLMService`, `MockVectorDatabase`, `MockEmbeddingProvider`) and could not exercise real behavior — Apple's on-device frameworks (FoundationModels, Vision OCR, NLContextualEmbedding, CoreML Neural Engine) are unavailable on the iOS Simulator. BM25 tests consistently crashed the simulator process (`malloc: pointer being freed was not allocated` in Apple's NaturalLanguage framework). The tests provided zero value for a device-dependent, single-developer Apple Intelligence app.
 
 ---
 

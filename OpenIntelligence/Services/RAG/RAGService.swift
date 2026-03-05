@@ -2969,13 +2969,18 @@ class RAGService: ObservableObject {
         manageProcessingState: Bool = true
     ) async throws {
         let filename = url.lastPathComponent
+
+        // Onboarding sample docs bypass quota — they're educational material
+        // that ships with the app, not user-generated content
+        let skipQuota = (context == .onboarding)
+
         let gating = await MainActor.run { () -> (limit: Int, canAdd: Bool, tier: WorkspaceTier, count: Int) in
             let count = self.documents.count
             if let store = self.entitlementStore {
-                return (store.documentLimit, store.canAddDocument(currentCount: count), store.activeTier, count)
+                return (store.documentLimit, skipQuota || store.canAddDocument(currentCount: count), store.activeTier, count)
             } else {
                 let limit = QuotaPolicy.documentLimit()
-                return (limit, count < limit, .free, count)
+                return (limit, skipQuota || count < limit, .free, count)
             }
         }
         let documentLimit = gating.limit
@@ -3992,6 +3997,9 @@ class RAGService: ObservableObject {
 
         // Remove from Spotlight index
         SpotlightIndexService.shared.deindexDocument(id: document.id)
+
+        // Remove entity index entries to prevent ghost entities from deleted documents
+        await EntityIndexService.shared.removeDocument(document.id)
 
         // Invalidate visualization cache for active container after removal
         let activeId = await MainActor.run { self.containerService.activeContainerId }
@@ -7859,12 +7867,15 @@ class RAGService: ObservableObject {
                 // 2. Low pre-generation confidence
                 // 3. Average top-5 similarity below the dynamic minimum (key insight: if avgTop5 < dynamicMin, evidence is weak)
                 let avgTop5BelowThreshold = auditAvgTop5 < auditDynamicMin
-                let evidenceIsWeak = bestRetrievalSim < 0.25 || preGenConfidence < 0.70 || avgTop5BelowThreshold
-                let useEvidenceFirstMode = evidenceIsWeak && isProceduralQuery
+                let topicalMismatch = lexicalRelevance < 0.20
+                let evidenceIsWeak = bestRetrievalSim < 0.25 || preGenConfidence < 0.70 || avgTop5BelowThreshold || topicalMismatch
+                let useEvidenceFirstMode = evidenceIsWeak && (isProceduralQuery || topicalMismatch)
 
                 if useEvidenceFirstMode {
                     let triggerReason: String
-                    if avgTop5BelowThreshold {
+                    if topicalMismatch {
+                        triggerReason = "topical mismatch (lexical relevance \(String(format: "%.0f%%", lexicalRelevance * 100)) < 20%)"
+                    } else if avgTop5BelowThreshold {
                         triggerReason = "avgTop5 (\(String(format: "%.2f", auditAvgTop5))) < dynamicMin (\(String(format: "%.2f", auditDynamicMin)))"
                     } else if bestRetrievalSim < 0.25 {
                         triggerReason = "bestSim (\(String(format: "%.2f", bestRetrievalSim))) < 0.25"
@@ -8056,7 +8067,7 @@ class RAGService: ObservableObject {
                 genConfig.systemPrompt = """
                 Answer using document excerpts [S1], [S2], etc.
                 \(intentSpecificInstructions)
-                Rules: Cite sources [S1]/[S2]. Copy values VERBATIM. Be thorough. Never say "no information" — always provide what IS there. If the question is vague, interpret it from document topics.
+                Rules: Cite sources [S1]/[S2]. Copy values VERBATIM. Be thorough. If the excerpts do not address the user's question, say so clearly — briefly state what the excerpts cover and that the requested topic is not in the documents. Do NOT fabricate answers from unrelated context. If the question is vague, interpret it from document topics.
                 CRITICAL: NEVER invent numbers, measurements, or values. Use ONLY values that appear in the excerpts. If a specific value is not in the excerpts, state that clearly.
                 ABBREVIATIONS: If an [Abbreviations] glossary appears in the context, use those EXACT definitions when expanding abbreviations. Never expand an abbreviation differently than the glossary defines it. Example: if glossary says "ED = Emotional Dysregulation", NEVER write "oppositional defiant disorder (ED)".
                 Format: Write naturally and match format to the question. Use ### headers to organize multi-topic answers. Use **bold** sparingly for key terms only. Use bullets only for actual lists, sequential steps, or specifications. Write prose paragraphs for explanations. Combine overlapping excerpts into unified sentences — never repeat the same fact.
@@ -12316,9 +12327,16 @@ extension RAGService: RAGToolHandler {
             )
             Log.debug("[RAGService] Using FTS5 for pattern count (container: \(activeId))", category: .retrieval)
         } else {
-            // Legacy path: File-based storage (no container isolation)
-            counts = await FullTextStorageService.shared.countPatternInCorpus(pattern: pattern)
-            Log.debug("[RAGService] Using legacy file storage for pattern count", category: .retrieval)
+            // Legacy path: File-based storage — scope to active container's documents
+            let containerDocs = await MainActor.run {
+                documents.filter { doc in
+                    if let cid = doc.containerId { return cid == activeId }
+                    return activeId == containerService.containers.first?.id
+                }
+            }
+            let docIds = containerDocs.map { $0.id }
+            counts = await FullTextStorageService.shared.countPatternInCorpus(pattern: pattern, documentIds: docIds)
+            Log.debug("[RAGService] Using legacy file storage for pattern count (scoped to \(docIds.count) docs)", category: .retrieval)
         }
 
         if counts.isEmpty {
@@ -12380,9 +12398,16 @@ extension RAGService: RAGToolHandler {
             }
             Log.debug("[RAGService] Using FTS5 for exact search (container: \(activeId))", category: .retrieval)
         } else {
-            // Legacy path: File-based storage (no container isolation)
-            matches = await FullTextStorageService.shared.searchCorpus(pattern: pattern, maxResults: 10)
-            Log.debug("[RAGService] Using legacy file storage for exact search", category: .retrieval)
+            // Legacy path: File-based storage — scope to active container's documents
+            let containerDocs = await MainActor.run {
+                documents.filter { doc in
+                    if let cid = doc.containerId { return cid == activeId }
+                    return activeId == containerService.containers.first?.id
+                }
+            }
+            let docIds = containerDocs.map { $0.id }
+            matches = await FullTextStorageService.shared.searchCorpus(pattern: pattern, documentIds: docIds, maxResults: 10)
+            Log.debug("[RAGService] Using legacy file storage for exact search (scoped to \(docIds.count) docs)", category: .retrieval)
         }
 
         if matches.isEmpty {

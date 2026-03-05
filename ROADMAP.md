@@ -1,6 +1,6 @@
 # OpenIntelligence Roadmap
 
-**Last Updated**: March 2, 2026
+**Last Updated**: March 4, 2026
 **Version**: 2.0 (Build 19)
 **Status**: App Store Live
 **Maturity**: Production RAG pipeline with 8 agentic tools + Motherboard HUD + Device-Optimized Performance Engine + Rich Markdown Rendering + Zero-Data-Loss Ingestion + Swift 6 Compliance + Pipeline Reliability Hardening + Memory-Safe Large PDF Ingestion
@@ -74,7 +74,6 @@ OpenIntelligence implements **14 of 16** recognized RAG architectural patterns:
 - ✅ **MMR Crash Fix** — Fixed array index out of bounds in `RAGEngine.applyMMR()` when GPU diversity matrix returned malformed results for edge-case embeddings
 - ✅ **Zero-Data-Loss Ingestion** — PHASE -1 font substitution cipher detection via Jaccard similarity (prevents 93% content loss on Kia/Hyundai manuals), raw string regex fix (5 patterns), garbled image extraction fix, dynamic image text budget scaling
 - ✅ **True Parallel Hybrid Search** — Vector + FTS5 run concurrently via `async let`, native SQLite `bm25()` with weighted columns (10/5/1), FTS5-only matches surface through RRF, replaces sequential re-scoring architecture
-- ✅ **Test Suite Removed** — Mock-based unit tests (200+ across 15 files) removed; Apple on-device frameworks (FoundationModels, Vision, CoreML) are untestable on simulator, BM25 tests crashed simulator process
 - ✅ **Pipeline Reliability Hardening** — 11 targeted fixes across compression → generation → fallback chain: compression cap (5 chunks), fresh session per chunk, per-chunk error isolation, 12s time budget, empty→fallback routing, 1s post-compression cooldown, 2s rate-limit retry, typed `.rateLimited`/`.concurrentRequests` LLM errors, extractive Path B rewrite (6×500 chars), partial stream threshold 24→10, error logging in reliability fallback
 - ✅ **Memory-Safe Large PDF Ingestion** — OOM prevention for 500+ page PDFs: `results.removeAll()` before image analysis, batch 20→5 pages, 144 DPI (2×) image understanding renders (was 360 DPI/5×), autoreleasepool for Core Graphics intermediates
 - ✅ **Typed LLM Error Cases** — `.rateLimited` and `.concurrentRequests` cases in `LLMError` enum with exhaustive `switch` handling in ChatScreen, replacing fragile string matching
@@ -83,6 +82,12 @@ OpenIntelligence implements **14 of 16** recognized RAG architectural patterns:
 - ✅ **BM25 `b` Parameter Fix** — Aligned RAGEngine `b=0.75` to `b=0.5` (matches HybridSearchService; correct for uniform chunk sizes)
 - ✅ **Accelerate Gate E** — `vDSP.dot()` replaces manual cosine similarity loop in VerificationGateService
 - ✅ **Regex Pre-Compilation** — RAGEngine compiles patterns once as `static let` instead of per-query
+- ✅ **Suggested Questions Overhaul** — Few-shot contamination fix (removed hardcoded Kia Sportage examples biasing all suggestions), 2-question diversity bug fix (dynamic per-doc cap), stale questions cleared on container switch, content-grounded extraction patterns
+- ✅ **Container Isolation Hardening** — EntityIndexService per-container document mapping with `chunksForEntity(_:in:)`, FullTextStorageService scoped corpus search with document ID filters, entity cleanup on document/library deletion
+- ✅ **Onboarding Rewrite — Pipeline Theater** — Complete UI rebuild: 2-page flow (welcome + use-case cards → live pipeline theater), compact capsule phase strip, real-time metrics dashboard, fixed-height streaming log ticker, per-document status lines, retry on failure, `accessibilityReduceMotion` support, `foregroundStyle` migration (34 sites), dead code removal
+- ✅ **Educational Sample Documents** — 3 curated onboarding docs (Pricing, RAG Architecture, Apple Intelligence & PCC) with quota bypass for `.onboarding` context in `addDocument()`
+- ✅ **AI Hub Result Sheet Improvements** — `WritingToolsResultSheet` now renders markdown via `MarkdownText` (was plain `Text()`), added `ShareLink` alongside Copy/Insert, `.presentationDetents([.medium, .large])` for proper sheet sizing
+- ✅ **Anti-Hallucination Topical Mismatch** — Removed "Never say no information" from LLM prompt (was forcing fabrication from unrelated context). Added lexical relevance < 20% as Evidence-First trigger (activates cautious prompt when query keywords don't appear in retrieved chunks regardless of similarity score)
 
 ---
 
