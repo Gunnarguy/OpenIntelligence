@@ -66,7 +66,7 @@ struct ContainerPill: View {
     }
 
     var body: some View {
-        Button(action: onSelect) { 
+        Button(action: onSelect) {
             HStack(spacing: 6) {
                 Image(systemName: container.icon)
                     .font(.caption)
@@ -105,4 +105,9 @@ struct ContainerPill: View {
             }
         }
     }
+}
+
+#Preview {
+    ContainerPickerStrip(containerService: ContainerService())
+        .padding()
 }

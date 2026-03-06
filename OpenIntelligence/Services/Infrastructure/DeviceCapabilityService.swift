@@ -429,9 +429,9 @@ final class DeviceCapabilityService: @unchecked Sendable {
 
     /// Maximum concurrent GPU operations (image processing, rendering)
     ///
-    /// Metal Feature Set Tables (Oct 2025):
-    /// - Apple9 (A18): 6-core GPU, 1024 threads/group, 32KB threadgroup mem
-    /// - Apple10 (A19): Similar limits but improved scheduling
+    /// Metal Feature Set Tables:
+    /// - Apple9 (A17 Pro): 6-core GPU, 1024 threads/group, 32KB threadgroup mem
+    /// - Apple10 (A18/A18 Pro): 5-6 core GPU, improved scheduling
     /// - All support Metal 3 & 4, ray tracing, mesh shaders
     /// STABLE: Reduced after MTLDebugBlitCommandEncoder crashes.
     ///
@@ -445,16 +445,16 @@ final class DeviceCapabilityService: @unchecked Sendable {
 
         let level = gpuAccelerationLevel
         if level >= 0.9 {
-            // Performance mode - CRANKED maximums for iOS
+            // Maximum mode - CRANKED maximums for iOS
             switch cachedTier {
             case .unsupported: return 2
             case .baseline: return 10   // A17 Pro: 6-core GPU, boosted
             case .enhanced: return 14   // A18 Pro: 6-core GPU, full utilization
             case .advanced: return 16   // A19 Pro: next-gen GPU cores
-            case .ultraAdvanced: return 12 // M-series iPad: balanced
+            case .ultraAdvanced: return 12 // M-series iPad: thermal-limited
             }
         } else if level >= 0.6 {
-            // Balanced mode
+            // Performance mode
             switch cachedTier {
             case .unsupported: return 2
             case .baseline: return 8
@@ -462,8 +462,17 @@ final class DeviceCapabilityService: @unchecked Sendable {
             case .advanced: return 12
             case .ultraAdvanced: return 8 // M-series iPad
             }
+        } else if level >= 0.3 {
+            // Balanced mode - GPU-backed PDF rendering + moderate concurrency
+            switch cachedTier {
+            case .unsupported: return 2
+            case .baseline: return 6    // A17 Pro: light GPU assist
+            case .enhanced: return 8    // A18 Pro: moderate GPU assist
+            case .advanced: return 8    // A19 Pro: moderate GPU assist
+            case .ultraAdvanced: return 6 // M-series iPad
+            }
         } else {
-            // Efficiency mode
+            // Efficiency mode - minimal GPU usage
             return 4
         }
     }

@@ -147,3 +147,16 @@ struct ContentTagsRow: View {
         }
     }
 }
+
+#Preview {
+    ModernDocumentCard(
+        document: Document(
+            filename: "Annual Report.pdf",
+            fileURL: URL(fileURLWithPath: "/tmp/report.pdf"),
+            contentType: .pdf,
+            totalChunks: 42
+        ),
+        ragService: RAGService()
+    )
+    .padding()
+}

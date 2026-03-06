@@ -55,3 +55,12 @@ struct AutoIntelligenceBadge: View {
         )
     }
 }
+
+#Preview {
+    VStack(spacing: 20) {
+        StatsFooter(totalDocuments: 12, totalChunks: 347)
+        AutoIntelligenceBadge(isEnabled: true)
+        AutoIntelligenceBadge(isEnabled: false)
+    }
+    .padding()
+}

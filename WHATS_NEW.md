@@ -45,6 +45,8 @@ Complete rebuild of the first-run experience into a 2-page flow: welcome with us
 - Fixed few-shot contamination: LLM prompt had Kia Sportage examples that biased all suggestions toward car topics regardless of actual documents. Replaced with domain-neutral templates.
 - Fixed 2-question cap bug: diversity filter was too aggressive — now returns 4 grounded questions per library.
 - Stale questions no longer flash when switching libraries — cleared immediately before regeneration.
+- Natural conversational tone: suggestions read like questions a coworker would ask, not robotic templates.
+- Cross-library race guard prevents slow LLM from one library overwriting another's suggestions.
 - Stronger grounding: every suggested question must reference content from actual document passages.
 
 ### AI Hub Result Sheet

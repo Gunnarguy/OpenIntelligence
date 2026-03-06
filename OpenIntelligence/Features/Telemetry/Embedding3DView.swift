@@ -4826,4 +4826,14 @@ struct EmbeddingSpaceRenderer: View {
     }
 }
 
+#Preview {
+    EmbeddingSpaceRenderer(
+        projectionMethod: .pca,
+        chunkCount: 150,
+        documentCount: 5
+    )
+    .environmentObject(RAGService())
+    .environmentObject(ContainerService())
+}
+
 #endif

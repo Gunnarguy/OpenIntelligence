@@ -149,3 +149,8 @@ struct AboutView: View {
         }
     }
 }
+
+#Preview {
+    AboutView()
+        .environmentObject(SettingsStore(ragService: RAGService()))
+}

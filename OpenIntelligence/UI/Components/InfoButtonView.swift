@@ -9,9 +9,9 @@ import SwiftUI
 struct InfoButtonView: View {
     let title: String
     let explanation: String
-    
+
     @State private var showingPopover = false
-    
+
     var body: some View {
         Button(action: {
             showingPopover = true
@@ -24,7 +24,7 @@ struct InfoButtonView: View {
             VStack(alignment: .leading, spacing: 12) {
                 Text(title)
                     .font(.headline)
-                
+
                 Text(explanation)
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -33,4 +33,12 @@ struct InfoButtonView: View {
             .frame(maxWidth: 300)
         }
     }
+}
+
+#Preview {
+    InfoButtonView(
+        title: "Embedding Model",
+        explanation: "The neural network used to convert text into vector representations for semantic search."
+    )
+    .padding()
 }

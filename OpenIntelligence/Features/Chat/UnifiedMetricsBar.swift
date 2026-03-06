@@ -4360,85 +4360,83 @@ private struct MiniSparkline: View {
 // MARK: - Preview
 
 #if DEBUG
-    struct UnifiedMetricsBar_Previews: PreviewProvider {
-        static var previews: some View {
-            VStack(spacing: 20) {
-                // Active generation on device - Adaptive mode
-                UnifiedMetricsBar(
-                    stage: .generating,
-                    execution: .onDevice,
-                    isProcessing: true,
-                    qualityMode: .standard,
-                    contextTokens: 2100,
-                    maxContextTokens: 4096,
-                    tokensGenerated: 47,
-                    tokensPerSecond: 23.5,
-                    characterCount: 312,
-                    elapsedTime: 2.1,
-                    speedHistory: [12.0, 18.5, 22.0, 25.3, 23.5],
-                    ttft: 0.23,
-                    sourceCount: 5,
-                    averageSourceScore: 0.72,
-                    totalDocuments: 24,
-                    totalChunks: 180,
-                    coveredDocuments: 6,
-                    toolCallCount: 2,
-                    modelName: "Apple Intelligence",
-                    requestedExecutionContext: .preferCloud
-                )
+#Preview("Generating") {
+    UnifiedMetricsBar(
+        stage: .generating,
+        execution: .onDevice,
+        isProcessing: true,
+        qualityMode: .standard,
+        contextTokens: 2100,
+        maxContextTokens: 4096,
+        tokensGenerated: 47,
+        tokensPerSecond: 23.5,
+        characterCount: 312,
+        elapsedTime: 2.1,
+        speedHistory: [12.0, 18.5, 22.0, 25.3, 23.5],
+        ttft: 0.23,
+        sourceCount: 5,
+        averageSourceScore: 0.72,
+        totalDocuments: 24,
+        totalChunks: 180,
+        coveredDocuments: 6,
+        toolCallCount: 2,
+        modelName: "Apple Intelligence",
+        requestedExecutionContext: .preferCloud
+    )
+    .padding()
+}
 
-                // Completed on PCC - Adaptive mode
-                UnifiedMetricsBar(
-                    stage: .complete,
-                    execution: .privateCloudCompute,
-                    isProcessing: false,
-                    qualityMode: .standard,
-                    contextTokens: 3800,
-                    maxContextTokens: 4096,
-                    tokensGenerated: 156,
-                    tokensPerSecond: 18.2,
-                    characterCount: 1024,
-                    elapsedTime: 8.5,
-                    speedHistory: [],
-                    ttft: 2.4,
-                    sourceCount: 12,
-                    averageSourceScore: 0.85,
-                    totalDocuments: 120,
-                    totalChunks: 2400,
-                    coveredDocuments: 18,
-                    toolCallCount: 0,
-                    modelName: "Apple Intelligence",
-                    requestedExecutionContext: .preferCloud
-                )
+#Preview("Complete") {
+    UnifiedMetricsBar(
+        stage: .complete,
+        execution: .privateCloudCompute,
+        isProcessing: false,
+        qualityMode: .standard,
+        contextTokens: 3800,
+        maxContextTokens: 4096,
+        tokensGenerated: 156,
+        tokensPerSecond: 18.2,
+        characterCount: 1024,
+        elapsedTime: 8.5,
+        speedHistory: [],
+        ttft: 2.4,
+        sourceCount: 12,
+        averageSourceScore: 0.85,
+        totalDocuments: 120,
+        totalChunks: 2400,
+        coveredDocuments: 18,
+        toolCallCount: 0,
+        modelName: "Apple Intelligence",
+        requestedExecutionContext: .preferCloud
+    )
+    .padding()
+}
 
-                // Searching stage - Adaptive mode
-                UnifiedMetricsBar(
-                    stage: .searching,
-                    execution: .unknown,
-                    isProcessing: true,
-                    qualityMode: .standard,
-                    contextTokens: 800,
-                    maxContextTokens: 4096,
-                    tokensGenerated: 0,
-                    tokensPerSecond: 0,
-                    characterCount: 0,
-                    elapsedTime: 0.3,
-                    speedHistory: [],
-                    ttft: nil,
-                    sourceCount: 0,
-                    averageSourceScore: nil,
-                    totalDocuments: 0,
-                    totalChunks: 0,
-                    coveredDocuments: 0,
-                    toolCallCount: 0,
-                    modelName: nil,
-                    requestedExecutionContext: .automatic
-                )
-            }
-            .padding()
-            .background(Color(uiColor: .systemBackground))
-        }
-    }
+#Preview("Searching") {
+    UnifiedMetricsBar(
+        stage: .searching,
+        execution: .unknown,
+        isProcessing: true,
+        qualityMode: .standard,
+        contextTokens: 800,
+        maxContextTokens: 4096,
+        tokensGenerated: 0,
+        tokensPerSecond: 0,
+        characterCount: 0,
+        elapsedTime: 0.3,
+        speedHistory: [],
+        ttft: nil,
+        sourceCount: 0,
+        averageSourceScore: nil,
+        totalDocuments: 0,
+        totalChunks: 0,
+        coveredDocuments: 0,
+        toolCallCount: 0,
+        modelName: nil,
+        requestedExecutionContext: .automatic
+    )
+    .padding()
+}
 #endif
 
 // FlowLayout is defined in DocumentDetailsView.swift - reusing it from Shared scope

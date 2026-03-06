@@ -288,3 +288,7 @@ struct LiveSystemMonitorWrapper: View {
         return reasons.isEmpty ? "device constraints" : reasons.joined(separator: ", ")
     }
 }
+
+#Preview {
+    LiveSystemMonitorWrapper()
+}

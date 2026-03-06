@@ -3843,3 +3843,9 @@ struct CompactAtlasSceneView: View {
         return ""
     }
 }
+
+#Preview {
+    AdaptiveVisualizationsView()
+        .environmentObject(RAGService())
+        .environmentObject(ContainerService())
+}

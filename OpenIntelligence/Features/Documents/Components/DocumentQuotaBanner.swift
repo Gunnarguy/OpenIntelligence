@@ -143,3 +143,17 @@ struct DocumentQuotaBanner: View {
         }
     }
 }
+
+#Preview {
+    DocumentQuotaBanner(
+        currentCount: 23,
+        limit: 25,
+        tierName: "Free",
+        addOnPacks: 0,
+        packCap: 3,
+        remainingPackCapacity: 3,
+        hasReachedPackCap: false,
+        onUpgrade: {}
+    )
+    .padding()
+}

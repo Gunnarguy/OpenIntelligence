@@ -400,9 +400,7 @@ struct SFSymbolPickerButton: View {
 }
 
 #if DEBUG
-    struct SFSymbolPicker_Previews: PreviewProvider {
-        static var previews: some View {
-            SFSymbolPicker(selectedSymbol: .constant("folder.fill"))
-        }
-    }
+#Preview {
+    SFSymbolPicker(selectedSymbol: .constant("folder.fill"))
+}
 #endif

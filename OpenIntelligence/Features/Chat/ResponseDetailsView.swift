@@ -698,3 +698,20 @@ struct ResponseDetailMetricRow: View {
         }
     }
 }
+
+#Preview {
+    NavigationStack {
+        ChatResponseDetailsView(
+            metadata: ResponseMetadata(
+                totalGenerationTime: 2.3,
+                tokensGenerated: 156,
+                tokensPerSecond: 28.5,
+                modelUsed: "Apple FM",
+                retrievalTime: 0.45,
+                retrievalConfigSummary: "Balanced",
+                qualityModeName: "Standard"
+            ),
+            retrievedChunks: []
+        )
+    }
+}

@@ -31,3 +31,7 @@ import SwiftUI
         }
     }
 #endif
+
+#Preview {
+    ActivityView(activityItems: ["Sample shared text from OpenIntelligence"])
+}

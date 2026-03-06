@@ -141,3 +141,10 @@ struct ReportMessageSheet: View {
         return lines.joined(separator: "\n")
     }
 }
+
+#Preview {
+    ReportMessageSheet(
+        message: ChatMessage(role: .assistant, content: "Sample response for preview."),
+        onSubmit: { _, _, _, _ in }
+    )
+}

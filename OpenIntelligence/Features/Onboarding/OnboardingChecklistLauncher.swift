@@ -61,3 +61,14 @@ struct OnboardingChecklistLauncher: View {
         }
     }
 }
+
+#Preview {
+    OnboardingChecklistLauncher(
+        completedSteps: 2,
+        totalSteps: 4,
+        action: {},
+        onDismissPermanently: {}
+    )
+    .padding()
+    .background(Color(.systemGroupedBackground))
+}

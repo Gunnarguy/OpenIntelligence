@@ -3885,6 +3885,12 @@ extension AgenticOrchestrator {
             // This was the root cause of constant context overflow (4521+ tokens on a 4096 limit).
             var response: LLMResponse? = nil
             for retryCount in 0...maxRetries {
+                // Check cancellation before each LLM call — if user sent a new query,
+                // the RAGService cancels this task and we should stop immediately.
+                if Task.isCancelled {
+                    Log.info("[ReasoningChain] Cancelled before session \(sessionNum) LLM call", category: .llm)
+                    break
+                }
                 do {
                     response = try await ragService.generateWithProperConsent(
                         prompt: sessionPrompt,
@@ -6320,6 +6326,7 @@ extension RAGService {
     /// Generate with a fresh session (no accumulated context)
     /// Used by AgenticOrchestrator for each thinking step
     func generateWithFreshSession(prompt: String, maxTokens: Int) async throws -> LLMResponse {
+        try Task.checkCancellation()
         #if canImport(FoundationModels)
             // Create a temporary AppleFoundationLLMService for isolated generation
             let tempService = AppleFoundationLLMService()
@@ -6356,6 +6363,7 @@ extension RAGService {
         disableTools: Bool = false,
         temperature: Float = 0.5
     ) async throws -> LLMResponse {
+        try Task.checkCancellation()
         var config = InferenceConfig(
             maxTokens: maxTokens,
             temperature: temperature, // Adaptive: higher for exploration, lower for synthesis

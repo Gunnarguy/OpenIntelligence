@@ -82,7 +82,7 @@ OpenIntelligence implements **14 of 16** recognized RAG architectural patterns:
 - ✅ **BM25 `b` Parameter Fix** — Aligned RAGEngine `b=0.75` to `b=0.5` (matches HybridSearchService; correct for uniform chunk sizes)
 - ✅ **Accelerate Gate E** — `vDSP.dot()` replaces manual cosine similarity loop in VerificationGateService
 - ✅ **Regex Pre-Compilation** — RAGEngine compiles patterns once as `static let` instead of per-query
-- ✅ **Suggested Questions Overhaul** — Few-shot contamination fix (removed hardcoded Kia Sportage examples biasing all suggestions), 2-question diversity bug fix (dynamic per-doc cap), stale questions cleared on container switch, content-grounded extraction patterns
+- ✅ **Suggested Questions Overhaul** — Few-shot contamination fix (removed hardcoded Kia Sportage examples biasing all suggestions), 2-question diversity bug fix (dynamic per-doc cap), stale questions cleared on container switch, conversational tone rewrite, content-grounded extraction patterns
 - ✅ **Container Isolation Hardening** — EntityIndexService per-container document mapping with `chunksForEntity(_:in:)`, FullTextStorageService scoped corpus search with document ID filters, entity cleanup on document/library deletion
 - ✅ **Onboarding Rewrite — Pipeline Theater** — Complete UI rebuild: 2-page flow (welcome + use-case cards → live pipeline theater), compact capsule phase strip, real-time metrics dashboard, fixed-height streaming log ticker, per-document status lines, retry on failure, `accessibilityReduceMotion` support, `foregroundStyle` migration (34 sites), dead code removal
 - ✅ **Educational Sample Documents** — 3 curated onboarding docs (Pricing, RAG Architecture, Apple Intelligence & PCC) with quota bypass for `.onboarding` context in `addDocument()`

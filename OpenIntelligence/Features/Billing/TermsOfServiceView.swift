@@ -112,3 +112,7 @@ For questions about these Terms, please contact us:
         }
     }
 }
+
+#Preview {
+    TermsOfServiceView()
+}

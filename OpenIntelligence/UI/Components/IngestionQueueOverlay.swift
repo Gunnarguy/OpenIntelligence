@@ -1335,3 +1335,19 @@ private struct TotalsSummaryCard: View {
         return "\(ms)ms"
     }
 }
+
+#Preview {
+    IngestionQueueOverlay(items: [
+        IngestionItem(
+            url: URL(fileURLWithPath: "/tmp/report.pdf"),
+            stage: .embedding,
+            detail: "Embedding chunks...",
+            progress: 0.65
+        ),
+        IngestionItem(
+            url: URL(fileURLWithPath: "/tmp/notes.txt"),
+            stage: .queued,
+            detail: "Queued"
+        )
+    ])
+}

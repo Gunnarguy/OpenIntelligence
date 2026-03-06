@@ -870,3 +870,12 @@ private struct SplashBackdrop: View {
         }
     }
 }
+
+#Preview {
+    OnboardingChecklistView(
+        ragService: RAGService(),
+        onOpenSettings: {},
+        onOpenChat: {}
+    )
+    .environmentObject(OnboardingStateStore())
+}

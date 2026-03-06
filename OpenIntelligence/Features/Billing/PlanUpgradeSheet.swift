@@ -745,3 +745,8 @@ private struct BenefitRow: View {
         }
     }
 }
+
+#Preview {
+    PlanUpgradeSheet(entryPoint: .settings)
+        .environmentObject(EntitlementStore(billingService: StoreKitBillingService()))
+}

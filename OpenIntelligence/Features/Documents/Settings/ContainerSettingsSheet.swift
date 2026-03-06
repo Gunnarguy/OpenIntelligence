@@ -1168,3 +1168,11 @@ struct ReembedStatusBanner: View {
         )
     }
 }
+
+#Preview {
+    ContainerSettingsSheet(
+        containerService: ContainerService(),
+        ragService: RAGService()
+    )
+    .environmentObject(SettingsStore(ragService: RAGService()))
+}

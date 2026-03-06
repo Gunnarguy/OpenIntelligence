@@ -172,3 +172,22 @@ struct DetailInfoRow: View {
         .font(highlight ? .body : .subheadline)
     }
 }
+
+#Preview {
+    ProcessingSummaryView(summary: ProcessingSummary(
+        filename: "Report.pdf",
+        fileSize: "2.4 MB",
+        documentType: .pdf,
+        pageCount: 15,
+        ocrPagesUsed: 3,
+        totalChars: 45000,
+        totalWords: 8500,
+        chunksCreated: 42,
+        extractionTime: 1.2,
+        chunkingTime: 0.3,
+        embeddingTime: 0.8,
+        totalTime: 2.3,
+        chunkStats: ProcessingSummary.ChunkStatistics(avgChars: 1800, minChars: 500, maxChars: 3100),
+        embeddingProviderId: "coreml_sentence_embedding"
+    ))
+}

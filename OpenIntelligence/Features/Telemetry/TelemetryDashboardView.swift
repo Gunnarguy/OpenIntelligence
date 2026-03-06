@@ -23,10 +23,10 @@ struct TelemetryDashboardView: View {
                 endPoint: .bottom
             )
             .ignoresSafeArea()
-            
+
             VStack(spacing: 0) {
                 modernFilterBar
-                
+
                 if filteredEvents.isEmpty {
                     EmptyTelemetryView()
                 } else {
@@ -75,7 +75,7 @@ struct TelemetryDashboardView: View {
                     .fontWeight(.semibold)
                 Spacer()
             }
-            
+
             Picker("Severity", selection: $selectedFilter) {
                 Text("All").tag(TelemetrySeverity?.none)
                 ForEach(TelemetrySeverity.allCases, id: \.self) { severity in
@@ -95,7 +95,7 @@ private struct EmptyTelemetryView: View {
     var body: some View {
         VStack(spacing: 24) {
             Spacer()
-            
+
             ZStack {
                 Circle()
                     .fill(
@@ -109,7 +109,7 @@ private struct EmptyTelemetryView: View {
                         )
                     )
                     .frame(width: 120, height: 120)
-                
+
                 Image(systemName: "waveform.path.ecg")
                     .font(.system(size: 50))
                     .foregroundStyle(
@@ -120,17 +120,17 @@ private struct EmptyTelemetryView: View {
                         )
                     )
             }
-            
+
             VStack(spacing: 8) {
                 Text("No Telemetry Yet")
                     .font(.title2)
                     .fontWeight(.bold)
-                
+
                 Text("Run an import or chat to see live metrics")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
             }
-            
+
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -148,16 +148,16 @@ private struct ModernTelemetryCard: View {
                     RoundedRectangle(cornerRadius: 10)
                         .fill(categoryColor.opacity(0.2))
                         .frame(width: 44, height: 44)
-                    
+
                     Image(systemName: event.category.symbolName)
                         .foregroundColor(categoryColor)
                 }
-                
+
                 VStack(alignment: .leading, spacing: 4) {
                     Text(event.title)
                         .font(.headline)
                         .foregroundColor(.primary)
-                    
+
                     if let duration = event.formattedDuration {
                         HStack(spacing: 4) {
                             Image(systemName: "clock")
@@ -168,9 +168,9 @@ private struct ModernTelemetryCard: View {
                         .foregroundColor(.secondary)
                     }
                 }
-                
+
                 Spacer()
-                
+
                 VStack(alignment: .trailing, spacing: 4) {
                     // Severity badge
                     Text(event.severity.rawValue.capitalized)
@@ -181,13 +181,13 @@ private struct ModernTelemetryCard: View {
                         .background(severityColor.opacity(0.2))
                         .foregroundStyle(severityColor)
                         .clipShape(Capsule())
-                    
+
                     Text(event.formattedTimestamp)
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }
             }
-            
+
             // Metadata
             if !event.metadata.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
@@ -222,7 +222,7 @@ private struct ModernTelemetryCard: View {
         case .error: return .red
         }
     }
-    
+
     private var categoryColor: Color {
         switch event.category {
         case .ingestion: return .blue
@@ -243,4 +243,8 @@ private struct TelemetryRow: View {
     var body: some View {
         ModernTelemetryCard(event: event)
     }
+}
+
+#Preview {
+    TelemetryDashboardView()
 }

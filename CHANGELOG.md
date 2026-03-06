@@ -66,6 +66,8 @@ Image Playground concept extraction prompt changed from few-shot (with a hardcod
 - **Few-Shot Contamination Fix**: LLM prompt examples used hardcoded Kia Sportage questions ("What oil viscosity does the 2024 Sportage require?", "How do I reset the maintenance indicator light?"). Apple FM mimicked the car theme regardless of actual document content. Replaced with domain-neutral structural templates using placeholders. Added explicit grounding instruction preventing off-topic generation.
 - **2-Question Bug Fix**: `enforceDiversity()` had a hardcoded per-document cap of 2. Since LLM questions all shared the same `relevantDocuments` (full doc list), diversity filtering killed all but 2. Fixed with dynamic per-doc cap and per-passage document attribution.
 - **Stale Questions on Container Switch**: Switching libraries showed old suggested questions until async regeneration completed. Now clears `dynamicSuggestedQuestions` immediately on container switch, invalidates cache before regenerating.
+- **Conversational Tone Rewrite**: Entire LLM prompt, `@Guide` description, fallback templates, and static arrays rewritten for natural, casual tone — suggestions read like questions a coworker would ask, not generic templated queries.
+- **Cross-Library Race Guard**: `activeContainerId == containerId` check in ChatScreen prevents slow LLM completions from one library overwriting another library's suggested questions.
 - **Improved Fallback Templates**: Content-grounded extraction patterns replace generic templates. Static fallback arrays updated to 4 items each.
 
 ### AI Hub Result Sheet Improvements

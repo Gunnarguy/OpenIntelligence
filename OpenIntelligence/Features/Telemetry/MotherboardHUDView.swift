@@ -602,21 +602,18 @@ private struct SiliconLegend: View {
 // MARK: - Preview
 
 #if DEBUG
-struct HardwareXRayOverlay_Previews: PreviewProvider {
-    static var previews: some View {
-        ZStack {
-            Color.black.opacity(0.95)
-            HardwareXRayOverlay()
-        }
-        .ignoresSafeArea()
-        .onAppear {
-            // Simulate activity for preview using public API
-            HardwareTelemetryState.shared.sustain(.embeddingGeneration, active: true, intensity: 0.8)
-            HardwareTelemetryState.shared.sustain(.vectorSimilarity, active: true, intensity: 0.4)
-            HardwareTelemetryState.shared.sustain(.ragOrchestration, active: true, intensity: 0.3)
-            HardwareTelemetryState.shared.reportHaptic(style: "preview")
-        }
-        .previewDisplayName("SoC @ \(DeviceComponentLayout.current.displayName)")
+#Preview("SoC Hardware X-Ray") {
+    ZStack {
+        Color.black.opacity(0.95)
+        HardwareXRayOverlay()
+    }
+    .ignoresSafeArea()
+    .onAppear {
+        // Simulate activity for preview using public API
+        HardwareTelemetryState.shared.sustain(.embeddingGeneration, active: true, intensity: 0.8)
+        HardwareTelemetryState.shared.sustain(.vectorSimilarity, active: true, intensity: 0.4)
+        HardwareTelemetryState.shared.sustain(.ragOrchestration, active: true, intensity: 0.3)
+        HardwareTelemetryState.shared.reportHaptic(style: "preview")
     }
 }
 #endif

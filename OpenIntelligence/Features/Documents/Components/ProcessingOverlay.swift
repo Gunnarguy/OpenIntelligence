@@ -9,17 +9,17 @@ import SwiftUI
 
 struct ProcessingOverlay: View {
     let status: String
-    
+
     var body: some View {
         ZStack {
             Color.black.opacity(0.4)
                 .ignoresSafeArea()
-            
+
             VStack(spacing: 20) {
                 ProgressView()
                     .scaleEffect(1.5)
                     .tint(.white)
-                
+
                 Text(status)
                     .font(.headline)
                     .foregroundColor(.white)
@@ -34,4 +34,8 @@ struct ProcessingOverlay: View {
             .shadow(radius: 20)
         }
     }
+}
+
+#Preview {
+    ProcessingOverlay(status: "Processing document...")
 }

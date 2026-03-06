@@ -864,3 +864,17 @@ struct FlowLayout: Layout {
         )
     }
 }
+
+#Preview {
+    NavigationStack {
+        DocumentDetailsView(
+            document: Document(
+                filename: "Sample Document.pdf",
+                fileURL: URL(fileURLWithPath: "/tmp/sample.pdf"),
+                contentType: .pdf,
+                totalChunks: 42
+            ),
+            embeddingProviderId: "coreml_sentence_embedding"
+        )
+    }
+}

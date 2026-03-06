@@ -106,3 +106,7 @@ struct DocumentPicker: View {
     }
 }
 #endif
+
+#Preview {
+    DocumentPicker(onDocumentsPicked: { _ in })
+}

@@ -132,3 +132,7 @@ For privacy questions or data requests:
         }
     }
 }
+
+#Preview {
+    PrivacyPolicyView()
+}

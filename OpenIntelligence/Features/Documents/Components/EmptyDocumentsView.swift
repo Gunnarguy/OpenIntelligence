@@ -19,7 +19,7 @@ struct EmptyDocumentsView: View {
     var body: some View {
         VStack(spacing: 24) {
             Spacer()
-            
+
             // Hero icon with gradient
             ZStack {
                 Circle()
@@ -34,7 +34,7 @@ struct EmptyDocumentsView: View {
                         )
                     )
                     .frame(width: 120, height: 120)
-                
+
                 Image(systemName: "doc.text.magnifyingglass")
                     .font(.system(size: 50))
                     .foregroundStyle(
@@ -45,12 +45,12 @@ struct EmptyDocumentsView: View {
                         )
                     )
             }
-            
+
             VStack(spacing: 8) {
                 Text("No Documents Yet")
                     .font(.title2)
                     .fontWeight(.bold)
-                
+
                 Text("Build your knowledge base by adding documents")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
@@ -64,7 +64,7 @@ struct EmptyDocumentsView: View {
                     .foregroundStyle(.secondary)
                     .padding(.horizontal)
             }
-            
+
             VStack(spacing: 12) {
                 Button(action: onPickFiles) {
                     Label("Add Your Documents", systemImage: "tray.and.arrow.down")
@@ -107,13 +107,13 @@ struct EmptyDocumentsView: View {
                     title: "Multiple Formats",
                     description: "PDF, Text, Markdown, and more"
                 )
-                
+
                 DocumentFeatureRow(
                     icon: "bolt.fill",
                     title: "Fast Processing",
                     description: "Automatic chunking and embedding"
                 )
-                
+
                 DocumentFeatureRow(
                     icon: "cylinder.fill",
                     title: "Persistent Storage",
@@ -121,7 +121,7 @@ struct EmptyDocumentsView: View {
                 )
             }
             .padding(.horizontal, 32)
-            
+
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -132,23 +132,35 @@ struct DocumentFeatureRow: View {
     let icon: String
     let title: String
     let description: String
-    
+
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
                 .font(.title3)
                 .foregroundColor(.accentColor)
                 .frame(width: 32)
-            
+
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.subheadline)
                     .fontWeight(.semibold)
-                
+
                 Text(description)
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
         }
     }
+}
+
+#Preview {
+    EmptyDocumentsView(
+        isImportingSamples: false,
+        hasImportedSamples: false,
+        isAtDocumentLimit: false,
+        documentLimit: 25,
+        statusMessage: nil,
+        onImportSamples: {},
+        onPickFiles: {}
+    )
 }

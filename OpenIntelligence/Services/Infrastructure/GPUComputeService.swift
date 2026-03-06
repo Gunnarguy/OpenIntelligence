@@ -61,7 +61,7 @@ final class MetalBufferPool: @unchecked Sendable {
             self.maxCacheBytes = 48 * 1024 * 1024   // 48MB (was 256MB)
             self.maxBuffersPerBucket = 6
         } else if deviceName.contains("a18") || deviceName.contains("m3") {
-            // Apple9: Moderate caching
+            // Apple10/Apple9: Moderate caching
             self.maxCacheBytes = 32 * 1024 * 1024   // 32MB (was 192MB)
             self.maxBuffersPerBucket = 4
         } else if deviceName.contains("a17") || deviceName.contains("m2") {

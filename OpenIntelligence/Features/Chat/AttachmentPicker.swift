@@ -395,3 +395,12 @@ func generateThumbnail(for url: URL) -> UIImage? {
 
     return nil
 }
+
+#Preview {
+    AttachmentMenuButton(
+        onSelectDocument: {},
+        onSelectPhoto: {},
+        onTakePhoto: {},
+        isCameraAvailable: true
+    )
+}

@@ -42,6 +42,8 @@ SUGGESTED QUESTIONS
 - Fixed prompt contamination causing off-topic suggestions (car questions on unrelated docs)
 - Now generates 4 grounded questions per library from actual document content
 - Stale questions cleared instantly when switching libraries
+- Natural conversational tone — suggestions sound like questions a person would actually ask
+- Fixed race condition where switching libraries fast could show stale suggestions from another library
 
 CONTAINER ISOLATION
 - Entity index, full-text search, and suggested questions fully scoped per library

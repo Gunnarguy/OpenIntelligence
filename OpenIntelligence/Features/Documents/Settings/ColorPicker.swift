@@ -521,21 +521,18 @@ extension Color {
 // MARK: - Previews
 
 #if DEBUG
-    struct ColorPicker_Previews: PreviewProvider {
-        static var previews: some View {
-            Group {
-                LibraryColorPicker(selectedColorHex: .constant("#007AFF"))
-                    .previewDisplayName("Library Color Picker")
+#Preview("Library Color Picker") {
+    LibraryColorPicker(selectedColorHex: .constant("#007AFF"))
+}
 
-                AccentColorPicker(selectedAccentHex: .constant(nil))
-                    .previewDisplayName("Accent Color Picker")
+#Preview("Accent Color Picker") {
+    AccentColorPicker(selectedAccentHex: .constant(nil))
+}
 
-                Form {
-                    ColorPickerButton(selectedColorHex: .constant("#FF3B30"))
-                    AccentColorSettingsRow(accentColorHex: .constant("#007AFF"))
-                }
-                .previewDisplayName("Settings Rows")
-            }
-        }
+#Preview("Settings Rows") {
+    Form {
+        ColorPickerButton(selectedColorHex: .constant("#FF3B30"))
+        AccentColorSettingsRow(accentColorHex: .constant("#007AFF"))
     }
+}
 #endif

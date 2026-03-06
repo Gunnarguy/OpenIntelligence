@@ -592,6 +592,11 @@ class RAGService: ObservableObject {
     /// Live confidence meter for Maximum mode - updates as reasoning progresses toward 98%
     @MainActor @Published private(set) var deepThinkLiveConfidence: Float = 0
 
+    /// Tracks the active agentic query task so it can be cancelled when a new query arrives.
+    /// Without this, sending a second Deep Think/Maximum query while one is running causes
+    /// both orchestrators to compete for the Apple FM model, freezing the app.
+    @MainActor private var activeAgenticTask: Task<RAGResponse, Error>? = nil
+
     /// Cached corpus vocabulary per container to avoid expensive rebuilds on each query
     @MainActor private var corpusVocabularyCache: [UUID: CorpusVocabulary] = [:]
 
@@ -4588,14 +4593,23 @@ class RAGService: ObservableObject {
         let orchestrator = AgenticOrchestrator(ragService: self, config: optimizedConfig, qualityMode: qualityMode)
         let startTime = Date()
 
-        // Reset live counters at start of Deep Think / Maximum
+        // Cancel any running agentic query before starting a new one.
+        // Without this, two orchestrators compete for Apple FM, freezing the app.
         await MainActor.run {
+            if let existing = self.activeAgenticTask {
+                Log.info("[Agentic] Cancelling previous orchestration before starting new query", category: .pipeline)
+                existing.cancel()
+                self.activeAgenticTask = nil
+            }
             self.deepThinkLiveTokens = 0
             self.deepThinkLiveSteps = 0
             self.deepThinkLiveConfidence = 0
         }
 
-        do {
+        // Wrap execution in a tracked task so it can be cancelled by subsequent queries
+        let agenticTask = Task<RAGResponse, Error> {
+            try Task.checkCancellation()
+
             let result = try await orchestrator.execute(
                 query: question,
                 initialContext: "",
@@ -4816,7 +4830,23 @@ class RAGService: ObservableObject {
                 ),
                 confidenceScore: result.confidence
             )
+        }
+
+        // Track this task so subsequent queries can cancel it
+        await MainActor.run {
+            self.activeAgenticTask = agenticTask
+        }
+
+        do {
+            let response = try await agenticTask.value
+            await MainActor.run { self.activeAgenticTask = nil }
+            return response
+        } catch is CancellationError {
+            await MainActor.run { self.activeAgenticTask = nil }
+            Log.info("[Agentic] Query cancelled (user sent new message)", category: .pipeline)
+            throw CancellationError()
         } catch {
+            await MainActor.run { self.activeAgenticTask = nil }
             Log.error("[Agentic] Failed: \(error.localizedDescription)", category: .pipeline)
             throw error
         }

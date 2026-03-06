@@ -779,8 +779,6 @@ enum TestStatus {
 
 // MARK: - Preview
 
-struct CoreValidationView_Previews: PreviewProvider {
-    static var previews: some View {
-        CoreValidationView(ragService: RAGService())
-    }
+#Preview {
+    CoreValidationView(ragService: RAGService())
 }

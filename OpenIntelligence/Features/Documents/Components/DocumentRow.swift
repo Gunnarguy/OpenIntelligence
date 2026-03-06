@@ -99,3 +99,13 @@ extension DocumentRow {
         }
     }
 }
+
+#Preview {
+    DocumentRow(document: Document(
+        filename: "Sample Document.pdf",
+        fileURL: URL(fileURLWithPath: "/tmp/sample.pdf"),
+        contentType: .pdf,
+        totalChunks: 24
+    ))
+    .padding()
+}
