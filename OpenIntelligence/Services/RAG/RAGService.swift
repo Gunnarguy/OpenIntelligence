@@ -8788,7 +8788,7 @@ class RAGService: ObservableObject {
                     )
 
                     // Step 7.5: Verification Gates (AppleRAG Anti-Hallucination)
-                    // Run Gates A-D to validate response against source evidence
+                    // Run Gates A-G to validate response against source evidence
                     // Respect quality mode toggle for verification
                     let runVerificationGates = qualityModeUsesVerificationGates
 

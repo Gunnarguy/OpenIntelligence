@@ -292,8 +292,8 @@ User Query Input
          │
          ▼
 ┌─────────────────┐
-│ Verification    │  ← Gates A-D anti-hallucination
-│ Gates           │    (confidence, coverage, numeric, contradiction)
+│ Verification    │  ← Gates A-G anti-hallucination
+│ Gates           │    (confidence, coverage, numeric, contradiction, semantic, quotes, quality)
 └────────┬────────┘
          │
          ▼
@@ -323,22 +323,22 @@ OpenIntelligence is composed of **102 distinct services** organized into 11 cate
 
 #### RAG Pipeline Services (14 services)
 
-| Service                          | Type        | Purpose                                                                     | File                                       |
-| -------------------------------- | ----------- | --------------------------------------------------------------------------- | ------------------------------------------ |
-| `RAGService`                     | class       | Main `@MainActor` orchestrator: ingestion, retrieval, UI state              | `RAG/RAGService.swift`                     |
-| `RAGEngine`                      | actor       | Background math: MMR, BM25, RRF, reranking (no UI)                          | `RAG/RAGEngine.swift`                      |
-| `HybridSearchService`            | class       | Vector k-NN + chunk-level BM25 with RRF fusion (k=60)                       | `RAG/HybridSearchService.swift`            |
-| `IterativeRetrievalService`      | final class | Multi-pass retrieval with self-correction (auto-enabled for multi-hop)      | `RAG/IterativeRetrievalService.swift`      |
-| `VerificationGateService`        | actor       | Anti-hallucination gates A-D (confidence, coverage, numeric, contradiction) | `RAG/VerificationGateService.swift`        |
-| `ContextPackingService`          | actor       | Graph context packing within token budget                                   | `RAG/ContextPackingService.swift`          |
-| `GraphIndexService`              | actor       | Cross-reference detection (page refs, table refs, neighbors)                | `RAG/GraphIndexService.swift`              |
-| `ContainerVocabularyService`     | actor       | Per-container domain vocabulary for query expansion                         | `RAG/ContainerVocabularyService.swift`     |
-| `ExtractiveSummarizationService` | actor       | Sentence selection via bi-encoder + MMR for extractive summaries            | `RAG/ExtractiveSummarizationService.swift` |
-| `ExtractiveQAService`            | protocol    | Span extraction interface (CoreML, Heuristic, Placeholder impls)            | `RAG/ExtractiveQAService.swift`            |
-| `ParentDocumentService`          | final class | Sibling chunk expansion (±5 chunks) for paragraph context                   | `RAG/ParentDocumentService.swift`          |
-| `QualityAssuranceService`        | actor       | Accuracy metrics: Recall@K, MRR, F1, faithfulness scoring                   | `RAG/QualityAssuranceService.swift`        |
-| `ConfidenceCalibrationService`   | final class | Platt scaling for calibrated confidence (0.0-1.0)                           | `RAG/ConfidenceCalibrationService.swift`   |
-| `AutoTuneService`                | class       | Optimizes retrieval parameters based on feedback                            | `RAG/AutoTuneService.swift`                |
+| Service                          | Type        | Purpose                                                                                                                                 | File                                       |
+| -------------------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `RAGService`                     | class       | Main `@MainActor` orchestrator: ingestion, retrieval, UI state                                                                          | `RAG/RAGService.swift`                     |
+| `RAGEngine`                      | actor       | Background math: MMR, BM25, RRF, reranking (no UI)                                                                                      | `RAG/RAGEngine.swift`                      |
+| `HybridSearchService`            | class       | Vector k-NN + chunk-level BM25 with RRF fusion (k=60)                                                                                   | `RAG/HybridSearchService.swift`            |
+| `IterativeRetrievalService`      | final class | Multi-pass retrieval with self-correction (auto-enabled for multi-hop)                                                                  | `RAG/IterativeRetrievalService.swift`      |
+| `VerificationGateService`        | actor       | Anti-hallucination gates A-G (confidence, coverage, numeric, contradiction, semantic grounding, quote faithfulness, generation quality) | `RAG/VerificationGateService.swift`        |
+| `ContextPackingService`          | actor       | Graph context packing within token budget                                                                                               | `RAG/ContextPackingService.swift`          |
+| `GraphIndexService`              | actor       | Cross-reference detection (page refs, table refs, neighbors)                                                                            | `RAG/GraphIndexService.swift`              |
+| `ContainerVocabularyService`     | actor       | Per-container domain vocabulary for query expansion                                                                                     | `RAG/ContainerVocabularyService.swift`     |
+| `ExtractiveSummarizationService` | actor       | Sentence selection via bi-encoder + MMR for extractive summaries                                                                        | `RAG/ExtractiveSummarizationService.swift` |
+| `ExtractiveQAService`            | protocol    | Span extraction interface (CoreML, Heuristic, Placeholder impls)                                                                        | `RAG/ExtractiveQAService.swift`            |
+| `ParentDocumentService`          | final class | Sibling chunk expansion (±5 chunks) for paragraph context                                                                               | `RAG/ParentDocumentService.swift`          |
+| `QualityAssuranceService`        | actor       | Accuracy metrics: Recall@K, MRR, F1, faithfulness scoring                                                                               | `RAG/QualityAssuranceService.swift`        |
+| `ConfidenceCalibrationService`   | final class | Platt scaling for calibrated confidence (0.0-1.0)                                                                                       | `RAG/ConfidenceCalibrationService.swift`   |
+| `AutoTuneService`                | class       | Optimizes retrieval parameters based on feedback                                                                                        | `RAG/AutoTuneService.swift`                |
 
 #### Query Services (9 services)
 
@@ -2263,7 +2263,7 @@ The system is designed to be domain-agnostic—able to understand any document t
 | Lexical Index (BM25)     | ✅ Implemented | `BM25Service` with corpus vocabulary             |
 | Structure Index          | ✅ Implemented | `structureType` field + structure boost          |
 | Structure-Aware Chunking | ✅ Implemented | Tables/lists preserved as atomic chunks          |
-| Verification Gates       | ✅ Implemented | `VerificationGateService` (4-gate pipeline)      |
+| Verification Gates       | ✅ Implemented | `VerificationGateService` (7-gate pipeline A-G)  |
 | Bounding Box Metadata    | ✅ Implemented | `ChunkMetadata.bboxArray` with computed `bbox`   |
 | Section Path Hierarchy   | ✅ Implemented | `ChunkMetadata.sectionPath` + `buildSectionPath` |
 | Extractive QA Span Model | ❌ Planned     | TinyBERT + start/end heads (Phase 2.06)          |

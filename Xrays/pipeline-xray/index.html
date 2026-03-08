@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pipeline X-Ray Studio — OpenIntelligence</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <!-- ═══════════════════════ HEADER ═══════════════════════ -->
+    <header class="top-bar">
+      <div class="logo">
+        <div class="logo-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <circle
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              stroke-width="1.5"
+              opacity="0.3"
+            />
+            <circle
+              cx="12"
+              cy="12"
+              r="6"
+              stroke="currentColor"
+              stroke-width="1.5"
+              opacity="0.6"
+            />
+            <circle cx="12" cy="12" r="2" fill="currentColor" />
+            <line
+              x1="12"
+              y1="2"
+              x2="12"
+              y2="6"
+              stroke="currentColor"
+              stroke-width="1"
+            />
+            <line
+              x1="12"
+              y1="18"
+              x2="12"
+              y2="22"
+              stroke="currentColor"
+              stroke-width="1"
+            />
+            <line
+              x1="2"
+              y1="12"
+              x2="6"
+              y2="12"
+              stroke="currentColor"
+              stroke-width="1"
+            />
+            <line
+              x1="18"
+              y1="12"
+              x2="22"
+              y2="12"
+              stroke="currentColor"
+              stroke-width="1"
+            />
+          </svg>
+        </div>
+        <h1>Pipeline X-Ray Studio</h1>
+        <span class="subtitle">OpenIntelligence</span>
+      </div>
+
+      <nav class="mode-tabs">
+        <button class="mode-tab active" data-mode="canonical">
+          <span class="tab-icon">◈</span> Canonical
+        </button>
+        <button class="mode-tab" data-mode="replay">
+          <span class="tab-icon">▶</span> Replay
+        </button>
+        <button class="mode-tab" data-mode="debug">
+          <span class="tab-icon">⚙</span> Debug Log
+        </button>
+      </nav>
+
+      <div class="header-controls">
+        <div class="quality-mode-selector">
+          <label>Mode:</label>
+          <select id="quality-mode">
+            <option value="standard">Standard (1 pass)</option>
+            <option value="deepThink">Deep Think (4-8)</option>
+            <option value="maximum">Maximum (8-50)</option>
+          </select>
+        </div>
+        <div class="demo-buttons">
+          <button class="btn-demo" id="btn-demo-standard">
+            <span>▶</span> Demo: Standard
+          </button>
+          <button class="btn-demo" id="btn-demo-deep">
+            <span>▶</span> Demo: Deep Think
+          </button>
+        </div>
+        <button class="btn-film" id="btn-film-mode">
+          <span>🎬</span> Film Mode
+        </button>
+        <button class="btn-icon" id="btn-layout" title="Switch layout">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <rect x="1" y="1" width="6" height="6" rx="1" opacity="0.6" />
+            <rect x="9" y="1" width="6" height="6" rx="1" opacity="0.6" />
+            <rect x="1" y="9" width="14" height="6" rx="1" opacity="0.6" />
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- ═══════════════════════ SOURCE BADGE ═══════════════════════ -->
+    <div class="source-badge" id="source-badge">
+      <span class="badge-dot"></span>
+      <span class="badge-label">Derived from docs/code</span>
+      <span class="badge-detail">Full canonical pipeline</span>
+    </div>
+
+    <!-- ═══════════════════════ STAGE RIBBON ═══════════════════════ -->
+    <section class="stage-ribbon" id="stage-ribbon">
+      <!-- Populated by JS -->
+    </section>
+
+    <!-- ═══════════════════════ WELCOME GUIDE ═══════════════════════ -->
+    <div class="welcome-guide" id="welcome-guide">
+      <div class="welcome-header">
+        <h2>Welcome to Pipeline X-Ray Studio</h2>
+        <button class="welcome-dismiss" id="welcome-dismiss">✕</button>
+      </div>
+      <p class="welcome-intro">
+        Visualize every step of the OpenIntelligence RAG pipeline — from
+        document ingestion to verified answer.
+      </p>
+      <div class="welcome-cards">
+        <div class="welcome-card">
+          <div class="welcome-card-icon">◈</div>
+          <h3>Canonical View</h3>
+          <p>
+            Browse all pipeline steps, hard limits, quality modes, and
+            verification gates. Click any step for full details. Use the
+            <strong>Mode</strong> selector to see how Deep Think adds agentic
+            reasoning.
+          </p>
+        </div>
+        <div class="welcome-card">
+          <div class="welcome-card-icon">▶</div>
+          <h3>Replay a Trace</h3>
+          <p>
+            Load a real trace from your iPhone: tap any answer →
+            <strong>Trace</strong> button (magnifying glass icon) → Share →
+            AirDrop to Mac → drop here or click <strong>Demo</strong> above to
+            try a sample.
+          </p>
+        </div>
+        <div class="welcome-card">
+          <div class="welcome-card-icon">🎬</div>
+          <h3>Film Mode</h3>
+          <p>
+            Watch the pipeline animate step-by-step. Great for presentations,
+            demos, or understanding the flow. Choose 30s overview or full trace
+            speed.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════ MAIN LAYOUT ═══════════════════════ -->
+    <main class="main-layout">
+      <!-- LEFT: Waterfall Timeline -->
+      <section class="waterfall-panel" id="waterfall-panel">
+        <div class="panel-header">
+          <h2>Pipeline Timeline</h2>
+          <div class="timeline-stats" id="timeline-stats">
+            <span class="stat"><strong id="stat-steps">29</strong> steps</span>
+            <span class="stat"><strong id="stat-duration">—</strong></span>
+            <span class="stat"><strong id="stat-tokens">—</strong> tokens</span>
+          </div>
+        </div>
+        <div class="waterfall-scroll" id="waterfall-scroll">
+          <!-- Populated by JS -->
+        </div>
+      </section>
+
+      <!-- RIGHT: Detail Rail -->
+      <aside class="detail-rail" id="detail-rail">
+        <div class="panel-header">
+          <h2 id="detail-title">Pipeline Overview</h2>
+        </div>
+        <div class="detail-content" id="detail-content">
+          <!-- Overview shown by default -->
+          <div class="detail-section" id="detail-overview">
+            <div class="overview-card card-limits">
+              <h3>Hard Limits</h3>
+              <div class="limit-grid" id="limit-grid">
+                <!-- Populated by JS -->
+              </div>
+            </div>
+            <div class="overview-card card-modes">
+              <h3>Quality Modes</h3>
+              <div class="mode-cards" id="mode-cards">
+                <!-- Populated by JS -->
+              </div>
+            </div>
+            <div class="overview-card card-gates">
+              <h3>Verification Gates A-G</h3>
+              <div class="gate-list" id="gate-list">
+                <!-- Populated by JS -->
+              </div>
+            </div>
+          </div>
+          <!-- Step detail (shown on click) -->
+          <div class="detail-section hidden" id="detail-step">
+            <button class="back-btn" id="btn-back-overview">← Overview</button>
+            <div class="step-detail-body" id="step-detail-body">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- ═══════════════════════ FILM MODE OVERLAY ═══════════════════════ -->
+    <div class="film-overlay hidden" id="film-overlay">
+      <div class="film-header">
+        <div class="film-title-card">
+          <h2>OpenIntelligence</h2>
+          <p>Full RAG Pipeline</p>
+        </div>
+        <button class="btn-icon film-close" id="btn-film-close">✕</button>
+      </div>
+      <div class="film-progress">
+        <div class="film-progress-bar" id="film-progress-bar"></div>
+      </div>
+      <div class="film-controls">
+        <button class="film-btn" id="film-play">▶ Play</button>
+        <button class="film-btn" id="film-pause">⏸ Pause</button>
+        <button class="film-btn" id="film-reset">⏮ Reset</button>
+        <div class="film-speed">
+          <label>Speed:</label>
+          <select id="film-speed-select">
+            <option value="0.5">0.5×</option>
+            <option value="1" selected>1×</option>
+            <option value="2">2×</option>
+            <option value="4">4×</option>
+          </select>
+        </div>
+        <div class="film-presets">
+          <button class="film-preset" data-duration="30">30s Overview</button>
+          <button class="film-preset" data-duration="60">60s Deep Cut</button>
+          <button class="film-preset" data-duration="0">Full Trace</button>
+        </div>
+      </div>
+      <div class="film-step-display" id="film-step-display">
+        <!-- Current step highlight during film playback -->
+      </div>
+    </div>
+
+    <!-- ═══════════════════════ TRACE DROP ZONE ═══════════════════════ -->
+    <div class="drop-zone hidden" id="drop-zone">
+      <div class="drop-zone-inner">
+        <div class="drop-icon">📄</div>
+        <p>Drop a pipeline trace file here</p>
+        <p class="drop-hint">
+          Supports PipelineTraceExporter (.txt) and pipeline_trace.log
+        </p>
+        <input type="file" id="file-input" accept=".txt,.log" class="hidden" />
+        <button class="btn-browse" id="btn-browse">Browse Files</button>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════ TOAST ═══════════════════════ -->
+    <div class="toast hidden" id="toast"></div>
+
+    <script src="pipeline-data.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

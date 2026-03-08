@@ -57,5 +57,17 @@ AI HUB RESULT SHEET
 ANTI-HALLUCINATION
 - LLM can now acknowledge when documents don't cover the question (was forced to fabricate)
 - Topical mismatch detection: Evidence-First mode activates when query keywords don't match retrieved chunks
+- Verification gates expanded from 4 to 7 (A-G): added Semantic Grounding, Quote Faithfulness, Generation Quality
+
+ZERO-DATA-LOSS INGESTION
+- Font Substitution Cipher Detection — Automatic PHASE -1 validation detects font-encoded PDFs (Kia, Hyundai manuals) via Jaccard similarity, preventing 93% content loss
+- Raw string regex fix (5 patterns), garbled image extraction fix, dynamic image text budget scaling
+
+SWIFT 6 CONCURRENCY COMPLIANCE
+- 11 files updated with strict concurrency annotations — zero runtime behavior change
+
+DEEP THINK / MAXIMUM MODE
+- Fixed app freeze when sending multiple queries in Deep Think or Maximum mode
+- New cancel-and-replace mechanism ensures only one orchestration runs at a time
 
 Includes all v2.0 features: 29-step RAG pipeline, AI Hub transforms, 3-tier Metal GPU search, device-specific OCR, rich markdown rendering, 102 services.

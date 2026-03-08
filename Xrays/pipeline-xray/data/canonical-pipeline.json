@@ -1,0 +1,848 @@
+{
+  "version": "1.0",
+  "name": "OpenIntelligence Pipeline",
+  "description": "29-step end-to-end RAG pipeline: 6 ingestion + 23 query steps",
+  "source": "Derived from .github/copilot-instructions.md, HOW_IT_WORKS.md, ARCHITECTURE.md, ThinkingEvent.swift, RAGService.swift",
+  "generatedDate": "2026-03-06",
+
+  "hardLimits": {
+    "embeddingTokens": {
+      "value": 510,
+      "unit": "tokens",
+      "note": "CoreML MiniLM-L6-v2 (512 - CLS/SEP)"
+    },
+    "chunkSize": {
+      "value": 310,
+      "unit": "words",
+      "note": "340 target - 30 for contextual prefix overhead"
+    },
+    "chunkLimit": {
+      "value": 50000,
+      "unit": "chunks",
+      "note": "Supports ~65,000 pages per container"
+    },
+    "llmContext": {
+      "value": 4096,
+      "unit": "tokens",
+      "note": "Apple FM TN3193 on-device limit"
+    },
+    "contextChars": {
+      "value": 5500,
+      "unit": "chars",
+      "note": "~4000 tokens with margin"
+    },
+    "embeddingDim": {
+      "value": 384,
+      "unit": "dimensions",
+      "note": "MiniLM output"
+    },
+    "ocrDpi": {
+      "value": 360,
+      "unit": "dpi",
+      "note": "5x scale factor for PDF rendering"
+    },
+    "imageDpi": {
+      "value": 144,
+      "unit": "dpi",
+      "note": "2x scale for memory-safe image analysis"
+    },
+    "compressionCap": {
+      "value": 5,
+      "unit": "chunks",
+      "note": "Max chunks sent to LLM compression"
+    },
+    "compressionTimeout": {
+      "value": 12,
+      "unit": "seconds",
+      "note": "Bails early if time runs out"
+    },
+    "generationTimeout": {
+      "value": 30,
+      "unit": "seconds",
+      "note": "Budget for transforms"
+    },
+    "postCompressionCooldown": {
+      "value": 1,
+      "unit": "seconds",
+      "note": "Lets FM rate limits recover"
+    }
+  },
+
+  "modes": {
+    "standard": {
+      "label": "Standard",
+      "sessions": "1",
+      "description": "Search once, answer once",
+      "speed": "2-5s"
+    },
+    "deepThink": {
+      "label": "Deep Think",
+      "sessions": "4-8",
+      "description": "Self-RAG 2.0: iterative enrichment",
+      "speed": "10-30s"
+    },
+    "maximum": {
+      "label": "Maximum",
+      "sessions": "8-50",
+      "description": "Multi-chain parallel + cluster synthesis",
+      "speed": "30s-2min"
+    }
+  },
+
+  "gates": {
+    "A": {
+      "name": "Retrieval Confidence",
+      "type": "critical",
+      "action": "abstain",
+      "description": "Top retrieval score meets threshold"
+    },
+    "B": {
+      "name": "Evidence Coverage",
+      "type": "critical",
+      "action": "abstain",
+      "description": "Claims cite retrieved chunks"
+    },
+    "C": {
+      "name": "Numeric Sanity",
+      "type": "critical",
+      "action": "abstain",
+      "description": "Numbers match sources (year/1-10 exemption)"
+    },
+    "D": {
+      "name": "Contradiction Sweep",
+      "type": "critical",
+      "action": "abstain",
+      "description": "No conflicting evidence across chunks"
+    },
+    "E": {
+      "name": "Semantic Grounding",
+      "type": "critical",
+      "action": "abstain",
+      "description": "vDSP cosine: response embedding aligned with chunks"
+    },
+    "F": {
+      "name": "Quote Faithfulness",
+      "type": "advisory",
+      "action": "confidence penalty",
+      "description": "Jaccard abbreviation verification"
+    },
+    "G": {
+      "name": "Generation Quality",
+      "type": "advisory",
+      "action": "confidence penalty",
+      "description": "Entropy/uniqueness checks catch repetition"
+    }
+  },
+
+  "phases": [
+    {
+      "id": "ingestion",
+      "label": "INGESTION",
+      "description": "Document → Numbers (6 steps)",
+      "color": "#34d399",
+      "steps": [
+        {
+          "id": "ingest-parse",
+          "stepNumber": "1",
+          "name": "Parse",
+          "shortName": "Parse",
+          "phase": "Extract",
+          "description": "Extract text from documents using PDFKit, Vision OCR (360 DPI), or Office ZIP parsing",
+          "thinkingKinds": [],
+          "color": "#34d399",
+          "typicalDuration": "1-30s per page",
+          "substeps": [
+            {
+              "id": "ingest-parse-phase-neg1",
+              "name": "PHASE -1: Text Layer Validation",
+              "description": "Jaccard similarity check: PDFKit text vs Vision OCR output. Font-encoded PDFs (Kia, Hyundai) have shifted characters. Threshold < 0.15 = garbled → full OCR forced. Prevents 93% content loss.",
+              "color": "#f97316"
+            },
+            {
+              "id": "ingest-parse-complexity",
+              "name": "Page Complexity Analysis",
+              "description": "PageComplexityAnalyzer scores text quality, table presence, numeric density, visual complexity. Tables/numbers → forced Vision OCR.",
+              "color": "#34d399"
+            },
+            {
+              "id": "ingest-parse-vocab",
+              "name": "Dynamic Vocabulary Extraction",
+              "description": "PDFKit text mined for acronyms, alphanumeric codes (0W-20, R-134a), CamelCase terms → Vision customWords.",
+              "color": "#34d399"
+            },
+            {
+              "id": "ingest-parse-preprocessing",
+              "name": "Adaptive Preprocessing",
+              "description": "1 of 5 GPU-accelerated CIFilter strategies selected per page quality. Minimal (clean digital) → Maximum (faded microfiche). Concurrent DispatchQueue.",
+              "color": "#60a5fa"
+            },
+            {
+              "id": "ingest-parse-ocr",
+              "name": "Multi-Candidate Confidence OCR",
+              "description": "Vision returns topCandidates(5) per line. Numeric data requires 90% confidence (vs 85% text). Low-confidence alternatives flagged for verification.",
+              "color": "#a78bfa"
+            },
+            {
+              "id": "ingest-parse-image",
+              "name": "Memory-Safe Image Analysis",
+              "description": "Post-OCR image/diagram extraction. 5-page batches, 144 DPI (2× scale), autoreleasepool cleanup. Parsed results freed first (~100-200MB reclaimed).",
+              "color": "#f472b6"
+            }
+          ]
+        },
+        {
+          "id": "ingest-chunk",
+          "stepNumber": "2",
+          "name": "SemanticChunker",
+          "shortName": "Chunk",
+          "phase": "Chunk",
+          "description": "Break documents into ≤310 word chunks with section detection. Tables preserved as atomic units. ~200 chunks per 50-page document.",
+          "thinkingKinds": [],
+          "color": "#60a5fa",
+          "typicalDuration": "< 1s"
+        },
+        {
+          "id": "ingest-entity",
+          "stepNumber": "3",
+          "name": "Entity Extraction",
+          "shortName": "NER",
+          "phase": "Extract",
+          "description": "NLTagger NER + PascalCase detection extracts named entities per chunk. Feeds EntityIndexService for per-container entity lookup.",
+          "thinkingKinds": [],
+          "color": "#34d399",
+          "typicalDuration": "< 1s"
+        },
+        {
+          "id": "ingest-token",
+          "stepNumber": "4",
+          "name": "Token Validation",
+          "shortName": "Validate",
+          "phase": "Chunk",
+          "description": "BertTokenizer verifies each chunk ≤510 embedding tokens. Oversized chunks are re-split. Technical text ≠ 1.5 tokens/word.",
+          "thinkingKinds": [],
+          "color": "#fbbf24",
+          "typicalDuration": "< 0.5s"
+        },
+        {
+          "id": "ingest-embed",
+          "stepNumber": "5",
+          "name": "Embedding",
+          "shortName": "Embed",
+          "phase": "Embed",
+          "description": "CoreML MiniLM-L6-v2 converts each chunk → 384-dim vector. GPU compute (.cpuAndGPU) during ingestion frees ANE for OCR.",
+          "thinkingKinds": ["embedding"],
+          "color": "#818cf8",
+          "typicalDuration": "~10ms per chunk"
+        },
+        {
+          "id": "ingest-store",
+          "stepNumber": "6",
+          "name": "Store",
+          "shortName": "Index",
+          "phase": "Index",
+          "description": "HNSW index + FullTextStorage (SQLite FTS5) + EntityIndex. Metal GPU 3-tier shader selection for vector storage.",
+          "thinkingKinds": [],
+          "color": "#2dd4bf",
+          "typicalDuration": "< 2s"
+        }
+      ]
+    },
+    {
+      "id": "query-analysis",
+      "label": "QUERY ANALYSIS",
+      "description": "Understand the question (Steps 0-1.6)",
+      "color": "#a78bfa",
+      "steps": [
+        {
+          "id": "query-step0",
+          "stepNumber": "0",
+          "name": "Corpus Analysis",
+          "shortName": "Corpus",
+          "description": "Vocabulary cache analysis — understand what the container knows before searching.",
+          "thinkingKinds": ["planning"],
+          "color": "#a78bfa",
+          "typicalDuration": "< 50ms"
+        },
+        {
+          "id": "query-step1",
+          "stepNumber": "1",
+          "name": "Query Understanding",
+          "shortName": "Understand",
+          "description": "Pronoun resolution, NER extraction, query normalization.",
+          "thinkingKinds": ["planning"],
+          "color": "#a78bfa",
+          "typicalDuration": "< 100ms"
+        },
+        {
+          "id": "query-step1-5",
+          "stepNumber": "1.5",
+          "name": "Query Expansion",
+          "shortName": "Expand",
+          "description": "Corpus + container vocabulary expansion. Synonyms, related terms, domain-specific alternatives.",
+          "thinkingKinds": ["queryRewrite"],
+          "color": "#34d399",
+          "typicalDuration": "< 200ms"
+        },
+        {
+          "id": "query-step1-6",
+          "stepNumber": "1.6",
+          "name": "Intent Classification",
+          "shortName": "Intent",
+          "description": "Classify query as lookup, procedure, compare, or summarize. Drives downstream routing.",
+          "thinkingKinds": ["intentRoute"],
+          "color": "#60a5fa",
+          "typicalDuration": "< 50ms"
+        }
+      ]
+    },
+    {
+      "id": "embedding-routing",
+      "label": "EMBEDDING & ROUTING",
+      "description": "Vector representation + routing (Steps 2-2.5)",
+      "color": "#60a5fa",
+      "steps": [
+        {
+          "id": "query-step2",
+          "stepNumber": "2",
+          "name": "Query Embedding",
+          "shortName": "Embed",
+          "description": "MiniLM-L6-v2 encodes user query → 384-dim vector for semantic search.",
+          "thinkingKinds": ["embedding"],
+          "color": "#60a5fa",
+          "typicalDuration": "~10ms"
+        },
+        {
+          "id": "query-step2-5",
+          "stepNumber": "2.5",
+          "name": "RAPTOR-lite Routing",
+          "shortName": "Route",
+          "description": "Overview/high-level queries → L1 summary chunks. Specific queries → detail chunks. Prevents \"tell me about everything\" from flooding with fragments.",
+          "thinkingKinds": ["planning"],
+          "color": "#a78bfa",
+          "typicalDuration": "< 50ms"
+        }
+      ]
+    },
+    {
+      "id": "retrieval",
+      "label": "RETRIEVAL",
+      "description": "Hybrid search (Step 3)",
+      "color": "#34d399",
+      "steps": [
+        {
+          "id": "query-step3",
+          "stepNumber": "3",
+          "name": "Hybrid Search",
+          "shortName": "Search",
+          "description": "Vector Search (vDSP cosine) + BM25 (SQLite FTS5) run concurrently via async let. Results fused with RRF. OR: Iterative Retrieval for multi-hop intents.",
+          "thinkingKinds": ["retrieval", "vectorSearch", "bm25", "rrf"],
+          "color": "#34d399",
+          "typicalDuration": "50-200ms",
+          "substeps": [
+            {
+              "id": "query-step3-vector",
+              "name": "Vector Search (Semantic)",
+              "description": "vDSP-accelerated cosine similarity. Metal GPU 3-tier shader: Threadgroup (≥1000) → SIMD4 (100+) → Scalar fallback.",
+              "color": "#60a5fa"
+            },
+            {
+              "id": "query-step3-bm25",
+              "name": "BM25 (Keyword)",
+              "description": "SQLite FTS5 with AND-first queries, OR fallback. Weighted: section_title 10×, section_path 5×, content 1×.",
+              "color": "#34d399"
+            },
+            {
+              "id": "query-step3-rrf",
+              "name": "Reciprocal Rank Fusion",
+              "description": "Fuse vector + BM25 ranked lists into single ordering. ~50 candidates output.",
+              "color": "#f97316"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "post-retrieval",
+      "label": "POST-RETRIEVAL",
+      "description": "Refine candidates (Steps 4-4.9)",
+      "color": "#f97316",
+      "steps": [
+        {
+          "id": "query-step4",
+          "stepNumber": "4",
+          "name": "Cross-Encoder Rerank",
+          "shortName": "Rerank",
+          "description": "TinyBERT cross-encoder scores all query-chunk pairs. Concurrent TaskGroup (2-4 predictions by device tier). MLMultiArray bulk dataPointer writes.",
+          "thinkingKinds": ["rerank"],
+          "color": "#f97316",
+          "typicalDuration": "100-500ms"
+        },
+        {
+          "id": "query-step4-3",
+          "stepNumber": "4.3",
+          "name": "Low-Confidence Filtering",
+          "shortName": "Filter",
+          "description": "Remove chunks below relevance threshold. Prevents noise from polluting context window.",
+          "thinkingKinds": ["gating"],
+          "color": "#2dd4bf",
+          "typicalDuration": "< 10ms"
+        },
+        {
+          "id": "query-step4-4",
+          "stepNumber": "4.4",
+          "name": "Multi-Document Representation",
+          "shortName": "Multi-Doc",
+          "description": "Ensure source diversity — don't let one document dominate context. Balance chunks across sources.",
+          "thinkingKinds": ["retrieval"],
+          "color": "#34d399",
+          "typicalDuration": "< 10ms"
+        },
+        {
+          "id": "query-step4-5",
+          "stepNumber": "4.5",
+          "name": "MMR Diversification",
+          "shortName": "MMR",
+          "description": "Maximal Marginal Relevance (λ=0.6). Reduce redundancy while preserving relevance. Prevents 5 near-identical chunks.",
+          "thinkingKinds": ["mmr"],
+          "color": "#f97316",
+          "typicalDuration": "< 50ms"
+        },
+        {
+          "id": "query-step4-6",
+          "stepNumber": "4.6",
+          "name": "Parent Document Retrieval",
+          "shortName": "Parent",
+          "description": "Expand to ±5 sibling chunks around top results. Recovers context split across chunk boundaries.",
+          "thinkingKinds": ["parentDoc"],
+          "color": "#22d3ee",
+          "typicalDuration": "< 50ms"
+        },
+        {
+          "id": "query-step4-7",
+          "stepNumber": "4.7",
+          "name": "Contextual Compression",
+          "shortName": "Compress",
+          "description": "LLM filters irrelevant content from chunks. Max 5 chunks, fresh session per chunk. 12s budget, 1s cooldown between.",
+          "thinkingKinds": ["compression"],
+          "color": "#22d3ee",
+          "typicalDuration": "2-12s"
+        },
+        {
+          "id": "query-step4-9",
+          "stepNumber": "4.9",
+          "name": "Graph Context Packing",
+          "shortName": "Graph",
+          "description": "Token-budget-aware packing via entity graph. Maximizes information density within 5500 char limit.",
+          "thinkingKinds": ["graphPack"],
+          "color": "#a78bfa",
+          "typicalDuration": "< 100ms"
+        }
+      ]
+    },
+    {
+      "id": "context-assembly",
+      "label": "CONTEXT ASSEMBLY",
+      "description": "Prepare for generation (Steps 5-5.11)",
+      "color": "#22d3ee",
+      "steps": [
+        {
+          "id": "query-step5",
+          "stepNumber": "5",
+          "name": "Context Assembly",
+          "shortName": "Assemble",
+          "description": "Lost-in-Middle reorder: most important chunks at beginning and end. LLMs pay less attention to middle positions.",
+          "thinkingKinds": ["context", "lostInMiddle"],
+          "color": "#22d3ee",
+          "typicalDuration": "< 10ms"
+        },
+        {
+          "id": "query-step5-9",
+          "stepNumber": "5.9",
+          "name": "Extractive Summarization",
+          "shortName": "Extract",
+          "description": "For summarize intent: extract key sentences directly from chunks. Avoids LLM hallucination for pure summary requests.",
+          "thinkingKinds": ["extractive"],
+          "color": "#34d399",
+          "typicalDuration": "< 200ms",
+          "conditional": "summarize intent only"
+        },
+        {
+          "id": "query-step5-10",
+          "stepNumber": "5.10",
+          "name": "Extractive QA",
+          "shortName": "QA",
+          "description": "For lookup intent: try to extract answer directly before entering LLM generation. Can short-circuit Deep Think (saves 4-8 sessions).",
+          "thinkingKinds": ["extractive"],
+          "color": "#34d399",
+          "typicalDuration": "< 200ms",
+          "conditional": "lookup intent only"
+        },
+        {
+          "id": "query-step5-11",
+          "stepNumber": "5.11",
+          "name": "Topical Relevance Check",
+          "shortName": "Topical",
+          "description": "Lexical overlap < 20% → Evidence-First mode. Cautious prompt: \"Do NOT fill gaps with assumptions\". Forces confidence disclosure.",
+          "thinkingKinds": ["grounding"],
+          "color": "#2dd4bf",
+          "typicalDuration": "< 10ms"
+        }
+      ]
+    },
+    {
+      "id": "generation",
+      "label": "GENERATION",
+      "description": "LLM produces answer (Steps 6-6.5)",
+      "color": "#fbbf24",
+      "steps": [
+        {
+          "id": "query-step6",
+          "stepNumber": "6",
+          "name": "LLM Generation",
+          "shortName": "Generate",
+          "description": "Apple Foundation Model (~3B params, 3.7-bit quantized). On-device or Private Cloud Compute. ~30 tokens/sec. Streaming output.",
+          "thinkingKinds": ["generation"],
+          "color": "#fbbf24",
+          "typicalDuration": "2-10s"
+        },
+        {
+          "id": "query-step6-5",
+          "stepNumber": "6.5",
+          "name": "Response Formatting",
+          "shortName": "Format",
+          "description": "Markdown preservation pipeline. normalizeInlineMarkdown() preprocessor handles Apple FM's single-line markdown concatenation.",
+          "thinkingKinds": ["generation"],
+          "color": "#fbbf24",
+          "typicalDuration": "< 50ms"
+        }
+      ]
+    },
+    {
+      "id": "verification",
+      "label": "VERIFICATION",
+      "description": "Anti-hallucination (Steps 7-7.5)",
+      "color": "#2dd4bf",
+      "steps": [
+        {
+          "id": "query-step7",
+          "stepNumber": "7",
+          "name": "Quality Assessment",
+          "shortName": "Assess",
+          "description": "Confidence scoring based on retrieval quality, generation coherence, and evidence alignment.",
+          "thinkingKinds": ["gating"],
+          "color": "#2dd4bf",
+          "typicalDuration": "< 100ms"
+        },
+        {
+          "id": "query-step7-5",
+          "stepNumber": "7.5",
+          "name": "Verification Gates A-G",
+          "shortName": "Gates",
+          "description": "7-gate anti-hallucination check. Critical (A,B,C,D,E) → abstain on fail. Advisory (F,G) → confidence penalty only.",
+          "thinkingKinds": ["verification", "grounding"],
+          "color": "#2dd4bf",
+          "typicalDuration": "< 200ms",
+          "substeps": [
+            {
+              "id": "gate-a",
+              "name": "Gate A: Retrieval Confidence",
+              "description": "Top retrieval score meets threshold",
+              "type": "critical",
+              "color": "#ef4444"
+            },
+            {
+              "id": "gate-b",
+              "name": "Gate B: Evidence Coverage",
+              "description": "Claims cite retrieved chunks",
+              "type": "critical",
+              "color": "#ef4444"
+            },
+            {
+              "id": "gate-c",
+              "name": "Gate C: Numeric Sanity",
+              "description": "Numbers match sources (year/1-10 exemption)",
+              "type": "critical",
+              "color": "#ef4444"
+            },
+            {
+              "id": "gate-d",
+              "name": "Gate D: Contradiction Sweep",
+              "description": "No conflicting evidence across chunks",
+              "type": "critical",
+              "color": "#ef4444"
+            },
+            {
+              "id": "gate-e",
+              "name": "Gate E: Semantic Grounding",
+              "description": "vDSP cosine: response embedding aligned with chunks",
+              "type": "critical",
+              "color": "#ef4444"
+            },
+            {
+              "id": "gate-f",
+              "name": "Gate F: Quote Faithfulness",
+              "description": "Jaccard abbreviation verification",
+              "type": "advisory",
+              "color": "#fbbf24"
+            },
+            {
+              "id": "gate-g",
+              "name": "Gate G: Generation Quality",
+              "description": "Entropy/uniqueness checks catch repetition",
+              "type": "advisory",
+              "color": "#fbbf24"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "output",
+      "label": "OUTPUT",
+      "description": "Package & render (Steps 8-10)",
+      "color": "#818cf8",
+      "steps": [
+        {
+          "id": "query-step8",
+          "stepNumber": "8",
+          "name": "Package Results",
+          "shortName": "Package",
+          "description": "Assemble final response with metadata, source attribution, and confidence score.",
+          "thinkingKinds": ["confidence"],
+          "color": "#818cf8",
+          "typicalDuration": "< 10ms"
+        },
+        {
+          "id": "query-step8-1",
+          "stepNumber": "8.1",
+          "name": "Calibrated Confidence",
+          "shortName": "Calibrate",
+          "description": "Platt scaling converts raw confidence to calibrated probability estimate.",
+          "thinkingKinds": ["confidence"],
+          "color": "#818cf8",
+          "typicalDuration": "< 5ms"
+        },
+        {
+          "id": "query-step9",
+          "stepNumber": "9",
+          "name": "Response Metadata",
+          "shortName": "Meta",
+          "description": "Timing, sources, model used, tokens generated, tokens/sec, TTFT, gating decision, retrieval config.",
+          "thinkingKinds": [],
+          "color": "#818cf8",
+          "typicalDuration": "< 5ms"
+        },
+        {
+          "id": "query-step10",
+          "stepNumber": "10",
+          "name": "Markdown Rendering",
+          "shortName": "Render",
+          "description": "Block-level parser + inline normalizer. 6 regex patterns for Apple FM output quirks.",
+          "thinkingKinds": [],
+          "color": "#818cf8",
+          "typicalDuration": "< 10ms"
+        }
+      ]
+    }
+  ],
+
+  "agenticOverlay": {
+    "description": "For Deep Think and Maximum modes, AgenticOrchestrator wraps the query pipeline with multi-session reasoning.",
+    "steps": [
+      {
+        "id": "agentic-selfrag",
+        "name": "Self-RAG Check",
+        "description": "Does this question even need documents? (If user asks '2+2', skip retrieval).",
+        "thinkingKinds": ["selfRag"],
+        "color": "#2dd4bf"
+      },
+      {
+        "id": "agentic-evaluate",
+        "name": "Evaluate Retrieval Quality",
+        "description": "Check lexical relevance + semantic intent. Excellent → reasoning. Poor → graph expansion.",
+        "thinkingKinds": ["grounding"],
+        "color": "#2dd4bf"
+      },
+      {
+        "id": "agentic-hyde",
+        "name": "HyDE (Hypothetical Document)",
+        "description": "Generate hypothetical answer, embed it, search with that embedding. Finds answers the original query might miss.",
+        "thinkingKinds": ["hyde"],
+        "color": "#60a5fa"
+      },
+      {
+        "id": "agentic-iterative",
+        "name": "Iterative Retrieval",
+        "description": "LLM analyzes gaps → generates new queries → retrieves again. 4-8 cycles for Deep Think, 8-50 for Maximum.",
+        "thinkingKinds": ["iterative", "queryRewrite"],
+        "color": "#f472b6"
+      },
+      {
+        "id": "agentic-accumulate",
+        "name": "Accumulation Pattern",
+        "description": "Each session's output saved to memory. Next session receives accumulated insights as input. Builds answers larger than any single context window.",
+        "thinkingKinds": ["agentic", "selfRag"],
+        "color": "#a78bfa"
+      },
+      {
+        "id": "agentic-factbank",
+        "name": "FactBank (Maximum)",
+        "description": "Maximum mode: parallel Deep Think chains on different document clusters. Results merged via cluster synthesis.",
+        "thinkingKinds": ["factBank", "agentic"],
+        "color": "#6366f1"
+      },
+      {
+        "id": "agentic-synthesis",
+        "name": "Final Synthesis",
+        "description": "Combine all session outputs into coherent final answer. Self-RAG 2.0: sessions ADD details, don't second-guess valid answers.",
+        "thinkingKinds": ["agentic", "generation"],
+        "color": "#fbbf24"
+      }
+    ]
+  },
+
+  "thinkingKindMap": {
+    "planning": {
+      "displayName": "Planning",
+      "color": "#a78bfa",
+      "icon": "list-bullet"
+    },
+    "embedding": {
+      "displayName": "Embedding",
+      "color": "#60a5fa",
+      "icon": "brain"
+    },
+    "retrieval": {
+      "displayName": "Retrieval",
+      "color": "#34d399",
+      "icon": "search"
+    },
+    "rerank": {
+      "displayName": "Re-ranking",
+      "color": "#f97316",
+      "icon": "branch"
+    },
+    "gating": {
+      "displayName": "Confidence Gate",
+      "color": "#2dd4bf",
+      "icon": "shield"
+    },
+    "context": {
+      "displayName": "Context Assembly",
+      "color": "#22d3ee",
+      "icon": "layers"
+    },
+    "generation": {
+      "displayName": "Generation",
+      "color": "#fbbf24",
+      "icon": "sparkles"
+    },
+    "fallback": {
+      "displayName": "Fallback",
+      "color": "#f472b6",
+      "icon": "undo"
+    },
+    "warning": {
+      "displayName": "Warning",
+      "color": "#ef4444",
+      "icon": "alert"
+    },
+    "hyde": { "displayName": "HyDE", "color": "#60a5fa", "icon": "doc-search" },
+    "queryRewrite": {
+      "displayName": "Query Rewrite",
+      "color": "#34d399",
+      "icon": "pencil"
+    },
+    "bm25": {
+      "displayName": "BM25 (Keyword)",
+      "color": "#34d399",
+      "icon": "text"
+    },
+    "vectorSearch": {
+      "displayName": "Vector Search",
+      "color": "#60a5fa",
+      "icon": "cube"
+    },
+    "rrf": { "displayName": "RRF Fusion", "color": "#f97316", "icon": "merge" },
+    "mmr": {
+      "displayName": "MMR Diversity",
+      "color": "#f97316",
+      "icon": "layers-3d"
+    },
+    "parentDoc": {
+      "displayName": "Parent Doc Expansion",
+      "color": "#22d3ee",
+      "icon": "doc-stack"
+    },
+    "compression": {
+      "displayName": "Compression",
+      "color": "#22d3ee",
+      "icon": "compress"
+    },
+    "lostInMiddle": {
+      "displayName": "Position Reorder",
+      "color": "#22d3ee",
+      "icon": "sort"
+    },
+    "grounding": {
+      "displayName": "Grounding Check",
+      "color": "#2dd4bf",
+      "icon": "checkmark"
+    },
+    "selfRag": {
+      "displayName": "Self-RAG",
+      "color": "#2dd4bf",
+      "icon": "cycle"
+    },
+    "iterative": {
+      "displayName": "Iterative Retrieval",
+      "color": "#f472b6",
+      "icon": "repeat"
+    },
+    "agentic": {
+      "displayName": "Agentic Step",
+      "color": "#a78bfa",
+      "icon": "brain-full"
+    },
+    "toolCall": {
+      "displayName": "Tool Call",
+      "color": "#6366f1",
+      "icon": "function"
+    },
+    "factBank": {
+      "displayName": "FactBank",
+      "color": "#6366f1",
+      "icon": "tray"
+    },
+    "verification": {
+      "displayName": "Verification Gates",
+      "color": "#2dd4bf",
+      "icon": "shield-check"
+    },
+    "graphPack": {
+      "displayName": "Graph Context",
+      "color": "#a78bfa",
+      "icon": "graph"
+    },
+    "extractive": {
+      "displayName": "Extractive Summary",
+      "color": "#34d399",
+      "icon": "quote"
+    },
+    "intentRoute": {
+      "displayName": "Intent Routing",
+      "color": "#60a5fa",
+      "icon": "route"
+    },
+    "confidence": {
+      "displayName": "Confidence Calibration",
+      "color": "#f97316",
+      "icon": "chart"
+    },
+    "imagePlayground": {
+      "displayName": "Image Playground",
+      "color": "#2dd4bf",
+      "icon": "image"
+    }
+  }
+}

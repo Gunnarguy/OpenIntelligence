@@ -89,6 +89,12 @@ Image Playground concept extraction prompt changed from few-shot (with a hardcod
 - **RAGService Legacy Fallbacks**: `countPatternInCorpus()` and `searchExactPattern()` now pass container-filtered document IDs instead of searching globally.
 - **Entity Cleanup on Delete**: `removeDocument()` now calls `EntityIndexService.shared.removeDocument()`. Library deletion calls `EntityIndexService.shared.removeContainer()`.
 
+### Deep Think / Maximum Mode Freeze Fix
+
+- **Concurrent Query Guard**: Added `activeAgenticTask` tracking in `RAGService`. Sending a new Deep Think or Maximum query now cancels any running orchestration before starting the new one. Previously, two `AgenticOrchestrator` instances would compete for Apple FM simultaneously, queueing LLM calls and freezing the app.
+- **Cancellation Propagation**: Added `try Task.checkCancellation()` at the top of both LLM gateway functions (`generateWithFreshSession`, `generateWithProperConsent`) so all 17 call sites in the orchestrator automatically abort when cancelled.
+- **Reasoning Chain Abort**: Added `Task.isCancelled` check before each LLM call in the main reasoning chain retry loop for immediate exit on cancellation.
+
 ---
 
 ## [2.0] - 2026-02-28 (Build 19)

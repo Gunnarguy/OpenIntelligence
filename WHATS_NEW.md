@@ -217,6 +217,10 @@ Critical fixes preventing silent content loss on font-encoded PDFs:
 - `nonisolated(unsafe)` on `BNNSVectorDatabase.loadTask` for nonisolated init access
 - Dead code removal (`var bestConfidence`), `var` → `let` fixes
 
+### Deep Think / Maximum Mode Freeze Fix
+
+Fixed app freezing when sending multiple queries in Deep Think or Maximum mode. The root cause: no concurrent query guard in `RAGService` meant two `AgenticOrchestrator` instances would compete for Apple FM simultaneously, queueing LLM calls and corrupting shared live-counter state. Fix adds cancel-and-replace via `activeAgenticTask` tracking, with `Task.checkCancellation()` in both LLM gateway functions and the reasoning chain retry loop.
+
 ### Pipeline Reliability Hardening
 
 11 targeted fixes across the compression → generation → fallback chain. Previously, a rate-limited Apple FM call during compression could cascade into a 0-token response with no fallback — the user saw a generic error instead of document content.

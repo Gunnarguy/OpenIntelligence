@@ -3,7 +3,7 @@
 //  OpenIntelligence
 //
 //  Verification gates for anti-hallucination (AppleRAG Spec Phase 2.06).
-//  Implements Gates A-D to ensure answers are grounded in retrieved evidence.
+//  Implements Gates A-G to ensure answers are grounded in retrieved evidence.
 //
 //  Gate A: Retrieval Confidence - require max(score) >= τ AND margin >= μ
 //  Gate B: Evidence Coverage - all claims must cite evidence_ids

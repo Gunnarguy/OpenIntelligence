@@ -304,10 +304,11 @@ RETRIEVAL & GENERATION (21 steps):
   Step 5    Context Assembly       → Lost-in-middle reordering
   Step 5.9  Extractive Summary     → For summarize intent
   Step 5.10 Extractive QA          → For lookup intent
+  Step 5.11 Topical Relevance       → Lexical < 20% → Evidence-First mode
   Step 6    LLM Generation         → Apple FM / Private Cloud Compute
   Step 6.5  Response Formatting    → Markdown preservation pipeline
   Step 7    Quality Assessment     → Confidence scoring
-  Step 7.5  Verification Gates     → Gates A-D (see below)
+  Step 7.5  Verification Gates     → Gates A-G (see below)
   Step 8    Package Results        → Build response with sources
   Step 8.1  Calibrated Confidence  → Platt scaling (0.0-1.0)
   Step 9    Response Metadata      → Timing, token counts, source URIs
@@ -321,7 +322,7 @@ RENDERING (2 steps):
 
 ## Verification Gates (Anti-Hallucination)
 
-Every response passes through 4 verification gates + a pre-generation topical check:
+Every response passes through 7 verification gates + a pre-generation topical check:
 
 | Gate    | Name                 | What It Checks                                                                        |
 | ------- | -------------------- | ------------------------------------------------------------------------------------- |
@@ -330,6 +331,9 @@ Every response passes through 4 verification gates + a pre-generation topical ch
 | **B**   | Evidence Coverage    | All claims must cite `evidence_ids` from retrieved chunks                             |
 | **C**   | Numeric Sanity       | Numbers in response must match source documents                                       |
 | **D**   | Contradiction Sweep  | Detect conflicting evidence across chunks                                             |
+| **E**   | Semantic Grounding   | Response embedding cosine similarity vs chunk embeddings (relative ≥ 0.80)            |
+| **F**   | Quote Faithfulness   | Abbreviation expansions must match source definitions (Jaccard ≥ 0.50)                |
+| **G**   | Generation Quality   | Bigram entropy ≥ 2.0 bits, unique word ratio ≥ 25%, trigram dominance < 15%           |
 
 If any gate fails, the system either abstains or triggers iterative retrieval.
 
@@ -376,7 +380,7 @@ flowchart TD
 
     subgraph GEN[" 💬 GENERATION "]
         L[Context Assembly<br/>Lost-in-middle, 5500 char max] --> M[LLMService<br/>Apple FM, 8 @Tools]
-        M --> N{Verification<br/>Gates A-D}
+        M --> N{Verification<br/>Gates A-G}
         N -->|Pass| O[✅ Cited Answer<br/>Sources, confidence %]
         N -->|Fail| P[🔄 Retry or Abstain]
     end
@@ -404,7 +408,7 @@ flowchart TD
 | **Contextual Compression** | `ContextualCompressionService` calls Apple FM with: "Given this query, extract only relevant sentences from this chunk." A 300-word chunk about oil changes might contain 200 words of background — compression strips it to the 80 words that actually answer the question. Runs BEFORE final generation. Saves 40-60% context tokens, letting more chunks fit in the 5,500-char window.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | **RAPTOR-lite**            | Recursive Abstractive Processing for Tree-Organized Retrieval — simplified. At ingestion, `RAGService` generates a ~150-word summary of each document (L1 chunk). `QueryRouterService` classifies queries: "summarize" or "what is this about" → search L1 summaries. "What's the torque spec on page 47" → search L0 detail chunks. 80% of RAPTOR's benefit (hierarchical retrieval) at 20% complexity (single summary level).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | **Lost-in-middle**         | Liu et al. 2023 discovered LLMs attend strongly to the start and end of context, forgetting the middle. `RAGEngine.applyLostInMiddleReordering()` fixes this: if chunks are ranked [A, B, C, D, E] by relevance, reorder to [A, C, E, D, B] — best at position 1, second-best at end, worst in middle. Apple FM now "sees" the critical evidence because it's not buried.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| **Verification Gates**     | 4-gate anti-hallucination pipeline in `VerificationGateService`: **(A)** Retrieval confidence — top score ≥ threshold AND margin over #2 is sufficient. **(B)** Evidence coverage — every claim in the response cites a retrieved chunk. **(C)** Numeric sanity — numbers in response match source documents exactly. **(D)** Contradiction sweep — no conflicting evidence across chunks. Any gate fails → abstain ("I don't have enough information") or trigger iterative re-retrieval with expanded queries.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| **Verification Gates**     | 7-gate anti-hallucination pipeline in `VerificationGateService`: **(A)** Retrieval confidence — top score ≥ threshold AND margin over #2 is sufficient. **(B)** Evidence coverage — every claim in the response cites a retrieved chunk. **(C)** Numeric sanity — numbers in response match source documents exactly. **(D)** Contradiction sweep — no conflicting evidence across chunks. **(E)** Semantic grounding — response embedding must be cosine-similar to source chunks. **(F)** Quote faithfulness — abbreviation expansions must match source definitions. **(G)** Generation quality — entropy and uniqueness checks catch degenerate repetition loops. Critical gates (A, C, E) fail → abstain. Advisory gates (F, G) apply confidence penalty only.                                                                                                                                                                                                                                      |
 | **Entity Index**           | `EntityIndexService` runs NLTagger NER at ingestion: extracts persons, organizations, locations, plus PascalCase technical terms. Builds a `Dict<Entity, Set<ChunkID>>` index. Query mentions "John Smith" → instant lookup returns all chunks referencing him, even if the embedding similarity is weak. Bridges the gap between keyword search (exact match) and semantic search (meaning match).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | **PCC**                    | Private Cloud Compute — Apple's confidential computing cloud. **Critical: PCC runs the EXACT SAME MODEL as on-device.** Same 4096 token limit. Same capabilities. Same everything. The ONLY difference is WHERE it runs: Apple's server Apple Silicon instead of your phone's Neural Engine. Why use cloud for identical model? **(1)** Thermal/battery relief — hot device can offload to cloud hardware. **(2)** Faster token generation — server chips are faster once running. The app works fully offline; PCC only activates when network is available, user opted in via iOS Settings, AND Apple's `modelmanagerd` decides to route there (device thermals, battery, load). `AppleFoundationLLMService` detects which ran by TTFT (<1s = on-device, >1s = PCC). Apple guarantees: end-to-end encryption, stateless computation, no data retention, cryptographic attestation, verifiable transparency. You control the preference; Apple controls the routing; the model is identical either way. |
 

@@ -44,7 +44,7 @@ QUERY → RESPONSE (23 steps):
   Step 6:   LLM Generation (Apple FM / PCC)
   Step 6.5: Response Formatting (markdown preservation pipeline)
   Step 7:   Quality Assessment (confidence scoring)
-  Step 7.5: Verification Gates A-D (anti-hallucination)
+  Step 7.5: Verification Gates A-G (anti-hallucination)
   Step 8:   Package Results
   Step 8.1: Calibrated Confidence (Platt scaling)
   Step 9:   Response Metadata (timing, sources, metrics)

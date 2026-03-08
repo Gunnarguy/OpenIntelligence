@@ -77,7 +77,7 @@ QUERY → RESPONSE (23 steps):
   Step 6:   LLM Generation (Apple FM / PCC)
   Step 6.5: Response Formatting (markdown preservation pipeline)
   Step 7:   Quality Assessment (confidence scoring)
-  Step 7.5: Verification Gates A-D (anti-hallucination)
+  Step 7.5: Verification Gates A-G (anti-hallucination)
   Step 8:   Package Results
   Step 8.1: Calibrated Confidence (Platt scaling)
   Step 9:   Response Metadata (timing, sources, metrics)
@@ -135,7 +135,7 @@ QUERY → RESPONSE (23 steps):
 
 | **Billing** | 2 | StoreKitBillingService, EntitlementStore |
 
-**Latest additions (v2.0.1, Mar 4)**: Pre-launch safety hardening (37 force-unwraps, 10 fatalError→fallback, 1,278 lines dead code removed). Bug fixes (cross-container chat bleed, undismissable alerts, insights sheet, StoreKit IUO, ContainerService init). Onboarding polish (haptics, VoiceOver, analytics). `ResponseTransformService` (5 RAG-grounded transforms using source chunks), AI Hub toolbar, Image Playground LLM concept extraction, BM25 struct refactor, Image Playground zero-shot prompt. Onboarding Rewrite — Pipeline Theater (2-page flow, capsule phase strip, live metrics dashboard, streaming log ticker, retry on failure, `accessibilityReduceMotion`, `foregroundStyle` migration 34 sites). Educational Sample Documents (3 curated docs with onboarding quota bypass). Suggested Questions Overhaul (few-shot contamination fix, 2-question diversity bug, stale questions on container switch, conversational tone rewrite). Container Isolation Hardening (EntityIndexService per-container scoping, FullTextStorageService scoped search, entity cleanup on delete). AI Hub Result Sheet (MarkdownText rendering, ShareLink, presentation detents). Anti-hallucination topical mismatch (prompt grounding fix, Evidence-First mode on lexical relevance < 20%).
+**Latest additions (v2.0.1, Mar 6)**: Pre-launch safety hardening (37 force-unwraps, 10 fatalError→fallback, 1,278 lines dead code removed). Bug fixes (cross-container chat bleed, undismissable alerts, insights sheet, StoreKit IUO, ContainerService init). Onboarding polish (haptics, VoiceOver, analytics). `ResponseTransformService` (5 RAG-grounded transforms using source chunks), AI Hub toolbar, Image Playground LLM concept extraction, BM25 struct refactor, Image Playground zero-shot prompt. Onboarding Rewrite — Pipeline Theater (2-page flow, capsule phase strip, live metrics dashboard, streaming log ticker, retry on failure, `accessibilityReduceMotion`, `foregroundStyle` migration 34 sites). Educational Sample Documents (3 curated docs with onboarding quota bypass). Suggested Questions Overhaul (few-shot contamination fix, 2-question diversity bug, stale questions on container switch, conversational tone rewrite). Container Isolation Hardening (EntityIndexService per-container scoping, FullTextStorageService scoped search, entity cleanup on delete). AI Hub Result Sheet (MarkdownText rendering, ShareLink, presentation detents). Anti-hallucination topical mismatch (prompt grounding fix, Evidence-First mode on lexical relevance < 20%). Zero-Data-Loss Ingestion (PHASE -1 Jaccard font cipher detection, raw regex fix, garbled image extraction, dynamic budget). Swift 6 Strict Concurrency Compliance (11 files, compile-time only). Verification Gates A-G (added semantic grounding, quote faithfulness, generation quality). Deep Think/Maximum freeze fix (`activeAgenticTask` cancel-and-replace, `Task.checkCancellation()` in LLM gateways).
 
 **Full inventory**: See `ARCHITECTURE.md` → "Complete Service Inventory"
 

@@ -151,11 +151,14 @@ Selected chunks are reordered using Lost-in-Middle placement: strongest evidence
 Apple's Foundation Model generates a response grounded in the retrieved context. The prompt instructs the model to cite sources and avoid speculation beyond what the documents contain.
 
 **Step 8 — Verification Gates**
-Four gates check the response:
-- **Gate A**: Does the response address the query?
+Seven gates (A-G) check the response:
+- **Gate A**: Does the top retrieval score show confident evidence?
 - **Gate B**: Is every claim supported by retrieved context?
-- **Gate C**: Is confidence calibrated (Platt scaling)?
-- **Gate D**: Does the response avoid repetition/degeneration?
+- **Gate C**: Do numbers in the response match source documents?
+- **Gate D**: Does the response contradict any source evidence?
+- **Gate E**: Is the response semantically grounded in source chunks?
+- **Gate F**: Are quoted terms faithful to their source definitions?
+- **Gate G**: Is the text free from repetition loops and degeneration?
 
 ---
 

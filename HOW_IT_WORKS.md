@@ -1,6 +1,6 @@
 # How OpenIntelligence Actually Works
 
-**Version**: 2.0 | **Date**: March 2, 2026
+**Version**: 2.0 | **Date**: March 6, 2026
 
 **A chronological walkthrough of the pipeline: Ingestion → Retrieval → Reasoning → Output.**
 
@@ -247,9 +247,15 @@ We use the on-device ~3 billion parameter model (Quantized to 3.7 bits).
 - **Role:** It acts as the "Mouth." It takes the "Brain's" findings (the context) and formulates a coherent sentence.
 - **Capability:** 30 tokens/sec generation.
 - **Verification:**
-  - **VerificationGateService** runs after generation.
-  - It checks: "Did the model hallucinate?"
-  - If the model claims a number that isn't in the source chunks, the answer is flagged or discarded.
+  - **VerificationGateService** runs 7 gates (A-G) after generation:
+    - **A** Retrieval Confidence — top score meets threshold
+    - **B** Evidence Coverage — claims cite retrieved chunks
+    - **C** Numeric Sanity — numbers match sources
+    - **D** Contradiction Sweep — no conflicting evidence
+    - **E** Semantic Grounding — response embedding aligned with chunks
+    - **F** Quote Faithfulness — abbreviations match source definitions
+    - **G** Generation Quality — entropy/uniqueness checks catch repetition
+  - Critical gates (A, C, E) fail → abstain. Advisory gates (F, G) apply confidence penalty.
   - **Topical Mismatch Detection**: Before generation, if query keywords don't appear in retrieved chunks (lexical relevance < 20%), the system switches to Evidence-First mode — a cautious prompt that says "Do NOT fill gaps with assumptions" and forces a confidence disclosure.
 
 ### Summary

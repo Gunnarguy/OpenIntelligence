@@ -34,7 +34,7 @@ OpenIntelligence implements **14 of 16** recognized RAG architectural patterns:
 | 11  | **Knowledge Enhanced RAG**   | ✅     | Entity extraction, EntityIndexService, structured ChunkMetadata                           |
 | 12  | **Domain-Specific RAG**      | 🟡     | Content-type configs exist; domain profiles planned                                       |
 | 13  | **Hybrid RAG**               | ✅     | `HybridSearchService` - BM25 + Vector + RRF fusion                                        |
-| 14  | **Self-RAG**                 | ✅     | Self-RAG 2.0 with 4 Verification Gates, multi-session enrichment                          |
+| 14  | **Self-RAG**                 | ✅     | Self-RAG 2.0 with 7 Verification Gates (A-G), multi-session enrichment                    |
 | 15  | **HyDE RAG**                 | ✅     | `HyDEService` - Hypothetical Document Embedding                                           |
 | 16  | **Recursive/Multi-Step RAG** | ✅     | Recursive research loops, multi-chain maximum mode                                        |
 
@@ -48,7 +48,7 @@ OpenIntelligence implements **14 of 16** recognized RAG architectural patterns:
 | Query Processing | 7     | Corpus Analysis → Query Understanding → Query Expansion → Intent Classification → Query Embedding → RAPTOR-lite Routing → Hybrid Search               |
 | Post-Retrieval   | 7     | Cross-Encoder Rerank → Low-Confidence Filter → Multi-Doc Representation → MMR → Parent Doc Retrieval → Contextual Compression → Graph Context Packing |
 | Generation       | 3     | Context Assembly (Lost-in-Middle) → Extractive Summarization/QA → LLM Generation                                                                      |
-| Post-Generation  | 4     | Quality Assessment → Verification Gates A-D → Calibrated Confidence → Response Metadata                                                               |
+| Post-Generation  | 4     | Quality Assessment → Verification Gates A-G → Calibrated Confidence → Response Metadata                                                               |
 | Rendering        | 2     | Markdown Rendering (block-level parser + inline normalizer) → Inline Normalization (6 regex patterns)                                                 |
 
 **102 Services across 11 categories**: See [ARCHITECTURE.md](ARCHITECTURE.md) → "Complete Service Inventory"
@@ -88,6 +88,8 @@ OpenIntelligence implements **14 of 16** recognized RAG architectural patterns:
 - ✅ **Educational Sample Documents** — 3 curated onboarding docs (Pricing, RAG Architecture, Apple Intelligence & PCC) with quota bypass for `.onboarding` context in `addDocument()`
 - ✅ **AI Hub Result Sheet Improvements** — `WritingToolsResultSheet` now renders markdown via `MarkdownText` (was plain `Text()`), added `ShareLink` alongside Copy/Insert, `.presentationDetents([.medium, .large])` for proper sheet sizing
 - ✅ **Anti-Hallucination Topical Mismatch** — Removed "Never say no information" from LLM prompt (was forcing fabrication from unrelated context). Added lexical relevance < 20% as Evidence-First trigger (activates cautious prompt when query keywords don't appear in retrieved chunks regardless of similarity score)
+- ✅ **Verification Gates A-G Expansion** — Added Gate E (Semantic Grounding via `vDSP.dot()` cosine similarity), Gate F (Quote Faithfulness via Jaccard abbreviation verification), Gate G (Generation Quality via bigram entropy + uniqueness checks). Critical gates (A, C, E) trigger abstention; advisory gates (F, G) apply confidence penalty only
+- ✅ **Deep Think / Maximum Freeze Fix** — Added `activeAgenticTask` cancel-and-replace in RAGService to prevent concurrent `AgenticOrchestrator` instances from competing for Apple FM. `Task.checkCancellation()` in both LLM gateway functions + reasoning chain retry loop for immediate abort on new query
 
 ---
 
@@ -1086,7 +1088,7 @@ _Nuclear-option RAG architecture for domain-agnostic document understanding. Mak
 
 #### Verification Gates (Anti-Hallucination)
 
-_Implemented: VerificationGateService.swift with 4-gate verification pipeline_
+_Implemented: VerificationGateService.swift with 7-gate verification pipeline (A-G)_
 
 - [x] **Gate A: Retrieval Confidence Threshold**
       _Location_: `runGateA()` in [VerificationGateService.swift](OpenIntelligence/Services/RAG/VerificationGateService.swift)
@@ -1113,13 +1115,24 @@ _Implemented: VerificationGateService.swift with 4-gate verification pipeline_
 
 - [x] **Pipeline Integration**: Verification gates wired into RAGService
       _Location_: Step 7.5 in `queryInternal()` in [RAGService.swift](OpenIntelligence/Services/RAG/RAGService.swift)
-      _Status_: All 4 gates run after LLM generation, before response packaging
-      _Gating_: If grounded-only mode AND gates fail → abstain with explanation
+      _Status_: All 7 gates (A-G) run after LLM generation, before response packaging
+      _Gating_: Critical gates (A, C, E) fail → abstain. Advisory gates (F, G) apply confidence penalty only
 
-- [ ] **Gate E: LLM Self-Consistency Check** (Future Enhancement)
-      _Method_: Generate 3 responses at temperature 0.3, 0.5, 0.7
-      _Rule_: If entropy(responses) > threshold → flag as "uncertain" in UI
-      _Benefit_: Catches unstable generations
+- [x] **Gate E: Semantic Grounding**
+      _Location_: `runGateE()` in [VerificationGateService.swift](OpenIntelligence/Services/RAG/VerificationGateService.swift)
+      _Method_: Cosine similarity between response embedding and chunk embeddings using `vDSP.dot()`
+      _Rule_: Relative grounding (response similarity / query similarity) ≥ 0.80; absolute fallback ≥ 0.50
+      _Benefit_: Catches semantic drift where response meaning diverges from source evidence
+
+- [x] **Gate F: Quote Faithfulness**
+      _Location_: `runGateF()` in [VerificationGateService.swift](OpenIntelligence/Services/RAG/VerificationGateService.swift)
+      _Method_: Detects "Full Term (ABBR)" patterns, verifies abbreviation expansions via Jaccard similarity ≥ 0.50
+      _Benefit_: Catches abbreviation cross-contamination (advisory gate, no abstention)
+
+- [x] **Gate G: Generation Quality**
+      _Location_: `runGateG()` in [VerificationGateService.swift](OpenIntelligence/Services/RAG/VerificationGateService.swift)
+      _Method_: Bigram entropy ≥ 2.0 bits, unique word ratio ≥ 25%, trigram dominance < 15%
+      _Benefit_: Information-theoretic degeneration detector (advisory gate, no abstention)
 
 #### Iterative Retrieval Loop
 
@@ -1171,7 +1184,7 @@ _Comprehensive gap analysis: every Apple Intelligence framework announced at WWD
 
 - [x] **Add Guardrails to LanguageModelSession**: Apple's built-in safety layer that flags sensitive content in both model input and output
       _API_: `LanguageModelSession(guardrails: .default)` or `.permissiveContentTransformations`
-      _Why_: App already has VerificationGateService (gates A-D) for anti-hallucination. Guardrails adds Apple's own content safety layer — critical for App Store compliance and user trust.
+      _Why_: App already has VerificationGateService (gates A-G) for anti-hallucination. Guardrails adds Apple's own content safety layer — critical for App Store compliance and user trust.
       _Status_: ✅ Active in `ImagePlaygroundService` (`.permissiveContentTransformations`). Extend to `AppleFoundationLLMService`, `HyDEService`, `ContextualCompressionService` for full coverage.
       _Effort_: **Low** — add `guardrails: .default` to remaining `LanguageModelSession` initializations
       _Files_: `AppleFoundationLLMService.swift`, `HyDEService.swift`, `ContextualCompressionService.swift`
