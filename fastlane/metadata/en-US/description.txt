@@ -17,6 +17,9 @@ This is not simple keyword search. OpenIntelligence orchestrates a rigorous 29-s
 • Semantic Chunking — Splits documents by logic and structure, not just character counts.
 • Multi-Column OCR — Metal-accelerated vision processing for complex PDF layouts (360 DPI).
 • Agentic Tool Use — Autonomous search, summarization, and comparison capabilities.
+• 7 Anti-Hallucination Gates — Every answer passes through verification gates (A-G) that check retrieval confidence, evidence coverage, numeric sanity, contradictions, semantic grounding, quote faithfulness, and generation quality. Critical failures trigger abstention — the AI refuses to answer rather than answer wrong.
+• Evidence-First Mode — When your question barely overlaps with retrieved content, the AI states what evidence exists instead of hallucinating a plausible-sounding answer.
+• AI Hub Transforms — Extract key facts, step-by-step instructions, plain English, gap analysis, or illustrated visualizations from any response. All grounded in your source documents.
 • Motherboard HUD — Real-time X-ray overlay showing Apple Silicon chip positions with live telemetry.
 • Rich Response Formatting — Full markdown rendering with headers, bullets, bold text, and code blocks.
 • Device-Optimized Performance — 3-tier Metal GPU shaders, device-specific OCR concurrency, and concurrent neural reranking adapt to your Apple Silicon chip.

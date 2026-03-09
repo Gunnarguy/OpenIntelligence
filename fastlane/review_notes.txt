@@ -1,6 +1,6 @@
 No login required. The app works entirely offline.
 
-VERSION 2.0.1 — WHAT'S NEW SINCE v2.0 (Feb 28, 2026):
+VERSION 2.1 — WHAT'S NEW SINCE v2.0 (Feb 28, 2026):
 
 ONBOARDING REWRITE:
 - Complete rebuild of first-run experience into a 2-page flow

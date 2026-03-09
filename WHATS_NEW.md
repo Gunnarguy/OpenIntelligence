@@ -1,70 +1,113 @@
-# What's New in OpenIntelligence v2.0.1
+# What's New in OpenIntelligence v2.1
 
-**Released**: March 4, 2026 (Build 19)
+**Released**: March 9, 2026 (Build 20)
 
 ---
 
-## v2.0.1 — Post-Release Hardening (since v2.0 on Feb 28)
+## What You'll Notice
 
-### Safety Hardening (P0–P4)
+### Smarter, More Honest Answers
 
-37 force-unwrap crash sites eliminated across 26 files. 10 `fatalError()` calls replaced with graceful `URL.temporaryDirectory` fallbacks. 1,278 lines of dead code removed (3 unused files + 1 commented-out class). 3 silent Vision `catch` blocks now log via `Log.debug()`.
+- **No more fabricated answers.** The LLM now tells you when your documents don't cover a question instead of confidently making something up from unrelated context.
+- **Topical mismatch detection.** When your question has almost no keyword overlap with retrieved chunks (<20%), Evidence-First mode kicks in — the AI states what evidence exists instead of hallucinating.
+- **3 new verification gates** (7 total, A through G). Gate E checks that the answer semantically matches the source material. Gate F checks that any quoted text actually appears. Gate G checks that the output isn't degenerate (repetitive, low-entropy). Gates E and A can trigger full abstention — the app would rather say nothing than say something wrong.
 
-### Bug Fixes
+### Deep Think & Maximum Mode Actually Work
 
-- **Cross-Container Chat Bleed**: Queries no longer leak between knowledge libraries
-- **Undismissable Alerts**: `.constant()` alert bindings in `CachedDocsView` and `DocumentLibraryView` replaced with proper `@State Bool` / `Binding(get:set:)`
-- **Insights Sheet**: "Show All Insights" in `AdaptiveVisualizationsView` now displays content (was empty TODO)
-- **StoreKit Stream Crash**: `var streamContinuation!` (IUO) replaced with `AsyncStream.makeStream()`
-- **ContainerService Init**: Fixed stored-property initialization error
-- **Settings Cleanup**: Removed stub System Status and Developer categories from navigation
+- **No more freezes.** Sending a second question while Deep Think or Maximum was running used to freeze the entire app (two reasoning chains fighting over Apple FM). Now the old query cancels cleanly and the new one takes over.
+- **Cancellation checks at every LLM call.** 17 call sites gated — no wasted processing after you move on.
 
-### Onboarding Polish
+### Suggested Questions That Make Sense
 
-- 6 haptic touch points (light/selection/medium/success/error)
-- VoiceOver labels on pipeline stage badges, processing overlay, and ingestion rows
-- Analytics: `markOnboardingCompleted()` vs `skipPermanently()` with `completionMethod` tracking
-- Error message: "tap to retry" → "please try again" (no tap target existed)
-- `NSMicrophoneUsageDescription` added for Speech framework voice input
+- **Prompt contamination fixed.** The LLM prompt had hardcoded Kia Sportage examples embedded in it. Every library got car-themed suggestions regardless of content. Gone.
+- **Content-grounded.** Every suggested question now must reference a specific detail from your actual documents.
+- **No more stale questions.** Switching libraries instantly clears old suggestions before regenerating.
+- **Conversational tone.** "What role does X play in the context of Y?" → "What does X actually do?"
 
-### Onboarding Rewrite — Pipeline Theater
+### Answers Stay In Your Library
 
-Complete rebuild of the first-run experience into a 2-page flow: welcome with use-case cards → live pipeline theater with compact capsule phase strip, real-time metrics dashboard (words/chunks/vectors/time), fixed-height streaming log ticker, and per-document status lines. Retry button on failure. `accessibilityReduceMotion` support. `foregroundColor` → `foregroundStyle` migration (34 sites). Dead code and performance cleanup.
+- **Cross-container chat bleed fixed.** Switching libraries mid-conversation used to leak answers from Library A into Library B. Now each query is stamped with a session ID and 8 guard checks prevent any cross-talk.
+- **Entity index, full-text search, and suggestions** are fully scoped per library. Deleting a library cleans up everything.
 
-### Educational Sample Documents
+### Rebuilt Onboarding
 
-3 curated docs teach users the app's architecture: OpenIntelligence Pricing, RAG Technical Architecture, and Apple Intelligence & Private Cloud Compute. Sample imports bypass the free tier document quota to prevent first-run failures.
+- **Pipeline Theater.** 2-page flow: welcome cards → live visualization of your docs being processed with real-time metrics (words, chunks, vectors, time).
+- **3 built-in sample documents** (Pricing, RAG Architecture, Apple Intelligence) so you're not staring at an empty screen. Bypass the free tier limit so onboarding can't fail.
+- **Haptic feedback** on all 6 interactions. **VoiceOver** labels throughout. **Reduce motion** support.
+- **Retry on failure** instead of a dead end.
 
-### Search & Retrieval
+### AI Hub Results Look Right
 
-- `BM25Scorer` refactored from class to struct with internal `Storage` reference type (thread safety)
-- Image Playground concept extraction changed from few-shot (hardcoded Mustang example) to zero-shot prompt
+- **Markdown rendering.** Key Facts, Step-by-Step, Plain English, What's Missing?, and Illustrate results now show proper formatting (bold, bullets, headers) instead of raw `**` and `-` characters.
+- **Share button** alongside Copy and Insert — send results to Messages, Notes, Mail.
+- **Better sheet sizing.** Starts at half-height, drag up for full — appropriate for both short and long results.
 
-### Suggested Questions
+### Smaller But Noticeable
 
-- Fixed few-shot contamination: LLM prompt had Kia Sportage examples that biased all suggestions toward car topics regardless of actual documents. Replaced with domain-neutral templates.
-- Fixed 2-question cap bug: diversity filter was too aggressive — now returns 4 grounded questions per library.
-- Stale questions no longer flash when switching libraries — cleared immediately before regeneration.
-- Natural conversational tone: suggestions read like questions a coworker would ask, not robotic templates.
-- Cross-library race guard prevents slow LLM from one library overwriting another's suggestions.
-- Stronger grounding: every suggested question must reference content from actual document passages.
+- **Alert dialogs dismissable.** Two views used `.constant()` bindings that made alerts permanently stuck. Fixed.
+- **Insights sheet works.** "Show All Insights" was a TODO. Now shows a proper list.
+- **Image Playground unbiased.** Removed a few-shot example about Ford Mustangs that was making every image generation car-themed.
+- **Settings accuracy.** Deep Think confidence threshold is now dynamic instead of hardcoded "85%". Duplicate Vietnamese removed from language picker. Verification gates label corrected to "A–G, 7-stage".
+- **About screen.** Shows actual version and build number instead of hardcoded "Version 1.0.0".
 
-### AI Hub Result Sheet
+---
 
-- **Markdown Rendering**: AI Hub transform results (Key Facts, Step-by-Step, etc.) now render with full markdown formatting — bullets, bold, headers, code fences — instead of showing raw `**` and `-` characters.
-- **Share Button**: New Share option alongside Copy and Insert in Chat for sending results to Messages, Notes, Mail, etc.
-- **Sheet Sizing**: Result sheet starts at half-height and is draggable to full-height — appropriate sizing for both short and long results.
+## Under the Hood
 
-### Anti-Hallucination: Topical Mismatch Detection
+### Crash Prevention (37 Sites)
 
-- **Prompt Grounding**: LLM system prompt no longer says "Never say no information." The model can now acknowledge when retrieved excerpts don't address the question instead of fabricating from unrelated context.
-- **Evidence-First Topical Gate**: When query keywords don't appear in retrieved chunks (lexical relevance < 20%), Evidence-First mode activates regardless of similarity score. Prevents high-similarity but off-topic chunks from causing hallucination.
+Every force-unwrap (`!`) in the codebase eliminated. Key patterns:
 
-### Container Isolation
+- `FileManager.urls(...).first!` → `.first ?? URL.temporaryDirectory` (10 sites across storage services)
+- `array.first!` / `array.last!` → `guard let` / `if let` patterns
+- `URL(string: "...")!` → `?? URL(fileURLWithPath: "/")` (4 sites in LocalOpenAIServerLLMService)
+- `dictionary[key]!` → `dictionary[key, default: []]` (3 sites in AgenticOrchestrator)
+- `session!.respond(to:)` → `guard let session else { return/throw }` (2 LLM services)
+- `verificationResult!.passed` → `if let vr = verificationResult { vr.passed }` (6 sites)
+- `pageText!` → `pageText ?? ""` (7 sites in DocumentProcessor)
+- StoreKit `var streamContinuation!` → `AsyncStream.makeStream()` factory
 
-- EntityIndexService now tracks per-container document mapping — entity lookups are library-scoped.
-- FullTextStorageService legacy methods now accept document ID filters — no more cross-library corpus searches.
-- Document and library deletion properly cleans up entity index entries.
+10 `fatalError()` calls replaced with graceful `URL.temporaryDirectory` fallbacks.
+
+### Dead Code Removal (1,278 Lines)
+
+- `SettingsRootView.swift` (701 lines) — stub settings navigation shell
+- `DeveloperSettingsView.swift` (350 lines) — stub developer settings
+- `OpenAIResponsesAPIService.swift` (178 lines) — GPT-5 Responses API wrapped in `#if false`
+- `VecturaVectorDatabase` (53 lines) — commented-out class in VectorDatabase.swift
+- TipKit `InlineTipView` overlays removed from 4 tabs in ContentView
+
+### BM25 Scorer Rebuild
+
+`BM25Scorer` changed from `class` to `struct` with `private final class Storage` for reference semantics. `tokenize()` creates a fresh `NLTokenizer` per call (old one was cached and causing data races). Lemmatization removed. Division-by-zero guard added.
+
+### Swift 6 Strict Concurrency (11 Files)
+
+`nonisolated(unsafe)` annotations on file-scoped constants and class-level lets that are thread-safe but trigger Swift 6 warnings. Zero runtime behavior change. Files: `StructuredDocumentParser`, `VisionOCRThrottle` (7 sites), `ResponseTransformService`, `WritingToolsService`.
+
+### GPU Mode Relabeling
+
+Device capability tiers renamed for clarity: "Performance" → "Maximum", "Balanced" → "Performance", new "Balanced" tier added at level ≥ 0.3. Metal Feature Set Table comments corrected.
+
+### Silent Error Logging
+
+3 empty Vision `catch { }` blocks in Camera files → `catch { Log.debug("...") }`.
+
+### Preview Macros
+
+25+ views gained `#Preview` blocks for Xcode canvas support. `PreviewProvider` structs converted to `#Preview` macro where they existed.
+
+### Test Files Removed
+
+15 test files (2,686 lines) deleted — they were never wired into a functioning test target.
+
+### Pipeline X-Ray Studio (Dev Tool)
+
+New standalone web app in `Xrays/pipeline-xray/` (5,540 lines) for visualizing pipeline traces. Not shipped in the iOS app.
+
+---
+
+Includes everything from v2.0: 29-step RAG pipeline, AI Hub transforms, 3-tier Metal GPU search, device-specific OCR, rich markdown rendering, 102 services. All on-device, zero cloud.
 
 ---
 

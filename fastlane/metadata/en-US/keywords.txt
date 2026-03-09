@@ -1,1 +1,1 @@
-rag,pdf,ai,chat,research,summary,ocr,private,docs,xray,study,local,agent,hud,fast
+rag,pdf,ai,chat,research,summary,ocr,private,docs,xray,study,local,agent,hud,fast,offline
