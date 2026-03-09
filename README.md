@@ -1,4 +1,4 @@
-﻿# OpenIntelligence
+# OpenIntelligence
 
 [![App Store](https://img.shields.io/badge/App%20Store-Download-blue.svg?logo=apple)](https://apps.apple.com/us/app/openintelligence/id6756559175)
 [![Platform](https://img.shields.io/badge/platform-iOS%2026.0%2B-blue.svg)](https://developer.apple.com/ios/)
@@ -11,16 +11,50 @@
 
 ## Table of Contents
 
-1. [What's New in v2.0](#whats-new-in-v20-february-2026)
-2. [What It Does](#what-it-does)
-3. [Supported File Formats](#supported-file-formats)
-4. [Core Technology](#core-technology)
-5. [Apple's On-Device Language Model](#apples-on-device-language-model)
-6. [Quality Modes](#quality-modes)
-7. [29-Step Pipeline](#29-step-pipeline)
-8. [Verification Gates](#verification-gates-anti-hallucination)
-9. [Architecture](#architecture)
-10. [Documentation](#documentation)
+- [OpenIntelligence](#openintelligence)
+  - [Table of Contents](#table-of-contents)
+  - [What It Does](#what-it-does)
+  - [Supported File Formats](#supported-file-formats)
+  - [Core Technology](#core-technology)
+    - [Embedding Pipeline](#embedding-pipeline)
+    - [Search \& Retrieval](#search--retrieval)
+    - [LLM Generation](#llm-generation)
+  - [Apple's On-Device Language Model](#apples-on-device-language-model)
+    - [Model Specifications](#model-specifications)
+    - [Benchmarks vs Other Models](#benchmarks-vs-other-models)
+    - [Capabilities](#capabilities)
+    - [Private Cloud Compute (PCC)](#private-cloud-compute-pcc)
+  - [8 Agentic @Tool Functions](#8-agentic-tool-functions)
+  - [Quality Modes](#quality-modes)
+  - [29-Step Pipeline](#29-step-pipeline)
+  - [Verification Gates (Anti-Hallucination)](#verification-gates-anti-hallucination)
+  - [Device-Optimized Performance](#device-optimized-performance)
+    - [Metal GPU Vector Search — 3-Tier Shader Selection](#metal-gpu-vector-search--3-tier-shader-selection)
+    - [Vision OCR — Per-Chip Concurrency](#vision-ocr--per-chip-concurrency)
+    - [Cross-Encoder Reranking](#cross-encoder-reranking)
+    - [Font-Encoded PDF Detection (PHASE -1)](#font-encoded-pdf-detection-phase--1)
+    - [Memory-Safe Large PDF Ingestion](#memory-safe-large-pdf-ingestion)
+    - [Pipeline Reliability](#pipeline-reliability)
+  - [Architecture](#architecture)
+    - [Apple Framework Dependencies](#apple-framework-dependencies)
+    - [Data Flow](#data-flow)
+  - [AI Hub — Response Transforms](#ai-hub--response-transforms)
+  - [Motherboard HUD — X-Ray Your iPhone](#motherboard-hud--x-ray-your-iphone)
+  - [Telemetry Badges](#telemetry-badges)
+  - [Privacy](#privacy)
+  - [Getting Started](#getting-started)
+    - [Requirements](#requirements)
+    - [Installation](#installation)
+    - [Troubleshooting](#troubleshooting)
+  - [Project Structure](#project-structure)
+  - [Roadmap — Apple Intelligence Gap Closure](#roadmap--apple-intelligence-gap-closure)
+    - [Active in v2.1 (10 frameworks)](#active-in-v21-10-frameworks)
+    - [Code Complete / Not Wired (5 frameworks)](#code-complete--not-wired-5-frameworks)
+    - [Remaining Gaps](#remaining-gaps)
+  - [Documentation](#documentation)
+  - [Contributing](#contributing)
+    - [Coding Standards](#coding-standards)
+  - [License](#license)
 
 <p align="center">
   <a href="https://apps.apple.com/us/app/openintelligence/id6756559175">
@@ -28,99 +62,7 @@
   </a>
 </p>
 
-OpenIntelligence is a document question-answering app powered by Apple Intelligence. Import any document—PDFs, Office files, audio, images—ask questions in plain English, and get accurate answers with citations. All processing happens on your device.
-
----
-
-## What's New in v2.0 (March 2026)
-
-### Device-Optimized Performance Engine
-
-Every pipeline stage is now hardware-aware — tuned to the specific Apple Silicon chip in your device.
-
-- **3-tier Metal GPU search** — Vector similarity uses threadgroup (shared memory), SIMD4 (4× throughput), or scalar shaders based on corpus size and dimension
-- **Device-specific OCR concurrency** — A19 Pro: 8 parallel ops @ 1ms cooldown. A18 Pro: 6 @ 2ms. A17 Pro: 4 @ 3ms. Adaptive filtering skips 50-80% of clean pages entirely
-- **Concurrent cross-encoder reranking** — Pre-tokenized TaskGroup predictions with bulk `dataPointer` memory writes (3× faster array fills)
-- **GPU embedding ingestion mode** — Embeddings run on GPU during ingestion, freeing Neural Engine for simultaneous Vision OCR
-- **Concurrent GPU rendering** — CIFilter preprocessing runs in parallel (was serialized)
-- **5-candidate OCR** — Evaluates more transcription alternatives for higher accuracy on ambiguous text
-- **Font-encoded PDF detection** — Automatic PHASE -1 validation detects font substitution ciphers (Kia, Hyundai manuals) that trick every quality check, preventing 93% content loss
-- **RAG-grounded response transforms** — AI Hub toolbar with 5 document-aware transforms (Key Facts, Step-by-Step, Plain English, What's Missing?, Illustrate) powered by actual source chunks. Results render with full markdown formatting, Share button, and adaptive sheet sizing
-- **Anti-hallucination topical mismatch** — LLM prompt now allows acknowledging when excerpts don't cover the question (was forced to fabricate). Evidence-First mode triggers on lexical relevance < 20% regardless of similarity score
-- **Image Playground LLM concepts** — On-device LLM translates domain jargon into visual scene descriptions instead of raw noun extraction
-
-### Rich Markdown Response Rendering (v2.0)
-
-Responses now render with full markdown formatting — headers, bullets, bold text, code blocks, and block quotes — instead of a single unformatted paragraph.
-
-- **Full block-level parser** — Headings (h1-h6), bullet lists, numbered lists, code fences, block quotes, horizontal rules, and paragraphs
-- **Inline normalization** — Apple's on-device FM outputs markdown syntax on a single line; 6 regex patterns split it into proper blocks before parsing
-- **Formatting-aware prompts** — All LLM synthesis prompts instruct the model to use `### headers`, `- bullets`, and `**bold**` for key terms
-- **Pipeline preservation** — 7 response-cleaning functions audited; markdown is no longer stripped from responses
-
-### MMR Stability Fix (v2.0)
-
-- Fixed crash in `RAGEngine.applyMMR()` when GPU diversity matrix returned malformed results for edge-case embeddings (dimension 0)
-
-### True Parallel Hybrid Search (v2.0)
-
-Hybrid search rewritten from "FTS5 injection into vector pool" to **two fully independent searches merged via Reciprocal Rank Fusion**:
-
-- **Parallel execution** — Vector + FTS5 chunk search run concurrently via `async let` (~40% faster)
-- **Native SQLite `bm25()` scoring** — Replaces in-memory BM25 scorer; eliminates local IDF bias from small candidate pools
-- **FTS5-only matches visible** — Chunks found only by keyword search (no semantic similarity) now get fair RRF scores
-- **True RRF fusion** — Two independently ranked lists merged via UNION semantics
-
-### Motherboard HUD — X-Ray Your iPhone (v1.1)
-
-A translucent overlay that shows where Apple Silicon components physically sit behind your screen. Real-time CPU, GPU, Neural Engine, and thermal telemetry displayed at the actual chip positions — verified from iFixit teardown images + Apple Vision AI.
-
-- **Real-time hardware telemetry** — CPU/GPU load, memory pressure, thermal state, battery level, Neural Engine activity
-- **Device-specific layouts** — Accurate component positions for iPhone 15 Pro through iPhone 17 Pro series
-- **Ultra-subtle design** — Ghost outlines that pulse with activity, never distracting
-- **One toggle** — Enable/disable from Settings → Telemetry
-
-### Universal Retrieval — 8 Fixes (v1.1)
-
-Near-perfect needle-in-haystack accuracy across any document type:
-
-- Lexical search always contributes to hybrid results
-- HyDE embeddings blended 70/30 with query embeddings
-- Corpus-learned dynamic synonyms from co-occurrence data
-- Adaptive cross-encoder candidate pool scaling
-- Sentence-level fallback when LLM compression fails
-- Rare term preservation in query expansion
-- Year/integer exemption in numeric verification
-- Proportional hit-rate weighting in RRF fusion
-
-### Swift 6 Concurrency Compliance (v2.0)
-
-- 11 files updated with strict concurrency annotations — zero runtime change, eliminates all Swift 6 language mode warnings
-
-### Pipeline Reliability Hardening (v2.0)
-
-11 targeted fixes across the compression → generation → fallback chain that eliminated 0-token responses caused by rate-limited Apple FM calls cascading through the pipeline:
-
-- **Compression cap** — Maximum 5 chunks to compression, fresh session per chunk, per-chunk error isolation with 12s time budget
-- **Generation hardening** — Empty LLM output routes to reliability fallback instead of throwing; 2s rate-limit retry with typed `.rateLimited`/`.concurrentRequests` error cases
-- **Fallback quality** — Extractive Path B rewritten: 6 chunks × 500 chars with section titles and source names (was 3 × 240 chars, no metadata)
-
-### Memory-Safe Large PDF Ingestion (v2.0)
-
-Prevents OOM watchdog kills during ingestion of 500+ page PDFs:
-
-- **Results release** — Parsed page data freed before image analysis begins (~100-200MB reclaimed)
-- **Batch 20 → 5** — Peak CIImage memory per batch drops from ~200MB to ~50MB
-- **144 DPI image understanding** — Full-page renders for Vision classification use 2× scale (was 5×/360 DPI)
-
-### Post-Release Hardening (v2.1)
-
-- **Onboarding rewrite** — Complete rebuild of first-run experience: 2-page flow with use-case cards → live pipeline theater showing real-time capsule phases, metrics dashboard, and streaming pipeline log
-- **Educational sample documents** — 3 curated docs (Pricing Guide, RAG Architecture, Apple Intelligence & PCC) auto-imported during onboarding with quota bypass
-- **Suggested questions fix** — Removed hardcoded Kia Sportage examples that contaminated all suggestions; now generates 4 content-grounded questions per library
-- **Container isolation** — Entity index, full-text search, and corpus analysis fully scoped per library
-- **37 force-unwrap eliminations** — Crash-proofing across 26 files with zero runtime behavior change
-- **5 bug fixes** — Cross-container chat bleed, undismissable alerts, empty Insights sheet, StoreKit stream crash, ContainerService init
+OpenIntelligence is a document question-answering app powered entirely by Apple Intelligence. Import any document — PDFs, Office files, audio, images, code — ask questions in plain English, and get accurate answers with citations. All processing happens on your device. **102 services. 29-step pipeline. Zero data loss.**
 
 ---
 
@@ -133,10 +75,10 @@ Prevents OOM watchdog kills during ingestion of 500+ page PDFs:
 └─────────────┘      └─────────────┘      └─────────────┘      └─────────────┘
 ```
 
-1. **Add** - Tap "+" in the Documents tab, select files from the picker (PDF, Office, audio, images, code)
-2. **Index** - App chunks text (≤310 words), generates 384-dim embeddings, builds vector + keyword indexes
-3. **Ask** - Go to Chat tab, type a question; app retrieves relevant chunks via hybrid search
-4. **Answer** - Apple Intelligence generates a response citing exact source passages
+1. **Add** — Tap "+" in the Documents tab, select files from the picker (PDF, Office, audio, images, code)
+2. **Index** — App chunks text (≤310 words), generates 384-dim embeddings, builds vector + keyword indexes
+3. **Ask** — Go to Chat tab, type a question; app retrieves relevant chunks via hybrid search
+4. **Answer** — Apple Intelligence generates a response citing exact source passages
 
 ---
 
@@ -195,17 +137,17 @@ The app uses Apple's ~3 billion parameter language model that runs entirely on t
 
 ### Model Specifications
 
-| Spec                     | Value                                         |
-| ------------------------ | --------------------------------------------- |
-| **Parameters**           | ~3 billion                                    |
-| **Context Window**       | 4,096 tokens (hard limit, TN3193)             |
-| **Vocabulary**           | 49,000 tokens (on-device) / 100,000 (server)  |
-| **Quantization**         | 3.7 bits per weight (mixed 2-bit/4-bit)       |
-| **Inference Speed**      | 0.6ms per prompt token, 30 tokens/sec         |
-| **Architecture**         | Transformer with grouped-query-attention      |
-| **Adapters**             | LoRA adapters (~10s of MB each) per use case  |
-| **Instruction Accuracy** | 85.7% on IFEval benchmark                     |
-| **Safety**               | 7.5% violation rate (lowest among comparable) |
+| Spec                     | Value                                               |
+| ------------------------ | --------------------------------------------------- |
+| **Parameters**           | ~3 billion                                          |
+| **Context Window**       | 4,096 tokens (hard limit, TN3193)                   |
+| **Vocabulary**           | 49,000 tokens (on-device) / 100,000 (server)        |
+| **Quantization**         | 3.7 bits per weight (mixed 2-bit/4-bit)             |
+| **Inference Speed**      | 0.6ms per prompt token, 30 tokens/sec               |
+| **Architecture**         | Dense transformer with KV-cache sharing (5:3 split) |
+| **Adapters**             | LoRA adapters (~10s of MB each) per use case        |
+| **Instruction Accuracy** | 85.7% on IFEval benchmark                           |
+| **Safety**               | 7.5% violation rate (lowest among comparable)       |
 
 ### Benchmarks vs Other Models
 
@@ -218,7 +160,7 @@ Per Apple's research, the on-device model outperforms larger open-source models 
 | vs Gemma-7B   | Wins                  |
 | vs Llama-3-8B | Wins                  |
 
-Despite having only ~3B parameters (vs 7-8B), the model wins on instruction following and safety due to Apple's training approach.
+Despite having only ~3B parameters (vs 7-8B), the model wins on instruction following and safety due to Apple's training approach: a 64-expert MoE teacher distilled into the dense student, with Quantization-Aware Training at 2-bit using a balanced set `{-1.5, -0.5, 0.5, 1.5}`.
 
 ### Capabilities
 
@@ -229,16 +171,17 @@ The model excels at these tasks (per Apple's documentation):
 - **Text Understanding**: Comprehension, classification, analysis
 - **Guided Generation**: Output Swift structs directly with `@Generable`
 - **Tool Calling**: Execute Swift functions via `@Tool` protocol
-- **Multi-language**: Supports major world languages via `supportedLanguages`
+- **Multi-language**: Supports 16 languages via `supportedLanguages`
 
 ### Private Cloud Compute (PCC)
 
 When the on-device model isn't sufficient, Apple may route to PCC. Key facts:
 
-- **Same model**: PCC runs the exact same architecture, just on Apple's server silicon
-- **Apple controls routing**: You can't force PCC — the system decides
+- **Server model**: PCC runs a PT-MoE (Parallel-Track Mixture-of-Experts) variant trained on up to 65K token sequences — the Foundation Models framework exposes only the on-device ~3B model to third-party apps
+- **Apple controls routing**: You can't force PCC — the system decides based on device thermals, battery, and load
 - **No data retention**: Requests are processed and discarded, no training on your data
 - **Verifiable privacy**: Cryptographic attestation proves what code runs on PCC servers
+- **Detection**: `AppleFoundationLLMService` detects which ran by TTFT — under 1s = on-device, over 1s = PCC
 
 **In practice**: Most queries complete on-device. PCC only activates for complex reasoning that exceeds device capabilities.
 
@@ -269,7 +212,7 @@ The LLM can call these tools autonomously during reasoning:
 | **Deep Think** | 4-8      | Complex analysis, multi-step reasoning   | 5-15 seconds  |
 | **Maximum**    | 8-50     | Exhaustive research, document comparison | 15-60 seconds |
 
-Deep Think and Maximum modes use **Self-RAG 2.0**: multiple reasoning sessions that enrich (not verify) answers, adding details from different evidence chains.
+Deep Think and Maximum modes use **Self-RAG 2.0**: multiple reasoning sessions that enrich (not verify) answers, adding details from different evidence chains. A cancel-and-replace mechanism ensures sending a new query while one is running cleanly cancels the old task — no more freezes from competing reasoning chains.
 
 ---
 
@@ -280,33 +223,41 @@ OpenIntelligence processes every query through 29 distinct steps:
 ```
 INGESTION (6 steps):
   1. Parse         → PDFKit / Vision OCR @ 360 DPI / Office ZIP extraction
+                     PHASE -1: Jaccard font cipher detection (prevents 93% content loss)
+                     Adaptive preprocessing (5 CIFilter strategies: minimal → maximum)
+                     Multi-candidate OCR (topCandidates(5), 90% numeric threshold)
   2. Chunk         → SemanticChunker (≤310 words, section boundary detection)
+                     Contextual prefix: section breadcrumbs prepended (~30 words)
+                     Table-aware: atomic table block preservation
   3. Extract       → Entity extraction (NLTagger NER + PascalCase detection)
   4. Validate      → Token validation (BertTokenizer, truncate if >510)
   5. Embed         → CoreML MiniLM-L6-v2 (384-dim vectors)
-  6. Store         → HNSW index + SQLite FTS5 + EntityIndex
+                     GPU ingestion mode frees Neural Engine for concurrent OCR
+  6. Store         → HNSW index + SQLite FTS5 + EntityIndex + FullTextStorage
 
 RETRIEVAL & GENERATION (21 steps):
   Step 0    Corpus Analysis        → Build vocabulary cache per container
   Step 1    Query Understanding    → Pronoun resolution, NER extraction
-  Step 1.5  Query Expansion        → Corpus-aware synonym expansion
+  Step 1.5  Query Expansion        → Corpus-aware synonym expansion + rare term preservation
   Step 1.6  Intent Classification  → lookup / procedure / compare / summarize
   Step 2    Query Embedding        → 384-dim vector from same model
   Step 2.5  RAPTOR-lite Routing    → Overview queries → L1 summaries
-  Step 3    Hybrid Search          → Vector k-NN + BM25 + RRF fusion
-  Step 4    Cross-Encoder Rerank   → CoreML ReRankerModel.mlpackage
+  Step 3    Hybrid Search          → Vector k-NN + BM25 + true RRF fusion (parallel async let)
+  Step 4    Cross-Encoder Rerank   → CoreML ReRankerModel.mlpackage (concurrent, pre-tokenized)
   Step 4.3  Low-Confidence Filter  → Drop chunks below threshold
   Step 4.4  Multi-Doc Representation → Ensure source diversity
   Step 4.5  MMR Diversification    → λ=0.6 relevance/diversity
   Step 4.6  Parent Document        → Expand ±5 sibling chunks
-  Step 4.7  Contextual Compression → LLM filters irrelevant sentences
+  Step 4.7  Contextual Compression → LLM filters irrelevant sentences (max 5 chunks, 12s budget)
   Step 4.9  Graph Context Packing  → Optimal token budget allocation
   Step 5    Context Assembly       → Lost-in-middle reordering
   Step 5.9  Extractive Summary     → For summarize intent
   Step 5.10 Extractive QA          → For lookup intent
-  Step 5.11 Topical Relevance       → Lexical < 20% → Evidence-First mode
+  Step 5.11 Topical Relevance      → Lexical < 20% → Evidence-First mode
   Step 6    LLM Generation         → Apple FM / Private Cloud Compute
-  Step 6.5  Response Formatting    → Markdown preservation pipeline
+                                     Rate-limit retry with typed .rateLimited/.concurrentRequests
+                                     Empty output → reliability fallback (Path B: 6 chunks × 500 chars)
+  Step 6.5  Response Formatting    → Markdown preservation pipeline (7 cleaning functions audited)
   Step 7    Quality Assessment     → Confidence scoring
   Step 7.5  Verification Gates     → Gates A-G (see below)
   Step 8    Package Results        → Build response with sources
@@ -314,8 +265,10 @@ RETRIEVAL & GENERATION (21 steps):
   Step 9    Response Metadata      → Timing, token counts, source URIs
 
 RENDERING (2 steps):
-  Step 10   Markdown Rendering     → Block-level parser + inline normalizer
-  Step 10.1 Inline Normalization   → 6 regex patterns for Apple FM output
+  Step 10   Markdown Rendering     → Block-level parser (h1-h6, bullets, numbered lists,
+                                     code fences, block quotes, horizontal rules, paragraphs)
+  Step 10.1 Inline Normalization   → 6 regex patterns split Apple FM single-line markdown
+                                     into proper blocks before parsing
 ```
 
 ---
@@ -324,18 +277,70 @@ RENDERING (2 steps):
 
 Every response passes through 7 verification gates + a pre-generation topical check:
 
-| Gate    | Name                 | What It Checks                                                                        |
-| ------- | -------------------- | ------------------------------------------------------------------------------------- |
-| **Pre** | Topical Relevance    | Query keywords must appear in chunks (lexical ≥ 20%) or Evidence-First mode activates |
-| **A**   | Retrieval Confidence | `max(score) ≥ τ` AND `margin ≥ μ` between top results                                 |
-| **B**   | Evidence Coverage    | All claims must cite `evidence_ids` from retrieved chunks                             |
-| **C**   | Numeric Sanity       | Numbers in response must match source documents                                       |
-| **D**   | Contradiction Sweep  | Detect conflicting evidence across chunks                                             |
-| **E**   | Semantic Grounding   | Response embedding cosine similarity vs chunk embeddings (relative ≥ 0.80)            |
-| **F**   | Quote Faithfulness   | Abbreviation expansions must match source definitions (Jaccard ≥ 0.50)                |
-| **G**   | Generation Quality   | Bigram entropy ≥ 2.0 bits, unique word ratio ≥ 25%, trigram dominance < 15%           |
+| Gate    | Name                 | What It Checks                                                                        | On Failure          |
+| ------- | -------------------- | ------------------------------------------------------------------------------------- | ------------------- |
+| **Pre** | Topical Relevance    | Query keywords must appear in chunks (lexical ≥ 20%) or Evidence-First mode activates | Evidence-First mode |
+| **A**   | Retrieval Confidence | `max(score) ≥ τ` AND `margin ≥ μ` between top results                                 | **Abstain**         |
+| **B**   | Evidence Coverage    | All claims must cite `evidence_ids` from retrieved chunks                             | Confidence penalty  |
+| **C**   | Numeric Sanity       | Numbers in response must match source documents (year/integer exempted)               | **Abstain**         |
+| **D**   | Contradiction Sweep  | Detect conflicting evidence across chunks                                             | Confidence penalty  |
+| **E**   | Semantic Grounding   | Response embedding cosine similarity vs chunk embeddings (relative ≥ 0.80, vDSP.dot)  | **Abstain**         |
+| **F**   | Quote Faithfulness   | Abbreviation expansions must match source definitions (Jaccard ≥ 0.50)                | Confidence penalty  |
+| **G**   | Generation Quality   | Bigram entropy ≥ 2.0 bits, unique word ratio ≥ 25%, trigram dominance < 15%           | Confidence penalty  |
 
-If any gate fails, the system either abstains or triggers iterative retrieval.
+Critical gates (A, C, E) trigger full abstention — the app would rather say nothing than say something wrong. Advisory gates (B, D, F, G) apply confidence penalties only.
+
+---
+
+## Device-Optimized Performance
+
+Every pipeline stage is hardware-aware — tuned to the specific Apple Silicon chip in your device.
+
+### Metal GPU Vector Search — 3-Tier Shader Selection
+
+| Shader          | Condition                | How It Works                                                                                                                                             |
+| --------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Threadgroup** | ≥1,000 vectors, dim ≤384 | Query cached in `threadgroup` shared memory, SIMD4 `float4` ops. MiniLM at 384-dim / 4 = 96 float4s fits exactly within `sharedQuery[96]`. Fastest path. |
+| **SIMD4**       | 100–999 vectors          | Hardware `float4` vector operations — 4× scalar throughput                                                                                               |
+| **Scalar**      | Fallback                 | Arbitrary dimension support — baseline                                                                                                                   |
+
+### Vision OCR — Per-Chip Concurrency
+
+| Chip                    | Concurrent Ops | Cooldown | Notes              |
+| ----------------------- | -------------- | -------- | ------------------ |
+| A19 Pro / M4            | 8              | 1ms      | Maximum throughput |
+| A18 Pro / M3            | 6              | 2ms      |                    |
+| A17 Pro / M2            | 4              | 3ms      |                    |
+| Mac (Designed for iPad) | 4              | 3ms      |                    |
+| Older                   | 2              | 6ms      |                    |
+
+`PageComplexityAnalyzer` pre-screens every page — clean digital PDFs skip OCR entirely (50-80% skip rate on typical documents).
+
+### Cross-Encoder Reranking
+
+- `TaskGroup` with device-tier-aware concurrency (2-4 parallel predictions)
+- ALL query-chunk pairs tokenized upfront — tokenization overhead moved out of the hot prediction loop
+- `MLMultiArray` populated via `dataPointer` bulk memory copy instead of per-element `NSNumber` subscript (3× faster array fills)
+
+### Font-Encoded PDF Detection (PHASE -1)
+
+Automatic Jaccard text-layer validation detects font substitution ciphers (common in Kia, Hyundai manuals) that fool every downstream quality check. Without this, 93% of content is silently lost. The system falls back to full Vision OCR when cipher encoding is detected.
+
+### Memory-Safe Large PDF Ingestion
+
+500+ page PDFs no longer trigger OOM watchdog kills:
+
+- Parsed page data freed before image analysis begins (~100-200MB reclaimed)
+- Image batches reduced from 20 → 5 pages (peak CIImage memory: ~50MB vs ~200MB)
+- Full-page renders for Vision classification use 144 DPI (2×) instead of 360 DPI (5×)
+
+### Pipeline Reliability
+
+11 targeted fixes across the compression → generation → fallback chain:
+
+- **Compression cap**: Maximum 5 chunks, fresh LLM session per chunk, per-chunk error isolation with 12s time budget
+- **Generation hardening**: Empty LLM output routes to reliability fallback instead of throwing; 2s rate-limit retry with typed error cases
+- **Fallback quality (Path B)**: 6 chunks × 500 chars with section titles and source names (was 3 × 240 chars, no metadata)
 
 ---
 
@@ -358,6 +363,21 @@ If any gate fails, the system either abstains or triggers iterative retrieval.
 | **Billing**        | 2     | StoreKitBillingService, EntitlementStore                            |
 
 **Full inventory**: See [ARCHITECTURE.md](ARCHITECTURE.md) → "Complete Service Inventory (102 Services)"
+
+### Apple Framework Dependencies
+
+OpenIntelligence is built entirely on Apple's native frameworks — **no third-party AI dependencies**:
+
+| Framework            | Primary Use                   | Key Services                                                                         |
+| -------------------- | ----------------------------- | ------------------------------------------------------------------------------------ |
+| **FoundationModels** | LLM generation (iOS 26)       | `AppleFoundationLLMService`, `HyDEService`, `ContextualCompressionService`, 8 @Tools |
+| **Vision**           | OCR, document detection       | `OCRConfiguration`, `DocumentProcessor`, `StructuredDocumentParser`                  |
+| **NaturalLanguage**  | NER, tokenization, embeddings | `QueryEnhancementService`, `SemanticChunker`, `DocumentProcessor`                    |
+| **CoreML**           | Neural embeddings, reranking  | `CoreMLSentenceEmbeddingProvider` (MiniLM-L6), `RAGEngine` (TinyBERT reranker)       |
+| **PDFKit**           | PDF parsing                   | `DocumentProcessor`                                                                  |
+| **Speech**           | Audio transcription           | `AudioTranscriptionService`                                                          |
+| **Metal**            | GPU acceleration              | `GPUComputeService` (3-tier shaders), `VisionOCRThrottle`, `DocumentProcessor`       |
+| **StoreKit 2**       | Subscription billing          | `StoreKitBillingService`                                                             |
 
 ### Data Flow
 
@@ -392,27 +412,54 @@ flowchart TD
 <details>
 <summary><strong>📖 Glossary — Why Each Piece Is In OpenIntelligence</strong> (click to expand)</summary>
 
-| Term                       | Why It's Here                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **HNSW**                   | Hierarchical Navigable Small World graph. `InMemoryVectorDatabase` builds a multi-layer graph where each chunk connects to its nearest neighbors. Searching starts at the top layer (sparse, long jumps) and descends to bottom layers (dense, precise). Result: 50,000 chunks searched in ~5ms instead of brute-force O(n) comparisons. Without this, "instant answers" would be 3-second answers.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| **SQLite FTS5**            | Full-Text Search 5 engine inside `SQLiteFullTextService`. Builds an inverted index: every word maps to which chunks contain it. Query "VIN 1HGCM82633A004352" → FTS5 instantly returns chunks containing that exact string. Vector search would fail here because embeddings capture meaning, not character sequences. FTS5 catches what vectors miss.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| **BM25**                   | Best Match 25 — the scoring formula inside FTS5. Factors in: (1) term frequency (mentions "oil" 8× beats 1×), (2) inverse document frequency (rare words matter more than "the"), (3) document length normalization. The chunk that's actually ABOUT oil changes scores higher than one that mentions it in passing.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| **BertTokenizer**          | WordPiece tokenizer from the original BERT paper. Splits text into subword units: "unbelievable" → ["un", "##believ", "##able"]. Critical because MiniLM has a 512-token hard limit (510 usable after [CLS]/[SEP]). `CoreMLSentenceEmbeddingProvider.countTokens()` uses this — NOT NLTokenizer, which counts "VHA21\\VHAPALGarciG1" as 1 word when it's actually 10+ tokens. Wrong count = silent truncation = lost meaning.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| **Contextual Prefix**      | `SemanticChunker` prepends section breadcrumbs to each chunk: "Chapter 5: Maintenance > Oil Change Procedure: [actual chunk text]". Why? A chunk saying "remove the cap and drain" means nothing without context. With the prefix, the embedding captures that this is about oil changes, not radiators. ~30 words overhead, massive relevance gain.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| **HyDE**                   | Hypothetical Document Embeddings via `HyDEService.swift`. Problem: user queries are short and vague ("how to fix"). Solution: generate a fake 100-word answer FIRST using Apple FM, then embed THAT and search. The hypothetical answer contains domain vocabulary the user didn't type. Deep Think mode only — adds ~500ms latency but dramatically improves recall for ambiguous queries.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| **RRF (k=60)**             | Reciprocal Rank Fusion in `HybridSearchService`. Formula: `score = Σ 1/(k + rank)` where k=60 smooths the curve. Merges two ranked lists (vector, keyword) into one. A chunk ranked #1 in keywords + #50 in vectors scores `1/61 + 1/110 = 0.0255`. A chunk ranked #5 in both scores `1/65 + 1/65 = 0.0308` — wins. Neither search dominates; both contribute fairly.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| **MMR (λ=0.6)**            | Maximal Marginal Relevance in `RAGEngine.applyMMR()`. Iteratively selects chunks: `score = λ × relevance - (1-λ) × max_similarity_to_already_selected`. λ=0.6 means 60% relevance, 40% diversity penalty. Prevents returning 5 near-identical paragraphs from the same page. Forces coverage across different document sections. Tunable per intent — summarize queries use λ=0.5 for more diversity.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| **k-NN**                   | k-Nearest Neighbors — the core retrieval primitive. `EmbeddingService` encodes query → 384-dim vector. HNSW finds the k=20 chunks with smallest cosine distance. "Car maintenance" (query) matches "vehicle servicing" (chunk) because their vectors land in similar regions of the embedding space. This is why semantic search works — meaning, not keywords.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| **Cross-encoder**          | `ReRankerModel.mlpackage` — a 4.5MB TinyBERT model (ms-marco-TinyBERT-L-2-v2). Unlike bi-encoders that embed query and chunk separately, cross-encoders see `[CLS] query [SEP] chunk [SEP]` together. Attention flows between them, catching subtle relevance signals. 10× slower than bi-encoder, but far more accurate. Runs on top ~20 candidates after initial retrieval to reorder by true relevance.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| **Parent Document**        | `ParentDocumentService` expands context around matched chunks. If chunk #47 (index 0.82 relevance) matches, grab siblings #42-51 from the same document section. Why? The matching chunk might be mid-paragraph — preceding context often contains the setup, following context contains conclusions. ±5 siblings configurable. Merged chunks deduplicated before context packing.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| **Contextual Compression** | `ContextualCompressionService` calls Apple FM with: "Given this query, extract only relevant sentences from this chunk." A 300-word chunk about oil changes might contain 200 words of background — compression strips it to the 80 words that actually answer the question. Runs BEFORE final generation. Saves 40-60% context tokens, letting more chunks fit in the 5,500-char window.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| **RAPTOR-lite**            | Recursive Abstractive Processing for Tree-Organized Retrieval — simplified. At ingestion, `RAGService` generates a ~150-word summary of each document (L1 chunk). `QueryRouterService` classifies queries: "summarize" or "what is this about" → search L1 summaries. "What's the torque spec on page 47" → search L0 detail chunks. 80% of RAPTOR's benefit (hierarchical retrieval) at 20% complexity (single summary level).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| **Lost-in-middle**         | Liu et al. 2023 discovered LLMs attend strongly to the start and end of context, forgetting the middle. `RAGEngine.applyLostInMiddleReordering()` fixes this: if chunks are ranked [A, B, C, D, E] by relevance, reorder to [A, C, E, D, B] — best at position 1, second-best at end, worst in middle. Apple FM now "sees" the critical evidence because it's not buried.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| **Verification Gates**     | 7-gate anti-hallucination pipeline in `VerificationGateService`: **(A)** Retrieval confidence — top score ≥ threshold AND margin over #2 is sufficient. **(B)** Evidence coverage — every claim in the response cites a retrieved chunk. **(C)** Numeric sanity — numbers in response match source documents exactly. **(D)** Contradiction sweep — no conflicting evidence across chunks. **(E)** Semantic grounding — response embedding must be cosine-similar to source chunks. **(F)** Quote faithfulness — abbreviation expansions must match source definitions. **(G)** Generation quality — entropy and uniqueness checks catch degenerate repetition loops. Critical gates (A, C, E) fail → abstain. Advisory gates (F, G) apply confidence penalty only.                                                                                                                                                                                                                                      |
-| **Entity Index**           | `EntityIndexService` runs NLTagger NER at ingestion: extracts persons, organizations, locations, plus PascalCase technical terms. Builds a `Dict<Entity, Set<ChunkID>>` index. Query mentions "John Smith" → instant lookup returns all chunks referencing him, even if the embedding similarity is weak. Bridges the gap between keyword search (exact match) and semantic search (meaning match).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| **PCC**                    | Private Cloud Compute — Apple's confidential computing cloud. **Critical: PCC runs the EXACT SAME MODEL as on-device.** Same 4096 token limit. Same capabilities. Same everything. The ONLY difference is WHERE it runs: Apple's server Apple Silicon instead of your phone's Neural Engine. Why use cloud for identical model? **(1)** Thermal/battery relief — hot device can offload to cloud hardware. **(2)** Faster token generation — server chips are faster once running. The app works fully offline; PCC only activates when network is available, user opted in via iOS Settings, AND Apple's `modelmanagerd` decides to route there (device thermals, battery, load). `AppleFoundationLLMService` detects which ran by TTFT (<1s = on-device, >1s = PCC). Apple guarantees: end-to-end encryption, stateless computation, no data retention, cryptographic attestation, verifiable transparency. You control the preference; Apple controls the routing; the model is identical either way. |
+| Term                       | Why It's Here                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **HNSW**                   | Hierarchical Navigable Small World graph. `InMemoryVectorDatabase` builds a multi-layer graph where each chunk connects to its nearest neighbors. Searching starts at the top layer (sparse, long jumps) and descends to bottom layers (dense, precise). Result: 50,000 chunks searched in ~5ms instead of brute-force O(n) comparisons. Without this, "instant answers" would be 3-second answers.                                                                                                                                                                                                                                                                                                                                                                 |
+| **SQLite FTS5**            | Full-Text Search 5 engine inside `SQLiteFullTextService`. Builds an inverted index: every word maps to which chunks contain it. Query "VIN 1HGCM82633A004352" → FTS5 instantly returns chunks containing that exact string. Vector search would fail here because embeddings capture meaning, not character sequences. FTS5 catches what vectors miss.                                                                                                                                                                                                                                                                                                                                                                                                              |
+| **BM25**                   | Best Match 25 — the scoring formula inside FTS5. Factors in: (1) term frequency (mentions "oil" 8× beats 1×), (2) inverse document frequency (rare words matter more than "the"), (3) document length normalization. The chunk that's actually ABOUT oil changes scores higher than one that mentions it in passing.                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| **BertTokenizer**          | WordPiece tokenizer from the original BERT paper. Splits text into subword units: "unbelievable" → ["un", "##believ", "##able"]. Critical because MiniLM has a 512-token hard limit (510 usable after [CLS]/[SEP]). `CoreMLSentenceEmbeddingProvider.countTokens()` uses this — NOT NLTokenizer, which counts "VHA21\VHAPALGarciG1" as 1 word when it's actually 10+ tokens. Wrong count = silent truncation = lost meaning.                                                                                                                                                                                                                                                                                                                                        |
+| **Contextual Prefix**      | `SemanticChunker` prepends section breadcrumbs to each chunk: "Chapter 5: Maintenance > Oil Change Procedure: [actual chunk text]". Why? A chunk saying "remove the cap and drain" means nothing without context. With the prefix, the embedding captures that this is about oil changes, not radiators. ~30 words overhead, massive relevance gain.                                                                                                                                                                                                                                                                                                                                                                                                                |
+| **HyDE**                   | Hypothetical Document Embeddings via `HyDEService.swift`. Problem: user queries are short and vague ("how to fix"). Solution: generate a fake 100-word answer FIRST using Apple FM, then embed THAT and search. The hypothetical answer contains domain vocabulary the user didn't type. Deep Think mode only — adds ~500ms latency but dramatically improves recall for ambiguous queries.                                                                                                                                                                                                                                                                                                                                                                         |
+| **RRF (k=60)**             | Reciprocal Rank Fusion in `HybridSearchService`. Formula: `score = Σ 1/(k + rank)` where k=60 smooths the curve. Merges two ranked lists (vector, keyword) into one. A chunk ranked #1 in keywords + #50 in vectors scores `1/61 + 1/110 = 0.0255`. A chunk ranked #5 in both scores `1/65 + 1/65 = 0.0308` — wins. Neither search dominates; both contribute fairly.                                                                                                                                                                                                                                                                                                                                                                                               |
+| **MMR (λ=0.6)**            | Maximal Marginal Relevance in `RAGEngine.applyMMR()`. Iteratively selects chunks: `score = λ × relevance - (1-λ) × max_similarity_to_already_selected`. λ=0.6 means 60% relevance, 40% diversity penalty. Prevents returning 5 near-identical paragraphs from the same page. Forces coverage across different document sections. Tunable per intent — summarize queries use λ=0.5 for more diversity.                                                                                                                                                                                                                                                                                                                                                               |
+| **k-NN**                   | k-Nearest Neighbors — the core retrieval primitive. `EmbeddingService` encodes query → 384-dim vector. HNSW finds the k=20 chunks with smallest cosine distance. "Car maintenance" (query) matches "vehicle servicing" (chunk) because their vectors land in similar regions of the embedding space. This is why semantic search works — meaning, not keywords.                                                                                                                                                                                                                                                                                                                                                                                                     |
+| **Cross-encoder**          | `ReRankerModel.mlpackage` — a 4.5MB TinyBERT model (ms-marco-TinyBERT-L-2-v2). Unlike bi-encoders that embed query and chunk separately, cross-encoders see `[CLS] query [SEP] chunk [SEP]` together. Attention flows between them, catching subtle relevance signals. 10× slower than bi-encoder, but far more accurate. Runs on top ~20 candidates after initial retrieval to reorder by true relevance.                                                                                                                                                                                                                                                                                                                                                          |
+| **Parent Document**        | `ParentDocumentService` expands context around matched chunks. If chunk #47 (0.82 relevance) matches, grab siblings #42-51 from the same document section. Why? The matching chunk might be mid-paragraph — preceding context often contains the setup, following context contains conclusions. ±5 siblings configurable. Merged chunks deduplicated before context packing.                                                                                                                                                                                                                                                                                                                                                                                        |
+| **Contextual Compression** | `ContextualCompressionService` calls Apple FM with: "Given this query, extract only relevant sentences from this chunk." A 300-word chunk about oil changes might contain 200 words of background — compression strips it to the 80 words that actually answer the question. Runs BEFORE final generation. Saves 40-60% context tokens, letting more chunks fit in the 5,500-char window.                                                                                                                                                                                                                                                                                                                                                                           |
+| **RAPTOR-lite**            | Recursive Abstractive Processing for Tree-Organized Retrieval — simplified. At ingestion, `RAGService` generates a ~150-word summary of each document (L1 chunk). `QueryRouterService` classifies queries: "summarize" or "what is this about" → search L1 summaries. "What's the torque spec on page 47" → search L0 detail chunks. 80% of RAPTOR's benefit (hierarchical retrieval) at 20% complexity (single summary level).                                                                                                                                                                                                                                                                                                                                     |
+| **Lost-in-middle**         | Liu et al. 2023 discovered LLMs attend strongly to the start and end of context, forgetting the middle. `RAGEngine.applyLostInMiddleReordering()` fixes this: if chunks are ranked [A, B, C, D, E] by relevance, reorder to [A, C, E, D, B] — best at position 1, second-best at end, worst in middle. Apple FM now "sees" the critical evidence because it's not buried.                                                                                                                                                                                                                                                                                                                                                                                           |
+| **Verification Gates**     | 7-gate anti-hallucination pipeline in `VerificationGateService`: **(A)** Retrieval confidence — top score ≥ threshold AND margin over #2 is sufficient. **(B)** Evidence coverage — every claim in the response cites a retrieved chunk. **(C)** Numeric sanity — numbers in response match source documents exactly. **(D)** Contradiction sweep — no conflicting evidence across chunks. **(E)** Semantic grounding — response embedding must be cosine-similar to source chunks. **(F)** Quote faithfulness — abbreviation expansions must match source definitions. **(G)** Generation quality — entropy and uniqueness checks catch degenerate repetition loops. Critical gates (A, C, E) fail → abstain. Advisory gates (F, G) apply confidence penalty only. |
+| **Entity Index**           | `EntityIndexService` runs NLTagger NER at ingestion: extracts persons, organizations, locations, plus PascalCase technical terms. Builds a `Dict<Entity, Set<ChunkID>>` index. Query mentions "John Smith" → instant lookup returns all chunks referencing him, even if the embedding similarity is weak. Bridges the gap between keyword search (exact match) and semantic search (meaning match).                                                                                                                                                                                                                                                                                                                                                                 |
+| **PCC**                    | Private Cloud Compute — Apple's confidential computing cloud. The on-device model is a ~3B dense transformer; the server model is a PT-MoE (Parallel-Track Mixture-of-Experts) trained on up to 65K token sequences. The Foundation Models framework exposes only the on-device model to third-party apps. PCC only activates when network is available, user opted in via iOS Settings, AND Apple's `modelmanagerd` decides to route there (device thermals, battery, load). `AppleFoundationLLMService` detects which ran by TTFT (<1s = on-device, >1s = PCC). Apple guarantees: end-to-end encryption, stateless computation, no data retention, cryptographic attestation, verifiable transparency.                                                            |
 
 </details>
+
+---
+
+## AI Hub — Response Transforms
+
+The AI Hub toolbar offers 5 RAG-grounded document-aware transforms powered by actual source chunks via `ResponseTransformService`:
+
+| Transform           | What It Does                                                             |
+| ------------------- | ------------------------------------------------------------------------ |
+| **Key Facts**       | Extract the most important facts from the response                       |
+| **Step-by-Step**    | Convert the answer into numbered procedural steps                        |
+| **Plain English**   | Simplify technical language into everyday terms                          |
+| **What's Missing?** | Identify gaps — what the documents don't cover about the question        |
+| **Illustrate**      | Generate a visual concept via Image Playground (LLM extracts scene desc) |
+
+Results render with full markdown formatting, include a Share button, and display in an adaptive sheet that starts at half-height.
+
+---
+
+## Motherboard HUD — X-Ray Your iPhone
+
+A translucent overlay that shows where Apple Silicon components physically sit behind your screen. Real-time CPU, GPU, Neural Engine, and thermal telemetry displayed at the actual chip positions — verified from iFixit teardown images + Apple Vision AI.
+
+- **Real-time hardware telemetry** — CPU/GPU load, memory pressure, thermal state, battery level, Neural Engine activity
+- **Device-specific layouts** — Accurate component positions for iPhone 15 Pro through iPhone 17 Pro series
+- **Ultra-subtle design** — Ghost outlines that pulse with activity, never distracting
+- **One toggle** — Enable/disable from Settings → Telemetry
 
 ---
 
@@ -420,14 +467,12 @@ flowchart TD
 
 Every response shows execution metadata:
 
-| Badge            | Meaning                                                        |
-| ---------------- | -------------------------------------------------------------- |
-| 📱 **On-Device** | Ran on your device's Neural Engine                             |
-| ☁️ **PCC**       | Ran on Apple's server silicon (same model, different hardware) |
-| 🔧 **Tools: N**  | Number of @Tool functions called during reasoning              |
-| ⏱️ **X.Xs**      | Total response time                                            |
-
-> **Note:** On-Device and PCC run the **identical model** with identical 4096-token context. PCC is just Apple's way of offloading inference to cloud hardware when your device is busy/hot — it's not a bigger or smarter model.
+| Badge           | Meaning                                                      |
+| --------------- | ------------------------------------------------------------ |
+| 📱 **On-Device** | Ran on your device's Neural Engine                           |
+| ☁️ **PCC**       | Ran on Apple's server silicon (same API, different hardware) |
+| 🔧 **Tools: N**  | Number of @Tool functions called during reasoning            |
+| ⏱️ **X.Xs**      | Total response time                                          |
 
 ---
 
@@ -487,66 +532,52 @@ OpenIntelligence/
 │   └── Protocols/              # Service protocols
 ├── Features/
 │   ├── Billing/                # StoreKit subscription UI
-│   ├── Camera/                 # Vision camera overlay (v3.0)
-│   ├── Chat/                   # Chat interface, message bubbles
+│   ├── Camera/                 # Vision camera overlay
+│   ├── Chat/                   # Chat interface, message bubbles, AI Hub
 │   ├── Database/               # Container management UI
 │   ├── Diagnostics/            # Debug dashboards
 │   ├── Documents/              # Document picker, ingestion UI
-│   ├── Onboarding/             # First-launch experience
+│   ├── Onboarding/             # Pipeline Theater first-launch experience
 │   ├── Settings/               # Settings views
 │   └── Telemetry/              # Motherboard HUD, execution metrics
 ├── Resources/
-│   ├── MLModels/               # EmbeddingModel + ReRankerModel
+│   ├── MLModels/               # EmbeddingModel + ReRankerModel (.mlpackage)
 │   └── StoreKit/               # Subscription configuration
 ├── Services/
-│   ├── Agentic/                # AgenticOrchestrator, ConversationMemory
-│   ├── Billing/                # StoreKitBillingService
-│   ├── Document/               # DocumentProcessor, SemanticChunker, OCR
-│   ├── Embedding/              # EmbeddingService, CoreMLProvider
-│   ├── Infrastructure/         # ContainerService, GPUCompute, Telemetry
-│   ├── LLM/                    # AppleFoundationLLMService, tools
-│   ├── Query/                  # QueryEnhancement, HyDE, Compression
-│   ├── RAG/                    # RAGService, RAGEngine, HybridSearch
+│   ├── Agentic/                # AgenticOrchestrator, ConversationMemory, ResponseTransform
+│   ├── Billing/                # StoreKitBillingService, EntitlementStore
+│   ├── Document/               # DocumentProcessor, SemanticChunker, OCR, Transcription
+│   ├── Embedding/              # EmbeddingService, CoreMLProvider, BertTokenizer
+│   ├── Infrastructure/         # ContainerService, GPUCompute, Telemetry, Spotlight
+│   ├── LLM/                    # AppleFoundationLLMService, 8 @Tool implementations
+│   ├── Query/                  # QueryEnhancement, HyDE, Compression, Router
+│   ├── RAG/                    # RAGService, RAGEngine, HybridSearch, VerificationGates
 │   ├── Storage/                # FullTextStorage, SQLiteFTS5
-│   └── VectorStore/            # VectorDatabase, BNNS, Router
-└── UI/                         # Shared UI components
+│   └── VectorStore/            # VectorDatabase, BNNS, InMemory, Router
+└── UI/                         # Shared UI components, MarkdownRenderer
 ```
 
 ---
 
 ## Roadmap — Apple Intelligence Gap Closure
 
-We've audited every Apple Intelligence framework from WWDC 2024 and 2025 against the codebase. **23 framework opportunities** identified — **14 shipped** in v2.0, **9 remaining**:
+We've audited every Apple Intelligence framework from WWDC 2024 and 2025 against the codebase. **23 framework opportunities** identified across WWDC24/25 sessions. **10 active** in production, **5 code-complete** (not yet wired to UI), **9 remaining**:
 
-### v2.1 — Next Release (6 items → 4 done)
+### Active in v2.1 (10 frameworks)
 
-| Framework          | Status       | What It Adds                                                                       |
-| ------------------ | ------------ | ---------------------------------------------------------------------------------- |
-| **Guardrails API** | ✅ Shipped   | Content safety via `.permissiveContentTransformations` in `ImagePlaygroundService` |
-| **CoreSpotlight**  | ✅ Shipped   | Index documents for Spotlight/Siri semantic search via `SpotlightIndexService`     |
-| **SpeechAnalyzer** | ✅ Shipped   | Modern async actor-based speech transcription via `SpeechAnalyzerService`          |
-| **Translation**    | ✅ Shipped   | `TranslationService` implemented (not yet wired to UI)                             |
-| **Liquid Glass**   | ⬜ Remaining | iOS 26 design system — glass material for toolbars, navigation, and custom views   |
-| **UseCase/Locale** | ⬜ Partial   | `supportsLocale()` active in `LLMService`; `UseCase` not yet started               |
+Guardrails API, CoreSpotlight, SpeechAnalyzer, Image Playground, NLGazetteer, BackgroundTasks, TipKit, Smart Reply, `supportsLocale()`, NSUserActivity
 
-### v2.2 — Following Release (8 items → 6 done)
+### Code Complete / Not Wired (5 frameworks)
 
-| Framework                 | Status       | What It Adds                                                         |
-| ------------------------- | ------------ | -------------------------------------------------------------------- |
-| **Visual Intelligence**   | ✅ Shipped   | App Intents for camera/screenshot search (system-discoverable)       |
-| **Adapter Training**      | ✅ Shipped   | `AdapterManager` with LoRA adapter lifecycle (not yet wired)         |
-| **Prompt Evaluation**     | ✅ Shipped   | `PromptEvaluationService` for prompt quality scoring (not yet wired) |
-| **Metal 4**               | ⬜ Remaining | New GPU API with ML inference passes and unified compute encoders    |
-| **BNNS Graph**            | ✅ Shipped   | `BNNSGraphService` for neural network operations (not yet wired)     |
-| **Image Playground**      | ✅ Shipped   | Programmatic image generation via `ImagePlaygroundService`           |
-| **NLGazetteer**           | ✅ Shipped   | Custom entity training via `GazetteerService`                        |
-| **Lens Smudge Detection** | ⬜ Remaining | Camera quality check before OCR capture                              |
+Visual Intelligence (App Intents), Translation.framework, Adapter Training, Prompt Evaluation, BNNS Graph
 
-### v3.0 — Strategic (9 items → 4 done)
+### Remaining Gaps
 
-✅ **Shipped**: BackgroundTasks (`BackgroundTaskService`), TipKit (`AppTips`), Smart Reply (`SmartReplyService`), NSUserActivity (Handoff in `DocumentLibraryView`/`ChatScreen`)
-
-⬜ **Remaining**: `@Observable` migration, WidgetKit, SwiftData, Genmoji, DataScannerViewController + more.
+| Target   | Frameworks                                                                        |
+| -------- | --------------------------------------------------------------------------------- |
+| **v2.1** | Liquid Glass, UseCase                                                             |
+| **v2.2** | Metal 4, Lens Smudge Detection                                                    |
+| **v3.0** | `@Observable` migration, WidgetKit, SwiftData, Genmoji, DataScannerViewController |
 
 > **Full details**: See [ROADMAP.md](ROADMAP.md) → "Phase 2.15 — Apple Intelligence Gap Closure"
 
@@ -583,4 +614,4 @@ We've audited every Apple Intelligence framework from WWDC 2024 and 2025 against
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+MIT License — see [LICENSE](LICENSE) for details.
