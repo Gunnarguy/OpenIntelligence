@@ -64,6 +64,8 @@
 
 OpenIntelligence is a document question-answering app powered entirely by Apple Intelligence. Import any document — PDFs, Office files, audio, images, code — ask questions in plain English, and get accurate answers with citations. All processing happens on your device. **102 services. 29-step pipeline. Zero data loss.**
 
+Public roadmap, feedback board, changelog, and supporter wall: [OpenIntelligence Public Product Hub](https://gunzino.notion.site/OpenIntelligence-Public-Product-Hub-33b49a74d54f8119aaa7c3bb02e2794a?pvs=143)
+
 ---
 
 ## What It Does
@@ -467,8 +469,8 @@ A translucent overlay that shows where Apple Silicon components physically sit b
 
 Every response shows execution metadata:
 
-| Badge           | Meaning                                                      |
-| --------------- | ------------------------------------------------------------ |
+| Badge            | Meaning                                                      |
+| ---------------- | ------------------------------------------------------------ |
 | 📱 **On-Device** | Ran on your device's Neural Engine                           |
 | ☁️ **PCC**       | Ran on Apple's server silicon (same API, different hardware) |
 | 🔧 **Tools: N**  | Number of @Tool functions called during reasoning            |
@@ -504,6 +506,10 @@ cd OpenIntelligence
 
 # Fetch submodules (swift-transformers)
 git submodule update --init --recursive
+
+# Note: OpenIntelligence/swift-transformers is the upstream
+# huggingface/swift-transformers repository pinned as a git submodule.
+# Xcode references that local submodule path as a Swift package.
 
 # Open in Xcode
 open OpenIntelligence.xcodeproj
@@ -609,6 +615,14 @@ Visual Intelligence (App Intents), Translation.framework, Adapter Training, Prom
 - Use `async/await` and `actor` for concurrency (no GCD)
 - Never send data to cloud without explicit consent
 - Update `Docs/reference/` when changing architecture
+
+---
+
+## Acknowledgments
+
+OpenIntelligence relies on the following open-source project:
+
+- **[swift-transformers](https://github.com/huggingface/swift-transformers)** by [Hugging Face](https://huggingface.co/) — Apache 2.0 License. Provides `BertTokenizer` for WordPiece tokenization in our embedding and reranking pipelines. Included as a git submodule pointing to the upstream repository (no fork, no modifications).
 
 ---
 
