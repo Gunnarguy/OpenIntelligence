@@ -1,51 +1,62 @@
-Turn your documents into an offline neural knowledge base.
+Turn your documents into an offline neural knowledge base — entirely on your iPhone.
 
-Stop digging through PDFs. OpenIntelligence brings enterprise-grade RAG (Retrieval-Augmented Generation) to your iPhone—running entirely on your device.
+OpenIntelligence is an on-device RAG engine (Retrieval-Augmented Generation) that imports your documents, builds a local search index, and answers questions using Apple Intelligence. No cloud. No accounts. No data leaves your device.
 
-29-STEP RETRIEVAL PIPELINE. ZERO CLOUD DEPENDENCY.
+102 SERVICES. 29-STEP PIPELINE. ZERO CLOUD DEPENDENCY.
 
-This is not simple keyword search. OpenIntelligence orchestrates a rigorous 29-step pipeline used by high-end research systems:
+This is not keyword search. OpenIntelligence runs a full retrieval pipeline — the same architecture used by enterprise research systems — compressed into your pocket:
 
-• HyDE (Hypothetical Document Embeddings) — Hallucinates an answer to find better semantic matches.
-• Hybrid Search — Fuses BM25 keywords with 384-dim neural embeddings for maximum recall.
-• Reciprocal Rank Fusion — Mathematically combines retrieval strategies to surface the best hits.
-• MMR Diversification — Filters redundant chunks to maximize information gain.
-• Cross-Encoder Reranking — Scores every candidate with a dedicated neural model for precision.
-• Graph Context Packing — Optimizes the limited token budget using graph theory.
-• Parent Document Retrieval — Expands matched sentences to their full paragraph context.
-• Lost-in-Middle Mitigation — Reorders context to ensure the AI sees the most critical evidence.
-• Semantic Chunking — Splits documents by logic and structure, not just character counts.
-• Multi-Column OCR — Metal-accelerated vision processing for complex PDF layouts (360 DPI).
-• Agentic Tool Use — Autonomous search, summarization, and comparison capabilities.
-• 7 Anti-Hallucination Gates — Every answer passes through verification gates (A-G) that check retrieval confidence, evidence coverage, numeric sanity, contradictions, semantic grounding, quote faithfulness, and generation quality. Critical failures trigger abstention — the AI refuses to answer rather than answer wrong.
-• Evidence-First Mode — When your question barely overlaps with retrieved content, the AI states what evidence exists instead of hallucinating a plausible-sounding answer.
-• AI Hub Transforms — Extract key facts, step-by-step instructions, plain English, gap analysis, or illustrated visualizations from any response. All grounded in your source documents.
-• Motherboard HUD — Real-time X-ray overlay showing Apple Silicon chip positions with live telemetry.
-• Rich Response Formatting — Full markdown rendering with headers, bullets, bold text, and code blocks.
-• Device-Optimized Performance — 3-tier Metal GPU shaders, device-specific OCR concurrency, and concurrent neural reranking adapt to your Apple Silicon chip.
+RETRIEVAL
+• Hybrid Search — BM25 keyword matching fused with 384-dimensional neural embeddings via Reciprocal Rank Fusion
+• HyDE — Hypothetical Document Embeddings generate synthetic answers to find better semantic matches
+• Cross-Encoder Reranking — A dedicated neural model rescores every candidate for precision
+• MMR Diversification — Filters redundant chunks to maximize information coverage
+• Parent Document Retrieval — Expands matched sentences to their surrounding paragraph context
+• Graph Context Packing — Optimizes the 4,096-token budget using graph algorithms
+• Lost-in-Middle Mitigation — Reorders evidence so the AI sees the most critical content
 
-THE RESULT?
+DOCUMENT PROCESSING
+• Semantic Chunking — Splits by logic and structure, not just character counts
+• Multi-Column OCR — Metal-accelerated Vision processing at 360 DPI for complex PDF layouts
+• Font Cipher Detection — Detects encoded/garbled text layers and forces full OCR automatically
+• Entity Extraction — Names, organizations, technical terms indexed per document
 
-Ask "What oil does my car take?" and get "SAE 0W-20 synthetic, 5.3 quarts"—with a direct citation you can tap to verify.
+ANTI-HALLUCINATION (7 GATES)
+Every answer passes through verification gates A through G: retrieval confidence, evidence coverage, numeric sanity, contradiction detection, semantic grounding, quote faithfulness, and generation quality. Critical failures trigger full abstention — the app refuses to answer rather than answer wrong.
 
-DEEP THINK MODE
+Evidence-First Mode activates when your question barely overlaps with retrieved content. The AI states what evidence exists instead of fabricating a plausible-sounding answer.
 
-Standard mode answers in seconds. Deep Think spawns multiple reasoning sessions (Self-RAG), cross-validates evidence, and synthesizes a thorough response. Perfect for legal, medical, or academic research.
+THREE QUALITY MODES
+• Standard — Fast factual answers in seconds
+• Deep Think — 4-8 reasoning sessions with iterative retrieval and cross-validation. Ideal for legal, medical, or academic research
+• Maximum — 8-50 sessions with exhaustive multi-chain synthesis for research-grade analysis
+
+AI HUB TRANSFORMS
+After any answer, extract Key Facts, Step-by-Step instructions, Plain English summaries, Gap Analysis, or Illustrated visualizations — all grounded in your source documents with full markdown rendering.
+
+AGENTIC TOOL USE
+8 autonomous tools: search, compare, summarize, timeline, extract, define, calculate, and analyze. The AI decides which tools to invoke based on your question.
+
+DEVICE-OPTIMIZED PERFORMANCE
+3-tier Metal GPU shaders, device-specific OCR concurrency, and concurrent neural reranking adapt to your Apple Silicon chip. A15 through M4 — each gets a tuned configuration.
+
+MOTHERBOARD HUD
+Real-time X-ray overlay showing Apple Silicon chip positions with live telemetry: thermal, memory, GPU utilization.
 
 100% PRIVATE BY DEFAULT
-
-Everything runs on-device. Your documents never leave your iPhone unless you enable Private Cloud Compute—Apple's zero-retention fallback. No accounts. No uploads. No tracking.
+Everything runs on-device using Apple's Foundation Models framework. Your documents never leave your iPhone unless iOS invokes Private Cloud Compute — Apple's zero-retention, cryptographically verified fallback. No accounts. No uploads. No tracking. No third-party AI.
 
 SUPPORTED FORMATS
+PDF (native text + OCR), Word (.docx), Excel (.xlsx), PowerPoint (.pptx), Markdown, CSV, RTF, TXT, and images (JPEG, PNG, HEIC).
 
-PDF (native + OCR), Word, Excel, PowerPoint, Markdown, CSV, RTF, TXT, and images.
+BUILT WITH APPLE FRAMEWORKS
+FoundationModels, Vision, NaturalLanguage, CoreML, PDFKit, Speech, Metal, StoreKit 2, CoreSpotlight, Image Playground, SpeechAnalyzer, TipKit, BackgroundTasks.
 
 SUBSCRIPTION OPTIONS
-
-• Pro Monthly: Up to 1,000 documents, all features
-• Pro Annual: Save 30% compared to monthly
-• Lifetime: One-time purchase, forever access
-• Free tier includes core functionality with 5 document limit
+• Free: 5 documents, full pipeline, all quality modes
+• Pro Monthly ($5.99): Up to 1,000 documents, 5 libraries
+• Pro Annual ($49.99): Save 30% vs. monthly
+• Lifetime ($59.99): One-time purchase, all features forever
 
 Payment is charged to your Apple ID account at purchase confirmation. Subscriptions automatically renew unless canceled at least 24 hours before the end of the current period. Manage subscriptions in Settings > Apple ID > Subscriptions.
 

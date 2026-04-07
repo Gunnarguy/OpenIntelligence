@@ -1,1 +1,1 @@
-v2.1: 7 anti-hallucination gates. Evidence-First mode. Rebuilt onboarding. Deep Think freeze fix. 37 crash sites eliminated. 100% on-device.
+On-device RAG engine for iPhone. 29-step retrieval pipeline, 7 anti-hallucination gates, 3 quality modes, 8 agentic tools. 102 services. Zero cloud. Import PDFs, Word, Excel, images — ask questions, get cited answers. Public roadmap: notion.so/openintelligence

@@ -1,71 +1,27 @@
 Version 2.1
 
-WHAT YOU'LL NOTICE
+SMARTER ANSWERS
+- Evidence-First mode: when your documents don't cover a question, the AI tells you what evidence does exist instead of making something up
+- 7 verification gates (A-G): retrieval confidence, evidence coverage, numeric sanity, contradiction detection, semantic grounding, quote faithfulness, generation quality
+- Critical gate failures trigger full abstention — refuses to answer rather than answer wrong
 
-Smarter Answers
-- The AI now tells you when your documents don't cover a question instead of making something up
-- Topical mismatch detection: when your question barely overlaps with retrieved content, Evidence-First mode activates — the AI states what evidence exists instead of hallucinating
-- 3 new verification gates (7 total, A-G): Semantic Grounding checks the answer matches sources, Quote Faithfulness checks quoted text actually appears, Generation Quality catches repetitive output
-- Critical gates can trigger full abstention — the app refuses to answer rather than answer wrong
-
-Deep Think & Maximum Mode
-- Fixed app freeze when sending a second question while one is processing (two reasoning chains were fighting over Apple FM)
+DEEP THINK & MAXIMUM MODE
+- Fixed freeze when sending a second question while one is processing
 - Cancel-and-replace: old query cancels cleanly, new one takes over
-- Cancellation checks at all 17 LLM call sites — no wasted processing
 
-Suggested Questions
-- Fixed prompt contamination — hardcoded Kia Sportage examples were biasing every library toward car questions
-- Questions now reference specific details from your actual documents
-- Switching libraries instantly clears stale suggestions — no more flash of wrong questions
-- Natural conversational tone instead of robotic templates
+CROSS-LIBRARY ISOLATION
+- Answers, entities, and suggestions fully scoped per library — no leaking between containers
 
-Cross-Library Isolation
-- Answers no longer leak between libraries when switching mid-conversation (session ID + 8 guard checks)
-- Entity index, full-text search, and suggestions fully scoped per library
-- Deleting a library properly cleans all cross-references
+AI HUB TRANSFORMS
+- Key Facts, Step-by-Step, Plain English, Gap Analysis, Illustrate — all rendered in full markdown
+- Share button alongside Copy and Insert
 
-Onboarding Rebuilt
-- 2-page flow: welcome cards → live pipeline theater showing your docs being processed in real time
-- Metrics dashboard: words, chunks, vectors, processing time
-- 3 built-in sample docs (Pricing, RAG Architecture, Apple Intelligence) — bypass free tier limit
-- Haptic feedback on all 6 interactions, VoiceOver labels throughout, reduce motion support
-- Retry button when sample import fails
+REBUILT ONBOARDING
+- 2-page flow with live pipeline theater
+- 3 built-in sample docs auto-import with real-time metrics
+- Haptics, VoiceOver, reduce motion support
 
-AI Hub Results
-- Key Facts, Step-by-Step, Plain English, What's Missing, Illustrate now render with full markdown (bold, bullets, headers)
-- New Share button alongside Copy and Insert
-- Sheet starts half-height, draggable to full
-
-Other Fixes
-- Alert dialogs can be dismissed again (was stuck due to .constant() binding)
-- "Show All Insights" now shows a proper list (was an empty TODO)
-- Image Playground no longer biased toward car themes (removed Ford Mustang few-shot example)
-- Settings: dynamic confidence threshold, duplicate Vietnamese removed, gates label corrected to A-G
-- About screen shows actual version instead of hardcoded 1.0.0
-
-UNDER THE HOOD
-
-Safety
-- 37 force-unwrap crash sites eliminated across 26 files (guard let, if let, default values)
-- 10 fatalError() calls → graceful URL.temporaryDirectory fallbacks
-- StoreKit stream continuation crash fixed (IUO → AsyncStream.makeStream)
-- 3 silent Vision catch blocks now log properly
-
-Dead Code
-- 1,278 lines removed: SettingsRootView (701), DeveloperSettingsView (350), OpenAIResponsesAPIService (178), VecturaVectorDatabase (53), TipKit overlays
-- 15 test files deleted (2,686 lines) — were never wired into a test target
-
-Search Internals
-- BM25Scorer: class → struct with Storage reference type, fresh NLTokenizer per call (thread safety), lemmatization removed, division-by-zero guard
-- Font cipher detection prevents 93% content loss on encoded PDFs (Jaccard similarity)
-- Raw regex fix (5 patterns), garbled image extraction fix, dynamic image text budget
-
-Concurrency
-- Swift 6 strict concurrency: 11 files with nonisolated(unsafe) annotations, zero runtime change
-- GPU mode relabeling: Performance→Maximum, Balanced→Performance, new Balanced tier
-
-Developer
-- 25+ views gained #Preview macros for Xcode canvas
-- Pipeline X-Ray Studio: new 5,540-line web app for visualizing pipeline traces (dev tool, not in app)
-
-Includes all v2.0 features: 29-step RAG pipeline, AI Hub, 3-tier Metal GPU, device-specific OCR, markdown rendering, 102 services.
+STABILITY
+- 37 crash sites eliminated, 10 fatalError calls replaced with fallbacks, 1,278 lines dead code removed
+- Font cipher detection prevents content loss on encoded PDFs
+- BM25 thread safety, StoreKit stream fix, alert dismissal fix
