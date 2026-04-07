@@ -37,7 +37,7 @@ Submit to App Store Connect for review
 [bundle exec] fastlane ios beta
 ```
 
-Upload to TestFlight for beta testing
+Upload to TestFlight
 
 ### ios bump
 
@@ -53,7 +53,15 @@ Increment build number
 [bundle exec] fastlane ios metadata
 ```
 
-Upload metadata only (no binary) - for fixing App Store rejection
+Push metadata to a draft App Store version (requires new version in ASC)
+
+### ios metadata_live
+
+```sh
+[bundle exec] fastlane ios metadata_live
+```
+
+Update live App Store listing (description, keywords, promo text)
 
 ### ios validate
 
@@ -85,7 +93,7 @@ Print App Store Connect setup checklist for subscriptions
 [bundle exec] fastlane ios verify_iap_live
 ```
 
-Verify products exist in App Store Connect (requires API key)
+Verify products exist in App Store Connect
 
 ----
 

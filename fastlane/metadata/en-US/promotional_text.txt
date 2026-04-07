@@ -1,1 +1,1 @@
-On-device RAG engine for iPhone. 29-step retrieval pipeline, 7 anti-hallucination gates, 3 quality modes, 8 agentic tools. 102 services. Zero cloud. Import PDFs, Word, Excel, images — ask questions, get cited answers. Public roadmap: notion.so/openintelligence
+On-device RAG engine for iPhone. 29-step pipeline, 7 anti-hallucination gates, 3 quality modes. Import PDFs, Word, Excel, images — ask questions, get cited answers.

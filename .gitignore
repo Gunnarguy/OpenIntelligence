@@ -45,6 +45,10 @@ fastlane/Preview.html
 fastlane/screenshots/
 fastlane/test_output/
 
+# Bundler
+vendor/bundle/
+.bundle/
+
 # Accio dependency manager
 Dependencies/
 .accio/

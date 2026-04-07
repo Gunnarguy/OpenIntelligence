@@ -3,72 +3,80 @@
 
 default_platform(:ios)
 
+APP_IDENTIFIER = "Gunndamental.OpenIntelligence".freeze
+PROJECT_PATH = "OpenIntelligence.xcodeproj".freeze
+SCHEME = "OpenIntelligence".freeze
+TEAM_ID = "Z3E334EXZD".freeze
+ASC_KEY_ID = "JT97AQ3U4U".freeze
+ASC_ISSUER_ID = "843e4ca0-4a91-49c5-93d1-c4e336d7c43b".freeze
+ASC_KEY_PATH = File.expand_path("~/AuthKey_JT97AQ3U4U.p8").freeze
+
 platform :ios do
+
+  # --- Shared API key config ---
+  private_lane :asc_api_key do
+    app_store_connect_api_key(
+      key_id: ASC_KEY_ID,
+      issuer_id: ASC_ISSUER_ID,
+      key_filepath: ASC_KEY_PATH,
+      in_house: false
+    )
+  end
 
   desc "Build the app for App Store submission"
   lane :build do
     build_app(
-      scheme: "OpenIntelligence",
+      scheme: SCHEME,
+      project: PROJECT_PATH,
       export_method: "app-store",
       output_directory: "./build",
       output_name: "OpenIntelligence.ipa",
       export_options: {
         signingStyle: "automatic",
-        teamID: "Z3E334EXZD"  # Your Apple Developer Team ID
+        teamID: TEAM_ID
       }
     )
   end
 
   desc "Submit to App Store Connect for review"
   lane :release do
-    # Build the app
+    api_key = asc_api_key
     build
-
-    # Upload to App Store Connect
     upload_to_app_store(
+      api_key: api_key,
       skip_metadata: false,
-      skip_screenshots: true,  # Set to false when you have screenshots
-      submit_for_review: false,  # Set to true to auto-submit
+      skip_screenshots: true,
+      submit_for_review: false,
       automatic_release: false,
-      force: true  # Skip HTML preview
+      force: true
     )
   end
 
-  desc "Upload to TestFlight for beta testing"
+  desc "Upload to TestFlight"
   lane :beta do
+    api_key = asc_api_key
     build_app(
-      scheme: "OpenIntelligence",
+      scheme: SCHEME,
+      project: PROJECT_PATH,
       export_method: "app-store"
     )
     upload_to_testflight(
+      api_key: api_key,
       skip_waiting_for_build_processing: true
     )
   end
 
   desc "Increment build number"
   lane :bump do
-    increment_build_number(xcodeproj: "OpenIntelligence.xcodeproj")
+    increment_build_number(xcodeproj: PROJECT_PATH)
   end
 
-  desc "Upload metadata only (no binary) - for fixing App Store rejection"
+  desc "Push metadata to a draft App Store version (requires new version in ASC)"
   lane :metadata do
-    # Read .p8 key content directly
-    key_path = File.expand_path("~/AuthKey_JT97AQ3U4U.p8")
-    key_content = File.read(key_path)
-
-    # Clear any env var that would conflict with explicit api_key
-    ENV.delete("APP_STORE_CONNECT_API_KEY_PATH")
-
-    api_key = app_store_connect_api_key(
-      key_id: "JT97AQ3U4U",
-      issuer_id: "843e4ca0-4a91-49c5-93d1-c4e336d7c43b",
-      key_content: key_content,
-      in_house: false
-    )
-
+    api_key = asc_api_key
     deliver(
       api_key: api_key,
-      app_identifier: "Gunndamental.OpenIntelligence",
+      app_identifier: APP_IDENTIFIER,
       skip_binary_upload: true,
       skip_screenshots: true,
       force: true,
@@ -77,9 +85,27 @@ platform :ios do
     )
   end
 
+  desc "Update live App Store listing (description, keywords, promo text)"
+  lane :metadata_live do
+    api_key = asc_api_key
+    deliver(
+      api_key: api_key,
+      app_identifier: APP_IDENTIFIER,
+      skip_binary_upload: true,
+      skip_screenshots: true,
+      force: true,
+      submit_for_review: false,
+      edit_live: true,
+      precheck_include_in_app_purchases: false,
+      version_check_wait_retry_limit: 1
+    )
+  end
+
   desc "Validate app metadata and screenshots"
   lane :validate do
+    api_key = asc_api_key
     deliver(
+      api_key: api_key,
       verify_only: true,
       skip_screenshots: true,
       skip_binary_upload: true
@@ -174,36 +200,17 @@ platform :ios do
     UI.success("See fastlane/subscriptions.json for full product details and localizations")
   end
 
-  desc "Verify products exist in App Store Connect (requires API key)"
+  desc "Verify products exist in App Store Connect"
   lane :verify_iap_live do
     require 'json'
     require 'spaceship'
+    require 'net/http'
+    require 'uri'
+    require 'jwt'
+    require 'openssl'
 
-    # Check for API key environment variables
-    key_id = ENV["APP_STORE_CONNECT_API_KEY_ID"]
-    issuer_id = ENV["APP_STORE_CONNECT_ISSUER_ID"]
-    key_path = ENV["APP_STORE_CONNECT_API_KEY_PATH"]
+    api_key = asc_api_key
 
-    unless key_id && issuer_id && key_path
-      UI.user_error!(
-        "API key environment variables not set!\n\n" +
-        "Set these environment variables:\n" +
-        "  export APP_STORE_CONNECT_API_KEY_ID=YOUR_KEY_ID\n" +
-        "  export APP_STORE_CONNECT_ISSUER_ID=YOUR_ISSUER_ID\n" +
-        "  export APP_STORE_CONNECT_API_KEY_PATH=/path/to/AuthKey_XXXXX.p8\n\n" +
-        "Get these from App Store Connect → Users and Access → Integrations → Keys"
-      )
-    end
-
-    # Connect to App Store Connect
-    api_key = app_store_connect_api_key(
-      key_id: key_id,
-      issuer_id: issuer_id,
-      key_filepath: key_path,
-      in_house: false
-    )
-
-    # Load local config
     subscriptions_path = File.join(Dir.pwd, "subscriptions.json")
     config = JSON.parse(File.read(subscriptions_path))
 
@@ -214,36 +221,27 @@ platform :ios do
 
     UI.header("Checking App Store Connect for #{expected_products.count} products...")
 
-    # Get app
-    app = Spaceship::ConnectAPI::App.find(CredentialsManager::AppfileConfig.try_fetch_value(:app_identifier))
-
+    app = Spaceship::ConnectAPI::App.find(APP_IDENTIFIER)
     unless app
       UI.user_error!("App not found in App Store Connect!")
     end
-
     UI.success("Found app: #{app.name} (#{app.bundle_id})")
 
-    require 'net/http'
-    require 'uri'
-    require 'jwt'
-    require 'openssl'
-
-    # Build JWT token for API requests
-    private_key = OpenSSL::PKey::EC.new(File.read(key_path))
+    # Build JWT for direct API requests
+    private_key = OpenSSL::PKey::EC.new(File.read(ASC_KEY_PATH))
     token = JWT.encode(
       {
-        iss: issuer_id,
+        iss: ASC_ISSUER_ID,
         iat: Time.now.to_i,
-        exp: Time.now.to_i + 20 * 60, # 20 minutes
+        exp: Time.now.to_i + 20 * 60,
         aud: "appstoreconnect-v1"
       },
       private_key,
       "ES256",
-      { kid: key_id }
+      { kid: ASC_KEY_ID }
     )
 
-    # Helper to make ASC API requests
-    def asc_get(path, token)
+    asc_get = lambda do |path|
       uri = URI("https://api.appstoreconnect.apple.com#{path}")
       http = Net::HTTP.new(uri.host, uri.port)
       http.use_ssl = true
@@ -254,18 +252,15 @@ platform :ios do
       JSON.parse(response.body)
     end
 
-    # Get in-app purchases (consumables and non-consumables) via app relationship
-    iap_data = asc_get("/v1/apps/#{app.id}/inAppPurchasesV2?limit=100", token)
+    iap_data = asc_get.call("/v1/apps/#{app.id}/inAppPurchasesV2?limit=100")
     iaps = iap_data["data"] || []
     iap_ids = iaps.map { |iap| iap.dig("attributes", "productId") }.compact
 
-    # Get subscription groups
-    sub_group_data = asc_get("/v1/apps/#{app.id}/subscriptionGroups?limit=100", token)
+    sub_group_data = asc_get.call("/v1/apps/#{app.id}/subscriptionGroups?limit=100")
     subscription_groups = sub_group_data["data"] || []
     sub_ids = []
     subscription_groups.each do |group|
-      group_id = group["id"]
-      sub_data = asc_get("/v1/subscriptionGroups/#{group_id}/subscriptions?limit=100", token)
+      sub_data = asc_get.call("/v1/subscriptionGroups/#{group['id']}/subscriptions?limit=100")
       subs = sub_data["data"] || []
       subs.each do |sub|
         pid = sub.dig("attributes", "productId")
@@ -276,10 +271,9 @@ platform :ios do
     all_asc_products = iap_ids + sub_ids
 
     UI.message("")
-    UI.message("📡 Products in App Store Connect:")
-    all_asc_products.each { |p| UI.message("  • #{p}") }
+    UI.message("Products in App Store Connect:")
+    all_asc_products.each { |p| UI.message("  #{p}") }
 
-    # Compare
     missing_in_asc = expected_products - all_asc_products
     extra_in_asc = all_asc_products - expected_products
     matched = expected_products & all_asc_products
@@ -287,23 +281,23 @@ platform :ios do
     UI.message("")
 
     if matched.any?
-      UI.success("✅ Matched (#{matched.count}):")
-      matched.each { |p| UI.success("  • #{p}") }
+      UI.success("Matched (#{matched.count}):")
+      matched.each { |p| UI.success("  #{p}") }
     end
 
     if missing_in_asc.any?
-      UI.error("❌ Missing from App Store Connect (#{missing_in_asc.count}):")
-      missing_in_asc.each { |p| UI.error("  • #{p}") }
+      UI.error("Missing from App Store Connect (#{missing_in_asc.count}):")
+      missing_in_asc.each { |p| UI.error("  #{p}") }
     end
 
     if extra_in_asc.any?
-      UI.important("⚠️  Extra in App Store Connect (not in local config):")
-      extra_in_asc.each { |p| UI.important("  • #{p}") }
+      UI.important("Extra in App Store Connect (not in local config):")
+      extra_in_asc.each { |p| UI.important("  #{p}") }
     end
 
     if missing_in_asc.empty?
       UI.message("")
-      UI.success("🎉 All #{expected_products.count} products are configured in App Store Connect!")
+      UI.success("All #{expected_products.count} products are configured in App Store Connect!")
     else
       UI.user_error!("#{missing_in_asc.count} product(s) missing from App Store Connect!")
     end
