@@ -61,8 +61,10 @@ struct PlanUpgradeSheet: View {
             features: [
                 "Up to 1,000 documents",
                 "10 libraries",
+                "Priority feature voting",
+                "Recognition in the supporter hub",
+                "Early TestFlight access",
                 "No renewal — one-time purchase",
-                "Priority support forever",
             ]
         ),
     ]

@@ -2694,21 +2694,46 @@ struct QualityModeQuickPicker: View {
                 }
             }
         } label: {
-            HStack(spacing: 4) {
-                Image(systemName: selectedMode.canonical.icon)
-                    .font(.system(size: 10, weight: .semibold))
-                Text(selectedMode.canonical.displayName)
-                    .font(.system(size: 11, weight: .semibold))
+            HStack(spacing: 6) {
+                ZStack {
+                    Circle()
+                        .fill(modeColor.opacity(0.14))
+                        .frame(width: 20, height: 20)
+                    Image(systemName: selectedMode.canonical.icon)
+                        .font(.system(size: 10, weight: .semibold))
+                }
+
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(selectedMode.canonical.displayName)
+                        .font(.system(size: 11, weight: .semibold))
+                    Text(modeTagline)
+                        .font(.system(size: 8, weight: .medium))
+                        .foregroundStyle(modeColor.opacity(0.85))
+                }
+
                 Image(systemName: "chevron.down")
                     .font(.system(size: 8, weight: .bold))
             }
             .foregroundStyle(modeColor)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
             .background(
                 Capsule()
                     .fill(modeColor.opacity(0.12))
+                    .overlay(
+                        Capsule()
+                            .stroke(modeColor.opacity(0.22), lineWidth: 1)
+                    )
             )
+        }
+    }
+
+    private var modeTagline: String {
+        switch selectedMode.canonical {
+        case .standard: return "Fastest"
+        case .deepThink: return "Iterative"
+        case .maximum: return "Full sweep"
+        default: return "Fastest"
         }
     }
 

@@ -1,8 +1,21 @@
 import SwiftUI
 
+enum OpenIntelligenceLinks {
+    static let productHubURL = URL(string: "https://gunzino.notion.site/OpenIntelligence-Public-Product-Hub-33b49a74d54f8119aaa7c3bb02e2794a?pvs=143")!
+    static let roadmapURL = URL(string: "https://gunzino.notion.site/98fb2f9dc3294cb5a283fabfaf7aee0a?v=33b49a74d54f81c5a6f2000c94fb8c3b&pvs=25")!
+    static let feedbackBoardURL = URL(string: "https://gunzino.notion.site/483120d0efa34513816f9fa43764ee2e?v=97202e3dfa49450b93f0159beb0978c9&pvs=25")!
+    static let changelogURL = URL(string: "https://gunzino.notion.site/a07ec984e3824e59bf1e159ef88e84f1?v=33b49a74d54f812eaba8000c86eedb9e&pvs=25")!
+    static let lifetimeSupportersURL = URL(string: "https://gunzino.notion.site/Our-Lifetime-Supporters-33b49a74d54f813f99a1c73a4bac87c5?pvs=25")!
+    static let githubURL = URL(string: "https://github.com/Gunnarguy/OpenIntelligence")!
+    static let appStoreURL = URL(string: "https://apps.apple.com/us/app/openintelligence/id6756559175")!
+    static let feedbackEmailAddress = "feedback@openintelligence.app"
+    static let feedbackMailtoURL = URL(string: "mailto:feedback@openintelligence.app?subject=OpenIntelligence%20Feedback")!
+}
+
 /// Presents product metadata and device-specific capability information.
 struct AboutView: View {
     @EnvironmentObject private var settings: SettingsStore
+    @Environment(\.openURL) private var openURL
     @State private var deviceCapabilities = DeviceCapabilities()
 
     /// Human-readable name for the active embedding provider
@@ -45,6 +58,30 @@ struct AboutView: View {
                                 .foregroundColor(.secondary)
                         }
                         .padding(.vertical, 2)
+                    }
+
+                    SurfaceCard {
+                        SectionHeader(icon: "sparkles.rectangle.stack", title: "Latest Update")
+                        VStack(alignment: .leading, spacing: 10) {
+                            releaseHighlight(
+                                icon: "bolt.fill",
+                                tint: .orange,
+                                title: "Standard mode is cleaner and faster",
+                                detail: "Single-pass answers now arrive with better consistency, steadier formatting, and more predictable response quality."
+                            )
+                            releaseHighlight(
+                                icon: "paintbrush.pointed.fill",
+                                tint: .purple,
+                                title: "All 3 quality modes look more intentional",
+                                detail: "Standard, Deep Think, and Maximum now read as distinct visual states instead of minor label changes."
+                            )
+                            releaseHighlight(
+                                icon: "list.bullet.rectangle.portrait.fill",
+                                tint: .blue,
+                                title: "Roadmap, feedback, and changelog are live",
+                                detail: "The public product hub now tracks shipped work, active bets, release history, and incoming feature requests in Notion."
+                            )
+                        }
                     }
 
                     // Your Device
@@ -92,6 +129,44 @@ struct AboutView: View {
                         }
                     }
 
+                    SurfaceCard {
+                        SectionHeader(icon: "list.bullet.rectangle", title: "Product Hub")
+                        VStack(alignment: .leading, spacing: 10) {
+                            externalLinkRow(
+                                title: "Open Product Hub",
+                                subtitle: "One place for the roadmap, feedback board, changelog, and supporter wall",
+                                icon: "square.stack.3d.up.fill",
+                                tint: .blue
+                            ) {
+                                openURL(OpenIntelligenceLinks.productHubURL)
+                            }
+                            externalLinkRow(
+                                title: "Roadmap",
+                                subtitle: "See what shipped, what is active, and what is next",
+                                icon: "map.fill",
+                                tint: .teal
+                            ) {
+                                openURL(OpenIntelligenceLinks.roadmapURL)
+                            }
+                            externalLinkRow(
+                                title: "Feature Requests & Feedback",
+                                subtitle: "Vote on ideas and add bugs or product requests",
+                                icon: "bubble.left.and.exclamationmark.bubble.right.fill",
+                                tint: .orange
+                            ) {
+                                openURL(OpenIntelligenceLinks.feedbackBoardURL)
+                            }
+                            externalLinkRow(
+                                title: "Changelog",
+                                subtitle: "Track release notes and the shipped roadmap links behind them",
+                                icon: "clock.arrow.circlepath",
+                                tint: .purple
+                            ) {
+                                openURL(OpenIntelligenceLinks.changelogURL)
+                            }
+                        }
+                    }
+
                     // Contact & Support
                     SurfaceCard {
                         SectionHeader(icon: "envelope.fill", title: "Contact & Support")
@@ -100,19 +175,30 @@ struct AboutView: View {
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
 
-                            Button {
+                            externalLinkRow(
+                                title: OpenIntelligenceLinks.feedbackEmailAddress,
+                                subtitle: "Feature ideas, bugs, and roadmap feedback land in the product inbox",
+                                icon: "envelope.fill",
+                                tint: .accentColor
+                            ) {
                                 openEmail()
-                            } label: {
-                                HStack {
-                                    Label("Gunnarguy@me.com", systemImage: "envelope.fill")
-                                        .font(.subheadline.weight(.semibold))
-                                    Spacer()
-                                    Image(systemName: "arrow.up.forward")
-                                        .font(.caption)
-                                }
                             }
-                            .buttonStyle(.plain)
-                            .foregroundStyle(Color.accentColor)
+                            externalLinkRow(
+                                title: "GitHub Repository",
+                                subtitle: "Browse the codebase, releases, and implementation details",
+                                icon: "chevron.left.forwardslash.chevron.right",
+                                tint: .secondary
+                            ) {
+                                openURL(OpenIntelligenceLinks.githubURL)
+                            }
+                            externalLinkRow(
+                                title: "App Store Listing",
+                                subtitle: "Share the live app and current pricing page",
+                                icon: "apple.logo",
+                                tint: .blue
+                            ) {
+                                openURL(OpenIntelligenceLinks.appStoreURL)
+                            }
                         }
                     }
                 }
@@ -139,14 +225,63 @@ struct AboutView: View {
         }
     }
 
-    private func openEmail() {
-        if let url = URL(string: "mailto:Gunnarguy@me.com?subject=OpenIntelligence%20Feedback") {
-            #if os(iOS)
-                UIApplication.shared.open(url)
-            #elseif os(macOS)
-                NSWorkspace.shared.open(url)
-            #endif
+    private func releaseHighlight(icon: String, tint: Color, title: String, detail: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: icon)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(tint)
+                .frame(width: 18, alignment: .center)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
+    }
+
+    private func externalLinkRow(
+        title: String,
+        subtitle: String,
+        icon: String,
+        tint: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(tint.opacity(0.12))
+                        .frame(width: 36, height: 36)
+                    Image(systemName: icon)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(tint)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(DSColors.primaryText)
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Image(systemName: "arrow.up.forward")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.vertical, 2)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func openEmail() {
+        openURL(OpenIntelligenceLinks.feedbackMailtoURL)
     }
 }
 

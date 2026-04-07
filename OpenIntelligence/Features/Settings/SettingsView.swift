@@ -12,6 +12,7 @@ struct SettingsView: View {
     @ObservedObject var ragService: RAGService
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var entitlementStore: EntitlementStore
+    @Environment(\.openURL) private var openURL
 
     // Note: SystemStateMonitor moved to LiveSystemMonitorWrapper to avoid full-view redraws
 
@@ -228,6 +229,10 @@ struct SettingsView: View {
                     label: "Libraries"
                 )
             }
+
+            if entitlementStore.activeTier == .lifetime {
+                lifetimeSupporterBanner
+            }
         }
 .padding()
     .background(DSColors.surface)
@@ -276,6 +281,51 @@ Text(label)
     .font(.caption)
     .foregroundColor(.secondary)
         }
+    }
+
+    @ViewBuilder
+    private var lifetimeSupporterBanner: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "heart.text.square.fill")
+                    .foregroundStyle(.orange)
+                Text("Lifetime Cohort")
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                Text("Forever unlocked")
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Color.orange.opacity(0.16))
+                    .foregroundColor(.orange)
+                    .clipShape(Capsule())
+            }
+
+            Text("Thanks for backing OpenIntelligence early. Your support helped fund the standard-mode speed work, the visual refresh across all three quality modes, and the new public roadmap plus feedback hub.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 10) {
+                Button {
+                    openURL(OpenIntelligenceLinks.lifetimeSupportersURL)
+                } label: {
+                    Label("Supporters", systemImage: "person.3.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+
+                Button {
+                    openURL(OpenIntelligenceLinks.productHubURL)
+                } label: {
+                    Label("Roadmap", systemImage: "list.bullet.rectangle")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+            }
+        }
+        .padding(12)
+        .background(Color.orange.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     // MARK: - Model Selection Card
@@ -1073,26 +1123,22 @@ Text(deviceService.chipName)
     // MARK: - Retrieval Card Helpers
 
     private var modeAccentColor: Color {
-        switch settings.ragQualityMode.canonical {
-        case .maximum: return .orange
-        case .deepThink: return .purple
-        default: return .green
-        }
+        modeColor(for: settings.ragQualityMode.canonical)
     }
 
     private var modeHeaderIcon: String {
         switch settings.ragQualityMode.canonical {
         case .maximum: return "flame.fill"
         case .deepThink: return "brain.head.profile.fill"
-        default: return "checkmark.circle.fill"
+        default: return "bolt.circle.fill"
         }
     }
 
     private var modeHeaderTitle: String {
         switch settings.ragQualityMode.canonical {
-        case .maximum: return "Maximum Features"
-        case .deepThink: return "Deep Think Features"
-        default: return "Standard Features"
+        case .maximum: return "Maximum Highlights"
+        case .deepThink: return "Deep Think Highlights"
+        default: return "Standard Highlights"
         }
     }
 
@@ -1256,42 +1302,59 @@ Text(deviceService.chipName)
 
     @ViewBuilder
     private func intelligenceModeRow(mode: RAGQualityMode, isSelected: Bool) -> some View {
-        HStack(spacing: 12) {
-            // Icon
-            ZStack {
-                Circle()
-                    .fill(isSelected ? modeColor(for: mode).opacity(0.15) : Color.secondary.opacity(0.1))
-                    .frame(width: 40, height: 40)
-                Image(systemName: mode.icon)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(isSelected ? modeColor(for: mode) : .secondary)
+        let accent = modeColor(for: mode)
+
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(isSelected ? accent.opacity(0.15) : Color.secondary.opacity(0.1))
+                        .frame(width: 42, height: 42)
+                    Image(systemName: mode.icon)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(isSelected ? accent : .secondary)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(mode.displayName)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(isSelected ? .primary : .secondary)
+                    Text(mode.description)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(accent)
+                } else {
+                    Circle()
+                        .stroke(Color.secondary.opacity(0.3), lineWidth: 2)
+                        .frame(width: 22, height: 22)
+                }
             }
 
-            // Text
-            VStack(alignment: .leading, spacing: 2) {
-                Text(mode.displayName)
-                    .font(.subheadline.weight(.medium))
-.foregroundColor(isSelected ? .primary : .secondary)
-Text(mode.description)
-    .font(.caption)
-    .foregroundColor(.secondary)
-            }
+            Text(modeCallout(for: mode))
+                .font(.caption)
+                .foregroundColor(.secondary)
 
-            Spacer()
-
-            // Selection indicator
-            if isSelected {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundColor(modeColor(for: mode))
-            } else {
-                Circle()
-                    .stroke(Color.secondary.opacity(0.3), lineWidth: 2)
-                    .frame(width: 22, height: 22)
+            HStack(spacing: 6) {
+                ForEach(modeBadges(for: mode), id: \.self) { badge in
+                    modeBadge(text: badge, color: accent)
+                }
             }
         }
-.padding(12)
-    .background(isSelected ? modeColor(for: mode).opacity(0.08) : Color.secondary.opacity(0.05))
-    .clipShape(RoundedRectangle(cornerRadius: 12))
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(isSelected ? accent.opacity(0.08) : Color.secondary.opacity(0.05))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14)
+                        .stroke(isSelected ? accent.opacity(0.35) : Color.secondary.opacity(0.08), lineWidth: 1)
+                )
+        )
     }
 
     private func modeColor(for mode: RAGQualityMode) -> Color {
@@ -1301,6 +1364,43 @@ Text(mode.description)
         case .maximum: return .orange
         default: return .blue
         }
+    }
+
+    private func modeCallout(for mode: RAGQualityMode) -> String {
+        switch mode.canonical {
+        case .standard:
+            return "Fastest daily mode with the full safety stack and cleaner single-pass results."
+        case .deepThink:
+            return "Iterative reasoning for nuanced questions, comparisons, and multi-step analysis."
+        case .maximum:
+            return "Unlimited chain mode for exhaustive research sweeps and stubborn questions."
+        default:
+            return mode.description
+        }
+    }
+
+    private func modeBadges(for mode: RAGQualityMode) -> [String] {
+        switch mode.canonical {
+        case .standard:
+            return ["Fastest", "Single pass", "All safety gates"]
+        case .deepThink:
+            return ["Iterative", "Confidence build", "Best for analysis"]
+        case .maximum:
+            return ["Full sweep", "98% target", "Research grade"]
+        default:
+            return []
+        }
+    }
+
+    @ViewBuilder
+    private func modeBadge(text: String, color: Color) -> some View {
+        Text(text)
+            .font(.caption2.weight(.semibold))
+            .foregroundColor(color)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(color.opacity(0.12))
+            .clipShape(Capsule())
     }
 
     @ViewBuilder
