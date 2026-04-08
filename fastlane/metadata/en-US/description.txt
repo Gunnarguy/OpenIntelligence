@@ -58,4 +58,4 @@ SUBSCRIPTION OPTIONS
 Payment charged to your Apple ID at confirmation. Subscriptions renew unless canceled 24 hours before the current period ends. Manage in Settings > Apple ID > Subscriptions.
 
 Privacy Policy: https://gunzino.me/openintelligence/privacy
-Terms of Use: https://gunzino.me/openintelligence/terms
+Terms of Use: https://www.apple.com/legal/internet-services/itunes/dev/stdeula/
