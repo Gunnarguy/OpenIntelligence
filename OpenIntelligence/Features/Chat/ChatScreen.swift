@@ -862,7 +862,7 @@ struct ChatScreen: View {
                     content:
                     "• Privacy-first: Your docs stay on-device by default, with optional Private Cloud Compute.\n" +
                         "• Fast, grounded answers: Hybrid search + re-ranking helps keep responses tied to your library.\n" +
-                        "• Upgrade when ready: Pro unlocks up to 1,000 docs, more libraries, and priority ingestion."
+                        "• Upgrade when ready: Pro unlocks up to 1,000 docs, more libraries, and fewer workspace limits."
                 ),
             ]
 
@@ -900,7 +900,7 @@ struct ChatScreen: View {
                         rank: 1,
                         title: "Value Ladder",
                         page: 1,
-                        snippet: "Pro unlocks up to 1,000 docs, 5 libraries, and priority ingestion. Lifetime gives you all Pro features forever.",
+                        snippet: "Pro unlocks up to 1,000 docs and 5 libraries. Lifetime gives you all Pro features with up to 10 libraries and no renewal.",
                         score: 0.86
                     ),
                     makeChunk(
@@ -1000,8 +1000,8 @@ struct ChatScreen: View {
 
                 ## Pricing Tiers
                 • **Free**: 5 documents, 1 library, full privacy dashboard
-                • **Pro** ($5.99/mo or $49.99/yr): Up to 1,000 docs, 5 libraries, priority ingestion
-                • **Lifetime** ($59.99): All Pro features forever, 10 libraries
+                • **Pro** ($5.99/mo or $49.99/yr): Up to 1,000 docs, 5 libraries, fewer workspace limits
+                • **Lifetime** ($59.99): All Pro features with 10 libraries and no renewal
 
                 ## Privacy Architecture
                 All processing happens **on-device by default**. When additional compute is needed, Apple's Private Cloud Compute ensures your data never leaves Apple's secure enclaves.

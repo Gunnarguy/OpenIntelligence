@@ -23,62 +23,60 @@ struct SettingsView: View {
     @State private var showAdvancedGeneration = false
 
     var body: some View {
-        GeometryReader { geometry in
-            ZStack {
-                ScrollView(.vertical, showsIndicators: true) {
-                    VStack(spacing: 16) {
-                        // Hero & Core Experience
-                        heroCard
-                        modelSelectionCard
+        ZStack {
+            ScrollView(.vertical, showsIndicators: true) {
+                VStack(spacing: 16) {
+                    // Hero & Core Experience
+                    heroCard
+                    modelSelectionCard
 
-                        // Privacy & Execution (combined)
-                        privacyExecutionCard
+                    // Privacy & Execution (combined)
+                    privacyExecutionCard
 
-                        // Subscription
-                        billingCard
+                    // Subscription
+                    billingCard
 
-                        // Intelligence Mode (Standard vs Deep Think)
-                        retrievalCard
+                    // Intelligence Mode (Standard vs Deep Think)
+                    retrievalCard
 
-                        // Apple Intelligence Features
-                        appleIntelligenceFeaturesCard
+                    // Apple Intelligence Features
+                    appleIntelligenceFeaturesCard
 
-                        // Generation Tuning (exposed hidden settings)
-                        generationTuningCard
+                    // Generation Tuning (exposed hidden settings)
+                    generationTuningCard
 
-                        // Context & Performance
-                        contextWindowCard
+                    // Context & Performance
+                    contextWindowCard
 
-                        // More
-                        appearanceCard
-                        developerCard
-                        aboutCard
-                    }
-                    .padding()
-                    .frame(width: geometry.size.width) // Hard width constraint prevents horizontal bounce
+                    // More
+                    appearanceCard
+                    developerCard
+                    aboutCard
                 }
-                .scrollBounceBehavior(.basedOnSize)
-                .background(
-                    LinearGradient(
-                        colors: [DSColors.background, DSColors.surface.opacity(0.3)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .ignoresSafeArea()
-                )
-
-                // Motherboard HUD - Full-screen X-ray overlay
-                // Shows glowing borders at the ACTUAL physical locations where
-                // the Neural Engine, GPU, and CPU sit behind the screen
-                if settings.showSiliconHUD {
-                    HardwareXRayOverlay()
-                        .allowsHitTesting(false) // Don't block touches
-                        .transition(.opacity)
-                }
+                .padding()
+                .frame(maxWidth: .infinity)
             }
-            .clipped()
+            .scrollBounceBehavior(.basedOnSize)
+            .background(
+                LinearGradient(
+                    colors: [DSColors.background, DSColors.surface.opacity(0.3)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
+            )
+
+            // Motherboard HUD - Full-screen X-ray overlay
+            // Shows glowing borders at the ACTUAL physical locations where
+            // the Neural Engine, GPU, and CPU sit behind the screen
+            if settings.showSiliconHUD {
+                HardwareXRayOverlay()
+                    .allowsHitTesting(false) // Don't block touches
+                    .transition(.opacity)
+            }
         }
         .navigationTitle("Settings")
+        .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showPlanSheet) {
             PlanUpgradeSheet(entryPoint: planEntryPoint)
         }
@@ -301,23 +299,23 @@ Text(label)
                     .clipShape(Capsule())
             }
 
-            Text("Thanks for backing OpenIntelligence early. Your support helped fund the standard-mode speed work, the visual refresh across all three quality modes, and the new public roadmap plus feedback hub.")
+            Text("Thanks for backing OpenIntelligence early. Lifetime keeps up to 1,000 documents and 10 libraries unlocked with no recurring subscription.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
             HStack(spacing: 10) {
                 Button {
-                    openURL(OpenIntelligenceLinks.lifetimeSupportersURL)
+                    openURL(OpenIntelligenceLinks.productHubURL)
                 } label: {
-                    Label("Supporters", systemImage: "person.3.fill")
+                    Label("Product Hub", systemImage: "square.stack.3d.up.fill")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
 
                 Button {
-                    openURL(OpenIntelligenceLinks.productHubURL)
+                    openURL(OpenIntelligenceLinks.changelogURL)
                 } label: {
-                    Label("Roadmap", systemImage: "list.bullet.rectangle")
+                    Label("Changelog", systemImage: "clock.arrow.circlepath")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
@@ -451,14 +449,14 @@ Text(label)
                         .font(.subheadline.weight(.medium))
                 }
 
-                Text("All AI inference runs on your device using Apple's ~3B Foundation Model via the Neural Engine, GPU, and CPU. Apple's FoundationModels framework may automatically route to Private Cloud Compute if context exceeds on-device capacity, but this is Apple system-level routing — no data is sent to OpenIntelligence servers.")
+                Text("All AI inference runs on your device using Apple's ~3B Foundation Model via the Neural Engine, GPU, and CPU. Apple's FoundationModels framework may automatically route to Private Cloud Compute if context exceeds on-device capacity, but that routing is handled by Apple — OpenIntelligence does not run its own servers.")
                     .font(.caption)
                     .foregroundColor(.secondary)
 
                 // On-device benefits
                 VStack(alignment: .leading, spacing: 6) {
-                    pccBenefitRow(icon: "checkmark.shield.fill", text: "Works fully offline — no OpenIntelligence servers", color: .green)
-                    pccBenefitRow(icon: "eye.slash.fill", text: "No data sent to OpenIntelligence or third parties", color: .green)
+                    pccBenefitRow(icon: "checkmark.shield.fill", text: "Works fully offline — no OpenIntelligence backend", color: .green)
+                    pccBenefitRow(icon: "eye.slash.fill", text: "No data sent to OpenIntelligence or any developer-operated service", color: .green)
                     pccBenefitRow(icon: "bolt.fill", text: "Low latency — primarily on-device inference", color: .blue)
                     pccBenefitRow(icon: "cpu", text: "Neural Engine + GPU + CPU (Apple Silicon)", color: .purple)
                     pccBenefitRow(icon: "icloud.and.arrow.up", text: "Apple may route to PCC for complex queries (encrypted, zero retention)", color: .secondary)

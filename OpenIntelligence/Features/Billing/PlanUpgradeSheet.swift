@@ -24,15 +24,15 @@ struct PlanUpgradeSheet: View {
             tier: .pro,
             planName: "Pro (Monthly)",
             product: .proMonthly,
-            tagline: "Unlock your full research potential",
+            tagline: "Expand your workspace with no long-term commitment",
             badgeText: "Flexible",
             tint: .purple,
             isFeatured: false,
             features: [
                 "Up to 1,000 documents",
                 "5 libraries",
-                "Priority ingestion",
-                "Advanced retrieval controls",
+                "Expanded workspace limits",
+                "Cancel anytime",
             ]
         ),
         PlanTierOption(
@@ -46,24 +46,22 @@ struct PlanUpgradeSheet: View {
             features: [
                 "Up to 1,000 documents",
                 "5 libraries",
-                "Priority ingestion",
-                "Advanced retrieval controls",
+                "Expanded workspace limits",
+                "Save 30% vs monthly",
             ]
         ),
         PlanTierOption(
             tier: .lifetime,
             planName: "Lifetime Cohort",
             product: .lifetimeCohort,
-            tagline: "One-time unlock for early supporters",
-            badgeText: "Limited",
+            tagline: "One-time unlock with no renewal",
+            badgeText: "One-Time",
             tint: .orange,
             isFeatured: false,
             features: [
                 "Up to 1,000 documents",
                 "10 libraries",
-                "Priority feature voting",
-                "Recognition in the supporter hub",
-                "Early TestFlight access",
+                "Everything in Pro",
                 "No renewal — one-time purchase",
             ]
         ),
@@ -71,8 +69,8 @@ struct PlanUpgradeSheet: View {
 
     private let storySlides: [PlanStorySlide] = [
         PlanStorySlide(
-            title: "Ship faster",
-            subtitle: "Pro bumps ingestion priority. New PDFs process in seconds—not minutes—so you stay in flow.",
+            title: "Unlock more capacity",
+            subtitle: "Pro expands your workspace from the free tier to up to 1,000 documents and 5 libraries.",
             icon: "bolt.fill",
             tint: .orange
         ),
@@ -83,8 +81,8 @@ struct PlanUpgradeSheet: View {
             tint: .teal
         ),
         PlanStorySlide(
-            title: "Scale without limits",
-            subtitle: "Pro unlocks up to 1,000 documents, full local model access, and up to 10 libraries for power users.",
+            title: "Lifetime, without renewal",
+            subtitle: "Lifetime keeps Pro-level access unlocked with up to 10 libraries in a single purchase.",
             icon: "arrow.up.right.circle.fill",
             tint: .purple
         ),
@@ -201,9 +199,9 @@ private extension PlanUpgradeSheet {
             Text("Why upgrade now?")
                 .font(.headline)
             VStack(alignment: .leading, spacing: 8) {
-                BenefitRow(icon: "bolt.fill", text: "Faster ingestion", tint: .orange)
+                BenefitRow(icon: "doc.badge.plus", text: "Higher document limits", tint: .orange)
                 BenefitRow(icon: "square.stack.3d.up.fill", text: "More libraries", tint: .blue)
-                BenefitRow(icon: "headphones", text: "Priority support", tint: .purple)
+                BenefitRow(icon: "creditcard", text: "One-time lifetime option", tint: .purple)
             }
         }
         .padding(16)

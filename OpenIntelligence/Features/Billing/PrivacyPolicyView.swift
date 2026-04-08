@@ -21,7 +21,7 @@ struct PrivacyPolicyView: View {
 
                     Group {
                         section(title: "Our Privacy Commitment", content: """
-OpenIntelligence is designed privacy-first. Your documents stay on your device whenever possible. When cloud processing is needed, we use end-to-end encrypted channels and never store your raw documents on our servers.
+OpenIntelligence is designed privacy-first. Your documents stay on your device whenever possible. When cloud processing is needed, requests may be handled by Apple Private Cloud Compute or providers you explicitly enable, and OpenIntelligence does not store your raw documents on any developer-operated server.
 """)
 
                         section(title: "Information We Collect", content: """
@@ -49,7 +49,7 @@ We never:
 • Sell your data to third parties
 • Use your documents to train AI models
 • Share identifiable information without consent
-• Store raw document text on remote servers
+• Store raw document text on developer-operated remote servers
 """)
 
                         section(title: "Data Storage & Security", content: """

@@ -54,7 +54,7 @@ You agree not to:
 • Attempt to reverse engineer the App
 • Share account credentials
 • Use the App to violate any applicable laws
-• Overload or disrupt the service infrastructure
+• Interfere with app functionality or connected provider services
 """)
 
                         section(title: "7. Intellectual Property", content: """
@@ -80,7 +80,7 @@ These Terms are governed by the laws of the United States. Disputes shall be res
                         section(title: "12. Contact", content: """
 For questions about these Terms, please contact us:
 • Email: Gunnarguy@me.com
-• Website: https://openintelligence.ai
+• Website: https://gunzino.me/openintelligence
 """)
                     }
                 }
