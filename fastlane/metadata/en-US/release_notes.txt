@@ -1,27 +1,17 @@
-Version 2.1
+Version 2.1.1
 
-SMARTER ANSWERS
-- Evidence-First mode: when your documents don't cover a question, the AI tells you what evidence does exist instead of making something up
-- 7 verification gates (A-G): retrieval confidence, evidence coverage, numeric sanity, contradiction detection, semantic grounding, quote faithfulness, generation quality
-- Critical gate failures trigger full abstention — refuses to answer rather than answer wrong
+SETTINGS & ABOUT
+- Added a public product hub with direct links to the roadmap, feedback board, changelog, GitHub repo, and App Store listing
+- About screen now highlights the latest product updates more clearly
 
-DEEP THINK & MAXIMUM MODE
-- Fixed freeze when sending a second question while one is processing
-- Cancel-and-replace: old query cancels cleanly, new one takes over
+LIFETIME COHORT
+- Lifetime plan messaging now better reflects supporter perks in the app
+- Added a lifetime supporter banner in Settings with quick links to the supporters page and roadmap
 
-CROSS-LIBRARY ISOLATION
-- Answers, entities, and suggestions fully scoped per library — no leaking between containers
+CHAT POLISH
+- Refreshed the quality mode picker so Standard, Deep Think, and Maximum feel more visually distinct
+- Added clearer mode labels like Fastest, Iterative, and Full sweep
 
-AI HUB TRANSFORMS
-- Key Facts, Step-by-Step, Plain English, Gap Analysis, Illustrate — all rendered in full markdown
-- Share button alongside Copy and Insert
-
-REBUILT ONBOARDING
-- 2-page flow with live pipeline theater
-- 3 built-in sample docs auto-import with real-time metrics
-- Haptics, VoiceOver, reduce motion support
-
-STABILITY
-- 37 crash sites eliminated, 10 fatalError calls replaced with fallbacks, 1,278 lines dead code removed
-- Font cipher detection prevents content loss on encoded PDFs
-- BM25 thread safety, StoreKit stream fix, alert dismissal fix
+BILLING & APP STORE
+- Updated App Store metadata to better describe what OpenIntelligence actually does
+- Added export compliance declaration for smoother App Store uploads
