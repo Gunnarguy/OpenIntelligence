@@ -1,0 +1,143 @@
+════════════════════════════════════════════════════════════════════════
+  OPENINTELLIGENCE PIPELINE TRACE
+  Generated: 2026-03-06T15:42:18Z
+  Message ID: A1B2C3D4-E5F6-7890-ABCD-EF1234567890
+  Container: 98765432-ABCD-EF12-3456-789012345678
+════════════════════════════════════════════════════════════════════════
+
+▶ QUERY
+────────────────────────────────────────────────────────────────────────
+What is the recommended engine oil type and capacity for a 2024 model?
+
+▶ RESPONSE (847 chars)
+────────────────────────────────────────────────────────────────────────
+Based on the owner's manual, the recommended engine oil for the 2024 model is **SAE 0W-20** full synthetic oil meeting API SP or ILSAC GF-6A specifications.
+
+**Engine Oil Capacity:**
+- With filter change: **5.1 quarts (4.8 liters)**
+- Without filter change: **4.7 quarts (4.4 liters)**
+
+**Important Notes:**
+1. Always use the dipstick to verify the oil level after filling
+2. Do not overfill — excess oil can damage the catalytic converter
+3. The oil change interval is every 7,500 miles or 12 months under normal conditions
+4. For severe driving conditions (frequent short trips, dusty roads, towing), reduce the interval to 5,000 miles
+
+*Source: Owner's Manual, Section 8 — Maintenance, pp. 287-291*
+
+▶ METADATA
+────────────────────────────────────────────────────────────────────────
+  Model:            Apple Foundation Model (On-Device)
+  Quality Mode:     Standard
+  Agentic:          NO
+  Retrieval Config: Hybrid (Vector + BM25 + RRF) → Rerank → MMR
+  Retrieval Time:   142ms
+  Total Gen Time:   3.8s
+  TTFT:             187ms
+  Tokens Generated: 218
+  Tokens/sec:       28.4
+  Gating:           PASS (A✓ B✓ C✓ D✓ E✓ F✓ G✓)
+  Embedding:        CoreML MiniLM-L6-v2 (384-dim)
+
+▶ THINKING EVENTS (18 events)
+────────────────────────────────────────────────────────────────────────
+  +000000ms [Planning] Analyzing query: "engine oil type and capacity"
+  +000012ms [Planning] Intent classified: lookup (direct answer expected)
+  +000018ms [Query Rewrite] Expanding query with corpus vocabulary
+  +000035ms [Query Rewrite] Expanded: ["engine oil", "SAE 0W-20", "oil capacity", "quarts", "liters", "lubricant"]
+  +000042ms [Embedding] Encoding query → 384-dim vector (MiniLM-L6-v2)
+  +000053ms [Planning] RAPTOR-lite: routing to detail chunks (specific query)
+  +000058ms [Vector Search] Searching 12,847 vectors via Metal GPU (Threadgroup shader)
+  +000072ms [BM25 (Keyword)] FTS5 AND-first: "engine" AND "oil" AND "capacity"
+  +000089ms [RRF Fusion] Fusing 48 vector + 31 BM25 results → 52 candidates
+  +000094ms [Re-ranking] Cross-encoder scoring 52 pairs (TinyBERT, 4 concurrent)
+  +000198ms [Re-ranking] Top score: 0.9847 (Section 8 — Maintenance, p.287)
+  +000204ms [Confidence Gate] Low-confidence filter: 52 → 19 candidates
+  +000209ms [MMR Diversity] λ=0.6 diversification: 19 → 8 chunks
+  +000218ms [Parent Doc Expansion] Expanding ±5 siblings for top 3 chunks
+  +000231ms [Position Reorder] Lost-in-Middle: placing strongest at start/end
+  +000238ms [Context Assembly] Packed 6 chunks into 4,812 chars (within 5,500 limit)
+  +000241ms [Generation] Apple FM: streaming 218 tokens @ 28.4 tok/s
+  +003812ms [Verification Gates] Gates A-G: all PASS │ Confidence: 0.94
+
+▶ PIPELINE LOG (12 entries)
+────────────────────────────────────────────────────────────────────────
+  [15:42:18.001] queryInternal() started — Standard mode
+  [15:42:18.012] Query expansion: 6 terms added from container vocab
+  [15:42:18.053] Query embedded: 384-dim, 11ms
+  [15:42:18.058] RAPTOR-lite: detail routing (specific lookup detected)
+  [15:42:18.089] Hybrid search complete: 52 RRF candidates in 31ms
+  [15:42:18.198] Cross-encoder rerank complete: 104ms, top=0.9847
+  [15:42:18.218] Post-retrieval pipeline: filter→MMR→parent→compress in 20ms
+  [15:42:18.231] Context packing: 6 chunks, 4812 chars, budget OK
+  [15:42:18.238] LLM generation started (Apple FM on-device)
+  [15:42:18.425] First token received: TTFT=187ms
+  [15:42:21.812] Generation complete: 218 tokens in 3574ms
+  [15:42:21.838] Verification gates PASS: A✓ B✓ C✓ D✓ E✓ F✓ G✓ (conf=0.94)
+
+▶ RETRIEVED CHUNKS (6 chunks)
+────────────────────────────────────────────────────────────────────────
+
+  ── Chunk 1 ──
+  Source:     2024_Owners_Manual.pdf
+  Rank:       1
+  Similarity: 0.9847
+  Page:       287
+  Section:    Engine Oil Specifications
+  Path:       Maintenance > Fluids > Engine Oil
+  Structure:  table
+  Content:    Engine Oil Type: SAE 0W-20 API SP or ILSAC GF-6A. Oil Capacity (with filter): 5.1 qt (4.8 L). Oil Capacity (without filter): 4.7 qt (4.4 L). Recommended brands: Mobil 1, Castrol EDGE, Pennzoil Platinum. Do not use oils below API SN specification...
+
+  ── Chunk 2 ──
+  Source:     2024_Owners_Manual.pdf
+  Rank:       2
+  Similarity: 0.9234
+  Page:       288
+  Section:    Oil Change Procedure
+  Path:       Maintenance > Fluids > Engine Oil
+  Structure:  paragraph
+  Content:    To change the engine oil: 1. Warm the engine to operating temperature. 2. Position the vehicle on a level surface. 3. Remove the drain plug (14mm) and drain completely. 4. Replace the oil filter with a genuine OEM filter (Part #26350-2M000). 5. Install drain plug with new washer, torque to 25-33 ft-lb...
+
+  ── Chunk 3 ──
+  Source:     2024_Owners_Manual.pdf
+  Rank:       3
+  Similarity: 0.8912
+  Page:       289
+  Section:    Maintenance Schedule
+  Path:       Maintenance > Schedule
+  Structure:  table
+  Content:    Oil Change Intervals: Normal conditions: 7,500 miles / 12 months. Severe conditions: 5,000 miles / 6 months. Severe conditions include: frequent short trips < 5 miles, dusty/sandy environments, extensive idling, trailer towing, mountainous terrain...
+
+  ── Chunk 4 ──
+  Source:     2024_Owners_Manual.pdf
+  Rank:       4
+  Similarity: 0.8456
+  Page:       291
+  Section:    Oil Level Check
+  Path:       Maintenance > Fluids > Engine Oil
+  Structure:  paragraph
+  Content:    Checking oil level: 1. Park vehicle on level ground. 2. Wait 5 minutes after engine shutdown. 3. Remove dipstick, wipe clean, reinsert fully. 4. Remove again and read level. Oil should be between LOW and FULL marks. If below LOW, add 0.5 qt increments...
+
+  ── Chunk 5 ──
+  Source:     2024_Owners_Manual.pdf
+  Rank:       5
+  Similarity: 0.7823
+  Page:       290
+  Section:    Oil Warning Indicators
+  Path:       Maintenance > Warning Lights
+  Structure:  paragraph
+  Content:    OIL PRESSURE WARNING: If oil pressure light illuminates while driving, pull over safely and turn off engine immediately. Check oil level. Do not continue driving with low oil pressure — engine damage will occur within minutes...
+
+  ── Chunk 6 ──
+  Source:     2024_Service_Bulletin_TSB-24-031.pdf
+  Rank:       6
+  Similarity: 0.7234
+  Page:       1
+  Section:    Oil Consumption TSB
+  Path:       Technical Service Bulletins
+  Structure:  paragraph
+  Content:    TSB-24-031: Some 2024 models manufactured before VIN cutoff may exhibit higher than normal oil consumption (>1 qt per 3000 miles). Affected units should have piston rings inspected. Warranty extension applies per Campaign 24-V-089...
+
+════════════════════════════════════════════════════════════════════════
+  END OF TRACE
+════════════════════════════════════════════════════════════════════════

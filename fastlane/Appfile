@@ -1,0 +1,5 @@
+app_identifier("Gunndamental.OpenIntelligence")
+
+apple_id(ENV["FASTLANE_USER"]) if ENV["FASTLANE_USER"]
+itc_team_id(ENV["APP_STORE_CONNECT_TEAM_ID"]) if ENV["APP_STORE_CONNECT_TEAM_ID"]
+team_id(ENV["APPLE_TEAM_ID"] || "Z3E334EXZD")

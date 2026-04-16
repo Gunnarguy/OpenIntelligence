@@ -1,0 +1,146 @@
+# macOS system files
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+
+# Xcode user/state files
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+*.xcworkspace/xcuserdata/
+*.xcworkspace/contents.xcworkspacedata
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcshareddata/WorkspaceSettings.xcsettings
+
+# Derived data and build products
+DerivedData/
+build/
+Build/
+*.build/
+*.o
+*.dSYM
+*.ipa
+
+# Pipeline trace dumps (pulled from device for debugging)
+Xrays/*.log
+Xrays/*.txt
+
+# Swift Package Manager
+.swiftpm/
+.build/
+**/.build/
+
+
+# CocoaPods
+Pods/
+
+# Carthage
+Carthage/Build/
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/
+fastlane/test_output/
+fastlane/metadata/review_information/
+
+# Device screenshots (internal debugging only)
+Xrays/*.jpeg
+Xrays/*.png
+
+# Bundler
+vendor/bundle/
+.bundle/
+
+# Accio dependency manager
+Dependencies/
+.accio/
+
+# Tuist
+Tuist/Dependencies/
+.graph/
+
+# SwiftGen / Sourcery generated files (common locations)
+Generated/
+Templates/
+
+# Playground and documentation artifacts
+*.playgroundbook
+*.playground/**
+Documentation.docc/**/build/
+
+# Core ML compiled models and resources
+*.mlmodelc/
+*.mlmodelc
+*.mlpackage/**/Build/
+*.mlpackage/.build/
+
+# Tokenizer and model cache files
+*.vocab
+*.merges
+*.json-tokenizer-cache
+
+# Logs and temporary files
+*.log
+*.tmp
+*.swp
+*.swo
+*.orig
+afw.txt
+t.txt
+
+# User-specific environment/config
+.vscode/
+buildServer.json
+
+*.env
+.env.local
+.env.*.local
+
+# Xcode previews and canvas caches
+*.preview-thumbnails
+.previews/
+
+# Simulator device data (if accidentally added)
+Library/Developer/CoreSimulator/Devices/
+
+# SwiftData / SQLite caches (if generated at runtime)
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# Bundle artifacts that should not be source-controlled
+*.xcarchive
+
+# Python Virtual Environments
+.venv/
+.venv311/
+venv/
+env/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Build artifacts
+OpenIntelligence.app.dSYM.zip
+*.ipa
+
+# Sensitive pricing docs (kept local only)
+Docs/reference/PRICING_STRATEGY.md
+
+# Research PDFs (reference only, not source)
+*.pdf
+
+# Debug/ingestion log dumps (local debugging only)
+LOGSFROMINGESTION.TXT
+Latestingestion.txt
+Latestingestion1.txt
+Latestingestion2.txt
+OUTPUTLOLWUT.txt
+Blaper.txt
+Blog.txt
+exampledocument2.txt
+exampledocumentingestedindexedcontent.txt
+ingestedresultinsqlite3.txt

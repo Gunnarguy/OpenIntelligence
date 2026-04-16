@@ -1,0 +1,17 @@
+Version 2.1.1
+
+SETTINGS & ABOUT
+- Added a public product hub with direct links to the roadmap, feedback board, changelog, GitHub repo, and App Store listing
+- Cleaned up About and Settings messaging so in-app copy matches the current product more closely
+
+LIFETIME COHORT
+- Lifetime plan messaging now focuses on concrete limits and one-time purchase terms
+- Added a Lifetime banner in Settings with quick links to the product hub and changelog
+
+CHAT POLISH
+- Refreshed the quality mode picker so Standard, Deep Think, and Maximum feel more visually distinct
+- Added clearer mode labels like Fastest, Iterative, and Full sweep
+
+BILLING & APP STORE
+- Updated App Store metadata and in-app billing copy to better describe what OpenIntelligence actually does
+- Added export compliance declaration for smoother App Store uploads

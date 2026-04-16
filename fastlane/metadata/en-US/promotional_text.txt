@@ -1,0 +1,1 @@
+On-device RAG engine for iPhone. 29-step pipeline, 7 anti-hallucination gates, 3 quality modes. Import PDFs, Word, Excel, images — ask questions, get cited answers.

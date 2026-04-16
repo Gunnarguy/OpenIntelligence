@@ -1,0 +1,43 @@
+No login required. No account creation. The app works entirely offline.
+
+APP OVERVIEW:
+OpenIntelligence is an on-device RAG (Retrieval-Augmented Generation) engine. Users import documents (PDF, Word, Excel, PowerPoint, Markdown, CSV, RTF, TXT, images), the app indexes them locally using a 29-step retrieval pipeline, and then answers natural language questions with cited sources. All AI processing uses Apple Foundation Models on-device. 102 services across 11 categories. Zero network dependency for core functionality.
+
+KEY FEATURES:
+- 29-step retrieval pipeline: semantic chunking, hybrid search (BM25 + neural embeddings), cross-encoder reranking, MMR diversification, parent document retrieval, graph context packing, lost-in-middle mitigation
+- 7 anti-hallucination verification gates (A-G): retrieval confidence, evidence coverage, numeric sanity, contradiction detection, semantic grounding, quote faithfulness, generation quality
+- Evidence-First mode: when query-document overlap is low, AI states available evidence instead of generating unsupported answers
+- 3 quality modes: Standard (fast), Deep Think (4-8 reasoning sessions), Maximum (8-50 sessions, research-grade)
+- 8 agentic tools: search, compare, summarize, timeline, extract, define, calculate, analyze
+- AI Hub transforms: Key Facts, Step-by-Step, Plain English, Gap Analysis, Illustrate — all grounded in source documents
+- Multi-column OCR at 360 DPI with font cipher detection (forces full OCR when text layer is garbled)
+- Motherboard HUD: real-time Apple Silicon telemetry overlay
+- Device-optimized: 3-tier Metal GPU shaders adapt to chip family (A15 through M4)
+- Rich markdown rendering for all responses
+
+ONBOARDING FLOW:
+1. Page 1: Welcome with use-case cards (Research, Work, Study)
+2. Page 2: Pipeline Theater — 3 sample documents auto-import with live progress (words, chunks, vectors, time)
+3. Sample docs bypass free tier quota. Retry button if import fails.
+4. VoiceOver labels and reduceMotion support throughout
+
+IN-APP PURCHASES:
+- Free: 5 documents, full pipeline, all quality modes
+- Pro Monthly ($5.99): 1,000 documents, 5 libraries
+- Pro Annual ($49.99): same as monthly, 30% savings
+- Lifetime ($59.99): one-time, all features forever
+- Document Pack ($2.99): adds 10 documents to quota (consumable)
+
+TEST STEPS:
+1. Launch app → complete 2-page onboarding → 3 sample docs auto-import
+2. Tap "Start Exploring" → sample docs ready to query
+3. Ask: "What are the pricing tiers?" or "How does the RAG pipeline work?"
+4. Test quality modes: tap the mode selector, try Standard then Deep Think
+5. After any answer, tap AI Hub toolbar → test Key Facts, Step-by-Step transforms
+6. Tap '+' → import your own document from Files → ask questions about it
+7. Create a second library → verify answers don't leak between libraries
+8. Tap Motherboard HUD icon → verify live telemetry overlay
+
+PRIVACY: All processing on-device via Apple Foundation Models. Private Cloud Compute may be used by iOS automatically for complex queries — zero data retention, cryptographically verified. No third-party AI services. No analytics. No tracking.
+
+NO DEMO CREDENTIALS NEEDED.

@@ -1,0 +1,27 @@
+{
+  "Inputs" : {
+    "attention_mask" : {
+      "MLFeatureShortDescription" : "--"
+    },
+    "token_type_ids" : {
+      "MLFeatureShortDescription" : "--"
+    },
+    "input_ids" : {
+      "MLFeatureShortDescription" : "--"
+    }
+  },
+  "Outputs" : {
+    "pooler_output" : {
+      "MLFeatureShortDescription" : "--"
+    },
+    "last_hidden_state" : {
+      "MLFeatureShortDescription" : "--"
+    }
+  },
+  "TrainingInputs" : {
+
+  },
+  "States" : {
+
+  }
+}

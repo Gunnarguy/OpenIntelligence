@@ -1,0 +1,256 @@
+════════════════════════════════════════════════════════════════════════
+  OPENINTELLIGENCE PIPELINE TRACE
+  Generated: 2026-03-06T16:15:42Z
+  Message ID: F7E8D9C0-B1A2-3456-7890-ABCDEF123456
+  Container: 98765432-ABCD-EF12-3456-789012345678
+════════════════════════════════════════════════════════════════════════
+
+▶ QUERY
+────────────────────────────────────────────────────────────────────────
+Compare the brake pad replacement procedure for front and rear brakes, including any special tools required and torque specifications
+
+▶ RESPONSE (1423 chars)
+────────────────────────────────────────────────────────────────────────
+Here's a detailed comparison of the front and rear brake pad replacement procedures:
+
+## Front Brake Pads
+
+**Tools Required:**
+- 17mm socket for caliper bracket bolts
+- C-clamp or brake piston tool for compressing piston
+- Brake cleaner spray
+
+**Procedure:**
+1. Remove wheel (lug nuts: 80 ft-lb)
+2. Remove caliper bracket bolts (torque: 74-88 ft-lb)
+3. Slide caliper off rotor, support with wire — **never let it hang by the brake line**
+4. Compress piston fully with C-clamp
+5. Install new pads (wear indicator faces inward)
+6. Reassemble. Bracket bolts: **74-88 ft-lb**
+
+## Rear Brake Pads
+
+**Tools Required:**
+- 14mm socket for caliper bracket bolts
+- **Special tool: Brake piston rotation tool** (rear pistons screw in, they do NOT push straight back)
+- Brake cleaner spray
+
+**Procedure:**
+1. Remove wheel (lug nuts: 80 ft-lb)
+2. Remove caliper bracket bolts (torque: 44-58 ft-lb — lighter than front)
+3. Slide caliper off rotor, support with wire
+4. **Rotate piston clockwise** while pressing in (requires rotation tool)
+5. Install new pads (wear indicator faces inward)
+6. Reassemble. Bracket bolts: **44-58 ft-lb**
+
+## Key Differences
+
+| Aspect | Front | Rear |
+|--------|-------|------|
+| Bracket bolt size | 17mm | 14mm |
+| Bracket bolt torque | 74-88 ft-lb | 44-58 ft-lb |
+| Piston compression | Push straight in | **Rotate clockwise** |
+| Special tool needed | No | Yes (rotation tool) |
+| Pad wear rate | Higher (70% of braking) | Lower |
+
+*Sources: Service Manual Chapter 5 (pp. 127-135), TSB-24-BR-012*
+
+▶ METADATA
+────────────────────────────────────────────────────────────────────────
+  Model:            Apple Foundation Model (On-Device)
+  Quality Mode:     Deep Think
+  Agentic:          YES
+  Retrieval Config: Hybrid → Rerank → Iterative Retrieval (5 cycles)
+  Retrieval Time:   3,847ms
+  Total Gen Time:   18.2s
+  TTFT:             312ms
+  Tokens Generated: 487
+  Tokens/sec:       26.8
+  Gating:           PASS (A✓ B✓ C✓ D✓ E✓ F✓ G✓)
+  Embedding:        CoreML MiniLM-L6-v2 (384-dim)
+  Tool Calls:       0
+
+▶ THINKING EVENTS (42 events)
+────────────────────────────────────────────────────────────────────────
+  +000000ms [Planning] Analyzing query: "compare brake pad replacement front vs rear"
+  +000015ms [Planning] Intent classified: compare (multi-part, needs both sets of data)
+  +000022ms [Query Rewrite] Expanding with corpus vocab: ["brake pad", "caliper", "torque", "ft-lb", "piston"]
+  +000038ms [Embedding] Encoding query → 384-dim vector
+  +000049ms [Planning] RAPTOR-lite: routing to detail chunks (procedure query)
+  +000055ms [Vector Search] Searching 12,847 vectors via Metal GPU
+  +000071ms [BM25 (Keyword)] FTS5: "brake" AND "pad" AND "replacement"
+  +000088ms [RRF Fusion] Fusing results → 67 candidates
+  +000095ms [Re-ranking] Cross-encoder scoring 67 pairs (4 concurrent)
+  +000312ms [Confidence Gate] Low-confidence filter: 67 → 24 candidates
+  +000320ms [MMR Diversity] λ=0.6: 24 → 12 chunks
+  +000335ms [Parent Doc Expansion] Expanding ±5 siblings for top 5 chunks
+  +000398ms [Context Assembly] Initial: 8 chunks, 4,920 chars
+  +000410ms [Self-RAG] Evaluating: does initial retrieval cover both front AND rear?
+  +000425ms [Self-RAG] Gap detected: rear brake procedure underrepresented (1/8 chunks)
+  +000430ms [Agentic Step] Session 1: Initial synthesis — front brakes well-covered
+  +000445ms [Query Rewrite] Generating focused query: "rear brake pad replacement procedure piston rotation tool"
+  +001200ms [Iterative Retrieval] Cycle 2: re-searching with rear-focused query
+  +001215ms [Vector Search] Searching with refined embedding
+  +001228ms [BM25 (Keyword)] FTS5: "rear" AND "brake" AND "piston" AND "rotation"
+  +001245ms [RRF Fusion] Cycle 2: 41 new candidates
+  +001260ms [Re-ranking] Cross-encoder scoring cycle 2 results
+  +001480ms [MMR Diversity] Merging cycle 2 with existing: 16 unique chunks
+  +001502ms [Agentic Step] Session 2: Rear brake data now available — torque specs found
+  +001520ms [Self-RAG] Evaluating completeness: front ✓, rear ✓, torque ✓, tools ✓
+  +002100ms [Query Rewrite] Generating focused query: "brake pad torque specifications special tools required"
+  +002800ms [Iterative Retrieval] Cycle 3: searching for torque and tool details
+  +002815ms [Vector Search] Searching with torque-focused embedding
+  +002830ms [BM25 (Keyword)] FTS5: "torque" AND "brake" AND "specification"
+  +002950ms [RRF Fusion] Cycle 3: 28 candidates
+  +002975ms [Re-ranking] Cycle 3 rerank complete
+  +003100ms [Agentic Step] Session 3: Torque specs confirmed — 74-88 front, 44-58 rear
+  +003120ms [Self-RAG] All aspects covered: procedure, tools, torque, comparison
+  +003200ms [Compression] Compressing 16 → 10 chunks (5 sent to LLM compression)
+  +003850ms [Compression] Compression complete: 10 chunks, 5,280 chars
+  +003860ms [Grounding Check] Topical relevance: 78% lexical overlap — standard mode
+  +003875ms [Context Assembly] Final: 10 chunks, 5,280 chars (within 5,500 limit)
+  +003890ms [Position Reorder] Lost-in-Middle applied
+  +003900ms [Generation] Apple FM: streaming 487 tokens @ 26.8 tok/s
+  +017800ms [Verification Gates] Gate A: PASS (top=0.9612)
+  +017820ms [Verification Gates] Gate C: PASS (numbers verified: 74-88, 44-58, 80, 17mm, 14mm)
+  +017850ms [Verification Gates] Gates A-G: all PASS │ Confidence: 0.91
+
+▶ PIPELINE LOG (24 entries)
+────────────────────────────────────────────────────────────────────────
+  [16:15:42.001] queryInternal() started — Deep Think mode
+  [16:15:42.015] Intent: compare — enabling iterative retrieval
+  [16:15:42.022] Query expansion: 5 terms from container vocab
+  [16:15:42.049] Query embedded: 384-dim, 11ms
+  [16:15:42.088] Hybrid search: 67 RRF candidates in 33ms
+  [16:15:42.312] Rerank complete: 224ms, top=0.9612
+  [16:15:42.410] Self-RAG check: gap detected (rear brakes underrepresented)
+  [16:15:42.430] Agentic session 1: initial front brake synthesis
+  [16:15:42.445] Iterative query generated: "rear brake pad replacement procedure..."
+  [16:15:43.480] Iterative cycle 2 complete: +41 candidates, 16 unique chunks
+  [16:15:43.502] Agentic session 2: rear brake data integrated
+  [16:15:43.520] Self-RAG: front ✓ rear ✓ torque ✓ tools — still need tool confirmation
+  [16:15:44.100] Iterative query generated: "brake pad torque specifications..."
+  [16:15:44.975] Iterative cycle 3 complete: +28 candidates
+  [16:15:45.100] Agentic session 3: torque confirmed, tool confirmed (rotation tool)
+  [16:15:45.120] Self-RAG: all 4 aspects covered — proceeding to compression
+  [16:15:45.200] Contextual compression: 5 chunks sent to FM
+  [16:15:45.850] Compression complete: 850ms, 16→10 chunks, 5280 chars
+  [16:15:45.875] Context packing: 10 chunks, 5280 chars, budget OK
+  [16:15:45.890] LLM generation started — Deep Think final synthesis
+  [16:15:46.202] First token: TTFT=312ms
+  [16:15:59.800] Generation complete: 487 tokens in 13.6s
+  [16:15:59.850] Verification gates: all PASS, confidence=0.91
+  [16:15:59.860] Deep Think pipeline complete: 3 agentic sessions, 18.2s total
+
+▶ REASONING TRACE (3 sessions)
+────────────────────────────────────────────────────────────────────────
+  Session 1: Found comprehensive front brake procedure (Section 5.3, pp.127-130). Front uses 17mm bracket bolts, 74-88 ft-lb torque. Standard C-clamp piston compression. Gap: only 1 chunk mentions rear brakes in passing.
+  Session 2: Retrieved rear brake specifics (Section 5.4, pp.131-134). Key difference: rear pistons require ROTATION (clockwise) not push-in. Special rotation tool needed. 14mm bracket bolts, 44-58 ft-lb (lighter than front). TSB-24-BR-012 confirms rotation tool requirement.
+  Session 3: Confirmed all torque specifications from Service Manual torque table (p.135). Lug nuts: 80 ft-lb (both). Added wear rate context: front handles 70% of braking force. Comparison table structure planned for response.
+
+▶ RETRIEVED CHUNKS (10 chunks)
+────────────────────────────────────────────────────────────────────────
+
+  ── Chunk 1 ──
+  Source:     2024_Service_Manual.pdf
+  Rank:       1
+  Similarity: 0.9612
+  Page:       127
+  Section:    Front Brake Pad Replacement
+  Path:       Chapter 5 > Brakes > Front
+  Structure:  paragraph
+  Content:    Front Brake Pad Replacement Procedure: 1. Raise vehicle and support on jack stands. 2. Remove front wheel. 3. Remove two 17mm caliper bracket bolts. 4. Slide caliper assembly off rotor. CAUTION: Support caliper with wire...
+
+  ── Chunk 2 ──
+  Source:     2024_Service_Manual.pdf
+  Rank:       2
+  Similarity: 0.9445
+  Page:       131
+  Section:    Rear Brake Pad Replacement
+  Path:       Chapter 5 > Brakes > Rear
+  Structure:  paragraph
+  Content:    Rear Brake Pad Replacement Procedure: WARNING — Rear caliper pistons must be ROTATED clockwise while compressing. Do NOT attempt to push piston straight in — this will damage the self-adjusting mechanism. Use brake piston rotation tool (SST 0...
+
+  ── Chunk 3 ──
+  Source:     2024_Service_Manual.pdf
+  Rank:       3
+  Similarity: 0.9201
+  Page:       135
+  Section:    Brake System Torque Specifications
+  Path:       Chapter 5 > Brakes > Specifications
+  Structure:  table
+  Content:    Brake System Torque Table: Front caliper bracket: 74-88 ft-lb (100-120 N·m). Rear caliper bracket: 44-58 ft-lb (60-78 N·m). Wheel lug nut: 80 ft-lb (108 N·m). Brake line fitting: 11-13 ft-lb (15-18 N·m). Bleed screw: 7 ft-lb (10 N·m)...
+
+  ── Chunk 4 ──
+  Source:     2024_Service_Manual.pdf
+  Rank:       4
+  Similarity: 0.8934
+  Page:       128
+  Section:    Front Brake Pad Replacement (cont.)
+  Path:       Chapter 5 > Brakes > Front
+  Structure:  paragraph
+  Content:    5. Use C-clamp to compress front caliper piston fully. Place old brake pad against piston face to distribute force evenly. 6. Remove old pads. Note position of wear indicator tab — it must face inward (toward piston)...
+
+  ── Chunk 5 ──
+  Source:     2024_Service_Manual.pdf
+  Rank:       5
+  Similarity: 0.8756
+  Page:       132
+  Section:    Rear Brake Pad Replacement (cont.)
+  Path:       Chapter 5 > Brakes > Rear
+  Structure:  paragraph
+  Content:    4. Using brake piston rotation tool, rotate rear piston CLOCKWISE while applying inward pressure. Piston will thread inward as it rotates. Continue until fully seated. 5. Remove two 14mm caliper bracket bolts (torque on reassembly: 44-58 ft-lb)...
+
+  ── Chunk 6 ──
+  Source:     2024_Service_Manual.pdf
+  Rank:       6
+  Similarity: 0.8512
+  Page:       133
+  Section:    Required Special Tools
+  Path:       Chapter 5 > Brakes > Tools
+  Structure:  table
+  Content:    Special Service Tools — Brakes: Brake piston rotation tool (SST 09581-11000 or equivalent). Brake fluid tester. Dial indicator for rotor runout. Micrometer for pad/rotor thickness. Note: Generic aftermarket rotation tools available...
+
+  ── Chunk 7 ──
+  Source:     2024_Owners_Manual.pdf
+  Rank:       7
+  Similarity: 0.8234
+  Page:       305
+  Section:    Brake System Overview
+  Path:       Maintenance > Brakes
+  Structure:  paragraph
+  Content:    Your vehicle uses ventilated disc brakes on all four wheels. The front brakes are larger and handle approximately 70% of braking force. Rear brakes include an integrated parking brake mechanism. Brake pad thickness should be checked every 15K miles...
+
+  ── Chunk 8 ──
+  Source:     TSB-24-BR-012.pdf
+  Rank:       8
+  Similarity: 0.7890
+  Page:       1
+  Section:    Rear Brake Piston Tool Clarification
+  Path:       Technical Service Bulletins
+  Structure:  paragraph
+  Content:    TSB-24-BR-012: Clarification on rear caliper piston compression. Some technicians have reported inability to compress rear pistons using a C-clamp. This is by design — rear pistons require rotation. Universal brake piston tool kits are acceptable...
+
+  ── Chunk 9 ──
+  Source:     2024_Service_Manual.pdf
+  Rank:       9
+  Similarity: 0.7645
+  Page:       129
+  Section:    Brake Pad Bedding Procedure
+  Path:       Chapter 5 > Brakes > Break-In
+  Structure:  paragraph
+  Content:    After installing new brake pads, perform bedding procedure: 1. Drive at 35 mph. 2. Apply moderate braking to reduce speed to 5 mph. 3. Repeat 6-8 times with 30-second cooling intervals. 4. Drive normally for 100 miles avoiding hard braking...
+
+  ── Chunk 10 ──
+  Source:     2024_Service_Manual.pdf
+  Rank:       10
+  Similarity: 0.7234
+  Page:       134
+  Section:    Brake System Bleeding
+  Path:       Chapter 5 > Brakes > Bleeding
+  Structure:  paragraph
+  Content:    Brake system must be bled after any brake line disconnection. Bleeding order: RR → LR → RF → LF (farthest to nearest). Use DOT 4 brake fluid only. Two-person method or vacuum bleeder acceptable. Bleed until no air bubbles visible...
+
+════════════════════════════════════════════════════════════════════════
+  END OF TRACE
+════════════════════════════════════════════════════════════════════════
