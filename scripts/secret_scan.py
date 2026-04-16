@@ -20,12 +20,15 @@ from pathlib import Path
 IGNORE_DIRS = {
     ".git",
     "build",
+    ".build",
+    ".swiftpm",
     "DerivedData",
     "Tests.xcresult",
     "xcuserdata",
     "__pycache__",
     "node_modules",
     "Vendor",
+    "vendor",
     "exclude",  # Excluded sources in vendored packages
 }
 
