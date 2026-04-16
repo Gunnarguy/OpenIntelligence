@@ -230,7 +230,6 @@ actor SmartReplyService {
 
         do {
             let session = LanguageModelSession()
-            HardwareTelemetryReporter.sustain(.llmInference, active: true, intensity: 0.7)
 
             let prompt = """
             Given this Q&A exchange, suggest 2 concise follow-up questions the user might ask.
@@ -242,8 +241,6 @@ actor SmartReplyService {
             """
 
             let result = try await session.respond(to: prompt)
-            HardwareTelemetryReporter.sustain(.llmInference, active: false)
-            Task { @MainActor in DSHaptics.messageReceived() }
             let lines = result.content.components(separatedBy: CharacterSet.newlines)
                 .map { $0.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) }
                 .filter { !$0.isEmpty && $0.count > 5 && $0.count < 100 }

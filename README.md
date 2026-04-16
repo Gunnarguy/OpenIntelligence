@@ -32,12 +32,12 @@ This public repository is meant to show product direction, app quality, and nati
 
 ## Supported Content
 
-| Category | Examples |
-| --- | --- |
-| Documents | PDF, TXT, MD, RTF |
-| Office | DOCX, XLSX, PPTX |
+| Category      | Examples                                             |
+| ------------- | ---------------------------------------------------- |
+| Documents     | PDF, TXT, MD, RTF                                    |
+| Office        | DOCX, XLSX, PPTX                                     |
 | Code and data | Swift, Python, JavaScript, JSON, CSV, XML, YAML, SQL |
-| Media | PNG, JPEG, HEIC, TIFF, MP3, WAV, MP4, MOV |
+| Media         | PNG, JPEG, HEIC, TIFF, MP3, WAV, MP4, MOV            |
 
 ## Public Scope
 

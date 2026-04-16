@@ -576,7 +576,8 @@ private struct SourceCard: View {
                     Text(filename)
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(DSColors.primaryText)
-                        .lineLimit(1)
+                        .lineLimit(2)
+                        .truncationMode(.middle)
 
                     HStack(spacing: 4) {
                         if let page = chunk.pageNumber {
@@ -628,15 +629,18 @@ private struct SourceCard: View {
             .buttonStyle(.plain)
 
             if isExpanded {
-                Text(chunk.chunk.content)
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(nil)
-                    .textSelection(.enabled)
-                    .transition(.asymmetric(
-                        insertion: .push(from: .top).combined(with: .opacity),
-                        removal: .push(from: .bottom).combined(with: .opacity)
-                    ))
+                ScrollView {
+                    Text(chunk.chunk.content)
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(nil)
+                        .textSelection(.enabled)
+                }
+                .frame(maxHeight: 250)
+                .transition(.asymmetric(
+                    insertion: .push(from: .top).combined(with: .opacity),
+                    removal: .push(from: .bottom).combined(with: .opacity)
+                ))
             }
         }
         .padding(DSSpacing.md)
@@ -663,8 +667,8 @@ private struct PerfMetricRow: View {
             Text(value)
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(DSColors.primaryText)
-                .lineLimit(1)
-                .truncationMode(.middle)
+                .lineLimit(2)
+                .truncationMode(.tail)
         }
         .padding(.vertical, 6)
     }

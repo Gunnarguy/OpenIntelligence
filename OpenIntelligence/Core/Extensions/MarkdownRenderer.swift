@@ -21,6 +21,7 @@ import AppKit
 private enum MarkdownBlock: Identifiable {
     case heading(level: Int, text: String)
     case paragraph(text: String)
+    case table(header: [String], alignments: [MarkdownTableAlignment], rows: [[String]])
     case bulletList(items: [String])
     case numberedList(items: [(number: Int, text: String)])
     case codeFence(language: String?, code: String)
@@ -32,6 +33,7 @@ private enum MarkdownBlock: Identifiable {
         switch self {
         case .heading(let level, let text): return "h\(level)_\(text.prefix(40))"
         case .paragraph(let text): return "p_\(text.prefix(40))"
+        case .table(let header, _, _): return "table_\(header.joined(separator: "|").prefix(40))"
         case .bulletList(let items): return "ul_\(items.first?.prefix(30) ?? "")"
         case .numberedList(let items): return "ol_\(items.first?.text.prefix(30) ?? "")"
         case .codeFence(let lang, let code): return "code_\(lang ?? "")_\(code.prefix(20))"
@@ -40,6 +42,12 @@ private enum MarkdownBlock: Identifiable {
         case .empty: return "empty_\(UUID().uuidString.prefix(8))"
         }
     }
+}
+
+private enum MarkdownTableAlignment {
+    case leading
+    case center
+    case trailing
 }
 
 /// Parses raw markdown text into an array of blocks
@@ -94,6 +102,59 @@ private struct MarkdownParser {
         // Insert newline before block quotes that appear mid-line
         result = result.replacingOccurrences(
             of: #"(?<=\S) +(> )"#,
+            with: "\n$1",
+            options: .regularExpression
+        )
+
+        // Insert newline before code fences (``` or ~~~) that appear mid-line
+        result = result.replacingOccurrences(
+            of: #"(?<=\S) +(```)"#,
+            with: "\n$1",
+            options: .regularExpression
+        )
+        result = result.replacingOccurrences(
+            of: #"(?<=\S) +(~~~)"#,
+            with: "\n$1",
+            options: .regularExpression
+        )
+
+        // Split adjacent table rows that the model emitted on one line:
+        // `| a | b | |---|---| | c | d |` -> each row on its own line.
+        result = result.replacingOccurrences(
+            of: #"(\|) +(\|)"#,
+            with: "$1\n$2",
+            options: .regularExpression
+        )
+
+        // Also split when the next row starts with a compact separator row or compact data row.
+        result = result.replacingOccurrences(
+            of: #"(?<=\|) +(\|[:\-][^\n]*\|)"#,
+            with: "\n$1",
+            options: .regularExpression
+        )
+        result = result.replacingOccurrences(
+            of: #"(?<=\|) +(\|\s*[^\n|][^\n]*\|)"#,
+            with: "\n$1",
+            options: .regularExpression
+        )
+
+        // Insert newline before table rows that appear mid-line
+        // Matches: text followed by ` | ` then word chars (table header/data row)
+        // or separator rows like `|---|---|`
+        result = result.replacingOccurrences(
+            of: #"(?<=\S) +(\|[- :]+\|)"#,
+            with: "\n$1",
+            options: .regularExpression
+        )
+        result = result.replacingOccurrences(
+            of: #"(?<=\S) +(\| \S)"#,
+            with: "\n$1",
+            options: .regularExpression
+        )
+
+        // Insert newline before horizontal rules (---, ***, ___) mid-line
+        result = result.replacingOccurrences(
+            of: #"(?<=\S) +(---+|___+|\*\*\*+)\s*(?=$|\s)"#,
             with: "\n$1",
             options: .regularExpression
         )
@@ -177,6 +238,32 @@ private struct MarkdownParser {
                 continue
             }
 
+            // Markdown table
+            if i + 1 < lines.count,
+               isTableRow(trimmed),
+               isTableSeparator(lines[i + 1].trimmingCharacters(in: .whitespaces)) {
+                let header = parseTableCells(trimmed)
+                let alignments = parseTableAlignments(lines[i + 1].trimmingCharacters(in: .whitespaces), expectedColumns: header.count)
+                var rows: [[String]] = []
+                i += 2
+
+                while i < lines.count {
+                    let tableLine = lines[i].trimmingCharacters(in: .whitespaces)
+                    guard isTableRow(tableLine) else { break }
+                    let cells = parseTableCells(tableLine)
+                    if cells.count == header.count {
+                        rows.append(cells)
+                    } else if !cells.isEmpty {
+                        let padded = cells + Array(repeating: "", count: max(0, header.count - cells.count))
+                        rows.append(Array(padded.prefix(header.count)))
+                    }
+                    i += 1
+                }
+
+                blocks.append(.table(header: header, alignments: alignments, rows: rows))
+                continue
+            }
+
             // Bullet list (- item, * item, • item)
             if isBulletLine(trimmed) {
                 var items: [String] = []
@@ -238,7 +325,8 @@ private struct MarkdownParser {
                 let pl = lines[i].trimmingCharacters(in: .whitespaces)
                 if pl.isEmpty || pl.hasPrefix("#") || pl.hasPrefix("```") || pl.hasPrefix("~~~") ||
                     pl.hasPrefix("> ") || isBulletLine(pl) || isNumberedLine(pl) ||
-                    isHorizontalRule(pl) {
+                    isHorizontalRule(pl) ||
+                    (i + 1 < lines.count && isTableRow(pl) && isTableSeparator(lines[i + 1].trimmingCharacters(in: .whitespaces))) {
                     break
                 }
                 paraLines.append(pl)
@@ -253,8 +341,7 @@ private struct MarkdownParser {
     }
 
     private static func isBulletLine(_ line: String) -> Bool {
-        line.hasPrefix("- ") || line.hasPrefix("• ") ||
-        (line.hasPrefix("* ") && !line.dropFirst(2).contains("*")) // Avoid matching *italic*
+        line.hasPrefix("- ") || line.hasPrefix("• ") || line.hasPrefix("* ")
     }
 
     private static func stripBullet(_ line: String) -> String {
@@ -281,6 +368,57 @@ private struct MarkdownParser {
         return (trimmed.allSatisfy({ $0 == "-" || $0 == " " }) && trimmed.filter({ $0 == "-" }).count >= 3) ||
                (trimmed.allSatisfy({ $0 == "*" || $0 == " " }) && trimmed.filter({ $0 == "*" }).count >= 3) ||
                (trimmed.allSatisfy({ $0 == "_" || $0 == " " }) && trimmed.filter({ $0 == "_" }).count >= 3)
+    }
+
+    private static func isTableRow(_ line: String) -> Bool {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard trimmed.hasPrefix("|"), trimmed.hasSuffix("|") else { return false }
+        return parseTableCells(trimmed).count >= 2
+    }
+
+    private static func isTableSeparator(_ line: String) -> Bool {
+        let cells = parseTableCells(line)
+        guard !cells.isEmpty else { return false }
+        return cells.allSatisfy { cell in
+            let trimmed = cell.trimmingCharacters(in: .whitespaces)
+            return trimmed.range(of: #"^:?-{3,}:?$"#, options: .regularExpression) != nil
+        }
+    }
+
+    private static func parseTableCells(_ line: String) -> [String] {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard trimmed.count >= 2 else { return [] }
+
+        let body: String
+        if trimmed.hasPrefix("|") && trimmed.hasSuffix("|") {
+            body = String(trimmed.dropFirst().dropLast())
+        } else {
+            body = trimmed
+        }
+
+        return body
+            .components(separatedBy: "|")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+    }
+
+    private static func parseTableAlignments(_ separatorLine: String, expectedColumns: Int) -> [MarkdownTableAlignment] {
+        let cells = parseTableCells(separatorLine)
+        let alignments = cells.map { cell -> MarkdownTableAlignment in
+            let trimmed = cell.trimmingCharacters(in: .whitespaces)
+            let hasLeadingColon = trimmed.hasPrefix(":")
+            let hasTrailingColon = trimmed.hasSuffix(":")
+            switch (hasLeadingColon, hasTrailingColon) {
+            case (true, true): return .center
+            case (false, true): return .trailing
+            default: return .leading
+            }
+        }
+
+        if alignments.count >= expectedColumns {
+            return Array(alignments.prefix(expectedColumns))
+        }
+
+        return alignments + Array(repeating: .leading, count: max(0, expectedColumns - alignments.count))
     }
 }
 
@@ -330,6 +468,9 @@ private struct MarkdownBlockView: View {
         case .paragraph(let text):
             InlineMarkdownText(text: text, font: font, foregroundColor: foregroundColor)
 
+        case .table(let header, let alignments, let rows):
+            tableView(header: header, alignments: alignments, rows: rows)
+
         case .bulletList(let items):
             bulletListView(items: items)
 
@@ -343,8 +484,15 @@ private struct MarkdownBlockView: View {
             blockQuoteView(text: text)
 
         case .horizontalRule:
-            Divider()
-                .padding(.vertical, 4)
+            HStack(spacing: 8) {
+                ForEach(0..<3, id: \.self) { _ in
+                    Circle()
+                        .fill(DSColors.accent.opacity(0.3))
+                        .frame(width: 4, height: 4)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
 
         case .empty:
             EmptyView()
@@ -361,40 +509,54 @@ private struct MarkdownBlockView: View {
         default: .system(size: fontSize, weight: .semibold)
         }
 
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 4) {
             InlineMarkdownText(text: text, font: headingFont, foregroundColor: foregroundColor)
             if level <= 2 {
-                Divider()
+                Rectangle()
+                    .fill(
+                        LinearGradient(
+                            colors: [DSColors.accent.opacity(0.4), DSColors.accent.opacity(0.05)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .frame(height: level == 1 ? 2 : 1)
+                    .clipShape(RoundedRectangle(cornerRadius: 1))
             }
         }
-        .padding(.top, level <= 2 ? 6 : 4)
+        .padding(.top, level <= 2 ? 8 : 4)
+        .padding(.bottom, level <= 2 ? 2 : 0)
     }
 
     @ViewBuilder
     private func bulletListView(items: [String]) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 6) {
             ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text("•")
-                        .font(.system(size: fontSize, weight: .bold))
-                        .foregroundColor(foregroundColor.opacity(0.6))
-                        .frame(width: 12, alignment: .center)
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    Circle()
+                        .fill(DSColors.accent.opacity(0.5))
+                        .frame(width: 6, height: 6)
+                        .offset(y: 1)
                     InlineMarkdownText(text: item, font: font, foregroundColor: foregroundColor)
                 }
             }
         }
-        .padding(.leading, 4)
+        .padding(.leading, 6)
     }
 
     @ViewBuilder
     private func numberedListView(items: [(number: Int, text: String)]) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 6) {
             ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text("\(item.number).")
-                        .font(.system(size: fontSize - 1, weight: .medium, design: .rounded))
-                        .foregroundColor(foregroundColor.opacity(0.6))
-                        .frame(minWidth: 20, alignment: .trailing)
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    Text("\(item.number)")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .frame(width: 22, height: 22)
+                        .background(
+                            Circle()
+                                .fill(DSColors.accent.opacity(0.7))
+                        )
                     InlineMarkdownText(text: item.text, font: font, foregroundColor: foregroundColor)
                 }
             }
@@ -405,8 +567,8 @@ private struct MarkdownBlockView: View {
     @ViewBuilder
     private func blockQuoteView(text: String) -> some View {
         HStack(spacing: 0) {
-            RoundedRectangle(cornerRadius: 1.5)
-                .fill(DSColors.accent.opacity(0.5))
+            RoundedRectangle(cornerRadius: 2)
+                .fill(DSColors.accent.opacity(0.6))
                 .frame(width: 3)
 
             InlineMarkdownText(
@@ -414,9 +576,80 @@ private struct MarkdownBlockView: View {
                 font: .system(size: fontSize, weight: .regular).italic(),
                 foregroundColor: foregroundColor.opacity(0.8)
             )
-            .padding(.leading, 10)
+            .padding(.leading, 12)
+            .padding(.vertical, 6)
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 4)
+        .padding(.horizontal, 4)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(DSColors.accent.opacity(0.04))
+        )
+    }
+
+    @ViewBuilder
+    private func tableView(header: [String], alignments: [MarkdownTableAlignment], rows: [[String]]) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            VStack(spacing: 0) {
+                // Header row
+                HStack(spacing: 0) {
+                    ForEach(Array(header.enumerated()), id: \.offset) { index, cell in
+                        InlineMarkdownText(
+                            text: cell,
+                            font: .system(size: fontSize, weight: .semibold),
+                            foregroundColor: foregroundColor
+                        )
+                        .frame(maxWidth: .infinity, alignment: swiftUIAlignment(for: alignment(for: alignments, index: index)))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 8)
+                    }
+                }
+                .background(DSColors.accent.opacity(0.08))
+
+                // Header divider
+                Rectangle()
+                    .fill(DSColors.accent.opacity(0.2))
+                    .frame(height: 1.5)
+
+                // Data rows
+                ForEach(Array(rows.enumerated()), id: \.offset) { rowIndex, row in
+                    HStack(spacing: 0) {
+                        ForEach(Array(row.enumerated()), id: \.offset) { index, cell in
+                            InlineMarkdownText(
+                                text: cell,
+                                font: font,
+                                foregroundColor: foregroundColor
+                            )
+                            .frame(maxWidth: .infinity, alignment: swiftUIAlignment(for: alignment(for: alignments, index: index)))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 7)
+                        }
+                    }
+                    .background(rowIndex.isMultiple(of: 2) ? Color.clear : DSColors.surface.opacity(0.5))
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(Color(uiColor: .separator).opacity(0.2), lineWidth: 1)
+            )
+        }
+    }
+
+    private func alignment(for alignments: [MarkdownTableAlignment], index: Int) -> MarkdownTableAlignment {
+        guard index < alignments.count else { return .leading }
+        return alignments[index]
+    }
+
+    private func swiftUIAlignment(for alignment: MarkdownTableAlignment) -> Alignment {
+        switch alignment {
+        case .leading:
+            return .leading
+        case .center:
+            return .center
+        case .trailing:
+            return .trailing
+        }
     }
 }
 
@@ -451,7 +684,7 @@ public struct MarkdownText: View {
         if blocks.count == 1, case .paragraph = blocks[0] {
             InlineMarkdownText(text: text, font: font, foregroundColor: foregroundColor)
         } else {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 10) {
                 ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
                     MarkdownBlockView(
                         block: block,

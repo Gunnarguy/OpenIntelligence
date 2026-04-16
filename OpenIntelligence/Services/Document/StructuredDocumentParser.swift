@@ -23,11 +23,11 @@ import UIKit
 
 /// Serial queue to prevent Metal command buffer race conditions
 /// when multiple threads try to render CIImages concurrently
-nonisolated(unsafe) private let gpuRenderQueue = DispatchQueue(label: "com.openintelligence.structured-parser-gpu", qos: .userInitiated)
+nonisolated private let gpuRenderQueue = DispatchQueue(label: "com.openintelligence.structured-parser-gpu", qos: .userInitiated)
 
 /// Shared Metal-backed CIContext for GPU-accelerated image processing
 /// CIContext is thread-safe — safe to access from any isolation domain.
-nonisolated(unsafe) private let sharedGPUContext: CIContext = {
+nonisolated private let sharedGPUContext: CIContext = {
     if let device = MTLCreateSystemDefaultDevice() {
         return CIContext(mtlDevice: device, options: [
             .cacheIntermediates: true,

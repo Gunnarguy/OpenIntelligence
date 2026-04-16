@@ -9,12 +9,6 @@ import Accelerate
 import Foundation
 import NaturalLanguage
 
-/// Helper to silence deprecation warning for legacy NLEmbeddingProvider
-@available(iOS, deprecated: 999.0, message: "Use CoreMLSentenceEmbeddingProvider instead")
-private func makeLegacyNLEmbeddingProvider() -> NLEmbeddingProvider {
-    NLEmbeddingProvider()
-}
-
 /// Service for generating semantic embeddings from text using Apple's on-device models
 class EmbeddingService {
     // MARK: - Properties
@@ -117,7 +111,7 @@ class EmbeddingService {
                 targetDimension: validatedDimension(for: "apple_fm_embed", requested: targetDimension)
             )
         case "nl_embedding":
-            // NLEmbeddingProvider is deprecated but kept for legacy compatibility
+            // Legacy provider kept for compatibility fallback
             resolved = EmbeddingService(
                 provider: Self.makeLegacyNLEmbeddingProvider(),
                 providerId: "nl_embedding",
@@ -163,7 +157,6 @@ class EmbeddingService {
         }
 
         // 2. Try NLEmbedding (Last Resort - Always Available)
-        // NLEmbeddingProvider is deprecated but kept as ultimate fallback
         Log.warning("[EmbeddingService] CoreML unavailable. Falling back to NLEmbeddingProvider.", category: .embedding)
         return EmbeddingService(
             provider: Self.makeLegacyNLEmbeddingProvider(),
@@ -176,12 +169,9 @@ class EmbeddingService {
 
     /// Helper to instantiate the deprecated NLEmbeddingProvider.
     /// This is intentional: we keep NLEmbedding as an ultimate fallback for devices where CoreML fails.
-    /// Returns `any EmbeddingProvider` to avoid exposing deprecated type in signature.
     @inline(__always)
     private static func makeLegacyNLEmbeddingProvider() -> any EmbeddingProvider {
-        // Delegate to top-level function which has @available(iOS, deprecated: 999.0)
-        // to suppress the NLEmbeddingProvider deprecation warning
-        OpenIntelligence.makeLegacyNLEmbeddingProvider()
+        NLEmbeddingProvider()
     }
 
     // MARK: - Public API

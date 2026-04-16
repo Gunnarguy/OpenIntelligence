@@ -14,12 +14,12 @@ This sample document is included for import and rendering tests. It is intention
 
 ## Maintenance Schedule
 
-| Task | Frequency | Notes |
-| --- | --- | --- |
-| Visual inspection | Monthly | Check for cracks, corrosion, and loose fittings |
-| Battery health review | Quarterly | Replace if capacity drops below operating target |
-| Firmware audit | Semiannual | Confirm approved firmware version is installed |
-| Full calibration | Annual | Recalibrate after extreme weather exposure |
+| Task                  | Frequency  | Notes                                            |
+| --------------------- | ---------- | ------------------------------------------------ |
+| Visual inspection     | Monthly    | Check for cracks, corrosion, and loose fittings  |
+| Battery health review | Quarterly  | Replace if capacity drops below operating target |
+| Firmware audit        | Semiannual | Confirm approved firmware version is installed   |
+| Full calibration      | Annual     | Recalibrate after extreme weather exposure       |
 
 ## Example Procedure
 

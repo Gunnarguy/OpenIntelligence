@@ -292,16 +292,25 @@ final class BNNSGraphService: @unchecked Sendable {
         }
 
         // Matrix multiply: flat × flat^T = dot product matrix
+        var transposedFlat = [Float](repeating: 0, count: n * dim)
+        for row in 0..<n {
+            let sourceOffset = row * dim
+            for column in 0..<dim {
+                transposedFlat[column * n + row] = flat[sourceOffset + column]
+            }
+        }
+
         var dotMatrix = [Float](repeating: 0, count: n * n)
         flat.withUnsafeBufferPointer { fPtr in
-            dotMatrix.withUnsafeMutableBufferPointer { dPtr in
-                // A × A^T using cblas (ILP64 transition: suppress deprecation)
-                _performSGEMM(
-                    fPtr.baseAddress!, Int32(dim),
-                    fPtr.baseAddress!, Int32(dim),
-                    dPtr.baseAddress!, Int32(n),
-                    Int32(n), Int32(n), Int32(dim)
-                )
+            transposedFlat.withUnsafeBufferPointer { tPtr in
+                dotMatrix.withUnsafeMutableBufferPointer { dPtr in
+                    vDSP_mmul(
+                        fPtr.baseAddress!, 1,
+                        tPtr.baseAddress!, 1,
+                        dPtr.baseAddress!, 1,
+                        vDSP_Length(n), vDSP_Length(n), vDSP_Length(dim)
+                    )
+                }
             }
         }
 
@@ -317,26 +326,4 @@ final class BNNSGraphService: @unchecked Sendable {
 
         return matrix
     }
-}
-
-// MARK: - BLAS Deprecation Wrapper
-
-/// Wraps cblas_sgemm to suppress ILP64 deprecation warning.
-/// Apple deprecated the LP64 BLAS/LAPACK entry points in iOS 16.4,
-/// but the replacement (ACCELERATE_NEW_LAPACK) requires project-wide flag changes.
-/// This isolates the deprecation to a single call site.
-@available(iOS, deprecated: 999.0, message: "Migrate to ACCELERATE_NEW_LAPACK when ready")
-private func _performSGEMM(
-    _ a: UnsafePointer<Float>?, _ lda: Int32,
-    _ b: UnsafePointer<Float>?, _ ldb: Int32,
-    _ c: UnsafeMutablePointer<Float>?, _ ldc: Int32,
-    _ m: Int32, _ n: Int32, _ k: Int32
-) {
-    cblas_sgemm(
-        CblasRowMajor, CblasNoTrans, CblasTrans,
-        m, n, k,
-        1.0, a, lda,
-        b, ldb,
-        0.0, c, ldc
-    )
 }

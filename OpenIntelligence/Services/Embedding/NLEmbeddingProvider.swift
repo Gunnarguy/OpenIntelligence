@@ -9,7 +9,8 @@
 import Foundation
 import NaturalLanguage
 
-@available(*, deprecated, message: "Use CoreMLSentenceEmbeddingProvider for better accuracy (Silicon-Native Architecture)")
+/// Legacy NaturalLanguage-backed embedding provider kept as an internal compatibility fallback.
+/// New code should prefer CoreMLSentenceEmbeddingProvider.
 final class NLEmbeddingProvider: EmbeddingProvider {
     // MARK: - Properties
     private let embedding: NLEmbedding?

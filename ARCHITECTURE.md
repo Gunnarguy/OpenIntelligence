@@ -16,12 +16,12 @@ User Interface
 
 ## Public Component Map
 
-| Layer | Responsibility |
-| --- | --- |
-| User interface | SwiftUI screens, navigation, answer presentation, onboarding, settings |
-| Feature modules | Chat, document management, billing, diagnostics, onboarding, telemetry |
-| Local processing | File import, extraction, storage, indexing, app-owned data lifecycle |
-| Answering engine | Evidence retrieval, answer synthesis, citation packaging |
+| Layer             | Responsibility                                                                 |
+| ----------------- | ------------------------------------------------------------------------------ |
+| User interface    | SwiftUI screens, navigation, answer presentation, onboarding, settings         |
+| Feature modules   | Chat, document management, billing, diagnostics, onboarding, telemetry         |
+| Local processing  | File import, extraction, storage, indexing, app-owned data lifecycle           |
+| Answering engine  | Evidence retrieval, answer synthesis, citation packaging                       |
 | Platform services | Apple Intelligence, OCR, speech, PDF, Metal, StoreKit, system privacy controls |
 
 ## Public Principles

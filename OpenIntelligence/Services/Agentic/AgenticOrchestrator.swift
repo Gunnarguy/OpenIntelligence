@@ -6192,7 +6192,64 @@ extension AgenticOrchestrator {
             result = result.replacingOccurrences(of: "\n\n\n", with: "\n\n")
         }
 
+        // Repair malformed URLs — fix spaces, encoding issues so links actually work
+        result = repairMalformedURLs(result)
+
         return result.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Repair malformed URLs in LLM output so links are tappable and correct.
+    /// Fixes: spaces within URLs, missing percent-encoding, whitespace before TLDs.
+    /// Preserves valid markdown links and bare URLs.
+    private func repairMalformedURLs(_ text: String) -> String {
+        var result = text
+
+        // 1. Fix markdown links [text](broken url) — repair the URL portion
+        if let markdownLinkRegex = try? NSRegularExpression(
+            pattern: #"\[([^\]]+)\]\((https?://[^\)]*)\)"#,
+            options: []
+        ) {
+            let nsRange = NSRange(result.startIndex..., in: result)
+            let matches = markdownLinkRegex.matches(in: result, options: [], range: nsRange)
+            for match in matches.reversed() {
+                guard let fullRange = Range(match.range, in: result),
+                      let labelRange = Range(match.range(at: 1), in: result),
+                      let urlRange = Range(match.range(at: 2), in: result) else { continue }
+                let label = String(result[labelRange])
+                let rawURL = String(result[urlRange])
+                let fixed = Self.repairURL(rawURL)
+                result.replaceSubrange(fullRange, with: "[\(label)](\(fixed))")
+            }
+        }
+
+        // 2. Fix bare URLs (not inside markdown link syntax)
+        if let bareURLRegex = try? NSRegularExpression(
+            pattern: #"(?<!\()https?://\S+"#,
+            options: []
+        ) {
+            let nsRange = NSRange(result.startIndex..., in: result)
+            let matches = bareURLRegex.matches(in: result, options: [], range: nsRange)
+            for match in matches.reversed() {
+                guard let range = Range(match.range, in: result) else { continue }
+                let rawURL = String(result[range])
+                let fixed = Self.repairURL(rawURL)
+                result.replaceSubrange(range, with: fixed)
+            }
+        }
+
+        return result
+    }
+
+    /// Repair a single URL string: remove internal spaces, fix encoding.
+    private static func repairURL(_ url: String) -> String {
+        var fixed = url
+        // Remove spaces (LLM inserts spaces like "github .com" or "blob/ main")
+        fixed = fixed.replacingOccurrences(of: " ", with: "")
+        // Remove trailing punctuation the LLM may have appended
+        while fixed.hasSuffix(".") || fixed.hasSuffix(",") || fixed.hasSuffix(";") || fixed.hasSuffix(")") {
+            fixed = String(fixed.dropLast())
+        }
+        return fixed
     }
 
     /// Extract what the user was asking about from a "not found" response

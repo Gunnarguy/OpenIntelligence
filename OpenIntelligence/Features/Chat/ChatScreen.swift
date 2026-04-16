@@ -126,6 +126,7 @@ struct ChatScreen: View {
 
     // Smart Reply follow-up suggestions (shown after AI response)
     @State private var followUpSuggestions: [SmartReply] = []
+    @State private var followUpSuggestionsTask: Task<Void, Never>? = nil
 
     // Speed history for sparkline graph
     @State private var speedHistory: [Double] = []
@@ -390,6 +391,7 @@ struct ChatScreen: View {
             await recalcActiveCounts()
 
             // Clear stale per-conversation state from previous library
+            followUpSuggestionsTask?.cancel()
             followUpSuggestions = []
             thinkingEvents = []
             speedHistory = []
@@ -1259,6 +1261,8 @@ struct ChatScreen: View {
         // Cancel any in-flight query task
         currentQueryTask?.cancel()
         currentQueryTask = nil
+        followUpSuggestionsTask?.cancel()
+        followUpSuggestionsTask = nil
 
         // Reset processing state
         if isProcessing {
@@ -1279,6 +1283,7 @@ struct ChatScreen: View {
         generatingElapsedFinal = nil
         currentRetrievedChunks = []
         currentMetadata = nil
+        followUpSuggestions = []
         toastManager.clearAll()
         showRetrievedDetails = false
         thinkingEvents.removeAll()
@@ -1290,6 +1295,8 @@ struct ChatScreen: View {
         // Cancel any in-flight query task
         currentQueryTask?.cancel()
         currentQueryTask = nil
+        followUpSuggestionsTask?.cancel()
+        followUpSuggestionsTask = nil
 
         // Reset processing state
         if isProcessing {
@@ -1308,6 +1315,7 @@ struct ChatScreen: View {
         generatingElapsedFinal = nil
         currentRetrievedChunks = []
         currentMetadata = nil
+        followUpSuggestions = []
         toastManager.clearAll()
         showRetrievedDetails = false
         thinkingEvents.removeAll()
@@ -1940,15 +1948,26 @@ struct ChatScreen: View {
         // Haptic feedback for sending a message
         DSHaptics.messageSent()
 
-        // Cancel any existing query - "cancel and replace" strategy
-        // This prevents memory leaks from orphaned tasks on back-to-back queries
+        // Cancel any background follow-up generation from the prior answer.
+        followUpSuggestionsTask?.cancel()
+        followUpSuggestionsTask = nil
+        followUpSuggestions = []
+
+        // Cancel the in-flight foreground query if one is still actively processing.
+        // If the UI is already idle, treat any stored task handle as stale completion work
+        // rather than canceling it during a follow-up tap.
         if let existingTask = currentQueryTask {
-            currentQuerySessionId = nil
-            existingTask.cancel()
-            currentQueryTask = nil
-            // Brief yield to let cancellation propagate
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
+            if isProcessing {
+                currentQuerySessionId = nil
+                existingTask.cancel()
+                currentQueryTask = nil
+                // Brief yield to let cancellation propagate
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
+                }
+            } else {
+                currentQuerySessionId = nil
+                currentQueryTask = nil
             }
         }
 
@@ -2170,6 +2189,10 @@ struct ChatScreen: View {
                     // No need to reset again here - would race with final flush
                     self.appendAndPersistMessage(assistant, for: capturedUsedContainerId)
 
+                    if let genStart = self.generatingStartTS {
+                        self.generatingElapsedFinal = Date().timeIntervalSince(genStart)
+                    }
+
                     if self.ragService.containerService.activeContainerId == capturedUsedContainerId {
                         self.stage = .complete
 
@@ -2181,39 +2204,48 @@ struct ChatScreen: View {
                             icon: "checkmark.circle.fill",
                             tint: .green
                         )
+
+                        // Mark the foreground answer as complete immediately.
+                        // Any smart replies generated after this point are background work.
+                        self.isProcessing = false
+                        self.stage = .idle
+                        self.resetStreamingState()
+                        self.generationStart = nil
+
+                        // Sever the foreground query handle now that the visible answer is done.
+                        // This prevents a follow-up tap from racing stale cleanup from the
+                        // previous turn and making the conversation behave like single-turn only.
+                        self.currentQuerySessionId = nil
+                        self.currentQueryTask = nil
                     }
                 }
 
-                // Generate follow-up suggestions if Smart Replies are enabled
+                // Generate follow-up suggestions in the background. These should never
+                // keep the main chat in a "generating" state after the answer is visible.
                 let enableSmartReplies = await MainActor.run { self.settings.enableSmartReplies }
                 let smartReplyCount = await MainActor.run { self.settings.smartReplyCount }
                 if enableSmartReplies {
-                    let suggestions = await SmartReplyService.shared.generateFollowUps(
-                        query: capturedQuery,
-                        response: response.generatedResponse,
-                        retrievedChunks: response.retrievedChunks,
-                        maxSuggestions: smartReplyCount
-                    )
                     await MainActor.run {
-                        guard self.currentQuerySessionId == querySessionId,
-                              self.ragService.containerService.activeContainerId == capturedUsedContainerId
-                        else { return }
-                        self.followUpSuggestions = suggestions
-                    }
-                }
+                        self.followUpSuggestionsTask?.cancel()
+                        self.followUpSuggestionsTask = Task(priority: .utility) {
+                            let suggestions = await SmartReplyService.shared.generateFollowUps(
+                                query: capturedQuery,
+                                response: response.generatedResponse,
+                                retrievedChunks: response.retrievedChunks,
+                                maxSuggestions: smartReplyCount
+                            )
 
-                try? await Task.sleep(nanoseconds: 200_000_000)
+                            guard !Task.isCancelled else { return }
 
-                await MainActor.run {
-                    guard self.currentQuerySessionId == querySessionId,
-                          self.ragService.containerService.activeContainerId == capturedUsedContainerId
-                    else { return }
-                    if let genStart = self.generatingStartTS {
-                        self.generatingElapsedFinal = Date().timeIntervalSince(genStart)
+                            await MainActor.run {
+                                guard !self.isProcessing,
+                                      self.ragService.containerService.activeContainerId == capturedUsedContainerId
+                                else { return }
+                                self.followUpSuggestions = suggestions
+                                self.followUpSuggestionsTask = nil
+                            }
+                        }
                     }
-                    self.stage = .idle
-                    self.resetStreamingState()  // Final cleanup after everything settles
-                    self.generationStart = nil
                 }
             } catch {
                 Log.error("Query failed: \(error.localizedDescription)", category: .llm)
