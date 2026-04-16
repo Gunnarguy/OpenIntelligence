@@ -24,6 +24,25 @@ User Interface
 | Answering engine  | Evidence retrieval, answer synthesis, citation packaging                       |
 | Platform services | Apple Intelligence, OCR, speech, PDF, Metal, StoreKit, system privacy controls |
 
+## Code Organization
+
+The app source is organized to separate product experience, shared domain types, and the answering engine stack:
+
+- `App/` contains entry points and top-level routing.
+- `Core/` contains shared models, protocols, and extensions used across the app.
+- `Features/` contains user-facing modules such as chat, documents, billing, settings, onboarding, diagnostics, and telemetry.
+  Chat is grouped into conversation, response, and pipeline support.
+  Documents is grouped into library, search, detail, settings, and reusable components.
+  Telemetry is grouped into dashboard, visualizations, and diagnostics.
+- `Services/Document/` is grouped by pipeline stage: processing, extraction, chunking, analysis, classification, and configuration.
+- `Services/Embedding/` separates embedding orchestration from concrete provider implementations.
+- `Services/Infrastructure/` groups cross-cutting app services by concern, including configuration, monitoring, background work, compute, integrations, and presentation support.
+- `Services/Query/` groups query enhancement, rewriting, routing, analysis, and user-assist behavior.
+- `Services/RAG/` is grouped into orchestration, retrieval, extraction, safety, and tuning.
+- `Services/LLM/`, `Services/Storage/`, and `Services/VectorStore/` hold the remaining core answering engine layers.
+- `Resources/` contains assets, ML models, privacy metadata, and StoreKit content.
+- `UI/` contains reusable design system components shared across features.
+
 ## Public Principles
 
 - Native iOS-first architecture
