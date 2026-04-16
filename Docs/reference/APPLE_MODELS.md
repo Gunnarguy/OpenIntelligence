@@ -613,36 +613,9 @@ let feedbackData = session.logFeedbackAttachment(
 
 ---
 
-## OpenIntelligence Implementation Notes
+## Public Repository Note
 
-### Current Architecture Alignment
-
-| Apple Recommendation            | OpenIntelligence Implementation            |
-| ------------------------------- | ------------------------------------------ |
-| RAG for large knowledge bases   | ✅ VectorStoreRouter + HybridSearchService |
-| 3-5 tools max                   | ⚠️ We have 12+ @Tool functions - OPTIMIZE  |
-| Multi-session for complex tasks | ✅ Deep Think uses parallel sessions       |
-| Chunking + embedding            | ✅ SemanticChunker + NLEmbedding           |
-| Short instructions              | ⚠️ May need optimization                   |
-
-### Optimization Opportunities
-
-1. **Reduce tool count** - Consolidate or remove rarely-used tools
-2. **Shorter @Guide descriptions** - Trim to essential phrases
-3. **Add reasoning field** - First property in response structs
-4. **Implement prewarm()** - For common prompt prefixes
-5. **Use contentTagging** - For classification tasks (lighter model)
-
-### Token Budget for RAG Context
-
-With 4096 total tokens:
-
-- ~500 tokens for instructions + tool schemas
-- ~500 tokens for prompt
-- ~1000-1500 tokens for model response
-- **~1500-2000 tokens available for RAG context**
-
-At 3.5 chars/token: **~5,250-7,000 characters for RAG snippets**
+This document is kept as an Apple-platform reference. OpenIntelligence-specific implementation notes, token budgeting strategy, optimization tasks, and internal architecture alignment are intentionally maintained outside the public repository.
 
 ---
 
