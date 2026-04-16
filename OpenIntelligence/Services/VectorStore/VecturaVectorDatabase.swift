@@ -7,7 +7,7 @@
 //
 //  Toggle via: UserDefaults.standard.bool(forKey: "useExperimentalANNIndex")
 //  When true and VecturaKit is available, app will use this DB; otherwise it
-//  falls back to PersistentVectorDatabase.
+//  falls back to the BNNS-backed persistent store.
 //
 
 import Foundation

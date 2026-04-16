@@ -125,8 +125,6 @@ final class VectorStoreRouter {
             return VectorDBKind.persistentJSON.rawValue
         } else if db is InMemoryVectorDatabase {
             return VectorDBKind.inMemory.rawValue
-        } else if db is PersistentVectorDatabase {
-            return VectorDBKind.persistentJSON.rawValue
         }
         #if canImport(VecturaKit)
             if db is VecturaVectorDatabase {
