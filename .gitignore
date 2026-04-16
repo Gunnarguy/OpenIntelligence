@@ -44,6 +44,11 @@ fastlane/report.xml
 fastlane/Preview.html
 fastlane/screenshots/
 fastlane/test_output/
+fastlane/metadata/review_information/
+
+# Device screenshots (internal debugging only)
+Xrays/*.jpeg
+Xrays/*.png
 
 # Bundler
 vendor/bundle/
