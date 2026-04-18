@@ -130,13 +130,13 @@ struct SettingsView: View {
             HStack(spacing: 8) {
                 statusPill(
                     icon: "checkmark.circle.fill",
-                    text: "On-Device",
+                    text: "On-Device First",
                     active: deviceCapabilities.supportsFoundationModels
                 )
                 statusPill(
                     icon: "cloud.fill",
-                    text: "PCC Fallback",
-                    active: false
+                    text: "PCC Available",
+                    active: deviceCapabilities.supportsPrivateCloudCompute && settings.applePCCConsent != .denied
                 )
             }
         }
@@ -480,15 +480,15 @@ Text(label)
                         .font(.subheadline.weight(.medium))
                 }
 
-                Text("Apple's Private Cloud Compute (PCC) is a secure cloud AI system used by Apple's own features (Siri, Writing Tools, etc.). Third-party apps like OpenIntelligence use the on-device model exclusively — PCC access is reserved for Apple.")
+                Text("Apple's Private Cloud Compute (PCC) is Apple's secure cloud extension for Apple Intelligence. When you allow it and a request benefits from additional capacity, Apple may route eligible processing there. OpenIntelligence does not operate its own servers.")
                     .font(.caption)
 .foregroundColor(.secondary)
 
-                // PCC info (what it is, not what we use)
+                // PCC info (what it is and when Apple may use it)
                 VStack(alignment: .leading, spacing: 6) {
-                    pccBenefitRow(icon: "lock.shield.fill", text: "PCC: Apple-only, end-to-end encrypted, zero retention", color: .secondary)
+                    pccBenefitRow(icon: "lock.shield.fill", text: "PCC: Apple-operated, end-to-end encrypted, zero retention", color: .secondary)
                     pccBenefitRow(icon: "doc.viewfinder", text: "Cryptographically verifiable by security researchers", color: .secondary)
-                    pccBenefitRow(icon: "info.circle", text: "OpenIntelligence does not use PCC — all processing is on-device", color: .accentColor)
+                    pccBenefitRow(icon: "info.circle", text: "Used only for eligible requests when Apple Intelligence and your consent allow it", color: .accentColor)
                 }
                 .padding(.leading, 4)
                     .padding(.top, 4)

@@ -1,1 +1,1 @@
-On-device RAG engine for iPhone. 29-step pipeline, 7 anti-hallucination gates, 3 quality modes. Import PDFs, Word, Excel, images — ask questions, get cited answers.
+Private document Q&A for iPhone with cited answers, claim-level verification, source review, and grounded refusal when evidence is weak.

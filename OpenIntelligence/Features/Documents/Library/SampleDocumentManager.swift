@@ -290,7 +290,7 @@ OpenIntelligence uses 23 Apple frameworks with zero third-party AI dependencies:
 | **TipKit** | Contextual user education |
 
 ### Why All-Apple Matters
-- **No network dependency**: Everything works offline
+- **Offline-first**: Core on-device queries work without a network connection
 - **No API keys**: Nothing to configure, leak, or pay for
 - **No data egress**: Your documents never leave your device (or Apple PCC)
 - **Optimized for hardware**: CoreML models exploit Neural Engine, GPU, and AMX units

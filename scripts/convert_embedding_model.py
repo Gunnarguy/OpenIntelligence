@@ -7,7 +7,7 @@ Apple Neural Engine compatibility.
 
 Models:
 1) sentence-transformers/all-MiniLM-L6-v2  → EmbeddingModel.mlpackage
-2) cross-encoder/ms-marco-TinyBERT-L-2-v2 → ReRankerModel.mlpackage
+2) cross-encoder/ms-marco-TinyBERT-L2-v2 → ReRankerModel.mlpackage
 
 Settings:
 - compute_units=ct.ComputeUnit.ALL
@@ -53,10 +53,10 @@ EMBEDDING_CONFIG = {
 }
 
 RERANKER_CONFIG = {
-    "model_id": "cross-encoder/ms-marco-TinyBERT-L-2-v2",
+    "model_id": "cross-encoder/ms-marco-TinyBERT-L2-v2",
     "mlpackage": "ReRankerModel.mlpackage",
     "vocab": "reranker_vocab.json",
-    "description": "Cross-encoder reranker (TinyBERT-L-2-v2)",
+    "description": "Cross-encoder reranker (TinyBERT-L2-v2)",
 }
 
 

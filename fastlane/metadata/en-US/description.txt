@@ -1,61 +1,40 @@
-Turn your documents into an offline neural knowledge base — entirely on your iPhone.
+Ask your own documents questions on iPhone and review source-backed answers with citations.
 
-OpenIntelligence is an on-device RAG engine that imports your documents, builds a local search index, and answers questions using Apple Intelligence. No cloud. No accounts. No data leaves your device.
+OpenIntelligence imports your files into private libraries, searches them locally, and answers from the material you provide. The product focus is not generic chat. It is document-grounded question answering with source review, clearer trust signals, and refusal when support is weak.
 
-RETRIEVAL (29-STEP PIPELINE)
-• Hybrid Search — BM25 keywords fused with 384-dim neural embeddings via RRF
-• HyDE — Synthetic answer generation for better semantic matching
-• Cross-Encoder Reranking — Neural model rescores candidates for precision
-• MMR Diversification — Filters redundant chunks for maximum coverage
-• Parent Document Retrieval — Expands matches to surrounding paragraph context
-• Graph Context Packing — Optimizes the 4,096-token budget via graph algorithms
-• Lost-in-Middle Mitigation — Reorders evidence so the AI sees critical content first
+WHY PEOPLE USE IT
+• Ask questions over manuals, notes, research papers, policies, support docs, and internal reference material
+• Get answers with citations and jump back to the source passages
+• Review which claims were supported, which were dropped, and what evidence was missing
+• Keep search, indexing, and most answering behavior on-device by default
 
-DOCUMENT PROCESSING
-• Semantic Chunking — Splits by logic and structure, not character counts
-• Multi-Column OCR — Metal-accelerated Vision at 360 DPI for complex layouts
-• Font Cipher Detection — Detects encoded text and forces full OCR
-• Entity Extraction — Names, organizations, technical terms indexed per document
+TRUST FEATURES
+• Source-backed answers with citations
+• Claim-level verification before final answer rendering
+• Grounded refusal when critical claims cannot be supported
+• Source review with document, page, and excerpt inspection
+• Multiple quality modes depending on how deep you want the app to reason
 
-ANTI-HALLUCINATION (7 GATES)
-Every answer passes gates A-G: retrieval confidence, evidence coverage, numeric sanity, contradiction detection, semantic grounding, quote faithfulness, and generation quality. Critical failures trigger abstention — the app refuses to answer rather than answer wrong.
+PRIVACY
+OpenIntelligence is designed around Apple platforms and local execution. Search, storage, indexing, and document preparation stay on your device. Apple-managed cloud processing may be used only through Apple system features and your device settings when the platform makes that available.
 
-When questions barely overlap with documents, Evidence-First Mode states what evidence exists instead of fabricating answers.
+SUPPORTED CONTENT
+Documents: PDF, TXT, MD, RTF, DOCX, XLSX, PPTX, JSON, XML, YAML, CSV
+Code and data: Swift, Python, JavaScript, TypeScript, Java, C, C++, Go, Rust, Ruby, PHP, HTML, CSS, SQL, Shell, and more
+Images: JPEG, PNG, HEIC, TIFF, GIF
+Audio and video: common Apple-supported formats with local extraction and transcription where available
 
-THREE QUALITY MODES
-• Standard — Fast factual answers in seconds
-• Deep Think — 4-8 reasoning sessions with iterative retrieval for legal, medical, or academic research
-• Maximum — 8-50 sessions with exhaustive multi-chain synthesis
+QUALITY MODES
+• Standard for fast document answers
+• Deep Think for harder multi-step questions
+• Maximum for heavier synthesis when you want the app to spend more effort
 
-AI HUB TRANSFORMS
-Extract Key Facts, Step-by-Step, Plain English, Gap Analysis, or Illustrations from any answer — grounded in source documents with markdown rendering.
+SUBSCRIPTIONS
+• Free tier with limited document capacity
+• Pro monthly and annual plans for larger libraries
+• Lifetime option for one-time unlock access
 
-AGENTIC TOOL USE
-8 tools the AI invokes automatically: semantic search, document listing, summarization, pattern counting, exact text search, corpus statistics, related documents, and cross-document comparison.
-
-PERFORMANCE & TELEMETRY
-3-tier Metal GPU shaders and concurrent neural reranking adapt to your Apple Silicon. Motherboard HUD shows real-time chip telemetry: thermal, memory, GPU utilization.
-
-100% PRIVATE
-Runs on-device via Apple's Foundation Models. Documents never leave your iPhone unless iOS invokes Private Cloud Compute — Apple's zero-retention, cryptographically verified fallback. No accounts. No uploads. No tracking.
-
-50+ SUPPORTED FORMATS
-Documents: PDF, Word, Excel, PowerPoint, Pages, Numbers, Keynote, Markdown, CSV, RTF, TXT, JSON, XML, YAML
-Code: Swift, Python, JavaScript, TypeScript, Java, C, C++, Go, Rust, Ruby, PHP, HTML, CSS, SQL, Shell, and more
-Audio: M4A, MP3, WAV — on-device transcription up to 2 hours
-Video: MP4, MOV — audio extraction and transcription
-Images: JPEG, PNG, HEIC, TIFF, GIF — Vision OCR text extraction
-
-APPLE FRAMEWORKS
-FoundationModels, Vision, NaturalLanguage, CoreML, PDFKit, Speech, Metal, StoreKit 2, CoreSpotlight, Image Playground.
-
-SUBSCRIPTION OPTIONS
-• Free: 5 documents, full pipeline, all quality modes
-• Pro Monthly ($5.99): Up to 1,000 documents, 5 libraries
-• Pro Annual ($49.99): Save 30% vs. monthly
-• Lifetime ($59.99): One-time purchase, all features forever
-
-Payment charged to your Apple ID at confirmation. Subscriptions renew unless canceled 24 hours before the current period ends. Manage in Settings > Apple ID > Subscriptions.
+Payment is charged to your Apple ID at confirmation. Subscriptions renew unless canceled at least 24 hours before the current period ends. Manage subscriptions in your Apple account settings.
 
 Privacy Policy: https://gunzino.me/openintelligence/privacy
 Terms of Use: https://www.apple.com/legal/internet-services/itunes/dev/stdeula/
