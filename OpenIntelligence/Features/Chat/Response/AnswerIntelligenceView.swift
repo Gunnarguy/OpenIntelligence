@@ -669,6 +669,8 @@ extension AnswerIntelligence {
         case .semanticGrounding: return "Semantic Grounding"
         case .quoteFaithfulness: return "Quote Faithfulness"
         case .generationQuality: return "Generation Quality"
+        case .answerCompleteness: return "Answer Completeness"
+        case .domainIsolation: return "Domain Isolation"
         }
     }
 
@@ -681,6 +683,8 @@ extension AnswerIntelligence {
         case .semanticGrounding: return "brain.head.profile"
         case .quoteFaithfulness: return "quote.bubble"
         case .generationQuality: return "waveform.path.ecg"
+        case .answerCompleteness: return "checklist"
+        case .domainIsolation: return "square.3.layers.3d.slash"
         }
     }
 }

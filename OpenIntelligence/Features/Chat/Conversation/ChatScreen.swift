@@ -81,6 +81,7 @@ struct ChatScreen: View {
     @StateObject private var toastManager = ToastManager()
     @State private var currentRetrievedChunks: [RetrievedChunk] = []
     @State private var currentMetadata: ResponseMetadata? = nil
+    @State private var currentStructuredAnswer: StructuredAnswer? = nil
     @State private var showRetrievedDetails: Bool = false
     @State private var thinkingEvents: [ThinkingEvent] = []
     @State private var requestedExecutionContext: ExecutionContext = .automatic
@@ -491,7 +492,8 @@ struct ChatScreen: View {
             if let meta = currentMetadata {
                 ChatResponseDetailsView(
                     metadata: meta,
-                    retrievedChunks: currentRetrievedChunks
+                    retrievedChunks: currentRetrievedChunks,
+                    structuredAnswer: currentStructuredAnswer
                 )
             } else {
                 VStack(alignment: .leading, spacing: DSSpacing.md) {
@@ -824,6 +826,7 @@ struct ChatScreen: View {
             streamingText = ""
             currentRetrievedChunks = []
             currentMetadata = nil
+            currentStructuredAnswer = nil
             showRetrievedDetails = false
             activeCloudConsent = nil
             thinkingEvents = []
@@ -1283,6 +1286,7 @@ struct ChatScreen: View {
         generatingElapsedFinal = nil
         currentRetrievedChunks = []
         currentMetadata = nil
+        currentStructuredAnswer = nil
         followUpSuggestions = []
         toastManager.clearAll()
         showRetrievedDetails = false
@@ -1315,6 +1319,7 @@ struct ChatScreen: View {
         generatingElapsedFinal = nil
         currentRetrievedChunks = []
         currentMetadata = nil
+        currentStructuredAnswer = nil
         followUpSuggestions = []
         toastManager.clearAll()
         showRetrievedDetails = false
@@ -1483,6 +1488,41 @@ struct ChatScreen: View {
 
     // MARK: - Main Content Area
 
+    private var localExecutionStatus: (icon: String, text: String, color: Color)? {
+        if !networkMonitor.isConnected {
+            return ("wifi.slash", "Offline · No network connection", .green)
+        }
+
+        switch execution {
+        case .onDevice:
+            return ("iphone", "On-device · No network required", .green)
+        case .mlxLocal:
+            return ("desktopcomputer", "Local model · No network required", .indigo)
+        case .unknown, .privateCloudCompute:
+            return nil
+        }
+    }
+
+    @ViewBuilder
+    private var localExecutionBanner: some View {
+        if let status = localExecutionStatus {
+            HStack(spacing: 8) {
+                Image(systemName: status.icon)
+                    .font(.caption.weight(.semibold))
+                Text(status.text)
+                    .font(.caption.weight(.medium))
+                Spacer(minLength: 0)
+            }
+            .foregroundColor(status.color)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(status.color.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .padding(.horizontal, 12)
+            .padding(.bottom, 6)
+        }
+    }
+
     @ViewBuilder private var mainContentArea: some View {
         VStack(spacing: 0) {
             CompactChatHeader(
@@ -1492,6 +1532,8 @@ struct ChatScreen: View {
                 ragService: ragService,
                 messageContainerOverride: $messageContainerOverride
             )
+
+            localExecutionBanner
 
             if let metricsData = consolidatedMetricsData {
                 primaryMetricsBar(metricsData: metricsData)
@@ -2141,6 +2183,7 @@ struct ChatScreen: View {
                     else { return }
                     self.currentRetrievedChunks = response.retrievedChunks
                     self.currentMetadata = response.metadata
+                    self.currentStructuredAnswer = response.structuredAnswer
                     // Sources tray will show this - no separate toast needed
                 }
 
@@ -2167,7 +2210,8 @@ struct ChatScreen: View {
                     role: .assistant,
                     content: sanitizeFinalResponse(response.generatedResponse),
                     metadata: response.metadata,
-                    retrievedChunks: response.retrievedChunks
+                    retrievedChunks: response.retrievedChunks,
+                    structuredAnswer: response.structuredAnswer
                 )
                 assistant.containerId = capturedUsedContainerId
 

@@ -3,12 +3,14 @@
 //  OpenIntelligence
 //
 //  Verification gates for anti-hallucination (AppleRAG Spec Phase 2.06).
-//  Implements Gates A-G to ensure answers are grounded in retrieved evidence.
+//  Implements Gates A-I to ensure answers are grounded in retrieved evidence.
 //
 //  Gate A: Retrieval Confidence - require max(score) >= τ AND margin >= μ
 //  Gate B: Evidence Coverage - all claims must cite evidence_ids
 //  Gate C: Numeric Sanity - numbers in response must match source
 //  Gate D: Contradiction Sweep - detect conflicting evidence
+//  Gate H: Answer Completeness - detect under-supported multi-hop or comparison answers
+//  Gate I: Domain Isolation - reject mixed-domain evidence before synthesis
 //
 
 import Foundation
@@ -40,7 +42,7 @@ struct RAGVerificationResult: Sendable {
     }
 }
 
-/// The seven verification gates from AppleRAG spec
+/// Verification gates from AppleRAG spec plus completeness checking
 enum VerificationGate: String, CaseIterable, Sendable {
     case retrievalConfidence = "Gate A: Retrieval Confidence"
     case evidenceCoverage = "Gate B: Evidence Coverage"
@@ -49,6 +51,8 @@ enum VerificationGate: String, CaseIterable, Sendable {
     case semanticGrounding = "Gate E: Semantic Grounding"
     case quoteFaithfulness = "Gate F: Quote Faithfulness"
     case generationQuality = "Gate G: Generation Quality"
+    case answerCompleteness = "Gate H: Answer Completeness"
+    case domainIsolation = "Gate I: Domain Isolation"
 }
 
 // MARK: - Verification Configuration
@@ -133,7 +137,8 @@ actor VerificationGateService {
         allCandidateChunks: [RetrievedChunk]? = nil,
         responseEmbedding: [Float]? = nil,
         queryEmbedding: [Float]? = nil,
-        chunkEmbeddings: [[Float]]? = nil
+        chunkEmbeddings: [[Float]]? = nil,
+        answerIntent: AnswerIntent? = nil
     ) async -> RAGVerificationResult {
 
         let isTouchy = detectTouchyQuery(query)
@@ -150,7 +155,6 @@ actor VerificationGateService {
         gateResults.append(gateB)
 
         // Gate C: Numeric Sanity — uses ALL candidate chunks for wider verification scope
-        // The LLM might reference numbers from spec chunks that were truncated from context
         let gateCChunks = allCandidateChunks ?? retrievedChunks
         let gateC = await runGateC(response: response, chunks: gateCChunks)
         gateResults.append(gateC)
@@ -160,9 +164,6 @@ actor VerificationGateService {
         gateResults.append(gateD)
 
         // Gate E: Semantic Grounding — the real hallucination killer
-        // Uses EMBEDDINGS to check if the response MEANING is grounded in source chunks.
-        // Requires: responseEmbedding (LLM output embedded), chunkEmbeddings (source chunk
-        // vectors loaded from mmap), and queryEmbedding (for relative grounding check).
         if let responseVec = responseEmbedding,
            let chunkVecs = chunkEmbeddings,
            !responseVec.isEmpty,
@@ -171,33 +172,42 @@ actor VerificationGateService {
                 responseEmbedding: responseVec,
                 queryEmbedding: queryEmbedding,
                 chunkEmbeddings: chunkVecs,
-                response: response
+                response: response,
+                query: query,
+                chunks: retrievedChunks,
+                answerIntent: answerIntent
             )
             gateResults.append(gateE)
         }
 
-        // Gate F: Quote Faithfulness — catch abbreviation cross-contamination
-        // Verifies that abbreviation expansions in the response match document definitions.
-        // Example: If document defines "ED = Emotional Dysregulation" but LLM writes
-        // "oppositional defiant disorder (ED)", Gate F catches this fabrication.
+        // Gate F: Quote Faithfulness
         let gateF = runGateF(response: response, chunks: retrievedChunks)
         gateResults.append(gateF)
 
-        // Gate G: Generation Quality — information-theoretic degeneration detector
-        // Catches repetition loops, low-entropy output, and lexical poverty that
-        // slip through all upstream defenses. Uses Shannon entropy, unique-word
-        // ratio, and n-gram dominance — zero regex needed.
+        // Gate G: Generation Quality
         let gateG = runGateG(response: response)
         gateResults.append(gateG)
 
-        // Calculate overall result
+        // Gate H: Answer Completeness
+        let gateH = runGateH(
+            response: response,
+            query: query,
+            chunks: retrievedChunks,
+            answerIntent: answerIntent
+        )
+        gateResults.append(gateH)
+
+        let gateI = runGateI(
+            query: query,
+            chunks: retrievedChunks,
+            answerIntent: answerIntent
+        )
+        gateResults.append(gateI)
+
         let allPassed = gateResults.allSatisfy { $0.passed }
         let overallConfidence = gateResults.reduce(0.0) { $0 + $1.confidence } / Float(gateResults.count)
 
-        // Determine if we should abstain
-        // Gate E (semantic grounding) is critical — if the response is semantically ungrounded,
-        // it's almost certainly hallucinated regardless of what other gates say
-        let criticalGates: Set<VerificationGate> = [.retrievalConfidence, .numericSanity, .semanticGrounding]
+        let criticalGates: Set<VerificationGate> = [.retrievalConfidence, .numericSanity, .semanticGrounding, .domainIsolation]
         let criticalFailures = gateResults.filter { !$0.passed && criticalGates.contains($0.gate) }
         let shouldAbstain = !criticalFailures.isEmpty
 
@@ -468,7 +478,10 @@ actor VerificationGateService {
         responseEmbedding: [Float],
         queryEmbedding: [Float]?,
         chunkEmbeddings: [[Float]],
-        response: String
+        response: String,
+        query: String,
+        chunks: [RetrievedChunk],
+        answerIntent: AnswerIntent?
     ) -> RAGVerificationResult.GateResult {
 
         guard !chunkEmbeddings.isEmpty else {
@@ -496,6 +509,12 @@ actor VerificationGateService {
         }
         responseAvgSim /= Float(max(chunkEmbeddings.count, 1))
 
+        let topicalAlignment = evaluateTopicalAlignment(
+            query: query,
+            chunks: chunks,
+            answerIntent: answerIntent
+        )
+
         // ── Step 2: Relative grounding (preferred) or absolute threshold ───
         if let queryVec = queryEmbedding, !queryVec.isEmpty {
             // Compute query ↔ chunk similarities for comparison baseline
@@ -517,25 +536,21 @@ actor VerificationGateService {
             // is extremely low, the embeddings might be unreliable
             let absoluteFloor: Float = 0.25
             let relativeThreshold: Float = 0.80  // Response should be ≥80% as similar as query
+            let sameTopicMismatch = topicalAlignment.isMismatch && responseMaxSim >= absoluteFloor
 
-            let passed = ratio >= relativeThreshold && responseMaxSim >= absoluteFloor
+            let passed = ratio >= relativeThreshold && responseMaxSim >= absoluteFloor && !sameTopicMismatch
 
             let details: String
             if passed {
-                details = "Grounded (ratio=\(String(format: "%.3f", ratio)), " +
-                    "respMax=\(String(format: "%.3f", responseMaxSim)), " +
-                    "qryMax=\(String(format: "%.3f", queryMaxSim)), " +
-                    "avgSim=\(String(format: "%.3f", responseAvgSim)), " +
-                    "bestChunk=\(bestChunkIndex))"
+                details = "Grounded (ratio=\(formatFloat3(ratio)), respMax=\(formatFloat3(responseMaxSim)), qryMax=\(formatFloat3(queryMaxSim)), avgSim=\(formatFloat3(responseAvgSim)), bestChunk=\(bestChunkIndex))"
+            } else if sameTopicMismatch {
+                details = "TOPICAL_MISMATCH (ratio=\(formatFloat3(ratio)), respMax=\(formatFloat3(responseMaxSim)), qryMax=\(formatFloat3(queryMaxSim))). " +
+                    (topicalAlignment.details ?? "Retrieved evidence does not cover the query's distinguishing terms.")
+                Log.warning("[VerificationGates] Gate E: Topical alignment FAIL — \(topicalAlignment.details ?? "same-topic mismatch")", category: .pipeline)
             } else {
-                details = "UNGROUNDED (ratio=\(String(format: "%.3f", ratio)) < \(String(format: "%.2f", relativeThreshold)), " +
-                    "respMax=\(String(format: "%.3f", responseMaxSim)), " +
-                    "qryMax=\(String(format: "%.3f", queryMaxSim))). " +
-                    "Response meaning drifted from source chunks."
+                details = "UNGROUNDED (ratio=\(formatFloat3(ratio)) < \(formatFloat2(relativeThreshold)), respMax=\(formatFloat3(responseMaxSim)), qryMax=\(formatFloat3(queryMaxSim))). Response meaning drifted from source chunks."
                 Log.warning("[VerificationGates] Gate E: Relative grounding FAIL — " +
-                    "response drifted from sources (ratio=\(String(format: "%.3f", ratio)), " +
-                    "respMax=\(String(format: "%.3f", responseMaxSim)), " +
-                    "qryMax=\(String(format: "%.3f", queryMaxSim)))", category: .pipeline)
+                    "response drifted from sources (ratio=\(formatFloat3(ratio)), respMax=\(formatFloat3(responseMaxSim)), qryMax=\(formatFloat3(queryMaxSim)))", category: .pipeline)
             }
 
             return RAGVerificationResult.GateResult(
@@ -547,14 +562,19 @@ actor VerificationGateService {
         }
 
         // ── Step 3: Absolute fallback (no query embedding available) ───────
-        let passed = responseMaxSim >= config.semanticGroundingThreshold
+        let sameTopicMismatch = topicalAlignment.isMismatch && responseMaxSim >= config.semanticGroundingThreshold
+        let passed = responseMaxSim >= config.semanticGroundingThreshold && !sameTopicMismatch
 
         let details: String
         if passed {
-            details = "Grounded-absolute (max=\(String(format: "%.3f", responseMaxSim)), avg=\(String(format: "%.3f", responseAvgSim)), bestChunk=\(bestChunkIndex))"
+            details = "Grounded-absolute (max=\(formatFloat3(responseMaxSim)), avg=\(formatFloat3(responseAvgSim)), bestChunk=\(bestChunkIndex))"
+        } else if sameTopicMismatch {
+            details = "TOPICAL_MISMATCH (max=\(formatFloat3(responseMaxSim)), avg=\(formatFloat3(responseAvgSim))). " +
+                (topicalAlignment.details ?? "Retrieved evidence does not cover the query's distinguishing terms.")
+            Log.warning("[VerificationGates] Gate E: Topical alignment FAIL — \(topicalAlignment.details ?? "same-topic mismatch")", category: .pipeline)
         } else {
-            details = "UNGROUNDED (max=\(String(format: "%.3f", responseMaxSim)) < \(String(format: "%.2f", config.semanticGroundingThreshold)), avg=\(String(format: "%.3f", responseAvgSim))). Response meaning does not match any source chunk."
-            Log.warning("[VerificationGates] Gate E: Absolute grounding FAIL (max cosine=\(String(format: "%.3f", responseMaxSim)))", category: .pipeline)
+            details = "UNGROUNDED (max=\(formatFloat3(responseMaxSim)) < \(formatFloat2(config.semanticGroundingThreshold)), avg=\(formatFloat3(responseAvgSim))). Response meaning does not match any source chunk."
+            Log.warning("[VerificationGates] Gate E: Absolute grounding FAIL (max cosine=\(formatFloat3(responseMaxSim)))", category: .pipeline)
         }
 
         return RAGVerificationResult.GateResult(
@@ -805,6 +825,87 @@ actor VerificationGateService {
         )
     }
 
+    /// Gate H: Answer Completeness
+    ///
+    /// Detects under-supported answers that are plausible but likely incomplete.
+    /// This is especially important for multi-hop, compare, and enumeration-style queries.
+    private func runGateH(
+        response: String,
+        query: String,
+        chunks: [RetrievedChunk],
+        answerIntent: AnswerIntent?
+    ) -> RAGVerificationResult.GateResult {
+        guard let answerIntent else {
+            return RAGVerificationResult.GateResult(
+                gate: .answerCompleteness,
+                passed: true,
+                confidence: 1.0,
+                details: "Answer intent unavailable"
+            )
+        }
+
+        var confidence: Float = 1.0
+        var findings: [String] = []
+
+        let uniqueEvidenceScopes = countDistinctEvidenceScopes(in: chunks)
+
+        if answerIntent.benefitsFromMultiHop && uniqueEvidenceScopes < 2 {
+            confidence -= 0.55
+            findings.append("multi-hop intent supported by only \(uniqueEvidenceScopes) evidence section")
+        }
+
+        let comparisonTargets = extractComparisonTargets(from: query)
+        if answerIntent == .compare && comparisonTargets.count == 2 {
+            let coveredTargets = comparisonTargets.filter { comparisonTargetCovered($0, in: response) }.count
+            if coveredTargets < 2 {
+                confidence -= 0.35
+                findings.append("comparison response covers \(coveredTargets)/2 targets")
+            }
+        }
+
+        if queryLooksEnumerative(query) {
+            let responseWordCount = max(1, response.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count)
+            let looksListLike = response.contains("\n") || response.contains("•") || response.contains("- ")
+            if responseWordCount < 35 && !looksListLike {
+                confidence -= 0.20
+                findings.append("enumeration requested but response is terse")
+            }
+        }
+
+        confidence = max(0.0, confidence)
+        let passed = confidence >= 0.55
+        let details = findings.isEmpty
+            ? "Completeness signals look healthy across \(max(uniqueEvidenceScopes, 1)) evidence section(s)"
+            : findings.joined(separator: "; ")
+
+        return RAGVerificationResult.GateResult(
+            gate: .answerCompleteness,
+            passed: passed,
+            confidence: confidence,
+            details: details
+        )
+    }
+
+    private func runGateI(
+        query: String,
+        chunks: [RetrievedChunk],
+        answerIntent: AnswerIntent?
+    ) -> RAGVerificationResult.GateResult {
+        let assessment = DomainIsolationService.assess(query: query, chunks: chunks, answerIntent: answerIntent)
+        let confidence = assessment.allowedCoverage
+
+        if assessment.shouldAbstain {
+            Log.warning("[VerificationGates] Gate I FAILED: \(assessment.reason ?? assessment.details)", category: .pipeline)
+        }
+
+        return RAGVerificationResult.GateResult(
+            gate: .domainIsolation,
+            passed: !assessment.shouldAbstain,
+            confidence: confidence,
+            details: assessment.reason ?? assessment.details
+        )
+    }
+
     /// Hardware-accelerated via vDSP — ~10x faster than scalar loop for 384-dim vectors.
     /// Matches the Accelerate-based implementation used in RAGEngine and HybridSearchService.
     private func vectorCosineSimilarity(_ a: [Float], _ b: [Float]) -> Float {
@@ -829,6 +930,190 @@ actor VerificationGateService {
     private func detectTouchyQuery(_ query: String) -> Bool {
         let queryLower = query.lowercased()
         return config.touchyCategories.contains { queryLower.contains($0) }
+    }
+
+    private func formatFloat0(_ value: Float) -> String {
+        String(format: "%.0f", value)
+    }
+
+    private func formatFloat2(_ value: Float) -> String {
+        String(format: "%.2f", value)
+    }
+
+    private func formatFloat3(_ value: Float) -> String {
+        String(format: "%.3f", value)
+    }
+
+    private func evaluateTopicalAlignment(
+        query: String,
+        chunks: [RetrievedChunk],
+        answerIntent: AnswerIntent?
+    ) -> (isMismatch: Bool, details: String?) {
+        let requestedSectionTerms = extractRequestedSectionTerms(from: query)
+        let shouldCheckAlignment = (answerIntent?.isExtractiveFirst == true) || !requestedSectionTerms.isEmpty
+
+        guard shouldCheckAlignment, !chunks.isEmpty else {
+            return (false, nil)
+        }
+
+        let queryTerms = extractQueryAnchorTerms(from: query)
+        guard queryTerms.count >= 2 else {
+            return (false, nil)
+        }
+
+        let evidenceTexts = chunks.map { evidenceText(for: $0) }
+        let combinedEvidence = evidenceTexts.joined(separator: " ")
+        let maxCoverage = evidenceTexts.map { termCoverage(queryTerms, in: $0) }.max() ?? 0.0
+
+        let strongAnchors = extractStrongQueryAnchors(from: query)
+        let missingStrongAnchors = strongAnchors.filter { !combinedEvidence.contains($0) }
+        let missingSectionTerms = requestedSectionTerms.filter { !combinedEvidence.contains($0) }
+
+        let isMismatch = maxCoverage < 0.55 || !missingStrongAnchors.isEmpty || !missingSectionTerms.isEmpty
+        guard isMismatch else {
+            return (false, nil)
+        }
+
+        var detailParts: [String] = ["query coverage \(formatFloat0(maxCoverage * 100))% < 55%"]
+        if !missingStrongAnchors.isEmpty {
+            detailParts.append("missing strong anchors: \(missingStrongAnchors.joined(separator: ", "))")
+        }
+        if !missingSectionTerms.isEmpty {
+            detailParts.append("missing requested sections: \(missingSectionTerms.joined(separator: ", "))")
+        }
+
+        return (true, detailParts.joined(separator: "; "))
+    }
+
+    private func evidenceText(for chunk: RetrievedChunk) -> String {
+        var parts: [String] = [chunk.chunk.parentContent ?? chunk.chunk.content]
+        if let sectionTitle = chunk.chunk.metadata.sectionTitle {
+            parts.append(sectionTitle)
+        }
+        if let sectionPath = chunk.chunk.metadata.sectionPath, !sectionPath.isEmpty {
+            parts.append(sectionPath.joined(separator: " "))
+        }
+        return parts.joined(separator: " ").lowercased()
+    }
+
+    private func extractQueryAnchorTerms(from query: String) -> [String] {
+        let trimmableCharacters = CharacterSet(charactersIn: " \t\n\r.,!?;:()[]{}\"'“”‘’")
+        let stopWords: Set<String> = [
+            "what", "which", "when", "where", "who", "why", "how", "the", "a", "an",
+            "is", "are", "was", "were", "be", "does", "do", "did", "can", "should",
+            "could", "would", "for", "from", "with", "into", "onto", "about", "that",
+            "this", "these", "those", "your", "their", "there", "have", "has", "had",
+            "than", "then", "show", "tell", "list", "give", "need", "used", "using"
+        ]
+
+        let terms = query
+            .split(whereSeparator: { $0.isWhitespace || $0.isNewline })
+            .map { String($0).trimmingCharacters(in: trimmableCharacters).lowercased() }
+            .filter {
+                !$0.isEmpty && !stopWords.contains($0) &&
+                    ($0.count >= 3 || $0.rangeOfCharacter(from: .decimalDigits) != nil)
+            }
+
+        return Array(Set(terms))
+    }
+
+    private func extractStrongQueryAnchors(from query: String) -> [String] {
+        let trimmableCharacters = CharacterSet(charactersIn: " \t\n\r.,!?;:()[]{}\"'“”‘’")
+        let anchors = query
+            .split(whereSeparator: { $0.isWhitespace || $0.isNewline })
+            .map { String($0).trimmingCharacters(in: trimmableCharacters).lowercased() }
+            .filter {
+                !$0.isEmpty && (
+                    $0.contains("-") ||
+                    $0.contains("/") ||
+                    $0.rangeOfCharacter(from: .decimalDigits) != nil
+                )
+            }
+        return Array(Set(anchors))
+    }
+
+    private func extractRequestedSectionTerms(from query: String) -> [String] {
+        let sectionTerms: Set<String> = [
+            "abstract", "introduction", "methods", "results", "discussion", "conclusion",
+            "warning", "warnings", "caution", "cautions", "precautions", "contraindications",
+            "indications", "procedure", "procedures", "troubleshooting", "specification",
+            "specifications", "sterilization", "cleaning", "maintenance", "appendix", "references"
+        ]
+        return extractQueryAnchorTerms(from: query).filter { sectionTerms.contains($0) }
+    }
+
+    private func termCoverage(_ terms: [String], in text: String) -> Float {
+        guard !terms.isEmpty else { return 1.0 }
+        let lowercasedText = text.lowercased()
+        let matchedCount = terms.filter { lowercasedText.contains($0) }.count
+        return Float(matchedCount) / Float(terms.count)
+    }
+
+    private func countDistinctEvidenceScopes(in chunks: [RetrievedChunk]) -> Int {
+        let scopes = Set(chunks.map { chunk -> String in
+            if let sectionPath = chunk.chunk.metadata.sectionPath, !sectionPath.isEmpty {
+                return sectionPath.joined(separator: " > ").lowercased()
+            }
+            if let sectionTitle = chunk.chunk.metadata.sectionTitle, !sectionTitle.isEmpty {
+                return sectionTitle.lowercased()
+            }
+            if let siblingGroupId = chunk.chunk.metadata.siblingGroupId, !siblingGroupId.isEmpty {
+                return siblingGroupId
+            }
+            if let pageNumber = chunk.chunk.metadata.pageNumber {
+                return "page:\(pageNumber)"
+            }
+            return chunk.chunk.documentId.uuidString
+        })
+        return scopes.count
+    }
+
+    private func queryLooksEnumerative(_ query: String) -> Bool {
+        let lower = query.lowercased()
+        let enumerationMarkers = [
+            "what are", "which are", "list", "enumerate", "compare", "difference between",
+            "differences between", "versus", " vs ", "steps", "requirements", "warnings",
+            "contraindications", "indications"
+        ]
+        return enumerationMarkers.contains { lower.contains($0) }
+    }
+
+    private func extractComparisonTargets(from query: String) -> [String] {
+        let lower = query.lowercased()
+
+        if let range = lower.range(of: " vs ") {
+            let left = normalizeComparisonTarget(String(lower[..<range.lowerBound]))
+            let right = normalizeComparisonTarget(String(lower[range.upperBound...]))
+            return [left, right].filter { !$0.isEmpty }
+        }
+
+        if let range = lower.range(of: " versus ") {
+            let left = normalizeComparisonTarget(String(lower[..<range.lowerBound]))
+            let right = normalizeComparisonTarget(String(lower[range.upperBound...]))
+            return [left, right].filter { !$0.isEmpty }
+        }
+
+        if let betweenRange = lower.range(of: "between "),
+           let andRange = lower.range(of: " and ", range: betweenRange.upperBound..<lower.endIndex) {
+            let left = normalizeComparisonTarget(String(lower[betweenRange.upperBound..<andRange.lowerBound]))
+            let right = normalizeComparisonTarget(String(lower[andRange.upperBound...]))
+            return [left, right].filter { !$0.isEmpty }
+        }
+
+        return []
+    }
+
+    private func normalizeComparisonTarget(_ text: String) -> String {
+        extractQueryAnchorTerms(from: text).prefix(3).joined(separator: " ")
+    }
+
+    private func comparisonTargetCovered(_ target: String, in response: String) -> Bool {
+        guard !target.isEmpty else { return true }
+        let terms = target.split(separator: " ").map(String.init)
+        guard !terms.isEmpty else { return true }
+        let lowerResponse = response.lowercased()
+        let matched = terms.filter { lowerResponse.contains($0) }.count
+        return Float(matched) / Float(terms.count) >= 0.5
     }
 
     /// Extract factual claims from response text
@@ -1014,6 +1299,10 @@ extension VerificationGateService {
 
         if failedGates.contains(.semanticGrounding) {
             return "My response doesn't appear to be well-supported by the source documents. The answer to your question may not be present in the available materials. Please try rephrasing or check the documents directly."
+        }
+
+        if failedGates.contains(.domainIsolation) {
+            return "The retrieved evidence crossed incompatible domains, so I refused to blend it into one answer. Please narrow the question or retrieve more domain-specific material."
         }
 
         if failedGates.contains(.quoteFaithfulness) {

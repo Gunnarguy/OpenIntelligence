@@ -89,7 +89,7 @@ enum AnswerIntent: String, Sendable, CaseIterable {
     case findings
 
     /// Maps to QueryIntent for hybrid search weight adjustment
-    var searchIntent: QueryIntent {
+    nonisolated var searchIntent: QueryIntent {
         switch self {
         case .lookup, .tableLookup, .compute:
             return .keyword  // Favor exact matches
@@ -106,7 +106,7 @@ enum AnswerIntent: String, Sendable, CaseIterable {
     /// Only for lookup/tableLookup where the answer is a literal value in a spec table.
     /// Procedure is NOT extractive — "what does pressing the button do?" needs behavioral
     /// descriptions, not specification tables.
-    var isExtractiveFirst: Bool {
+    nonisolated var isExtractiveFirst: Bool {
         switch self {
         case .lookup, .tableLookup:
             return true  // Direct extraction from source (e.g., "SAE 0W-20")
@@ -116,7 +116,7 @@ enum AnswerIntent: String, Sendable, CaseIterable {
     }
 
     /// Whether this intent benefits from multi-hop retrieval
-    var benefitsFromMultiHop: Bool {
+    nonisolated var benefitsFromMultiHop: Bool {
         switch self {
         case .investigate, .compare, .findings:
             return true
@@ -129,7 +129,7 @@ enum AnswerIntent: String, Sendable, CaseIterable {
     /// GOD MODE: Ensures document-level context is always available
     /// NOTE: Overridden to false for enumeration queries in RAGService —
     ///        the summary steals chunk slots from detail chunks that contain the actual list.
-    var requiresDocumentSummary: Bool {
+    nonisolated var requiresDocumentSummary: Bool {
         switch self {
         case .findings, .summarize, .investigate:
             return true  // Need document-level context
@@ -139,12 +139,12 @@ enum AnswerIntent: String, Sendable, CaseIterable {
     }
 
     /// Whether this is an author/research query pattern
-    var isAuthorQuery: Bool {
+    nonisolated var isAuthorQuery: Bool {
         self == .findings
     }
 
     /// Structure type boost for this intent
-    var structureTypeBoost: String? {
+    nonisolated var structureTypeBoost: String? {
         switch self {
         case .tableLookup:
             return "table"

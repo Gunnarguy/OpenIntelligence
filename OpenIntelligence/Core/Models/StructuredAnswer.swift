@@ -35,6 +35,9 @@ struct StructuredAnswer: Codable, Sendable {
     /// Evidence passages used to support claims
     let evidence: [Evidence]
 
+    /// Claims that were considered but rejected or downgraded during verification
+    let rejectedClaims: [RejectedClaim]
+
     /// Information that was requested but not found in corpus
     let missing: [String]
 
@@ -73,6 +76,36 @@ struct StructuredAnswer: Codable, Sendable {
             case evidenceIds = "evidence_ids"
             case confidence
             case isExtracted = "is_extracted"
+        }
+    }
+
+    /// Claim rejected during verification with reason for UI display
+    struct RejectedClaim: Codable, Sendable {
+        /// The rejected claim text
+        let claim: String
+
+        /// Verdict label such as unsupported, ambiguous, or contradicted
+        let verdict: String
+
+        /// Evidence IDs considered during rejection
+        let evidenceIds: [String]
+
+        /// Confidence/fidelity retained after verification
+        let confidence: Float
+
+        /// Whether this was a critical claim for answering the user
+        let isCritical: Bool
+
+        /// Optional reviewer note shown in diagnostics UI
+        let notes: String?
+
+        private enum CodingKeys: String, CodingKey {
+            case claim
+            case verdict
+            case evidenceIds = "evidence_ids"
+            case confidence
+            case isCritical = "is_critical"
+            case notes
         }
     }
 
@@ -134,8 +167,41 @@ struct StructuredAnswer: Codable, Sendable {
         case answer
         case claims
         case evidence
+        case rejectedClaims = "rejected_claims"
         case missing
         case debug
+    }
+
+    init(
+        refuse: Bool,
+        answerType: AnswerType,
+        answer: String,
+        claims: [Claim],
+        evidence: [Evidence],
+        rejectedClaims: [RejectedClaim] = [],
+        missing: [String],
+        debug: DebugInfo
+    ) {
+        self.refuse = refuse
+        self.answerType = answerType
+        self.answer = answer
+        self.claims = claims
+        self.evidence = evidence
+        self.rejectedClaims = rejectedClaims
+        self.missing = missing
+        self.debug = debug
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        refuse = try container.decode(Bool.self, forKey: .refuse)
+        answerType = try container.decode(AnswerType.self, forKey: .answerType)
+        answer = try container.decode(String.self, forKey: .answer)
+        claims = try container.decodeIfPresent([Claim].self, forKey: .claims) ?? []
+        evidence = try container.decodeIfPresent([Evidence].self, forKey: .evidence) ?? []
+        rejectedClaims = try container.decodeIfPresent([RejectedClaim].self, forKey: .rejectedClaims) ?? []
+        missing = try container.decodeIfPresent([String].self, forKey: .missing) ?? []
+        debug = try container.decode(DebugInfo.self, forKey: .debug)
     }
 }
 
@@ -149,6 +215,7 @@ extension StructuredAnswer {
         private var answer: String = ""
         private var claims: [Claim] = []
         private var evidence: [Evidence] = []
+        private var rejectedClaims: [RejectedClaim] = []
         private var missing: [String] = []
         private var topScore: Float = 0
         private var loops: Int = 1
@@ -196,6 +263,25 @@ extension StructuredAnswer {
             return self
         }
 
+        func addRejectedClaim(
+            _ text: String,
+            verdict: String,
+            evidenceIds: [String],
+            confidence: Float,
+            isCritical: Bool,
+            notes: String?
+        ) -> Builder {
+            rejectedClaims.append(RejectedClaim(
+                claim: text,
+                verdict: verdict,
+                evidenceIds: evidenceIds,
+                confidence: confidence,
+                isCritical: isCritical,
+                notes: notes
+            ))
+            return self
+        }
+
         func addMissing(_ item: String) -> Builder {
             missing.append(item)
             return self
@@ -228,6 +314,7 @@ extension StructuredAnswer {
                 answer: answer,
                 claims: claims,
                 evidence: evidence,
+                rejectedClaims: rejectedClaims,
                 missing: missing,
                 debug: DebugInfo(
                     topScore: topScore,
@@ -291,16 +378,63 @@ extension StructuredAnswer {
             _ = builder.setGateResults(gateResults)
         }
 
-        // Extract claims from response (simplified - would use NLP in production)
-        // For now, treat the whole response as one claim
-        let evidenceIds = retrievedChunks.prefix(3).map { $0.chunk.id.uuidString }
-        _ = builder.addClaim(
-            response,
-            evidenceIds: evidenceIds,
-            confidence: topScore,
-            isExtracted: answerIntent.isExtractiveFirst
-        )
+        let fallbackSentences = splitFallbackClaims(from: response)
+        let claimsToUse = fallbackSentences.isEmpty ? [response] : fallbackSentences
+
+        for claimText in claimsToUse.prefix(6) {
+            let citedEvidenceIds = citedEvidenceIDs(
+                in: claimText,
+                retrievedChunks: retrievedChunks
+            )
+            _ = builder.addClaim(
+                claimText,
+                evidenceIds: citedEvidenceIds,
+                confidence: citedEvidenceIds.isEmpty ? max(0.35, topScore * 0.5) : topScore,
+                isExtracted: answerIntent.isExtractiveFirst
+            )
+            if citedEvidenceIds.isEmpty {
+                _ = builder.addMissing(claimText)
+            }
+        }
 
         return builder.build()
+    }
+
+    private static func splitFallbackClaims(from response: String) -> [String] {
+        response
+            .components(separatedBy: .newlines)
+            .flatMap { line in
+                line.split(separator: ".", omittingEmptySubsequences: true).map { String($0) }
+            }
+            .map {
+                $0.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            .filter { $0.count >= 12 }
+            .map { sentence in
+                if sentence.hasSuffix("?") || sentence.hasSuffix("!") || sentence.hasSuffix(".") {
+                    return sentence
+                }
+                return sentence + "."
+            }
+    }
+
+    private static func citedEvidenceIDs(
+        in claimText: String,
+        retrievedChunks: [RetrievedChunk]
+    ) -> [String] {
+        guard let regex = try? NSRegularExpression(pattern: #"\[S(\d+)\]"#) else { return [] }
+        let range = NSRange(claimText.startIndex..<claimText.endIndex, in: claimText)
+        let matches = regex.matches(in: claimText, options: [], range: range)
+        return matches.compactMap { match in
+            guard let matchRange = Range(match.range(at: 1), in: claimText),
+                  let index = Int(claimText[matchRange])
+            else {
+                return nil
+            }
+
+            let chunkIndex = index - 1
+            guard chunkIndex >= 0, chunkIndex < retrievedChunks.count else { return nil }
+            return retrievedChunks[chunkIndex].chunk.id.uuidString
+        }
     }
 }

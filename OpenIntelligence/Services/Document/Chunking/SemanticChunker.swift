@@ -812,8 +812,76 @@ class SemanticChunker {
             "outside", "upper", "lower", "other", "manual", "automatic"
         ]
 
+        // Single-word headings that commonly appear in academic papers and technical manuals
+        // as standalone lines after PDF extraction.
+        let knownSingleWordHeadings: Set<String> = [
+            "abstract", "background", "overview", "summary", "objective", "objectives",
+            "introduction", "methods", "method", "materials", "results", "discussion",
+            "conclusion", "conclusions", "findings", "references", "appendix", "appendices",
+            "warning", "warnings", "caution", "cautions", "precautions", "safety",
+            "specification", "specifications", "sterilization", "reprocessing", "cleaning",
+            "maintenance", "operation", "operations", "troubleshooting", "service",
+            "inspection", "storage", "calibration", "indications", "contraindications"
+        ]
+
+        // Multi-word headings that should override the generic short-line blacklist.
+        let knownMultiWordHeadings: Set<String> = [
+            "indications for use",
+            "warnings and precautions",
+            "materials and methods",
+            "technical specifications",
+            "operating instructions",
+            "troubleshooting guide",
+            "maintenance schedule",
+            "cleaning instructions",
+            "sterilization instructions",
+            "reprocessing instructions",
+            "high level disinfection",
+            "manual high level disinfection",
+            "intended use"
+        ]
+
         let lines = text.components(separatedBy: .newlines)
         var currentIndex = text.startIndex
+
+        func contextSupportsHeading(lineAt lineIdx: Int) -> Bool {
+            let currentLine = lines[lineIdx]
+            let trimmedCurrent = currentLine.trimmingCharacters(in: .whitespaces)
+            let currentIndent = currentLine.prefix(while: { $0 == " " || $0 == "\t" }).count
+
+            guard lineIdx + 1 < lines.count else { return true }
+
+            let nextLines = lines[(lineIdx + 1)...].prefix(3)
+            for nextLine in nextLines {
+                let nextTrimmed = nextLine.trimmingCharacters(in: .whitespaces)
+                guard !nextTrimmed.isEmpty else { continue }
+
+                let nextIndent = nextLine.prefix(while: { $0 == " " || $0 == "\t" }).count
+                if nextIndent > currentIndent {
+                    return true
+                }
+
+                let nextHasDigits = nextTrimmed.rangeOfCharacter(from: .decimalDigits) != nil
+                let nextHasColon = nextTrimmed.contains(":")
+                if nextHasDigits || nextHasColon {
+                    return true
+                }
+
+                if nextTrimmed.count > trimmedCurrent.count * 2 {
+                    return true
+                }
+
+                let nextWords = nextTrimmed.split(separator: " ")
+                let nextCapRatio = Float(nextWords.filter { $0.first?.isUppercase == true }.count) / Float(max(nextWords.count, 1))
+                if nextWords.count <= 8 && nextCapRatio >= 0.6 && !nextHasDigits {
+                    return true
+                }
+
+                return true
+            }
+
+            return true
+        }
 
         for (lineIdx, line) in lines.enumerated() {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
@@ -858,16 +926,22 @@ class SemanticChunker {
             if !matched {
                 let words = trimmed.split(separator: " ")
                 let wordCount = words.count
+                let normalizedHeading = trimmed
+                    .trimmingCharacters(in: CharacterSet(charactersIn: ":"))
+                    .lowercased()
 
-                if wordCount >= 2 && wordCount <= 8
-                    && !titleCaseBlacklist.contains(trimmed.lowercased())
-                {
+                let isKnownSingleWordHeading = wordCount == 1 && knownSingleWordHeadings.contains(normalizedHeading)
+                let isKnownMultiWordHeading = knownMultiWordHeadings.contains(normalizedHeading)
+                let isGenericShortHeading = wordCount >= 2 && wordCount <= 8 &&
+                    (!titleCaseBlacklist.contains(normalizedHeading) || isKnownMultiWordHeading)
+
+                if isKnownSingleWordHeading || isKnownMultiWordHeading || isGenericShortHeading {
                     // Check: most words start with uppercase (Title Case)
                     let capitalizedWords = words.filter { $0.first?.isUppercase == true }
                     let capitalRatio = Float(capitalizedWords.count) / Float(wordCount)
 
                     // Allow small words like "of", "and", "the" to be lowercase
-                    let isTitleCase = capitalRatio >= 0.6
+                    let isTitleCase = capitalRatio >= 0.6 || isKnownSingleWordHeading || isKnownMultiWordHeading
 
                     // Must NOT contain digits, units, or data-like patterns
                     let hasDigits = trimmed.rangeOfCharacter(from: .decimalDigits) != nil
@@ -888,61 +962,13 @@ class SemanticChunker {
                     if isTitleCase && !hasDigits && !hasDataPatterns && !hasUnits
                        && !endsWithPunctuation && !hasTabSeparation && !isKeyValue
                     {
-                        // Contextual validation: check if next non-empty line looks like data/content
-                        // (indented, has numbers, has colons, or is significantly longer)
-                        var looksLikeHeading = true
-
-                        // Check next non-empty line
-                        if lineIdx + 1 < lines.count {
-                            let nextLines = lines[(lineIdx + 1)...].prefix(3)
-                            for nextLine in nextLines {
-                                let nextTrimmed = nextLine.trimmingCharacters(in: .whitespaces)
-                                guard !nextTrimmed.isEmpty else { continue }
-
-                                // If next line is indented relative to this line, it's a heading
-                                let thisIndent = line.prefix(while: { $0 == " " || $0 == "\t" }).count
-                                let nextIndent = nextLine.prefix(while: { $0 == " " || $0 == "\t" }).count
-                                if nextIndent > thisIndent {
-                                    looksLikeHeading = true
-                                    break
-                                }
-
-                                // If next line has numbers/data, this is probably a heading
-                                let nextHasDigits = nextTrimmed.rangeOfCharacter(from: .decimalDigits) != nil
-                                let nextHasColon = nextTrimmed.contains(":")
-                                if nextHasDigits || nextHasColon {
-                                    looksLikeHeading = true
-                                    break
-                                }
-
-                                // If next line is much longer, this short line is likely a heading
-                                if nextTrimmed.count > trimmed.count * 2 {
-                                    looksLikeHeading = true
-                                    break
-                                }
-
-                                // If next line is also short Title Case, this might be a list, not headings
-                                let nextWords = nextTrimmed.split(separator: " ")
-                                let nextCapRatio = Float(nextWords.filter { $0.first?.isUppercase == true }.count) / Float(max(nextWords.count, 1))
-                                if nextWords.count <= 8 && nextCapRatio >= 0.6 && !nextHasDigits {
-                                    // Both lines are similar - could be a heading list (like a TOC)
-                                    // Still treat as heading since those are useful section markers
-                                    looksLikeHeading = true
-                                    break
-                                }
-
-                                break  // Only check first non-empty line
-                            }
-                        }
-
-                        if looksLikeHeading {
+                        if contextSupportsHeading(lineAt: lineIdx) {
                             if let lineRange = text.range(of: line, range: currentIndex..<text.endIndex) {
-                                // Title Case headings are Level 2 (sub-section) by default
-                                // If a Level 1 ALL CAPS section precedes this, it becomes a proper subsection
+                                let inferredLevel = (isKnownSingleWordHeading || isKnownMultiWordHeading) ? 1 : 2
                                 sections.append(DetectedSection(
                                     title: trimmed,
                                     range: lineRange,
-                                    level: 2
+                                    level: inferredLevel
                                 ))
                             }
                         }

@@ -121,6 +121,30 @@ struct ContentView: View {
         // In production this fetches App Store Connect products; in DEBUG/simulator,
         // this will emit a single warning if no StoreKit configuration is present.
         .task {
+            #if DEBUG
+            let environment = ProcessInfo.processInfo.environment
+            let arguments = ProcessInfo.processInfo.arguments
+            let outputArgumentIndex = arguments.firstIndex(of: "-OPENINTELLIGENCE_GENERATION_AUDIT_OUTPUT")
+            let outputArgumentPath = outputArgumentIndex.flatMap { index in
+                let valueIndex = arguments.index(after: index)
+                return valueIndex < arguments.endIndex ? arguments[valueIndex] : nil
+            }
+            let shouldRunGenerationAudit = environment["OPENINTELLIGENCE_RUN_GENERATION_AUDIT"] == "1"
+                || arguments.contains("-OPENINTELLIGENCE_RUN_GENERATION_AUDIT")
+                || ((environment["OPENINTELLIGENCE_GENERATION_AUDIT_OUTPUT"]?.isEmpty == false))
+                || (outputArgumentPath?.isEmpty == false)
+            if shouldRunGenerationAudit
+            {
+                let outputPath = outputArgumentPath ?? environment["OPENINTELLIGENCE_GENERATION_AUDIT_OUTPUT"]
+                let outputURL = outputPath.flatMap { path in
+                    path.isEmpty ? nil : URL(fileURLWithPath: path)
+                }
+                let writtenURL = await ragService.runGenerationIsolationAudit(outputURL: outputURL)
+                Log.info("[GenerationAudit] Completed startup audit at \(writtenURL.path)", category: .llm)
+                exit(0)
+            }
+            #endif
+
             await entitlementStore.billingService.refreshProducts()
             // Auto-reconcile existing purchases on launch so paid users
             // are recognized immediately after reinstall or device change.

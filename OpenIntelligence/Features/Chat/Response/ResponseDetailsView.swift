@@ -10,6 +10,7 @@ import SwiftUI
 struct ChatResponseDetailsView: View {
     let metadata: ResponseMetadata
     let retrievedChunks: [RetrievedChunk]
+    let structuredAnswer: StructuredAnswer?
 
     @Environment(\.dismiss) private var dismiss
     @State private var showPerformance = false
@@ -24,10 +25,15 @@ struct ChatResponseDetailsView: View {
                     // 2. How this answer was made
                     answerSummaryCard
 
-                    // 3. Sources used
+                    // 3. Source-backed claim review
+                    if structuredAnswer != nil {
+                        claimReviewSection
+                    }
+
+                    // 4. Sources used
                     sourcesSection
 
-                    // 4. Performance (collapsible)
+                    // 5. Performance (collapsible)
                     performanceSection
                 }
                 .padding(.vertical, DSSpacing.md)
@@ -53,6 +59,15 @@ struct ChatResponseDetailsView: View {
 
     private var verificationStatus: VerificationInfo {
         guard let decision = metadata.gatingDecision else {
+            if let structuredAnswer, structuredAnswer.refuse {
+                return VerificationInfo(
+                    title: "Grounded Refusal",
+                    subtitle: "The app refused to answer because the retrieved evidence was not strong enough.",
+                    icon: "hand.raised.fill",
+                    color: .orange,
+                    level: .groundedRefusal
+                )
+            }
             return VerificationInfo(
                 title: "Verified Response",
                 subtitle: "Answer passed all quality checks",
@@ -61,7 +76,7 @@ struct ChatResponseDetailsView: View {
                 level: .verified
             )
         }
-        return VerificationInfo.from(gatingDecision: decision)
+        return VerificationInfo.from(gatingDecision: decision, structuredAnswer: structuredAnswer)
     }
 
     private var verificationHero: some View {
@@ -219,6 +234,230 @@ struct ChatResponseDetailsView: View {
                 .fill(DSColors.surface)
         )
         .padding(.horizontal, DSSpacing.md)
+    }
+
+    // MARK: - Claim Review
+
+    private var claimReviewSection: some View {
+        guard let structuredAnswer else {
+            return AnyView(EmptyView())
+        }
+
+        return AnyView(
+            VStack(alignment: .leading, spacing: DSSpacing.sm) {
+                HStack {
+                    Label("Claim Review", systemImage: "checklist")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    if structuredAnswer.refuse {
+                        TrustStatusPill(text: "Grounded refusal", color: .orange, icon: "hand.raised.fill")
+                    } else {
+                        TrustStatusPill(text: "Source-backed", color: .green, icon: "checkmark.shield.fill")
+                    }
+                }
+                .padding(.horizontal, DSSpacing.md)
+
+                trustSummaryCards(structuredAnswer)
+                    .padding(.horizontal, DSSpacing.md)
+
+                if !structuredAnswer.claims.isEmpty {
+                    VStack(alignment: .leading, spacing: DSSpacing.sm) {
+                        Text("Verified claims")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.tertiary)
+                        ForEach(Array(structuredAnswer.claims.enumerated()), id: \.offset) { index, claim in
+                            claimCard(
+                                index: index + 1,
+                                title: claim.claim,
+                                badgeText: "Supported",
+                                badgeColor: .green,
+                                confidence: claim.confidence,
+                                detail: evidenceSummary(for: claim.evidenceIds, in: structuredAnswer),
+                                notes: nil,
+                                isCritical: false
+                            )
+                        }
+                    }
+                    .padding(.horizontal, DSSpacing.md)
+                }
+
+                if !structuredAnswer.rejectedClaims.isEmpty {
+                    VStack(alignment: .leading, spacing: DSSpacing.sm) {
+                        Text("Dropped claims")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.tertiary)
+                        ForEach(Array(structuredAnswer.rejectedClaims.enumerated()), id: \.offset) { index, claim in
+                            claimCard(
+                                index: index + 1,
+                                title: claim.claim,
+                                badgeText: claim.verdict.capitalized,
+                                badgeColor: rejectedClaimColor(for: claim.verdict),
+                                confidence: claim.confidence,
+                                detail: evidenceSummary(for: claim.evidenceIds, in: structuredAnswer),
+                                notes: claim.notes,
+                                isCritical: claim.isCritical
+                            )
+                        }
+                    }
+                    .padding(.horizontal, DSSpacing.md)
+                }
+
+                if !structuredAnswer.missing.isEmpty {
+                    VStack(alignment: .leading, spacing: DSSpacing.sm) {
+                        Text("Missing or weakly supported details")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.tertiary)
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(Array(structuredAnswer.missing.enumerated()), id: \.offset) { _, missing in
+                                HStack(alignment: .top, spacing: 8) {
+                                    Image(systemName: "minus.circle.fill")
+                                        .foregroundStyle(.orange)
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .padding(.top, 2)
+                                    Text(missing)
+                                        .font(.system(size: 13))
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        .padding(DSSpacing.md)
+                        .background(
+                            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
+                                .fill(DSColors.surface)
+                        )
+                    }
+                    .padding(.horizontal, DSSpacing.md)
+                }
+            }
+        )
+    }
+
+    private func trustSummaryCards(_ structuredAnswer: StructuredAnswer) -> some View {
+        HStack(spacing: DSSpacing.sm) {
+            trustSummaryCard(
+                title: "Verified",
+                value: "\(structuredAnswer.claims.count)",
+                color: .green,
+                icon: "checkmark.circle.fill"
+            )
+            trustSummaryCard(
+                title: "Dropped",
+                value: "\(structuredAnswer.rejectedClaims.count)",
+                color: structuredAnswer.rejectedClaims.isEmpty ? .secondary : .orange,
+                icon: "xmark.circle.fill"
+            )
+            trustSummaryCard(
+                title: "Gaps",
+                value: "\(structuredAnswer.missing.count)",
+                color: structuredAnswer.missing.isEmpty ? .secondary : .blue,
+                icon: "questionmark.circle.fill"
+            )
+        }
+    }
+
+    private func trustSummaryCard(title: String, value: String, color: Color, icon: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(color)
+                Text(title)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+            Text(value)
+                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .foregroundStyle(DSColors.primaryText)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(DSSpacing.sm)
+        .background(
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
+                .fill(DSColors.surface)
+        )
+    }
+
+    private func claimCard(
+        index: Int,
+        title: String,
+        badgeText: String,
+        badgeColor: Color,
+        confidence: Float,
+        detail: String?,
+        notes: String?,
+        isCritical: Bool
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 8) {
+                Text("\(index)")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(badgeColor)
+                    .frame(width: 22, height: 22)
+                    .background(badgeColor.opacity(0.12))
+                    .clipShape(Circle())
+
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 6) {
+                        TrustStatusPill(text: badgeText, color: badgeColor, icon: nil)
+                        Text("\(Int((confidence * 100).rounded()))%")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                        if isCritical {
+                            TrustStatusPill(text: "Critical", color: .red, icon: "exclamationmark")
+                        }
+                    }
+
+                    Text(title)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(DSColors.primaryText)
+
+                    if let detail, !detail.isEmpty {
+                        Text(detail)
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if let notes, !notes.isEmpty {
+                        Text(notes)
+                            .font(.system(size: 12))
+                            .foregroundStyle(badgeColor)
+                    }
+                }
+
+                Spacer(minLength: 0)
+            }
+        }
+        .padding(DSSpacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: DSCorners.card, style: .continuous)
+                .fill(DSColors.surface)
+        )
+    }
+
+    private func evidenceSummary(for evidenceIds: [String], in structuredAnswer: StructuredAnswer) -> String? {
+        let mappedEvidence = structuredAnswer.evidence.filter { evidenceIds.contains($0.evidenceId) }
+        guard !mappedEvidence.isEmpty else { return nil }
+        return mappedEvidence.prefix(3).map { evidence in
+            if let documentName = evidence.documentName, let page = evidence.page {
+                return "\(documentName), p.\(page)"
+            }
+            if let documentName = evidence.documentName {
+                return documentName
+            }
+            if let page = evidence.page {
+                return "Page \(page)"
+            }
+            return evidence.evidenceId
+        }.joined(separator: " • ")
+    }
+
+    private func rejectedClaimColor(for verdict: String) -> Color {
+        switch verdict.lowercased() {
+        case "contradicted": return .red
+        case "ambiguous": return .yellow
+        default: return .orange
+        }
     }
 
     private func summaryStatItem(value: String, label: String, icon: String, color: Color) -> some View {
@@ -441,11 +680,31 @@ private struct VerificationInfo {
     let level: VerificationLevel
 
     enum VerificationLevel {
-        case verified, partial, lowConfidence, unverified, noSources
+        case verified, partial, lowConfidence, unverified, noSources, groundedRefusal
     }
 
-    static func from(gatingDecision: String) -> VerificationInfo {
+    static func from(gatingDecision: String, structuredAnswer: StructuredAnswer? = nil) -> VerificationInfo {
         let lower = gatingDecision.lowercased()
+
+        if lower.contains("source_only_abstain") || structuredAnswer?.refuse == true {
+            return VerificationInfo(
+                title: "Grounded Refusal",
+                subtitle: "The app refused to answer because critical claims could not be verified from your documents.",
+                icon: "hand.raised.fill",
+                color: .orange,
+                level: .groundedRefusal
+            )
+        }
+
+        if lower.contains("source_only_verified") {
+            return VerificationInfo(
+                title: "Source-Only Verified",
+                subtitle: "Only claims that survived claim-level source verification were included in the final answer.",
+                icon: "checkmark.shield.fill",
+                color: .green,
+                level: .verified
+            )
+        }
 
         if lower.contains("no_sources") || lower.contains("no_documents") || lower.contains("context_empty") {
             return VerificationInfo(
@@ -495,6 +754,28 @@ private struct VerificationInfo {
             color: .green,
             level: .verified
         )
+    }
+}
+
+private struct TrustStatusPill: View {
+    let text: String
+    let color: Color
+    let icon: String?
+
+    var body: some View {
+        HStack(spacing: 4) {
+            if let icon {
+                Image(systemName: icon)
+                    .font(.system(size: 10, weight: .semibold))
+            }
+            Text(text)
+                .font(.system(size: 11, weight: .semibold))
+        }
+        .foregroundStyle(color)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(color.opacity(0.12))
+        .clipShape(Capsule())
     }
 }
 
@@ -715,7 +996,8 @@ struct ResponseDetailMetricRow: View {
                 retrievalConfigSummary: "Balanced",
                 qualityModeName: "Standard"
             ),
-            retrievedChunks: []
+            retrievedChunks: [],
+            structuredAnswer: nil
         )
     }
 }

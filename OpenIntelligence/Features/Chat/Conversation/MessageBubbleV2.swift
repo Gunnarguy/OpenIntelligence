@@ -199,6 +199,14 @@ struct MessageBubbleV2: View {
 .padding(.horizontal, isUser ? 0 : 4)
             }
 
+            if !isUser,
+               let structuredAnswer = message.structuredAnswer,
+               shouldShowTrustSummary(for: structuredAnswer)
+            {
+                SourceTrustSummaryRow(structuredAnswer: structuredAnswer)
+                    .padding(.horizontal, 4)
+            }
+
             // Detailed metrics accessible via tap on message
             // (Model, speed, sources, quality all shown in header area)
 
@@ -215,7 +223,8 @@ struct MessageBubbleV2: View {
             if let meta = message.metadata {
                 ChatResponseDetailsView(
                     metadata: meta,
-                    retrievedChunks: message.retrievedChunks ?? []
+                    retrievedChunks: message.retrievedChunks ?? [],
+                    structuredAnswer: message.structuredAnswer
                 )
             }
         }
@@ -267,6 +276,13 @@ struct MessageBubbleV2: View {
         if interval < 3600 { return "\(Int(interval / 60))m ago" }
         if interval < 86400 { return "\(Int(interval / 3600))h ago" }
         return date.formatted(date: .abbreviated, time: .shortened)
+    }
+
+    private func shouldShowTrustSummary(for structuredAnswer: StructuredAnswer) -> Bool {
+        structuredAnswer.refuse
+            || !structuredAnswer.claims.isEmpty
+            || !structuredAnswer.rejectedClaims.isEmpty
+            || !structuredAnswer.missing.isEmpty
     }
 
     private func shareMessage() {
@@ -450,6 +466,8 @@ private struct VerificationBadge: View {
 
     enum VerificationStatus {
         case verified
+    case sourceOnlyVerified
+    case groundedRefusal
         case partiallyVerified
         case lowConfidence
         case unverified
@@ -458,6 +476,8 @@ private struct VerificationBadge: View {
         var icon: String {
             switch self {
             case .verified: return "checkmark.shield.fill"
+            case .sourceOnlyVerified: return "checkmark.shield.fill"
+            case .groundedRefusal: return "hand.raised.fill"
             case .partiallyVerified: return "shield.lefthalf.filled"
             case .lowConfidence: return "exclamationmark.triangle.fill"
             case .unverified: return "xmark.shield.fill"
@@ -468,6 +488,8 @@ private struct VerificationBadge: View {
         var label: String {
             switch self {
             case .verified: return "Verified"
+            case .sourceOnlyVerified: return "Source-Only Verified"
+            case .groundedRefusal: return "Grounded Refusal"
             case .partiallyVerified: return "Partially Verified"
             case .lowConfidence: return "Low Confidence"
             case .unverified: return "Unverified"
@@ -478,6 +500,8 @@ private struct VerificationBadge: View {
         var color: Color {
             switch self {
             case .verified: return .green
+            case .sourceOnlyVerified: return .green
+            case .groundedRefusal: return .orange
             case .partiallyVerified: return .yellow
             case .lowConfidence: return .orange
             case .unverified: return .red
@@ -487,6 +511,12 @@ private struct VerificationBadge: View {
 
         static func from(gatingDecision: String) -> VerificationStatus {
             let lower = gatingDecision.lowercased()
+            if lower.contains("source_only_abstain") {
+                return .groundedRefusal
+            }
+            if lower.contains("source_only_verified") {
+                return .sourceOnlyVerified
+            }
             if lower.contains("no_sources") || lower.contains("no_documents") || lower.contains("context_empty") {
                 return .noSources
             }
@@ -501,6 +531,60 @@ private struct VerificationBadge: View {
             }
             return .verified
         }
+    }
+}
+
+private struct SourceTrustSummaryRow: View {
+    let structuredAnswer: StructuredAnswer
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                if structuredAnswer.refuse {
+                    trustChip(text: "Grounded refusal", color: .orange, icon: "hand.raised.fill")
+                }
+
+                if !structuredAnswer.claims.isEmpty {
+                    trustChip(
+                        text: "\(structuredAnswer.claims.count) verified \(structuredAnswer.claims.count == 1 ? "claim" : "claims")",
+                        color: .green,
+                        icon: "checkmark.circle.fill"
+                    )
+                }
+
+                if !structuredAnswer.rejectedClaims.isEmpty {
+                    trustChip(
+                        text: "\(structuredAnswer.rejectedClaims.count) dropped",
+                        color: .orange,
+                        icon: "xmark.circle.fill"
+                    )
+                }
+
+                if !structuredAnswer.missing.isEmpty {
+                    trustChip(
+                        text: "\(structuredAnswer.missing.count) gaps",
+                        color: .blue,
+                        icon: "questionmark.circle.fill"
+                    )
+                }
+            }
+        }
+    }
+
+    private func trustChip(text: String, color: Color, icon: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: 10, weight: .semibold))
+            Text(text)
+                .font(.system(size: 11, weight: .semibold))
+        }
+        .foregroundStyle(color)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(
+            Capsule()
+                .fill(color.opacity(0.12))
+        )
     }
 }
 

@@ -14,6 +14,7 @@ struct ChatMessage: Identifiable, Codable, Sendable {
     let timestamp: Date
     var metadata: ResponseMetadata?
     var retrievedChunks: [RetrievedChunk]?
+    var structuredAnswer: StructuredAnswer?
     var containerId: UUID? = nil
 
     /// Captured pipeline trace lines (thinking events + pipeline log) for debugging export.
@@ -34,6 +35,7 @@ struct ChatMessage: Identifiable, Codable, Sendable {
         timestamp: Date = Date(),
         metadata: ResponseMetadata? = nil,
         retrievedChunks: [RetrievedChunk]? = nil,
+        structuredAnswer: StructuredAnswer? = nil,
         containerId: UUID? = nil,
         pipelineTrace: [String]? = nil,
         isHidden: Bool = false,
@@ -47,6 +49,7 @@ struct ChatMessage: Identifiable, Codable, Sendable {
         self.timestamp = timestamp
         self.metadata = metadata
         self.retrievedChunks = retrievedChunks
+        self.structuredAnswer = structuredAnswer
         self.containerId = containerId
         self.pipelineTrace = pipelineTrace
         self.isHidden = isHidden
@@ -63,8 +66,25 @@ struct ChatMessage: Identifiable, Codable, Sendable {
 
     // Exclude pipelineTrace from persistence — it's in-memory debugging data only
     enum CodingKeys: String, CodingKey {
-        case id, role, content, timestamp, metadata, retrievedChunks, containerId
+        case id, role, content, timestamp, metadata, retrievedChunks, structuredAnswer, containerId
         case isHidden, userReportedAt, userReportReason, userReportNotes
         // pipelineTrace intentionally excluded
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        role = try container.decode(Role.self, forKey: .role)
+        content = try container.decode(String.self, forKey: .content)
+        timestamp = try container.decodeIfPresent(Date.self, forKey: .timestamp) ?? Date()
+        metadata = try container.decodeIfPresent(ResponseMetadata.self, forKey: .metadata)
+        retrievedChunks = try container.decodeIfPresent([RetrievedChunk].self, forKey: .retrievedChunks)
+        structuredAnswer = try container.decodeIfPresent(StructuredAnswer.self, forKey: .structuredAnswer)
+        containerId = try container.decodeIfPresent(UUID.self, forKey: .containerId)
+        pipelineTrace = nil
+        isHidden = try container.decodeIfPresent(Bool.self, forKey: .isHidden) ?? false
+        userReportedAt = try container.decodeIfPresent(Date.self, forKey: .userReportedAt)
+        userReportReason = try container.decodeIfPresent(String.self, forKey: .userReportReason)
+        userReportNotes = try container.decodeIfPresent(String.self, forKey: .userReportNotes)
     }
 }
