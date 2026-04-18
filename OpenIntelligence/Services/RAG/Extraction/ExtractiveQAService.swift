@@ -138,7 +138,7 @@ actor CoreMLExtractiveQAService: ExtractiveQAService {
             let config = MLModelConfiguration()
             config.computeUnits = .cpuAndNeuralEngine
 
-            guard let modelURL = Bundle.main.url(forResource: "ExtractiveQAModel", withExtension: "mlmodelc") else {
+            guard let modelURL = OpenIntelligenceResourceBundle.url(forResource: "ExtractiveQAModel", withExtension: "mlmodelc") else {
                 loadError = "ExtractiveQAModel.mlmodelc not found in bundle"
                 return
             }
@@ -585,7 +585,7 @@ actor HeuristicExtractiveQAService: ExtractiveQAService {
 enum ExtractiveQAServiceFactory {
     /// Priority: CoreML model > Heuristic-v2 > Placeholder
     static func create() -> ExtractiveQAService {
-        if Bundle.main.url(forResource: "ExtractiveQAModel", withExtension: "mlmodelc") != nil {
+        if OpenIntelligenceResourceBundle.url(forResource: "ExtractiveQAModel", withExtension: "mlmodelc") != nil {
             Log.info("ExtractiveQA: CoreML model found but implementation not ready, using heuristic-v2", category: .initialization)
         }
         return HeuristicExtractiveQAService()

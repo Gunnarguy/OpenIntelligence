@@ -31,6 +31,14 @@ Follow existing code patterns. These clarify non-obvious project-specific choice
 - No force unwraps (`!`) — use `guard let`, `if let`, `??`
 - Fallback chains: Apple FM → OnDeviceAnalysis → graceful "unavailable" message
 
+## SDK Productization
+
+- For engine-owned resources, do not use `Bundle.main`; use `OpenIntelligenceResourceBundle`
+- For framework-owned storage, do not add fresh `.applicationSupportDirectory` lookups when `AppSupportPaths.baseDir()` or `OpenIntelligenceRuntimePaths` should own the path
+- Keep the public SDK surface in `OpenIntelligence/SDK/*`; internal services stay internal unless they are intentionally part of the commercial API
+- Engine-facing code should not import or depend on app-only layers in `App/`, `Features/`, or `UI/`
+- If a file is shared by app and SDK, prefer abstractions that work in both instead of app-only shortcuts
+
 ## SwiftUI
 
 - `@State` is always `private`

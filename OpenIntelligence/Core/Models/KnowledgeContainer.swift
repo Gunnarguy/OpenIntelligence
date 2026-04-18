@@ -412,28 +412,28 @@ struct ChunkingDirective: Codable, Equatable, Sendable {
 // MARK: - App Support Paths
 
 enum AppSupportPaths {
-    static func baseDir() -> URL {
-        let fm = FileManager.default
-        let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        let dir = appSupport.appendingPathComponent("OpenIntelligence", isDirectory: true)
-        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir
+    nonisolated static func configureBaseDir(_ url: URL?) {
+        OpenIntelligenceRuntimePaths.setBaseDirectory(url)
     }
 
-    static func containersListURL() -> URL {
+    nonisolated static func baseDir() -> URL {
+        OpenIntelligenceRuntimePaths.baseDirectory()
+    }
+
+    nonisolated static func containersListURL() -> URL {
         baseDir().appendingPathComponent("containers.json")
     }
 
-    static func documentsListURL(containerId: UUID) -> URL {
+    nonisolated static func documentsListURL(containerId: UUID) -> URL {
         baseDir().appendingPathComponent("documents_\(containerId.uuidString).json")
     }
 
-    static func vectorsFileURL(containerId: UUID) -> URL {
+    nonisolated static func vectorsFileURL(containerId: UUID) -> URL {
         // Persistent JSON vector DB file per container
         baseDir().appendingPathComponent("vector_database_\(containerId.uuidString).json")
     }
 
-    static func chatHistoryURL(containerId: UUID) -> URL {
+    nonisolated static func chatHistoryURL(containerId: UUID) -> URL {
         baseDir().appendingPathComponent("chat_history_\(containerId.uuidString).json")
     }
 }

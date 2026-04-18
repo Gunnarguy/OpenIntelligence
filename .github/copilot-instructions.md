@@ -29,7 +29,7 @@
 
 1. **Read `HOW_IT_WORKS.md` + `ARCHITECTURE.md` before touching pipeline code**
 2. **No third-party AI** — no OpenAI, no HuggingFace Hub, no LangChain
-3. **No new markdown files** — tasks go in `ROADMAP.md`, nowhere else
+3. **No random markdown files** — productization docs live in `SDK_BOUNDARY_AUDIT.md` and `output/OpenIntelligence-SDK-Package/`
 4. **iOS 26.0+ only** — use `FoundationModels`, `@Tool`, `@Generable`
 5. **100% on-device** — no servers; solo developer; optional PCC
 6. **No `.strings` / `.xcstrings`** — all strings inline
@@ -41,8 +41,26 @@
 
 - Bundle: `Gunndamental.OpenIntelligence` | Team: `Z3E334EXZD`
 - Swift 5.0 with Swift 6 concurrency | `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`
-- 1 target, no test target | 2 CoreML models (MiniLM-L6-v2, TinyBERT)
+- 2 native targets: `OpenIntelligence` app + `OpenIntelligenceEngine` framework | 2 CoreML models (MiniLM-L6-v2, TinyBERT)
 - Version: `MARKETING_VERSION` (semver) + `CURRENT_PROJECT_VERSION` (int) in pbxproj — **bump both Debug and Release**
+
+## Two Delivery Lanes
+
+- `OpenIntelligence` is the App Store app track: `App/`, `Features/`, `UI/`, screenshots, onboarding, billing surfaces.
+- `OpenIntelligenceEngine` is the SDK track: packaging, framework-safe runtime paths, buyer-facing binary delivery.
+- Do not assume an app fix belongs in the SDK, and do not assume SDK packaging work belongs in the app UX.
+
+## SDK Guardrails
+
+- Public SDK surface lives in `OpenIntelligence/SDK/`, currently `OpenIntelligence/SDK/OpenIntelligenceEngine.swift`.
+- Framework-safe resource lookup uses `OpenIntelligenceResourceBundle`, never `Bundle.main`, for engine-owned resources.
+- Framework-safe storage goes through `AppSupportPaths.baseDir()` / `OpenIntelligenceRuntimePaths` or caller-provided storage URLs.
+- Keep app-only areas out of SDK productization work unless explicitly asked:
+  - `OpenIntelligence/App/*`
+  - `OpenIntelligence/Features/*`
+  - `OpenIntelligence/UI/*`
+  - billing / tips / diagnostics surfaces
+- For SDK work, read `SDK_BOUNDARY_AUDIT.md` and `output/OpenIntelligence-SDK-Package/BUILD_NOTES.md` before changing target membership or packaging.
 
 ---
 
@@ -95,7 +113,10 @@
 
 ```bash
 xcodebuild -scheme OpenIntelligence -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build
+xcodebuild -scheme OpenIntelligenceEngine -project OpenIntelligence.xcodeproj -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
 ./clean_and_rebuild.sh                    # Clean + DerivedData purge
+./scripts/build_engine_xcframework.sh     # Build binary SDK artifact
+./scripts/validate_sdk_package.sh         # Check deliverable scaffold/artifact
 ./scripts/preflight_check.sh              # Secrets scan + encryption check
 bundle exec fastlane beta                 # Build + TestFlight
 bundle exec fastlane release              # Build + App Store Connect
@@ -113,3 +134,5 @@ Always run `xcodebuild build` after making changes to verify compilation. Run `.
 | `HOW_IT_WORKS.md` | 29-step pipeline walkthrough               |
 | `ROADMAP.md`      | Task tracking (the ONLY place for tasks)   |
 | `CHANGELOG.md`    | Version history                            |
+| `SDK_BOUNDARY_AUDIT.md` | Internal map of app-vs-SDK boundary   |
+| `output/OpenIntelligence-SDK-Package/` | Deliverable docs + packaging notes |

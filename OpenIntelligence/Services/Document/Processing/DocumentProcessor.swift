@@ -240,7 +240,7 @@ class DocumentProcessor {
 
     /// Load BertTokenizer from embedding vocab for accurate token counting
     private func loadTokenizer() {
-        if let url = Bundle.main.url(forResource: "embedding_vocab", withExtension: "json") {
+        if let url = OpenIntelligenceResourceBundle.url(forResource: "embedding_vocab", withExtension: "json") {
             do {
                 let vocabData = try Data(contentsOf: url)
                 let vocabDict = try JSONDecoder().decode([String: Int].self, from: vocabData)

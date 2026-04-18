@@ -405,7 +405,7 @@ actor ContainerVocabularyService {
      let batchProvider = ContrastiveBatchProvider(feedback)
 
      // 2. Load updatable adapter model
-     guard let modelURL = Bundle.main.url(forResource: "EmbeddingAdapter", withExtension: "mlmodelc") else { return }
+     guard let modelURL = OpenIntelligenceResourceBundle.url(forResource: "EmbeddingAdapter", withExtension: "mlmodelc") else { return }
 
      // 3. Create update task
      let updateTask = try MLUpdateTask(

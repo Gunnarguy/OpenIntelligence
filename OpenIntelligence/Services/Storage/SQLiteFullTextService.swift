@@ -54,9 +54,7 @@ actor SQLiteFullTextService {
 
     /// Database file location
     private var databasePath: URL {
-        let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? URL.temporaryDirectory
-        let dir = appSupport.appendingPathComponent("OpenIntelligence/FTS5", isDirectory: true)
+        let dir = AppSupportPaths.baseDir().appendingPathComponent("FTS5", isDirectory: true)
         try? fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir.appendingPathComponent("fulltext.sqlite")
     }

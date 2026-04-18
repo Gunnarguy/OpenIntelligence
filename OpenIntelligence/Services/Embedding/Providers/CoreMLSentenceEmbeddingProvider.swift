@@ -109,7 +109,7 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
         isIngestionMode = true
         #if canImport(CoreML)
             let modelName = "EmbeddingModel"
-            guard let url = Bundle.main.url(forResource: modelName, withExtension: "mlmodelc") else {
+            guard let url = OpenIntelligenceResourceBundle.url(forResource: modelName, withExtension: "mlmodelc") else {
                 Log.warning("[CoreMLSentenceEmbeddingProvider] Cannot enable ingestion mode: model not found", category: .embedding)
                 return
             }
@@ -137,7 +137,7 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
         isIngestionMode = false
         #if canImport(CoreML)
             let modelName = "EmbeddingModel"
-            guard let url = Bundle.main.url(forResource: modelName, withExtension: "mlmodelc") else { return }
+            guard let url = OpenIntelligenceResourceBundle.url(forResource: modelName, withExtension: "mlmodelc") else { return }
             do {
                 let config = MLModelConfiguration()
                 config.computeUnits = DeviceCapabilityService.shared.preferredComputeUnits
@@ -153,7 +153,7 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
         // Load Model (compiled from .mlpackage to .mlmodelc by Xcode)
         #if canImport(CoreML)
             let modelName = "EmbeddingModel"
-            if let url = Bundle.main.url(forResource: modelName, withExtension: "mlmodelc") {
+            if let url = OpenIntelligenceResourceBundle.url(forResource: modelName, withExtension: "mlmodelc") {
                 do {
                     let config = MLModelConfiguration()
                     // Use device-specific compute units based on GPU acceleration setting
@@ -170,7 +170,7 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
                 } catch {
                     Log.error("[CoreMLSentenceEmbeddingProvider] Failed to load MLModel: \(error)", category: .embedding)
                 }
-            } else if let sourceURL = Bundle.main.url(forResource: modelName, withExtension: "mlpackage") {
+            } else if let sourceURL = OpenIntelligenceResourceBundle.url(forResource: modelName, withExtension: "mlpackage") {
                 // Fallback: Check for uncompiled package (rare, but good for safety)
                 do {
                     let config = MLModelConfiguration()
@@ -186,7 +186,7 @@ final class CoreMLSentenceEmbeddingProvider: EmbeddingProvider {
         #endif
 
         // Load Tokenizer
-        if let url = Bundle.main.url(forResource: "embedding_vocab", withExtension: "json") {
+        if let url = OpenIntelligenceResourceBundle.url(forResource: "embedding_vocab", withExtension: "json") {
             do {
                 let vocabData = try Data(contentsOf: url)
                 let vocabDict = try JSONDecoder().decode([String: Int].self, from: vocabData)

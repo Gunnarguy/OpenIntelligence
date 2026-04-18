@@ -58,7 +58,7 @@ actor RAGEngine {
         #if canImport(CoreML)
             // Load ReRanker Model (compiled from .mlpackage to .mlmodelc by Xcode)
             let modelName = "ReRankerModel"
-            if let url = Bundle.main.url(forResource: modelName, withExtension: "mlmodelc") {
+            if let url = OpenIntelligenceResourceBundle.url(forResource: modelName, withExtension: "mlmodelc") {
                 do {
                     let config = MLModelConfiguration()
                     config.computeUnits = .all
@@ -68,7 +68,7 @@ actor RAGEngine {
                 } catch {
                     Log.error("[RAGEngine] Failed to load ReRanker: \(error)", category: .retrieval)
                 }
-            } else if let sourceURL = Bundle.main.url(forResource: modelName, withExtension: "mlpackage") {
+            } else if let sourceURL = OpenIntelligenceResourceBundle.url(forResource: modelName, withExtension: "mlpackage") {
                 // Fallback: Check for uncompiled package
                 do {
                     let config = MLModelConfiguration()
@@ -85,7 +85,7 @@ actor RAGEngine {
         #endif
 
         // Load Tokenizer
-        if let url = Bundle.main.url(forResource: "reranker_vocab", withExtension: "json") {
+        if let url = OpenIntelligenceResourceBundle.url(forResource: "reranker_vocab", withExtension: "json") {
             do {
                 let vocabData = try Data(contentsOf: url)
                 let vocabDict = try JSONDecoder().decode([String: Int].self, from: vocabData)
