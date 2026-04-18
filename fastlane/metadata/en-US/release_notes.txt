@@ -1,17 +1,13 @@
 Version 2.1.1
 
-SETTINGS & ABOUT
-- Added a public product hub with direct links to the roadmap, feedback board, changelog, GitHub repo, and App Store listing
-- Cleaned up About and Settings messaging so in-app copy matches the current product more closely
+SOURCE-BACKED TRUST
+- Added claim-level filtering so unsupported claims can be dropped before the final answer is shown
+- Improved grounded refusal behavior when critical evidence is missing
+- Added clearer answer review with verified claims, dropped claims, and missing-detail inspection
 
-LIFETIME COHORT
-- Lifetime plan messaging now focuses on concrete limits and one-time purchase terms
-- Added a Lifetime banner in Settings with quick links to the product hub and changelog
+CHAT & REVIEW
+- Better source inspection in response details
+- Stronger verification messaging so trust status is easier to read at a glance
 
-CHAT POLISH
-- Refreshed the quality mode picker so Standard, Deep Think, and Maximum feel more visually distinct
-- Added clearer mode labels like Fastest, Iterative, and Full sweep
-
-BILLING & APP STORE
-- Updated App Store metadata and in-app billing copy to better describe what OpenIntelligence actually does
-- Added export compliance declaration for smoother App Store uploads
+PRODUCT COPY
+- Tightened in-app and App Store language to better match the app's real reliability posture
