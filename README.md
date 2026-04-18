@@ -5,9 +5,9 @@
 [![Swift](https://img.shields.io/badge/Swift-6.0-orange.svg)](https://swift.org)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-Ask your documents anything. Get cited answers on iPhone.
+Ask your documents questions on iPhone. Get cited answers, inspect the evidence, and see when the app cannot support a claim.
 
-OpenIntelligence is a privacy-first iPhone app for asking questions about your own documents. Import files, search them conversationally, and review grounded answers with citations while staying centered on Apple platforms and local execution.
+OpenIntelligence is a privacy-first iPhone app for asking questions about your own documents. Import files, search them conversationally, review grounded answers with citations, and inspect which claims were supported or dropped before trusting the result.
 
 This public repository is meant to show product direction, app quality, and native iOS craftsmanship without publishing the full retrieval engine playbook. Detailed engine tuning, evaluation thresholds, orchestration logic, and business strategy are intentionally kept out of the public docs.
 
@@ -22,7 +22,14 @@ This public repository is meant to show product direction, app quality, and nati
 1. Import PDFs, office files, images, audio, and text from the device.
 2. Organize documents into private libraries on iPhone.
 3. Ask natural-language questions and get grounded answers with citations.
-4. Review answers, sources, and app diagnostics in a native SwiftUI experience.
+4. Review answers, verified claims, dropped claims, and sources in a native SwiftUI experience.
+
+## Reliability Posture
+
+- The app is designed to answer from the documents you provide, not from generic background knowledge.
+- When critical claims cannot be supported from retrieved evidence, the app should refuse instead of bluffing.
+- Response details expose verified claims, dropped claims, and missing evidence so users can inspect trust, not just read prose.
+- Generation audit scenarios can be run locally to catch regressions in abstention, citation mapping, and source-faithful behavior.
 
 ## Privacy
 
@@ -76,6 +83,24 @@ The public docs intentionally do not publish:
 ```bash
 xcodebuild -scheme OpenIntelligence -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build
 ```
+
+### Simulator Smoke Build
+
+```bash
+./scripts/build_simulator_smoke.sh
+```
+
+Use this when you want a fast compile-and-link check for the iOS Simulator.
+
+### Reliability Audit
+
+```bash
+./scripts/run_generation_audit.sh
+```
+
+This runs the generation audit on a connected physical iPhone and fails if core source-faithfulness scenarios regress.
+
+The audit is device-only on purpose: Apple Foundation Models are not available in Simulator, so Simulator can validate build health but not real source-only generation behavior.
 
 ### Project Layout
 
