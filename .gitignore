@@ -130,6 +130,11 @@ OpenIntelligence.app.dSYM.zip
 # Sensitive pricing docs (kept local only)
 Docs/reference/PRICING_STRATEGY.md
 
+# Local-only planning / scratch files
+Future
+START_HERE.md
+scripts/temp_generation_audit.swift
+
 # Research PDFs (reference only, not source)
 *.pdf
 
