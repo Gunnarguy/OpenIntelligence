@@ -12,6 +12,7 @@ exposing internal implementation details.
 
 Options:
   --from <commit>        Start summarizing from this commit
+  --for-current-version  Summarize from the previous tagged app version
   --write                Write generated files to disk
   --update-state         Advance the local release-summary baseline to HEAD
   --no-app-store         Skip updating fastlane/metadata/en-US/release_notes.txt
@@ -30,6 +31,7 @@ WRITE=0
 UPDATE_STATE=0
 WRITE_APP_STORE=1
 FROM_COMMIT=""
+FOR_CURRENT_VERSION=0
 DEFAULT_LOOKBACK=18
 
 while [[ $# -gt 0 ]]; do
@@ -37,6 +39,10 @@ while [[ $# -gt 0 ]]; do
     --from)
       FROM_COMMIT="${2:-}"
       shift 2
+      ;;
+    --for-current-version)
+      FOR_CURRENT_VERSION=1
+      shift
       ;;
     --write)
       WRITE=1
@@ -110,8 +116,49 @@ resolve_release_version() {
   fi
 }
 
-BASE_COMMIT="$(resolve_default_from_commit)"
 RELEASE_VERSION="$(resolve_release_version)"
+
+resolve_previous_version_commit() {
+  local previous_version=""
+  local tag
+  local candidate
+
+  while IFS= read -r tag; do
+    candidate="${tag#v}"
+    if [[ "$candidate" == "$RELEASE_VERSION" ]]; then
+      continue
+    fi
+
+    if [[ "$(printf '%s\n%s\n' "$candidate" "$RELEASE_VERSION" | sort -V | head -n 1)" == "$candidate" ]]; then
+      previous_version="$candidate"
+    fi
+  done < <(git tag --list 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V)
+
+  if [[ -n "$previous_version" ]]; then
+    git rev-list --max-count=1 "v${previous_version}"
+  fi
+}
+
+resolve_base_commit() {
+  local candidate=""
+
+  if [[ -n "$FROM_COMMIT" ]]; then
+    echo "$FROM_COMMIT"
+    return
+  fi
+
+  if [[ "$FOR_CURRENT_VERSION" -eq 1 ]]; then
+    candidate="$(resolve_previous_version_commit)"
+    if [[ -n "$candidate" ]]; then
+      echo "$candidate"
+      return
+    fi
+  fi
+
+  resolve_default_from_commit
+}
+
+BASE_COMMIT="$(resolve_base_commit)"
 
 if ! git rev-parse --verify "${BASE_COMMIT}^{commit}" >/dev/null 2>&1; then
   echo "Invalid baseline commit: $BASE_COMMIT" >&2
@@ -357,7 +404,7 @@ filter_out_existing_keys() {
 }
 
 build_app_store_keys() {
-  local desired_limit=4
+  local desired_limit=6
   local key
   local selected=()
 
@@ -365,6 +412,13 @@ build_app_store_keys() {
     if [[ -z "$key" ]]; then
       continue
     fi
+    case "$key" in
+      public_messaging|internal_engine_work)
+        continue
+        ;;
+      *)
+        ;;
+    esac
     if ! contains_key "$key" "${selected[@]}"; then
       selected+=("$key")
     fi
@@ -378,6 +432,24 @@ build_app_store_keys() {
   fi
 
   printf '%s\n' "${selected[@]}"
+}
+
+app_store_intro() {
+  local -a selected_keys=("$@")
+
+  if contains_key "source_verification" "${selected_keys[@]}" && \
+     contains_key "smarter_suggestions" "${selected_keys[@]}" && \
+     contains_key "messy_files" "${selected_keys[@]}"; then
+    echo "This release makes answers more trustworthy, libraries easier to explore, and imports more resilient."
+    return
+  fi
+
+  if contains_key "plan_limits" "${selected_keys[@]}"; then
+    echo "This release improves everyday document work and cleans up the ownership experience for lifetime users."
+    return
+  fi
+
+  echo "This release sharpens document-grounded answers and smooths the library experience."
 }
 
 mapfile -t RECENT_RENDER_KEYS < <(filter_out_existing_keys "${RECENT_KEYS[@]}")
@@ -412,6 +484,8 @@ EOF
 
 APP_STORE_CONTENT="$(cat <<EOF
 Version $RELEASE_VERSION
+
+$(app_store_intro "${APP_STORE_KEYS[@]}")
 
 $(append_bullets app_store_bullet_for_key "${APP_STORE_KEYS[@]}")
 EOF

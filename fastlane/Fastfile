@@ -34,7 +34,11 @@ platform :ios do
   end
 
   private_lane :prepare_release_signal do
-    sh(File.join(REPO_ROOT, "scripts", "update_public_release_summary.sh"), "--write")
+    sh(
+      File.join(REPO_ROOT, "scripts", "update_public_release_summary.sh"),
+      "--for-current-version",
+      "--write"
+    )
   end
 
   private_lane :mark_release_signal do

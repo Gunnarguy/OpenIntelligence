@@ -205,3 +205,111 @@ A buyer can understand the product quickly, but a buyer engineering team will st
    prompt contract, routing, gates, claim filtering, and UI surfacing.
 4. Be honest that the next medium-term engineering step is splitting policy out of `RAGService.swift`.
 
+## What This Means In Product Terms
+
+From a user perspective, the engine now behaves less like an eager chatbot and more
+like a careful reader.
+
+The biggest visible improvements are:
+
+1. More exact-value questions route toward extraction instead of over-synthesis.
+2. Answers are more likely to stay inside the boundary of retrieved evidence.
+3. Unsupported or weakly supported claims are more likely to be dropped or softened.
+4. Trust behavior is more inspectable because claims and evidence survive into the UI.
+
+That is the right direction for both product trust and commercial positioning.
+
+## What Is Actually New In This Change Set
+
+Compared with the earlier state of the app, the meaningful delta is not a new
+model or a new UI shell.
+
+The meaningful delta is:
+
+1. Better query-lane selection for direct lookup questions
+2. Better evidence discipline in generation
+3. Better post-generation verification and abstention behavior
+4. Better user-visible trust surfacing
+5. Better internal auditability of answer quality
+
+That is a coherent engine story.
+It should be described as an evidence-grounded document reasoning system, not as
+"chat with PDFs."
+
+## What Still Needs Care
+
+The main failure modes to watch now are:
+
+1. Over-strict refusal on ordinary business or consumer documents
+2. Verification overlap that duplicates rejection logic in multiple places
+3. Slow or brittle behavior caused by too much policy inside `RAGService.swift`
+4. Regression risk when new answer heuristics are added without scenario checks
+
+Those are manageable, but only if the next edits stay focused.
+
+## Safe Demo Claims
+
+These are safe claims to make in demos or diligence conversations:
+
+1. The engine distinguishes direct extraction questions from synthesis-heavy questions.
+2. The engine is designed to answer from retrieved evidence rather than generic model prior.
+3. The engine can suppress or reject claims that are not supported by retrieved material.
+4. The app exposes evidence and trust details in a way that a user can inspect.
+5. The current system is optimized for Apple-native, privacy-conscious document QA.
+
+These are not safe claims yet:
+
+1. "Every answer is guaranteed correct."
+2. "The engine fully solves hallucinations."
+3. "Scientific-document logic is fully validated across all domains."
+4. "The architecture is already cleanly modularized for external diligence."
+
+## Packaging Implications
+
+From an SDK or diligence perspective, the strongest transferable assets are:
+
+1. The routing policy
+2. The grounded prompt contract
+3. The claim verification layer
+4. The structured trust payload
+5. The regression tooling and scenario philosophy
+
+The weakest transferable asset is the current code organization.
+A buyer can value the behavior before they value the code shape, but code shape
+still matters once diligence becomes technical.
+
+## Recommended Next Engineering Move
+
+The next move should not be another giant logic expansion.
+The next move should be controlled decomposition.
+
+Recommended order:
+
+1. Lock a small regression set for the main answer lanes.
+2. Finish SDK-boundary cleanup so the engine target becomes real and narrow.
+3. Extract verification and routing policy out of `RAGService.swift` in slices.
+4. Preserve current product behavior while making the logic easier to explain and package.
+
+That sequence protects both shipping velocity and saleability.
+
+## Final Internal Verdict
+
+The current answer-engine work is directionally strong and commercially relevant.
+
+It materially improves:
+
+1. Trust posture
+2. Exact-answer behavior
+3. Inspectability
+4. Diligence narrative
+
+It does not yet justify saying the system is fully mature or fully productized as
+a buyer-ready SDK.
+
+The honest verdict is:
+
+- logic quality: `stronger`
+- product trust: `meaningfully improved`
+- commercial story: `credible`
+- code transfer readiness: `improving but not clean yet`
+- immediate release posture: `ship with focused validation`
