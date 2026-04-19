@@ -493,12 +493,11 @@ class DocumentProcessor {
         )
 
         // POST-OCR GARBAGE TEXT FILTER
-        // Parts diagrams, rotated text, and noisy scans produce OCR garbage:
-        // Cyrillic substitutions, backwards text, consonant noise, etc.
-        // Filter per-line to remove garbage while preserving valid text.
+        // Apply a final line-level cleanup for OCR-heavy non-PDF paths.
+        // PDF ingestion already filters garbage line-by-line per page during extraction,
+        // which keeps page mapping stable and catches isolated bad native-text lines.
         let filteredText: String
-        if ocrPagesCount ?? 0 > 0 {
-            // Only filter OCR'd pages — PDFKit text extraction is clean
+        if documentType != .pdf, (ocrPagesCount ?? 0) > 0 {
             let (cleaned, removedCount) = OCRConfiguration.filterGarbageText(extractedText)
             if removedCount > 0 {
                 Log.info("[DocumentProcessor] Garbage filter: removed \(removedCount) garbage lines from OCR output", category: .ingestion)
@@ -1012,6 +1011,49 @@ class DocumentProcessor {
         Log.debug("[DocumentProcessor] ✓ PASS: Text quality OK (printable=\(String(format: "%.0f", printableRatio * 100))%, entropy=\(String(format: "%.1f", entropy)), lang=\(detectedLang)) Sample: \"\(sample)...\"", category: .ingestion)
 
         return true
+    }
+
+    /// Remove isolated garbage lines from extracted PDF page text before page assembly.
+    /// This is intentionally page-scoped so we preserve page mapping and only strip the
+    /// obviously bad lines that survive page-level extraction in otherwise readable PDFs.
+    private func removeGarbageLinesFromExtractedPages(
+        _ pageTexts: [String],
+        source: String
+    ) -> [String] {
+        var totalRemoved = 0
+        var affectedPages = 0
+        var cleanedPages: [String] = []
+        cleanedPages.reserveCapacity(pageTexts.count)
+
+        for (index, pageText) in pageTexts.enumerated() {
+            guard !pageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                cleanedPages.append(pageText)
+                continue
+            }
+
+            let (cleaned, removedCount) = OCRConfiguration.filterGarbageText(
+                pageText,
+                revertIfTooAggressive: false
+            )
+            if removedCount > 0 {
+                totalRemoved += removedCount
+                affectedPages += 1
+                Log.debug(
+                    "[DocumentProcessor] Removed \(removedCount) garbage line(s) from page \(index + 1) (\(source))",
+                    category: .ingestion
+                )
+            }
+            cleanedPages.append(cleaned)
+        }
+
+        if totalRemoved > 0 {
+            Log.info(
+                "[DocumentProcessor] Garbage filter removed \(totalRemoved) line(s) across \(affectedPages) page(s) (\(source))",
+                category: .ingestion
+            )
+        }
+
+        return cleanedPages
     }
 
     /// Calculate Shannon entropy of text (bits per character)
@@ -1737,7 +1779,8 @@ class DocumentProcessor {
         // Sort results by page index and compute statistics
         results.sort { $0.pageIndex < $1.pageIndex }
 
-        let pageTexts = results.map { $0.text }
+        let rawPageTexts = results.map { $0.text }
+        let pageTexts = removeGarbageLinesFromExtractedPages(rawPageTexts, source: "pdf-legacy")
         _ = results.filter { $0.noTextLayer }.count  // pagesWithoutText - tracked but not logged
         let ocrUsedCount = results.filter { $0.usedOCR }.count
         let totalOCRChars = results.reduce(0) { $0 + $1.ocrCharCount }
@@ -2543,16 +2586,18 @@ class DocumentProcessor {
         results.sort { $0.pageIndex < $1.pageIndex }
 
         var allElements: [StructuredElementWrapper] = []
-        var pageTexts: [String] = []
+        var rawPageTexts: [String] = []
         var pagesWithStructure = 0
         var ocrUsedCount = 0
 
         for result in results {
             allElements.append(contentsOf: result.elements)
-            pageTexts.append(result.pageText)
+            rawPageTexts.append(result.pageText)
             if result.hasStructure { pagesWithStructure += 1 }
             if result.usedOCR { ocrUsedCount += 1 }
         }
+
+        let pageTexts = removeGarbageLinesFromExtractedPages(rawPageTexts, source: "pdf-structured")
 
         // MEMORY OPTIMIZATION: Release the heavy results array before image analysis.
         // For a 542-page PDF, results holds ~100-200MB of PageParseResult objects.

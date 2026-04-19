@@ -384,9 +384,16 @@ enum OCRConfiguration {
     /// Uses NLLanguageRecognizer to detect document language before filtering,
     /// preventing destruction of legitimate non-Latin documents.
     ///
-    /// - Parameter text: Raw OCR text (may contain garbage)
+    /// - Parameters:
+    ///   - text: Raw OCR text (may contain garbage)
+    ///   - revertIfTooAggressive: When true, restore the original text if more than
+    ///     80% of substantive lines are removed. Page-scoped PDF cleanup can disable
+    ///     this so obviously corrupted native-text pages do not leak through unchanged.
     /// - Returns: Cleaned text with garbage lines removed, and count of removed lines
-    static func filterGarbageText(_ text: String) -> (cleaned: String, removedCount: Int) {
+    static func filterGarbageText(
+        _ text: String,
+        revertIfTooAggressive: Bool = true
+    ) -> (cleaned: String, removedCount: Int) {
         // LANGUAGE AWARENESS: Detect if this is a Latin-script document
         // If it's Russian, Arabic, Chinese, etc. — skip Latin-specific rules
         let (isLatinScript, detectedLang) = detectDocumentLanguage(text)
@@ -426,8 +433,12 @@ enum OCRConfiguration {
         // — return original text rather than empty to avoid silent data loss
         let substantiveLines = lines.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
         if substantiveLines.count > 3 && removedCount > (substantiveLines.count * 4 / 5) {
-            Log.warning("[OCR] Garbage filter removed \(removedCount)/\(substantiveLines.count) lines — too aggressive, keeping original", category: .ingestion)
-            return (text, 0)  // Return original rather than empty
+            if revertIfTooAggressive {
+                Log.warning("[OCR] Garbage filter removed \(removedCount)/\(substantiveLines.count) lines — too aggressive, keeping original", category: .ingestion)
+                return (text, 0)
+            } else {
+                Log.warning("[OCR] Garbage filter removed \(removedCount)/\(substantiveLines.count) lines — keeping aggressive cleanup for page-scoped extraction", category: .ingestion)
+            }
         }
 
         return (kept.joined(separator: "\n"), removedCount)
