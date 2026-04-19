@@ -1,15 +1,15 @@
 # OpenIntelligence
 
 [![App Store](https://img.shields.io/badge/App%20Store-Download-blue.svg?logo=apple)](https://apps.apple.com/us/app/openintelligence/id6756559175)
-[![Platform](https://img.shields.io/badge/platform-iOS%2026.0%2B-blue.svg)](https://developer.apple.com/ios/)
+[![Platforms](https://img.shields.io/badge/platform-iPhone%20%7C%20iPad-blue.svg)](https://developer.apple.com/ios/)
 [![Swift](https://img.shields.io/badge/Swift-6.0-orange.svg)](https://swift.org)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-Ask your documents questions on iPhone. Get cited answers, inspect the evidence, and see when the app cannot support a claim.
+OpenIntelligence is an Apple-native document intelligence app for turning private files into a searchable, cited, inspectable knowledge layer.
 
-OpenIntelligence is a privacy-first iPhone app for asking questions about your own documents. Import files, search them conversationally, review grounded answers with citations, and inspect which claims were supported or dropped before trusting the result.
+Import documents, ask natural-language questions, inspect the evidence behind each answer, and see when the app cannot support a claim strongly enough to answer cleanly. The goal is not generic chat. The goal is grounded answers over the material you actually gave it.
 
-This public repository is meant to show product direction, app quality, and native iOS craftsmanship without publishing the full retrieval engine playbook. Detailed engine tuning, evaluation thresholds, orchestration logic, and business strategy are intentionally kept out of the public docs.
+This repository is intentionally product-facing. It shows the app, the native client architecture, and the user-visible trust model without publishing the full private SDK packaging, internal evaluation playbook, or commercial transfer materials.
 
 <p align="center">
   <a href="https://apps.apple.com/us/app/openintelligence/id6756559175">
@@ -17,68 +17,102 @@ This public repository is meant to show product direction, app quality, and nati
   </a>
 </p>
 
-## What It Does
+## Product Snapshot
 
-1. Import PDFs, office files, images, audio, and text from the device.
-2. Organize documents into private libraries on iPhone.
-3. Ask natural-language questions and get grounded answers with citations.
-4. Review answers, verified claims, dropped claims, and sources in a native SwiftUI experience.
+OpenIntelligence is built for people who need answers from their own material, not another free-form model summary. The app ingests documents locally, organizes them into private libraries, retrieves supporting evidence, and returns answers that are designed to stay tied to source material instead of drifting into confident filler.
+
+It is especially useful when the cost of a wrong answer is not abstract:
+
+- product and technical documentation
+- operating manuals and service guides
+- internal references and approved collateral
+- dense mixed-format files that are awkward to search manually
+
+## Core Experience
+
+1. Import PDFs, Office files, text, code, images, audio, and video from Apple file surfaces.
+2. Organize documents into private libraries that keep work scoped and navigable.
+3. Ask questions in plain English instead of manually opening and skimming files.
+4. Review cited answers with support details, dropped claims, and evidence visibility.
+5. See abstention when the document set does not actually support a reliable answer.
+
+## Why It Feels Different
+
+- It is built around source-backed answering, not generic assistant-style confidence.
+- It exposes answer quality instead of hiding uncertainty behind polished prose.
+- It is local-first, Apple-native, and designed around privacy-sensitive document use.
+- It treats answer refusal as a feature when evidence is weak.
+
+## Platform Scope
+
+The current app target is built for:
+
+- iPhone
+- iPad
+
+The codebase is also being shaped for broader Apple-native engine packaging, but this public app target is currently an iPhone and iPad product rather than a native macOS app.
+
+## Privacy Posture
+
+- Document import, storage, retrieval, and most answer work are local-first.
+- Apple-managed cloud processing can be used only through Apple platform capabilities and user-controlled settings.
+- No third-party hosted AI service is part of the core public product path.
+- The product is designed to keep proprietary material inside Apple-controlled execution paths rather than pushing it into generic external AI infrastructure.
+
+For the fuller privacy summary, see [PRIVACY.md](PRIVACY.md).
 
 ## Reliability Posture
 
-- The app is designed to answer from the documents you provide, not from generic background knowledge.
-- When critical claims cannot be supported from retrieved evidence, the app should refuse instead of bluffing.
-- Response details expose verified claims, dropped claims, and missing evidence so users can inspect trust, not just read prose.
-- Generation audit scenarios can be run locally to catch regressions in abstention, citation mapping, and source-faithful behavior.
+- Answers are meant to come from the provided material, not from broad background guessing.
+- Unsupported claims can be removed before final answer rendering.
+- Response review surfaces make it possible to inspect what was supported, what was dropped, and where the evidence came from.
+- Audit tooling exists to catch regressions in abstention, citation mapping, and source-faithful behavior.
 
-## Privacy
-
-- On-device by default for parsing, storage, search, and answer generation when Apple platform capabilities allow it.
-- Apple-managed cloud processing may be used only through Apple system features and user-controlled settings.
-- No third-party hosted AI service is part of the core public product flow.
+This does not make the product magic or infallible. It means the app is intentionally biased toward groundedness over performance theater.
 
 ## Supported Content
 
-| Category      | Examples                                             |
-| ------------- | ---------------------------------------------------- |
-| Documents     | PDF, TXT, MD, RTF                                    |
-| Office        | DOCX, XLSX, PPTX                                     |
+| Category | Examples |
+| --- | --- |
+| Documents | PDF, TXT, MD, RTF |
+| Office | DOCX, XLSX, PPTX |
 | Code and data | Swift, Python, JavaScript, JSON, CSV, XML, YAML, SQL |
-| Media         | PNG, JPEG, HEIC, TIFF, MP3, WAV, MP4, MOV            |
+| Media | PNG, JPEG, HEIC, TIFF, MP3, WAV, MP4, MOV |
 
-## Public Scope
+## Public vs Private Scope
 
-The public repo focuses on:
+This repo intentionally emphasizes:
 
-- Product experience and native iOS implementation quality
-- SwiftUI screens, app shell, and user-facing workflows
-- Apple platform integrations and privacy posture
-- Buildable demo and portfolio value for the app itself
+- app experience
+- native SwiftUI implementation
+- Apple-platform integration
+- product behavior that users can actually inspect
 
-The public docs intentionally do not publish:
+This repo intentionally does not publish:
 
-- Retrieval formulas, tuning values, and evaluation thresholds
-- Multi-pass orchestration rules and verification heuristics
-- Internal commercialization plans or pricing strategy work
-- Detailed internal operating instructions for the engine team
+- internal retrieval thresholds
+- answer verification heuristics in full detail
+- private SDK packaging work
+- pricing and partner materials
+- internal evaluation and commercialization docs
 
 ## Documentation
 
-- [HOW_IT_WORKS.md](HOW_IT_WORKS.md) - high-level product workflow
-- [ARCHITECTURE.md](ARCHITECTURE.md) - public architecture summary
-- [ROADMAP.md](ROADMAP.md) - public-facing product roadmap
-- [CHANGELOG.md](CHANGELOG.md) - public version history
-- [WHATS_NEW.md](WHATS_NEW.md) - public release highlights
-- [PRIVACY.md](PRIVACY.md) - privacy posture and data handling
+- [HOW_IT_WORKS.md](HOW_IT_WORKS.md): high-level workflow
+- [ARCHITECTURE.md](ARCHITECTURE.md): public architecture summary
+- [ROADMAP.md](ROADMAP.md): product roadmap
+- [CHANGELOG.md](CHANGELOG.md): version history
+- [WHATS_NEW.md](WHATS_NEW.md): release highlights
+- [PRIVACY.md](PRIVACY.md): privacy posture and data handling
 
-## Getting Started
+## Build
 
 ### Requirements
 
 - macOS with Xcode installed
-- iOS 26.0+ deployment target
+- iOS 26.0+ SDK/toolchain support
 
-### Build
+### App Build
 
 ```bash
 xcodebuild -scheme OpenIntelligence -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build
@@ -90,32 +124,28 @@ xcodebuild -scheme OpenIntelligence -destination 'platform=iOS Simulator,name=iP
 ./scripts/build_simulator_smoke.sh
 ```
 
-Use this when you want a fast compile-and-link check for the iOS Simulator.
+Use this for a fast compile-and-link validation pass in Simulator.
 
-### Reliability Audit
+### Device Reliability Audit
 
 ```bash
 ./scripts/run_generation_audit.sh
 ```
 
-This runs the generation audit on a connected physical iPhone and fails if core source-faithfulness scenarios regress.
+This audit is meant for a connected physical device. Apple Foundation Models behavior is not meaningfully validated in Simulator, so Simulator is useful for build health while real answer-behavior checks belong on supported hardware.
 
-The audit is device-only on purpose: Apple Foundation Models are not available in Simulator, so Simulator can validate build health but not real source-only generation behavior.
+## Project Layout
 
-### Project Layout
-
-- `OpenIntelligence/App/` - app entry points and composition
-- `OpenIntelligence/Features/` - user-facing feature areas
-- `OpenIntelligence/UI/` - shared UI components and design system
-- `OpenIntelligence/Resources/` - assets, privacy metadata, bundled resources
-- `OpenIntelligence/Services/` - application services and platform integrations
-
-Some engine details are deliberately undocumented in the public repo. Collaboration on deeper internals happens privately.
+- `OpenIntelligence/App/`: app entry points and composition
+- `OpenIntelligence/Features/`: user-facing feature areas
+- `OpenIntelligence/UI/`: shared UI and presentation building blocks
+- `OpenIntelligence/Resources/`: assets, privacy metadata, bundled resources
+- `OpenIntelligence/Services/`: ingestion, retrieval, generation, storage, and platform integrations
 
 ## Contributing
 
-Issues and product feedback are welcome. Public contributions should stay focused on product experience, app behavior, platform fit, and documentation. Deeper engine collaboration is handled separately.
+Issues and product feedback are welcome. Public contributions should stay focused on app behavior, platform fit, UI quality, and documentation. Deeper engine and commercial packaging work is handled privately.
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+MIT License. See [LICENSE](LICENSE) for details.
