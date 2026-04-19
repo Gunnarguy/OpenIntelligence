@@ -99,6 +99,11 @@ blocked_patterns=(
   "output/OpenIntelligence-SDK-Package/"
   ".github/copilot-instructions.md"
   ".github/instructions/"
+  "OpenIntelligence/Services/Document/"
+  "OpenIntelligence/Services/RAG/"
+  "OpenIntelligence/Services/Query/"
+  "OpenIntelligence/Services/Embedding/"
+  "OpenIntelligence/Services/Storage/"
   "OpenIntelligence/SDK/"
   "OpenIntelligence/Core/Support/"
   "scripts/build_engine_xcframework.sh"
@@ -135,6 +140,7 @@ for commit in "${COMMITS[@]}"; do
   if [[ ${#blocked_files[@]} -gt 0 && $FORCE -ne 1 ]]; then
     echo "Commit $commit touches blocked private/commercial paths:" >&2
     printf '  - %s\n' "${blocked_files[@]}" >&2
+    echo "See VISIBILITY_POLICY.md for the lane rules." >&2
     echo "Review it carefully or rerun with --force if you intentionally want to promote it." >&2
     exit 1
   fi

@@ -10,6 +10,9 @@ If you forget everything else, remember this:
 - do SDK/commercial work here
 - only copy intentionally public-safe work into the public repo
 
+Read [VISIBILITY_POLICY.md](/Users/gunnarhostetler/Documents/GitHub/OpenIntelligence/VISIBILITY_POLICY.md:1)
+if you need the exact `always private` vs `public-safe` rules.
+
 ## The Two Repos
 
 ### 1. Private-primary repo
@@ -120,6 +123,21 @@ Usually safe candidates:
 - safe app bug fixes you are comfortable showing
 
 Still review them before promotion.
+
+## Summary-Only Rule
+
+Some changes should be described publicly without promoting the code.
+
+Use this for:
+
+- engine reliability improvements
+- ingestion fixes
+- retrieval/groundedness improvements
+- trust and verification improvements
+- SDK/productization progress
+
+For those, update public copy or release notes, but keep the implementation in
+the private repo.
 
 ## Promotion Process
 
