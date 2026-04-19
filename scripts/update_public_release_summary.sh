@@ -148,6 +148,35 @@ contains_key() {
   return 1
 }
 
+KEY_PRIORITY=(
+  source_verification
+  smarter_suggestions
+  messy_files
+  plan_limits
+  library_experience
+  grounded_answers
+  ui_polish
+  public_messaging
+  internal_engine_work
+)
+
+sort_keys_by_priority() {
+  local -a input_keys=("$@")
+  local key
+
+  for key in "${KEY_PRIORITY[@]}"; do
+    if contains_key "$key" "${input_keys[@]}"; then
+      echo "$key"
+    fi
+  done
+
+  for key in "${input_keys[@]}"; do
+    if ! contains_key "$key" "${KEY_PRIORITY[@]}"; then
+      echo "$key"
+    fi
+  done
+}
+
 LATEST_KEYS=()
 RECENT_KEYS=()
 
@@ -224,34 +253,37 @@ if [[ ${#RECENT_KEYS[@]} -eq 0 ]]; then
   add_recent "grounded_answers"
 fi
 
+mapfile -t LATEST_KEYS < <(sort_keys_by_priority "${LATEST_KEYS[@]}")
+mapfile -t RECENT_KEYS < <(sort_keys_by_priority "${RECENT_KEYS[@]}")
+
 summary_bullet_for_key() {
   case "$1" in
     smarter_suggestions)
-      echo "Smarter suggested questions that stay closer to the uploaded documents behind them"
+      echo "Suggested questions now pull from a clearer slice of your actual library, so larger collections feel more specific and easier to explore"
       ;;
     plan_limits)
-      echo "Lifetime Cohort now unlocks unlimited documents with a cleaner plan experience"
+      echo "Lifetime Cohort now unlocks unlimited documents, and lifetime owners no longer see document-pack prompts"
       ;;
     messy_files)
-      echo "Improved handling for difficult PDFs and messy extracted text"
+      echo "Imports are more resilient on difficult manuals and messy PDFs, with better cleanup of noisy extracted text"
       ;;
     source_verification)
-      echo "Stronger source checks and clearer behavior when evidence is weak"
+      echo "Answers are stricter about what your documents actually support, with clearer fallback behavior when evidence is weak"
       ;;
     grounded_answers)
-      echo "Better source-grounded answers and more reliable document scoping"
+      echo "Document scoping and evidence handling are more reliable across questions that pull from multiple files"
       ;;
     library_experience)
-      echo "A smoother library experience across import, browsing, and first-question flow"
+      echo "Importing, browsing, and getting to a strong first question feel smoother across larger libraries"
       ;;
     ui_polish)
-      echo "Refinements across chat, settings, and other core app screens"
+      echo "Chat, answer review, and settings surfaces were tightened up to make results easier to trust and inspect"
       ;;
     public_messaging)
-      echo "Updated public-facing product messaging and release notes"
+      echo "Release messaging and product copy were refreshed to better match what the app actually does"
       ;;
     internal_engine_work)
-      echo "Behind-the-scenes engine and reliability work supporting future releases"
+      echo "Behind-the-scenes engine and release workflow work landed to make future updates steadier"
       ;;
     *)
       ;;
@@ -261,25 +293,25 @@ summary_bullet_for_key() {
 app_store_bullet_for_key() {
   case "$1" in
     smarter_suggestions)
-      echo "Smarter document-grounded suggested questions across larger libraries"
+      echo "Suggested questions now stay closer to the uploaded documents in large libraries"
       ;;
     plan_limits)
-      echo "Lifetime Cohort now unlocks unlimited documents"
+      echo "Lifetime Cohort now unlocks unlimited documents without document-pack prompts"
       ;;
     messy_files)
-      echo "Better handling for messy PDFs and noisy extracted text"
+      echo "Better cleanup for messy PDFs and noisy manual imports"
       ;;
     source_verification)
-      echo "Stronger source checks when evidence is weak or incomplete"
+      echo "Answers are more grounded in what your documents actually support"
       ;;
     grounded_answers)
-      echo "Better source-grounded answers and tighter document scoping"
+      echo "Tighter document scoping across multi-document questions"
       ;;
     library_experience)
-      echo "Smoother library import, browsing, and first-question flow"
+      echo "Smoother import, browsing, and first-question flow in the library"
       ;;
     ui_polish)
-      echo "Refined chat, review, and settings experience"
+      echo "Cleaner chat, answer review, and settings flow"
       ;;
     public_messaging)
       echo "Sharper in-app and release messaging"
@@ -325,7 +357,7 @@ filter_out_existing_keys() {
 }
 
 build_app_store_keys() {
-  local desired_limit=3
+  local desired_limit=4
   local key
   local selected=()
 
@@ -356,24 +388,25 @@ SUMMARY_CONTENT="$(cat <<EOF
 
 Public release highlights for OpenIntelligence.
 
-## Latest Highlights
+## In This Release
 
 $(append_bullets summary_bullet_for_key "${LATEST_KEYS[@]}")
 
-## Recent Product Improvements
+## Also Improved
 
 $(append_bullets summary_bullet_for_key "${RECENT_RENDER_KEYS[@]}")
 
-## Earlier Milestones
+## Product Snapshot
 
-- App Store launch on iPhone
-- Local document Q&A with citations
-- Native Apple platform integration for privacy-first workflows
+- Private document Q&A on iPhone and iPad
+- Source-backed answers with reviewable evidence
+- Built for growing personal and professional document libraries
 
 ## Notes
 
-This public summary is intentionally feature-facing. Internal engine changes,
-tuning values, and private roadmap details are not published here.
+This summary stays feature-facing on purpose. It tells users what improved
+without publishing internal pipeline details, tuning rules, or private roadmap
+work.
 EOF
 )"
 

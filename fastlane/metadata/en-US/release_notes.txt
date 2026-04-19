@@ -1,5 +1,6 @@
 Version 2.1.2
 
-- Lifetime Cohort now unlocks unlimited documents
-- Smarter document-grounded suggested questions across larger libraries
-- Smoother library import, browsing, and first-question flow
+- Answers are more grounded in what your documents actually support
+- Suggested questions now stay closer to the uploaded documents in large libraries
+- Better cleanup for messy PDFs and noisy manual imports
+- Lifetime Cohort now unlocks unlimited documents without document-pack prompts

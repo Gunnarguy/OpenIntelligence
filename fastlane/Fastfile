@@ -15,7 +15,16 @@ ASC_KEY_PATH = File.expand_path("~/AuthKey_JT97AQ3U4U.p8").freeze
 platform :ios do
 
   # --- Shared API key config ---
+  private_lane :clear_asc_env_conflicts do
+    %w[
+      APP_STORE_CONNECT_API_KEY_PATH
+      APP_STORE_CONNECT_API_KEY_ID
+      APP_STORE_CONNECT_ISSUER_ID
+    ].each { |key| ENV.delete(key) }
+  end
+
   private_lane :asc_api_key do
+    clear_asc_env_conflicts
     app_store_connect_api_key(
       key_id: ASC_KEY_ID,
       issuer_id: ASC_ISSUER_ID,
@@ -92,30 +101,30 @@ platform :ios do
 
   desc "Push metadata to a draft App Store version (requires new version in ASC)"
   lane :metadata do
-    api_key = asc_api_key
+    asc_api_key
     prepare_release_signal
     deliver(
-      api_key: api_key,
       app_identifier: APP_IDENTIFIER,
       skip_binary_upload: true,
       skip_screenshots: true,
       force: true,
       submit_for_review: false,
+      run_precheck_before_submit: false,
       precheck_include_in_app_purchases: false
     )
   end
 
   desc "Update live App Store listing (description, keywords, promo text)"
   lane :metadata_live do
-    api_key = asc_api_key
+    asc_api_key
     deliver(
-      api_key: api_key,
       app_identifier: APP_IDENTIFIER,
       skip_binary_upload: true,
       skip_screenshots: true,
       force: true,
       submit_for_review: false,
       edit_live: true,
+      run_precheck_before_submit: false,
       precheck_include_in_app_purchases: false,
       version_check_wait_retry_limit: 1
     )
@@ -123,13 +132,14 @@ platform :ios do
 
   desc "Validate app metadata and screenshots"
   lane :validate do
-    api_key = asc_api_key
+    asc_api_key
     prepare_release_signal
     deliver(
-      api_key: api_key,
       verify_only: true,
       skip_screenshots: true,
-      skip_binary_upload: true
+      skip_binary_upload: true,
+      run_precheck_before_submit: false,
+      precheck_include_in_app_purchases: false
     )
   end
 
