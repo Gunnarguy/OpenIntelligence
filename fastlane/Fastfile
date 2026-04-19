@@ -3,8 +3,9 @@
 
 default_platform(:ios)
 
+REPO_ROOT = File.expand_path("..", __dir__).freeze
 APP_IDENTIFIER = "Gunndamental.OpenIntelligence".freeze
-PROJECT_PATH = "OpenIntelligence.xcodeproj".freeze
+PROJECT_PATH = File.join(REPO_ROOT, "OpenIntelligence.xcodeproj").freeze
 SCHEME = "OpenIntelligence".freeze
 TEAM_ID = "Z3E334EXZD".freeze
 ASC_KEY_ID = "JT97AQ3U4U".freeze
@@ -24,14 +25,15 @@ platform :ios do
   end
 
   private_lane :prepare_release_signal do
-    sh("./scripts/update_public_release_summary.sh", "--write")
+    sh(File.join(REPO_ROOT, "scripts", "update_public_release_summary.sh"), "--write")
   end
 
   private_lane :mark_release_signal do
     require "fileutils"
 
-    FileUtils.mkdir_p(".release")
-    File.write(".release/public_summary_base", "#{sh('git', 'rev-parse', 'HEAD').strip}\n")
+    state_dir = File.join(REPO_ROOT, ".release")
+    FileUtils.mkdir_p(state_dir)
+    File.write(File.join(state_dir, "public_summary_base"), "#{sh('git', 'rev-parse', 'HEAD').strip}\n")
   end
 
   desc "Build the app for App Store submission"
@@ -40,7 +42,7 @@ platform :ios do
       scheme: SCHEME,
       project: PROJECT_PATH,
       export_method: "app-store",
-      output_directory: "./build",
+      output_directory: File.join(REPO_ROOT, "build"),
       output_name: "OpenIntelligence.ipa",
       export_options: {
         signingStyle: "automatic",
@@ -131,7 +133,7 @@ platform :ios do
 
   desc "Commit public-safe release notes and summary in the private repo"
   lane :public_signal do
-    sh("./scripts/refresh_public_signal.sh")
+    sh(File.join(REPO_ROOT, "scripts", "refresh_public_signal.sh"))
   end
 
   desc "Verify StoreKit products match subscription config"
