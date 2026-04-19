@@ -62,7 +62,9 @@ platform :ios do
       skip_screenshots: true,
       submit_for_review: false,
       automatic_release: false,
-      force: true
+      force: true,
+      run_precheck_before_submit: false,
+      precheck_include_in_app_purchases: false
     )
     mark_release_signal
   end
