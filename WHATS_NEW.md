@@ -4,21 +4,17 @@ Public release highlights for OpenIntelligence.
 
 ## Latest Highlights
 
-- More source-backed answers with clearer refusal when evidence is weak
-- Better answer review with verified-claim, dropped-claim, and source inspection
-- Improved handling for large or messy source files
-- Cleaner onboarding and more approachable first-run experience
-- Continued polish across settings, billing, and diagnostics
+- Smarter suggested questions that stay closer to the uploaded documents behind them
+- Improved handling for difficult PDFs and messy extracted text
+- Stronger source checks and clearer behavior when evidence is weak
 
 ## Recent Product Improvements
 
-- Better source inspection and answer review
-- Claim-level filtering so unsupported claims are dropped before final answer rendering
-- Stronger grounded refusal behavior for critical unsupported claims
-- Internal generation audit coverage for abstention, citation mapping, and source-faithful behavior
-- Smoother chat behavior during longer sessions
-- More resilient import flows across common file types
-- More consistent user experience across supported Apple devices
+- Refinements across chat, settings, and other core app screens
+- A smoother library experience across import, browsing, and first-question flow
+- Behind-the-scenes engine and reliability work supporting future releases
+- Better source-grounded answers and more reliable document scoping
+- Updated public-facing product messaging and release notes
 
 ## Earlier Milestones
 
@@ -28,4 +24,5 @@ Public release highlights for OpenIntelligence.
 
 ## Notes
 
-This public summary is intentionally feature-facing. Internal engine changes, tuning values, and private roadmap details are not published here.
+This public summary is intentionally feature-facing. Internal engine changes,
+tuning values, and private roadmap details are not published here.

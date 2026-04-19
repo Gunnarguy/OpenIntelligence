@@ -153,6 +153,30 @@ When you want something public:
 5. Push `public-safe` when you are ready.
 6. Merge to public `main` only intentionally.
 
+## Public Freshness
+
+If you want the public repo to stay active without exposing the engine, use the
+automated summary path:
+
+- `./scripts/update_public_release_summary.sh --write`
+- or the one-command wrapper:
+- `./scripts/refresh_public_signal.sh`
+
+That keeps both:
+
+- `WHATS_NEW.md`
+- `fastlane/metadata/en-US/release_notes.txt`
+
+current from private activity using public-safe, feature-facing language instead
+of mirroring engine code.
+
+The Fastlane release lanes also call the generator automatically, so App Store
+release notes stay in sync even when the underlying implementation work remains
+private.
+
+`release` and `beta` also advance the local summary baseline only after a
+successful upload, so the next version summary reflects what actually shipped.
+
 ## Current Local Setup
 
 Private repo:

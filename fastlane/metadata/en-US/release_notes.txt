@@ -1,13 +1,5 @@
 Version 2.1.1
 
-SOURCE-BACKED TRUST
-- Added claim-level filtering so unsupported claims can be dropped before the final answer is shown
-- Improved grounded refusal behavior when critical evidence is missing
-- Added clearer answer review with verified claims, dropped claims, and missing-detail inspection
-
-CHAT & REVIEW
-- Better source inspection in response details
-- Stronger verification messaging so trust status is easier to read at a glance
-
-PRODUCT COPY
-- Tightened in-app and App Store language to better match the app's real reliability posture
+- Smarter document-grounded suggested questions across larger libraries
+- Better handling for messy PDFs and noisy extracted text
+- Stronger source checks when evidence is weak or incomplete

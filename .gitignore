@@ -135,6 +135,7 @@ Future
 START_HERE.md
 scripts/temp_generation_audit.swift
 AllianceWasherIngested
+.release/public_summary_base
 
 # Research PDFs (reference only, not source)
 *.pdf
