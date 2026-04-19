@@ -128,7 +128,10 @@ When you want something public:
 1. Make the change in the private repo first.
 2. Commit it in the private repo.
 3. Push it to `engine`.
-4. In the public repo, cherry-pick only the safe commit(s) onto `public-safe`.
+4. Promote only the safe commit(s) into the public repo.
+   - Preferred path:
+   - `./scripts/promote_public_safe.sh <commit> [<commit> ...]`
+   - Add `--push` when you want the public branch updated on GitHub immediately.
 5. Push `public-safe` when you are ready.
 6. Merge to public `main` only intentionally.
 
@@ -141,8 +144,9 @@ Private repo:
 
 Public repo:
 
-- `public-safe` tracks `origin/main`
-- use it as the review lane before touching public `main`
+- `public-safe` is the public review branch
+- once published, it tracks `origin/public-safe`
+- merge from `public-safe` to public `main` only on purpose
 
 ## If You Feel Lost
 
@@ -152,3 +156,14 @@ Use this rule:
 - public GitHub / stars / safe open history -> public repo
 
 If unsure, keep it private first.
+
+## Staleness Rule
+
+The public repo is allowed to lag.
+
+That is not failure. It is the design.
+
+What must stay current is:
+
+- the private repo as source of truth
+- the public repo only when you intentionally want public-safe visibility
