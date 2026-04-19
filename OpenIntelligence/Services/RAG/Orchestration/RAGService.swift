@@ -2563,17 +2563,71 @@ class RAGService: ObservableObject {
         let db = vectorRouter.db(for: container)
         let allChunks = try await db.allChunks()
 
-        // Return a representative sample: first, middle, and distributed chunks
-        guard !allChunks.isEmpty else { return [] }
-        guard allChunks.count > limit else { return allChunks }
+        let detailChunks = allChunks.filter { $0.metadata.abstractionLevel == .detail }
+        let candidateChunks = detailChunks.isEmpty ? allChunks : detailChunks
 
-        var sampleIndices: Set<Int> = []
-        let stride = allChunks.count / limit
-        for i in 0..<limit {
-            sampleIndices.insert(min(i * stride, allChunks.count - 1))
+        guard !candidateChunks.isEmpty else { return [] }
+        guard candidateChunks.count > limit else { return candidateChunks }
+
+        var byDocument: [UUID: [DocumentChunk]] = [:]
+        var documentOrder: [UUID] = []
+
+        for chunk in candidateChunks {
+            if byDocument[chunk.documentId] == nil {
+                documentOrder.append(chunk.documentId)
+            }
+            byDocument[chunk.documentId, default: []].append(chunk)
         }
 
-        return sampleIndices.sorted().map { allChunks[$0] }
+        let prioritizedDocs = documentOrder.sorted { lhs, rhs in
+            let leftCount = byDocument[lhs]?.count ?? 0
+            let rightCount = byDocument[rhs]?.count ?? 0
+            if leftCount != rightCount { return leftCount > rightCount }
+            return lhs.uuidString < rhs.uuidString
+        }
+
+        func distributedIndices(count: Int, target: Int) -> [Int] {
+            guard count > 0 else { return [] }
+            guard count > target else { return Array(0..<count) }
+            guard target > 1 else { return [count / 2] }
+
+            var result: [Int] = []
+            var seen: Set<Int> = []
+            let step = Double(count - 1) / Double(target - 1)
+            for i in 0..<target {
+                let index = min(Int((Double(i) * step).rounded()), count - 1)
+                if seen.insert(index).inserted {
+                    result.append(index)
+                }
+            }
+            return result
+        }
+
+        let docsToCover = max(1, min(prioritizedDocs.count, limit))
+        let perDocCandidateBudget = max(1, min(6, (limit / docsToCover) + 1))
+
+        var perDocSamples: [UUID: [DocumentChunk]] = [:]
+        for docId in prioritizedDocs {
+            let docChunks = byDocument[docId] ?? []
+            let indices = distributedIndices(count: docChunks.count, target: perDocCandidateBudget)
+            perDocSamples[docId] = indices.map { docChunks[$0] }
+        }
+
+        var sample: [DocumentChunk] = []
+        var round = 0
+        while sample.count < limit {
+            var addedThisRound = false
+            for docId in prioritizedDocs {
+                guard sample.count < limit else { break }
+                guard let docChunks = perDocSamples[docId], round < docChunks.count else { continue }
+                sample.append(docChunks[round])
+                addedThisRound = true
+            }
+            round += 1
+            if !addedThisRound { break }
+        }
+
+        return sample
     }
 
     func embeddingDiagnosticsSnapshot() async -> EmbeddingDiagnosticsSnapshot {

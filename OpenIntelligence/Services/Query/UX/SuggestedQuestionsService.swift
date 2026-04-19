@@ -74,6 +74,7 @@ actor SuggestedQuestionsService {
         let text: String
         let category: QuestionCategory
         let relevantDocuments: [String]
+        let sourceSections: [String]
         let confidence: Double
     }
 
@@ -200,14 +201,14 @@ actor SuggestedQuestionsService {
         var selected: [DocumentChunk] = []
         var usedSections: Set<String> = []
 
-        // Round-robin across documents, preferring chunks with:
-        // 1. Rich content (higher word count, not just headers)
-        // 2. Different sections (diverse sectionTitle)
-        // 3. Interesting metadata (hasNumericData, entities, abbreviations)
-        let docIds = Array(byDocument.keys)
+        // Prioritize richer documents, but still keep cross-document coverage.
+        let docIds = Array(byDocument.keys).sorted { lhs, rhs in
+            documentRichnessScore(byDocument[lhs] ?? []) > documentRichnessScore(byDocument[rhs] ?? [])
+        }
+        let prioritizedDocIds = Array(docIds.prefix(max(targetCount, min(docIds.count, 6))))
 
         // Sort each document's chunks by "interestingness"
-        for docId in docIds {
+        for docId in prioritizedDocIds {
             byDocument[docId]?.sort { a, b in
                 interestingnessScore(a) > interestingnessScore(b)
             }
@@ -217,20 +218,22 @@ actor SuggestedQuestionsService {
         var round = 0
         while selected.count < targetCount {
             var addedThisRound = false
-            for docId in docIds {
+            for docId in prioritizedDocIds {
                 guard selected.count < targetCount else { break }
                 guard let docChunks = byDocument[docId], round < docChunks.count else { continue }
 
                 let candidate = docChunks[round]
-                let section = candidate.metadata.sectionTitle ?? "default_\(candidate.id.uuidString.prefix(4))"
+                let section = primarySectionLabel(for: candidate) ?? "default_\(candidate.id.uuidString.prefix(4))"
+                let sectionKey = "\(docId.uuidString)::\(section.lowercased())"
 
-                // Skip if we already have a chunk from this exact section (across all docs)
-                if usedSections.contains(section) && selected.count >= docIds.count {
+                // Avoid duplicate sections within the same source document, but do not
+                // collapse similarly named sections across different documents.
+                if usedSections.contains(sectionKey) && selected.count >= prioritizedDocIds.count {
                     continue
                 }
 
                 selected.append(candidate)
-                usedSections.insert(section)
+                usedSections.insert(sectionKey)
                 addedThisRound = true
             }
             round += 1
@@ -277,6 +280,48 @@ actor SuggestedQuestionsService {
         return score
     }
 
+    private func documentRichnessScore(_ chunks: [DocumentChunk]) -> Double {
+        guard !chunks.isEmpty else { return 0 }
+
+        let topChunkScore = chunks
+            .map(interestingnessScore)
+            .sorted(by: >)
+            .prefix(3)
+            .reduce(0, +)
+
+        let uniqueSections = Set(chunks.compactMap { primarySectionLabel(for: $0)?.lowercased() }).count
+        let structuredCount = chunks.filter { chunk in
+            (chunk.metadata.structureType?.isEmpty == false) && chunk.metadata.structureType != "paragraph"
+        }.count
+
+        return topChunkScore
+            + Double(min(uniqueSections, 4)) * 1.25
+            + Double(min(structuredCount, 3)) * 0.75
+    }
+
+    private func primarySectionLabel(for chunk: DocumentChunk) -> String? {
+        if let section = chunk.metadata.sectionTitle?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !section.isEmpty {
+            return section
+        }
+        if let pathSection = chunk.metadata.sectionPath?.last?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !pathSection.isEmpty {
+            return pathSection
+        }
+        return nil
+    }
+
+    private struct GroundedPassage: Sendable {
+        let chunk: DocumentChunk
+        let documentName: String
+        let sectionName: String?
+        let content: String
+        let searchableText: String
+        let documentTokens: Set<String>
+        let sectionTokens: Set<String>
+        let bodyTokens: Set<String>
+    }
+
     // MARK: - Step 2: LLM Generation (iOS 26+)
 
     #if canImport(FoundationModels)
@@ -292,14 +337,16 @@ actor SuggestedQuestionsService {
             return []
         }
 
-        // Build content passages from diverse chunks
-        let passages = chunks.prefix(5).enumerated().map { index, chunk in
-            let docName = documents.first(where: { $0.id == chunk.documentId })?.filename ?? "Document"
-            let section = chunk.metadata.sectionTitle.map { " > \($0)" } ?? ""
-            let content = String(chunk.content.prefix(400))
-            return "[\(index + 1)] \(docName)\(section):\n\(content)"
-        }
-        let passageText = passages.joined(separator: "\n\n")
+        let passages = buildGroundedPassages(from: chunks, documents: documents, limit: 5)
+        guard !passages.isEmpty else { return [] }
+
+        let passageText = passages.enumerated().map { index, passage in
+            var headerParts = ["Document: \(passage.documentName)"]
+            if let section = passage.sectionName, !section.isEmpty {
+                headerParts.append("Section: \(section)")
+            }
+            return "[\(index + 1)] \(headerParts.joined(separator: " | "))\n\(passage.content)"
+        }.joined(separator: "\n\n")
 
         // If refreshing, tell the LLM to avoid previously-shown questions
         let avoidClause: String
@@ -319,6 +366,8 @@ actor SuggestedQuestionsService {
 
         Rules:
         - Every question MUST reference a specific detail FROM the passages below — a name, number, date, step, requirement, or spec that actually appears in the text
+        - Each question should clearly come from ONE specific passage, not from a blurry mix of the whole library
+        - Prefer details that make it obvious which document or section the question came from
         - Sound natural and direct — under 12 words each
         - Mix question types: some "how much/many", some "what happens if", some "which", some "why"
         - Do NOT use phrases like "What role does", "What is the significance of", "What are the key", "Can you explain"
@@ -350,26 +399,21 @@ actor SuggestedQuestionsService {
                 return []
             }
 
-            let categories: [QuestionCategory] = [.factRetrieval, .analytical, .procedural, .comparison, .summarization, .numerical]
-
-            // Map each question to the passage/doc it most likely came from
-            // (by index alignment with the passages we sent)
-            let docNamesFromPassages = chunks.prefix(5).map { chunk in
-                documents.first(where: { $0.id == chunk.documentId })?.filename ?? "Document"
-            }
-
             let questions = lines.prefix(6).enumerated().map { index, text in
                 let cleanText = text.hasSuffix("?") ? text : text + "?"
-                // Assign to the passage doc at the corresponding index (wraps around)
-                let sourceDoc = index < docNamesFromPassages.count
-                    ? docNamesFromPassages[index]
-                    : (docNamesFromPassages.first ?? "Document")
+                let groundedPassage = bestGroundingPassage(for: cleanText, passages: passages)
+                let sourceDoc = groundedPassage?.documentName ?? passages.first?.documentName ?? "Document"
+                let sourceSection = groundedPassage?.sectionName
+                let confidence = groundedPassage.map { passage in
+                    groundedConfidence(for: cleanText, passage: passage)
+                } ?? 0.90
                 return SuggestedQuestion(
                     id: UUID(),
                     text: cleanText,
-                    category: categories[index % categories.count],
+                    category: inferCategory(for: cleanText, passage: groundedPassage, fallbackIndex: index),
                     relevantDocuments: [sourceDoc],
-                    confidence: 0.95
+                    sourceSections: sourceSection.map { [$0] } ?? [],
+                    confidence: confidence
                 )
             }
 
@@ -395,7 +439,9 @@ actor SuggestedQuestionsService {
         var questions: [SuggestedQuestion] = []
 
         for chunk in chunks {
-            let docName = documents.first(where: { $0.id == chunk.documentId })?.filename ?? "Document"
+            let rawDocName = documents.first(where: { $0.id == chunk.documentId })?.filename ?? "Document"
+            let docName = displayDocumentName(rawDocName)
+            let sectionLabel = primarySectionLabel(for: chunk)
             let content = chunk.content
 
             // Strategy 1: Questions from abbreviation definitions
@@ -405,6 +451,7 @@ actor SuggestedQuestionsService {
                     text: "What does \(abbr) (\(expansion)) do?",
                     category: .factRetrieval,
                     relevantDocuments: [docName],
+                    sourceSections: sectionLabel.map { [$0] } ?? [],
                     confidence: 0.85
                 ))
             }
@@ -418,6 +465,7 @@ actor SuggestedQuestionsService {
                     text: "What's covered under \(section.lowercased())?",
                     category: .summarization,
                     relevantDocuments: [docName],
+                    sourceSections: [section],
                     confidence: 0.80
                 ))
             }
@@ -431,6 +479,7 @@ actor SuggestedQuestionsService {
                         text: "Why is \(detail) important here?",
                         category: .numerical,
                         relevantDocuments: [docName],
+                        sourceSections: sectionLabel.map { [$0] } ?? [],
                         confidence: 0.82
                     ))
                 }
@@ -448,6 +497,7 @@ actor SuggestedQuestionsService {
                     text: "What does \(entity) actually do?",
                     category: .factRetrieval,
                     relevantDocuments: [docName],
+                    sourceSections: sectionLabel.map { [$0] } ?? [],
                     confidence: 0.78
                 ))
             }
@@ -460,6 +510,7 @@ actor SuggestedQuestionsService {
                     text: "How does \(phrase) work?",
                     category: .analytical,
                     relevantDocuments: [docName],
+                    sourceSections: sectionLabel.map { [$0] } ?? [],
                     confidence: 0.75
                 ))
             }
@@ -472,6 +523,7 @@ actor SuggestedQuestionsService {
                     text: "What are the steps for \(topic.lowercased())?",
                     category: .procedural,
                     relevantDocuments: [docName],
+                    sourceSections: sectionLabel.map { [$0] } ?? [],
                     confidence: 0.77
                 ))
             }
@@ -480,15 +532,13 @@ actor SuggestedQuestionsService {
         // If we got nothing useful (extremely sparse content), generate doc-level questions
         if questions.isEmpty {
             for doc in documents.prefix(4) {
-                let cleanName = doc.filename
-                    .replacingOccurrences(of: "\\.[^.]+$", with: "", options: .regularExpression)
-                    .replacingOccurrences(of: "_", with: " ")
-                    .replacingOccurrences(of: "-", with: " ")
+                let cleanName = displayDocumentName(doc.filename)
                 questions.append(SuggestedQuestion(
                     id: UUID(),
                     text: "What's the main point of \(cleanName)?",
                     category: .summarization,
-                    relevantDocuments: [doc.filename],
+                    relevantDocuments: [cleanName],
+                    sourceSections: [],
                     confidence: 0.60
                 ))
             }
@@ -541,6 +591,138 @@ actor SuggestedQuestionsService {
         return result
     }
 
+    // MARK: - Grounding Helpers
+
+    private func buildGroundedPassages(
+        from chunks: [DocumentChunk],
+        documents: [Document],
+        limit: Int
+    ) -> [GroundedPassage] {
+        chunks.prefix(limit).map { chunk in
+            let rawDocName = documents.first(where: { $0.id == chunk.documentId })?.filename ?? "Document"
+            let docName = displayDocumentName(rawDocName)
+            let sectionName = primarySectionLabel(for: chunk)
+            let content = String(chunk.content.prefix(400))
+            let searchable = [docName, sectionName, content]
+                .compactMap { $0 }
+                .joined(separator: " ")
+                .lowercased()
+
+            return GroundedPassage(
+                chunk: chunk,
+                documentName: docName,
+                sectionName: sectionName,
+                content: content,
+                searchableText: searchable,
+                documentTokens: meaningfulTokens(from: docName),
+                sectionTokens: meaningfulTokens(from: sectionName ?? ""),
+                bodyTokens: meaningfulTokens(from: content)
+            )
+        }
+    }
+
+    private func bestGroundingPassage(
+        for question: String,
+        passages: [GroundedPassage]
+    ) -> GroundedPassage? {
+        passages.max { lhs, rhs in
+            groundingScore(for: question, passage: lhs) < groundingScore(for: question, passage: rhs)
+        }
+    }
+
+    private func groundedConfidence(for question: String, passage: GroundedPassage) -> Double {
+        let score = groundingScore(for: question, passage: passage)
+        return min(0.98, 0.72 + min(score, 8.0) * 0.03)
+    }
+
+    private func groundingScore(for question: String, passage: GroundedPassage) -> Double {
+        let lowered = question.lowercased()
+        let tokens = meaningfulTokens(from: lowered)
+        let numericTokens = numberTokens(from: lowered)
+
+        var score = 0.0
+        score += Double(tokens.intersection(passage.documentTokens).count) * 2.5
+        score += Double(tokens.intersection(passage.sectionTokens).count) * 1.75
+        score += Double(tokens.intersection(passage.bodyTokens).count) * 1.0
+        score += Double(numericTokens.filter { passage.searchableText.contains($0) }.count) * 3.0
+
+        if passage.chunk.metadata.hasNumericData,
+           lowered.contains("how many") || lowered.contains("how much") || lowered.contains("cost") || lowered.contains("capacity") {
+            score += 1.0
+        }
+
+        if passage.chunk.metadata.hasListStructure,
+           lowered.contains("step") || lowered.contains("how do") || lowered.contains("how should") {
+            score += 1.0
+        }
+
+        if passage.chunk.metadata.structureType == "table",
+           lowered.contains("which") || lowered.contains("compare") || lowered.contains("difference") {
+            score += 0.75
+        }
+
+        return score
+    }
+
+    private func inferCategory(
+        for question: String,
+        passage: GroundedPassage?,
+        fallbackIndex: Int
+    ) -> QuestionCategory {
+        let lowered = question.lowercased()
+
+        if lowered.contains("how many") || lowered.contains("how much") || lowered.contains("cost") || lowered.contains("capacity") {
+            return .numerical
+        }
+        if lowered.contains("compare") || lowered.contains("difference") || lowered.contains("which") {
+            return .comparison
+        }
+        if lowered.contains("step") || lowered.hasPrefix("how do") || lowered.hasPrefix("how should") {
+            return .procedural
+        }
+        if lowered.hasPrefix("why") || lowered.contains("what happens if") {
+            return .analytical
+        }
+        if lowered.contains("summarize") || lowered.contains("overview") || lowered.contains("covered under") {
+            return .summarization
+        }
+        if passage?.chunk.metadata.hasNumericData == true && lowered.hasPrefix("what") == false && lowered.hasPrefix("how") {
+            return .numerical
+        }
+
+        let categories: [QuestionCategory] = [.factRetrieval, .analytical, .procedural, .comparison, .summarization, .numerical]
+        return categories[fallbackIndex % categories.count]
+    }
+
+    private func displayDocumentName(_ filename: String) -> String {
+        filename
+            .replacingOccurrences(of: "\\.[^.]+$", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "_", with: " ")
+            .replacingOccurrences(of: "-", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func meaningfulTokens(from text: String) -> Set<String> {
+        Set(
+            text
+                .lowercased()
+                .split { !$0.isLetter && !$0.isNumber }
+                .map(String.init)
+                .filter { token in
+                    token.contains(where: \.isNumber) || (token.count >= 3 && !Self.matchStopTokens.contains(token))
+                }
+        )
+    }
+
+    private func numberTokens(from text: String) -> Set<String> {
+        Set(
+            text
+                .split { !$0.isNumber && $0 != "." && $0 != "," }
+                .map(String.init)
+                .filter { token in token.contains(where: \.isNumber) }
+        )
+    }
+
     // MARK: - Content Extraction Helpers
 
     /// Generic section titles that produce bad questions
@@ -564,6 +746,13 @@ actor SuggestedQuestionsService {
         "group", "number", "part", "case", "example", "form", "area",
         "point", "time", "work", "thing", "way", "issue", "problem",
         "question", "answer", "item", "list", "set", "use", "end"
+    ]
+
+    private static let matchStopTokens: Set<String> = [
+        "the", "and", "for", "with", "from", "that", "this", "what", "when",
+        "where", "which", "about", "into", "your", "their", "does", "have",
+        "here", "there", "under", "over", "should", "would", "could", "after",
+        "before", "using", "used", "than", "then", "they", "them"
     ]
 
     /// Extract number-in-context phrases like "360 DPI", "0.15 threshold", "$49.99/year"

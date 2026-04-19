@@ -121,6 +121,7 @@ struct ChatScreen: View {
     // Dynamic suggested questions
     @State private var dynamicSuggestedQuestions: [String] = []
     @State private var dynamicQuestionCategories: [String: SuggestedQuestionsService.QuestionCategory] = [:]
+    @State private var dynamicQuestionDetails: [String: SuggestedQuestionsService.SuggestedQuestion] = [:]
     @State private var suggestedQuestionsTask: Task<Void, Never>? = nil
     @State private var isRefreshingSuggestions = false
     private let suggestedQuestionsService = SuggestedQuestionsService()
@@ -400,6 +401,7 @@ struct ChatScreen: View {
             // Immediately clear old suggested questions so stale pills never flash
             dynamicSuggestedQuestions = []
             dynamicQuestionCategories = [:]
+            dynamicQuestionDetails = [:]
 
             // Invalidate cached questions for the new container before regenerating
             await suggestedQuestionsService.invalidateCache(for: activeId)
@@ -1205,13 +1207,16 @@ struct ChatScreen: View {
             guard !documents.isEmpty else {
                 dynamicSuggestedQuestions = []
                 dynamicQuestionCategories = [:]
+                dynamicQuestionDetails = [:]
                 isRefreshingSuggestions = false
                 return
             }
 
-            // Get sample chunks for analysis (up to 50)
+            // Scale the analysis sample with library size so large containers do not
+            // collapse into vague, library-wide suggestions.
             do {
-                let sampleChunks = try await ragService.getSampleChunks(for: containerId, limit: 50)
+                let sampleLimit = min(max(documents.count * 4, 50), 160)
+                let sampleChunks = try await ragService.getSampleChunks(for: containerId, limit: sampleLimit)
 
                 let questions = await suggestedQuestionsService.generateQuestions(
                     for: containerId,
@@ -1234,11 +1239,15 @@ struct ChatScreen: View {
                 dynamicQuestionCategories = Dictionary(
                     uniqueKeysWithValues: questions.map { ($0.text, $0.category) }
                 )
+                dynamicQuestionDetails = Dictionary(
+                    uniqueKeysWithValues: questions.map { ($0.text, $0) }
+                )
                 Log.debug("[ChatScreen] Generated \(questions.count) dynamic suggested questions (force: \(force))")
             } catch {
                 Log.warning("[ChatScreen] Failed to generate dynamic questions: \(error.localizedDescription)")
                 dynamicSuggestedQuestions = []
                 dynamicQuestionCategories = [:]
+                dynamicQuestionDetails = [:]
             }
             isRefreshingSuggestions = false
         }
@@ -1578,6 +1587,8 @@ struct ChatScreen: View {
                     hasDocuments: activeDocCount > 0,
                     prompts: starterPrompts,
                     categories: dynamicQuestionCategories,
+                    questionDetails: dynamicQuestionDetails,
+                    libraryDocumentCount: activeDocCount,
                     isRefreshing: isRefreshingSuggestions,
                     onPromptSelected: sendSuggestedPrompt,
                     onRefresh: { refreshSuggestedQuestions(force: true) }
@@ -2984,9 +2995,56 @@ private struct FirstQueryPromptView: View {
     let hasDocuments: Bool
     let prompts: [String]
     let categories: [String: SuggestedQuestionsService.QuestionCategory]
+    let questionDetails: [String: SuggestedQuestionsService.SuggestedQuestion]
+    let libraryDocumentCount: Int
     let isRefreshing: Bool
     let onPromptSelected: (String) -> Void
     let onRefresh: () -> Void
+
+    private var sourceDocumentCount: Int {
+        Set(questionDetails.values.flatMap(\.relevantDocuments)).count
+    }
+
+    private var headerText: String {
+        hasDocuments ? "Ask something real" : "Get started"
+    }
+
+    private var supportingText: String {
+        guard hasDocuments else {
+            return "Import documents from the Documents tab, then try one of these prompts."
+        }
+
+        guard !questionDetails.isEmpty else {
+            return "Suggestions are based on this library's uploaded documents."
+        }
+
+        if libraryDocumentCount > sourceDocumentCount && sourceDocumentCount > 0 {
+            return "This batch is pulled from \(sourceDocumentCount) of \(libraryDocumentCount) docs in this library. Refresh for a different slice."
+        }
+
+        return "Each suggestion is anchored to a specific uploaded document."
+    }
+
+    private func sourceLine(for prompt: String) -> String? {
+        guard let detail = questionDetails[prompt],
+              let primaryDoc = detail.relevantDocuments.first
+        else {
+            return nil
+        }
+
+        let extraDocCount = max(0, detail.relevantDocuments.count - 1)
+        let section = detail.sourceSections.first?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        var parts: [String] = [primaryDoc]
+        if let section, !section.isEmpty {
+            parts.append(section)
+        }
+        if extraDocCount > 0 {
+            parts.append("+\(extraDocCount) more")
+        }
+
+        return parts.joined(separator: " • ")
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: DSSpacing.md) {
@@ -2995,11 +3053,9 @@ private struct FirstQueryPromptView: View {
                     .imageScale(.large)
                     .foregroundStyle(DSColors.accent)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(hasDocuments ? "Ask a question" : "Get started")
+                    Text(headerText)
                         .font(DSTypography.title)
-                    Text(hasDocuments
-                        ? "These suggestions are grounded in your documents."
-                        : "Import documents from the Documents tab, then try one of these prompts.")
+                    Text(supportingText)
                         .font(DSTypography.body)
                         .foregroundStyle(DSColors.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
@@ -3041,10 +3097,19 @@ private struct FirstQueryPromptView: View {
                                     .foregroundStyle(DSColors.accent.opacity(0.7))
                                     .frame(width: 20, height: 20)
                             }
-                            Text(prompt)
-                                .font(DSTypography.body)
-                                .multilineTextAlignment(.leading)
-                                .fixedSize(horizontal: false, vertical: true)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(prompt)
+                                    .font(DSTypography.body)
+                                    .multilineTextAlignment(.leading)
+                                    .fixedSize(horizontal: false, vertical: true)
+
+                                if let source = sourceLine(for: prompt) {
+                                    Text(source)
+                                        .font(DSTypography.meta)
+                                        .foregroundStyle(DSColors.secondaryText)
+                                        .lineLimit(1)
+                                }
+                            }
                             Spacer(minLength: DSSpacing.sm)
                             Image(systemName: "arrow.up.circle.fill")
                                 .foregroundStyle(DSColors.accent)
