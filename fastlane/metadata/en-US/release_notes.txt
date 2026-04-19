@@ -1,5 +1,5 @@
-Version 2.1.1
+Version 2.1.2
 
+- Lifetime Cohort now unlocks unlimited documents
 - Smarter document-grounded suggested questions across larger libraries
-- Better handling for messy PDFs and noisy extracted text
-- Stronger source checks when evidence is weak or incomplete
+- Smoother library import, browsing, and first-question flow

@@ -71,6 +71,14 @@ Update live App Store listing (description, keywords, promo text)
 
 Validate app metadata and screenshots
 
+### ios public_signal
+
+```sh
+[bundle exec] fastlane ios public_signal
+```
+
+Commit public-safe release notes and summary in the private repo
+
 ### ios verify_iap
 
 ```sh

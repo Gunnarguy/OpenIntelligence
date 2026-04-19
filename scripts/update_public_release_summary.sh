@@ -168,6 +168,13 @@ add_recent() {
 
 for file in "${CHANGED_FILES[@]}"; do
   case "$file" in
+    OpenIntelligence/Services/Billing/*|\
+    OpenIntelligence/Features/Billing/*|\
+    OpenIntelligence/Resources/StoreKit/*|\
+    fastlane/subscriptions.json|\
+    fastlane/review_notes.txt)
+      add_latest "plan_limits"
+      ;;
     OpenIntelligence/Services/Query/UX/SuggestedQuestionsService.swift|\
     OpenIntelligence/Features/Chat/Conversation/ChatScreen.swift)
       add_latest "smarter_suggestions"
@@ -222,6 +229,9 @@ summary_bullet_for_key() {
     smarter_suggestions)
       echo "Smarter suggested questions that stay closer to the uploaded documents behind them"
       ;;
+    plan_limits)
+      echo "Lifetime Cohort now unlocks unlimited documents with a cleaner plan experience"
+      ;;
     messy_files)
       echo "Improved handling for difficult PDFs and messy extracted text"
       ;;
@@ -252,6 +262,9 @@ app_store_bullet_for_key() {
   case "$1" in
     smarter_suggestions)
       echo "Smarter document-grounded suggested questions across larger libraries"
+      ;;
+    plan_limits)
+      echo "Lifetime Cohort now unlocks unlimited documents"
       ;;
     messy_files)
       echo "Better handling for messy PDFs and noisy extracted text"
