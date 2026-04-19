@@ -2,10 +2,12 @@ import Foundation
 
 /// Shared quota policy constants for gating ingestion before StoreKit launches.
 enum QuotaPolicy {
+    static let unlimitedDocumentLimit: Int = .max
+
     /// Base document allowance for each tier prior to add-on credits.
     static let freeDocumentLimit: Int = 5
     static let proDocumentLimit: Int = 1_000  // Hard cap per QuotaPolicy
-    static let lifetimeDocumentLimit: Int = 1_000
+    static let lifetimeDocumentLimit: Int = unlimitedDocumentLimit
 
     /// Base workspace (container) allowance.
     static let freeLibraryLimit: Int = 1
@@ -25,6 +27,14 @@ enum QuotaPolicy {
         case .lifetime:
             return lifetimeDocumentLimit
         }
+    }
+
+    static func isUnlimitedDocumentLimit(_ limit: Int) -> Bool {
+        limit == unlimitedDocumentLimit
+    }
+
+    static func documentLimitDisplayText(_ limit: Int) -> String {
+        isUnlimitedDocumentLimit(limit) ? "Unlimited" : "\(limit)"
     }
 
     /// Returns the allowed container/library count for a given workspace tier.

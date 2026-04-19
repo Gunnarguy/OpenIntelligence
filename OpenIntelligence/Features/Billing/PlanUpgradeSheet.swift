@@ -59,7 +59,7 @@ struct PlanUpgradeSheet: View {
             tint: .orange,
             isFeatured: false,
             features: [
-                "Up to 1,000 documents",
+                "Unlimited documents",
                 "10 libraries",
                 "Everything in Pro",
                 "No renewal — one-time purchase",
@@ -82,7 +82,7 @@ struct PlanUpgradeSheet: View {
         ),
         PlanStorySlide(
             title: "Lifetime, without renewal",
-            subtitle: "Lifetime keeps Pro-level access unlocked with up to 10 libraries in a single purchase.",
+            subtitle: "Lifetime keeps unlimited documents and up to 10 libraries unlocked in a single purchase.",
             icon: "arrow.up.right.circle.fill",
             tint: .purple
         ),
@@ -104,7 +104,9 @@ struct PlanUpgradeSheet: View {
                         tierCard(for: option)
                     }
 
-                    addOnCard
+                    if showsDocumentPackOffers {
+                        addOnCard
+                    }
                     multiDocumentTip
                     managementControls
                     complianceFooter
@@ -331,7 +333,11 @@ private extension PlanUpgradeSheet {
     }
 
     var shouldShowRefillQuickAction: Bool {
-        !entitlementStore.hasReachedDocumentPackCap
+        showsDocumentPackOffers && !entitlementStore.hasReachedDocumentPackCap
+    }
+
+    var showsDocumentPackOffers: Bool {
+        entitlementStore.activeTier != .lifetime
     }
 
     var refillQuickAction: some View {
@@ -494,6 +500,11 @@ private extension PlanUpgradeSheet {
                 ]
             )
             alertMessage = "You already have the maximum number of document packs active. Remove documents or upgrade your workspace to unlock more capacity."
+            return
+        }
+
+        if product == .documentPackAddOn, entitlementStore.activeTier == .lifetime {
+            alertMessage = "Lifetime already unlocks unlimited documents, so document packs are not needed on this account."
             return
         }
 

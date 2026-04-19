@@ -51,7 +51,7 @@ Every query, every embedding, and every answer stays on your iPhone or iPad.
 
 ### Lifetime License
 - **One-time**: $59.99
-- Up to **1,000 documents** forever
+- **Unlimited documents** forever
 - **10 libraries** maximum
 - All Pro features included
 - No recurring payments — pay once, own it

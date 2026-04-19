@@ -51,6 +51,10 @@ final class EntitlementStore: ObservableObject {
     /// Remaining add-on purchases a user can make before hitting the cap.
     var remainingDocumentPackCapacity: Int { max(maxAddOnPacks - addOnPacks, 0) }
 
+    var hasUnlimitedDocuments: Bool { QuotaPolicy.isUnlimitedDocumentLimit(documentLimit) }
+
+    var documentLimitDisplayText: String { QuotaPolicy.documentLimitDisplayText(documentLimit) }
+
     let billingService: BillingService
     private var eventTask: Task<Void, Never>?
     private let defaults: UserDefaults
@@ -72,7 +76,7 @@ final class EntitlementStore: ObservableObject {
         let prunedPacks = Self.pruneExpiredPacks(loadedPacks)
         documentPacks = prunedPacks
         let documentCredits = Self.totalCredits(for: prunedPacks)
-        documentLimit = QuotaPolicy.documentLimit(for: resolvedTier) + documentCredits
+        documentLimit = Self.resolveDocumentLimit(for: resolvedTier, credits: documentCredits)
         libraryLimit = QuotaPolicy.libraryLimit(for: resolvedTier)
 
         eventTask = Task { await observeBillingEvents() }
@@ -214,7 +218,7 @@ final class EntitlementStore: ObservableObject {
     }
 
     func canAddDocument(currentCount: Int) -> Bool {
-        currentCount < documentLimit
+        hasUnlimitedDocuments || currentCount < documentLimit
     }
 
     func canAddLibrary(currentCount: Int) -> Bool {
@@ -400,8 +404,15 @@ final class EntitlementStore: ObservableObject {
 
     private func recalculateAllowances() {
         pruneExpiredDocumentPacksIfNeeded()
-        let baseLimit = QuotaPolicy.documentLimit(for: activeTier)
-        documentLimit = baseLimit + availableDocumentCredits
+        documentLimit = Self.resolveDocumentLimit(for: activeTier, credits: availableDocumentCredits)
         libraryLimit = QuotaPolicy.libraryLimit(for: activeTier)
+    }
+
+    private static func resolveDocumentLimit(for tier: WorkspaceTier, credits: Int) -> Int {
+        let baseLimit = QuotaPolicy.documentLimit(for: tier)
+        guard !QuotaPolicy.isUnlimitedDocumentLimit(baseLimit) else {
+            return baseLimit
+        }
+        return baseLimit + credits
     }
 }

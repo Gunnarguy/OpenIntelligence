@@ -30,7 +30,7 @@ OpenIntelligence provides privacy-first document retrieval and AI-powered questi
                         section(title: "3. Subscriptions & Billing", content: """
 • **Free Tier**: 5 documents, 1 library
 • **Pro**: Monthly or annual subscription — up to 1,000 documents, 5 libraries
-• **Lifetime Cohort**: One-time purchase — up to 1,000 documents, 10 libraries, forever
+• **Lifetime Cohort**: One-time purchase — unlimited documents, 10 libraries, forever
 • **Document Packs**: Consumable add-on — adds \(QuotaPolicy.addOnDocumentIncrement) documents (max \(3) active packs)
 
 Pricing is determined by your App Store region. All subscriptions auto-renew unless cancelled 24 hours before renewal. Manage subscriptions in App Store settings. Cancellation stops future billing but maintains access through the current period.

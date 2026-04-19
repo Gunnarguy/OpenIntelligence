@@ -907,7 +907,7 @@ struct ChatScreen: View {
                         rank: 1,
                         title: "Value Ladder",
                         page: 1,
-                        snippet: "Pro unlocks up to 1,000 docs and 5 libraries. Lifetime gives you all Pro features with up to 10 libraries and no renewal.",
+                        snippet: "Pro unlocks up to 1,000 docs and 5 libraries. Lifetime gives you all Pro features with unlimited documents, up to 10 libraries, and no renewal.",
                         score: 0.86
                     ),
                     makeChunk(
@@ -1008,7 +1008,7 @@ struct ChatScreen: View {
                 ## Pricing Tiers
                 • **Free**: 5 documents, 1 library, full privacy dashboard
                 • **Pro** ($5.99/mo or $49.99/yr): Up to 1,000 docs, 5 libraries, fewer workspace limits
-                • **Lifetime** ($59.99): All Pro features with 10 libraries and no renewal
+                • **Lifetime** ($59.99): Unlimited docs, 10 libraries, and no renewal
 
                 ## Privacy Architecture
                 All processing happens **on-device by default**. When additional compute is needed, Apple's Private Cloud Compute ensures your data never leaves Apple's secure enclaves.
@@ -1053,7 +1053,7 @@ struct ChatScreen: View {
                 rank: 1,
                 title: "Value Ladder",
                 page: 1,
-                snippet: "Free: 5 docs, 1 library. Pro ($5.99/mo): Up to 1,000 docs, 5 libraries. Lifetime ($59.99): All Pro features forever.",
+                snippet: "Free: 5 docs, 1 library. Pro ($5.99/mo): Up to 1,000 docs, 5 libraries. Lifetime ($59.99): Unlimited docs, 10 libraries, all Pro features forever.",
                 score: 0.92
             ),
             makeChunk(

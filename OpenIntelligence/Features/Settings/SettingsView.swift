@@ -218,7 +218,7 @@ struct SettingsView: View {
             HStack(spacing: 16) {
                 quotaItem(
                     icon: "doc.text",
-                    value: "\(entitlementStore.documentLimit)",
+                    value: entitlementStore.documentLimitDisplayText,
                     label: "Documents"
                 )
                 quotaItem(
@@ -244,7 +244,7 @@ struct SettingsView: View {
         case .pro:
             return "Pro plan • Active"
         case .lifetime:
-            return "Lifetime • Up to 1,000 docs"
+            return "Lifetime • Unlimited docs"
         }
     }
 
@@ -299,7 +299,7 @@ Text(label)
                     .clipShape(Capsule())
             }
 
-            Text("Thanks for backing OpenIntelligence early. Lifetime keeps up to 1,000 documents and 10 libraries unlocked with no recurring subscription.")
+            Text("Thanks for backing OpenIntelligence early. Lifetime keeps unlimited documents and 10 libraries unlocked with no recurring subscription.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 

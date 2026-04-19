@@ -46,6 +46,9 @@ struct DocumentLibraryView: View {
     }
 
     private var libraryLimit: Int { entitlementStore.libraryLimit }
+    private var shouldShowQuotaBanner: Bool {
+        !entitlementStore.hasUnlimitedDocuments && !entitlementStore.hasReachedDocumentPackCap
+    }
 
     init(ragService: RAGService, containerService: ContainerService, onViewVisualizations: (() -> Void)? = nil) {
         _ragService = ObservedObject(wrappedValue: ragService)
@@ -82,8 +85,7 @@ struct DocumentLibraryView: View {
                 )
                 .padding(.horizontal)
 
-                // Hide quota banner when user has purchased all 3 document packs
-                if !entitlementStore.hasReachedDocumentPackCap {
+                if shouldShowQuotaBanner {
                     DocumentQuotaBanner(
                         currentCount: ragService.documents.count,
                         limit: documentLimit,
@@ -124,8 +126,7 @@ struct DocumentLibraryView: View {
             )
             .padding(.horizontal)
 
-            // Hide quota banner when user has purchased all 3 document packs
-            if !entitlementStore.hasReachedDocumentPackCap {
+            if shouldShowQuotaBanner {
                 DocumentQuotaBanner(
                     currentCount: ragService.documents.count,
                     limit: documentLimit,
@@ -515,6 +516,11 @@ struct DocumentLibraryView: View {
 
     @MainActor
     private func refillDocumentPack() {
+        guard entitlementStore.activeTier != .lifetime else {
+            entitlementStore.lastError = "Lifetime already unlocks unlimited documents, so document packs are not needed on this account."
+            return
+        }
+
         Task {
             do {
                 TelemetryCenter.emitBillingEvent(

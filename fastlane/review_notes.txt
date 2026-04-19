@@ -25,7 +25,7 @@ IN-APP PURCHASES:
 - Free: 5 documents, full pipeline, all quality modes
 - Pro Monthly ($5.99): 1,000 documents, 5 libraries
 - Pro Annual ($49.99): same as monthly, 30% savings
-- Lifetime ($59.99): one-time, all features forever
+- Lifetime ($59.99): one-time, unlimited documents, 10 libraries, all features forever
 - Document Pack ($2.99): adds 10 documents to quota (consumable)
 
 TEST STEPS:

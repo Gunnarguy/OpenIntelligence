@@ -2095,7 +2095,7 @@ class ScreenshotMockLLMService: LLMService {
 
             **Free Tier**: 5 documents, 1 library, full privacy dashboard
             **Pro ($5.99/mo or $49.99/yr)**: Up to 1,000 docs, 5 libraries, fewer workspace limits
-            **Lifetime ($59.99)**: All Pro features with 10 libraries and no renewal
+            **Lifetime ($59.99)**: Unlimited docs, 10 libraries, and no renewal
 
             The messaging pillars emphasize privacy-first design (data stays on-device or Apple PCC), fast retrieval through hybrid search, and simple pricing with one upgrade path.
             """,
