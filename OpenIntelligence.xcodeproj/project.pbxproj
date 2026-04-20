@@ -22,10 +22,12 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		E0A100052F0F5F5F00AABA0C /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+		E0A100052F0F5F5F00AABA0C /* Exceptions for "OpenIntelligence" folder in "OpenIntelligenceEngine" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				App/OpenIntelligenceApp.swift,
+				Services/Agentic/RAGAppIntents.swift,
+				Services/Agentic/VisualIntelligenceIntents.swift,
+				Services/Agentic/WritingToolsService.swift,
 			);
 			target = E0A100072F0F5F5F00AABA0C /* OpenIntelligenceEngine */;
 		};
@@ -35,7 +37,7 @@
 		B0D565E02E98AC50001274A2 /* OpenIntelligence */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				E0A100052F0F5F5F00AABA0C /* PBXFileSystemSynchronizedBuildFileExceptionSet */,
+				E0A100052F0F5F5F00AABA0C /* Exceptions for "OpenIntelligence" folder in "OpenIntelligenceEngine" target */,
 			);
 			path = OpenIntelligence;
 			sourceTree = "<group>";
@@ -469,6 +471,25 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEFINES_MODULE = YES;
 				DEVELOPMENT_TEAM = Z3E334EXZD;
+				EXCLUDED_SOURCE_FILE_NAMES = (
+					"App/**",
+					Core/Extensions/MarkdownRenderer.swift,
+					"Features/*",
+					"Features/*/*",
+					"Features/*/*/*",
+					"Features/*/*/*/*",
+					"Resources/StoreKit/**",
+					"UI/*",
+					"UI/*/*",
+					Services/Agentic/RAGAppIntents.swift,
+					Services/Agentic/VisualIntelligenceIntents.swift,
+					Services/Agentic/WritingToolsService.swift,
+					"Services/Billing/**",
+					"Services/Infrastructure/Background/**",
+					Services/Infrastructure/Integration/ImagePlaygroundService.swift,
+					"Services/Infrastructure/Presentation/**",
+					"Services/Infrastructure/Tips/**",
+				);
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = OpenIntelligenceEngine;
 				INFOPLIST_KEY_CFBundleName = OpenIntelligenceEngine;
@@ -486,6 +507,7 @@
 				SKIP_INSTALL = NO;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) OPENINTELLIGENCE_ENGINE_SDK";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -504,6 +526,25 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEFINES_MODULE = YES;
 				DEVELOPMENT_TEAM = Z3E334EXZD;
+				EXCLUDED_SOURCE_FILE_NAMES = (
+					"App/**",
+					Core/Extensions/MarkdownRenderer.swift,
+					"Features/*",
+					"Features/*/*",
+					"Features/*/*/*",
+					"Features/*/*/*/*",
+					"Resources/StoreKit/**",
+					"UI/*",
+					"UI/*/*",
+					Services/Agentic/RAGAppIntents.swift,
+					Services/Agentic/VisualIntelligenceIntents.swift,
+					Services/Agentic/WritingToolsService.swift,
+					"Services/Billing/**",
+					"Services/Infrastructure/Background/**",
+					Services/Infrastructure/Integration/ImagePlaygroundService.swift,
+					"Services/Infrastructure/Presentation/**",
+					"Services/Infrastructure/Tips/**",
+				);
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = OpenIntelligenceEngine;
 				INFOPLIST_KEY_CFBundleName = OpenIntelligenceEngine;
@@ -521,6 +562,7 @@
 				SKIP_INSTALL = NO;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) OPENINTELLIGENCE_ENGINE_SDK";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;

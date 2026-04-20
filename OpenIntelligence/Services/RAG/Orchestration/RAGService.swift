@@ -4626,7 +4626,7 @@ class RAGService: ObservableObject {
         config: InferenceConfig?,
         qualityMode: RAGQualityMode
     ) async throws -> RAGResponse {
-        // Check if user selected Maximum (unlimited) mode
+        // Check if user selected Maximum mode
         let isUnlimitedMode = qualityMode.isUnlimitedMode
         let modeLabel = isUnlimitedMode ? "MAXIMUM REASONING MODE" : "AGENTIC REASONING MODE"
 
@@ -4641,7 +4641,7 @@ class RAGService: ObservableObject {
 
         // Pipeline Trace: Agentic orchestration step
         Log.pipelineStep("A", title: "Agentic Orchestration", details: [
-            ("type", isUnlimitedMode ? "unlimited" : "multi-session"),
+            ("type", isUnlimitedMode ? "maximum" : "multi-session"),
             ("confTarget", isUnlimitedMode ? "98%" : "75%")
         ])
 
@@ -4652,23 +4652,23 @@ class RAGService: ObservableObject {
             content: [
                 "📝 Query: \(question)",
                 "🧠 Multi-session orchestration active",
-                isUnlimitedMode ? "🔥 Unlimited reasoning until 98% confident" : "⚡ Bypassing 4K single-session limit",
+                isUnlimitedMode ? "🔥 Highest-effort reasoning targeting 98% confidence" : "⚡ Bypassing 4K single-session limit",
             ]
         )
 
-        // Use unlimited config for Maximum mode, otherwise device-optimized
+        // Use the deepest config for Maximum mode, otherwise device-optimized
         let deviceService = DeviceCapabilityService.shared
         let optimizedConfig: AgenticConfig
         if isUnlimitedMode {
             optimizedConfig = qualityMode.agenticConfig // .unlimited config
-            Log.info("[Pipeline] Using MAXIMUM mode (unlimited reasoning, 98% confidence threshold)", category: .pipeline)
+            Log.info("[Pipeline] Using MAXIMUM mode (98% confidence target)", category: .pipeline)
         } else {
             optimizedConfig = deviceService.optimizedAgenticConfig()
         }
 
         let modeTitle = isUnlimitedMode ? "Maximum Mode" : "Deep Think Mode"
         let modeDetail = isUnlimitedMode
-            ? "Unlimited reasoning until 98% confident (up to \(optimizedConfig.maxSteps) steps)"
+            ? "Extended reasoning targeting 98% confidence (up to \(optimizedConfig.maxSteps) steps)"
             : "Starting multi-step reasoning (\(deviceService.tier.displayName) mode, up to \(optimizedConfig.maxSteps) steps)"
 
         emitThinkingEvent(
@@ -5076,6 +5076,24 @@ class RAGService: ObservableObject {
         )
         let useDeterministicExtractionPath = preflightPolicy.deterministicExtraction
         let useAgentic = !useDeterministicExtractionPath && (forceAgentic || qualityMode.usesAgenticOrchestrator)
+
+        if qualityMode.isUnlimitedMode {
+            let maximumDecision = await MainActor.run {
+                self.entitlementStore?.consumeMaximumModeUseIfNeeded() ?? .allowedUnlimited
+            }
+            switch maximumDecision {
+            case .allowedUnlimited:
+                break
+            case let .allowedMetered(remaining, dailyLimit):
+                Log.info(
+                    "[Billing] Maximum mode metered use consumed (\(remaining)/\(dailyLimit) remaining today)",
+                    category: .billing
+                )
+            case let .blocked(_, dailyLimit, _):
+                Log.warning("[Billing] Maximum mode blocked — free daily quota exhausted", category: .billing)
+                throw RAGServiceError.maximumModeQuotaReached(limit: dailyLimit)
+            }
+        }
 
         // Track query context for potential "Go Deeper" re-query
         await MainActor.run {
@@ -8719,7 +8737,8 @@ class RAGService: ObservableObject {
                         retrievalConfig: retrievalConfig,
                         embeddingProviderId: embeddingProviderId,
                         reason: "I couldn't produce a cited answer from the provided sources.",
-                        gatingDecision: "missing_citations"
+                        gatingDecision: "missing_citations",
+                        bestAvailableAnswer: responseText
                     )
                     return await finalizeResponse(
                         query: question,
@@ -8866,7 +8885,8 @@ class RAGService: ObservableObject {
                                 retrievalConfig: retrievalConfig,
                                 embeddingProviderId: embeddingProviderId,
                                 reason: outcome.abstentionReason ?? "Retrieved evidence was insufficient for a source-only answer.",
-                                gatingDecision: sourceOnlyDecision
+                                gatingDecision: sourceOnlyDecision,
+                                bestAvailableAnswer: responseText
                             )
                             return await finalizeResponse(
                                 query: question,
@@ -9077,10 +9097,30 @@ class RAGService: ObservableObject {
 
                             // Check if confidence is below quality mode threshold (Maximum mode requires 98%)
                             let belowConfidenceThreshold = vr.overallConfidence < effectiveThreshold
-                            let criticalVerificationFailure = vr.shouldAbstain
+                            let failedGates = vr.gateResults.filter { !$0.passed }.map(\.gate)
+                            let sourceOnlySemanticGroundingOverride =
+                                answerIntent.isExtractiveFirst &&
+                                failedGates.count == 1 &&
+                                failedGates.first == .semanticGrounding &&
+                                (sourceOnlyOutcome?.shouldAbstain == false) &&
+                                (sourceOnlyOutcome?.supportedClaims.isEmpty == false) &&
+                                (sourceOnlyOutcome?.fidelityScore ?? 0) >= 0.70
+                            let criticalVerificationFailure = vr.shouldAbstain && !sourceOnlySemanticGroundingOverride
+
+                            if sourceOnlySemanticGroundingOverride {
+                                let sourceOnlyFidelityPercent = Int(((sourceOnlyOutcome?.fidelityScore ?? 0) * 100).rounded())
+                                let verificationConfidencePercent = Int((vr.overallConfidence * 100).rounded())
+                                Log.warning(
+                                    "[Verification] Allowing source-only-backed extractive answer despite Gate E failure (source-only fidelity=\(sourceOnlyFidelityPercent)%, verification confidence=\(verificationConfidencePercent)%)",
+                                    category: .pipeline
+                                )
+                            }
 
                             // If grounded-only mode and verification fails, abstain
-                            if !allowUngroundedFallback || belowConfidenceThreshold || criticalVerificationFailure {
+                            if (!allowUngroundedFallback && !sourceOnlySemanticGroundingOverride)
+                                || belowConfidenceThreshold
+                                || criticalVerificationFailure
+                            {
                                 let thresholdDisplay = answerIntent.isExtractiveFirst
                                     ? "\(qualityModeDisplayName) threshold \(String(format: "%.0f", effectiveThreshold * 100))% (relaxed for extractive)"
                                     : "\(qualityModeDisplayName) threshold \(String(format: "%.0f", effectiveThreshold * 100))%"
@@ -9106,7 +9146,8 @@ class RAGService: ObservableObject {
                                     retrievalConfig: retrievalConfig,
                                     embeddingProviderId: embeddingProviderId,
                                     reason: abstainResponse,
-                                    gatingDecision: "verification_gates_failed:\(vr.gateResults.filter { !$0.passed }.map { $0.gate.rawValue }.joined(separator: ","))"
+                                    gatingDecision: "verification_gates_failed:\(vr.gateResults.filter { !$0.passed }.map { $0.gate.rawValue }.joined(separator: ","))",
+                                    bestAvailableAnswer: responseText
                                 )
                                 return await finalizeResponse(
                                     query: question,
@@ -10013,16 +10054,102 @@ class RAGService: ObservableObject {
 
     /// Build a grounded-only abstain response when evidence is insufficient.
     private func makeGroundedAbstainResponse(
-        question _: String,
+        question: String,
         ragQuery: RAGQuery,
         retrievedChunks: [RetrievedChunk],
         retrievalTime: TimeInterval,
         retrievalConfig: RetrievalConfig,
         embeddingProviderId: String,
         reason: String,
-        gatingDecision: String
+        gatingDecision: String,
+        bestAvailableAnswer: String? = nil
     ) async -> RAGResponse {
         Log.info("ℹ️  Grounded-only abstain: \(gatingDecision)", category: .retrieval)
+
+        let answerIntent = QueryEnhancementService().classifyAnswerIntent(question)
+        let bestEffortDecision = "best_effort_after:\(gatingDecision)"
+        let trimmedBestAvailableAnswer = bestAvailableAnswer?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if let candidateAnswer = trimmedBestAvailableAnswer,
+           shouldPromoteBestAvailableAnswer(candidateAnswer)
+        {
+            let note = bestEffortNote(for: gatingDecision, reason: reason)
+            let responseText = """
+            \(candidateAnswer)
+
+            Best-effort note: \(note)
+            """
+
+            let metadata = ResponseMetadata(
+                timeToFirstToken: nil,
+                totalGenerationTime: 0,
+                tokensGenerated: 0,
+                tokensPerSecond: nil,
+                modelUsed: llmService.modelName,
+                retrievalTime: retrievalTime,
+                retrievalConfigSummary: retrievalConfig.summary,
+                gatingDecision: bestEffortDecision,
+                toolCallsMade: 0,
+                embeddingProvider: embeddingProviderId,
+                originalQuery: question
+            )
+
+            return RAGResponse(
+                queryId: ragQuery.id,
+                retrievedChunks: retrievedChunks,
+                generatedResponse: responseText,
+                metadata: metadata,
+                confidenceScore: max(0.2, retrievedChunks.first?.similarityScore ?? 0),
+                qualityWarnings: ["Best-effort grounded fallback: \(reason)"],
+                structuredAnswer: StructuredAnswer.from(
+                    response: responseText,
+                    retrievedChunks: retrievedChunks,
+                    answerIntent: answerIntent,
+                    verificationResult: nil,
+                    loops: 1
+                )
+            )
+        }
+
+        if !retrievedChunks.isEmpty {
+            let responseText = buildGroundedEvidenceFallbackText(
+                question: question,
+                retrievedChunks: retrievedChunks,
+                gatingDecision: gatingDecision,
+                reason: reason
+            )
+
+            let metadata = ResponseMetadata(
+                timeToFirstToken: nil,
+                totalGenerationTime: 0,
+                tokensGenerated: 0,
+                tokensPerSecond: nil,
+                modelUsed: llmService.modelName,
+                retrievalTime: retrievalTime,
+                retrievalConfigSummary: retrievalConfig.summary,
+                gatingDecision: bestEffortDecision,
+                toolCallsMade: 0,
+                embeddingProvider: embeddingProviderId,
+                originalQuery: question
+            )
+
+            return RAGResponse(
+                queryId: ragQuery.id,
+                retrievedChunks: retrievedChunks,
+                generatedResponse: responseText,
+                metadata: metadata,
+                confidenceScore: max(0.15, retrievedChunks.first?.similarityScore ?? 0),
+                qualityWarnings: ["Best-effort grounded excerpts: \(reason)"],
+                structuredAnswer: StructuredAnswer.from(
+                    response: responseText,
+                    retrievedChunks: retrievedChunks,
+                    answerIntent: answerIntent,
+                    verificationResult: nil,
+                    loops: 1
+                )
+            )
+        }
 
         let responseText = """
         I want to stay grounded in your library, but I don't have enough evidence to answer that reliably.
@@ -10045,7 +10172,8 @@ class RAGService: ObservableObject {
             retrievalConfigSummary: retrievalConfig.summary,
             gatingDecision: gatingDecision,
             toolCallsMade: 0,
-            embeddingProvider: embeddingProviderId
+            embeddingProvider: embeddingProviderId,
+            originalQuery: question
         )
 
         return RAGResponse(
@@ -10062,6 +10190,83 @@ class RAGService: ObservableObject {
                 loops: 1
             )
         )
+    }
+
+    private func shouldPromoteBestAvailableAnswer(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+
+        let lower = trimmed.lowercased()
+        let refusalIndicators = [
+            "i want to stay grounded in your library",
+            "i don't have enough evidence",
+            "i do not have enough evidence",
+            "insufficient evidence in provided sources",
+            "retrieved evidence was insufficient",
+            "could not be verified from your documents",
+            "critical claims could not be verified",
+        ]
+
+        return !refusalIndicators.contains { lower.contains($0) }
+    }
+
+    private func bestEffortNote(for gatingDecision: String, reason: String) -> String {
+        let lower = gatingDecision.lowercased()
+
+        if lower.contains("source_only_abstain") {
+            return "The retrieved excerpts appear to answer this, but source-only verification would not certify every claim."
+        }
+        if lower.contains("verification_gates_failed") {
+            return "The retrieved excerpts support this answer better than the downstream verification score suggests."
+        }
+        if lower.contains("missing_citations") {
+            return "The answer came from the retrieved excerpts, but citation formatting or coverage failed."
+        }
+        if lower.contains("low_confidence")
+            || lower.contains("rerank_empty")
+            || lower.contains("mmr_empty")
+            || lower.contains("relevance_gate_failed")
+        {
+            return "This is the closest grounded read of the retrieved excerpts, but source relevance was weaker than ideal."
+        }
+        return reason
+    }
+
+    private func buildGroundedEvidenceFallbackText(
+        question: String,
+        retrievedChunks: [RetrievedChunk],
+        gatingDecision: String,
+        reason: String
+    ) -> String {
+        let terms = extractQueryTerms(question)
+        let snippetBullets = retrievedChunks.prefix(4).enumerated().map { idx, retrieved in
+            let sectionLabel = retrieved.chunk.metadata.sectionTitle.flatMap { $0.isEmpty ? nil : "\($0): " } ?? ""
+            let sourceName = retrieved.sourceDocument.isEmpty ? "Document" : retrieved.sourceDocument
+            let pageLabel = retrieved.pageNumber.map { ", p.\($0)" } ?? ""
+            let snippet = extractSnippet(
+                from: retrieved.chunk.content,
+                queryTerms: terms,
+                maxChars: 320
+            ).trimmingCharacters(in: .whitespacesAndNewlines)
+            return "• \(sectionLabel)\(snippet) [S\(idx + 1): \(sourceName)\(pageLabel)]"
+        }
+
+        let note = bestEffortNote(for: gatingDecision, reason: reason)
+        if snippetBullets.isEmpty {
+            return """
+            I couldn't fully certify a polished answer, but the retrieved evidence is still the best available grounding.
+
+            Best-effort note: \(note)
+            """
+        }
+
+        return """
+        I couldn't fully certify a polished answer, but the retrieved excerpts say:
+
+        \(snippetBullets.joined(separator: "\n\n"))
+
+        Best-effort note: \(note)
+        """
     }
 
     private func makeScientificExtractionShortCircuitResponse(
@@ -13353,6 +13558,7 @@ enum RAGServiceError: LocalizedError {
     case retrievalFailed
     case modelNotAvailable
     case noRelevantContext
+    case maximumModeQuotaReached(limit: Int)
     case cloudConsentDenied(provider: CloudProvider)
 
     var errorDescription: String? {
@@ -13367,6 +13573,8 @@ enum RAGServiceError: LocalizedError {
             return "Failed to retrieve relevant chunks"
         case .modelNotAvailable:
             return "The selected LLM model is not available"
+        case let .maximumModeQuotaReached(limit):
+            return "Maximum mode is limited to \(limit) uses per day on the free tier"
         case let .cloudConsentDenied(provider):
             return "Cloud transmission denied for \(provider.shortName)"
         }

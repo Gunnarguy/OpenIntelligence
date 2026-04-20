@@ -327,13 +327,23 @@ final class QueryEnhancementService {
             "according to .*'s research", ".*'s main argument", ".*'s thesis",
             "what is .*'s contribution", "what did .* contribute",
             "research by", "study by", "paper by", "article by",
-            ".*'s key finding", ".*'s discovery", ".*'s conclusion"
+            ".*'s key finding", ".*'s discovery", ".*'s conclusion",
+            "who designed the research", "who designed the study", "who conducted the research",
+            "who conducted the study", "who carried out the research", "who carried out the study",
+            "who authored the paper", "who wrote the paper", "who wrote the study"
         ]
         for pattern in findingsPatterns {
             if let _ = lower.range(of: pattern, options: .regularExpression) {
                 Log.debug("[QueryEnhancement] 🔥 GOD MODE: Detected findings/author query pattern: '\(pattern)'", category: .retrieval)
                 return .findings
             }
+        }
+
+        if lower.hasPrefix("who "),
+           ["research", "study", "paper", "article", "experiment", "trial"].contains(where: { lower.contains($0) }),
+           ["designed", "conducted", "authored", "wrote", "performed", "carried out"].contains(where: { lower.contains($0) }) {
+            Log.debug("[QueryEnhancement] 🔥 GOD MODE: Research authorship query detected", category: .retrieval)
+            return .findings
         }
 
         // Also detect simple author-finding patterns without regex

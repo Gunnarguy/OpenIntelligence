@@ -2,7 +2,7 @@ import StoreKit
 import SwiftUI
 import UIKit
 
-/// Full-screen paywall surface that highlights plan tiers, add-ons, and billing controls.
+/// Full-screen paywall surface that highlights plan tiers and billing controls.
 struct PlanUpgradeSheet: View {
     let entryPoint: PlanUpgradeEntryPoint
 
@@ -24,14 +24,14 @@ struct PlanUpgradeSheet: View {
             tier: .pro,
             planName: "Pro (Monthly)",
             product: .proMonthly,
-            tagline: "Expand your workspace with no long-term commitment",
+            tagline: "Unlock unlimited Maximum mode with flexible billing",
             badgeText: "Flexible",
             tint: .purple,
             isFeatured: false,
             features: [
+                "Unlimited Maximum mode",
                 "Up to 1,000 documents",
                 "5 libraries",
-                "Expanded workspace limits",
                 "Cancel anytime",
             ]
         ),
@@ -39,14 +39,14 @@ struct PlanUpgradeSheet: View {
             tier: .pro,
             planName: "Pro (Annual)",
             product: .proAnnual,
-            tagline: "Save 30% with annual billing",
+            tagline: "Unlimited Maximum mode with the best recurring value",
             badgeText: "Best Value",
             tint: .purple,
             isFeatured: true,
             features: [
+                "Unlimited Maximum mode",
                 "Up to 1,000 documents",
                 "5 libraries",
-                "Expanded workspace limits",
                 "Save 30% vs monthly",
             ]
         ),
@@ -54,24 +54,24 @@ struct PlanUpgradeSheet: View {
             tier: .lifetime,
             planName: "Lifetime Cohort",
             product: .lifetimeCohort,
-            tagline: "One-time unlock with no renewal",
+            tagline: "Top-tier unlock with no renewal",
             badgeText: "One-Time",
             tint: .orange,
             isFeatured: false,
             features: [
+                "Unlimited Maximum mode",
                 "Unlimited documents",
                 "10 libraries",
-                "Everything in Pro",
-                "No renewal — one-time purchase",
+                "Everything unlocked",
             ]
         ),
     ]
 
     private let storySlides: [PlanStorySlide] = [
         PlanStorySlide(
-            title: "Unlock more capacity",
-            subtitle: "Pro expands your workspace from the free tier to up to 1,000 documents and 5 libraries.",
-            icon: "bolt.fill",
+            title: "Maximum without the cap",
+            subtitle: "Paid plans remove the daily Maximum limit while keeping Standard and Deep Think available everywhere.",
+            icon: "flame.fill",
             tint: .orange
         ),
         PlanStorySlide(
@@ -82,7 +82,7 @@ struct PlanUpgradeSheet: View {
         ),
         PlanStorySlide(
             title: "Lifetime, without renewal",
-            subtitle: "Lifetime keeps unlimited documents and up to 10 libraries unlocked in a single purchase.",
+            subtitle: "Lifetime keeps Maximum unlocked plus unlimited documents and 10 libraries in a single purchase.",
             icon: "arrow.up.right.circle.fill",
             tint: .purple
         ),
@@ -96,16 +96,13 @@ struct PlanUpgradeSheet: View {
                     socialProofBanner
                     whyUpgradeNowSection
                     storyCarousel
-                    if shouldShowRefillQuickAction {
-                        refillQuickAction
-                    }
 
                     ForEach(planOptions) { option in
                         tierCard(for: option)
                     }
 
-                    if showsDocumentPackOffers {
-                        addOnCard
+                    if entitlementStore.addOnPacks > 0 {
+                        legacyDocumentPackNotice
                     }
                     multiDocumentTip
                     managementControls
@@ -151,7 +148,7 @@ struct PlanUpgradeSheet: View {
                 "Paywall viewed",
                 metadata: [
                     "entryPoint": entryPoint.analyticsValue,
-                    "currentTier": entitlementStore.activeTier.rawValue,
+                    "currentTier": entitlementStore.effectiveTier.rawValue,
                 ]
             )
         }
@@ -169,7 +166,7 @@ private extension PlanUpgradeSheet {
                 .font(.body)
                 .foregroundStyle(.secondary)
             HStack {
-                Label("Current plan: \(entitlementStore.activeTier.displayName)", systemImage: "creditcard")
+                Label("Current plan: \(entitlementStore.currentPlanDisplayName)", systemImage: "creditcard")
                     .font(.caption.weight(.semibold))
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
@@ -202,6 +199,7 @@ private extension PlanUpgradeSheet {
                 .font(.headline)
             VStack(alignment: .leading, spacing: 8) {
                 BenefitRow(icon: "doc.badge.plus", text: "Higher document limits", tint: .orange)
+                BenefitRow(icon: "flame.fill", text: "Unlimited Maximum mode", tint: .red)
                 BenefitRow(icon: "square.stack.3d.up.fill", text: "More libraries", tint: .blue)
                 BenefitRow(icon: "creditcard", text: "One-time lifetime option", tint: .purple)
             }
@@ -218,7 +216,7 @@ private extension PlanUpgradeSheet {
             option: option,
             price: priceLabel(for: option.product),
             priceSuffix: priceSuffix(for: option.product),
-            hasAccess: entitlementStore.activeTier.isAtLeast(option.tier),
+            hasAccess: entitlementStore.effectiveTier.isAtLeast(option.tier),
             // "canPurchase" here means StoreKit metadata has been loaded.
             // We still allow tapping the CTA while loading; the tap will refresh and retry.
             canPurchase: canPurchase(option.product),
@@ -227,63 +225,22 @@ private extension PlanUpgradeSheet {
         )
     }
 
-    var addOnCard: some View {
-        let activePacks = entitlementStore.addOnPacks
-        let packCap = entitlementStore.documentPackCap
-        let remainingPacks = entitlementStore.remainingDocumentPackCapacity
-        let isCapped = entitlementStore.hasReachedDocumentPackCap
-        let bonusDocuments = activePacks * QuotaPolicy.addOnDocumentIncrement
-
+    var legacyDocumentPackNotice: some View {
         return VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Label("Document Pack", systemImage: "plus.rectangle.on.rectangle")
+                Label("Legacy Document Packs", systemImage: "shippingbox.fill")
                     .font(.headline)
                 Spacer()
-                Text(QuotaPolicy.addOnDocumentIncrement.description + " docs")
+                Text("Grandfathered")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            Text("Need a quick burst of capacity? Add \(QuotaPolicy.addOnDocumentIncrement) extra document slots. Up to \(packCap) packs can be active at once.")
+            Text("Your existing document-pack purchases are still honored, and paid history now receives Lifetime access in-app.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
-            VStack(alignment: .leading, spacing: 4) {
-                ProgressView(
-                    value: Double(activePacks),
-                    total: Double(packCap)
-                )
-                .tint(isCapped ? .orange : .accentColor)
-
-                if activePacks > 0 {
-                    Text("Active packs: \(activePacks)/\(packCap) (\(bonusDocuments) extra docs)")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text("No add-on packs active yet.")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                }
-
-                if isCapped {
-                    Label("Maximum pack cap reached. Remove documents or upgrade to unlock more space.", systemImage: "exclamationmark.triangle")
-                        .font(.caption2)
-                        .foregroundStyle(.orange)
-                } else if remainingPacks > 0 {
-                    Text("You can add \(remainingPacks) more pack\(remainingPacks == 1 ? "" : "s") (\(remainingPacks * QuotaPolicy.addOnDocumentIncrement) docs) before hitting the cap.")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            Button {
-                purchase(.documentPackAddOn)
-            } label: {
-                Label(
-                    isCapped ? "Pack Limit Reached" : "Buy Document Pack – \(priceLabel(for: .documentPackAddOn))",
-                    systemImage: isCapped ? "lock.fill" : "cart.badge.plus"
-                )
-                .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(isCapped || isRefreshingProducts || purchasingProduct != nil)
+            Text("Document packs are no longer sold in-app.")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
         }
         .padding()
         .background(DSColors.surface)
@@ -332,44 +289,6 @@ private extension PlanUpgradeSheet {
         }
     }
 
-    var shouldShowRefillQuickAction: Bool {
-        showsDocumentPackOffers && !entitlementStore.hasReachedDocumentPackCap
-    }
-
-    var showsDocumentPackOffers: Bool {
-        entitlementStore.activeTier != .lifetime
-    }
-
-    var refillQuickAction: some View {
-        let remaining = entitlementStore.remainingDocumentPackCapacity
-        let docsPerPack = QuotaPolicy.addOnDocumentIncrement
-        return VStack(alignment: .leading, spacing: 10) {
-            Label("Need documents today?", systemImage: "sparkles.rectangle.stack")
-                .font(.headline)
-            Text("Refill instantly with a document pack. Each pack adds \(docsPerPack) slots without changing your plan.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-            if remaining > 0 {
-                Text("You can add \(remaining) more pack\(remaining == 1 ? "" : "s") before reaching the cap.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Button {
-                purchase(.documentPackAddOn)
-            } label: {
-                Label("Refill documents – \(priceLabel(for: .documentPackAddOn))", systemImage: "tray.and.arrow.down.fill")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(purchasingProduct != nil || isRefreshingProducts)
-        }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(DSColors.surface)
-        )
-    }
-
     var multiDocumentTip: some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "rectangle.stack.badge.person.crop")
@@ -378,7 +297,7 @@ private extension PlanUpgradeSheet {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Built for personal research")
                     .font(.subheadline.weight(.semibold))
-                Text("Spin up as many document chats as you need—no team contract or sales call required.")
+                Text("Standard and Deep Think stay available on every plan. Paid tiers mainly expand capacity and remove the Maximum cap.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -489,6 +408,11 @@ private extension PlanUpgradeSheet {
         }
 
         // This gate does not require StoreKit metadata.
+        if product == .documentPackAddOn, !entitlementStore.shouldOfferDocumentPack {
+            alertMessage = "Document packs are no longer sold in-app. Existing pack purchases are still honored."
+            return
+        }
+
         if product == .documentPackAddOn, entitlementStore.hasReachedDocumentPackCap {
             TelemetryCenter.emitBillingEvent(
                 "Paywall CTA blocked",
@@ -503,7 +427,7 @@ private extension PlanUpgradeSheet {
             return
         }
 
-        if product == .documentPackAddOn, entitlementStore.activeTier == .lifetime {
+        if product == .documentPackAddOn, entitlementStore.effectiveTier == .lifetime {
             alertMessage = "Lifetime already unlocks unlimited documents, so document packs are not needed on this account."
             return
         }
@@ -594,6 +518,7 @@ private extension PlanUpgradeSheet {
         Task {
             defer { isRestoring = false }
             await entitlementStore.billingService.restorePurchases()
+            await entitlementStore.reconcileEntitlementsOnLaunch()
         }
     }
 

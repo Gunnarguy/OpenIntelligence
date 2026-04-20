@@ -26,14 +26,6 @@ struct DocumentQuotaBanner: View {
     private var isNearLimit: Bool { progress >= 0.8 }
     private var isAtLimit: Bool { progress >= 1.0 }
 
-    private var addOnSummaryText: String {
-        if addOnPacks == 0 {
-            return "No document packs active. Each pack adds \(QuotaPolicy.addOnDocumentIncrement) more imports."
-        }
-        let bonusDocs = addOnPacks * QuotaPolicy.addOnDocumentIncrement
-        return "Add-on packs: \(addOnPacks)/\(packCap) — \(bonusDocs) extra docs."
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
@@ -46,7 +38,7 @@ struct DocumentQuotaBanner: View {
             }
 
             ProgressView(value: progress)
-                .tint(isAtLimit ? .orange : isNearLimit ? .yellow : .accentColor)
+                .tint(isAtLimit ? .orange : isNearLimit ? .yellow : Color.accentColor)
 
             VStack(alignment: .leading, spacing: 6) {
                 if isAtLimit {
@@ -64,29 +56,26 @@ struct DocumentQuotaBanner: View {
                 }
             }
 
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 6) {
-                    Image(systemName: hasReachedPackCap ? "exclamationmark.triangle.fill" : "shippingbox.fill")
-                        .font(.caption)
-                        .foregroundStyle(hasReachedPackCap ? .orange : .accentColor)
-                    Text(addOnSummaryText)
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(hasReachedPackCap ? .orange : .secondary)
-                }
+            if addOnPacks > 0 {
+                let bonusDocs = addOnPacks * QuotaPolicy.addOnDocumentIncrement
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "shippingbox.fill")
+                            .font(.caption)
+                            .foregroundStyle(Color.accentColor)
+                        Text("Legacy document-pack bonus: +\(bonusDocs) docs")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
 
-                if hasReachedPackCap {
-                    Text("Maximum \(packCap) document packs active. Remove documents or upgrade tiers to unlock more space." )
-                        .font(.caption2)
-                        .foregroundStyle(.orange)
-                } else if remainingPackCapacity > 0 {
-                    Text("You can add \(remainingPackCapacity) more pack\(remainingPackCapacity == 1 ? "" : "s") (\(remainingPackCapacity * QuotaPolicy.addOnDocumentIncrement) docs).")
+                    Text("Your previous document-pack purchases are still applied, but document packs are no longer sold in-app.")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
             }
 
             HStack(spacing: 8) {
-                if !hasReachedPackCap, let refillAction = onRefillPack {
+                if addOnPacks > 0, !hasReachedPackCap, let refillAction = onRefillPack {
                     Button {
                         TelemetryCenter.emitBillingEvent(
                             "Refill CTA tapped",

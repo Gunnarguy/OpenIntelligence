@@ -191,10 +191,10 @@ This repo uses **two schemes** so local StoreKit testing never leaks into “rea
 
 | Product ID        | Type           | Price     | Notes                                  |
 | ----------------- | -------------- | --------- | -------------------------------------- |
-| `pro_monthly`     | Subscription   | $5.99/mo  | 7-day trial                            |
-| `pro_annual`      | Subscription   | $49.99/yr | Family Sharing                         |
-| `lifetime_cohort` | Non-consumable | $59.99    | Limited availability (lifetime unlock) |
-| `doc_pack_addon`  | Consumable     | $2.99     | +10 documents                          |
+| `pro_monthly`     | Subscription   | $5.99/mo  | Unlimited Maximum, 1,000 docs, 5 libs  |
+| `pro_annual`      | Subscription   | $49.99/yr | Same unlocks as monthly                |
+| `lifetime_cohort` | Non-consumable | $59.99    | Unlimited Maximum, unlimited docs      |
+| `doc_pack_addon`  | Consumable     | $2.99     | Legacy-only compatibility product      |
 
 ### Validate Catalog
 

@@ -39,7 +39,7 @@ struct GroundedAnswerPolicy: Sendable {
         query: String,
         answerIntent: AnswerIntent
     ) -> Bool {
-        if answerIntent.isExtractiveFirst {
+        if answerIntent == .tableLookup {
             return true
         }
 

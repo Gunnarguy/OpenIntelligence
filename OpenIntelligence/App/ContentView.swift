@@ -257,6 +257,7 @@ struct ContentView: View {
             }
 
         case .active:
+            entitlementStore.refreshTransientState()
             // Restore transcript when returning to foreground
             // Only restore if coming from background (not on initial launch)
             if oldPhase == .background {

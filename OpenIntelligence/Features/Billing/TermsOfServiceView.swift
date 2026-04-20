@@ -28,13 +28,14 @@ OpenIntelligence provides privacy-first document retrieval and AI-powered questi
 """)
 
                         section(title: "3. Subscriptions & Billing", content: """
-• **Free Tier**: 5 documents, 1 library
-• **Pro**: Monthly or annual subscription — up to 1,000 documents, 5 libraries
-• **Lifetime Cohort**: One-time purchase — unlimited documents, 10 libraries, forever
-• **Document Packs**: Consumable add-on — adds \(QuotaPolicy.addOnDocumentIncrement) documents (max \(3) active packs)
+    • **Free Tier**: 5 documents, 1 library, Standard and Deep Think access, Maximum mode limited to \(QuotaPolicy.freeMaximumModeDailyLimit) uses per day
+    • **Pro**: Monthly or annual subscription — up to 1,000 documents, 5 libraries, unlimited Maximum mode
+    • **Lifetime Cohort**: One-time purchase — unlimited documents, 10 libraries, unlimited Maximum mode
+    • **Grandfathered Paid Access**: Prior paid purchases, including legacy document packs, may be treated as Lifetime access in-app
+    • **Legacy Document Packs**: Document packs are no longer sold in-app
 
-Pricing is determined by your App Store region. All subscriptions auto-renew unless cancelled 24 hours before renewal. Manage subscriptions in App Store settings. Cancellation stops future billing but maintains access through the current period.
-""")
+    Pricing is determined by your App Store region. All subscriptions auto-renew unless cancelled 24 hours before renewal. Manage subscriptions in App Store settings. Cancellation stops future billing but maintains access through the current period.
+    """)
 
                         section(title: "4. Privacy & Data Processing", content: """
 • Documents are processed on-device by default
@@ -45,7 +46,7 @@ Pricing is determined by your App Store region. All subscriptions auto-renew unl
 """)
 
                         section(title: "5. Refunds", content: """
-Refunds are handled by Apple per their standard policies. Request refunds through App Store support within the applicable refund window. Consumable purchases (Document Packs) are non-refundable once used.
+Refunds are handled by Apple per their standard policies. Request refunds through App Store support within the applicable refund window.
 """)
 
                         section(title: "6. Acceptable Use", content: """

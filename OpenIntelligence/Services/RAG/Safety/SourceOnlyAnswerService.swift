@@ -159,6 +159,11 @@ final class SourceOnlyAnswerService {
 
     private let model = SystemLanguageModel.default
 
+    private struct ReviewAggregation {
+        let byClaimId: [String: SourceOnlyClaimReview]
+        let warnings: [String]
+    }
+
     private init() {}
 
     var isAvailable: Bool {
@@ -293,11 +298,17 @@ final class SourceOnlyAnswerService {
             return nil
         }
 
-        let reviewMap = Dictionary(uniqueKeysWithValues: reviewBundle.reviews.map { ($0.claimId, $0) })
+        let reviewAggregation = aggregateReviews(
+            reviewBundle.reviews,
+            expectedClaimIds: draft.claims.map(\.claimId)
+        )
+        for warning in reviewAggregation.warnings {
+            Log.warning("[SourceOnly] \(warning)", category: .llm)
+        }
         let verifiedClaims = draft.claims.map {
             mergeClaimDraft(
                 $0,
-                review: reviewMap[$0.claimId],
+                review: reviewAggregation.byClaimId[normalizeClaimIdentifier($0.claimId)],
                 evidenceRecords: evidenceRecords,
                 domainBlocks: draft.domainBlocks,
                 strictDomainMode: verificationMode == .strictScientificDomain
@@ -356,9 +367,10 @@ final class SourceOnlyAnswerService {
             topScore: retrievedChunks.first?.similarityScore ?? 0
         )
 
-        var warnings = unsupportedClaims.prefix(4).map { claim in
+        var warnings = reviewAggregation.warnings
+        warnings.append(contentsOf: unsupportedClaims.prefix(4).map { claim in
             "Source-only filter dropped claim \(claim.claimId): \(claim.claimText)"
-        }
+        })
         if verificationMode == .strictScientificDomain && !domainAssessment.rejectedChunks.isEmpty {
             warnings.append("Domain isolation kept \(Int((domainAssessment.allowedCoverage * 100).rounded()))% of retrieval weight inside \(domainAssessment.allowedDomain.rawValue)")
         }
@@ -442,7 +454,8 @@ final class SourceOnlyAnswerService {
             5. Unsupported means the evidence does not establish the claim.
             6. If a number, unit, code, or date in the claim is absent from cited evidence, the claim cannot be supported.
             7. Do not repair or rewrite claims.
-            8. Prefer exact evidence labels and verbatim quotes.
+            8. Return exactly one review object for each input claimId. Copy each claimId exactly once and do not invent new IDs.
+            9. Prefer exact evidence labels and verbatim quotes.
             """
         case .strictScientificDomain:
             return """
@@ -460,10 +473,11 @@ final class SourceOnlyAnswerService {
             6. Unsupported means the evidence does not establish the claim.
             7. If a number or unit in the claim is absent from cited evidence, the claim cannot be supported.
             8. Do not repair or rewrite claims.
-            9. Prefer exact evidence labels and verbatim quotes.
-            10. If route, dose, duration, or onset are NULL_UNSUPPORTED in the domain block, any claim asserting that field must be unsupported.
-            11. Treat claims that imply previously treated controls as unsupported when the domain block control type is parallel or NULL.
-            12. Treat route assertions as unsupported when the source only says injected without specifying IP, IV, PO, subcutaneous, or topical.
+            9. Return exactly one review object for each input claimId. Copy each claimId exactly once and do not invent new IDs.
+            10. Prefer exact evidence labels and verbatim quotes.
+            11. If route, dose, duration, or onset are NULL_UNSUPPORTED in the domain block, any claim asserting that field must be unsupported.
+            12. Treat claims that imply previously treated controls as unsupported when the domain block control type is parallel or NULL.
+            13. Treat route assertions as unsupported when the source only says injected without specifying IP, IV, PO, subcutaneous, or topical.
             """
         }
     }
@@ -558,6 +572,60 @@ final class SourceOnlyAnswerService {
         \(evidencePrompt)
         </evidence_set>
         """
+    }
+
+    private func aggregateReviews(
+        _ reviews: [SourceOnlyClaimReview],
+        expectedClaimIds: [String]
+    ) -> ReviewAggregation {
+        var warnings: [String] = []
+        var expectedIds: [String: String] = [:]
+
+        for claimId in expectedClaimIds {
+            let normalizedClaimId = normalizeClaimIdentifier(claimId)
+            guard !normalizedClaimId.isEmpty else { continue }
+            if expectedIds[normalizedClaimId] == nil {
+                expectedIds[normalizedClaimId] = claimId.trimmingCharacters(in: .whitespacesAndNewlines)
+            } else {
+                warnings.append("Source-only draft emitted duplicate claim id \(claimId); review matching may be degraded.")
+            }
+        }
+
+        var reviewMap: [String: SourceOnlyClaimReview] = [:]
+        var reviewCounts: [String: Int] = [:]
+
+        for review in reviews {
+            let displayClaimId = review.claimId.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedClaimId = normalizeClaimIdentifier(review.claimId)
+
+            guard !normalizedClaimId.isEmpty else {
+                warnings.append("Source-only review returned a blank claim id; ignored.")
+                continue
+            }
+            guard expectedIds[normalizedClaimId] != nil else {
+                warnings.append("Source-only review returned unexpected claim id \(displayClaimId); ignored.")
+                continue
+            }
+
+            reviewCounts[normalizedClaimId, default: 0] += 1
+
+            if let existingReview = reviewMap[normalizedClaimId] {
+                reviewMap[normalizedClaimId] = moreConservativeReview(existingReview, review)
+            } else {
+                reviewMap[normalizedClaimId] = review
+            }
+        }
+
+        for claimId in expectedIds.keys.sorted() {
+            if let count = reviewCounts[claimId], count > 1 {
+                warnings.append("Source-only review returned \(count) entries for \(expectedIds[claimId] ?? claimId); kept the most conservative result.")
+            }
+            if reviewMap[claimId] == nil {
+                warnings.append("Source-only review omitted \(expectedIds[claimId] ?? claimId); defaulted to unsupported.")
+            }
+        }
+
+        return ReviewAggregation(byClaimId: reviewMap, warnings: warnings)
     }
 
     private func mergeClaimDraft(
@@ -872,6 +940,48 @@ final class SourceOnlyAnswerService {
         default:
             return .unsupported
         }
+    }
+
+    private func moreConservativeReview(
+        _ lhs: SourceOnlyClaimReview,
+        _ rhs: SourceOnlyClaimReview
+    ) -> SourceOnlyClaimReview {
+        let lhsRank = verdictConservatismRank(for: lhs)
+        let rhsRank = verdictConservatismRank(for: rhs)
+        if lhsRank != rhsRank {
+            return lhsRank < rhsRank ? lhs : rhs
+        }
+
+        if lhs.fidelity != rhs.fidelity {
+            return lhs.fidelity < rhs.fidelity ? lhs : rhs
+        }
+
+        let lhsQuoteIsEmpty = lhs.evidenceQuote.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let rhsQuoteIsEmpty = rhs.evidenceQuote.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        if lhsQuoteIsEmpty != rhsQuoteIsEmpty {
+            return lhsQuoteIsEmpty ? lhs : rhs
+        }
+
+        return lhs
+    }
+
+    private func verdictConservatismRank(for review: SourceOnlyClaimReview) -> Int {
+        switch parseVerdict(review.verdict) {
+        case .contradicted:
+            return 0
+        case .unsupported:
+            return 1
+        case .ambiguous:
+            return 2
+        case .supported:
+            return 3
+        }
+    }
+
+    private func normalizeClaimIdentifier(_ claimId: String) -> String {
+        claimId
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .uppercased()
     }
 
     private func sanitizeForLanguageDetection(_ text: String) -> String {

@@ -25,12 +25,14 @@ enum LocalModelAccessState {
     case blocked
 }
 
-/// Tracks the currently active workspace tier and derived quotas.
+/// Tracks active StoreKit entitlements, legacy protection, and feature policy.
 @MainActor
 final class EntitlementStore: ObservableObject {
     @Published private(set) var activeTier: WorkspaceTier
     @Published private(set) var documentLimit: Int
     @Published private(set) var libraryLimit: Int
+    @Published private(set) var legacyProtectionState: LegacyProtectionState
+    @Published private(set) var maximumModeRemainingUses: Int
     @Published private(set) var isLoading: Bool = true
     @Published var lastError: String?
     @Published private(set) var availableProducts: [BillingProduct: Product] = [:]
@@ -51,39 +53,89 @@ final class EntitlementStore: ObservableObject {
     /// Remaining add-on purchases a user can make before hitting the cap.
     var remainingDocumentPackCapacity: Int { max(maxAddOnPacks - addOnPacks, 0) }
 
-    var hasUnlimitedDocuments: Bool { QuotaPolicy.isUnlimitedDocumentLimit(documentLimit) }
-
+    var hasUnlimitedDocuments: Bool { entitlementSnapshot.hasUnlimitedDocuments }
     var documentLimitDisplayText: String { QuotaPolicy.documentLimitDisplayText(documentLimit) }
+    var isLegacyPaidProtected: Bool { entitlementSnapshot.isLegacyPaidProtected }
+    var effectiveTier: WorkspaceTier { entitlementSnapshot.activeTier }
+    var hasUnlimitedMaximumMode: Bool { maximumModeAccessPolicy.isUnlimited }
+    var canUseMaximumModeNow: Bool { hasUnlimitedMaximumMode || maximumModeRemainingUses > 0 }
+    var shouldOfferDocumentPack: Bool { entitlementSnapshot.shouldOfferDocumentPack }
+
+    var currentPlanDisplayName: String {
+        effectiveTier.displayName
+    }
+
+    var maximumModeAccessPolicy: MaximumModeAccessPolicy {
+        entitlementSnapshot.maximumModePolicy
+    }
+
+    var maximumModeSelectionSummary: String {
+        switch maximumModeAccessPolicy {
+        case .unlimited:
+            return "Unlimited on your current plan"
+        case let .meteredDaily(limit):
+            return "\(maximumModeRemainingUses) of \(limit) free Maximum runs left today"
+        }
+    }
+
+    var maximumModeResetDate: Date? {
+        guard case .meteredDaily = maximumModeAccessPolicy else { return nil }
+        return maximumModeQuotaStore.nextResetDate()
+    }
+
+    var entitlementSnapshot: EntitlementSnapshot {
+        Self.buildSnapshot(
+            activeTier: activeTier,
+            documentCredits: availableDocumentCredits,
+            legacyProtectionState: legacyProtectionState
+        )
+    }
 
     let billingService: BillingService
     private var eventTask: Task<Void, Never>?
     private let defaults: UserDefaults
     private let maxAddOnPacks = 3
+    private let maximumModeQuotaStore: MaximumModeQuotaStore
 
     private enum Keys {
         static let tier = "entitlement.activeTier"
         static let addOns = "entitlement.docAddOns" // Legacy storage, retained for migration
         static let packs = "entitlement.docPackLedger"
+        static let legacyProtection = "entitlement.legacyProtectionState"
     }
 
     init(billingService: BillingService, defaults: UserDefaults = .standard) {
         self.billingService = billingService
         self.defaults = defaults
+        self.maximumModeQuotaStore = MaximumModeQuotaStore(defaults: defaults)
+
         let storedTier = defaults.string(forKey: Keys.tier)
         let resolvedTier = WorkspaceTier(rawValue: storedTier ?? "") ?? .free
         activeTier = resolvedTier
+
         let loadedPacks = Self.loadDocumentPacks(from: defaults)
         let prunedPacks = Self.pruneExpiredPacks(loadedPacks)
         documentPacks = prunedPacks
-        let documentCredits = Self.totalCredits(for: prunedPacks)
-        documentLimit = Self.resolveDocumentLimit(for: resolvedTier, credits: documentCredits)
-        libraryLimit = QuotaPolicy.libraryLimit(for: resolvedTier)
+
+        let storedLegacy = defaults.string(forKey: Keys.legacyProtection)
+        let resolvedLegacy = LegacyProtectionState(rawValue: storedLegacy ?? "") ?? .none
+        legacyProtectionState = resolvedLegacy
+
+        let initialSnapshot = Self.buildSnapshot(
+            activeTier: resolvedTier,
+            documentCredits: Self.totalCredits(for: prunedPacks),
+            legacyProtectionState: resolvedLegacy
+        )
+        documentLimit = initialSnapshot.documentLimit
+        libraryLimit = initialSnapshot.libraryLimit
+        maximumModeRemainingUses = 0
 
         eventTask = Task { await observeBillingEvents() }
         Task { await billingService.refreshProducts() }
         if prunedPacks.count != loadedPacks.count {
             persistDocumentPacks()
         }
+        recalculateAllowances()
         isLoading = false
     }
 
@@ -145,6 +197,37 @@ final class EntitlementStore: ObservableObject {
         packs.filter { !$0.isExpired }
     }
 
+    private static func buildSnapshot(
+        activeTier: WorkspaceTier,
+        documentCredits: Int,
+        legacyProtectionState: LegacyProtectionState
+    ) -> EntitlementSnapshot {
+        let resolvedTier: WorkspaceTier = legacyProtectionState.isProtected ? .lifetime : activeTier
+        let baseDocumentLimit = QuotaPolicy.documentLimit(for: resolvedTier)
+        let resolvedDocumentLimit: Int
+        if QuotaPolicy.isUnlimitedDocumentLimit(baseDocumentLimit) {
+            resolvedDocumentLimit = baseDocumentLimit
+        } else {
+            resolvedDocumentLimit = baseDocumentLimit + documentCredits
+        }
+
+        let maximumModePolicy: MaximumModeAccessPolicy
+        if resolvedTier != .free {
+            maximumModePolicy = .unlimited
+        } else {
+            maximumModePolicy = .meteredDaily(limit: QuotaPolicy.freeMaximumModeDailyLimit)
+        }
+
+        return EntitlementSnapshot(
+            activeTier: resolvedTier,
+            documentLimit: resolvedDocumentLimit,
+            libraryLimit: QuotaPolicy.libraryLimit(for: resolvedTier),
+            maximumModePolicy: maximumModePolicy,
+            legacyProtectionState: legacyProtectionState,
+            shouldOfferDocumentPack: false
+        )
+    }
+
     private func persistDocumentPacks() {
         do {
             let encoder = JSONEncoder()
@@ -158,6 +241,7 @@ final class EntitlementStore: ObservableObject {
     private func persistState() {
         defaults.set(activeTier.rawValue, forKey: Keys.tier)
         defaults.set(addOnPacks, forKey: Keys.addOns)
+        defaults.set(legacyProtectionState.rawValue, forKey: Keys.legacyProtection)
         persistDocumentPacks()
     }
 
@@ -193,6 +277,7 @@ final class EntitlementStore: ObservableObject {
             expirationDate: transaction.expirationDate
         )
         documentPacks.append(entry)
+        promoteLegacyProtection(to: .legacyDocumentPackOwner)
         persistDocumentPacks()
     }
 
@@ -225,28 +310,94 @@ final class EntitlementStore: ObservableObject {
         currentCount < libraryLimit
     }
 
-    /// Reconciles entitlements from `Transaction.currentEntitlements` on launch.
-    /// This ensures paid users retain their tier and add-ons across reinstalls,
-    /// device changes, and family sharing without requiring manual "Restore Purchases".
-    /// Unlike `restorePurchases()`, this does NOT call `AppStore.sync()` (no sign-in prompt).
+    func refreshTransientState() {
+        recalculateAllowances()
+    }
+
+    func consumeMaximumModeUseIfNeeded() -> MaximumModeExecutionDecision {
+        switch maximumModeAccessPolicy {
+        case .unlimited:
+            recalculateAllowances()
+            return .allowedUnlimited
+        case let .meteredDaily(limit):
+            let decision = maximumModeQuotaStore.consumeIfAllowed(limit: limit)
+            recalculateAllowances()
+            return decision
+        }
+    }
+
+    /// Reconciles entitlements from StoreKit on launch.
+    /// This rebuilds the active StoreKit tier, then layers in sticky paid-history
+    /// protection. Any verified past paid purchase is treated as effective
+    /// Lifetime access for app gating, even if the active StoreKit tier is free.
     func reconcileEntitlementsOnLaunch() async {
+        isLoading = true
+        defer { isLoading = false }
+
+        pruneExpiredDocumentPacksIfNeeded()
+
+        var resolvedTier: WorkspaceTier = .free
         var reconciledCount = 0
+
         for await result in Transaction.currentEntitlements {
             switch result {
             case .verified(let transaction):
                 guard let billingProduct = BillingProduct(rawValue: transaction.productID) else { continue }
-                // Skip revoked transactions
                 guard transaction.revocationDate == nil else { continue }
-                applyPurchase(for: billingProduct, transaction: transaction)
-                reconciledCount += 1
-                Log.info("✅ Reconciled entitlement: \(billingProduct.rawValue)", category: .billing)
+                if let tier = billingProduct.associatedTier {
+                    resolvedTier = maxTier(resolvedTier, tier)
+                    reconciledCount += 1
+                    Log.info("✅ Reconciled entitlement: \(billingProduct.rawValue)", category: .billing)
+                }
             case .unverified(_, let error):
                 Log.warning("Entitlement reconciliation skipped unverified transaction: \(error.localizedDescription)", category: .billing)
             }
         }
-        if reconciledCount > 0 {
-            Log.info("Entitlement reconciliation complete — tier: \(activeTier.rawValue), docs: \(documentLimit), libs: \(libraryLimit)", category: .billing)
+
+        activeTier = resolvedTier
+
+        if resolvedTier != .free {
+            promoteLegacyProtection(to: .historicalPaidPurchase)
+        } else if legacyProtectionState == .none,
+                  let historicalProtection = await detectHistoricalProtectionFromStoreKit()
+        {
+            promoteLegacyProtection(to: historicalProtection)
         }
+
+        if !documentPacks.isEmpty {
+            promoteLegacyProtection(to: .legacyDocumentPackOwner)
+        }
+
+        persistState()
+        recalculateAllowances()
+
+        if reconciledCount > 0 || isLegacyPaidProtected {
+            Log.info(
+                "Entitlement reconciliation complete — activeTier: \(activeTier.rawValue), effectiveTier: \(effectiveTier.rawValue), legacy: \(legacyProtectionState.rawValue), docs: \(documentLimit), libs: \(libraryLimit)",
+                category: .billing
+            )
+        }
+    }
+
+    private func detectHistoricalProtectionFromStoreKit() async -> LegacyProtectionState? {
+        // AppTransaction is useful when migrating a paid app to freemium, but it doesn't
+        // identify past IAP purchases. Here we intentionally inspect restorable paid SKUs
+        // and grandfather them into effective Lifetime access.
+        for product in [BillingProduct.proMonthly, .proAnnual, .lifetimeCohort] {
+            guard let result = await Transaction.latest(for: product.rawValue) else { continue }
+            switch result {
+            case .verified(let transaction):
+                guard transaction.revocationDate == nil else { continue }
+                return .historicalPaidPurchase
+            case .unverified:
+                continue
+            }
+        }
+
+        // We intentionally do not enable SKIncludeConsumableInAppPurchaseHistory because
+        // Apple recommends server-side reconciliation before relying on finished consumable
+        // history across reinstalls. Local document-pack ownership remains sticky instead.
+        return nil
     }
 
     func product(for product: BillingProduct) -> Product? {
@@ -281,6 +432,7 @@ final class EntitlementStore: ObservableObject {
                 expirationDate: nil
             )
             documentPacks.append(entry)
+            promoteLegacyProtection(to: .legacyDocumentPackOwner)
             persistState()
             recalculateAllowances()
             lastError = nil
@@ -320,6 +472,9 @@ final class EntitlementStore: ObservableObject {
         /// Used by local purchase simulation and developer tooling.
         func setDebugTier(_ tier: WorkspaceTier) {
             activeTier = tier
+            if tier != .free {
+                promoteLegacyProtection(to: .historicalPaidPurchase)
+            }
             persistState()
             recalculateAllowances()
         }
@@ -345,9 +500,9 @@ final class EntitlementStore: ObservableObject {
             }
         case let .purchaseFailed(_, error):
             lastError = error.errorDescription
-        case .userCancelled:
+        case .userCancelled(_):
             lastError = nil
-        case .pending:
+        case .pending(_):
             lastError = nil
         }
     }
@@ -355,6 +510,7 @@ final class EntitlementStore: ObservableObject {
     private func applyPurchase(for product: BillingProduct, transaction: Transaction) {
         if let tier = product.associatedTier {
             upgradeTierIfNeeded(to: tier)
+            promoteLegacyProtection(to: .historicalPaidPurchase)
         }
         if product == .documentPackAddOn {
             appendDocumentPack(for: transaction)
@@ -394,6 +550,23 @@ final class EntitlementStore: ObservableObject {
         activeTier = tier
     }
 
+    private func promoteLegacyProtection(to state: LegacyProtectionState) {
+        guard legacyProtectionPriority(state) > legacyProtectionPriority(legacyProtectionState) else { return }
+        legacyProtectionState = state
+    }
+
+    private func legacyProtectionPriority(_ state: LegacyProtectionState) -> Int {
+        switch state {
+        case .none: return 0
+        case .legacyDocumentPackOwner: return 1
+        case .historicalPaidPurchase: return 2
+        }
+    }
+
+    private func maxTier(_ lhs: WorkspaceTier, _ rhs: WorkspaceTier) -> WorkspaceTier {
+        tierPriority(lhs) >= tierPriority(rhs) ? lhs : rhs
+    }
+
     private func tierPriority(_ tier: WorkspaceTier) -> Int {
         switch tier {
         case .free: return 0
@@ -404,15 +577,15 @@ final class EntitlementStore: ObservableObject {
 
     private func recalculateAllowances() {
         pruneExpiredDocumentPacksIfNeeded()
-        documentLimit = Self.resolveDocumentLimit(for: activeTier, credits: availableDocumentCredits)
-        libraryLimit = QuotaPolicy.libraryLimit(for: activeTier)
-    }
+        let snapshot = entitlementSnapshot
+        documentLimit = snapshot.documentLimit
+        libraryLimit = snapshot.libraryLimit
 
-    private static func resolveDocumentLimit(for tier: WorkspaceTier, credits: Int) -> Int {
-        let baseLimit = QuotaPolicy.documentLimit(for: tier)
-        guard !QuotaPolicy.isUnlimitedDocumentLimit(baseLimit) else {
-            return baseLimit
+        switch snapshot.maximumModePolicy {
+        case .unlimited:
+            maximumModeRemainingUses = 0
+        case let .meteredDaily(limit):
+            maximumModeRemainingUses = maximumModeQuotaStore.currentState(limit: limit).remainingUses
         }
-        return baseLimit + credits
     }
 }

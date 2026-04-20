@@ -19,7 +19,7 @@
       "subscription_group": "com.openintelligence.subscriptions",
       "subscription_group_level": 1,
       "family_shareable": false,
-      "review_notes": "Unlocks up to 1,000 documents, 5 knowledge libraries, and priority ingestion. All processing uses on-device AI with optional Private Cloud Compute.",
+      "review_notes": "Unlocks unlimited Maximum mode, up to 1,000 documents, and 5 knowledge libraries. Standard and Deep Think remain available on all tiers.",
       "pricing": {
         "USD": 5.99,
         "tier": "Tier 6"
@@ -27,11 +27,11 @@
       "localizations": {
         "en-US": {
           "name": "Pro Monthly",
-          "description": "Up to 1,000 documents, 5 libraries, and premium retrieval controls."
+          "description": "Unlimited Maximum mode, 1,000 documents, 5 libraries."
         },
         "en-GB": {
           "name": "Pro Monthly",
-          "description": "Up to 1,000 documents, 5 libraries, and premium retrieval controls."
+          "description": "Unlimited Maximum mode, 1,000 documents, 5 libraries."
         },
         "de-DE": {
           "name": "Pro Monatsabo",
@@ -51,7 +51,7 @@
       "subscription_group": "com.openintelligence.subscriptions",
       "subscription_group_level": 1,
       "family_shareable": true,
-      "review_notes": "Annual billing for Pro features. Save 30% compared to monthly. Unlocks up to 1,000 documents, 5 libraries, priority ingestion.",
+      "review_notes": "Annual billing for Pro. Unlocks unlimited Maximum mode, up to 1,000 documents, and 5 libraries.",
       "pricing": {
         "USD": 49.99,
         "tier": "Tier 50"
@@ -59,11 +59,11 @@
       "localizations": {
         "en-US": {
           "name": "Pro Annual",
-          "description": "Annual billing for up to 1,000 documents and 5 libraries. Save 30%."
+          "description": "Unlimited Maximum mode, 1,000 documents, 5 libraries. Save 30%."
         },
         "en-GB": {
           "name": "Pro Annual",
-          "description": "Annual billing for up to 1,000 documents and 5 libraries. Save 30%."
+          "description": "Unlimited Maximum mode, 1,000 documents, 5 libraries. Save 30%."
         },
         "es-ES": {
           "name": "Pro Anual",
@@ -78,7 +78,7 @@
       "reference_name": "Lifetime Cohort",
       "type": "non-consumable",
       "family_shareable": true,
-      "review_notes": "One-time purchase that permanently unlocks all Pro features: unlimited documents, 10 libraries, priority support. No subscription required. Early supporter pricing.",
+      "review_notes": "One-time purchase that unlocks unlimited Maximum mode, unlimited documents, and 10 libraries with no renewal.",
       "pricing": {
         "USD": 59.99,
         "tier": "Tier 60"
@@ -86,11 +86,11 @@
       "localizations": {
         "en-US": {
           "name": "Lifetime Cohort",
-          "description": "One-time unlock for unlimited documents, 10 libraries, and all Pro features forever."
+          "description": "Unlimited Maximum mode, unlimited documents, 10 libraries."
         },
         "en-GB": {
           "name": "Lifetime Cohort",
-          "description": "One-time unlock for unlimited documents, 10 libraries, and all Pro features forever."
+          "description": "Unlimited Maximum mode, unlimited documents, 10 libraries."
         },
         "de-DE": {
           "name": "Lifetime-Paket",
@@ -109,7 +109,7 @@
       "reference_name": "Document Pack Add-on",
       "type": "consumable",
       "family_shareable": false,
-      "review_notes": "Consumable purchase that adds 10 documents to the user's quota. Can be purchased multiple times (up to 3 active packs). Documents from a pack are available until the user removes them from their library.",
+      "review_notes": "Legacy-only consumable retained for backward compatibility with prior purchasers. It is no longer surfaced for new in-app sales.",
       "pricing": {
         "USD": 2.99,
         "tier": "Tier 3"
@@ -117,15 +117,15 @@
       "localizations": {
         "en-US": {
           "name": "Document Pack",
-          "description": "Adds 10 extra documents to your workspace quota."
+          "description": "Legacy compatibility product for prior document-pack owners."
         },
         "en-GB": {
           "name": "Document Pack",
-          "description": "Adds 10 additional documents to the workspace quota."
+          "description": "Legacy compatibility product for prior document-pack owners."
         },
         "fr-FR": {
           "name": "Pack de documents",
-          "description": "Ajoute 10 documents supplémentaires à votre quota."
+          "description": "Produit hérité conservé pour les anciens achats."
         }
       }
     }
@@ -137,8 +137,8 @@
     "4. Add 'Pro Annual' (pro_annual) at Level 1, $49.99/yr (no trial)",
     "5. Go to In-App Purchases → Non-Consumable",
     "6. Add 'Lifetime Cohort' (lifetime_cohort) at $59.99",
-    "7. Go to In-App Purchases → Consumable",
-    "8. Add 'Document Pack' (doc_pack_addon) at $2.99",
+    "7. Keep 'Document Pack' (doc_pack_addon) only for legacy compatibility if it already exists",
+    "8. Do not surface Document Pack purchase UI in the app for new users",
     "9. Add localizations for each product matching this file",
     "10. Set review notes for each product",
     "11. Submit all products for review (can be done with app submission)",

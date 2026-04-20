@@ -69,8 +69,23 @@ actor SmartReplyService {
         HardwareTelemetryReporter.pulse(.queryProcessing, intensity: 0.6, duration: 0.3)
         HardwareTelemetryReporter.reportCPUOperation()
 
+        let shouldIgnoreResponseText = responseLooksLikeMetaAnswer(response)
+        let analysisText: String
+        if shouldIgnoreResponseText, !retrievedChunks.isEmpty {
+            analysisText = retrievedChunks
+                .prefix(4)
+                .map { $0.chunk.content }
+                .joined(separator: "\n")
+        } else {
+            analysisText = response
+        }
+
+        guard !analysisText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return []
+        }
+
         // Strategy 1: Extract key entities/topics from response for deep-dive questions
-        let responseEntities = extractKeyTerms(from: response)
+        let responseEntities = extractKeyTerms(from: analysisText)
         let queryTerms = Set(extractKeyTerms(from: query).map { $0.lowercased() })
 
         // Find entities in response NOT already in the query (new topics introduced)
@@ -84,8 +99,20 @@ actor SmartReplyService {
             ))
         }
 
+        if let groundedConditional = extractConditionalFollowUp(
+            query: query,
+            response: analysisText,
+            chunks: retrievedChunks
+        ) {
+            suggestions.append(SmartReply(
+                text: groundedConditional,
+                category: .clarify,
+                confidence: 0.86
+            ))
+        }
+
         // Strategy 2: Check for procedural content → suggest next steps
-        if containsProceduralContent(response) {
+        if containsProceduralContent(analysisText) {
             suggestions.append(SmartReply(
                 text: "What are the next steps after this?",
                 category: .nextStep,
@@ -94,7 +121,7 @@ actor SmartReplyService {
         }
 
         // Strategy 3: Check for numerical/specification content → suggest comparison
-        if containsNumericalData(response) {
+        if containsNumericalData(analysisText) {
             suggestions.append(SmartReply(
                 text: "How does this compare to other options?",
                 category: .compare,
@@ -103,7 +130,7 @@ actor SmartReplyService {
         }
 
         // Strategy 4: If response mentions limitations or conditions → suggest clarification
-        if containsConditionalLanguage(response) {
+        if containsConditionalLanguage(analysisText) {
             suggestions.append(SmartReply(
                 text: "What are the exceptions or limitations?",
                 category: .clarify,
@@ -115,24 +142,43 @@ actor SmartReplyService {
         let chunkTopics = extractChunkTopics(from: retrievedChunks)
         let relatedTopics = chunkTopics.filter { topic in
             !query.lowercased().contains(topic.lowercased()) &&
-            !response.lowercased().contains(topic.lowercased())
+            !analysisText.lowercased().contains(topic.lowercased())
         }
 
         for topic in relatedTopics.prefix(1) {
             suggestions.append(SmartReply(
-                text: "What does the document say about \(topic)?",
+                text: relatedTopicQuestion(for: topic),
                 category: .related,
                 confidence: 0.6
             ))
         }
 
         // Strategy 6: LLM-generated follow-ups (if available)
-        if let llmSuggestions = await generateLLMFollowUps(query: query, response: response) {
+        if !shouldIgnoreResponseText,
+           let llmSuggestions = await generateLLMFollowUps(
+                query: query,
+                response: response,
+                retrievedChunks: retrievedChunks
+           )
+        {
             suggestions.append(contentsOf: llmSuggestions)
         }
 
         // Sort by confidence and limit
-        let sorted = suggestions
+        let filteredSuggestions = uniqueByText(
+            suggestions
+            .filter {
+                isUsableSuggestionText($0.text)
+                    && !isSelfAnsweringSuggestion(
+                        $0.text,
+                        query: query,
+                        response: response,
+                        chunks: retrievedChunks
+                    )
+            }
+        )
+
+        let sorted = filteredSuggestions
             .sorted { $0.confidence > $1.confidence }
             .prefix(maxSuggestions)
 
@@ -222,22 +268,227 @@ actor SmartReplyService {
         return Array(Set(topics))
     }
 
+    private func responseLooksLikeMetaAnswer(_ text: String) -> Bool {
+        let lower = text.lowercased()
+        let markers = [
+            "i want to stay grounded in your library",
+            "i don't have enough evidence",
+            "i do not have enough evidence",
+            "best-effort note:",
+            "add or select a library with relevant documents",
+            "ask about a specific document title or section",
+            "i couldn't fully certify a polished answer",
+        ]
+        return markers.contains { lower.contains($0) }
+    }
+
+    private func relatedTopicQuestion(for topic: String) -> String {
+        let cleaned = topic
+            .replacingOccurrences(of: "\\.[^.]+$", with: "", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if cleaned == cleaned.uppercased() {
+            return "What's important about \(cleaned.lowercased())?"
+        }
+        return "What's important about \(cleaned)?"
+    }
+
+    private func isUsableSuggestionText(_ text: String) -> Bool {
+        let lower = text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        guard lower.count >= 8 else { return false }
+
+        let bannedFragments = [
+            "[", "]", "{", "}", "<", ">",
+            "thing from passage",
+            "condition from passage",
+            "what does the document say",
+            "what do the documents say",
+            "uploaded document",
+            "uploaded documents",
+            "your documents",
+            "the passages below",
+        ]
+
+        return !bannedFragments.contains { lower.contains($0) }
+    }
+
+    private func isSelfAnsweringSuggestion(
+        _ suggestion: String,
+        query: String,
+        response: String,
+        chunks: [RetrievedChunk]
+    ) -> Bool {
+        guard isQuantityQuestion(suggestion), isQuantityQuestion(query) else { return false }
+
+        let suggestionNumbers = Set(extractNumericTokens(from: suggestion))
+        guard !suggestionNumbers.isEmpty else { return false }
+
+        let answerNumbers = Set(
+            extractNumericTokens(
+                from: ([response] + chunks.prefix(4).map { $0.chunk.content }).joined(separator: " ")
+            )
+        )
+        guard !suggestionNumbers.intersection(answerNumbers).isEmpty else { return false }
+
+        let queryTokens = meaningfulTokens(from: query)
+        let suggestionTokens = meaningfulTokens(from: suggestion)
+        let overlapCount = suggestionTokens.intersection(queryTokens).count
+
+        return overlapCount >= 2
+    }
+
+    private func extractConditionalFollowUp(
+        query: String,
+        response: String,
+        chunks: [RetrievedChunk]
+    ) -> String? {
+        guard !chunks.isEmpty else { return nil }
+
+        let queryTokens = meaningfulTokens(from: query)
+        let responseTokens = meaningfulTokens(from: response)
+        let numericTokens = extractNumericTokens(from: "\(query) \(response)")
+
+        for chunk in chunks.prefix(4) {
+            let sentences = chunk.chunk.content
+                .components(separatedBy: CharacterSet(charactersIn: ".!?"))
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+
+            for sentence in sentences {
+                let lowered = sentence.lowercased()
+                guard lowered.contains("if ") else { continue }
+
+                let sentenceTokens = meaningfulTokens(from: sentence)
+                let tokenOverlap = sentenceTokens.intersection(queryTokens).count
+                let responseOverlap = sentenceTokens.intersection(responseTokens).count
+                let numberOverlap = numericTokens.filter { lowered.contains($0) }.count
+                guard tokenOverlap >= 1 || responseOverlap >= 1 || numberOverlap >= 1 else {
+                    continue
+                }
+
+                let conditionText: String
+                if let ifRange = lowered.range(of: "if ") {
+                    let remainder = sentence[ifRange.upperBound...]
+                    if let commaIndex = remainder.firstIndex(of: ",") {
+                        conditionText = String(remainder[..<commaIndex])
+                    } else {
+                        conditionText = String(remainder)
+                    }
+                } else {
+                    continue
+                }
+
+                let cleanedCondition = conditionText
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+                let lowerCondition = cleanedCondition.lowercased()
+
+                guard cleanedCondition.count >= 8, cleanedCondition.count <= 90 else { continue }
+                guard !lowerCondition.contains("document"),
+                      !lowerCondition.contains("thing from passage"),
+                      !lowerCondition.contains("individual"),
+                      !lowerCondition.contains("patient")
+                else {
+                    continue
+                }
+
+                return "What happens if \(lowerCondition)?"
+            }
+        }
+
+        return nil
+    }
+
+    private func meaningfulTokens(from text: String) -> Set<String> {
+        let stopWords: Set<String> = [
+            "the", "and", "for", "with", "from", "that", "this", "what", "when",
+            "where", "which", "about", "into", "your", "their", "does", "have",
+            "here", "there", "under", "over", "should", "would", "could", "after",
+            "before", "using", "used", "than", "then", "they", "them", "same",
+            "individual", "individuals", "people", "person", "all"
+        ]
+
+        return Set(
+            text
+                .lowercased()
+                .split { !$0.isLetter && !$0.isNumber }
+                .map(String.init)
+                .filter { token in
+                    token.contains(where: \.isNumber) || (token.count >= 3 && !stopWords.contains(token))
+                }
+        )
+    }
+
+    private func extractNumericTokens(from text: String) -> [String] {
+        text
+            .split { !$0.isNumber && $0 != "." && $0 != "," }
+            .map(String.init)
+            .filter { token in token.contains(where: \.isNumber) }
+    }
+
+    private func isQuantityQuestion(_ text: String) -> Bool {
+        let lower = text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        return lower.hasPrefix("how many")
+            || lower.hasPrefix("how much")
+            || lower.hasPrefix("how long")
+            || lower.hasPrefix("what percentage")
+            || lower.hasPrefix("what percent")
+    }
+
+    private func uniqueByText(_ suggestions: [SmartReply]) -> [SmartReply] {
+        var seen: Set<String> = []
+        var deduped: [SmartReply] = []
+
+        for suggestion in suggestions {
+            let key = suggestion.text
+                .lowercased()
+                .replacingOccurrences(of: #"[^a-z0-9]+"#, with: " ", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if seen.insert(key).inserted {
+                deduped.append(suggestion)
+            }
+        }
+
+        return deduped
+    }
+
     // MARK: - LLM Follow-Up Generation
 
     /// Use the on-device LLM to generate contextual follow-up questions
-    private func generateLLMFollowUps(query: String, response: String) async -> [SmartReply]? {
+    private func generateLLMFollowUps(
+        query: String,
+        response: String,
+        retrievedChunks: [RetrievedChunk]
+    ) async -> [SmartReply]? {
         guard #available(iOS 26.0, *) else { return nil }
 
         do {
             let session = LanguageModelSession()
+            let excerptText = retrievedChunks
+                .prefix(3)
+                .enumerated()
+                .map { index, chunk in
+                    let source = chunk.sourceDocument.isEmpty ? "Document" : chunk.sourceDocument
+                    return "[\(index + 1)] \(source)\n\(String(chunk.chunk.content.prefix(280)))"
+                }
+                .joined(separator: "\n\n")
 
             let prompt = """
-            Given this Q&A exchange, suggest 2 concise follow-up questions the user might ask.
+            Suggest 2 concise follow-up questions for this grounded document Q&A exchange.
 
             Question: \(query.prefix(200))
             Answer: \(response.prefix(500))
+            Supporting excerpts:
+            \(excerptText)
 
-            Reply with exactly 2 follow-up questions, one per line. Keep each under 60 characters.
+            Rules:
+            - Stay in the same domain and subject as the question and excerpts
+            - Reuse the actual nouns from the question or excerpts when possible
+            - Do not generalize equipment, procedures, or measurements into people, individuals, patients, or users unless the excerpts explicitly say that
+            - Ask about a nearby condition, comparison, setting, warning, or consequence grounded in the excerpts
+            - Do not restate the answer as a question
+            - Do not ask a quantity question that already includes the resolved number or measurement
+            - Return exactly 2 plain questions, one per line, each under 60 characters
             """
 
             let result = try await session.respond(to: prompt)
@@ -245,9 +496,14 @@ actor SmartReplyService {
                 .map { $0.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) }
                 .filter { !$0.isEmpty && $0.count > 5 && $0.count < 100 }
 
-            return lines.prefix(2).map { line in
+            let validated = lines
+                .prefix(4)
+                .map { line in line.hasPrefix("- ") ? String(line.dropFirst(2)) : line }
+                .compactMap { sanitizeLLMFollowUp($0, query: query, chunks: retrievedChunks) }
+
+            return validated.prefix(2).map { line in
                 SmartReply(
-                    text: line.hasPrefix("- ") ? String(line.dropFirst(2)) : line,
+                    text: line,
                     category: .deepDive,
                     confidence: 0.85
                 )
@@ -256,5 +512,34 @@ actor SmartReplyService {
             Log.debug("[SmartReply] LLM follow-up generation failed: \(error.localizedDescription)", category: .retrieval)
             return nil
         }
+    }
+
+    private func sanitizeLLMFollowUp(
+        _ text: String,
+        query: String,
+        chunks: [RetrievedChunk]
+    ) -> String? {
+        var cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty else { return nil }
+        if !cleaned.hasSuffix("?") {
+            cleaned += "?"
+        }
+
+        guard isUsableSuggestionText(cleaned) else { return nil }
+
+        let corpusText = ([query] + chunks.prefix(4).map { $0.chunk.content }).joined(separator: " ").lowercased()
+        let questionTokens = meaningfulTokens(from: cleaned)
+        let overlapCount = questionTokens.filter { corpusText.contains($0) }.count
+        let driftTerms = [
+            "individual", "individuals", "patient", "patients",
+            "person", "people", "user", "users", "participant", "participants",
+        ]
+
+        if driftTerms.contains(where: { cleaned.lowercased().contains($0) && !corpusText.contains($0) }) {
+            return nil
+        }
+
+        guard overlapCount >= 2 else { return nil }
+        return cleaned
     }
 }

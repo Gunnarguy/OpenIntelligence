@@ -1705,16 +1705,18 @@ class SemanticChunker {
         if words.count > overlap {
             let overlapWords = words.suffix(overlap)
             let overlapText = overlapWords.joined(separator: " ")
-            if let overlapStart = text.range(of: overlapText, range: start..<chunkEnd) {
+            if let overlapStart = text.range(of: overlapText, options: [.backwards], range: start..<chunkEnd) {
                 // Snap to nearest sentence boundary within ±30 chars of the overlap point
                 // This ensures overlap regions start at clean sentence boundaries
                 if let sentenceStart = findNearestSentenceStart(in: text, near: overlapStart.lowerBound, within: 30) {
                     // Only use sentence boundary if it's still within the overlap region
-                    if sentenceStart >= start && sentenceStart < chunkEnd {
+                    if sentenceStart > start && sentenceStart < chunkEnd {
                         return sentenceStart
                     }
                 }
-                return overlapStart.lowerBound
+                if overlapStart.lowerBound > start {
+                    return overlapStart.lowerBound
+                }
             }
         }
 

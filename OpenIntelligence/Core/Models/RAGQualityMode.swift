@@ -14,7 +14,7 @@ enum RAGQualityMode: String, Identifiable, Sendable {
     // User-visible modes
     case standard // All features ON, single-pass (replaces balanced)
     case deepThink // Multi-session agentic reasoning (replaces agentic)
-    case maximum // Unlimited reasoning until 98% confident - "unhinged" mode
+    case maximum // Highest-effort reasoning mode
 
     // Legacy/internal modes (hidden from UI picker, preserved for migrations)
     case fast // Quick answers, less verification
@@ -51,7 +51,7 @@ enum RAGQualityMode: String, Identifiable, Sendable {
         switch canonical {
         case .standard: return "Full pipeline with verification gates, graph context & extractive QA"
         case .deepThink: return "Multi-step reasoning + intent routing + calibrated confidence"
-        case .maximum: return "Unlimited reasoning with verification gates until 98% confident"
+        case .maximum: return "Highest-effort reasoning with deeper search and stricter verification"
         default: return "Comprehensive search"
         }
     }

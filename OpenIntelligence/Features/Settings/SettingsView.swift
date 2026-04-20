@@ -77,11 +77,12 @@ struct SettingsView: View {
         }
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(isPresented: $showPlanSheet) {
+.sheet(isPresented: $showPlanSheet) {
             PlanUpgradeSheet(entryPoint: planEntryPoint)
         }
 .onAppear {
     deviceCapabilities = RAGService.checkDeviceCapabilities()
+    entitlementStore.refreshTransientState()
     updatePipelineStages()
 }
 .onChange(of: settings.selectedModel) { _, _ in
@@ -198,8 +199,8 @@ struct SettingsView: View {
                 showPlanSheet = true
             } label: {
                 HStack {
-                    Image(systemName: entitlementStore.activeTier == .free ? "arrow.up.circle" : "gearshape")
-                    Text(entitlementStore.activeTier == .free ? "Upgrade Plan" : "Manage Subscription")
+                    Image(systemName: entitlementStore.effectiveTier == .free ? "arrow.up.circle" : "gearshape")
+                    Text(entitlementStore.effectiveTier == .free ? "Upgrade Plan" : "View Plans")
                     Spacer()
                     Image(systemName: "chevron.right")
                         .font(.caption)
@@ -208,8 +209,8 @@ struct SettingsView: View {
 .font(.subheadline.weight(.medium))
     .padding(.vertical, 10)
     .padding(.horizontal, 14)
-    .background(entitlementStore.activeTier == .free ? Color.accentColor : Color.accentColor.opacity(0.1))
-    .foregroundColor(entitlementStore.activeTier == .free ? .white : .accentColor)
+    .background(entitlementStore.effectiveTier == .free ? Color.accentColor : Color.accentColor.opacity(0.1))
+    .foregroundColor(entitlementStore.effectiveTier == .free ? .white : .accentColor)
     .clipShape(RoundedRectangle(cornerRadius: 10))
             }
             .buttonStyle(.plain)
@@ -228,7 +229,13 @@ struct SettingsView: View {
                 )
             }
 
-            if entitlementStore.activeTier == .lifetime {
+            if entitlementStore.activeTier == .free, entitlementStore.isLegacyPaidProtected {
+                Text("Previous paid purchases on this Apple ID now unlock Lifetime access on this device.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if entitlementStore.effectiveTier == .lifetime {
                 lifetimeSupporterBanner
             }
         }
@@ -238,19 +245,22 @@ struct SettingsView: View {
     }
 
     private var subscriptionStatusText: String {
-        switch entitlementStore.activeTier {
+        switch entitlementStore.effectiveTier {
         case .free:
-            return "Free tier • Limited features"
+            return "Free tier • Maximum \(QuotaPolicy.freeMaximumModeDailyLimit)/day"
         case .pro:
-            return "Pro plan • Active"
+            return "Pro plan • Unlimited Maximum"
         case .lifetime:
-            return "Lifetime • Unlimited docs"
+            if entitlementStore.activeTier == .free, entitlementStore.isLegacyPaidProtected {
+                return "Lifetime access • Grandfathered from prior purchase"
+            }
+            return "Lifetime • Everything unlocked"
         }
     }
 
     @ViewBuilder
     private var tierBadge: some View {
-        Text(entitlementStore.activeTier.displayName)
+        Text(entitlementStore.effectiveTier.displayName)
             .font(.caption.weight(.semibold))
             .padding(.horizontal, 10)
             .padding(.vertical, 4)
@@ -260,7 +270,7 @@ struct SettingsView: View {
     }
 
     private var tierBadgeColor: Color {
-        switch entitlementStore.activeTier {
+        switch entitlementStore.effectiveTier {
         case .free: return .gray
         case .pro: return .purple
         case .lifetime: return .orange
@@ -1162,6 +1172,7 @@ Text(deviceService.chipName)
                 ForEach(RAGQualityMode.userVisibleCases, id: \.id) { mode in
                     intelligenceModeRow(mode: mode, isSelected: settings.ragQualityMode.canonical == mode)
                         .onTapGesture {
+                            guard canSelectMode(mode) else { return }
                             let previousMode = settings.ragQualityMode.canonical
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                                 settings.ragQualityMode = mode
@@ -1287,7 +1298,11 @@ Text(deviceService.chipName)
         // Maximum-exclusive
         if settings.ragQualityMode.isUnlimitedMode {
             items.append(.divider(id: "div-maximum"))
-            items.append(.init(id: "unlimited", icon: "infinity", label: "Unlimited Reasoning", desc: "Up to 50 sessions until 98% confident", color: .orange))
+            if entitlementStore.hasUnlimitedMaximumMode {
+                items.append(.init(id: "maximum-access", icon: "infinity", label: "Unlimited Maximum", desc: "No daily cap on your current plan", color: .orange))
+            } else {
+                items.append(.init(id: "maximum-access", icon: "calendar", label: "Maximum on Free", desc: "\(entitlementStore.maximumModeRemainingUses) of \(QuotaPolicy.freeMaximumModeDailyLimit) uses left today", color: .orange))
+            }
             items.append(.init(id: "exhaustive", icon: "wand.and.stars", label: "Exhaustive Synthesis", desc: "Final pass synthesizes all session insights", color: .orange))
             items.append(.init(id: "token-budget", icon: "cpu", label: "200K+ Token Budget", desc: "50 sessions × 4K = deep exploration", color: .orange))
             items.append(.warning(id: "max-warning", text: "Can take several minutes. Use for complex research tasks."))
@@ -1371,7 +1386,10 @@ Text(deviceService.chipName)
         case .deepThink:
             return "Iterative reasoning for nuanced questions, comparisons, and multi-step analysis."
         case .maximum:
-            return "Unlimited chain mode for exhaustive research sweeps and stubborn questions."
+            if entitlementStore.hasUnlimitedMaximumMode {
+                return "Highest-effort mode with no daily cap on your plan."
+            }
+            return "Highest-effort mode for stubborn questions. Free users get \(QuotaPolicy.freeMaximumModeDailyLimit) runs per day; \(entitlementStore.maximumModeRemainingUses) left today."
         default:
             return mode.description
         }
@@ -1384,10 +1402,21 @@ Text(deviceService.chipName)
         case .deepThink:
             return ["Iterative", "Confidence build", "Best for analysis"]
         case .maximum:
-            return ["Full sweep", "98% target", "Research grade"]
+            if entitlementStore.hasUnlimitedMaximumMode {
+                return ["Unlimited", "98% target", "Research grade"]
+            }
+            return ["\(QuotaPolicy.freeMaximumModeDailyLimit)/day", "\(entitlementStore.maximumModeRemainingUses) left", "Research grade"]
         default:
             return []
         }
+    }
+
+    private func canSelectMode(_ mode: RAGQualityMode) -> Bool {
+        guard mode.canonical == .maximum else { return true }
+        guard !entitlementStore.canUseMaximumModeNow else { return true }
+        planEntryPoint = .maximumModeLimit
+        showPlanSheet = true
+        return false
     }
 
     @ViewBuilder

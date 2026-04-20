@@ -1,10 +1,13 @@
 Version 2.1.2
 
-This release makes answers more trustworthy, libraries easier to explore, and imports more resilient.
+This release improves answer quality, cleans up suggestions, and simplifies plan access.
 
-- Answers are more grounded in what your documents actually support
-- Suggested questions now stay closer to the uploaded documents in large libraries
-- Better cleanup for messy PDFs and noisy manual imports
-- Lifetime Cohort now unlocks unlimited documents without document-pack prompts
-- Smoother import, browsing, and first-question flow in the library
-- Tighter document scoping across multi-document questions
+- More direct source-backed answers when your files clearly support them
+- Cleaner suggested and follow-up questions that stay closer to the actual source material
+- Better prompt capture and trace exports for answer inspection
+- Better import cleanup for messy PDFs, scanned manuals, and chunking edge cases
+- Free now includes Maximum up to 3 times per day
+- Pro and Lifetime now unlock unlimited Maximum
+- Previous paid purchases are now grandfathered into Lifetime access in-app
+- Lifetime remains the top-tier capacity plan
+- Previous document-pack purchases remain honored, but document packs are no longer sold in-app

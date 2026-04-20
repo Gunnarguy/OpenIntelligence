@@ -292,6 +292,8 @@ struct MessageBubbleV2: View {
     private func exportPipelineTrace() {
         if let fileURL = PipelineTraceExporter.exportToFile(
             message: message,
+            userQuery: message.traceQuery ?? message.metadata?.originalQuery,
+            thinkingEvents: message.thinkingEvents ?? [],
             pipelineTrace: message.pipelineTrace ?? []
         ) {
             sharePayload = SharePayload(items: [fileURL])
@@ -299,6 +301,8 @@ struct MessageBubbleV2: View {
             // Fallback: copy trace text to clipboard
             let traceText = PipelineTraceExporter.buildTrace(
                 message: message,
+                userQuery: message.traceQuery ?? message.metadata?.originalQuery,
+                thinkingEvents: message.thinkingEvents ?? [],
                 pipelineTrace: message.pipelineTrace ?? []
             )
             #if canImport(UIKit)
@@ -489,7 +493,7 @@ private struct VerificationBadge: View {
             switch self {
             case .verified: return "Verified"
             case .sourceOnlyVerified: return "Source-Only Verified"
-            case .groundedRefusal: return "Grounded Refusal"
+            case .groundedRefusal: return "Needs Evidence"
             case .partiallyVerified: return "Partially Verified"
             case .lowConfidence: return "Low Confidence"
             case .unverified: return "Unverified"
@@ -511,6 +515,16 @@ private struct VerificationBadge: View {
 
         static func from(gatingDecision: String) -> VerificationStatus {
             let lower = gatingDecision.lowercased()
+            if lower.contains("best_effort_after") {
+                if lower.contains("low_confidence")
+                    || lower.contains("rerank_empty")
+                    || lower.contains("mmr_empty")
+                    || lower.contains("relevance_gate_failed")
+                {
+                    return .lowConfidence
+                }
+                return .partiallyVerified
+            }
             if lower.contains("source_only_abstain") {
                 return .groundedRefusal
             }
@@ -541,7 +555,7 @@ private struct SourceTrustSummaryRow: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
                 if structuredAnswer.refuse {
-                    trustChip(text: "Grounded refusal", color: .orange, icon: "hand.raised.fill")
+                    trustChip(text: "Needs more evidence", color: .orange, icon: "hand.raised.fill")
                 }
 
                 if !structuredAnswer.claims.isEmpty {

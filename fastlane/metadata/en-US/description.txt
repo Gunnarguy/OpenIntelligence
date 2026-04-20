@@ -1,17 +1,17 @@
 Ask your own documents questions on iPhone and review source-backed answers with citations.
 
-OpenIntelligence imports your files into private libraries, searches them locally, and answers from the material you provide. The product focus is not generic chat. It is document-grounded question answering with source review, clearer trust signals, and refusal when support is weak.
+OpenIntelligence imports your files into private libraries, searches them locally, and answers from the material you provide. The product focus is not generic chat. It is document-grounded question answering with source review, clearer trust signals, and best-effort answers that stay anchored to your files.
 
 WHY PEOPLE USE IT
 • Ask questions over manuals, notes, research papers, policies, support docs, and internal reference material
 • Get answers with citations and jump back to the source passages
 • Review which claims were supported, which were dropped, and what evidence was missing
-• Keep search, indexing, and most answering behavior on-device by default
+• Keep search, storage, indexing, and most answering behavior on-device by default
 
 TRUST FEATURES
 • Source-backed answers with citations
 • Claim-level verification before final answer rendering
-• Grounded refusal when critical claims cannot be supported
+• Better handling for technical manuals, dense PDFs, and messy extracted text
 • Source review with document, page, and excerpt inspection
 • Multiple quality modes depending on how deep you want the app to reason
 
@@ -29,10 +29,11 @@ QUALITY MODES
 • Deep Think for harder multi-step questions
 • Maximum for heavier synthesis when you want the app to spend more effort
 
-SUBSCRIPTIONS
-• Free tier with limited document capacity
-• Pro monthly and annual plans for larger libraries
-• Lifetime option for one-time unlock access
+PLANS
+• Free: 5 documents, 1 library, Standard and Deep Think, plus Maximum up to 3 times per day
+• Pro Monthly / Annual: unlimited Maximum plus larger document and library limits
+• Lifetime: unlimited Maximum, unlimited documents, up to 10 libraries
+• Previous document-pack purchases remain honored, but document packs are no longer sold in-app
 
 Payment is charged to your Apple ID at confirmation. Subscriptions renew unless canceled at least 24 hours before the current period ends. Manage subscriptions in your Apple account settings.
 

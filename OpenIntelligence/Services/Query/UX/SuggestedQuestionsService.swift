@@ -372,18 +372,21 @@ actor SuggestedQuestionsService {
         - Mix question types: some "how much/many", some "what happens if", some "which", some "why"
         - Do NOT use phrases like "What role does", "What is the significance of", "What are the key", "Can you explain"
         - Do NOT ask about the documents themselves ("What does the document say about...")
+        - Do NOT include square brackets, placeholders, or template text like "[thing from passage]"
+        - Do NOT write a quantity question that already includes the answer number or measurement
+        - If the passage is a manual, warning, or procedure, prefer a concrete condition, requirement, or consequence from that passage
         - Do NOT copy or rephrase any example below — your questions must come ONLY from the passages
         - Ask about the CONTENT as if you read it and want to know more
 
         Style guide (for tone only — do NOT reuse these topics):
-        - "[specific thing from passage] — how does that work?"
-        - "How many [unit] does [thing from passage] need?"
-        - "What happens if [condition from passage]?"
+        - "What happens if a required step is skipped?"
+        - "How can the timer be adjusted?"
+        - "Which setting should be used here?"
         \(avoidClause)
         PASSAGES:
         \(passageText)
 
-        Return ONLY the questions, one per line, numbered 1-6. No other text.
+        Return ONLY plain question strings through the schema. Do not number them. Do not add bullets or quotes.
         """
 
         do {
@@ -391,8 +394,12 @@ actor SuggestedQuestionsService {
             // @Generable: typed [String] array — eliminates numbered-line regex parsing.
             // Constrained sampling enforces the declared schema at the token level.
             let response = try await session.respond(to: prompt, generating: SuggestedQuestionList.self)
-            let lines = response.content.questions
-                .filter { !$0.isEmpty && $0.count >= 10 }
+            let lines = dedupeQuestionTextsPreservingOrder(
+                response.content.questions.compactMap { sanitizeGeneratedQuestion($0) }
+            ).filter {
+                isUsableGeneratedQuestion($0, passages: passages)
+                    && !isSelfAnsweringGeneratedQuestion($0)
+            }
 
             guard lines.count >= 2 else {
                 Log.warning("[SuggestedQuestions] LLM returned too few valid questions (\(lines.count))")
@@ -444,6 +451,17 @@ actor SuggestedQuestionsService {
             let sectionLabel = primarySectionLabel(for: chunk)
             let content = chunk.content
 
+            if let conditionalQuestion = extractConditionalQuestion(from: content) {
+                questions.append(SuggestedQuestion(
+                    id: UUID(),
+                    text: conditionalQuestion,
+                    category: .analytical,
+                    relevantDocuments: [docName],
+                    sourceSections: sectionLabel.map { [$0] } ?? [],
+                    confidence: 0.88
+                ))
+            }
+
             // Strategy 1: Questions from abbreviation definitions
             for (abbr, expansion) in chunk.metadata.abbreviations.prefix(2) {
                 questions.append(SuggestedQuestion(
@@ -462,7 +480,7 @@ actor SuggestedQuestionsService {
                !isGenericSectionTitle(section) {
                 questions.append(SuggestedQuestion(
                     id: UUID(),
-                    text: "What's covered under \(section.lowercased())?",
+                    text: "What's important about \(naturalQuestionTopic(section))?",
                     category: .summarization,
                     relevantDocuments: [docName],
                     sourceSections: [section],
@@ -702,6 +720,106 @@ actor SuggestedQuestionsService {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    private func sanitizeGeneratedQuestion(_ text: String) -> String? {
+        var cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty else { return nil }
+
+        cleaned = cleaned.replacingOccurrences(
+            of: #"^\s*(?:[-•*]\s*|\d+[\.\)]\s*)"#,
+            with: "",
+            options: .regularExpression
+        )
+        cleaned = cleaned.replacingOccurrences(
+            of: #"^[\"'“”‘’]+|[\"'“”‘’]+$"#,
+            with: "",
+            options: .regularExpression
+        )
+        cleaned = cleaned.replacingOccurrences(
+            of: #"\s+"#,
+            with: " ",
+            options: .regularExpression
+        ).trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard cleaned.count >= 8 else { return nil }
+        if !cleaned.hasSuffix("?") {
+            cleaned += "?"
+        }
+        return cleaned
+    }
+
+    private func dedupeQuestionTextsPreservingOrder(_ questions: [String]) -> [String] {
+        var seen: Set<String> = []
+        var deduped: [String] = []
+
+        for question in questions {
+            let key = normalizedQuestionKey(question)
+            if seen.insert(key).inserted {
+                deduped.append(question)
+            }
+        }
+
+        return deduped
+    }
+
+    private func normalizedQuestionKey(_ question: String) -> String {
+        question
+            .lowercased()
+            .replacingOccurrences(of: #"[^a-z0-9]+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func isUsableGeneratedQuestion(
+        _ question: String,
+        passages: [GroundedPassage]
+    ) -> Bool {
+        let lower = question.lowercased()
+        let bannedFragments = [
+            "[", "]", "{", "}", "<", ">",
+            "thing from passage",
+            "specific thing from passage",
+            "condition from passage",
+            "specific detail from the passage",
+            "what does the document say",
+            "what do the documents say",
+            "uploaded document",
+            "uploaded documents",
+            "from the passages below",
+            "from the passage",
+            "style guide",
+            "real person casually asking",
+        ]
+
+        if bannedFragments.contains(where: { lower.contains($0) }) {
+            return false
+        }
+
+        let tokens = meaningfulTokens(from: lower)
+        guard tokens.count >= 2 else { return false }
+        guard let groundedPassage = bestGroundingPassage(for: question, passages: passages) else {
+            return false
+        }
+
+        let overlapCount =
+            tokens.intersection(groundedPassage.bodyTokens).count
+            + tokens.intersection(groundedPassage.sectionTokens).count
+            + tokens.intersection(groundedPassage.documentTokens).count
+
+        return overlapCount >= 2 || groundingScore(for: question, passage: groundedPassage) >= 3.0
+    }
+
+    private func isSelfAnsweringGeneratedQuestion(_ question: String) -> Bool {
+        isQuantityQuestion(question) && !extractNumericTokens(from: question).isEmpty
+    }
+
+    private func naturalQuestionTopic(_ topic: String) -> String {
+        let cleaned = topic.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty else { return topic }
+        if cleaned == cleaned.uppercased() {
+            return cleaned.lowercased()
+        }
+        return cleaned
+    }
+
     private func meaningfulTokens(from text: String) -> Set<String> {
         Set(
             text
@@ -771,6 +889,22 @@ actor SuggestedQuestionsService {
         }
     }
 
+    private func extractNumericTokens(from text: String) -> [String] {
+        text
+            .split { !$0.isNumber && $0 != "." && $0 != "," }
+            .map(String.init)
+            .filter { token in token.contains(where: \.isNumber) }
+    }
+
+    private func isQuantityQuestion(_ text: String) -> Bool {
+        let lower = text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        return lower.hasPrefix("how many")
+            || lower.hasPrefix("how much")
+            || lower.hasPrefix("how long")
+            || lower.hasPrefix("what percentage")
+            || lower.hasPrefix("what percent")
+    }
+
     /// Extract multi-word key phrases (2-4 words) that are specific to the content.
     private func extractKeyPhrases(from text: String) -> [String] {
         let sentences = text.components(separatedBy: ". ")
@@ -802,6 +936,33 @@ actor SuggestedQuestionsService {
         }
 
         return Array(Set(phrases)).sorted { $0.count > $1.count }.prefix(3).map { $0 }
+    }
+
+    private func extractConditionalQuestion(from text: String) -> String? {
+        let sentences = text
+            .components(separatedBy: CharacterSet(charactersIn: ".!?"))
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        for sentence in sentences {
+            let lower = sentence.lowercased()
+            guard lower.hasPrefix("if "), let commaIndex = sentence.firstIndex(of: ",") else { continue }
+
+            let condition = sentence[sentence.index(after: sentence.startIndex)..<commaIndex]
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+
+            guard condition.count >= 10, condition.count <= 90 else { continue }
+
+            let conditionLower = condition.lowercased()
+            if conditionLower.contains("thing from passage") || conditionLower.contains("document") {
+                continue
+            }
+
+            return "What happens if \(conditionLower)?"
+        }
+
+        return nil
     }
 
     // MARK: - Static Fallbacks

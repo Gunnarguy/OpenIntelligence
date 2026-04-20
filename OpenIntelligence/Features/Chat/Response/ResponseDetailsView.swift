@@ -61,8 +61,8 @@ struct ChatResponseDetailsView: View {
         guard let decision = metadata.gatingDecision else {
             if let structuredAnswer, structuredAnswer.refuse {
                 return VerificationInfo(
-                    title: "Grounded Refusal",
-                    subtitle: "The app refused to answer because the retrieved evidence was not strong enough.",
+                    title: "Needs More Evidence",
+                    subtitle: "The retrieved evidence was too weak or incomplete to support a confident answer.",
                     icon: "hand.raised.fill",
                     color: .orange,
                     level: .groundedRefusal
@@ -251,7 +251,7 @@ struct ChatResponseDetailsView: View {
                         .foregroundStyle(.secondary)
                     Spacer()
                     if structuredAnswer.refuse {
-                        TrustStatusPill(text: "Grounded refusal", color: .orange, icon: "hand.raised.fill")
+                        TrustStatusPill(text: "Needs more evidence", color: .orange, icon: "hand.raised.fill")
                     } else {
                         TrustStatusPill(text: "Source-backed", color: .green, icon: "checkmark.shield.fill")
                     }
@@ -686,10 +686,34 @@ private struct VerificationInfo {
     static func from(gatingDecision: String, structuredAnswer: StructuredAnswer? = nil) -> VerificationInfo {
         let lower = gatingDecision.lowercased()
 
+        if lower.contains("best_effort_after") {
+            if lower.contains("low_confidence")
+                || lower.contains("rerank_empty")
+                || lower.contains("mmr_empty")
+                || lower.contains("relevance_gate_failed")
+            {
+                return VerificationInfo(
+                    title: "Low Confidence",
+                    subtitle: "The app found the closest available evidence and returned a best-effort grounded answer, but source relevance was weaker than ideal.",
+                    icon: "exclamationmark.triangle.fill",
+                    color: .orange,
+                    level: .lowConfidence
+                )
+            }
+
+            return VerificationInfo(
+                title: "Best-Effort Grounded",
+                subtitle: "The app found relevant evidence and returned the best available grounded answer instead of refusing, but downstream verification could not fully certify it.",
+                icon: "shield.lefthalf.filled",
+                color: .yellow,
+                level: .partial
+            )
+        }
+
         if lower.contains("source_only_abstain") || structuredAnswer?.refuse == true {
             return VerificationInfo(
-                title: "Grounded Refusal",
-                subtitle: "The app refused to answer because critical claims could not be verified from your documents.",
+                title: "Needs More Evidence",
+                subtitle: "Critical claims could not be verified cleanly from your documents, so the answer needs stronger support.",
                 icon: "hand.raised.fill",
                 color: .orange,
                 level: .groundedRefusal

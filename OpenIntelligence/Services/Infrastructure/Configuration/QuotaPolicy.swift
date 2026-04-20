@@ -17,6 +17,9 @@ enum QuotaPolicy {
     /// Number of extra documents granted per consumable add-on.
     static let addOnDocumentIncrement: Int = 10
 
+    /// Free-tier daily allowance for Maximum mode.
+    static let freeMaximumModeDailyLimit: Int = 3
+
     /// Returns the allowed document count for a given workspace tier.
     static func documentLimit(for tier: WorkspaceTier = .free) -> Int {
         switch tier {

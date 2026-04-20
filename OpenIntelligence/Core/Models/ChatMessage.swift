@@ -17,6 +17,14 @@ struct ChatMessage: Identifiable, Codable, Sendable {
     var structuredAnswer: StructuredAnswer?
     var containerId: UUID? = nil
 
+    /// Original user prompt that produced this assistant turn.
+    /// Stored in-memory only for trace export robustness when metadata omits it.
+    var traceQuery: String? = nil
+
+    /// Captured real-time thinking events for this turn.
+    /// Stored in-memory only — excluded from Codable persistence.
+    var thinkingEvents: [ThinkingEvent]? = nil
+
     /// Captured pipeline trace lines (thinking events + pipeline log) for debugging export.
     /// Stored in-memory only — excluded from Codable persistence to keep data lean.
     var pipelineTrace: [String]? = nil
@@ -37,6 +45,8 @@ struct ChatMessage: Identifiable, Codable, Sendable {
         retrievedChunks: [RetrievedChunk]? = nil,
         structuredAnswer: StructuredAnswer? = nil,
         containerId: UUID? = nil,
+        traceQuery: String? = nil,
+        thinkingEvents: [ThinkingEvent]? = nil,
         pipelineTrace: [String]? = nil,
         isHidden: Bool = false,
         userReportedAt: Date? = nil,
@@ -51,6 +61,8 @@ struct ChatMessage: Identifiable, Codable, Sendable {
         self.retrievedChunks = retrievedChunks
         self.structuredAnswer = structuredAnswer
         self.containerId = containerId
+        self.traceQuery = traceQuery
+        self.thinkingEvents = thinkingEvents
         self.pipelineTrace = pipelineTrace
         self.isHidden = isHidden
         self.userReportedAt = userReportedAt
@@ -81,6 +93,8 @@ struct ChatMessage: Identifiable, Codable, Sendable {
         retrievedChunks = try container.decodeIfPresent([RetrievedChunk].self, forKey: .retrievedChunks)
         structuredAnswer = try container.decodeIfPresent(StructuredAnswer.self, forKey: .structuredAnswer)
         containerId = try container.decodeIfPresent(UUID.self, forKey: .containerId)
+        traceQuery = nil
+        thinkingEvents = nil
         pipelineTrace = nil
         isHidden = try container.decodeIfPresent(Bool.self, forKey: .isHidden) ?? false
         userReportedAt = try container.decodeIfPresent(Date.self, forKey: .userReportedAt)

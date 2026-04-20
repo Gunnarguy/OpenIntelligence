@@ -47,7 +47,7 @@ struct DocumentLibraryView: View {
 
     private var libraryLimit: Int { entitlementStore.libraryLimit }
     private var shouldShowQuotaBanner: Bool {
-        !entitlementStore.hasUnlimitedDocuments && !entitlementStore.hasReachedDocumentPackCap
+        !entitlementStore.hasUnlimitedDocuments
     }
 
     init(ragService: RAGService, containerService: ContainerService, onViewVisualizations: (() -> Void)? = nil) {
@@ -89,13 +89,12 @@ struct DocumentLibraryView: View {
                     DocumentQuotaBanner(
                         currentCount: ragService.documents.count,
                         limit: documentLimit,
-                        tierName: entitlementStore.activeTier.displayName,
+                        tierName: entitlementStore.currentPlanDisplayName,
                         addOnPacks: entitlementStore.addOnPacks,
                         packCap: entitlementStore.documentPackCap,
                         remainingPackCapacity: entitlementStore.remainingDocumentPackCapacity,
                         hasReachedPackCap: entitlementStore.hasReachedDocumentPackCap,
-                        onUpgrade: { presentPlanSheet(for: .quotaBanner) },
-                        onRefillPack: refillDocumentPack
+                        onUpgrade: { presentPlanSheet(for: .quotaBanner) }
                     )
                     .padding(.horizontal)
                 }
@@ -127,16 +126,15 @@ struct DocumentLibraryView: View {
             .padding(.horizontal)
 
             if shouldShowQuotaBanner {
-                DocumentQuotaBanner(
-                    currentCount: ragService.documents.count,
-                    limit: documentLimit,
-                    tierName: entitlementStore.activeTier.displayName,
-                    addOnPacks: entitlementStore.addOnPacks,
+                    DocumentQuotaBanner(
+                        currentCount: ragService.documents.count,
+                        limit: documentLimit,
+                        tierName: entitlementStore.currentPlanDisplayName,
+                        addOnPacks: entitlementStore.addOnPacks,
                     packCap: entitlementStore.documentPackCap,
                     remainingPackCapacity: entitlementStore.remainingDocumentPackCapacity,
                     hasReachedPackCap: entitlementStore.hasReachedDocumentPackCap,
-                    onUpgrade: { presentPlanSheet(for: .quotaBanner) },
-                    onRefillPack: refillDocumentPack
+                    onUpgrade: { presentPlanSheet(for: .quotaBanner) }
                 )
                 .padding(.horizontal)
             }
@@ -512,54 +510,6 @@ struct DocumentLibraryView: View {
             "Paywall presented",
             metadata: ["entryPoint": entryPoint.analyticsValue]
         )
-    }
-
-    @MainActor
-    private func refillDocumentPack() {
-        guard entitlementStore.activeTier != .lifetime else {
-            entitlementStore.lastError = "Lifetime already unlocks unlimited documents, so document packs are not needed on this account."
-            return
-        }
-
-        Task {
-            do {
-                TelemetryCenter.emitBillingEvent(
-                    "Doc pack purchase initiated",
-                    metadata: [
-                        "currentCount": String(ragService.documents.count),
-                        "limit": String(documentLimit),
-                    ]
-                )
-
-                // Keep development/testing unblocked when StoreKit returns an empty product catalog.
-                // In that scenario `billingService.purchase(...)` will throw `.productUnavailable`.
-                // We mirror the paywall's DEBUG-only simulation behavior here.
-                if entitlementStore.product(for: .documentPackAddOn) == nil {
-                    #if DEBUG
-                        if entitlementStore.isDebugBillingSimulationEnabled {
-                            entitlementStore.simulateDebugPurchase(.documentPackAddOn)
-                            TelemetryCenter.emitBillingEvent(
-                                "Doc pack purchase simulated (DEBUG)",
-                                severity: .warning,
-                                metadata: [
-                                    "product": BillingProduct.documentPackAddOn.rawValue,
-                                    "reason": "storeKitProductNotLoaded",
-                                ]
-                            )
-                            return
-                        }
-                    #endif
-                }
-
-                _ = try await entitlementStore.billingService.purchase(.documentPackAddOn)
-                TelemetryCenter.emitBillingEvent(
-                    "Doc pack purchase succeeded",
-                    metadata: ["packs_active": String(entitlementStore.addOnPacks)]
-                )
-            } catch {
-                // Error handling is managed by EntitlementStore
-            }
-        }
     }
 }
 

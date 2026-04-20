@@ -23,6 +23,8 @@ enum PipelineTraceExporter {
         var lines: [String] = []
         let divider = String(repeating: "═", count: 72)
         let thinDivider = String(repeating: "─", count: 72)
+        let exportedThinkingEvents = thinkingEvents.isEmpty ? (message.thinkingEvents ?? []) : thinkingEvents
+        let exportedPipelineTrace = pipelineTrace.isEmpty ? (message.pipelineTrace ?? []) : pipelineTrace
 
         // Header
         lines.append(divider)
@@ -38,7 +40,7 @@ enum PipelineTraceExporter {
         lines.append("")
         lines.append("▶ QUERY")
         lines.append(thinDivider)
-        if let q = userQuery ?? message.metadata?.originalQuery {
+        if let q = userQuery ?? message.traceQuery ?? message.metadata?.originalQuery {
             lines.append(q)
         } else {
             lines.append("(not captured)")
@@ -80,26 +82,32 @@ enum PipelineTraceExporter {
         }
 
         // Thinking Events (real-time pipeline steps)
-        if !thinkingEvents.isEmpty {
+        let formattedThinkingLines: [String]
+        if !exportedThinkingEvents.isEmpty {
             lines.append("")
-            lines.append("▶ THINKING EVENTS (\(thinkingEvents.count) events)")
+            lines.append("▶ THINKING EVENTS (\(exportedThinkingEvents.count) events)")
             lines.append(thinDivider)
-            let sorted = thinkingEvents.sorted { $0.timestamp < $1.timestamp }
+            let sorted = exportedThinkingEvents.sorted { $0.timestamp < $1.timestamp }
             let baseTime = sorted.first?.timestamp ?? Date()
-            for event in sorted {
+            formattedThinkingLines = sorted.map { event in
                 let elapsed = event.timestamp.timeIntervalSince(baseTime)
                 let time = String(format: "+%06.0fms", elapsed * 1000)
                 let detail = event.detail.map { " │ \($0)" } ?? ""
-                lines.append("  \(time) [\(event.kind.displayName)] \(event.title)\(detail)")
+                return "  \(time) [\(event.kind.displayName)] \(event.title)\(detail)"
             }
+            for line in formattedThinkingLines {
+                lines.append(line)
+            }
+        } else {
+            formattedThinkingLines = []
         }
 
         // Pipeline Trace (captured log lines)
-        if !pipelineTrace.isEmpty {
+        if !exportedPipelineTrace.isEmpty && exportedPipelineTrace != formattedThinkingLines.map({ String($0.dropFirst(2)) }) {
             lines.append("")
-            lines.append("▶ PIPELINE LOG (\(pipelineTrace.count) entries)")
+            lines.append("▶ PIPELINE LOG (\(exportedPipelineTrace.count) entries)")
             lines.append(thinDivider)
-            for entry in pipelineTrace {
+            for entry in exportedPipelineTrace {
                 lines.append("  \(entry)")
             }
         }

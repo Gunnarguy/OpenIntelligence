@@ -50,6 +50,7 @@ private struct ConsolidatedMetrics {
 struct ChatScreen: View {
     @EnvironmentObject private var onboardingStore: OnboardingStateStore
     @EnvironmentObject private var settings: SettingsStore
+    @EnvironmentObject private var entitlementStore: EntitlementStore
     @ObservedObject var ragService: RAGService
 
     init(ragService: RAGService) {
@@ -114,6 +115,10 @@ struct ChatScreen: View {
 
     // Vision Capture overlay
     @State private var showVisionCapture: Bool = false
+    @State private var showPlanSheet: Bool = false
+    @State private var planEntryPoint: PlanUpgradeEntryPoint = .maximumModeLimit
+    @State private var showMaximumModeLimitDialog: Bool = false
+    @State private var maximumModeLimitDialogMessage: String = ""
 
     // Hardware telemetry for Motherboard HUD visibility
     private var hardwareTelemetry = HardwareTelemetryState.shared
@@ -512,6 +517,9 @@ struct ChatScreen: View {
                 .padding()
             }
         }
+        .sheet(isPresented: $showPlanSheet) {
+            PlanUpgradeSheet(entryPoint: planEntryPoint)
+        }
         .sheet(item: $activeCloudConsent) { record in
             CloudConsentPromptView(record: record) { decision in
                 Task { await ragService.resolveCloudConsent(decision: decision) }
@@ -524,9 +532,30 @@ struct ChatScreen: View {
             .presentationBackground(.ultraThinMaterial)
 #endif
         }
+        .confirmationDialog(
+            "Maximum mode limit reached",
+            isPresented: $showMaximumModeLimitDialog,
+            titleVisibility: .visible
+        ) {
+            Button("Switch to Standard") {
+                settings.ragQualityMode = .standard
+                ragService.resetDeepThinkLiveMetrics()
+            }
+            Button("Switch to Deep Think") {
+                settings.ragQualityMode = .deepThink
+                ragService.resetDeepThinkLiveMetrics()
+            }
+            Button("See Plans") {
+                presentMaximumModePaywall()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(maximumModeLimitDialogMessage)
+        }
 .onAppear {
     // Seed screenshot demo FIRST before loading persisted history
     seedScreenshotDemoIfNeeded()
+    entitlementStore.refreshTransientState()
 
     // Only load persisted history if not in screenshot demo mode
     #if DEBUG
@@ -1539,7 +1568,8 @@ struct ChatScreen: View {
                 docCount: activeDocCount,
                 chunkCount: activeChunkCount,
                 ragService: ragService,
-                messageContainerOverride: $messageContainerOverride
+                messageContainerOverride: $messageContainerOverride,
+                onMaximumModeBlocked: presentMaximumModePaywall
             )
 
             localExecutionBanner
@@ -2094,7 +2124,7 @@ struct ChatScreen: View {
 
                 // Resolve low-signal follow-ups ("yes", "ok", etc.) to the last meaningful query.
                 let isLowSignal = isLowSignalQuery(query)
-                var capturedQuery = isLowSignal ? (lastSemanticQuery ?? query) : query
+                let capturedQuery = isLowSignal ? (lastSemanticQuery ?? query) : query
                 if !isLowSignal {
                     await MainActor.run {
                         self.lastSemanticQuery = query
@@ -2104,11 +2134,10 @@ struct ChatScreen: View {
                 // Check for cancellation after query resolution
                 try Task.checkCancellation()
 
-                // Clarify the user's query using Writing Tools if available (improves retrieval quality)
-                let writingToolsEnabled = await MainActor.run { self.settings.enableWritingTools }
-                if !isLowSignal, writingToolsEnabled, let clarified = try? await WritingToolsService().clarifyQuery(query) {
-                    capturedQuery = clarified
-                }
+                // Use the user's raw prompt for RAG.
+                // QueryRewriterService inside RAGService already handles ambiguity and follow-ups.
+                // A hidden Writing Tools proofread pass here can silently change short safety queries
+                // before retrieval, which makes the system feel like it ignored the user's wording.
 
                 // Check for cancellation before embedding
                 try Task.checkCancellation()
@@ -2225,6 +2254,8 @@ struct ChatScreen: View {
                     structuredAnswer: response.structuredAnswer
                 )
                 assistant.containerId = capturedUsedContainerId
+                assistant.traceQuery = query
+                assistant.thinkingEvents = capturedThinkingEvents
 
                 // Build pipeline trace from thinking events for later export
                 if !capturedThinkingEvents.isEmpty {
@@ -2315,6 +2346,18 @@ struct ChatScreen: View {
                         return
                     }
 
+                    if case let RAGServiceError.maximumModeQuotaReached(limit) = error {
+                        self.stage = .idle
+                        self.resetStreamingState()
+                        self.generationStart = nil
+                        self.maximumModeLimitDialogMessage =
+                            "Free users get \(limit) Maximum runs per day. Switch to Standard or Deep Think, or upgrade for unlimited Maximum mode."
+                        self.showMaximumModeLimitDialog = true
+                        self.toastManager.clearAll()
+                        self.pushToast("Maximum capped for today", icon: "flame.fill", tint: .orange)
+                        return
+                    }
+
                     let friendlyMessage = userFacingErrorMessage(error)
 
                     self.toastManager.clearAll()
@@ -2352,6 +2395,11 @@ struct ChatScreen: View {
     private func sendSuggestedPrompt(_ prompt: String) {
         DSHaptics.selection()
         sendMessage(prompt)
+    }
+
+    private func presentMaximumModePaywall() {
+        planEntryPoint = .maximumModeLimit
+        showPlanSheet = true
     }
 
     private func isLowSignalQuery(_ text: String) -> Bool {
@@ -2544,6 +2592,8 @@ struct ChatScreen: View {
                 return "Retrieval failed. Please try again."
             case .modelNotAvailable:
                 return "The selected model isn't available right now."
+            case let .maximumModeQuotaReached(limit):
+                return "Maximum is capped at \(limit) uses per day on Free. Switch modes or upgrade for unlimited Maximum."
             case .cloudConsentDenied:
                 return "Cloud processing was declined. Switch to on-device or try again."
             }
@@ -2685,6 +2735,7 @@ struct CompactChatHeader: View {
     let chunkCount: Int
     let ragService: RAGService
     @Binding var messageContainerOverride: UUID?
+    var onMaximumModeBlocked: (() -> Void)? = nil
 
     @State private var showModelDetails = false
     @State private var deviceCapabilities = DeviceCapabilities()
@@ -2701,7 +2752,7 @@ struct CompactChatHeader: View {
             // Bottom row: Quality mode picker + Model status + Stats
             HStack(spacing: 10) {
                 // Always show quality mode picker - Deep Think is useful for all users
-                QualityModeQuickPicker(selectedMode: $settings.ragQualityMode) { _, _ in
+                QualityModeQuickPicker(selectedMode: $settings.ragQualityMode, onMaximumModeBlocked: onMaximumModeBlocked) { _, _ in
                     // Reset stale Deep Think/Maximum metrics when mode changes
                     ragService.resetDeepThinkLiveMetrics()
                 }
@@ -2749,7 +2800,9 @@ struct CompactChatHeader: View {
 /// Quick picker for quality mode - shows in chat header
 /// Dropdown menu to switch between Standard and Deep Think
 struct QualityModeQuickPicker: View {
+    @EnvironmentObject private var entitlementStore: EntitlementStore
     @Binding var selectedMode: RAGQualityMode
+    var onMaximumModeBlocked: (() -> Void)? = nil
     /// Called when mode changes, passing old and new mode
     var onModeChange: ((RAGQualityMode, RAGQualityMode) -> Void)?
 
@@ -2757,6 +2810,7 @@ struct QualityModeQuickPicker: View {
         Menu {
             ForEach(RAGQualityMode.userVisibleCases, id: \.id) { mode in
                 Button {
+                    guard canSelect(mode) else { return }
                     let previousMode = selectedMode
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                         selectedMode = mode
@@ -2819,7 +2873,11 @@ struct QualityModeQuickPicker: View {
         switch selectedMode.canonical {
         case .standard: return "Fastest"
         case .deepThink: return "Iterative"
-        case .maximum: return "Full sweep"
+        case .maximum:
+            if entitlementStore.hasUnlimitedMaximumMode {
+                return "Unlimited"
+            }
+            return "\(entitlementStore.maximumModeRemainingUses) left"
         default: return "Fastest"
         }
     }
@@ -2831,6 +2889,15 @@ struct QualityModeQuickPicker: View {
         case .maximum: return .orange
         default: return .blue
         }
+    }
+
+    private func canSelect(_ mode: RAGQualityMode) -> Bool {
+        guard mode.canonical == .maximum else { return true }
+        guard entitlementStore.canUseMaximumModeNow else {
+            onMaximumModeBlocked?()
+            return false
+        }
+        return true
     }
 }
 
@@ -3022,7 +3089,7 @@ private struct FirstQueryPromptView: View {
             return "This batch is pulled from \(sourceDocumentCount) of \(libraryDocumentCount) docs in this library. Refresh for a different slice."
         }
 
-        return "Each suggestion is anchored to a specific uploaded document."
+        return "Suggestions are generated from specific passages in this library."
     }
 
     private func sourceLine(for prompt: String) -> String? {
