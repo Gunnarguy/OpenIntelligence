@@ -64,6 +64,36 @@ public final class OIEngine {
 }
 ```
 
+## Example Integration
+
+```swift
+import OpenIntelligenceEngine
+
+@MainActor
+func runDemo(documentURLs: [URL]) async throws {
+    let engine = OIEngine(
+        configuration: OIEngineConfiguration(
+            storageURL: FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first,
+            allowPrivateCloudCompute: true,
+            executionContext: .automatic
+        )
+    )
+
+    let ingestResult = try await engine.ingest(
+        OIIngestRequest(urls: documentURLs, libraryName: "Support Docs")
+    )
+
+    print("Imported \(ingestResult.importedDocuments) documents")
+
+    let queryResult = try await engine.query(
+        OIQueryRequest(question: "What happens if the strap is not removed?", libraryName: "Support Docs")
+    )
+
+    print(queryResult.answer)
+    print(queryResult.citations)
+}
+```
+
 ## Why This Surface
 
 - It hides the internal pipeline.
@@ -81,3 +111,9 @@ public final class OIEngine {
 
 This API is the recommended boundary.
 The framework target now exists and builds, but XCFramework packaging and demo validation are still incomplete.
+
+For tomorrow's buyer conversations, this means:
+
+- you can demo the behavior now
+- you can show the intended public API now
+- you should describe binary SDK handoff as in-progress, not finished

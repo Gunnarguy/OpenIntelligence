@@ -11,6 +11,7 @@ The workspace currently contains:
 Current validation completed:
 
 - `OpenIntelligenceEngine` framework target builds successfully for `generic/platform=iOS Simulator`
+- latest engine-target compile drift from billing shims has been repaired
 
 Still not completed:
 
@@ -18,6 +19,22 @@ Still not completed:
 - simulator archive suitable for XCFramework packaging
 - final `OpenIntelligenceEngine.xcframework`
 - demo app that links only against the packaged binary
+
+## Current Packaging Blocker
+
+The current blocker is not the engine target itself.
+The blocker is XCFramework archive with `BUILD_LIBRARY_FOR_DISTRIBUTION=YES`, where the upstream local package dependency `swift-transformers` fails Swift module-interface verification for its `Generation` module during archive.
+
+Observed behavior:
+
+- direct `OpenIntelligenceEngine` framework builds can succeed
+- archive for binary distribution fails before final XCFramework creation
+- package validation therefore still reports the binary artifact as missing
+
+Practical implication:
+
+- the engine is demoable
+- the engine is not yet ready for sealed binary handoff
 
 ## Resources Required By The Engine
 
@@ -34,6 +51,19 @@ Still not completed:
 4. Archive device and simulator slices with `BUILD_LIBRARY_FOR_DISTRIBUTION=YES`
 5. Create the final XCFramework
 6. Validate a demo integration target against the packaged binary
+
+## Tomorrow-Safe Commercial Framing
+
+Until the archive blocker is fixed, sell this as:
+
+- early-access engine
+- design-partner integration
+- private demo plus assisted integration
+
+Do not sell it as:
+
+- finished drag-and-drop XCFramework
+- same-day binary SDK handoff
 
 ## Scripts Added
 

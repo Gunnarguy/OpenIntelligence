@@ -16,6 +16,7 @@ Not yet packaged:
 - `OpenIntelligenceEngine.xcframework`
 - Swift Package binary wrapper
 - demo app linked against the packaged binary
+- finished buyer-sendable binary handoff
 
 ## What Is Hidden
 
@@ -49,6 +50,20 @@ Reason:
 
 The logic is real and the framework target now builds.
 The binary SDK packaging and demo validation are not complete yet.
+
+## What You Can Sell Tomorrow
+
+You can credibly sell:
+
+- the engine capability
+- a design-partner engagement
+- a guided integration
+- a private technical evaluation
+
+You should not yet promise:
+
+- an immediate XCFramework drop-in delivery
+- a finalized binary SDK package with demo host app
 
 ## What To Do Next
 

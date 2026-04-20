@@ -45,11 +45,31 @@ This deliverable folder currently contains:
 
 - packaging specification
 - API design
+- selling and demo playbooks
 - build and validation scripts
 - a real `OpenIntelligenceEngine` framework target in the main Xcode project
 
 Current validation state:
 
 - framework target build succeeds for iOS Simulator integration
+- framework target compiles after the latest SDK compatibility shim updates
 - final `OpenIntelligenceEngine.xcframework` is not yet present in this folder
+- XCFramework archive is still blocked by upstream `swift-transformers` module-interface verification during `BUILD_LIBRARY_FOR_DISTRIBUTION=YES`
 - demo integration packaging is not yet complete
+
+## Sales Docs
+
+- `SELLING_PLAYBOOK.md` — buyer positioning, meeting structure, objections, and next steps
+- `DEMO_PLAYBOOK.md` — how to demo the engine tomorrow using the current app and planned SDK surface
+
+## Honest Tomorrow-Morning Status
+
+If you are speaking with buyers tomorrow, the truthful framing is:
+
+- the engine logic is real
+- the framework target compiles
+- the public SDK surface is defined
+- the sealed binary SDK handoff is still being finalized
+
+That is strong enough for a design-partner or early-access conversation.
+It is not yet strong enough to promise a finished drag-and-drop XCFramework handoff the same day.
