@@ -53,8 +53,8 @@ Current validation state:
 
 - framework target build succeeds for iOS Simulator integration
 - framework target compiles after the latest SDK compatibility shim updates
-- final `OpenIntelligenceEngine.xcframework` is not yet present in this folder
-- XCFramework archive is still blocked by upstream `swift-transformers` module-interface verification during `BUILD_LIBRARY_FOR_DISTRIBUTION=YES`
+- evaluation `OpenIntelligenceEngine.xcframework` is present in this folder for founder and design-partner use on the same Xcode toolchain
+- module-stable XCFramework packaging is still blocked by upstream `swift-transformers` module-interface verification during `BUILD_LIBRARY_FOR_DISTRIBUTION=YES`
 - demo integration packaging is not yet complete
 
 ## Sharing Model
@@ -79,7 +79,9 @@ If you are speaking with buyers tomorrow, the truthful framing is:
 - the engine logic is real
 - the framework target compiles
 - the public SDK surface is defined
-- the sealed binary SDK handoff is still being finalized
+- an evaluation XCFramework can be handed off now for same-toolchain integration
+- the fully module-stable binary SDK handoff is still being finalized
 
 That is strong enough for a design-partner or early-access conversation.
-It is not yet strong enough to promise a finished drag-and-drop XCFramework handoff the same day.
+It is strong enough to support a drag-and-drop evaluation handoff.
+It is not yet strong enough to promise a fully stable, toolchain-agnostic binary SDK handoff.

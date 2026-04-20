@@ -116,6 +116,7 @@ For tomorrow's buyer conversations, this means:
 
 - you can demo the behavior now
 - you can show the intended public API now
-- you should describe binary SDK handoff as in-progress, not finished
+- you can hand off an evaluation XCFramework now
+- you should describe the module-stable binary SDK as in-progress, not finished
 
 For external sharing, include this file in the curated buyer bundle rather than zipping the entire SDK packet folder.

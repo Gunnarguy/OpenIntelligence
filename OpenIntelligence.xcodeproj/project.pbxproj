@@ -25,9 +25,11 @@
 		E0A100052F0F5F5F00AABA0C /* Exceptions for "OpenIntelligence" folder in "OpenIntelligenceEngine" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				Services/.gitignore,
 				Services/Agentic/RAGAppIntents.swift,
 				Services/Agentic/VisualIntelligenceIntents.swift,
 				Services/Agentic/WritingToolsService.swift,
+				swift-transformers,
 			);
 			target = E0A100072F0F5F5F00AABA0C /* OpenIntelligenceEngine */;
 		};

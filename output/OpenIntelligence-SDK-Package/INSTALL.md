@@ -9,6 +9,21 @@
 3. Link required Apple frameworks if the binary package does not re-export them automatically.
 4. Add the bundled model resources if the final framework package uses a separate resource bundle.
 
+## Current Evaluation Delivery Mode
+
+The current fastest founder-share artifact is an evaluation XCFramework.
+
+Use it when:
+
+- the buyer is testing on the same Xcode generation and Swift toolchain you used to build it
+- the goal is an early technical evaluation or design-partner pilot
+
+Do not describe the current package as a long-term module-stable binary SDK yet.
+
+Current artifact location:
+
+- `output/OpenIntelligence-SDK-Package/OpenIntelligenceEngine.xcframework`
+
 ### Swift Package Binary Target
 
 If a binary package wrapper is produced later:
@@ -33,5 +48,9 @@ Simulator is not a full runtime validation environment for Apple Intelligence be
 If you are sending the current SDK packet to a founder or buyer, generate the curated bundle with:
 
 - `./scripts/build_sdk_buyer_bundle.sh`
+
+If you need the XCFramework included in that bundle, generate it first with:
+
+- `./scripts/build_engine_evaluation_xcframework.sh`
 
 That bundle excludes internal-only sales and demo playbooks.

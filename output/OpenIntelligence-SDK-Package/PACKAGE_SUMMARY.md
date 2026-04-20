@@ -10,13 +10,13 @@ Currently packaged:
 - simulator framework build validation
 - buyer-safe install and package notes
 - build and validation scripts
+- evaluation `OpenIntelligenceEngine.xcframework`
 
 Not yet packaged:
 
-- `OpenIntelligenceEngine.xcframework`
 - Swift Package binary wrapper
 - demo app linked against the packaged binary
-- finished buyer-sendable binary handoff
+- finished module-stable binary handoff
 
 ## Internal vs Buyer-Safe Material
 
@@ -60,12 +60,12 @@ No internal pipeline source has been exported into this deliverable folder.
 
 ## Honest Readiness Verdict
 
-Status: `NOT READY`
+Status: `EVALUATION READY, PRODUCTION SDK NOT READY`
 
 Reason:
 
-The logic is real and the framework target now builds.
-The binary SDK packaging and demo validation are not complete yet.
+The logic is real, the framework target builds, and an evaluation XCFramework is present.
+The fully module-stable binary SDK packaging and demo validation are not complete yet.
 
 ## What You Can Sell Tomorrow
 
@@ -75,17 +75,18 @@ You can credibly sell:
 - a design-partner engagement
 - a guided integration
 - a private technical evaluation
+- a drop-in evaluation XCFramework for same-toolchain testing
 
 You should not yet promise:
 
-- an immediate XCFramework drop-in delivery
 - a finalized binary SDK package with demo host app
+- a toolchain-agnostic stable binary SDK handoff
 
 ## What To Do Next
 
 1. Tighten `OpenIntelligenceEngine` target membership
 2. Wrap current engine seams behind the proposed API more cleanly
-3. Build the XCFramework
+3. Build the module-stable XCFramework
 4. Build a tiny demo app against the binary
 5. Re-run package validation
 
@@ -95,6 +96,10 @@ Could this become a real buyer-sendable SDK in a few focused days?
 
 - yes, if scope is narrowed to ingestion plus grounded QA
 
-Is it ready to hand to a startup right now as a sealed SDK?
+Is it ready to hand to a startup right now as an evaluation SDK?
+
+- yes, if they are on a matching Xcode and Swift toolchain generation
+
+Is it ready to hand to a startup right now as a sealed stable SDK?
 
 - no

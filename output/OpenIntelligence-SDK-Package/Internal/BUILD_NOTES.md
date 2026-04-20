@@ -6,18 +6,20 @@ The workspace currently contains:
 
 - app target: `OpenIntelligence`
 - framework target: `OpenIntelligenceEngine`
-- no existing XCFramework artifact in the deliverable folder
+- evaluation XCFramework artifact in the deliverable folder
 
 Current validation completed:
 
 - `OpenIntelligenceEngine` framework target builds successfully for `generic/platform=iOS Simulator`
 - latest engine-target compile drift from billing shims has been repaired
+- evaluation device and simulator archives succeed with code signing disabled
+- evaluation `OpenIntelligenceEngine.xcframework` has been created with `-allow-internal-distribution`
 
 Still not completed:
 
-- device archive
-- simulator archive suitable for XCFramework packaging
-- final `OpenIntelligenceEngine.xcframework`
+- module-stable device archive
+- module-stable simulator archive suitable for XCFramework packaging
+- final module-stable `OpenIntelligenceEngine.xcframework`
 - demo app that links only against the packaged binary
 
 ## Current Packaging Blocker
@@ -34,7 +36,8 @@ Observed behavior:
 Practical implication:
 
 - the engine is demoable
-- the engine is not yet ready for sealed binary handoff
+- an evaluation XCFramework is available now
+- the engine is not yet ready for sealed module-stable binary handoff
 
 ## Resources Required By The Engine
 
@@ -52,6 +55,22 @@ Practical implication:
 5. Create the final XCFramework
 6. Validate a demo integration target against the packaged binary
 
+## Evaluation Packaging Path
+
+For founder or design-partner sharing, a practical interim path exists:
+
+- archive device and simulator slices with `BUILD_LIBRARY_FOR_DISTRIBUTION=NO`
+- archive with `CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO`
+- create an evaluation XCFramework with `-allow-internal-distribution`
+
+This is appropriate for:
+
+- early technical evaluation
+- founder testing
+- guided pilot integration
+
+This is not the final packaging answer for a stable commercial SDK.
+
 ## Tomorrow-Safe Commercial Framing
 
 Until the archive blocker is fixed, sell this as:
@@ -62,12 +81,13 @@ Until the archive blocker is fixed, sell this as:
 
 Do not sell it as:
 
-- finished drag-and-drop XCFramework
+- finished stable drag-and-drop XCFramework
 - same-day binary SDK handoff
 
 ## Scripts Added
 
 - `scripts/build_engine_xcframework.sh`
+- `scripts/build_engine_evaluation_xcframework.sh`
 - `scripts/validate_sdk_package.sh`
 - `scripts/build_sdk_buyer_bundle.sh`
 
