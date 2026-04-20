@@ -72,6 +72,23 @@ Instead, generate the buyer-safe artifact with:
 
 That script creates a curated zip containing only the files intended for founder or buyer sharing.
 
+## Cofounder Quick Path
+
+If David opens this repo and wants the shortest useful route, use this order:
+
+1. Start in `output/OpenIntelligence-SDK-Package/README.md`.
+2. Read `output/OpenIntelligence-SDK-Package/PACKAGE_SUMMARY.md` for the honest readiness snapshot.
+3. Read `output/OpenIntelligence-SDK-Package/INSTALL.md` for the actual integration path.
+4. Open `output/OpenIntelligence-SDK-Package/OpenIntelligenceEngine.xcframework` to see the evaluation artifact that is being handed off.
+5. If you want proof that it can be imported, go to `Samples/EngineEvaluationHost/` and run `./scripts/build_engine_evaluation_host.sh`.
+
+What this means operationally:
+
+- the private repo is the source of truth for founder trials
+- the buyer-safe packet lives under `output/OpenIntelligence-SDK-Package/`
+- the partner-facing commercial copy lives under `output/OpenIntelligence-Partner-Packet/`
+- the sample import app lives under `Samples/EngineEvaluationHost/`
+
 ## Honest Tomorrow-Morning Status
 
 If you are speaking with buyers tomorrow, the truthful framing is:

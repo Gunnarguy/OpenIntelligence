@@ -66,3 +66,18 @@ You can regenerate and build it with:
 - `./scripts/build_engine_evaluation_host.sh`
 
 This is meant to prove XCFramework import and a minimal API touchpoint, not to act as the final customer-facing app.
+
+## Cofounder Quickstart
+
+If you need the fastest “what do I click and run?” path:
+
+1. Open `output/OpenIntelligence-SDK-Package/OpenIntelligenceEngine.xcframework` to verify the evaluation artifact exists.
+2. Read `output/OpenIntelligence-SDK-Package/INSTALL.md` and `output/OpenIntelligence-SDK-Package/PACKAGE_SUMMARY.md`.
+3. Open `Samples/EngineEvaluationHost/` if you want a concrete local validation target.
+4. Run `./scripts/build_engine_evaluation_host.sh` from the repo root.
+
+That gives you:
+
+- the evaluation build products if missing
+- the generated sample Xcode project
+- a simulator build that proves the import path works in the current environment
