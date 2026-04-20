@@ -4,18 +4,20 @@ Public release highlights for OpenIntelligence.
 
 ## In This Release
 
-- Answers are stricter about what your documents actually support, with clearer fallback behavior when evidence is weak
-- Suggested questions now pull from a clearer slice of your actual library, so larger collections feel more specific and easier to explore
-- Imports are more resilient on difficult manuals and messy PDFs, with better cleanup of noisy extracted text
-- Lifetime Cohort now unlocks unlimited documents, and lifetime owners no longer see document-pack prompts
+- Better grounded answers with stronger evidence checks and fewer generic dead-end refusals
+- Suggested and follow-up questions now stay closer to the actual source passages and avoid placeholder, repetitive, or self-answering prompts
+- Manuals and dense PDFs are handled more reliably, with better cleanup for noisy extraction, multi-column layouts, and chunking edge cases
+- Answer review surfaces now show cleaner traces, prompt capture, and better link and table rendering
+- Free now includes Maximum up to 3 times per day, while Pro and Lifetime unlock unlimited Maximum
+- Prior paid purchases are now grandfathered into Lifetime access in-app, and document packs are no longer sold to new users
 
 ## Also Improved
 
 - Importing, browsing, and getting to a strong first question feel smoother across larger libraries
 - Document scoping and evidence handling are more reliable across questions that pull from multiple files
 - Chat, answer review, and settings surfaces were tightened up to make results easier to trust and inspect
-- Release messaging and product copy were refreshed to better match what the app actually does
-- Behind-the-scenes engine and release workflow work landed to make future updates steadier
+- Product messaging and plan copy were refreshed to better match what the app actually does
+- Release workflow and packaging cleanup landed to make future updates steadier
 
 ## Product Snapshot
 

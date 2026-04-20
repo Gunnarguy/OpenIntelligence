@@ -91,9 +91,6 @@ struct DocumentLibraryView: View {
                         limit: documentLimit,
                         tierName: entitlementStore.currentPlanDisplayName,
                         addOnPacks: entitlementStore.addOnPacks,
-                        packCap: entitlementStore.documentPackCap,
-                        remainingPackCapacity: entitlementStore.remainingDocumentPackCapacity,
-                        hasReachedPackCap: entitlementStore.hasReachedDocumentPackCap,
                         onUpgrade: { presentPlanSheet(for: .quotaBanner) }
                     )
                     .padding(.horizontal)
@@ -131,9 +128,6 @@ struct DocumentLibraryView: View {
                         limit: documentLimit,
                         tierName: entitlementStore.currentPlanDisplayName,
                         addOnPacks: entitlementStore.addOnPacks,
-                    packCap: entitlementStore.documentPackCap,
-                    remainingPackCapacity: entitlementStore.remainingDocumentPackCapacity,
-                    hasReachedPackCap: entitlementStore.hasReachedDocumentPackCap,
                     onUpgrade: { presentPlanSheet(for: .quotaBanner) }
                 )
                 .padding(.horizontal)

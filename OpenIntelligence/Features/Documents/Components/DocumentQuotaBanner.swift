@@ -12,11 +12,7 @@ struct DocumentQuotaBanner: View {
     let limit: Int
     let tierName: String
     let addOnPacks: Int
-    let packCap: Int
-    let remainingPackCapacity: Int
-    let hasReachedPackCap: Bool
     let onUpgrade: () -> Void
-    var onRefillPack: (() -> Void)? = nil
 
     private var remaining: Int { max(limit - currentCount, 0) }
     private var progress: Double {
@@ -42,7 +38,7 @@ struct DocumentQuotaBanner: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 if isAtLimit {
-                    Label("Quota reached! Upgrade or refill to keep importing.", systemImage: "exclamationmark.triangle.fill")
+                    Label("Quota reached. Upgrade or remove documents to keep importing.", systemImage: "exclamationmark.triangle.fill")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.orange)
                 } else if isNearLimit {
@@ -75,24 +71,6 @@ struct DocumentQuotaBanner: View {
             }
 
             HStack(spacing: 8) {
-                if addOnPacks > 0, !hasReachedPackCap, let refillAction = onRefillPack {
-                    Button {
-                        TelemetryCenter.emitBillingEvent(
-                            "Refill CTA tapped",
-                            metadata: [
-                                "currentCount": String(currentCount),
-                                "limit": String(limit),
-                                "progress": String(format: "%.1f", progress * 100)
-                            ]
-                        )
-                        refillAction()
-                    } label: {
-                        Label("Refill +\(QuotaPolicy.addOnDocumentIncrement)", systemImage: "plus.rectangle.on.rectangle.fill")
-                            .font(.caption.weight(.semibold))
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.green)
-                }
                 Button {
                     TelemetryCenter.emitBillingEvent(
                         "Quota banner upgrade CTA tapped",
@@ -139,9 +117,6 @@ struct DocumentQuotaBanner: View {
         limit: 25,
         tierName: "Free",
         addOnPacks: 0,
-        packCap: 3,
-        remainingPackCapacity: 3,
-        hasReachedPackCap: false,
         onUpgrade: {}
     )
     .padding()

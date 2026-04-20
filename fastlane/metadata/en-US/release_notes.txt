@@ -1,13 +1,14 @@
 Version 2.1.2
 
-This release improves answer quality, cleans up suggestions, and simplifies plan access.
+This release improves grounded answers, cleans up suggestions, and updates plan access around Maximum mode.
 
-- More direct source-backed answers when your files clearly support them
-- Cleaner suggested and follow-up questions that stay closer to the actual source material
-- Better prompt capture and trace exports for answer inspection
-- Better import cleanup for messy PDFs, scanned manuals, and chunking edge cases
+- Better grounded answers for manuals, technical PDFs, and source-backed document questions
+- Fewer generic dead-end refusals when your documents partially support an answer
+- Suggested and follow-up questions now stay closer to the actual source passages and avoid placeholder or self-answering prompts
+- Better prompt capture, trace export, and answer review detail for inspecting how a response was produced
+- Better cleanup for messy PDFs, multi-column manuals, and chunking edge cases
+- Better rendering for links, tables, and answer review surfaces
 - Free now includes Maximum up to 3 times per day
 - Pro and Lifetime now unlock unlimited Maximum
-- Previous paid purchases are now grandfathered into Lifetime access in-app
-- Lifetime remains the top-tier capacity plan
-- Previous document-pack purchases remain honored, but document packs are no longer sold in-app
+- Prior paid purchases, including legacy document packs, are grandfathered into Lifetime access in-app
+- Document packs remain honored for prior purchasers, but new document-pack sales are retired in-app

@@ -37,6 +37,7 @@ platform :ios do
     sh(
       File.join(REPO_ROOT, "scripts", "update_public_release_summary.sh"),
       "--for-current-version",
+      "--no-app-store",
       "--write"
     )
   end
@@ -186,7 +187,16 @@ platform :ios do
     end
 
     storekit = JSON.parse(File.read(storekit_path))
-    storekit_products = storekit["products"].map { |p| p["id"] }
+    storekit_products = []
+    storekit_products.concat(
+      Array(storekit["products"]).map { |product| product["productID"] || product["id"] }
+    )
+    Array(storekit["subscriptionGroups"]).each do |group|
+      storekit_products.concat(
+        Array(group["subscriptions"]).map { |subscription| subscription["productID"] || subscription["id"] }
+      )
+    end
+    storekit_products.compact!
 
     # Compare
     missing_in_storekit = expected_products - storekit_products
