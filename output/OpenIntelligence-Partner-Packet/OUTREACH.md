@@ -8,6 +8,8 @@ It ingests internal docs, answers questions against them, and is built to prefer
 
 I’m not positioning it as a broad self-serve product yet. Right now it’s a founder-led pilot / evaluation offering for a few teams that want early access and direct influence on the SDK and integration path.
 
+For the right team, I can already share a private evaluation packet with a same-toolchain XCFramework for early hands-on testing.
+
 If that is relevant, I can send a one-pager and a short outline of the partner program.
 
 ## Cold Email
@@ -25,13 +27,16 @@ The core behavior is:
 - Apple-native deployment path
 
 I’m opening a small number of founder-led design partner slots now.
-This is not a mass-market self-serve SDK pitch yet. It is a paid pilot / evaluation program for teams that want early access, integration input, and priority support while the commercial SDK package is finalized.
+This is not a mass-market self-serve SDK pitch yet. It is a paid pilot / evaluation program for teams that want early access, integration input, and priority support while the stable commercial SDK package is finalized.
+
+For the right team, I can already share a private evaluation packet that includes the current XCFramework for same-toolchain testing.
 
 If useful, I can send:
 
 - a one-page overview
 - current partner structure
 - what I can responsibly promise right now
+- the current evaluation packet
 
 Best,
 [Your Name]
@@ -52,3 +57,14 @@ The short version is that I’m looking for a small number of teams that want:
 - close founder involvement during pilot and integration design
 
 If that is relevant, I can send the one-pager and current partner structure.
+
+## Founder Packet Send Line
+
+If useful, I can send a private evaluation packet that includes:
+
+- the current API surface
+- install notes
+- the current evaluation XCFramework
+- the honest delivery and support model
+
+It is intended for same-toolchain evaluation, not yet as the final stable SDK handoff.

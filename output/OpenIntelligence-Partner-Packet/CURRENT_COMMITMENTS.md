@@ -9,28 +9,29 @@ Use it to stay consistent in sales conversations.
 - The engine supports private document ingestion and grounded question answering.
 - The system is being shaped into a closed-source SDK / framework.
 - A dedicated `OpenIntelligenceEngine` framework target exists and builds.
+- A founder-evaluation XCFramework exists for same-toolchain trials.
 - The product is strongest when the source documents are clear and internally consistent.
 - The current offer is a founder-led pilot / design partner engagement.
 
 ## Say Carefully
 
-- A sealed binary SDK is in progress.
+- A stable sealed binary SDK is in progress.
 - The core engine boundary is real and productizable.
 - Closed-source delivery is part of the roadmap for design partners.
-- The packaging path is underway, but not yet finished as a final buyer-ready SDK artifact.
+- The evaluation packaging path works, but the stable toolchain-agnostic packaging path is not yet finished.
 
 Use language like:
 
 - "phased delivery"
 - "design partner path"
-- "in-progress SDK packaging"
+- "evaluation SDK now, stable SDK path in progress"
 - "closed-source handoff milestone"
 
 ## Do Not Say Yet
 
 - "It is a finished plug-and-play SDK today."
 - "Any team can integrate it immediately without founder involvement."
-- "The final XCFramework package is ready right now."
+- "The final stable XCFramework package is ready right now."
 - "It is production-ready for every document type and workflow."
 - "It guarantees correctness."
 
@@ -75,4 +76,4 @@ If someone asks, "Can we buy and integrate the binary SDK today?"
 
 The honest answer is:
 
-"Not as a finished off-the-shelf package today. The best current path is a pilot / design partner engagement that leads into sealed SDK delivery."
+"Not as a finished stable off-the-shelf package today. The best current path is a pilot / design partner engagement using the evaluation packet, which then leads into sealed SDK delivery."

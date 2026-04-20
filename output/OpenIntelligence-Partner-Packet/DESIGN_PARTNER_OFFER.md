@@ -34,6 +34,7 @@ The design partner model includes:
 - founder-led onboarding
 - use-case scoping
 - document-set evaluation
+- evaluation XCFramework handoff for same-toolchain testing when appropriate
 - integration planning
 - product feedback loop
 - phased delivery toward a sealed SDK / framework handoff
@@ -43,6 +44,7 @@ The design partner model includes:
 - direct access to the founder/builder
 - evaluation of their document/problem shape
 - working demos against realistic materials
+- an evaluation SDK packet for same-toolchain testing when appropriate
 - integration planning for Apple-native deployment
 - priority influence on the first SDK boundary
 - early commercial terms before broader packaging
@@ -57,7 +59,7 @@ The design partner model includes:
 
 ## What Is Still In Progress
 
-- final closed-source XCFramework packaging
+- final stable closed-source XCFramework packaging
 - fully tightened SDK target membership
 - demo app that validates binary-only integration
 - final buyer-ready binary handoff package
@@ -67,6 +69,7 @@ That means the current offer is best framed as:
 - paid pilot
 - design partner program
 - private evaluation with delivery milestones
+- evaluation SDK now, stable SDK later
 
 ## Best-Fit Design Partners
 
