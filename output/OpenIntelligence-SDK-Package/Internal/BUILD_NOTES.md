@@ -69,6 +69,7 @@ Do not sell it as:
 
 - `scripts/build_engine_xcframework.sh`
 - `scripts/validate_sdk_package.sh`
+- `scripts/build_sdk_buyer_bundle.sh`
 
 These scripts are real and intended to become the packaging path once the framework target exists.
 

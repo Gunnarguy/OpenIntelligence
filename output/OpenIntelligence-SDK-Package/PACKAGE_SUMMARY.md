@@ -8,7 +8,7 @@ Currently packaged:
 - proposed public API
 - `OpenIntelligenceEngine` framework target in the Xcode project
 - simulator framework build validation
-- install and build notes
+- buyer-safe install and package notes
 - build and validation scripts
 
 Not yet packaged:
@@ -17,6 +17,22 @@ Not yet packaged:
 - Swift Package binary wrapper
 - demo app linked against the packaged binary
 - finished buyer-sendable binary handoff
+
+## Internal vs Buyer-Safe Material
+
+Buyer-safe docs are kept at the root of `output/OpenIntelligence-SDK-Package/`.
+
+Internal-only docs are kept under:
+
+- `output/OpenIntelligence-SDK-Package/Internal/`
+
+That split exists so a founder-share zip can be created without exposing internal pitch notes.
+
+Use:
+
+- `./scripts/build_sdk_buyer_bundle.sh`
+
+to generate the external-sharing artifact.
 
 ## What Is Hidden
 

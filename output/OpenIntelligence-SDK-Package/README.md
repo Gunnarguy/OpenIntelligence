@@ -45,7 +45,7 @@ This deliverable folder currently contains:
 
 - packaging specification
 - API design
-- selling and demo playbooks
+- buyer-safe packet documents
 - build and validation scripts
 - a real `OpenIntelligenceEngine` framework target in the main Xcode project
 
@@ -57,10 +57,20 @@ Current validation state:
 - XCFramework archive is still blocked by upstream `swift-transformers` module-interface verification during `BUILD_LIBRARY_FOR_DISTRIBUTION=YES`
 - demo integration packaging is not yet complete
 
-## Sales Docs
+## Sharing Model
 
-- `SELLING_PLAYBOOK.md` — buyer positioning, meeting structure, objections, and next steps
-- `DEMO_PLAYBOOK.md` — how to demo the engine tomorrow using the current app and planned SDK surface
+Buyer-safe files stay at the root of `output/OpenIntelligence-SDK-Package/`.
+
+Internal-only sales and demo materials live under:
+
+- `output/OpenIntelligence-SDK-Package/Internal/`
+
+Do not zip the whole folder manually for external sharing.
+Instead, generate the buyer-safe artifact with:
+
+- `./scripts/build_sdk_buyer_bundle.sh`
+
+That script creates a curated zip containing only the files intended for founder or buyer sharing.
 
 ## Honest Tomorrow-Morning Status
 

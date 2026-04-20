@@ -27,3 +27,11 @@ If a binary package wrapper is produced later:
 
 Simulator is valid for compile-and-link checks.
 Simulator is not a full runtime validation environment for Apple Intelligence behavior.
+
+## External Sharing Note
+
+If you are sending the current SDK packet to a founder or buyer, generate the curated bundle with:
+
+- `./scripts/build_sdk_buyer_bundle.sh`
+
+That bundle excludes internal-only sales and demo playbooks.

@@ -60,7 +60,7 @@
   - `OpenIntelligence/Features/*`
   - `OpenIntelligence/UI/*`
   - billing / tips / diagnostics surfaces
-- For SDK work, read `SDK_BOUNDARY_AUDIT.md` and `output/OpenIntelligence-SDK-Package/BUILD_NOTES.md` before changing target membership or packaging.
+- For SDK work, read `SDK_BOUNDARY_AUDIT.md` and `output/OpenIntelligence-SDK-Package/Internal/BUILD_NOTES.md` before changing target membership or packaging.
 
 ---
 

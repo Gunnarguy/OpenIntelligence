@@ -59,7 +59,7 @@ If you are trying to understand the SDK path quickly, start here:
   - `scripts/validate_sdk_package.sh`
 - deliverable docs:
   - `output/OpenIntelligence-SDK-Package/README.md`
-  - `output/OpenIntelligence-SDK-Package/BUILD_NOTES.md`
+  - `output/OpenIntelligence-SDK-Package/Internal/BUILD_NOTES.md`
   - `output/OpenIntelligence-SDK-Package/PACKAGE_SUMMARY.md`
 
 ## Recommended SDK Boundary
