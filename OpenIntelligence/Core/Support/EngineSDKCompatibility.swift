@@ -75,6 +75,18 @@ final class EntitlementStore {
     }
 }
 
+enum LegacyProtectionState: String, Codable, Sendable {
+    case none
+    case historicalPaidPurchase
+    case legacyDocumentPackOwner
+}
+
+enum MaximumModeExecutionDecision: Sendable {
+    case allowedUnlimited
+    case allowedMetered(remaining: Int, dailyLimit: Int)
+    case blocked(remaining: Int, dailyLimit: Int, resetsAt: Date)
+}
+
 final class ProjectionCache {
     static let shared = ProjectionCache()
 
