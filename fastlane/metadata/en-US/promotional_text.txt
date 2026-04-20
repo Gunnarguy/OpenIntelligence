@@ -1,1 +1,1 @@
-Private document Q&A for iPhone with cited answers, claim-level verification, source review, and grounded refusal when evidence is weak.
+Private neural document answers on iPhone. Import PDFs and other files, get cited answers, review the source, and see when evidence is weak.

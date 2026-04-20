@@ -11,6 +11,10 @@ ASC_KEY_ID = "JT97AQ3U4U".freeze
 ASC_ISSUER_ID = "843e4ca0-4a91-49c5-93d1-c4e336d7c43b".freeze
 ASC_KEY_PATH = File.expand_path("~/AuthKey_JT97AQ3U4U.p8").freeze
 
+# Old fastlane versions treat APP_STORE_CONNECT_API_KEY_PATH as a second
+# auth source and conflict with the explicit api_key we pass in lanes below.
+ENV.delete("APP_STORE_CONNECT_API_KEY_PATH")
+
 platform :ios do
 
   # --- Shared API key config ---
