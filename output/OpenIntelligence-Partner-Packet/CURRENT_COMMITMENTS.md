@@ -10,6 +10,7 @@ Use it to stay consistent in sales conversations.
 - The system is being shaped into a closed-source SDK / framework.
 - A dedicated `OpenIntelligenceEngine` framework target exists and builds.
 - A founder-evaluation XCFramework exists for same-toolchain trials.
+- A tiny evaluation host app path exists for local demo validation.
 - The product is strongest when the source documents are clear and internally consistent.
 - The current offer is a founder-led pilot / design partner engagement.
 
@@ -19,6 +20,7 @@ Use it to stay consistent in sales conversations.
 - The core engine boundary is real and productizable.
 - Closed-source delivery is part of the roadmap for design partners.
 - The evaluation packaging path works, but the stable toolchain-agnostic packaging path is not yet finished.
+- Same-toolchain evaluation is viable now; toolchain-agnostic handoff is later.
 
 Use language like:
 

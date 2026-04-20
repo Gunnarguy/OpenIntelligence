@@ -35,6 +35,7 @@ The design partner model includes:
 - use-case scoping
 - document-set evaluation
 - evaluation XCFramework handoff for same-toolchain testing when appropriate
+- a tiny evaluation host app path for live demo validation
 - integration planning
 - product feedback loop
 - phased delivery toward a sealed SDK / framework handoff

@@ -11,6 +11,7 @@ Currently packaged:
 - buyer-safe install and package notes
 - build and validation scripts
 - evaluation `OpenIntelligenceEngine.xcframework`
+- minimal evaluation host app project
 
 Not yet packaged:
 

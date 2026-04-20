@@ -41,6 +41,37 @@ If useful, I can send:
 Best,
 [Your Name]
 
+## Exact Founder Email
+
+Subject: Private Apple-native document intelligence for internal docs
+
+Hi [First Name],
+
+I’m building a private Apple-native document intelligence engine for teams that want grounded answers over internal document libraries without sending proprietary material to a third-party AI vendor.
+
+The value is not generic chat. It is:
+
+- private document ingestion
+- grounded Q&A over internal materials
+- source-backed answer behavior
+- abstention when support is weak
+- Apple-native deployment
+
+I’m opening a small number of founder-led design partner slots now.
+
+The current offer is not “finished self-serve SDK for everyone.”
+The current offer is a private evaluation path with:
+
+- a one-pager
+- honest delivery commitments
+- a same-toolchain evaluation XCFramework
+- direct founder support during trial and integration design
+
+If that is relevant, I can send the evaluation packet and a short outline of the partner structure.
+
+Best,
+Gunnar
+
 ## Warm Intro Blurb
 
 Gunnar has built an Apple-native private document intelligence engine that turns internal documents into a grounded Q&A layer. He is opening a few founder-led design partner slots for teams that want early access, evaluation support, and a path toward a sealed SDK delivery rather than a generic off-the-shelf AI chat tool.
@@ -68,3 +99,11 @@ If useful, I can send a private evaluation packet that includes:
 - the honest delivery and support model
 
 It is intended for same-toolchain evaluation, not yet as the final stable SDK handoff.
+
+## Send Script
+
+1. Send the short DM or warm intro blurb first.
+2. If they respond with interest, send the one-pager plus the evaluation packet.
+3. On the first real call, frame it as a founder-led evaluation, not a finished self-serve SDK.
+4. Offer the XCFramework packet only after confirming they are on a matching Xcode generation and want hands-on testing.
+5. Close toward a paid pilot or design-partner engagement, not a casual free trial.

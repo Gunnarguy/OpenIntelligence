@@ -54,3 +54,15 @@ If you need the XCFramework included in that bundle, generate it first with:
 - `./scripts/build_engine_evaluation_xcframework.sh`
 
 That bundle excludes internal-only sales and demo playbooks.
+
+## Sample Host App
+
+The private engine repo includes a minimal evaluation host app at:
+
+- `Samples/EngineEvaluationHost/`
+
+You can regenerate and build it with:
+
+- `./scripts/build_engine_evaluation_host.sh`
+
+This is meant to prove XCFramework import and a minimal API touchpoint, not to act as the final customer-facing app.

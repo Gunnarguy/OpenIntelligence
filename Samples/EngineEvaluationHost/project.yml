@@ -1,0 +1,38 @@
+name: EngineEvaluationHost
+options:
+  minimumXcodeGenVersion: 2.38.0
+settings:
+  base:
+    CLANG_CXX_LANGUAGE_STANDARD: gnu++20
+    SWIFT_VERSION: 5.0
+    DEVELOPMENT_TEAM: Z3E334EXZD
+    CODE_SIGN_STYLE: Automatic
+    FRAMEWORK_SEARCH_PATHS:
+      - $(inherited)
+      - ../../output/OpenIntelligence-SDK-Package
+      - ../../output/OpenIntelligence-SDK-Package/build/evaluation/DerivedData/Build/Intermediates.noindex/ArchiveIntermediates/OpenIntelligenceEngine/BuildProductsPath/Release-iphonesimulator
+    GENERATE_INFOPLIST_FILE: YES
+    INFOPLIST_KEY_CFBundleDisplayName: Engine Evaluation Host
+    INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+    INFOPLIST_KEY_UILaunchScreen_Generation: YES
+    INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
+    CURRENT_PROJECT_VERSION: 1
+    MARKETING_VERSION: 0.1.0
+    OTHER_SWIFT_FLAGS:
+      - $(inherited)
+      - -cxx-interoperability-mode=default
+    PRODUCT_BUNDLE_IDENTIFIER: Gunndamental.EngineEvaluationHost
+    SWIFT_INCLUDE_PATHS:
+      - $(inherited)
+      - ../../output/OpenIntelligence-SDK-Package/build/evaluation/DerivedData/Build/Intermediates.noindex/ArchiveIntermediates/OpenIntelligenceEngine/BuildProductsPath/Release-iphonesimulator
+    TARGETED_DEVICE_FAMILY: "1,2"
+targets:
+  EngineEvaluationHost:
+    type: application
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: EngineEvaluationHost
+    dependencies:
+      - framework: ../../output/OpenIntelligence-SDK-Package/OpenIntelligenceEngine.xcframework
+        embed: true
