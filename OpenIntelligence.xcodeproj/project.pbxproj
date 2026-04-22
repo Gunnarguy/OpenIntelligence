@@ -10,37 +10,16 @@
 		B016E7B52F0F5F5F00AABA0C /* Hub in Frameworks */ = {isa = PBXBuildFile; productRef = B016E7B42F0F5F5F00AABA0C /* Hub */; };
 		B016E7B72F0F5F5F00AABA0C /* Tokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = B016E7B62F0F5F5F00AABA0C /* Tokenizers */; };
 		B016E7B92F0F5F5F00AABA0C /* Transformers in Frameworks */ = {isa = PBXBuildFile; productRef = B016E7B82F0F5F5F00AABA0C /* Transformers */; };
-		E0A100012F0F5F5F00AABA0C /* Hub in Frameworks */ = {isa = PBXBuildFile; productRef = B016E7B42F0F5F5F00AABA0C /* Hub */; };
-		E0A100022F0F5F5F00AABA0C /* Tokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = B016E7B62F0F5F5F00AABA0C /* Tokenizers */; };
-		E0A100032F0F5F5F00AABA0C /* Transformers in Frameworks */ = {isa = PBXBuildFile; productRef = B016E7B82F0F5F5F00AABA0C /* Transformers */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		B0D565DE2E98AC50001274A2 /* OpenIntelligence.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OpenIntelligence.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DDFD1600670D479C7075E2C2 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
-		E0A100042F0F5F5F00AABA0C /* OpenIntelligenceEngine.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = OpenIntelligenceEngine.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
-
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		E0A100052F0F5F5F00AABA0C /* Exceptions for "OpenIntelligence" folder in "OpenIntelligenceEngine" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Services/.gitignore,
-				Services/Agentic/RAGAppIntents.swift,
-				Services/Agentic/VisualIntelligenceIntents.swift,
-				Services/Agentic/WritingToolsService.swift,
-				swift-transformers,
-			);
-			target = E0A100072F0F5F5F00AABA0C /* OpenIntelligenceEngine */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		B0D565E02E98AC50001274A2 /* OpenIntelligence */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				E0A100052F0F5F5F00AABA0C /* Exceptions for "OpenIntelligence" folder in "OpenIntelligenceEngine" target */,
-			);
 			path = OpenIntelligence;
 			sourceTree = "<group>";
 		};
@@ -54,16 +33,6 @@
 				B016E7B92F0F5F5F00AABA0C /* Transformers in Frameworks */,
 				B016E7B72F0F5F5F00AABA0C /* Tokenizers in Frameworks */,
 				B016E7B52F0F5F5F00AABA0C /* Hub in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		E0A100062F0F5F5F00AABA0C /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				E0A100032F0F5F5F00AABA0C /* Transformers in Frameworks */,
-				E0A100022F0F5F5F00AABA0C /* Tokenizers in Frameworks */,
-				E0A100012F0F5F5F00AABA0C /* Hub in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -91,7 +60,6 @@
 			isa = PBXGroup;
 			children = (
 				B0D565DE2E98AC50001274A2 /* OpenIntelligence.app */,
-				E0A100042F0F5F5F00AABA0C /* OpenIntelligenceEngine.framework */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -132,31 +100,6 @@
 			productReference = B0D565DE2E98AC50001274A2 /* OpenIntelligence.app */;
 			productType = "com.apple.product-type.application";
 		};
-		E0A100072F0F5F5F00AABA0C /* OpenIntelligenceEngine */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = E0A100102F0F5F5F00AABA0C /* Build configuration list for PBXNativeTarget "OpenIntelligenceEngine" */;
-			buildPhases = (
-				E0A100112F0F5F5F00AABA0C /* Sources */,
-				E0A100062F0F5F5F00AABA0C /* Frameworks */,
-				E0A100122F0F5F5F00AABA0C /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				B0D565E02E98AC50001274A2 /* OpenIntelligence */,
-			);
-			name = OpenIntelligenceEngine;
-			packageProductDependencies = (
-				B016E7B42F0F5F5F00AABA0C /* Hub */,
-				B016E7B62F0F5F5F00AABA0C /* Tokenizers */,
-				B016E7B82F0F5F5F00AABA0C /* Transformers */,
-			);
-			productName = OpenIntelligenceEngine;
-			productReference = E0A100042F0F5F5F00AABA0C /* OpenIntelligenceEngine.framework */;
-			productType = "com.apple.product-type.framework";
-		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -168,9 +111,6 @@
 				LastUpgradeCheck = 2620;
 				TargetAttributes = {
 					B0D565DD2E98AC50001274A2 = {
-						CreatedOnToolsVersion = 26.0;
-					};
-					E0A100072F0F5F5F00AABA0C = {
 						CreatedOnToolsVersion = 26.0;
 					};
 				};
@@ -193,7 +133,6 @@
 			projectRoot = "";
 			targets = (
 				B0D565DD2E98AC50001274A2 /* OpenIntelligence */,
-				E0A100072F0F5F5F00AABA0C /* OpenIntelligenceEngine */,
 			);
 		};
 /* End PBXProject section */
@@ -206,24 +145,10 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		E0A100122F0F5F5F00AABA0C /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		B0D565DA2E98AC50001274A2 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		E0A100112F0F5F5F00AABA0C /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -359,7 +284,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 23;
+				CURRENT_PROJECT_VERSION = 25;
 				DEVELOPMENT_TEAM = Z3E334EXZD;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -390,7 +315,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2.1.2;
+				MARKETING_VERSION = 2.6;
 				PRODUCT_BUNDLE_IDENTIFIER = Gunndamental.OpenIntelligence;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -416,7 +341,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 23;
+				CURRENT_PROJECT_VERSION = 25;
 				DEVELOPMENT_TEAM = Z3E334EXZD;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -445,7 +370,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 2.1.2;
+				MARKETING_VERSION = 2.6;
 				PRODUCT_BUNDLE_IDENTIFIER = Gunndamental.OpenIntelligence;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -462,116 +387,6 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
 				XROS_DEPLOYMENT_TARGET = 26.0;
-			};
-			name = Release;
-		};
-		E0A100082F0F5F5F00AABA0C /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				APPLICATION_EXTENSION_API_ONLY = NO;
-				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
-				CODE_SIGN_STYLE = Automatic;
-				DEFINES_MODULE = YES;
-				DEVELOPMENT_TEAM = Z3E334EXZD;
-				EXCLUDED_SOURCE_FILE_NAMES = (
-					"App/**",
-					Core/Extensions/MarkdownRenderer.swift,
-					"Features/*",
-					"Features/*/*",
-					"Features/*/*/*",
-					"Features/*/*/*/*",
-					"Resources/StoreKit/**",
-					"UI/*",
-					"UI/*/*",
-					Services/Agentic/RAGAppIntents.swift,
-					Services/Agentic/VisualIntelligenceIntents.swift,
-					Services/Agentic/WritingToolsService.swift,
-					"Services/Billing/**",
-					"Services/Infrastructure/Background/**",
-					Services/Infrastructure/Integration/ImagePlaygroundService.swift,
-					"Services/Infrastructure/Presentation/**",
-					"Services/Infrastructure/Tips/**",
-				);
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = OpenIntelligenceEngine;
-				INFOPLIST_KEY_CFBundleName = OpenIntelligenceEngine;
-				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@loader_path/Frameworks",
-				);
-				MARKETING_VERSION = 1.0.0;
-				PRODUCT_BUNDLE_IDENTIFIER = Gunndamental.OpenIntelligenceEngine;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				SKIP_INSTALL = NO;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) OPENINTELLIGENCE_ENGINE_SDK";
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OBJC_INTEROP_MODE = objcxx;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Debug;
-		};
-		E0A100092F0F5F5F00AABA0C /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				APPLICATION_EXTENSION_API_ONLY = NO;
-				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
-				CODE_SIGN_STYLE = Automatic;
-				DEFINES_MODULE = YES;
-				DEVELOPMENT_TEAM = Z3E334EXZD;
-				EXCLUDED_SOURCE_FILE_NAMES = (
-					"App/**",
-					Core/Extensions/MarkdownRenderer.swift,
-					"Features/*",
-					"Features/*/*",
-					"Features/*/*/*",
-					"Features/*/*/*/*",
-					"Resources/StoreKit/**",
-					"UI/*",
-					"UI/*/*",
-					Services/Agentic/RAGAppIntents.swift,
-					Services/Agentic/VisualIntelligenceIntents.swift,
-					Services/Agentic/WritingToolsService.swift,
-					"Services/Billing/**",
-					"Services/Infrastructure/Background/**",
-					Services/Infrastructure/Integration/ImagePlaygroundService.swift,
-					"Services/Infrastructure/Presentation/**",
-					"Services/Infrastructure/Tips/**",
-				);
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = OpenIntelligenceEngine;
-				INFOPLIST_KEY_CFBundleName = OpenIntelligenceEngine;
-				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@loader_path/Frameworks",
-				);
-				MARKETING_VERSION = 1.0.0;
-				PRODUCT_BUNDLE_IDENTIFIER = Gunndamental.OpenIntelligenceEngine;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				SKIP_INSTALL = NO;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) OPENINTELLIGENCE_ENGINE_SDK";
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OBJC_INTEROP_MODE = objcxx;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
 		};
@@ -592,15 +407,6 @@
 			buildConfigurations = (
 				B0D565EA2E98AC51001274A2 /* Debug */,
 				B0D565EB2E98AC51001274A2 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		E0A100102F0F5F5F00AABA0C /* Build configuration list for PBXNativeTarget "OpenIntelligenceEngine" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				E0A100082F0F5F5F00AABA0C /* Debug */,
-				E0A100092F0F5F5F00AABA0C /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

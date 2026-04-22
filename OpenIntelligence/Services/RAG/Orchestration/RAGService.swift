@@ -8486,7 +8486,8 @@ class RAGService: ObservableObject {
                             prompt: promptForGeneration,
                             context: generationContext,
                             config: genConfig,
-                            sourceChunks: generationChunks
+                            sourceChunks: generationChunks,
+                            allowStructuredRAG: true
                         )
                     }
                 } else {
@@ -8501,7 +8502,8 @@ class RAGService: ObservableObject {
                             prompt: promptForGeneration,
                             context: generationContext,
                             config: genConfig,
-                            sourceChunks: generationChunks
+                            sourceChunks: generationChunks,
+                            allowStructuredRAG: true
                         )
                     } catch {
                     // Check if this is a context overflow error
@@ -8557,7 +8559,8 @@ class RAGService: ObservableObject {
                                 prompt: promptForGeneration,
                                 context: generationContext,
                                 config: retryConfig,
-                                sourceChunks: generationChunks
+                                sourceChunks: generationChunks,
+                                allowStructuredRAG: true
                             )
                         } else {
                             // Other error - just rethrow
@@ -8664,7 +8667,8 @@ class RAGService: ObservableObject {
                                 prompt: promptForGeneration,
                                 context: generationContext,
                                 config: retryConfig,
-                                sourceChunks: generationChunks
+                                sourceChunks: generationChunks,
+                                allowStructuredRAG: true
                             )
                         } else {
                             // Other error - just rethrow
@@ -9058,6 +9062,7 @@ class RAGService: ObservableObject {
                             responseEmbedding: responseEmbedding,
                             queryEmbedding: queryEmbedding,
                             chunkEmbeddings: validChunkEmbeddings.isEmpty ? nil : chunkEmbeddings,
+                            structuredClaims: llmResponse.structuredRAGGeneration?.claims,
                             answerIntent: answerIntent
                         )
                         verificationTime = Date().timeIntervalSince(verificationStartTime)
@@ -9305,6 +9310,7 @@ class RAGService: ObservableObject {
                         retrievedChunks: generationRetrievedChunks,
                         answerIntent: answerIntent,
                         verificationResult: verificationResult,
+                        structuredGeneration: llmResponse.structuredRAGGeneration,
                         loops: reasoningTraceForMetadata?.count ?? 1
                     )
 
@@ -9475,7 +9481,15 @@ class RAGService: ObservableObject {
                     queryId: ragQueryValue.id,
                     retrievedChunks: [], // No chunks in direct chat mode
                     generatedResponse: llmResponse.text,
-                    metadata: metadata
+                    metadata: metadata,
+                    structuredAnswer: StructuredAnswer.from(
+                        response: llmResponse.text,
+                        retrievedChunks: [],
+                        answerIntent: QueryEnhancementService().classifyAnswerIntent(question),
+                        verificationResult: nil,
+                        structuredGeneration: llmResponse.structuredRAGGeneration,
+                        loops: 1
+                    )
                 )
 
                 let totalTime = Date().timeIntervalSince(pipelineStartTime)
@@ -10107,6 +10121,7 @@ class RAGService: ObservableObject {
                     retrievedChunks: retrievedChunks,
                     answerIntent: answerIntent,
                     verificationResult: nil,
+                    structuredGeneration: nil,
                     loops: 1
                 )
             )
@@ -10146,6 +10161,7 @@ class RAGService: ObservableObject {
                     retrievedChunks: retrievedChunks,
                     answerIntent: answerIntent,
                     verificationResult: nil,
+                    structuredGeneration: nil,
                     loops: 1
                 )
             )
@@ -10187,7 +10203,8 @@ class RAGService: ObservableObject {
                 reason: responseText,
                 missing: [reason],
                 topScore: retrievedChunks.first?.similarityScore ?? 0,
-                loops: 1
+                loops: 1,
+                retrievedChunks: retrievedChunks
             )
         )
     }
@@ -10434,7 +10451,8 @@ class RAGService: ObservableObject {
                 prompt: fallbackPrompt,
                 context: fallbackContext.isEmpty ? nil : fallbackContext,
                 config: fallbackConfig,
-                sourceChunks: sourceChunks
+                sourceChunks: sourceChunks,
+                allowStructuredRAG: true
             )
             let metadata = ResponseMetadata(
                 timeToFirstToken: llmResponse.timeToFirstToken,
@@ -10460,6 +10478,7 @@ class RAGService: ObservableObject {
                     retrievedChunks: usedRetrieved,
                     answerIntent: QueryEnhancementService().classifyAnswerIntent(question),
                     verificationResult: nil,
+                    structuredGeneration: llmResponse.structuredRAGGeneration,
                     loops: 1
                 )
             )
@@ -10516,6 +10535,7 @@ class RAGService: ObservableObject {
                 retrievedChunks: usedRetrieved,
                 answerIntent: QueryEnhancementService().classifyAnswerIntent(question),
                 verificationResult: nil,
+                structuredGeneration: nil,
                 loops: 1
             )
         )
@@ -10594,7 +10614,15 @@ class RAGService: ObservableObject {
             generatedResponse: llmResponse.text,
             metadata: metadata,
             confidenceScore: 1.0,
-            qualityWarnings: warnings
+            qualityWarnings: warnings,
+            structuredAnswer: StructuredAnswer.from(
+                response: llmResponse.text,
+                retrievedChunks: [],
+                answerIntent: QueryEnhancementService().classifyAnswerIntent(question),
+                verificationResult: nil,
+                structuredGeneration: llmResponse.structuredRAGGeneration,
+                loops: 1
+            )
         )
 
         let totalTime = Date().timeIntervalSince(pipelineStartTime)
@@ -11230,7 +11258,8 @@ class RAGService: ObservableObject {
         prompt: String,
         context: String?,
         config: InferenceConfig,
-        sourceChunks: [DocumentChunk] = []
+        sourceChunks: [DocumentChunk] = [],
+        allowStructuredRAG: Bool = false
     ) async throws -> LLMResponse {
         let upstreamHandler = LLMStreamingContext.handler
 
@@ -11342,11 +11371,42 @@ class RAGService: ObservableObject {
                         allowPrivateCloudCompute: config.allowPrivateCloudCompute
                     )
 
-                    let response = try await service.generate(
-                        prompt: prompt,
-                        context: context,
-                        config: config
-                    )
+                    let response: LLMResponse
+                    if allowStructuredRAG,
+                       #available(iOS 26.0, *),
+                       let appleService = service as? AppleFoundationLLMService,
+                       let context,
+                       !context.isEmpty,
+                       !sourceChunks.isEmpty {
+                        let systemChars = (config.systemPrompt ?? "").count
+                        let estimatedInputTokens = Int(ceil(Double(context.count + prompt.count + systemChars + 180) / 1.4))
+                        let structuredSchemaTokens = 220
+                        let structuredOutputReserve = min(max(config.maxTokens, 180), 360)
+                        let withinStructuredBudget = estimatedInputTokens + structuredSchemaTokens + structuredOutputReserve <= 3600
+
+                        if withinStructuredBudget {
+                            Log.info("[RAG] Using constrained structured answer generation", category: .llm)
+                            response = try await appleService.generateStructuredRAGAnswer(
+                                prompt: prompt,
+                                context: context,
+                                config: config,
+                                sourceCount: sourceChunks.count
+                            )
+                        } else {
+                            Log.debug("[RAG] Structured answer generation skipped due to token budget (~\(estimatedInputTokens) input tokens)", category: .llm)
+                            response = try await service.generate(
+                                prompt: prompt,
+                                context: context,
+                                config: config
+                            )
+                        }
+                    } else {
+                        response = try await service.generate(
+                            prompt: prompt,
+                            context: context,
+                            config: config
+                        )
+                    }
 
                     // ── Post-generation: check if StreamCapture detected a loop ──
                     if await streamCapture.isRepetitionDetected() {

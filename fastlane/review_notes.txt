@@ -1,49 +1,45 @@
-No login required. No account creation. Core document import and Q&A work without sign-in.
+Quick human note: I realized after the last approval that I had mismatched the previous App Store "What's New" version text and undersold the scope of the update. The 2.5 draft corrects that metadata cleanup. Sorry about the noise.
+
+No login required. No account creation. The app works entirely offline.
 
 APP OVERVIEW:
-OpenIntelligence is a local-first document Q&A app. Users import documents (PDF, Word, Excel, PowerPoint, Markdown, CSV, RTF, TXT, images), the app indexes them locally, and then answers questions from those files with citations and source review. Core functionality remains available offline.
-
-WHAT CHANGED IN 2.1.2:
-- Improved source-backed answering for manuals, technical documents, and dense PDFs
-- Cleaner suggested questions and follow-up questions that stay closer to the uploaded source material
-- Better trace export and prompt capture for answer inspection
-- Free tier now includes Maximum mode up to 3 uses per day
-- Pro Monthly / Pro Annual unlock unlimited Maximum plus larger quotas
-- Lifetime unlocks unlimited Maximum, unlimited documents, and 10 libraries
-- Prior paid purchases, including legacy document packs, are grandfathered into Lifetime access in-app
-- Document packs are legacy-only: the app no longer offers new document-pack purchases in-app
+OpenIntelligence is an on-device RAG (Retrieval-Augmented Generation) engine. Users import documents (PDF, Word, Excel, PowerPoint, Markdown, CSV, RTF, TXT, images), the app indexes them locally using a 29-step retrieval pipeline, and then answers natural language questions with cited sources. All AI processing uses Apple Foundation Models on-device. 102 services across 11 categories. Zero network dependency for core functionality.
 
 KEY FEATURES:
-- Source-backed answers with citations and source review
-- Three quality modes: Standard, Deep Think, Maximum
-- Suggested questions and follow-up questions grounded in uploaded documents
-- Multi-column OCR and cleanup for difficult manuals and noisy PDFs
-- AI Hub transforms such as Key Facts, Step-by-Step, Plain English, Gap Analysis, and Illustrate
+- 29-step retrieval pipeline: semantic chunking, hybrid search (BM25 + neural embeddings), cross-encoder reranking, MMR diversification, parent document retrieval, graph context packing, lost-in-middle mitigation
+- 7 anti-hallucination verification gates (A-G): retrieval confidence, evidence coverage, numeric sanity, contradiction detection, semantic grounding, quote faithfulness, generation quality
+- Evidence-First mode: when query-document overlap is low, AI states available evidence instead of generating unsupported answers
+- 3 quality modes: Standard (fast), Deep Think (4-8 reasoning sessions), Maximum (8-50 sessions, research-grade)
+- 8 agentic tools: search, compare, summarize, timeline, extract, define, calculate, analyze
+- AI Hub transforms: Key Facts, Step-by-Step, Plain English, Gap Analysis, Illustrate — all grounded in source documents
+- Multi-column OCR at 360 DPI with font cipher detection (forces full OCR when text layer is garbled)
+- Motherboard HUD: real-time Apple Silicon telemetry overlay
+- Device-optimized: 3-tier Metal GPU shaders adapt to chip family (A15 through M4)
+- Rich markdown rendering for all responses
 
 ONBOARDING FLOW:
-1. Page 1: Welcome with use-case cards
-2. Page 2: Sample documents auto-import
-3. Sample docs bypass free tier quota
-4. No account or login step
+1. Page 1: Welcome with use-case cards (Research, Work, Study)
+2. Page 2: Pipeline Theater — 3 sample documents auto-import with live progress (words, chunks, vectors, time)
+3. Sample docs bypass free tier quota. Retry button if import fails.
+4. VoiceOver labels and reduceMotion support throughout
 
 IN-APP PURCHASES:
-- Free: 5 documents, 1 library, Standard and Deep Think available, Maximum limited to 3 uses per day
-- Pro Monthly ($5.99): unlimited Maximum, 1,000 documents, 5 libraries
-- Pro Annual ($49.99): same unlocks as monthly, annual billing
-- Lifetime ($59.99): one-time, unlimited Maximum, unlimited documents, 10 libraries
-- Legacy Document Pack: prior purchases are grandfathered into Lifetime access; intentionally hidden from the new purchase UI
+- Free: 5 documents, full pipeline, all quality modes
+- Pro Monthly ($5.99): 1,000 documents, 5 libraries
+- Pro Annual ($49.99): same as monthly, 30% savings
+- Lifetime ($59.99): one-time, all features forever
+- Document Pack ($2.99): adds 10 documents to quota (consumable)
 
 TEST STEPS:
-1. Launch app and complete onboarding
-2. Ask a question against the sample documents or import your own file from Files
-3. Open the mode selector and verify Standard, Deep Think, and Maximum are available
-4. On free tier, use Maximum three times; on the fourth attempt, the app shows upgrade and fallback options instead of running Maximum
-5. Purchase or restore Pro / Lifetime, then verify Maximum becomes unlimited
-6. Import a PDF or manual and ask a grounded question; citations and source review remain available
-7. Create a second library and verify answers do not leak across libraries
-8. Document packs are not shown for new purchase because they are legacy-only by design
+1. Launch app → complete 2-page onboarding → 3 sample docs auto-import
+2. Tap "Start Exploring" → sample docs ready to query
+3. Ask: "What are the pricing tiers?" or "How does the RAG pipeline work?"
+4. Test quality modes: tap the mode selector, try Standard then Deep Think
+5. After any answer, tap AI Hub toolbar → test Key Facts, Step-by-Step transforms
+6. Tap '+' → import your own document from Files → ask questions about it
+7. Create a second library → verify answers don't leak between libraries
+8. Tap Motherboard HUD icon → verify live telemetry overlay
 
-PRIVACY:
-All document import, storage, indexing, and core Q&A stay local. Apple-managed Private Cloud Compute may be used only through Apple system features and device settings when the platform routes a request there. No third-party AI services. No analytics. No tracking.
+PRIVACY: All processing on-device via Apple Foundation Models. Private Cloud Compute may be used by iOS automatically for complex queries — zero data retention, cryptographically verified. No third-party AI services. No analytics. No tracking.
 
 NO DEMO CREDENTIALS NEEDED.

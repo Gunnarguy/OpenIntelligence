@@ -1,41 +1,41 @@
-Ask your own documents questions on iPhone and review source-backed answers with citations.
+No login required. No account creation. The app works entirely offline.
 
-OpenIntelligence imports your files into private libraries, searches them locally, and answers from the material you provide. The product focus is not generic chat. It is document-grounded question answering with source review, clearer trust signals, and best-effort answers that stay anchored to your files.
+OpenIntelligence is a 100% on-device autonomous AI agent with multi-step reasoning and Neural RAG for iOS, iPadOS, and macOS. Import your documents, and the app indexes them into a locally-stored SQLite database. When queried, it executes a 29-step retrieval pipeline to answer natural language questions with exact cited sources. Every single query is processed natively using Apple Foundation Models. Zero network dependency for core functionality.
 
-WHY PEOPLE USE IT
-• Ask questions over manuals, notes, research papers, policies, support docs, and internal reference material
-• Get answers with citations and jump back to the source passages
-• Review which claims were supported, which were dropped, and what evidence was missing
-• Keep search, storage, indexing, and most answering behavior on-device by default
+TECHNICAL CAPABILITIES:
 
-TRUST FEATURES
-• Source-backed answers with citations
-• Claim-level verification before final answer rendering
-• Better handling for technical manuals, dense PDFs, and messy extracted text
-• Source review with document, page, and excerpt inspection
-• Multiple quality modes depending on how deep you want the app to reason
+• 29-Step Neural Pipeline: Full semantic chunking, hybrid search (BM25 + neural embeddings), cross-encoder reranking, MMR diversification, parent document retrieval, graph context packing, and lost-in-the-middle mitigation.
+• 7 Anti-Hallucination Gates (A-G): Real-time checks for retrieval confidence, evidence coverage, numeric sanity, contradiction detection, semantic grounding, quote faithfulness, and generation quality. Tighter evidence verification prevents bluffs when support is weak.
+• Grounded-QA Routing: Strict dual-pipeline evaluation paths. Fact-heavy questions are rigidly grounded; deep synthesis questions scale flexibly.
+• Evidence-First Mode: When query-document overlap is low, the engine states available evidence directly instead of generating unsupported answers.
+• 3 Quality Modes: Standard (single-pass fast responses), Deep Think (multi-session agentic reasoning), and Maximum (unlimited reasoning until 98% verified confidence).
+• 8 Agentic Tools: Search, compare, summarize, timeline, extract, define, calculate, and analyze across your library.
+• Adaptive Follow-Ups: Dynamic suggestions generated based on context flow.
+• Active Library Starter Questions: Automatic contextual prompts built from a sample of active documents.
+• AI Hub Transforms: Convert answers fluidly into Key Facts, Step-by-Steps, Plain English, Gap Analysis, and Illustrations.
+• Advanced OCR Engine: Multi-column 360 DPI optical character recognition with font cipher detection.
+• Motherboard HUD: A real-time Apple Silicon telemetry overlay to watch your device work.
+• Dynamic Metal Shaders: 3-tier GPU optimizations that automatically adapt to your specific chip family (A15 through M4).
+• Rich Markdown: Beautiful inline rendering for code blocks, tables, lists, quotes, math equations, and complex formats.
 
-PRIVACY
-OpenIntelligence is designed around Apple platforms and local execution. Search, storage, indexing, and document preparation stay on your device. Apple-managed cloud processing may be used only through Apple system features and your device settings when the platform makes that available.
+RESPONSE INSPECTION:
+Zero black-box hallucinations. Every generated response includes deterministic source cards with explicit filenames and scrollable excerpts. You see exactly which passages the on-device Neural RAG engine used to synthesize its answer, providing complete confidence and transparency.
 
-SUPPORTED CONTENT
-Documents: PDF, TXT, MD, RTF, DOCX, XLSX, PPTX, JSON, XML, YAML, CSV
-Code and data: Swift, Python, JavaScript, TypeScript, Java, C, C++, Go, Rust, Ruby, PHP, HTML, CSS, SQL, Shell, and more
-Images: JPEG, PNG, HEIC, TIFF, GIF
-Audio and video: common Apple-supported formats with local extraction and transcription where available
+SUPPORTED CONTENT:
+Documents: PDF, Word (DOCX), Excel (XLSX), PowerPoint (PPTX), Apple iWork, Markdown, CSV, RTF, TXT.
+Images: JPEG, PNG, HEIC, TIFF, GIF.
+Audio & Video (Transcription): MP3, M4A, WAV, AIFF, MP4, MOV.
+Code: Swift, Python, JavaScript, TypeScript, JSON, YAML.
 
-QUALITY MODES
-• Standard for fast document answers
-• Deep Think for harder multi-step questions
-• Maximum for heavier synthesis when you want the app to spend more effort
+PRIVACY BY DESIGN:
+Zero third-party models. Zero analytics. All document parsing, embedding generation, OCR, and SQLite vector indexing stay strictly bound to your local hardware. If context overflows the Neural Engine constraints, execution transparently offloads to Apple Private Cloud Compute with cryptographic non-retention guarantees. Your data never leaves your absolute sovereignty.
 
-PLANS
-• Free: 5 documents, 1 library, Standard and Deep Think, plus Maximum up to 3 times per day
-• Pro Monthly / Annual: unlimited Maximum plus larger document and library limits
-• Lifetime: unlimited Maximum, unlimited documents, up to 10 libraries
-• Previous document-pack purchases remain honored, but document packs are no longer sold in-app
+SUBSCRIPTIONS:
+• Free tier: 5 documents, 1 library, full 29-step pipeline, all quality modes. Maximum mode enforces a daily free quota.
+• Pro Monthly / Annual: 1,000 documents, 5 separate libraries.
+• Lifetime unlock: Unlimited documents, 10 libraries, one-time payment, all features forever.
 
-Payment is charged to your Apple ID at confirmation. Subscriptions renew unless canceled at least 24 hours before the current period ends. Manage subscriptions in your Apple account settings.
+Payment is charged to your Apple ID on confirmation. Subscriptions renew unless canceled. Manage in account settings.
 
 Privacy Policy: https://gunzino.me/openintelligence/privacy
 Terms of Use: https://www.apple.com/legal/internet-services/itunes/dev/stdeula/

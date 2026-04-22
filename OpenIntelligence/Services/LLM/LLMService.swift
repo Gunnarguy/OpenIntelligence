@@ -81,6 +81,21 @@ struct LLMStreamEvent: Sendable {
 
 typealias LLMStreamHandler = @Sendable (LLMStreamEvent) async -> Void
 
+struct StructuredRAGClaim: Sendable {
+    let claim: String
+    let citations: [String]
+    let isExtracted: Bool
+}
+
+struct StructuredRAGGeneration: Sendable {
+    let reasoning: String?
+    let answer: String
+    let confidence: Int
+    let citations: [String]
+    let matchedTerms: [String]
+    let claims: [StructuredRAGClaim]
+}
+
 enum LLMStreamingContext {
     @TaskLocal static var handler: LLMStreamHandler?
 
@@ -376,6 +391,25 @@ struct LLMResponse {
     let totalTime: TimeInterval
     let modelName: String? // Actual model used (includes execution location)
     let toolCallsMade: Int // Number of tool calls executed (for agentic RAG metrics)
+    let structuredRAGGeneration: StructuredRAGGeneration?
+
+    init(
+        text: String,
+        tokensGenerated: Int,
+        timeToFirstToken: TimeInterval?,
+        totalTime: TimeInterval,
+        modelName: String?,
+        toolCallsMade: Int,
+        structuredRAGGeneration: StructuredRAGGeneration? = nil
+    ) {
+        self.text = text
+        self.tokensGenerated = tokensGenerated
+        self.timeToFirstToken = timeToFirstToken
+        self.totalTime = totalTime
+        self.modelName = modelName
+        self.toolCallsMade = toolCallsMade
+        self.structuredRAGGeneration = structuredRAGGeneration
+    }
 
     var tokensPerSecond: Float? {
         guard totalTime > 0 else { return nil }
@@ -401,6 +435,11 @@ struct LLMResponse {
         /// Pending transcript to restore on next session creation.
         /// Set via `restoreFromTranscript(_:)` and consumed by `ensureSession()`.
         private var pendingTranscript: Transcript?
+
+        private static let structuredCitationRegex = try? NSRegularExpression(
+            pattern: #"S(\d+)"#,
+            options: [.caseInsensitive]
+        )
 
         /// Tool handler for agentic RAG function calling
         var toolHandler: RAGToolHandler?
@@ -1364,6 +1403,178 @@ struct LLMResponse {
                 modelName: executionBasedModelName,
                 toolCallsMade: toolCalls
             )
+        }
+
+        @MainActor
+        func generateStructuredRAGAnswer(
+            prompt: String,
+            context: String,
+            config: InferenceConfig,
+            sourceCount: Int
+        ) async throws -> LLMResponse {
+            guard sourceCount > 0 else {
+                throw LLMError.generationFailed("Structured generation requires source excerpts")
+            }
+
+            if !supportsCurrentLocale {
+                let currentLocale = Locale.current.identifier
+                Log.warning("Current locale '\(currentLocale)' not supported by Apple Intelligence — structured generation may degrade", category: .llm)
+            }
+
+            session = nil
+            if let newPrompt = config.systemPrompt, newPrompt != currentSystemPrompt {
+                currentSystemPrompt = nil
+            }
+
+            var structuredConfig = config
+            structuredConfig.disableTools = true
+            try ensureSession(systemPrompt: structuredConfig.systemPrompt, disableTools: true)
+
+            guard let session else {
+                throw LLMError.modelUnavailable
+            }
+
+            let startTime = Date()
+            let sanitizedPrompt = sanitizeForLanguageDetection(prompt)
+            let sanitizedContext = sanitizeForLanguageDetection(context)
+            let fullPrompt = """
+            CONTEXT:
+            \(sanitizedContext)
+
+            QUESTION: \(sanitizedPrompt)
+
+            Return grounded fields only.
+            - `reasoning`: concise grounded reasoning based only on the excerpts
+            - `answer`: direct answer from the excerpts
+            - `confidence`: 0-100 based only on excerpt support
+            - `citations`: source ids like [S1], [S2]
+            - `claims`: atomic answer claims with supporting source ids per claim
+            - `matchedTerms`: exact query terms supported by the excerpts
+            """
+
+            let response: LanguageModelSession.Response<RAGAnswer>
+            do {
+                response = try await session.respond(to: fullPrompt, generating: RAGAnswer.self)
+            } catch let error as LanguageModelSession.GenerationError {
+                switch error {
+                case let .exceededContextWindowSize(context):
+                    Log.warning("[FM] Structured context window exceeded: \(context)", category: .llm)
+                    throw error
+                case let .guardrailViolation(context):
+                    Log.warning("[FM] Structured guardrail violation: \(context)", category: .llm)
+                    throw LLMError.generationFailed("Structured answer was filtered by Apple Intelligence guardrails.")
+                case let .unsupportedLanguageOrLocale(context):
+                    Log.warning("[FM] Structured unsupported language/locale: \(context)", category: .llm)
+                    throw LLMError.generationFailed("Apple Intelligence does not support the current language/locale for structured generation.")
+                case let .rateLimited(context):
+                    Log.warning("[FM] Structured generation rate limited: \(context)", category: .llm)
+                    throw LLMError.rateLimited("Apple Intelligence is temporarily rate-limited. Please wait a moment and try again.")
+                case let .refusal(refusal, context):
+                    Log.warning("[FM] Structured generation refusal: \(refusal) - \(context)", category: .llm)
+                    throw LLMError.generationFailed("Apple Intelligence declined the structured answer request.")
+                case let .assetsUnavailable(context):
+                    Log.error("[FM] Structured generation assets unavailable: \(context)", category: .llm)
+                    throw LLMError.generationFailed("Apple Intelligence models are not currently available.")
+                case let .decodingFailure(context):
+                    Log.error("[FM] Structured generation decoding failure: \(context)", category: .llm)
+                    throw LLMError.generationFailed("Failed to decode the structured response.")
+                case let .concurrentRequests(context):
+                    Log.warning("[FM] Structured concurrent request blocked: \(context)", category: .llm)
+                    throw LLMError.concurrentRequests("A request is already in progress. Please wait for it to complete.")
+                case let .unsupportedGuide(context):
+                    Log.error("[FM] Structured unsupported guide: \(context)", category: .llm)
+                    throw LLMError.generationFailed("Unsupported structured generation guide.")
+                @unknown default:
+                    Log.error("[FM] Structured generation error: \(error)", category: .llm)
+                    throw error
+                }
+            }
+
+            let normalizedCitations = normalizeStructuredCitations(response.content.citations, maxSourceCount: sourceCount)
+            let reasoningText = response.content.reasoning.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+            let answerText = response.content.answer.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+            let matchedTerms = response.content.matchedTerms
+                .map { $0.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            let structuredClaims = response.content.claims.compactMap { claim -> StructuredRAGClaim? in
+                let claimText = claim.claim.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+                guard !claimText.isEmpty else { return nil }
+                return StructuredRAGClaim(
+                    claim: claimText,
+                    citations: normalizeStructuredCitations(claim.citations, maxSourceCount: sourceCount),
+                    isExtracted: claim.isExtracted
+                )
+            }
+
+            guard !answerText.isEmpty else {
+                throw LLMError.generationFailed("Structured answer was empty")
+            }
+
+            let effectiveClaims: [StructuredRAGClaim]
+            if structuredClaims.isEmpty {
+                effectiveClaims = [StructuredRAGClaim(
+                    claim: answerText,
+                    citations: normalizedCitations,
+                    isExtracted: false
+                )]
+            } else {
+                effectiveClaims = Array(structuredClaims.prefix(6))
+            }
+
+            let citationFooter: String
+            if normalizedCitations.isEmpty || answerText.contains("[S") {
+                citationFooter = ""
+            } else {
+                citationFooter = "\n\nSources: " + normalizedCitations.joined(separator: " ")
+            }
+
+            let finalText = answerText + citationFooter
+            if !finalText.isEmpty {
+                LLMStreamingContext.emit(text: finalText, isFinal: false)
+            }
+            LLMStreamingContext.emit(text: "", isFinal: true)
+
+            let totalTime = Date().timeIntervalSince(startTime)
+            let estimatedTokens = max(1, Int(ceil(Double(finalText.count) / 1.4)))
+
+            return LLMResponse(
+                text: finalText,
+                tokensGenerated: estimatedTokens,
+                timeToFirstToken: nil,
+                totalTime: totalTime,
+                modelName: "\(modelName) (Structured)",
+                toolCallsMade: 0,
+                structuredRAGGeneration: StructuredRAGGeneration(
+                    reasoning: reasoningText.isEmpty ? nil : reasoningText,
+                    answer: answerText,
+                    confidence: response.content.confidence,
+                    citations: normalizedCitations,
+                    matchedTerms: matchedTerms,
+                    claims: effectiveClaims
+                )
+            )
+        }
+
+        private func normalizeStructuredCitations(_ citations: [String], maxSourceCount: Int) -> [String] {
+            guard maxSourceCount > 0 else { return [] }
+            var seen: Set<Int> = []
+            var normalized: [String] = []
+
+            for citation in citations {
+                guard let regex = Self.structuredCitationRegex else { continue }
+                let nsRange = NSRange(citation.startIndex..<citation.endIndex, in: citation)
+                for match in regex.matches(in: citation, options: [], range: nsRange) {
+                    guard let range = Range(match.range(at: 1), in: citation),
+                          let index = Int(citation[range]),
+                          (1...maxSourceCount).contains(index),
+                          !seen.contains(index)
+                    else { continue }
+                    seen.insert(index)
+                    normalized.append("[S\(index)]")
+                }
+            }
+
+            return normalized
         }
 
         /// Detects if a response was cut off mid-sentence or mid-thought

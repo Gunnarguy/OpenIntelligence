@@ -113,6 +113,10 @@ Library/Developer/CoreSimulator/Devices/
 
 # Bundle artifacts that should not be source-controlled
 *.xcarchive
+output/OpenIntelligence-SDK-Package/build/
+output/OpenIntelligence-SDK-Package/**/*.zip
+output/OpenIntelligence-SDK-Package/**/DerivedData/
+output/OpenIntelligence-SDK-Package/**/SDKStatCaches.noindex/
 
 # Python Virtual Environments
 .venv/

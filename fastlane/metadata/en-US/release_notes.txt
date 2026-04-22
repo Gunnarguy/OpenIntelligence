@@ -1,14 +1,18 @@
-Version 2.1.2
+Version 2.6
 
-This release improves grounded answers, cleans up suggestions, and updates plan access around Maximum mode.
+Massive new capabilities: You can now chat directly with Audio, Video, Code, and Office files natively and 100% offline. 
 
-- Better grounded answers for manuals, technical PDFs, and source-backed document questions
-- Fewer generic dead-end refusals when your documents partially support an answer
-- Suggested and follow-up questions now stay closer to the actual source passages and avoid placeholder or self-answering prompts
-- Better prompt capture, trace export, and answer review detail for inspecting how a response was produced
-- Better cleanup for messy PDFs, multi-column manuals, and chunking edge cases
-- Better rendering for links, tables, and answer review surfaces
-- Free now includes Maximum up to 3 times per day
-- Pro and Lifetime now unlock unlimited Maximum
-- Prior paid purchases, including legacy document packs, are grandfathered into Lifetime access in-app
-- Document packs remain honored for prior purchasers, but new document-pack sales are retired in-app
+Since 2.1:
+- Starter questions now come from representative samples of your active library, so the opening prompts better match the documents and sections you're actually working with.
+- Refreshing starter questions does a better job surfacing different grounded prompts instead of repeating the same generic ideas.
+- Follow-up suggestions are more reliable after each answer and when switching libraries, including deeper follow-up, clarification, and comparison flows.
+- Answers now go through stronger grounded-QA routing before they are shown, using a stricter path for fact-heavy questions and a more constrained synthesis path when needed.
+- Evidence verification is tighter before final answer presentation, so the app is less willing to bluff when support is weak.
+- Weakly supported answers are handled more clearly, with better answer review and source inspection when you need to check what was actually grounded.
+- Response details are easier to inspect, with better source cards, clearer filenames, and scrollable excerpts for dense passages.
+- Tables, lists, quotes, headings, separators, and other structured technical output render much better.
+- Malformed links in generated answers are repaired more aggressively.
+- PDF imports do a better job filtering garbage text and noisy extraction on messier files.
+- Maximum mode now has a real daily free-use quota path with clearer paid-tier behavior.
+- Historical paid users are protected more generously in entitlement handling.
+- Settings, billing, and plan messaging were cleaned up to better match the actual entitlement model.

@@ -281,6 +281,17 @@ struct ExtendedDocumentPicker: UIViewControllerRepresentable {
             .text,
             UTType(filenameExtension: "md") ?? .plainText,
             .rtf,
+            // Office & Productivity
+            UTType(filenameExtension: "doc") ?? .data,
+            UTType(filenameExtension: "docx") ?? .data,
+            UTType(filenameExtension: "xls") ?? .data,
+            UTType(filenameExtension: "xlsx") ?? .data,
+            UTType(filenameExtension: "ppt") ?? .data,
+            UTType(filenameExtension: "pptx") ?? .data,
+            UTType(filenameExtension: "pages") ?? .data,
+            UTType(filenameExtension: "numbers") ?? .data,
+            UTType(filenameExtension: "key") ?? .data,
+            .commaSeparatedText,
             // Images
             .image,
             .jpeg,
@@ -293,16 +304,15 @@ struct ExtendedDocumentPicker: UIViewControllerRepresentable {
             UTType(filenameExtension: "js") ?? .sourceCode,
             UTType(filenameExtension: "ts") ?? .sourceCode,
             UTType(filenameExtension: "json") ?? .json,
+            UTType(filenameExtension: "html") ?? .html,
             .json,
-            // Spreadsheets
-            .commaSeparatedText,
             // Audio (for transcription)
             .audio,
             .mp3,
             UTType(filenameExtension: "m4a") ?? .audio,
             .wav,
-                // Video (for transcription)
-                .movie,
+            // Video (for transcription)
+            .movie,
             .mpeg4Movie,
             .quickTimeMovie,
         ])

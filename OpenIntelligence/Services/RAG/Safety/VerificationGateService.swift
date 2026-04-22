@@ -24,6 +24,7 @@ import Accelerate
 struct RAGVerificationResult: Sendable {
     let passed: Bool
     let gateResults: [GateResult]
+    let claimResults: [ClaimResult]
     let overallConfidence: Float
     let shouldAbstain: Bool
     let abstainReason: String?
@@ -34,6 +35,21 @@ struct RAGVerificationResult: Sendable {
         let passed: Bool
         let confidence: Float
         let details: String
+    }
+
+    struct ClaimResult: Sendable {
+        enum Verdict: String, Sendable {
+            case supported
+            case partial
+            case unsupported
+        }
+
+        let claim: String
+        let verdict: Verdict
+        let confidence: Float
+        let details: String
+        let citations: [String]
+        let resolvedEvidenceIds: [String]
     }
 
     /// Which gates failed (for logging/debugging)
@@ -93,6 +109,16 @@ struct VerificationConfig: Sendable {
     )
 }
 
+private struct GateBEvaluation {
+    let gateResult: RAGVerificationResult.GateResult
+    let claimResults: [RAGVerificationResult.ClaimResult]
+}
+
+private struct VerificationClaimInput {
+    let claim: String
+    let citations: [String]
+}
+
 // MARK: - Verification Gate Service
 
 /// Service that runs verification gates to ensure response quality
@@ -138,6 +164,7 @@ actor VerificationGateService {
         responseEmbedding: [Float]? = nil,
         queryEmbedding: [Float]? = nil,
         chunkEmbeddings: [[Float]]? = nil,
+        structuredClaims: [StructuredRAGClaim]? = nil,
         answerIntent: AnswerIntent? = nil
     ) async -> RAGVerificationResult {
 
@@ -151,8 +178,12 @@ actor VerificationGateService {
         gateResults.append(gateA)
 
         // Gate B: Evidence Coverage
-        let gateB = await runGateB(response: response, chunks: retrievedChunks)
-        gateResults.append(gateB)
+        let gateB = await runGateB(
+            response: response,
+            chunks: retrievedChunks,
+            structuredClaims: structuredClaims
+        )
+        gateResults.append(gateB.gateResult)
 
         // Gate C: Numeric Sanity — uses ALL candidate chunks for wider verification scope
         let gateCChunks = allCandidateChunks ?? retrievedChunks
@@ -222,6 +253,7 @@ actor VerificationGateService {
         let result = RAGVerificationResult(
             passed: allPassed,
             gateResults: gateResults,
+            claimResults: gateB.claimResults,
             overallConfidence: overallConfidence,
             shouldAbstain: shouldAbstain,
             abstainReason: abstainReason
@@ -278,42 +310,75 @@ actor VerificationGateService {
     /// Gate B: Evidence Coverage
     /// Check that key claims in response can be traced to retrieved chunks
     /// CONSERVATIVE: Only fail for egregious cases, not normal extractive lookups
-    private func runGateB(response: String, chunks: [RetrievedChunk]) async -> RAGVerificationResult.GateResult {
-        // Extract key claims/facts from response
-        let claims = extractClaims(from: response)
-        guard !claims.isEmpty else {
-            return RAGVerificationResult.GateResult(
-                gate: .evidenceCoverage,
-                passed: true,
-                confidence: 1.0,
-                details: "No extractable claims in response"
-            )
+    private func runGateB(
+        response: String,
+        chunks: [RetrievedChunk],
+        structuredClaims: [StructuredRAGClaim]? = nil
+    ) async -> GateBEvaluation {
+        let structuredClaims = structuredClaims?.filter {
+            !$0.claim.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
 
-        // Build corpus from chunks - include parent content for expanded chunks
-        let corpus = chunks.map { chunk -> String in
-            let content = chunk.chunk.parentContent ?? chunk.chunk.content
-            return content.lowercased()
-        }.joined(separator: " ")
+        let claimInputs: [VerificationClaimInput]
+        let usesStructuredClaims = structuredClaims?.isEmpty == false
 
-        // Check coverage of each claim
-        var coveredCount = 0
-        for claim in claims {
-            if isClaimCovered(claim: claim, inCorpus: corpus) {
-                coveredCount += 1
+        if let structuredClaims, !structuredClaims.isEmpty {
+            claimInputs = structuredClaims.map {
+                VerificationClaimInput(claim: $0.claim, citations: $0.citations)
+            }
+        } else {
+            claimInputs = extractClaims(from: response).map {
+                VerificationClaimInput(claim: $0, citations: [])
             }
         }
 
-        let coverage = Float(coveredCount) / Float(claims.count)
-        // RELAXED: Require only 40% of claims to be grounded (was 70%)
-        // Many valid responses include phrasing not verbatim in source
-        let passed = coverage >= 0.40
+        guard !claimInputs.isEmpty else {
+            return GateBEvaluation(
+                gateResult: RAGVerificationResult.GateResult(
+                    gate: .evidenceCoverage,
+                    passed: true,
+                    confidence: 1.0,
+                    details: "No extractable claims in response"
+                ),
+                claimResults: []
+            )
+        }
 
-        return RAGVerificationResult.GateResult(
-            gate: .evidenceCoverage,
-            passed: passed,
-            confidence: coverage,  // Report actual coverage — no artificial floor
-            details: "\(coveredCount)/\(claims.count) claims covered (\(Int(coverage * 100))%)"
+        let corpus = buildCorpus(from: chunks)
+        let claimResults = claimInputs.map { evaluateClaim($0, in: chunks, corpus: corpus) }
+
+        let supportedCount = claimResults.filter { $0.verdict == .supported }.count
+        let partialCount = claimResults.filter { $0.verdict == .partial }.count
+        let unsupportedCount = claimResults.count - supportedCount - partialCount
+        let weightedCoverage = (Float(supportedCount) + (Float(partialCount) * 0.5)) / Float(claimResults.count)
+
+        if usesStructuredClaims {
+            let citedCount = claimResults.filter { !$0.citations.isEmpty }.count
+            let citedCoverage = Float(citedCount) / Float(claimResults.count)
+            let combinedConfidence = min(1.0, (weightedCoverage * 0.75) + (citedCoverage * 0.25))
+            let passed = weightedCoverage >= 0.55 && citedCoverage >= 0.80
+
+            return GateBEvaluation(
+                gateResult: RAGVerificationResult.GateResult(
+                    gate: .evidenceCoverage,
+                    passed: passed,
+                    confidence: combinedConfidence,
+                    details: "supported \(supportedCount), partial \(partialCount), unsupported \(unsupportedCount), cited \(citedCount)/\(claimResults.count)"
+                ),
+                claimResults: claimResults
+            )
+        }
+
+        let passed = weightedCoverage >= 0.40
+
+        return GateBEvaluation(
+            gateResult: RAGVerificationResult.GateResult(
+                gate: .evidenceCoverage,
+                passed: passed,
+                confidence: weightedCoverage,
+                details: "supported \(supportedCount), partial \(partialCount), unsupported \(unsupportedCount)"
+            ),
+            claimResults: claimResults
         )
     }
 
@@ -1151,6 +1216,79 @@ actor VerificationGateService {
         return false
     }
 
+    private func buildCorpus(from chunks: [RetrievedChunk]) -> String {
+        chunks.map { chunk -> String in
+            let content = chunk.chunk.parentContent ?? chunk.chunk.content
+            return content.lowercased()
+        }.joined(separator: " ")
+    }
+
+    private func evaluateClaim(
+        _ claimInput: VerificationClaimInput,
+        in chunks: [RetrievedChunk],
+        corpus: String
+    ) -> RAGVerificationResult.ClaimResult {
+        let claimText = cleanClaimText(claimInput.claim)
+        let citedChunks = citedEvidence(for: claimInput.citations, in: chunks)
+        let heuristicChunks = supportingEvidence(for: claimText, in: chunks)
+        let supportingChunks = citedChunks.isEmpty ? heuristicChunks : citedChunks
+
+        let citedCorpus = buildCorpus(from: citedChunks)
+        let supportingCorpus = buildCorpus(from: supportingChunks)
+        let citedCoverage = !citedChunks.isEmpty && isClaimCovered(claim: claimText, inCorpus: citedCorpus)
+        let supportingCoverage = !supportingChunks.isEmpty && isClaimCovered(claim: claimText, inCorpus: supportingCorpus)
+        let corpusCoverage = isClaimCovered(claim: claimText, inCorpus: corpus)
+        let supportConfidence = claimSupportConfidence(for: claimText, evidence: supportingChunks)
+        let resolvedEvidenceIds = supportingChunks.map { $0.chunk.id.uuidString }
+
+        let verdict: RAGVerificationResult.ClaimResult.Verdict
+        let confidence: Float
+        let details: String
+
+        if !claimInput.citations.isEmpty {
+            if !citedChunks.isEmpty && citedCoverage && supportConfidence >= 0.58 {
+                verdict = .supported
+                confidence = max(0.65, min(1.0, supportConfidence))
+                details = "Resolved \(citedChunks.count)/\(claimInput.citations.count) cited source(s) with strong support"
+            } else if (!resolvedEvidenceIds.isEmpty && supportingCoverage) || corpusCoverage {
+                verdict = .partial
+                confidence = min(0.64, max(0.25, supportConfidence))
+                if citedChunks.isEmpty {
+                    details = "Claim overlaps retrieved evidence, but cited source ids could not be resolved"
+                } else {
+                    details = "Citations resolved weakly; supporting evidence is incomplete or indirect"
+                }
+            } else {
+                verdict = .unsupported
+                confidence = min(0.24, max(0.05, supportConfidence * 0.5))
+                details = citedChunks.isEmpty
+                    ? "No cited evidence could be resolved for this claim"
+                    : "Resolved citations did not reliably support this claim"
+            }
+        } else if !resolvedEvidenceIds.isEmpty && supportingCoverage && supportConfidence >= 0.60 {
+            verdict = .supported
+            confidence = max(0.60, min(0.9, supportConfidence))
+            details = "Strong support found in retrieved evidence"
+        } else if (!resolvedEvidenceIds.isEmpty && supportingCoverage) || corpusCoverage {
+            verdict = .partial
+            confidence = min(0.60, max(0.2, supportConfidence))
+            details = "Some supporting evidence exists, but the claim is not fully anchored"
+        } else {
+            verdict = .unsupported
+            confidence = min(0.20, max(0.05, supportConfidence * 0.5))
+            details = "No reliable supporting evidence found in retrieved chunks"
+        }
+
+        return RAGVerificationResult.ClaimResult(
+            claim: claimText,
+            verdict: verdict,
+            confidence: confidence,
+            details: details,
+            citations: claimInput.citations,
+            resolvedEvidenceIds: resolvedEvidenceIds
+        )
+    }
+
     /// Check if claim text appears in corpus (fuzzy matching)
     private func isClaimCovered(claim: String, inCorpus corpus: String) -> Bool {
         // Extract key terms from claim (nouns, numbers, codes)
@@ -1176,6 +1314,96 @@ actor VerificationGateService {
         // Require majority of key terms to appear in corpus
         let foundCount = keyTerms.filter { corpus.contains($0) }.count
         return Float(foundCount) / Float(keyTerms.count) >= 0.5
+    }
+
+    private func supportingEvidence(for claim: String, in retrievedChunks: [RetrievedChunk]) -> [RetrievedChunk] {
+        let claimTokens = keywordTokens(from: claim)
+
+        let scored = retrievedChunks.map { chunk -> (RetrievedChunk, Float) in
+            let content = chunk.chunk.parentContent ?? chunk.chunk.content
+            let contentTokens = keywordTokens(from: content)
+            let overlapCount = claimTokens.intersection(contentTokens).count
+            let overlapScore = claimTokens.isEmpty ? 0 : Float(overlapCount) / Float(max(claimTokens.count, 1))
+            let directMatch = !normalizeForMatch(claim).isEmpty && normalizeForMatch(content).contains(normalizeForMatch(claim))
+            let directBoost: Float = directMatch ? 1.0 : 0.0
+            let score = max(directBoost, min(1.0, (chunk.similarityScore * 0.35) + (overlapScore * 0.65)))
+            return (chunk, score)
+        }
+
+        return scored
+            .filter { $0.1 >= 0.18 }
+            .sorted { lhs, rhs in
+                if lhs.1 == rhs.1 {
+                    return lhs.0.similarityScore > rhs.0.similarityScore
+                }
+                return lhs.1 > rhs.1
+            }
+            .prefix(3)
+            .map { $0.0 }
+    }
+
+    private func citedEvidence(for citations: [String], in retrievedChunks: [RetrievedChunk]) -> [RetrievedChunk] {
+        let resolved = citations.compactMap { citation -> RetrievedChunk? in
+            guard let index = citationIndex(from: citation), retrievedChunks.indices.contains(index) else {
+                return nil
+            }
+            return retrievedChunks[index]
+        }
+
+        return resolved.reduce(into: [RetrievedChunk]()) { partial, chunk in
+            if !partial.contains(where: { $0.chunk.id == chunk.chunk.id }) {
+                partial.append(chunk)
+            }
+        }
+    }
+
+    private func claimSupportConfidence(for claim: String, evidence: [RetrievedChunk]) -> Float {
+        guard !evidence.isEmpty else { return 0.0 }
+        let topEvidence = evidence[0]
+        let content = topEvidence.chunk.parentContent ?? topEvidence.chunk.content
+        let claimTokens = keywordTokens(from: claim)
+        let contentTokens = keywordTokens(from: content)
+        let overlap = claimTokens.isEmpty ? 0 : Float(claimTokens.intersection(contentTokens).count) / Float(max(claimTokens.count, 1))
+        return min(1.0, max(0.2, (topEvidence.similarityScore * 0.5) + (overlap * 0.5)))
+    }
+
+    private func keywordTokens(from text: String) -> Set<String> {
+        Set(
+            text.lowercased()
+                .split { !$0.isLetter && !$0.isNumber }
+                .map(String.init)
+                .filter { $0.count > 2 }
+        )
+    }
+
+    private func cleanClaimText(_ text: String) -> String {
+        text
+            .replacingOccurrences(of: #"\[S\d+\]"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func citationIndex(from citation: String) -> Int? {
+        let pattern = #"S(\d+)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+            return nil
+        }
+
+        let nsRange = NSRange(citation.startIndex..<citation.endIndex, in: citation)
+        guard let match = regex.firstMatch(in: citation, options: [], range: nsRange),
+              let range = Range(match.range(at: 1), in: citation),
+              let index = Int(citation[range]),
+              index > 0
+        else {
+            return nil
+        }
+
+        return index - 1
+    }
+
+    private func normalizeForMatch(_ text: String) -> String {
+        text.lowercased()
+            .replacingOccurrences(of: #"[^a-z0-9]"#, with: "", options: .regularExpression)
     }
 
     /// Extract numbers from text (including decimals, fractions, percentages, spec codes)

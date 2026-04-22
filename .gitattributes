@@ -1,0 +1,9 @@
+# Treat packaged evaluation artifacts as binary so git stops producing useless text diffs.
+output/OpenIntelligence-SDK-Package/**/*.xcframework/** binary
+output/OpenIntelligence-SDK-Package/**/*.framework/** binary
+output/OpenIntelligence-SDK-Package/**/*.swiftmodule binary
+output/OpenIntelligence-SDK-Package/**/*.swiftdoc binary
+output/OpenIntelligence-SDK-Package/**/*.abi.json -diff
+output/OpenIntelligence-SDK-Package/**/Assets.car binary
+output/OpenIntelligence-SDK-Package/**/OpenIntelligenceEngine binary
+output/OpenIntelligence-SDK-Package/EvaluationSupport/** binary

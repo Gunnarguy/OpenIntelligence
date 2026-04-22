@@ -3,26 +3,26 @@
 # ============================================
 
 # Headline 1: Core Value (What it does)
-Turn PDFs Into Answers
+Ask Docs. Get Answers
 
-# Headline 2: Technology Differentiator
-23-Step RAG Pipeline
+# Headline 2: Privacy (Key Selling Point)
+Private AI for Your Files
 
-# Headline 3: Privacy (Key Selling Point)
-100% On-Device AI
+# Headline 3: Trust Signal
+Cited Answers From PDFs
 
-# Headline 4: Use Case
-Ask Documents Anything
+# Headline 4: Market Contrast
+Your Files, Not Web Guessing
 
-# Headline 5: Feature
-Deep Think Mode
+# Headline 5: Local-First Signal
+On-Device by Default
 
 # ============================================
 # COPY-PASTE READY (no comments):
 # ============================================
 
-Turn PDFs Into Answers
-23-Step RAG Pipeline
-100% On-Device AI
-Ask Documents Anything
-Deep Think Mode
+Ask Docs. Get Answers
+Private AI for Your Files
+Cited Answers From PDFs
+Your Files, Not Web Guessing
+On-Device by Default

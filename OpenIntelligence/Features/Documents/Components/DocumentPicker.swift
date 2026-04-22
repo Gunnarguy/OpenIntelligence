@@ -19,16 +19,35 @@ struct DocumentPicker: UIViewControllerRepresentable {
             .plainText,
             .text,
             UTType(filenameExtension: "md") ?? .plainText,
-.rtf,
-    // Audio (for transcription)
-    .audio,
+            .rtf,
+            // Office & Productivity
+            UTType(filenameExtension: "doc") ?? .data,
+            UTType(filenameExtension: "docx") ?? .data,
+            UTType(filenameExtension: "xls") ?? .data,
+            UTType(filenameExtension: "xlsx") ?? .data,
+            UTType(filenameExtension: "ppt") ?? .data,
+            UTType(filenameExtension: "pptx") ?? .data,
+            UTType(filenameExtension: "pages") ?? .data,
+            UTType(filenameExtension: "numbers") ?? .data,
+            UTType(filenameExtension: "key") ?? .data,
+            .commaSeparatedText,
+            // Code
+            UTType(filenameExtension: "swift") ?? .sourceCode,
+            UTType(filenameExtension: "py") ?? .sourceCode,
+            UTType(filenameExtension: "js") ?? .sourceCode,
+            UTType(filenameExtension: "ts") ?? .sourceCode,
+            UTType(filenameExtension: "json") ?? .json,
+            UTType(filenameExtension: "html") ?? .html,
+            .json,
+            // Audio (for transcription)
+            .audio,
             .mp3,
             UTType(filenameExtension: "m4a") ?? .audio,
             .wav,
             UTType(filenameExtension: "aiff") ?? .audio,
             UTType(filenameExtension: "caf") ?? .audio,
-    // Video (for transcription)
-    .movie,
+            // Video (for transcription)
+            .movie,
             .mpeg4Movie,
             .quickTimeMovie,
         ])
