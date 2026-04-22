@@ -20,7 +20,7 @@
       "internalID" : "A1B2C3D4-E5F6-7890-ABCD-EF1234567890",
       "localizations" : [
         {
-          "description" : "Unlimited Maximum mode, unlimited documents, and 10 libraries.",
+          "description" : "One-time unlock for up to 1,000 documents, 10 libraries, and all Pro features forever.",
           "displayName" : "Lifetime Cohort",
           "locale" : "en_US"
         }
@@ -35,7 +35,7 @@
       "internalID" : "B2C3D4E5-F6A7-8901-BCDE-F23456789012",
       "localizations" : [
         {
-          "description" : "Legacy compatibility product for prior document-pack owners.",
+          "description" : "Adds 10 extra documents to your workspace quota.",
           "displayName" : "Document Pack",
           "locale" : "en_US"
         }
@@ -121,7 +121,7 @@
           "introductoryOffer" : null,
           "localizations" : [
             {
-              "description" : "Unlimited Maximum mode, 1,000 documents, and 5 libraries.",
+              "description" : "Up to 1,000 documents, 5 libraries, and premium retrieval controls.",
               "displayName" : "Pro Monthly",
               "locale" : "en_US"
             }
@@ -149,7 +149,7 @@
           "introductoryOffer" : null,
           "localizations" : [
             {
-              "description" : "Unlimited Maximum mode, 1,000 documents, and 5 libraries. Save 30%.",
+              "description" : "Annual billing for up to 1,000 documents and 5 libraries. Save 30%.",
               "displayName" : "Pro Annual",
               "locale" : "en_US"
             }

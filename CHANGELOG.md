@@ -34,4 +34,3 @@ This is the public version history for OpenIntelligence. It focuses on user-visi
 ## Notes
 
 Detailed internal algorithm changes and research-oriented engine updates are tracked privately rather than in the public changelog.
-Private evaluation-packet, partner-packet, and commercialization materials in this working repo are tracked under `output/OpenIntelligence-SDK-Package/` and `output/OpenIntelligence-Partner-Packet/` instead of being expanded here.

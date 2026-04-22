@@ -1,10 +1,8 @@
 import SwiftUI
 
 enum OpenIntelligenceLinks {
-    static let productHubURL = URL(string: "https://gunzino.notion.site/OpenIntelligence-Public-Product-Hub-33b49a74d54f8119aaa7c3bb02e2794a?pvs=143")!
     static let roadmapURL = URL(string: "https://gunzino.notion.site/98fb2f9dc3294cb5a283fabfaf7aee0a?v=33b49a74d54f81c5a6f2000c94fb8c3b&pvs=25")!
     static let feedbackBoardURL = URL(string: "https://gunzino.notion.site/483120d0efa34513816f9fa43764ee2e?v=97202e3dfa49450b93f0159beb0978c9&pvs=25")!
-    static let changelogURL = URL(string: "https://gunzino.notion.site/a07ec984e3824e59bf1e159ef88e84f1?v=33b49a74d54f812eaba8000c86eedb9e&pvs=25")!
     static let githubURL = URL(string: "https://github.com/Gunnarguy/OpenIntelligence")!
     static let appStoreURL = URL(string: "https://apps.apple.com/us/app/openintelligence/id6756559175")!
     static let feedbackEmailAddress = "feedback@openintelligence.app"
@@ -77,8 +75,8 @@ struct AboutView: View {
                             releaseHighlight(
                                 icon: "list.bullet.rectangle.portrait.fill",
                                 tint: .blue,
-                                title: "Roadmap, feedback, and changelog are live",
-                                detail: "The public product hub now tracks shipped work, active bets, release history, and incoming feature requests in Notion."
+                                title: "Feedback is easier to send",
+                                detail: "The app keeps direct paths to feedback, support, the App Store, and the public codebase without the broken update pages."
                             )
                         }
                     }
@@ -129,16 +127,8 @@ struct AboutView: View {
                     }
 
                     SurfaceCard {
-                        SectionHeader(icon: "list.bullet.rectangle", title: "Product Hub")
+                        SectionHeader(icon: "map", title: "Roadmap & Feedback")
                         VStack(alignment: .leading, spacing: 10) {
-                            externalLinkRow(
-                                title: "Open Product Hub",
-                                subtitle: "One place for the roadmap, feedback board, and changelog",
-                                icon: "square.stack.3d.up.fill",
-                                tint: .blue
-                            ) {
-                                openURL(OpenIntelligenceLinks.productHubURL)
-                            }
                             externalLinkRow(
                                 title: "Roadmap",
                                 subtitle: "See what shipped, what is active, and what is next",
@@ -154,14 +144,6 @@ struct AboutView: View {
                                 tint: .orange
                             ) {
                                 openURL(OpenIntelligenceLinks.feedbackBoardURL)
-                            }
-                            externalLinkRow(
-                                title: "Changelog",
-                                subtitle: "Track release notes and the shipped roadmap links behind them",
-                                icon: "clock.arrow.circlepath",
-                                tint: .purple
-                            ) {
-                                openURL(OpenIntelligenceLinks.changelogURL)
                             }
                         }
                     }

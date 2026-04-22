@@ -309,23 +309,23 @@ Text(label)
                     .clipShape(Capsule())
             }
 
-            Text("Thanks for backing OpenIntelligence early. Lifetime keeps unlimited documents and 10 libraries unlocked with no recurring subscription.")
+            Text("Thanks for backing OpenIntelligence early. Lifetime keeps up to 1,000 documents and 10 libraries unlocked with no recurring subscription.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
             HStack(spacing: 10) {
                 Button {
-                    openURL(OpenIntelligenceLinks.productHubURL)
+                    openURL(OpenIntelligenceLinks.feedbackMailtoURL)
                 } label: {
-                    Label("Product Hub", systemImage: "square.stack.3d.up.fill")
+                    Label("Send Feedback", systemImage: "envelope.fill")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
 
                 Button {
-                    openURL(OpenIntelligenceLinks.changelogURL)
+                    openURL(OpenIntelligenceLinks.appStoreURL)
                 } label: {
-                    Label("Changelog", systemImage: "clock.arrow.circlepath")
+                    Label("App Store", systemImage: "apple.logo")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)

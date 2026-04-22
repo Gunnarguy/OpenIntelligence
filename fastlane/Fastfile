@@ -168,7 +168,7 @@ platform :ios do
     require 'json'
 
     # Load subscription config
-    subscriptions_path = File.join(Dir.pwd, "subscriptions.json")
+    subscriptions_path = File.join(__dir__, "subscriptions.json")
     unless File.exist?(subscriptions_path)
       UI.user_error!("subscriptions.json not found in fastlane directory")
     end
@@ -191,7 +191,7 @@ platform :ios do
     end
 
     # Load StoreKit config
-    storekit_path = File.join(Dir.pwd, "..", "OpenIntelligence", "Resources", "StoreKit", "StoreKitConfiguration.storekit")
+    storekit_path = File.expand_path("../OpenIntelligence/Resources/StoreKit/StoreKitConfiguration.storekit", __dir__)
     unless File.exist?(storekit_path)
       UI.user_error!("StoreKitConfiguration.storekit not found")
     end
@@ -237,7 +237,7 @@ platform :ios do
   lane :iap_checklist do
     require 'json'
 
-    subscriptions_path = File.join(Dir.pwd, "subscriptions.json")
+    subscriptions_path = File.join(__dir__, "subscriptions.json")
     config = JSON.parse(File.read(subscriptions_path))
 
     UI.header("App Store Connect In-App Purchase Setup Checklist")
@@ -262,7 +262,7 @@ platform :ios do
 
     api_key = asc_api_key
 
-    subscriptions_path = File.join(Dir.pwd, "subscriptions.json")
+    subscriptions_path = File.join(__dir__, "subscriptions.json")
     config = JSON.parse(File.read(subscriptions_path))
 
     expected_products = []

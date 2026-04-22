@@ -31,4 +31,3 @@ This is the user-facing 2.5 summary of everything that changed after the real 2.
 ## Notes
 
 This public summary is intentionally feature-facing. Internal engine changes, tuning values, and private roadmap details are not published here.
-For the private evaluation SDK packet and design-partner materials in this working repo, start at `output/OpenIntelligence-SDK-Package/START_HERE.md` and `output/OpenIntelligence-Partner-Packet/README.md`.

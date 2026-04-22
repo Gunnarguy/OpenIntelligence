@@ -8,6 +8,7 @@ enum PlanUpgradeEntryPoint: String, CaseIterable {
     case libraryCreation
     case quotaBanner
     case settings
+    case localModelGated // Free users attempting GGUF/Core ML
     case maximumModeLimit
 
     /// Human-friendly description surfaced inside the paywall hero.
@@ -25,6 +26,8 @@ enum PlanUpgradeEntryPoint: String, CaseIterable {
             return "Plan ahead before you hit the limit"
         case .settings:
             return "Manage your workspace plan"
+        case .localModelGated:
+            return "Unlock fully private, on-device inference"
         case .maximumModeLimit:
             return "Maximum mode is capped on Free"
         }
@@ -44,7 +47,9 @@ enum PlanUpgradeEntryPoint: String, CaseIterable {
         case .quotaBanner:
             return "Avoid interruptions by upgrading before the limit hits 100%."
         case .settings:
-            return "Review Maximum access, workspace capacity, and billing controls in one place."
+            return "Review tiers, add-ons, and billing controls in one place."
+        case .localModelGated:
+            return "GGUF and Core ML models require Lifetime or Pro for unlimited private inference. Your data never leaves your device."
         case .maximumModeLimit:
             return "Upgrade for unlimited Maximum mode, or switch to Standard or Deep Think anytime."
         }
