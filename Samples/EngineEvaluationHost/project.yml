@@ -10,12 +10,29 @@ settings:
     FRAMEWORK_SEARCH_PATHS:
       - $(inherited)
       - ../../output/OpenIntelligence-SDK-Package
-      - ../../output/OpenIntelligence-SDK-Package/build/evaluation/DerivedData/Build/Intermediates.noindex/ArchiveIntermediates/OpenIntelligenceEngine/BuildProductsPath/Release-iphonesimulator
+    FRAMEWORK_SEARCH_PATHS[sdk=iphonesimulator*]:
+      - $(inherited)
+      - ../../output/OpenIntelligence-SDK-Package/EvaluationSupport/iphonesimulator
+      - ../../output/OpenIntelligence-SDK-Package/EvaluationSupport/iphonesimulator/PackageFrameworks
+    FRAMEWORK_SEARCH_PATHS[sdk=iphoneos*]:
+      - $(inherited)
+      - ../../output/OpenIntelligence-SDK-Package/EvaluationSupport/iphoneos
+      - ../../output/OpenIntelligence-SDK-Package/EvaluationSupport/iphoneos/PackageFrameworks
     GENERATE_INFOPLIST_FILE: YES
     INFOPLIST_KEY_CFBundleDisplayName: Engine Evaluation Host
     INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
     INFOPLIST_KEY_UILaunchScreen_Generation: YES
     INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
+    INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad:
+      - UIInterfaceOrientationPortrait
+      - UIInterfaceOrientationPortraitUpsideDown
+      - UIInterfaceOrientationLandscapeLeft
+      - UIInterfaceOrientationLandscapeRight
+    INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone:
+      - UIInterfaceOrientationPortrait
+      - UIInterfaceOrientationPortraitUpsideDown
+      - UIInterfaceOrientationLandscapeLeft
+      - UIInterfaceOrientationLandscapeRight
     CURRENT_PROJECT_VERSION: 1
     MARKETING_VERSION: 0.1.0
     OTHER_SWIFT_FLAGS:
@@ -24,7 +41,12 @@ settings:
     PRODUCT_BUNDLE_IDENTIFIER: Gunndamental.EngineEvaluationHost
     SWIFT_INCLUDE_PATHS:
       - $(inherited)
-      - ../../output/OpenIntelligence-SDK-Package/build/evaluation/DerivedData/Build/Intermediates.noindex/ArchiveIntermediates/OpenIntelligenceEngine/BuildProductsPath/Release-iphonesimulator
+    SWIFT_INCLUDE_PATHS[sdk=iphonesimulator*]:
+      - $(inherited)
+      - ../../output/OpenIntelligence-SDK-Package/EvaluationSupport/iphonesimulator
+    SWIFT_INCLUDE_PATHS[sdk=iphoneos*]:
+      - $(inherited)
+      - ../../output/OpenIntelligence-SDK-Package/EvaluationSupport/iphoneos
     TARGETED_DEVICE_FAMILY: "1,2"
 targets:
   EngineEvaluationHost:
@@ -33,6 +55,12 @@ targets:
     deploymentTarget: "26.0"
     sources:
       - path: EngineEvaluationHost
+        excludes:
+          - DemoAssets
+          - "* 2.swift"
+      - path: EngineEvaluationHost/DemoAssets
+        type: folder
+        buildPhase: resources
     dependencies:
       - framework: ../../output/OpenIntelligence-SDK-Package/OpenIntelligenceEngine.xcframework
         embed: true

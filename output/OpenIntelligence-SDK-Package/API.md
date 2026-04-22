@@ -28,7 +28,7 @@ public struct OIEngineConfiguration {
 
 public struct OIIngestRequest {
     public var urls: [URL]
-    public var libraryID: String?
+    public var libraryName: String?
 }
 
 public struct OIIngestResult {
@@ -39,7 +39,7 @@ public struct OIIngestResult {
 
 public struct OIQueryRequest {
     public var question: String
-    public var libraryID: String?
+    public var libraryName: String?
 }
 
 public struct OICitation {
@@ -110,13 +110,15 @@ func runDemo(documentURLs: [URL]) async throws {
 ## Current Status
 
 This API is the recommended boundary.
-The framework target now exists and builds, but XCFramework packaging and demo validation are still incomplete.
+The current repo no longer exposes a reproducible `OpenIntelligenceEngine` framework-target build path, but the evaluation XCFramework, buyer packet, and pitch-demo host are staged and working for same-toolchain evaluation.
 
 For tomorrow's buyer conversations, this means:
 
 - you can demo the behavior now
 - you can show the intended public API now
 - you can hand off an evaluation XCFramework now
+- you can hand off a buyer-safe packet that includes `START_HERE.md` and a self-contained `SampleApp/`
+- you can run the pitch demo on Apple Intelligence-capable hardware now
 - you should describe the module-stable binary SDK as in-progress, not finished
 
 For external sharing, include this file in the curated buyer bundle rather than zipping the entire SDK packet folder.

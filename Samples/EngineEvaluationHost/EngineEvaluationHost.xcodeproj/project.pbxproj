@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		0639890D92DAE9E266899A47 /* OpenIntelligenceEngine.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 392120C9B8C2319DD08D6FAF /* OpenIntelligenceEngine.xcframework */; };
+		16600456012A888632B1AE6E /* DemoAssets in Resources */ = {isa = PBXBuildFile; fileRef = EF39B96B98F68112D478ED73 /* DemoAssets */; };
 		4BD7065E06494F651419FC93 /* EngineEvaluationHostApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63F069704A0866F6BA967BEE /* EngineEvaluationHostApp.swift */; };
 		C0D06C48941413CF2D7A9C51 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 544DD34C2C75B262050D4DDB /* ContentView.swift */; };
 		C34669397E34124ABF5840AC /* OpenIntelligenceEngine.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 392120C9B8C2319DD08D6FAF /* OpenIntelligenceEngine.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -32,6 +33,7 @@
 		392120C9B8C2319DD08D6FAF /* OpenIntelligenceEngine.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = OpenIntelligenceEngine.xcframework; path = "../../output/OpenIntelligence-SDK-Package/OpenIntelligenceEngine.xcframework"; sourceTree = "<group>"; };
 		544DD34C2C75B262050D4DDB /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		63F069704A0866F6BA967BEE /* EngineEvaluationHostApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineEvaluationHostApp.swift; sourceTree = "<group>"; };
+		EF39B96B98F68112D478ED73 /* DemoAssets */ = {isa = PBXFileReference; lastKnownFileType = folder; name = DemoAssets; path = EngineEvaluationHost/DemoAssets; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -66,6 +68,7 @@
 		6D59BEE6A31B7F6F0FB11797 = {
 			isa = PBXGroup;
 			children = (
+				EF39B96B98F68112D478ED73 /* DemoAssets */,
 				51B46B601E70C5146D094A22 /* EngineEvaluationHost */,
 				EF89B50777E3DA56824345D9 /* Frameworks */,
 				2798A941ADD215119E234E95 /* Products */,
@@ -88,6 +91,7 @@
 			buildConfigurationList = 805AD41DCF17C8A9A0BFA49E /* Build configuration list for PBXNativeTarget "EngineEvaluationHost" */;
 			buildPhases = (
 				15AC6522A35C2E97434E9740 /* Sources */,
+				240E592EBF16BF9ECAE878E7 /* Resources */,
 				8113A9612E2E52EAE6CC840F /* Frameworks */,
 				5D0BFE01D29A1C7B79F4C75A /* Embed Frameworks */,
 			);
@@ -135,6 +139,17 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		240E592EBF16BF9ECAE878E7 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				16600456012A888632B1AE6E /* DemoAssets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		15AC6522A35C2E97434E9740 /* Sources */ = {
@@ -230,7 +245,16 @@
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"../../output/OpenIntelligence-SDK-Package",
-					"../../output/OpenIntelligence-SDK-Package/build/evaluation/DerivedData/Build/Intermediates.noindex/ArchiveIntermediates/OpenIntelligenceEngine/BuildProductsPath/Release-iphonesimulator",
+				);
+				"FRAMEWORK_SEARCH_PATHS[sdk=iphoneos*]" = (
+					"$(inherited)",
+					"../../output/OpenIntelligence-SDK-Package/EvaluationSupport/iphoneos",
+					"../../output/OpenIntelligence-SDK-Package/EvaluationSupport/iphoneos/PackageFrameworks",
+				);
+				"FRAMEWORK_SEARCH_PATHS[sdk=iphonesimulator*]" = (
+					"$(inherited)",
+					"../../output/OpenIntelligence-SDK-Package/EvaluationSupport/iphonesimulator",
+					"../../output/OpenIntelligence-SDK-Package/EvaluationSupport/iphonesimulator/PackageFrameworks",
 				);
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
@@ -251,6 +275,18 @@
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = (
+					UIInterfaceOrientationPortrait,
+					UIInterfaceOrientationPortraitUpsideDown,
+					UIInterfaceOrientationLandscapeLeft,
+					UIInterfaceOrientationLandscapeRight,
+				);
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = (
+					UIInterfaceOrientationPortrait,
+					UIInterfaceOrientationPortraitUpsideDown,
+					UIInterfaceOrientationLandscapeLeft,
+					UIInterfaceOrientationLandscapeRight,
+				);
 				MARKETING_VERSION = 0.1.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
@@ -265,7 +301,14 @@
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_INCLUDE_PATHS = (
 					"$(inherited)",
-					"../../output/OpenIntelligence-SDK-Package/build/evaluation/DerivedData/Build/Intermediates.noindex/ArchiveIntermediates/OpenIntelligenceEngine/BuildProductsPath/Release-iphonesimulator",
+				);
+				"SWIFT_INCLUDE_PATHS[sdk=iphoneos*]" = (
+					"$(inherited)",
+					"../../output/OpenIntelligence-SDK-Package/EvaluationSupport/iphoneos",
+				);
+				"SWIFT_INCLUDE_PATHS[sdk=iphonesimulator*]" = (
+					"$(inherited)",
+					"../../output/OpenIntelligence-SDK-Package/EvaluationSupport/iphonesimulator",
 				);
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -316,7 +359,16 @@
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"../../output/OpenIntelligence-SDK-Package",
-					"../../output/OpenIntelligence-SDK-Package/build/evaluation/DerivedData/Build/Intermediates.noindex/ArchiveIntermediates/OpenIntelligenceEngine/BuildProductsPath/Release-iphonesimulator",
+				);
+				"FRAMEWORK_SEARCH_PATHS[sdk=iphoneos*]" = (
+					"$(inherited)",
+					"../../output/OpenIntelligence-SDK-Package/EvaluationSupport/iphoneos",
+					"../../output/OpenIntelligence-SDK-Package/EvaluationSupport/iphoneos/PackageFrameworks",
+				);
+				"FRAMEWORK_SEARCH_PATHS[sdk=iphonesimulator*]" = (
+					"$(inherited)",
+					"../../output/OpenIntelligence-SDK-Package/EvaluationSupport/iphonesimulator",
+					"../../output/OpenIntelligence-SDK-Package/EvaluationSupport/iphonesimulator/PackageFrameworks",
 				);
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -331,6 +383,18 @@
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = (
+					UIInterfaceOrientationPortrait,
+					UIInterfaceOrientationPortraitUpsideDown,
+					UIInterfaceOrientationLandscapeLeft,
+					UIInterfaceOrientationLandscapeRight,
+				);
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = (
+					UIInterfaceOrientationPortrait,
+					UIInterfaceOrientationPortraitUpsideDown,
+					UIInterfaceOrientationLandscapeLeft,
+					UIInterfaceOrientationLandscapeRight,
+				);
 				MARKETING_VERSION = 0.1.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
@@ -344,7 +408,14 @@
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_INCLUDE_PATHS = (
 					"$(inherited)",
-					"../../output/OpenIntelligence-SDK-Package/build/evaluation/DerivedData/Build/Intermediates.noindex/ArchiveIntermediates/OpenIntelligenceEngine/BuildProductsPath/Release-iphonesimulator",
+				);
+				"SWIFT_INCLUDE_PATHS[sdk=iphoneos*]" = (
+					"$(inherited)",
+					"../../output/OpenIntelligence-SDK-Package/EvaluationSupport/iphoneos",
+				);
+				"SWIFT_INCLUDE_PATHS[sdk=iphonesimulator*]" = (
+					"$(inherited)",
+					"../../output/OpenIntelligence-SDK-Package/EvaluationSupport/iphonesimulator",
 				);
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.0;

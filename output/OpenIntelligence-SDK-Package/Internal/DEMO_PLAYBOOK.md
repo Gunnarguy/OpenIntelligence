@@ -92,7 +92,14 @@ Say:
 Today:
 
 - they would not install a separate end-user app
-- they would evaluate the engine behavior through your demo and a guided integration path
+- they would evaluate the engine behavior through your demo, the buyer-safe packet, and a guided integration path
+
+Current evaluator packet contents:
+
+- `START_HERE.md`
+- `OpenIntelligenceEngine.xcframework`
+- `EvaluationSupport/`
+- `SampleApp/`
 
 Final intended state:
 
@@ -131,4 +138,4 @@ Do not:
 
 Use this:
 
-“The engine logic is real and the framework target compiles today. The final sealed XCFramework packaging path is being finalized, so the current best next step is a technical evaluation or pilot integration.”
+“The engine logic is real and we can send an evaluation XCFramework packet today. The final sealed module-stable SDK packaging path is still being finalized, so the best next step is a technical evaluation or pilot integration.”

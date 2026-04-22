@@ -75,6 +75,10 @@ Best commercial framing for tomorrow:
 - design-partner or pilot integration
 - early access to the engine surface while binary packaging is finalized
 
+What you send in that motion:
+
+- `output/OpenIntelligence-SDK-Package/build/OpenIntelligenceEngine-Buyer-Packet.zip`
+
 This is the honest version of “we can start now” without overpromising the current XCFramework status.
 
 ## 60-Second Pitch
@@ -82,7 +86,7 @@ This is the honest version of “we can start now” without overpromising the c
 OpenIntelligence Engine is the Apple-native logic behind grounded document QA.
 It ingests private files on-device, builds a workspace-scoped knowledge layer, and answers with citations and evidence-aware behavior instead of generic chat output.
 If your app needs document intelligence on iPhone, iPad, or Apple Silicon without building the retrieval stack yourself, this is the engine layer.
-Today, we can demo the real behavior and start a guided integration. The sealed binary SDK handoff is being finalized.
+Today, we can send a guided evaluation XCFramework packet, demo the real behavior, and start a guided integration. The sealed binary SDK handoff is still being finalized.
 
 ## 15-Minute Buyer Call Structure
 
@@ -112,11 +116,12 @@ That is the practical value of the current library or workspace concept.
 ### Is it ready as a binary SDK today?
 
 Not fully.
-The engine target compiles, but the final XCFramework packaging path is still being finalized.
+A working evaluation XCFramework exists, the curated buyer packet can be generated today, and the sample host imports and builds against that artifact.
+The final reproducible module-stable packaging path is still being finalized.
 
 ### So what can we do right now?
 
-Demo the real capability, scope a pilot, and prepare an early integration path while binary packaging is completed.
+Send the buyer-safe evaluation packet, demo the real capability, scope a pilot, and prepare an early integration path while stable binary packaging is completed.
 
 ## What You Should Ask The Buyer
 

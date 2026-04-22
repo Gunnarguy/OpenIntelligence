@@ -5,22 +5,24 @@
 The workspace currently contains:
 
 - app target: `OpenIntelligence`
-- framework target: `OpenIntelligenceEngine`
-- evaluation XCFramework artifact in the deliverable folder
+- staged evaluation `OpenIntelligenceEngine.xcframework` artifact in the deliverable folder
+- a generated evaluation host project that now acts as a room-ready pitch demo
 
 Current validation completed:
 
-- `OpenIntelligenceEngine` framework target builds successfully for `generic/platform=iOS Simulator`
-- latest engine-target compile drift from billing shims has been repaired
-- evaluation device and simulator archives succeed with code signing disabled
-- evaluation `OpenIntelligenceEngine.xcframework` has been created with `-allow-internal-distribution`
+- buyer packet staging and rebuild succeed from the current on-disk artifact set
+- evaluation host app builds for `iPhone 17 Pro` simulator
+- the self-contained `output/OpenIntelligence-SDK-Package/SampleApp/` build path also succeeds for `iPhone 17 Pro` simulator
+- evaluation host app has a configured on-device path for Apple Intelligence-capable iPhone validation once signing and hardware are available
+- evaluation `OpenIntelligenceEngine.xcframework` is restorable from the buyer packet and remains usable for same-toolchain evaluation
 
 Still not completed:
 
+- reproducible `OpenIntelligenceEngine` framework target build path in the current project file
 - module-stable device archive
 - module-stable simulator archive suitable for XCFramework packaging
 - final module-stable `OpenIntelligenceEngine.xcframework`
-- demo app that links only against the packaged binary
+- sealed stable buyer handoff with no evaluation-support shims
 
 ## Current Packaging Blocker
 
@@ -29,14 +31,16 @@ The blocker is XCFramework archive with `BUILD_LIBRARY_FOR_DISTRIBUTION=YES`, wh
 
 Observed behavior:
 
-- direct `OpenIntelligenceEngine` framework builds can succeed
-- archive for binary distribution fails before final XCFramework creation
-- package validation therefore still reports the binary artifact as missing
+- the repo no longer exposes a buildable/shared `OpenIntelligenceEngine` scheme
+- the evaluation artifact can still be restored and staged from the buyer packet plus archived support outputs
+- module-stable binary packaging is still blocked before a final stable XCFramework path exists
 
 Practical implication:
 
-- the engine is demoable
+- the engine is demoable now
 - an evaluation XCFramework is available now
+- a buyer-safe ZIP with a packet-local sample app is available now
+- the pitch demo can be compiled locally now and taken to Apple Intelligence-capable iPhone hardware for live runtime validation
 - the engine is not yet ready for sealed module-stable binary handoff
 
 ## Resources Required By The Engine
@@ -53,7 +57,7 @@ Practical implication:
 3. Audit remaining app-owned storage assumptions
 4. Archive device and simulator slices with `BUILD_LIBRARY_FOR_DISTRIBUTION=YES`
 5. Create the final XCFramework
-6. Validate a demo integration target against the packaged binary
+6. Validate the pitch-demo host against the packaged binary
 
 ## Evaluation Packaging Path
 
@@ -68,6 +72,7 @@ This is appropriate for:
 - early technical evaluation
 - founder testing
 - guided pilot integration
+- in-room pitch demos on Apple Intelligence-capable devices
 
 This is not the final packaging answer for a stable commercial SDK.
 
@@ -88,13 +93,18 @@ Do not sell it as:
 
 - `scripts/build_engine_xcframework.sh`
 - `scripts/build_engine_evaluation_xcframework.sh`
+- `scripts/prepare_engine_buyer_packet.sh`
 - `scripts/validate_sdk_package.sh`
 - `scripts/build_sdk_buyer_bundle.sh`
 
-These scripts are real and intended to become the packaging path once the framework target exists.
+These scripts are real and currently support the evaluation handoff path, even though the original framework target is no longer buildable from the current project file.
+
+Additional packet-local sample staging script:
+
+- `scripts/stage_sdk_sample_app.sh`
 
 ## Validation Limits
 
 - compile-and-link validation can be done in simulator
-- Apple Intelligence runtime validation requires supported physical hardware
+- Apple Intelligence runtime validation requires Apple Intelligence-capable physical hardware
 - performance validation must be done on real device

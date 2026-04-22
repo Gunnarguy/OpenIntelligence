@@ -32,17 +32,19 @@ The wrong first SDK boundary is:
 
 Current state observed from the workspace:
 
-- two native Xcode targets:
+- one native Xcode target:
   - `OpenIntelligence`
-  - `OpenIntelligenceEngine`
 - one filesystem-synchronized source root: `OpenIntelligence/`
 - one local Swift package dependency tree: `OpenIntelligence/swift-transformers`
 - bundled model resources under `OpenIntelligence/Resources/MLModels`
-- dedicated framework target exists for `OpenIntelligenceEngine`
-- framework target build validated for `generic/platform=iOS Simulator`
-- no existing XCFramework output
+- no dedicated `OpenIntelligenceEngine` framework target or shared scheme is currently present in the Xcode project
+- evaluation `OpenIntelligenceEngine.xcframework` output exists under `output/OpenIntelligence-SDK-Package/`
+- simulator support artifacts can be restored from archived evaluation build products already on disk
+- device compatibility modules can be generated for the evaluation host iPhone path when native `iphoneos` support artifacts are unavailable
+- a self-contained evaluation `SampleApp/` can be staged inside `output/OpenIntelligence-SDK-Package/` for external import validation
+- a curated buyer-safe evaluation ZIP can be produced at `output/OpenIntelligence-SDK-Package/build/OpenIntelligenceEngine-Buyer-Packet.zip`
 
-This means the engine boundary now compiles as a framework target, but the binary packaging step is still incomplete.
+This means the current buyer-facing SDK handoff depends on an existing staged evaluation artifact, not a reproducible framework build path from the current project file.
 
 ## Navigation Map
 
@@ -56,11 +58,15 @@ If you are trying to understand the SDK path quickly, start here:
   - `OpenIntelligence.xcodeproj/project.pbxproj`
 - packaging scripts:
   - `scripts/build_engine_xcframework.sh`
+  - `scripts/prepare_engine_buyer_packet.sh`
+  - `scripts/stage_sdk_sample_app.sh`
   - `scripts/validate_sdk_package.sh`
 - deliverable docs:
+  - `output/OpenIntelligence-SDK-Package/START_HERE.md`
   - `output/OpenIntelligence-SDK-Package/README.md`
   - `output/OpenIntelligence-SDK-Package/Internal/BUILD_NOTES.md`
   - `output/OpenIntelligence-SDK-Package/PACKAGE_SUMMARY.md`
+  - `output/OpenIntelligence-SDK-Package/SampleApp/README.md`
 
 ## Recommended SDK Boundary
 
@@ -180,12 +186,12 @@ Apple frameworks directly used across the engine:
 
 ## Main Blockers To A Closed Binary SDK
 
-### 1. Target Membership Cleanup
+### 1. Dedicated Framework Target And Membership Cleanup
 
-The framework target exists, but it was created from the same filesystem-synchronized source root as the app.
-That makes the target boundary viable for compilation, but still too broad for commercial packaging.
+The intended framework boundary is defined in code and docs, but the current project file no longer exposes a buildable/shared `OpenIntelligenceEngine` target.
+That means the sendable evaluation handoff is artifact-based today rather than rebuilt directly from a dedicated framework scheme.
 
-Before sending this to startups, tighten target membership so the shipping framework does not accidentally include:
+Before shipping a sealed SDK, restore the dedicated framework target and tighten target membership so the shipping framework does not accidentally include:
 
 - `App/*`
 - `Features/*`
@@ -237,11 +243,12 @@ The SDK should expose a smaller public surface:
 
 ### 6. Artifact Validation Is Not Finished
 
-The framework target builds, but the commercial packaging path is still incomplete:
+The commercial packaging path is still incomplete:
 
-- device and simulator archives have not both been validated
-- final `OpenIntelligenceEngine.xcframework` is not yet in the deliverable folder
-- sample binary integration has not yet been proven in a separate demo app
+- the current project file does not contain a buildable/shared `OpenIntelligenceEngine` target
+- the evaluation handoff depends on restoring the staged XCFramework and simulator support artifacts already on disk
+- the buyer packet is sendable and now includes a self-contained sample app, but it is still a same-toolchain evaluation handoff rather than the final stable binary package
+- a fresh module-stable commercial SDK build path is still missing
 
 ## Smallest Viable Public API
 
@@ -291,7 +298,7 @@ That is enough to sell and integrate.
 - define public API wrapper
 - exclude UI/app-only services
 - produce XCFramework
-- build tiny demo app
+- refine the pitch-demo app and sample dataset
 
 ### Not Ready In A Few Days If Scope Expands To "The Whole App Brain"
 
@@ -327,10 +334,12 @@ Current repo status for a sealed SDK:
 - public API exists: partially
 - framework target exists: no
 - XCFramework build path exists: no
-- demo app using packaged binary exists: no
-- buyer-ready binary deliverable exists: no
+- demo app using packaged binary exists: yes, for evaluation
+- buyer-ready binary deliverable exists: yes, for evaluation
+- on-device pitch demo path exists on Apple Intelligence-capable iPhone hardware: yes
 
 Verdict:
 
 - conceptually productizable: yes
-- actually ready to send as a closed-source SDK today: no
+- actually ready to send as an evaluation closed-source SDK today: yes
+- actually ready to send as a sealed stable SDK today: no

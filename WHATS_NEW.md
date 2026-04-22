@@ -2,31 +2,33 @@
 
 Public release highlights for OpenIntelligence.
 
-## In This Release
+## 2.5
 
-- Better grounded answers with stronger evidence checks and fewer generic dead-end refusals
-- Suggested and follow-up questions now stay closer to the actual source passages and avoid placeholder, repetitive, or self-answering prompts
-- Manuals and dense PDFs are handled more reliably, with better cleanup for noisy extraction, multi-column layouts, and chunking edge cases
-- Answer review surfaces now show cleaner traces, prompt capture, and better link and table rendering
-- Free now includes Maximum up to 3 times per day, while Pro and Lifetime unlock unlimited Maximum
-- Prior paid purchases are now grandfathered into Lifetime access in-app, and document packs are no longer sold to new users
+This is the user-facing 2.5 summary of everything that changed after the real 2.1 baseline.
 
-## Also Improved
+## Highlights
 
-- Importing, browsing, and getting to a strong first question feel smoother across larger libraries
-- Document scoping and evidence handling are more reliable across questions that pull from multiple files
-- Chat, answer review, and settings surfaces were tightened up to make results easier to trust and inspect
-- Product messaging and plan copy were refreshed to better match what the app actually does
-- Release workflow and packaging cleanup landed to make future updates steadier
+- Starter questions now come from representative samples of your active library, so the opening prompts better match the documents and sections you're actually working with.
+- Refreshing starter questions does a better job surfacing different grounded prompts instead of repeating the same generic ideas.
+- Follow-up suggestions are more reliable after each answer and when switching libraries, including deeper follow-up, clarification, and comparison flows.
+- Answers now go through stronger grounded-QA routing before they are shown, using a stricter path for fact-heavy questions and a more constrained synthesis path when needed.
+- Evidence verification is tighter before final answer presentation, so the app is less willing to bluff when support is weak.
+- Weakly supported answers are handled more clearly, with better answer review and source inspection when you need to check what was actually grounded.
+- Response details are easier to inspect, with better source cards, clearer filenames, and scrollable excerpts for dense passages.
+- Tables, lists, quotes, headings, separators, and other structured technical output render much better.
+- Malformed links in generated answers are repaired more aggressively.
+- PDF imports do a better job filtering garbage text and noisy extraction on messier files.
+- Maximum mode now has a real daily free-use quota path with clearer paid-tier behavior.
+- Historical paid users are protected more generously in entitlement handling.
+- Settings, billing, and plan messaging were cleaned up to better match the actual entitlement model.
 
-## Product Snapshot
+## Earlier Milestones
 
-- Private document Q&A on iPhone and iPad
-- Source-backed answers with reviewable evidence
-- Built for growing personal and professional document libraries
+- App Store launch on iPhone
+- Local document Q&A with citations
+- Native Apple platform integration for privacy-first workflows
 
 ## Notes
 
-This summary stays feature-facing on purpose. It tells users what improved
-without publishing internal pipeline details, tuning rules, or private roadmap
-work.
+This public summary is intentionally feature-facing. Internal engine changes, tuning values, and private roadmap details are not published here.
+For the private evaluation SDK packet and design-partner materials in this working repo, start at `output/OpenIntelligence-SDK-Package/START_HERE.md` and `output/OpenIntelligence-Partner-Packet/README.md`.

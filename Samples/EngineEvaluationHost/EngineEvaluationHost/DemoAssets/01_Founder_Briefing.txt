@@ -1,0 +1,50 @@
+OpenIntelligence Founder Briefing
+April 20, 2026
+
+Purpose
+OpenIntelligence Engine is the private-document intelligence layer for Apple-native teams that need grounded answers from sensitive materials without sending those materials to a generic cloud AI stack first.
+
+What we are selling first
+- A founder-led design-partner evaluation, not a mass self-serve SDK launch.
+- The product wedge is private document question answering with citations, fast enough for live internal workflows such as board prep, diligence review, customer research synthesis, and account-team briefing.
+- The right first buyer is a team that already lives in the Apple ecosystem and cares about privacy, trust, and operator speed more than broad cross-platform coverage.
+
+Traction snapshot
+- We have 14 warm conversations in the current pipeline.
+- 5 teams asked for a technical evaluation after seeing the private-doc grounded-answering flow.
+- 3 verticals are showing the strongest pull: venture and finance operators, healthcare operations teams, and enterprise IT groups handling sensitive internal docs.
+- The common ask is not "give us a chatbot." The ask is "give us trusted answers from our private material, and show the evidence."
+
+What the product demo must prove
+- Index a small document set in front of the buyer.
+- Ask a real question in natural language.
+- Return a concise answer with evidence attached.
+- Make it obvious that the system knows when it is uncertain.
+- Keep the story anchored on privacy and groundedness, not on generic model fireworks.
+
+Commercial wedge
+- The initial commercial motion is a 4-to-6 week design-partner evaluation with direct founder support.
+- Target pricing for that first motion is 25 thousand to 40 thousand dollars depending on document volume, onboarding depth, and custom evaluation work.
+- The near-term promise is faster decision prep and less manual document hunting for high-leverage teams.
+
+Why buyers are leaning in
+- Teams already have too many PDFs, research notes, diligence memos, and customer transcripts.
+- Internal teams do not trust uncited answers.
+- Security reviewers push back when sensitive material has to leave the device or move into an unscoped external system.
+- Apple-native teams like the fact that the story can stay local, private, and operator friendly.
+
+What is working
+- The pitch demo can now run as a real SwiftUI host app.
+- The evaluation flow supports ingest, grounded query, confidence, warnings, and citations.
+- Buyers consistently react to the citation layer more strongly than to raw answer fluency.
+
+Biggest operating risks
+- Packaging risk: the current SDK handoff is evaluation-ready on a matching Xcode and Swift toolchain, but it is not yet the final toolchain-agnostic binary SDK.
+- Security-review drag: enterprise buyers still want clear answers on data handling, logging, and boundary guarantees even when the positioning is privacy first.
+- Onboarding friction: the strongest live experience currently depends on Apple Intelligence-capable hardware, which narrows who can see the full demo path immediately.
+
+30-day priorities
+- Convert one founder-led evaluation into a paid design-partner pilot.
+- Tighten the packaging story so the buyer handoff feels lower-risk.
+- Keep the demo centered on trust, citations, and speed to answer.
+- Gather sharper proof points from real document sets, especially around time saved before high-stakes meetings.

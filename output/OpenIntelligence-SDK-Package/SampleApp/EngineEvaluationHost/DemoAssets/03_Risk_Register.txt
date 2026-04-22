@@ -1,0 +1,72 @@
+OpenIntelligence Risk Register
+Working draft for founder review
+
+Risk 1: Evaluation packaging is still toolchain-sensitive
+Severity: High
+Probability: Medium
+Why it matters:
+The current evaluation SDK handoff works on the same Xcode and Swift generation it was built with, but it is not yet the final sealed binary distribution story. A buyer can evaluate the engine now, but broad self-serve distribution would still be risky.
+Evidence:
+- The repo currently relies on a staged evaluation XCFramework plus support artifacts.
+- The original Engine build target is no longer the primary shared build path in the project.
+- Module-stable packaging work remains on the roadmap.
+Mitigation:
+- Sell founder-led evaluations first.
+- Keep the current promise narrow: same-toolchain evaluation, not universal SDK distribution.
+- Continue tightening the final module-stable packaging path.
+
+Risk 2: Security and procurement review may slow down enterprise deals
+Severity: High
+Probability: Medium
+Why it matters:
+The privacy-first story gets attention, but buyers still ask for clear answers on data handling, logging boundaries, deployment assumptions, and model execution posture.
+Evidence:
+- Enterprise IT teams said privacy alone is not enough; they want operational clarity.
+- Healthcare and finance prospects both raised auditability and handling questions early.
+- The strongest buyers are exactly the ones with longer review cycles.
+Mitigation:
+- Prepare a short technical one-pager on data boundaries.
+- Keep the product claims precise and conservative.
+- Use the evaluation host to demonstrate grounded behavior and explicit warnings.
+
+Risk 3: Live demo quality depends on Apple Intelligence-capable hardware
+Severity: Medium
+Probability: High
+Why it matters:
+The strongest room demo currently runs on Apple Intelligence-capable hardware. That improves the story, but narrows the hardware surface for live evaluation.
+Evidence:
+- Simulator is useful for import and UI validation, but not the full Apple Intelligence runtime path.
+- The most convincing experience is on-device ingest plus grounded query.
+- Some prospects will not have matching hardware available during early evaluation.
+Mitigation:
+- Always bring a supported iPhone to live demos.
+- Keep a clean simulator walkthrough as a fallback for UI and import proof.
+- Continue improving the packaging and host app so the device path feels predictable.
+
+Risk 4: Expectation mismatch between evaluation UI and final product
+Severity: Medium
+Probability: Medium
+Why it matters:
+The current host app is strong enough for a pitch, but it is still an evaluation environment rather than a polished end-user product. Buyers may project missing enterprise features onto the current demo.
+Evidence:
+- The strongest parts of the demo are ingest, query, and citations.
+- Workflow automation, admin controls, and full product surfaces are not the present focus.
+- Early buyers often assume the demo shell represents the shipped product unless told otherwise.
+Mitigation:
+- Frame the host app as an evaluation demo.
+- Keep the commercial discussion focused on the engine capability and integration path.
+- Use a crisp operator script so the room narrative stays disciplined.
+
+Risk 5: Messy source documents can reduce trust if evidence quality drops
+Severity: Medium
+Probability: Medium
+Why it matters:
+Buyers will inevitably test scans, long PDFs, and noisy packets. If the answer is weak or the citation quality drops, trust can erode quickly.
+Evidence:
+- Buyers explicitly asked how the system behaves on messy PDFs.
+- The entire product wedge depends on citation faithfulness.
+- A single bad live answer can outweigh several good ones in an executive room.
+Mitigation:
+- Curate the live demo dataset carefully.
+- Prefer high-signal document sets for first evaluations.
+- Continue improving refusal behavior when the evidence is weak.

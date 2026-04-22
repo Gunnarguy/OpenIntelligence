@@ -2,12 +2,21 @@
 
 This is the public version history for OpenIntelligence. It focuses on user-visible product changes and intentionally omits private engine tuning, thresholds, and internal implementation details.
 
-## 2.1.x - April 2026
+## 2.5 - April 2026
 
-- Improved answer reliability and stability in complex conversations
-- Better formatting, citation presentation, and response readability
-- Smoother handling for larger and more difficult document imports
-- Onboarding, settings, and diagnostics polish across the app
+- Starter questions now come from representative samples of the active library instead of generic prompts
+- Refreshing starter questions surfaces more varied grounded prompts rather than repeating the same ideas
+- Follow-up suggestions behave more reliably after answers and library switches, including deeper follow-up, clarification, and comparison flows
+- Grounded answer routing is stronger before answers are shown, with a stricter path for fact-heavy questions and a more constrained synthesis path when needed
+- Evidence verification is tighter before final answer presentation so weak support is handled more conservatively
+- Weakly supported answers are surfaced more clearly through better answer review and source inspection
+- Source cards, filenames, and scrollable excerpts are easier to inspect in response details
+- Tables, lists, quotes, headings, separators, and other structured technical output render much better
+- Malformed links in generated answers are repaired more aggressively
+- PDF imports filter garbage text and noisy extraction more cleanly on messier files
+- Maximum mode now has a real daily free-use quota path with clearer paid behavior
+- Historical paid users are protected more generously in entitlement handling
+- Settings, billing, and plan messaging were cleaned up to better match the actual entitlement model
 
 ## 2.0.x - March 2026
 
@@ -25,3 +34,4 @@ This is the public version history for OpenIntelligence. It focuses on user-visi
 ## Notes
 
 Detailed internal algorithm changes and research-oriented engine updates are tracked privately rather than in the public changelog.
+Private evaluation-packet, partner-packet, and commercialization materials in this working repo are tracked under `output/OpenIntelligence-SDK-Package/` and `output/OpenIntelligence-Partner-Packet/` instead of being expanded here.

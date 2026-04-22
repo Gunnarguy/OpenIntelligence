@@ -1,0 +1,47 @@
+OpenIntelligence GTM Memo
+Early commercial plan
+
+Core thesis
+OpenIntelligence should enter the market through founder-led design-partner deals where private document trust is more valuable than broad feature breadth.
+
+Ideal first customer profile
+- Apple-native team
+- Sensitive internal documents
+- Frequent high-stakes meetings
+- Clear pain around searching through board materials, diligence packets, research notes, or compliance documentation
+- Willingness to run a scoped evaluation before asking for full productization
+
+Commercial wedge
+- "Trusted answers from your private documents, with citations."
+- The goal is not replacing human judgment.
+- The goal is compressing the time between "where is that buried?" and "here is the answer with evidence."
+
+Why now
+- Teams are actively exploring AI, but trust in uncited answers remains low.
+- Privacy and data-boundary concerns create space for an Apple-native story.
+- Executives and operators are overwhelmed by document volume during a period of higher scrutiny and faster decision cycles.
+
+Pilot offer
+- 4-week technical evaluation followed by a 6-week design-partner pilot.
+- Pricing target: 25 thousand dollars for a light evaluation, up to 40 thousand dollars for a higher-touch pilot.
+- Success metrics: faster prep for recurring meetings, less manual document search, and higher confidence in answers because the evidence is visible.
+
+Sample ROI framing
+- If one leadership team saves 90 minutes of preparation before a weekly high-stakes meeting, the product is paying for real executive time almost immediately.
+- If investment or diligence teams can cut packet search time materially, the product becomes valuable before any broader workflow automation exists.
+
+Positioning guidance
+- Lead with private docs and trust.
+- Show citations early.
+- Avoid overselling general AI breadth.
+- Be honest that the current SDK path is evaluation-ready and founder-guided.
+
+What to say in the room
+- "We are not asking you to trust a black box."
+- "We are showing you a private document engine that answers and points to the source."
+- "If the evidence is weak, the system should make that clear instead of bluffing."
+
+Next-step goal after the demo
+- Secure a paid design-partner conversation.
+- Offer a scoped technical evaluation against the buyer's own document set.
+- Keep the follow-up anchored on one concrete workflow with economic value, not a generic innovation budget ask.

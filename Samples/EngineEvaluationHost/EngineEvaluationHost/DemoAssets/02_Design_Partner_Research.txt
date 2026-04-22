@@ -1,0 +1,44 @@
+OpenIntelligence Design Partner Research
+Condensed notes from six early buyer conversations
+
+Recurring pain points
+- Every team described document sprawl. Board decks, call notes, PDFs, research packets, compliance docs, and internal memos are scattered across too many folders and tools.
+- Buyers said the hardest part is not generating language. It is finding the exact source fast enough to trust the answer before a meeting.
+- Multiple operators said they are already overwhelmed by AI products that sound fluent but cannot show where the answer came from.
+
+Signal from the calls
+- Finance and investing teams want to ask questions across diligence packets, portfolio updates, and internal strategy memos.
+- Healthcare operations teams want internal answers without sending sensitive material into a generic external workflow.
+- Enterprise IT teams said policy, audit, and architecture docs are searchable today, but not explainable in a way leaders can trust under pressure.
+
+Representative buyer statements
+- "If the answer does not show me the document evidence, I still have to do the manual search."
+- "Our problem is not writing. Our problem is verifying."
+- "We have information everywhere, but nobody wants to be the person who repeats the wrong thing in a board meeting."
+- "Privacy matters, but trust matters more. If it is private and still hallucinates, that is not useful."
+
+What buyers care about most
+- Citation-backed answers.
+- Fast time to value with existing private documents.
+- Clear handling of uncertainty and warnings.
+- A setup path that does not require a giant backend project before evaluation.
+
+What they do not want
+- A novelty chatbot with no evidence.
+- A long implementation cycle before seeing value.
+- A demo that only works on perfectly formatted documents.
+- A product story that hides behind "the model is smart" instead of proving retrieval and grounding.
+
+Patterns across the interviews
+- The most urgent workflows are meeting prep, investment or diligence review, executive briefing, and cross-functional handoff.
+- Buyers want summaries, but the real economic value is reducing the time spent searching through scattered material.
+- Several teams said they could justify a paid pilot if the product saved even one or two hours per high-stakes weekly meeting.
+
+Common objections
+- "How brittle is this when the PDFs are messy?"
+- "Can the engine refuse to answer when the evidence is weak?"
+- "What does deployment look like after the founder-led evaluation?"
+- "How much support do we need from you to keep this running?"
+
+Takeaway
+The product wedge is not generic AI productivity. The wedge is trusted answers from private documents, with citations, in the moments where people cannot afford to be wrong.
