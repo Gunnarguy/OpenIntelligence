@@ -849,17 +849,6 @@ final class SourceOnlyAnswerService {
         for missing in missingFacets where !missing.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             _ = builder.addMissing(missing)
         }
-        for claim in unsupportedClaims.prefix(6) {
-            _ = builder.addRejectedClaim(
-                claim.claimText,
-                verdict: claim.verdict.rawValue,
-                evidenceIds: claim.evidenceIds,
-                confidence: claim.fidelity,
-                isCritical: claim.isCritical,
-                notes: claim.notes
-            )
-        }
-
         return builder.build()
     }
 

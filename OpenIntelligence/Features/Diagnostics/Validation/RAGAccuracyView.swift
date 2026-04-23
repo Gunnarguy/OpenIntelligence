@@ -17,8 +17,10 @@ struct RAGAccuracyView: View {
     @State private var testProgress: String = ""
     @State private var embeddingSanityResult: EmbeddingSanityResult?
     @State private var quickSanityPassed: Bool?
-    @State private var fullMetrics: RAGQualityMetrics?
+    @State private var benchmarkReport: RAGBenchmarkSuiteResult?
     @State private var errorMessage: String?
+    @State private var embeddingSnapshot: RAGService.EmbeddingDiagnosticsSnapshot?
+    @State private var isImportingSamples = false
 
     var body: some View {
         List {
@@ -85,6 +87,20 @@ struct RAGAccuracyView: View {
             // Full Pipeline Test
             Section {
                 Button {
+                    Task { await importSampleWorkspace() }
+                } label: {
+                    HStack {
+                        Label("Import Sample Workspace", systemImage: "square.and.arrow.down.on.square")
+                        Spacer()
+                        if isImportingSamples {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                        }
+                    }
+                }
+                .disabled(isRunningTests || isImportingSamples)
+
+                Button {
                     Task { await runFullSuite() }
                 } label: {
                     HStack {
@@ -93,25 +109,27 @@ struct RAGAccuracyView: View {
                         if isRunningTests {
                             ProgressView()
                                 .scaleEffect(0.8)
-                        } else if let metrics = fullMetrics {
-                            Text(metrics.passed ? "PASS" : "FAIL")
+                        } else if let report = benchmarkReport {
+                            Text(report.metrics.passed ? "PASS" : "FAIL")
                                 .font(.caption.bold())
-                                .foregroundStyle(metrics.passed ? .green : .red)
+                                .foregroundStyle(report.metrics.passed ? .green : .red)
                         }
                     }
                 }
-                .disabled(isRunningTests || ragService.documents.isEmpty)
+                .disabled(isRunningTests || isImportingSamples || ragService.documents.isEmpty)
 
-                if let metrics = fullMetrics {
-                    fullMetricsView(metrics)
+                if let report = benchmarkReport {
+                    fullMetricsView(report.metrics)
+                    pipelineCensusView(report.pipelineCensus)
+                    benchmarkCaseResultsView(report.caseResults)
                 }
             } header: {
                 Text("Full Accuracy Audit")
             } footer: {
                 if ragService.documents.isEmpty {
-                    Text("⚠️ Add documents first to test retrieval and answer accuracy.")
+                    Text("⚠️ Import the sample workspace or add your own documents first to test retrieval and answer accuracy.")
                 } else {
-                    Text("Tests embedding, retrieval (Recall@K, MRR), and answer quality (F1). Requires documents.")
+                    Text("Tests embedding, retrieval (Recall@K, MRR), answer quality (F1), and pipeline activation. The built-in suite is aligned to the app's sample workspace documents.")
                 }
             }
 
@@ -146,6 +164,11 @@ struct RAGAccuracyView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.large)
         #endif
+        .task {
+            if embeddingSnapshot == nil {
+                embeddingSnapshot = await ragService.embeddingDiagnosticsSnapshot()
+            }
+        }
     }
 
     // MARK: - Quick Status Card
@@ -165,8 +188,8 @@ struct RAGAccuracyView: View {
 
             HStack(spacing: 20) {
                 metricPill("Embedding", value: embeddingSanityResult?.correlation, threshold: 0.8)
-                metricPill("Retrieval", value: fullMetrics?.recallAt5, threshold: 0.6)
-                metricPill("Answers", value: fullMetrics?.f1Score, threshold: 0.5)
+                metricPill("Retrieval", value: benchmarkReport?.metrics.recallAt5, threshold: 0.6)
+                metricPill("Answers", value: benchmarkReport?.metrics.f1Score, threshold: 0.5)
             }
         }
         .padding(.vertical, 4)
@@ -191,7 +214,7 @@ struct RAGAccuracyView: View {
     }
 
     private func determineOverallStatus() -> (label: String, color: Color) {
-        if let metrics = fullMetrics {
+        if let metrics = benchmarkReport?.metrics {
             return metrics.passed ? ("Verified Accurate", .green) : ("Issues Detected", .red)
         }
         if let sanity = embeddingSanityResult {
@@ -271,6 +294,64 @@ struct RAGAccuracyView: View {
     }
 
     @ViewBuilder
+    private func pipelineCensusView(_ census: RAGBenchmarkPipelineCensus) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Divider()
+            Text("Pipeline Census")
+                .font(.caption.bold())
+
+            metricRow("Recursive RAG", Float(census.recursiveRAGCases) / Float(max(census.totalCases, 1)), threshold: 0)
+            metricRow("Query rewrite", Float(census.queryRewriteCases) / Float(max(census.totalCases, 1)), threshold: 0)
+            metricRow("HyDE", Float(census.hydeCases) / Float(max(census.totalCases, 1)), threshold: 0)
+            metricRow("Iterative", Float(census.iterativeCases) / Float(max(census.totalCases, 1)), threshold: 0)
+            metricRow("Compression", Float(census.compressionCases) / Float(max(census.totalCases, 1)), threshold: 0)
+            metricRow("Graph pack", Float(census.graphPackingCases) / Float(max(census.totalCases, 1)), threshold: 0)
+
+            if !census.enabledFeatureSummary.isEmpty {
+                Text(census.enabledFeatureSummary.joined(separator: " • "))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.top, 8)
+    }
+
+    @ViewBuilder
+    private func benchmarkCaseResultsView(_ caseResults: [RAGBenchmarkCaseResult]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Divider()
+            Text("Benchmark Cases")
+                .font(.caption.bold())
+
+            ForEach(caseResults) { result in
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Image(systemName: result.exactMatch ? "checkmark.circle.fill" : (result.f1Score >= 0.5 ? "exclamationmark.circle.fill" : "xmark.circle.fill"))
+                            .foregroundStyle(result.exactMatch ? .green : (result.f1Score >= 0.5 ? .orange : .red))
+                        Text(result.queryClass.rawValue)
+                            .font(.caption.bold())
+                        Spacer()
+                        Text(String(format: "F1 %.0f%%", result.f1Score * 100))
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Text(result.query)
+                        .font(.caption2)
+                    if let snapshot = result.auditSnapshot {
+                        let featureSummary = snapshot.featureFlags.enabledFeatures
+                        Text(featureSummary.isEmpty ? "Literal path" : featureSummary.joined(separator: " • "))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+        }
+        .padding(.top, 8)
+    }
+
+    @ViewBuilder
     private func metricRow(_ label: String, _ value: Float, threshold: Float) -> some View {
         HStack {
             Text(label)
@@ -292,6 +373,7 @@ struct RAGAccuracyView: View {
             explanationItem("Recall@K", "% of queries where the correct document appears in top K results. Target: >60%")
             explanationItem("MRR", "Mean Reciprocal Rank — how high correct answers rank. Target: >0.70")
             explanationItem("F1 Score", "Token overlap between generated and expected answers. Target: >50%")
+            explanationItem("Built-in Corpus", "The default benchmark suite is aligned to the curated sample workspace imported by SampleDocumentManager.")
         }
     }
 
@@ -306,6 +388,40 @@ struct RAGAccuracyView: View {
         }
     }
 
+        private func resolveEmbeddingSnapshot() async -> RAGService.EmbeddingDiagnosticsSnapshot {
+            if let embeddingSnapshot {
+                return embeddingSnapshot
+            }
+
+            let snapshot = await ragService.embeddingDiagnosticsSnapshot()
+            await MainActor.run {
+                self.embeddingSnapshot = snapshot
+            }
+            return snapshot
+        }
+
+        private func importSampleWorkspace() async {
+            await MainActor.run {
+                isImportingSamples = true
+                errorMessage = nil
+                testProgress = "Importing sample workspace..."
+            }
+
+            do {
+                try await SampleDocumentManager.shared.importSamples(into: ragService)
+                await MainActor.run {
+                    testProgress = "Sample workspace imported."
+                    isImportingSamples = false
+                }
+            } catch {
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    testProgress = ""
+                    isImportingSamples = false
+                }
+            }
+        }
+
     // MARK: - Test Actions
 
     private func runQuickSanity() async {
@@ -313,7 +429,8 @@ struct RAGAccuracyView: View {
         testProgress = "Running quick sanity check..."
         errorMessage = nil
 
-        let embeddingService = EmbeddingService.forProvider(id: "coreml_sentence_embedding")
+        let snapshot = await resolveEmbeddingSnapshot()
+        let embeddingService = snapshot.makeEmbeddingService()
         let passed = await QualityAssuranceService.shared.quickSanityCheck(embeddingService: embeddingService)
 
         await MainActor.run {
@@ -328,7 +445,8 @@ struct RAGAccuracyView: View {
         testProgress = "Testing semantic embedding pairs..."
         errorMessage = nil
 
-        let embeddingService = EmbeddingService.forProvider(id: "coreml_sentence_embedding")
+        let snapshot = await resolveEmbeddingSnapshot()
+        let embeddingService = snapshot.makeEmbeddingService()
         let (passed, correlation, details) = await QualityAssuranceService.shared.testEmbeddingSanity(embeddingService: embeddingService)
 
         await MainActor.run {
@@ -340,31 +458,32 @@ struct RAGAccuracyView: View {
 
     private func runFullSuite() async {
         isRunningTests = true
-        testProgress = "Running full accuracy audit..."
+        testProgress = "Running benchmark + pipeline census..."
         errorMessage = nil
 
-        let embeddingService = EmbeddingService.forProvider(id: "coreml_sentence_embedding")
+        let snapshot = await resolveEmbeddingSnapshot()
+        let embeddingService = snapshot.makeEmbeddingService()
 
         // Create search function wrapper using searchDocumentsRaw
         let searchFunction: @Sendable (String) async throws -> [RetrievedChunk] = { [ragService] query in
             try await ragService.searchDocumentsRaw(query: query, topK: 10)
         }
 
-        // Create answer function wrapper using query()
-        let answerFunction: @Sendable (String) async throws -> String = { [ragService] query in
-            let result = try await ragService.query(query)
-            return result.generatedResponse
+        // Create answer function wrapper using queryWithAudit()
+        let answerFunction: @Sendable (String) async throws -> (answer: String, auditSnapshot: RAGAuditSnapshot?) = { [ragService] query in
+            let result = try await ragService.queryWithAudit(query)
+            return (result.response.generatedResponse, result.auditSnapshot)
         }
 
-        testProgress = "Testing embeddings..."
-        let metrics = await QualityAssuranceService.shared.runFullQualitySuite(
+        testProgress = "Testing embeddings, retrieval, answers, and feature activation..."
+        let report = await QualityAssuranceService.shared.runEndToEndBenchmarkSuite(
             embeddingService: embeddingService,
             searchFunction: searchFunction,
-            answerFunction: answerFunction
+            auditedAnswerFunction: answerFunction
         )
 
         await MainActor.run {
-            fullMetrics = metrics
+            benchmarkReport = report
             testProgress = ""
             isRunningTests = false
         }

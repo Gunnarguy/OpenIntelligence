@@ -199,14 +199,6 @@ struct MessageBubbleV2: View {
 .padding(.horizontal, isUser ? 0 : 4)
             }
 
-            if !isUser,
-               let structuredAnswer = message.structuredAnswer,
-               shouldShowTrustSummary(for: structuredAnswer)
-            {
-                SourceTrustSummaryRow(structuredAnswer: structuredAnswer)
-                    .padding(.horizontal, 4)
-            }
-
             // Detailed metrics accessible via tap on message
             // (Model, speed, sources, quality all shown in header area)
 
@@ -278,13 +270,6 @@ struct MessageBubbleV2: View {
         return date.formatted(date: .abbreviated, time: .shortened)
     }
 
-    private func shouldShowTrustSummary(for structuredAnswer: StructuredAnswer) -> Bool {
-        structuredAnswer.refuse
-            || !structuredAnswer.claims.isEmpty
-            || !structuredAnswer.rejectedClaims.isEmpty
-            || !structuredAnswer.missing.isEmpty
-    }
-
     private func shareMessage() {
         sharePayload = SharePayload(items: [message.content])
     }
@@ -292,8 +277,6 @@ struct MessageBubbleV2: View {
     private func exportPipelineTrace() {
         if let fileURL = PipelineTraceExporter.exportToFile(
             message: message,
-            userQuery: message.traceQuery ?? message.metadata?.originalQuery,
-            thinkingEvents: message.thinkingEvents ?? [],
             pipelineTrace: message.pipelineTrace ?? []
         ) {
             sharePayload = SharePayload(items: [fileURL])
@@ -301,8 +284,6 @@ struct MessageBubbleV2: View {
             // Fallback: copy trace text to clipboard
             let traceText = PipelineTraceExporter.buildTrace(
                 message: message,
-                userQuery: message.traceQuery ?? message.metadata?.originalQuery,
-                thinkingEvents: message.thinkingEvents ?? [],
                 pipelineTrace: message.pipelineTrace ?? []
             )
             #if canImport(UIKit)
@@ -470,8 +451,6 @@ private struct VerificationBadge: View {
 
     enum VerificationStatus {
         case verified
-    case sourceOnlyVerified
-    case groundedRefusal
         case partiallyVerified
         case lowConfidence
         case unverified
@@ -480,8 +459,6 @@ private struct VerificationBadge: View {
         var icon: String {
             switch self {
             case .verified: return "checkmark.shield.fill"
-            case .sourceOnlyVerified: return "checkmark.shield.fill"
-            case .groundedRefusal: return "hand.raised.fill"
             case .partiallyVerified: return "shield.lefthalf.filled"
             case .lowConfidence: return "exclamationmark.triangle.fill"
             case .unverified: return "xmark.shield.fill"
@@ -492,8 +469,6 @@ private struct VerificationBadge: View {
         var label: String {
             switch self {
             case .verified: return "Verified"
-            case .sourceOnlyVerified: return "Source-Only Verified"
-            case .groundedRefusal: return "Needs Evidence"
             case .partiallyVerified: return "Partially Verified"
             case .lowConfidence: return "Low Confidence"
             case .unverified: return "Unverified"
@@ -504,8 +479,6 @@ private struct VerificationBadge: View {
         var color: Color {
             switch self {
             case .verified: return .green
-            case .sourceOnlyVerified: return .green
-            case .groundedRefusal: return .orange
             case .partiallyVerified: return .yellow
             case .lowConfidence: return .orange
             case .unverified: return .red
@@ -515,22 +488,6 @@ private struct VerificationBadge: View {
 
         static func from(gatingDecision: String) -> VerificationStatus {
             let lower = gatingDecision.lowercased()
-            if lower.contains("best_effort_after") {
-                if lower.contains("low_confidence")
-                    || lower.contains("rerank_empty")
-                    || lower.contains("mmr_empty")
-                    || lower.contains("relevance_gate_failed")
-                {
-                    return .lowConfidence
-                }
-                return .partiallyVerified
-            }
-            if lower.contains("source_only_abstain") {
-                return .groundedRefusal
-            }
-            if lower.contains("source_only_verified") {
-                return .sourceOnlyVerified
-            }
             if lower.contains("no_sources") || lower.contains("no_documents") || lower.contains("context_empty") {
                 return .noSources
             }
@@ -545,60 +502,6 @@ private struct VerificationBadge: View {
             }
             return .verified
         }
-    }
-}
-
-private struct SourceTrustSummaryRow: View {
-    let structuredAnswer: StructuredAnswer
-
-    var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
-                if structuredAnswer.refuse {
-                    trustChip(text: "Needs more evidence", color: .orange, icon: "hand.raised.fill")
-                }
-
-                if !structuredAnswer.claims.isEmpty {
-                    trustChip(
-                        text: "\(structuredAnswer.claims.count) verified \(structuredAnswer.claims.count == 1 ? "claim" : "claims")",
-                        color: .green,
-                        icon: "checkmark.circle.fill"
-                    )
-                }
-
-                if !structuredAnswer.rejectedClaims.isEmpty {
-                    trustChip(
-                        text: "\(structuredAnswer.rejectedClaims.count) dropped",
-                        color: .orange,
-                        icon: "xmark.circle.fill"
-                    )
-                }
-
-                if !structuredAnswer.missing.isEmpty {
-                    trustChip(
-                        text: "\(structuredAnswer.missing.count) gaps",
-                        color: .blue,
-                        icon: "questionmark.circle.fill"
-                    )
-                }
-            }
-        }
-    }
-
-    private func trustChip(text: String, color: Color, icon: String) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: icon)
-                .font(.system(size: 10, weight: .semibold))
-            Text(text)
-                .font(.system(size: 11, weight: .semibold))
-        }
-        .foregroundStyle(color)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(
-            Capsule()
-                .fill(color.opacity(0.12))
-        )
     }
 }
 

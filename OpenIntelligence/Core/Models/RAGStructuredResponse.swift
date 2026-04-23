@@ -17,8 +17,8 @@
 
     // MARK: - Core RAG Response Types
 
-    /// Structured RAG claim with explicit source ids.
-    /// Used by constrained generation so Gate B can verify claims directly.
+    /// Structured RAG answer with guaranteed citations and confidence
+    /// Used when requesting answers from document context
     @available(iOS 26.0, *)
     @Generable
     struct RAGAnswerClaim {

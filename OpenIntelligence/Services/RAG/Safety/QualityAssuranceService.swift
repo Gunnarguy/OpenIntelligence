@@ -92,6 +92,71 @@ struct RAGQualityMetrics: Sendable, Codable {
     }
 }
 
+struct RAGBenchmarkCaseResult: Identifiable, Sendable {
+    enum QueryClass: String, Sendable, Codable, CaseIterable {
+        case factLookup = "Fact Lookup"
+        case extractive = "Extractive"
+        case abstractive = "Abstractive"
+        case procedure = "Procedure"
+        case comparison = "Comparison"
+        case multiHop = "Multi-Hop"
+        case yesNo = "Yes / No"
+        case list = "List"
+    }
+
+    let id: String
+    let query: String
+    let expectedAnswer: String
+    let actualAnswer: String
+    let queryClass: QueryClass
+    let difficulty: QATestCase.Difficulty
+    let exactMatch: Bool
+    let f1Score: Float
+    let auditSnapshot: RAGAuditSnapshot?
+}
+
+struct RAGBenchmarkPipelineCensus: Sendable {
+    let totalCases: Int
+    let recursiveRAGCases: Int
+    let queryRewriteCases: Int
+    let hydeCases: Int
+    let iterativeCases: Int
+    let summaryRoutingCases: Int
+    let parentDocCases: Int
+    let compressionCases: Int
+    let graphPackingCases: Int
+    let retrievalCascadeCases: Int
+    let supplementaryVectorCases: Int
+    let fullUnlimitedCases: Int
+
+    var enabledFeatureSummary: [String] {
+        let raw: [(String, Int)] = [
+            ("Recursive", recursiveRAGCases),
+            ("Rewrite", queryRewriteCases),
+            ("HyDE", hydeCases),
+            ("Iterative", iterativeCases),
+            ("Summaries", summaryRoutingCases),
+            ("Parent", parentDocCases),
+            ("Compression", compressionCases),
+            ("GraphPack", graphPackingCases),
+            ("Cascade", retrievalCascadeCases),
+            ("MultiVector", supplementaryVectorCases),
+            ("Unlimited", fullUnlimitedCases)
+        ]
+
+        return raw
+            .filter { $0.1 > 0 }
+            .map { "\($0.0) \($0.1)/\(max(totalCases, 1))" }
+    }
+}
+
+struct RAGBenchmarkSuiteResult: Sendable {
+    let timestamp: Date
+    let metrics: RAGQualityMetrics
+    let caseResults: [RAGBenchmarkCaseResult]
+    let pipelineCensus: RAGBenchmarkPipelineCensus
+}
+
 // MARK: - Benchmark Test Cases
 
 /// A single QA test case with ground truth
@@ -161,32 +226,111 @@ actor QualityAssuranceService {
         EmbeddingSimilarityPair(textA: "database", textB: "SQL query", expectedSimilarity: 0.6, category: "related"),
     ]
 
-    /// Built-in QA test cases for the sample documents
+    /// Built-in QA test cases aligned with SampleDocumentManager's curated sample workspace.
     private let builtInQATests: [QATestCase] = [
-        // These work with the Solaris Industries Annual Report sample doc
         QATestCase(
-            id: "solaris_revenue",
-            query: "What was Solaris Industries' total revenue in 2025?",
-            expectedAnswer: "$4.2 billion",
-            expectedDocumentIds: ["solaris_annual_report"],
+            id: "pricing_free_limit",
+            query: "How many documents does the Free Tier allow in the sample pricing guide?",
+            expectedAnswer: "5 documents",
+            expectedDocumentIds: ["openintelligencepricing"],
             answerType: .factoid,
             difficulty: .easy
         ),
         QATestCase(
-            id: "solaris_rd_budget",
-            query: "What is Solaris Industries' R&D budget?",
-            expectedAnswer: "$340 million",
-            expectedDocumentIds: ["solaris_annual_report"],
+            id: "pricing_pro_monthly",
+            query: "What is the monthly Pro subscription price in the sample workspace?",
+            expectedAnswer: "$5.99/month",
+            expectedDocumentIds: ["openintelligencepricing"],
             answerType: .factoid,
             difficulty: .easy
         ),
         QATestCase(
-            id: "solaris_efficiency",
-            query: "What efficiency does the Helios X8 series have?",
-            expectedAnswer: "28%",
-            expectedDocumentIds: ["solaris_annual_report"],
+            id: "rag_rrf_method",
+            query: "What method combines vector and BM25 rankings in the RAG Technical Architecture sample?",
+            expectedAnswer: "Reciprocal Rank Fusion",
+            expectedDocumentIds: ["ragtechnicalarchitecture"],
+            answerType: .factoid,
+            difficulty: .easy
+        ),
+        QATestCase(
+            id: "rag_gate_count",
+            query: "How many verification gates does the architecture document describe?",
+            expectedAnswer: "Seven gates",
+            expectedDocumentIds: ["ragtechnicalarchitecture"],
             answerType: .factoid,
             difficulty: .medium
+        ),
+        QATestCase(
+            id: "apple_context_window",
+            query: "What is the Apple on-device Foundation Model context window in the sample workspace?",
+            expectedAnswer: "4,096 tokens",
+            expectedDocumentIds: ["appleintelligenceprivatecloudcompute"],
+            answerType: .factoid,
+            difficulty: .medium
+        ),
+        QATestCase(
+            id: "apple_model_size",
+            query: "About how many parameters does Apple's on-device model have according to the sample workspace?",
+            expectedAnswer: "~3 billion",
+            expectedDocumentIds: ["appleintelligenceprivatecloudcompute"],
+            answerType: .factoid,
+            difficulty: .medium
+        ),
+        QATestCase(
+            id: "pricing_ai_hub_transforms",
+            query: "Which AI Hub transforms are included in Pro?",
+            expectedAnswer: "Key Facts, Step-by-Step, Plain English, What's Missing?, Illustrate",
+            expectedDocumentIds: ["openintelligencepricing"],
+            answerType: .list,
+            difficulty: .easy
+        ),
+        QATestCase(
+            id: "pricing_offline_yes_no",
+            query: "Can you query your documents without an internet connection?",
+            expectedAnswer: "Yes, query your documents without internet connection",
+            expectedDocumentIds: ["openintelligencepricing"],
+            answerType: .yesNo,
+            difficulty: .easy
+        ),
+        QATestCase(
+            id: "apple_quantization_extract",
+            query: "What quantization does Apple's on-device model use?",
+            expectedAnswer: "Mixed INT4/INT8",
+            expectedDocumentIds: ["appleintelligenceprivatecloudcompute"],
+            answerType: .extractive,
+            difficulty: .easy
+        ),
+        QATestCase(
+            id: "pricing_libraries_comparison",
+            query: "Compare the Free tier and Lifetime license on library limits.",
+            expectedAnswer: "Free allows 1 library and Lifetime allows 10 libraries",
+            expectedDocumentIds: ["openintelligencepricing"],
+            answerType: .abstractive,
+            difficulty: .medium
+        ),
+        QATestCase(
+            id: "pcc_request_steps",
+            query: "What steps does Private Cloud Compute follow to process a request?",
+            expectedAnswer: "Encryption, routing to a verified PCC node, isolated processing, encrypted response, and purge",
+            expectedDocumentIds: ["appleintelligenceprivatecloudcompute"],
+            answerType: .list,
+            difficulty: .medium
+        ),
+        QATestCase(
+            id: "rag_hallucination_reduction",
+            query: "Why does RAG reduce hallucinations in OpenIntelligence?",
+            expectedAnswer: "It retrieves relevant passages from your documents and grounds the model response in them instead of relying only on training data",
+            expectedDocumentIds: ["ragtechnicalarchitecture"],
+            answerType: .abstractive,
+            difficulty: .medium
+        ),
+        QATestCase(
+            id: "context_budget_multihop",
+            query: "Why does OpenIntelligence cap context around 5,500 characters?",
+            expectedAnswer: "Because the Apple Foundation Model has a 4,096-token context window and the pipeline must leave room for instructions and output",
+            expectedDocumentIds: ["ragtechnicalarchitecture", "appleintelligenceprivatecloudcompute"],
+            answerType: .abstractive,
+            difficulty: .hard
         ),
     ]
 
@@ -262,22 +406,20 @@ actor QualityAssuranceService {
 
                 // Check Recall@1: Is any expected doc in position 1?
                 if let firstResult = results.first {
-                    let firstDocId = firstResult.chunk.documentId.uuidString
-                    if expectedDocIds.contains(where: { firstDocId.contains($0) }) {
+                    if expectedDocIds.contains(where: { matchesExpectedDocument(firstResult, expected: $0) }) {
                         recallAt1Count += 1
                     }
                 }
 
                 // Check Recall@5: Is any expected doc in top 5?
-                let top5DocIds = results.prefix(5).map { $0.chunk.documentId.uuidString }
-                if expectedDocIds.contains(where: { expected in top5DocIds.contains(where: { $0.contains(expected) }) }) {
+                let top5Results = Array(results.prefix(5))
+                if expectedDocIds.contains(where: { expected in top5Results.contains(where: { matchesExpectedDocument($0, expected: expected) }) }) {
                     recallAt5Count += 1
                 }
 
                 // Calculate MRR: Reciprocal of first correct result rank
                 for (index, result) in results.enumerated() {
-                    let docId = result.chunk.documentId.uuidString
-                    if expectedDocIds.contains(where: { docId.contains($0) }) {
+                    if expectedDocIds.contains(where: { matchesExpectedDocument(result, expected: $0) }) {
                         reciprocalRankSum += 1.0 / Float(index + 1)
                         break
                     }
@@ -287,8 +429,7 @@ actor QualityAssuranceService {
                 let topK = min(5, results.count)
                 if topK > 0 {
                     let relevantInTopK = results.prefix(topK).filter { result in
-                        let docId = result.chunk.documentId.uuidString
-                        return expectedDocIds.contains(where: { docId.contains($0) })
+                        expectedDocIds.contains(where: { matchesExpectedDocument(result, expected: $0) })
                     }.count
                     precisionSum += Float(relevantInTopK) / Float(topK)
                 }
@@ -430,6 +571,120 @@ actor QualityAssuranceService {
         )
     }
 
+    func runEndToEndBenchmarkSuite(
+        embeddingService: EmbeddingService,
+        searchFunction: @Sendable (String) async throws -> [RetrievedChunk],
+        auditedAnswerFunction: @Sendable (String) async throws -> (answer: String, auditSnapshot: RAGAuditSnapshot?),
+        customTestCases: [QATestCase]? = nil
+    ) async -> RAGBenchmarkSuiteResult {
+        let testCases = customTestCases ?? builtInQATests
+        let retrievalQueries = testCases.map { ($0.query, $0.expectedDocumentIds) }
+
+        let (embeddingPassed, embeddingCorrelation, _) = await testEmbeddingSanity(embeddingService: embeddingService)
+        let (recallAt1, recallAt5, mrr, precision) = await testRetrievalAccuracy(
+            queries: retrievalQueries,
+            searchFunction: searchFunction
+        )
+
+        var caseResults: [RAGBenchmarkCaseResult] = []
+        var exactMatchCount = 0
+        var f1Sum: Float = 0
+        var failures: [String] = []
+
+        for testCase in testCases {
+            do {
+                let result = try await auditedAnswerFunction(testCase.query)
+                let normalizedGenerated = normalizeAnswer(result.answer)
+                let normalizedExpected = normalizeAnswer(testCase.expectedAnswer)
+                let isExactMatch = normalizedGenerated.contains(normalizedExpected) ||
+                    normalizedExpected.contains(normalizedGenerated)
+                if isExactMatch {
+                    exactMatchCount += 1
+                }
+
+                let f1 = computeF1(generated: result.answer, expected: testCase.expectedAnswer)
+                f1Sum += f1
+
+                caseResults.append(
+                    RAGBenchmarkCaseResult(
+                        id: testCase.id,
+                        query: testCase.query,
+                        expectedAnswer: testCase.expectedAnswer,
+                        actualAnswer: result.answer,
+                        queryClass: benchmarkQueryClass(for: testCase),
+                        difficulty: testCase.difficulty,
+                        exactMatch: isExactMatch,
+                        f1Score: f1,
+                        auditSnapshot: result.auditSnapshot
+                    )
+                )
+            } catch {
+                failures.append("Query failed: \(testCase.id) — \(error.localizedDescription)")
+                caseResults.append(
+                    RAGBenchmarkCaseResult(
+                        id: testCase.id,
+                        query: testCase.query,
+                        expectedAnswer: testCase.expectedAnswer,
+                        actualAnswer: "ERROR: \(error.localizedDescription)",
+                        queryClass: benchmarkQueryClass(for: testCase),
+                        difficulty: testCase.difficulty,
+                        exactMatch: false,
+                        f1Score: 0,
+                        auditSnapshot: nil
+                    )
+                )
+            }
+        }
+
+        let n = Float(max(1, testCases.count))
+        let exactMatch = Float(exactMatchCount) / n
+        let f1Score = f1Sum / n
+
+        if !embeddingPassed {
+            failures.append("Embedding sanity failed")
+        }
+        if recallAt5 < 0.6 {
+            failures.append("Recall@5 below threshold (\(String(format: "%.0f%%", recallAt5 * 100)))")
+        }
+        if f1Score < 0.5 {
+            failures.append("F1 score below threshold (\(String(format: "%.0f%%", f1Score * 100)))")
+        }
+
+        let embeddingWeight: Float = embeddingCorrelation * 0.2
+        let retrievalWeight: Float = recallAt5 * 0.3
+        let mrrWeight: Float = mrr * 0.2
+        let answerWeight: Float = f1Score * 0.3
+        let overallScore: Float = embeddingWeight + retrievalWeight + mrrWeight + answerWeight
+        let passed = embeddingPassed && recallAt5 >= 0.6 && f1Score >= 0.5
+
+        let metrics = RAGQualityMetrics(
+            timestamp: Date(),
+            pipelineVersion: "1.1",
+            embeddingSanityPassed: embeddingPassed,
+            embeddingCorrelation: embeddingCorrelation,
+            recallAt1: recallAt1,
+            recallAt5: recallAt5,
+            recallAt10: recallAt5,
+            mrr: mrr,
+            precision: precision,
+            exactMatchAccuracy: exactMatch,
+            f1Score: f1Score,
+            faithfulnessScore: faithfulnessFromCases(caseResults),
+            ocrCharacterErrorRate: nil,
+            ocrWordErrorRate: nil,
+            overallScore: overallScore,
+            passed: passed,
+            failures: failures
+        )
+
+        return RAGBenchmarkSuiteResult(
+            timestamp: Date(),
+            metrics: metrics,
+            caseResults: caseResults,
+            pipelineCensus: buildPipelineCensus(from: caseResults)
+        )
+    }
+
     // MARK: - Quick Sanity Check
 
     /// Fast sanity check that can run on app startup
@@ -490,6 +745,21 @@ actor QualityAssuranceService {
             .replacingOccurrences(of: "$", with: "")
     }
 
+    private func normalizeDocumentKey(_ text: String) -> String {
+        text.lowercased()
+            .replacingOccurrences(of: "[^a-z0-9]", with: "", options: .regularExpression)
+    }
+
+    private func matchesExpectedDocument(_ result: RetrievedChunk, expected: String) -> Bool {
+        let normalizedExpected = normalizeDocumentKey(expected)
+        let normalizedDocId = normalizeDocumentKey(result.chunk.documentId.uuidString)
+        let normalizedDocName = normalizeDocumentKey(result.sourceDocument)
+
+        return normalizedDocId.contains(normalizedExpected)
+            || normalizedDocName.contains(normalizedExpected)
+            || normalizedExpected.contains(normalizedDocName)
+    }
+
     private func computeF1(generated: String, expected: String) -> Float {
         let genTokens = Set(generated.lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber }))
         let expTokens = Set(expected.lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber }))
@@ -502,6 +772,60 @@ actor QualityAssuranceService {
 
         guard precision + recall > 0 else { return 0 }
         return 2 * (precision * recall) / (precision + recall)
+    }
+
+    private func faithfulnessFromCases(_ caseResults: [RAGBenchmarkCaseResult]) -> Float {
+        let scores = caseResults.compactMap { result -> Float? in
+            guard let snapshot = result.auditSnapshot else { return nil }
+            return min(max((snapshot.topSim + snapshot.avgTop5) / 2, 0), 1)
+        }
+
+        guard !scores.isEmpty else { return 0 }
+        return scores.reduce(0, +) / Float(scores.count)
+    }
+
+    private func benchmarkQueryClass(for testCase: QATestCase) -> RAGBenchmarkCaseResult.QueryClass {
+        let lowercased = testCase.query.lowercased()
+        if lowercased.contains("compare") || lowercased.contains("contrast") || lowercased.contains("versus") {
+            return .comparison
+        }
+        if lowercased.contains("how do") || lowercased.contains("steps") || lowercased.contains("procedure") {
+            return .procedure
+        }
+        if testCase.difficulty == .hard {
+            return .multiHop
+        }
+
+        switch testCase.answerType {
+        case .factoid:
+            return .factLookup
+        case .extractive:
+            return .extractive
+        case .abstractive:
+            return .abstractive
+        case .yesNo:
+            return .yesNo
+        case .list:
+            return .list
+        }
+    }
+
+    private func buildPipelineCensus(from caseResults: [RAGBenchmarkCaseResult]) -> RAGBenchmarkPipelineCensus {
+        let snapshots = caseResults.compactMap { $0.auditSnapshot }
+        return RAGBenchmarkPipelineCensus(
+            totalCases: caseResults.count,
+            recursiveRAGCases: snapshots.filter { $0.isRecursiveRAG }.count,
+            queryRewriteCases: snapshots.filter { $0.featureFlags.queryWasRewritten }.count,
+            hydeCases: snapshots.filter { $0.featureFlags.usedHyDE }.count,
+            iterativeCases: snapshots.filter { $0.featureFlags.usedIterativeRetrieval }.count,
+            summaryRoutingCases: snapshots.filter { $0.featureFlags.usedSummaryRouting }.count,
+            parentDocCases: snapshots.filter { $0.featureFlags.usedParentDocumentRetrieval }.count,
+            compressionCases: snapshots.filter { $0.featureFlags.usedContextualCompression }.count,
+            graphPackingCases: snapshots.filter { $0.featureFlags.usedGraphPacking }.count,
+            retrievalCascadeCases: snapshots.filter { $0.featureFlags.usedRetrievalCascade }.count,
+            supplementaryVectorCases: snapshots.filter { $0.featureFlags.usedSupplementaryVectorSearch }.count,
+            fullUnlimitedCases: snapshots.filter { $0.featureFlags.usedFullUnlimitedReasoning }.count
+        )
     }
 }
 

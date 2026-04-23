@@ -36,6 +36,7 @@ struct RAGPipelineAuditView: View {
                     embeddingCard
                     vectorStoreCard
                     retrievalCard
+                    featureCard
                     contextCard
                 }
                 .padding(16)
@@ -260,6 +261,39 @@ struct RAGPipelineAuditView: View {
                 LabeledContent("Available for context", value: "\(snapshot.availableContextTokens)")
             } else {
                 Text("Context metrics will appear after a query.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var featureCard: some View {
+        SurfaceCard {
+            SectionHeader(icon: "switch.2", title: "Feature Activation")
+            if let snapshot = ragService.lastAuditSnapshot {
+                LabeledContent("Answer intent", value: snapshot.featureFlags.answerIntent)
+                LabeledContent("Query rewrite", value: snapshot.featureFlags.queryWasRewritten ? "Yes" : "No")
+                LabeledContent("Query expansions", value: "\(snapshot.featureFlags.queryExpansionCount)")
+                LabeledContent("HyDE", value: snapshot.featureFlags.usedHyDE ? "Yes" : "No")
+                LabeledContent(
+                    "Iterative retrieval",
+                    value: snapshot.featureFlags.usedIterativeRetrieval ? "\(snapshot.featureFlags.iterativePassCount)x" : "No"
+                )
+                LabeledContent("Query routing", value: snapshot.featureFlags.usedQueryRouting ? "Yes" : "No")
+                LabeledContent("Summary routing", value: snapshot.featureFlags.usedSummaryRouting ? "Yes" : "No")
+                LabeledContent("Parent expansion", value: snapshot.featureFlags.usedParentDocumentRetrieval ? "Yes" : "No")
+                LabeledContent("Compression", value: snapshot.featureFlags.usedContextualCompression ? "Yes" : "No")
+                LabeledContent("Graph packing", value: snapshot.featureFlags.usedGraphPacking ? "Yes" : "No")
+                LabeledContent("Retrieval cascade", value: snapshot.featureFlags.usedRetrievalCascade ? "Yes" : "No")
+                LabeledContent("Supplementary vector", value: snapshot.featureFlags.usedSupplementaryVectorSearch ? "Yes" : "No")
+                if snapshot.featureFlags.usedFullUnlimitedReasoning {
+                    LabeledContent("Unlimited reasoning", value: "Yes")
+                }
+                if !snapshot.featureFlags.enabledFeatures.isEmpty {
+                    LabeledContent("Enabled", value: snapshot.featureFlags.enabledFeatures.joined(separator: " • "))
+                }
+            } else {
+                Text("Run a query to capture feature activation.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }

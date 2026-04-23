@@ -44,46 +44,59 @@ struct RetrievalLogEntry: Identifiable, Sendable {
     let chunks: [RetrievedChunk]
 }
 
-#if DEBUG
-struct GenerationAuditAssertion: Codable, Sendable {
-    let label: String
-    let passed: Bool
-    let details: String
-}
-
-struct GenerationAuditScenarioRecord: Codable, Sendable {
-    let name: String
-    let expectedBehavior: String
-    let question: String
+struct RAGAuditFeatureFlags: Sendable {
     let answerIntent: String
-    let sourceChunkCount: Int
-    let assembledChunkCount: Int
-    let systemPrompt: String
-    let assembledContext: String
-    let toolCallsMade: Int
-    let citationRetryTriggered: Bool
-    let rawResponse: String
-    let cleanedResponse: String
-    let presentedResponse: String
-    let citationIndices: [Int]
-    let outOfBoundsCitationIndices: [Int]
-    let finalDisposition: String
-    let errorDescription: String?
-    let assertions: [GenerationAuditAssertion]
-    let passed: Bool
-}
+    let queryWasRewritten: Bool
+    let queryExpansionCount: Int
+    let usedHyDE: Bool
+    let usedIterativeRetrieval: Bool
+    let iterativePassCount: Int
+    let usedQueryRouting: Bool
+    let usedSummaryRouting: Bool
+    let usedParentDocumentRetrieval: Bool
+    let usedContextualCompression: Bool
+    let usedGraphPacking: Bool
+    let usedRetrievalCascade: Bool
+    let usedSupplementaryVectorSearch: Bool
+    let usedFullUnlimitedReasoning: Bool
 
-struct GenerationAuditReport: Codable, Sendable {
-    let timestamp: Date
-    let modelName: String
-    let llmAvailable: Bool
-    let executionContext: String
-    let scenarios: [GenerationAuditScenarioRecord]
-    let passedScenarioCount: Int
-    let failedScenarioCount: Int
-    let passed: Bool
+    static let empty = RAGAuditFeatureFlags(
+        answerIntent: "unknown",
+        queryWasRewritten: false,
+        queryExpansionCount: 0,
+        usedHyDE: false,
+        usedIterativeRetrieval: false,
+        iterativePassCount: 0,
+        usedQueryRouting: false,
+        usedSummaryRouting: false,
+        usedParentDocumentRetrieval: false,
+        usedContextualCompression: false,
+        usedGraphPacking: false,
+        usedRetrievalCascade: false,
+        usedSupplementaryVectorSearch: false,
+        usedFullUnlimitedReasoning: false
+    )
+
+    var enabledFeatures: [String] {
+        var features: [String] = []
+        if queryWasRewritten { features.append("Rewrite") }
+        if queryExpansionCount > 0 { features.append("Expand \(queryExpansionCount)") }
+        if usedHyDE { features.append("HyDE") }
+        if usedIterativeRetrieval {
+            let label = iterativePassCount > 0 ? "Iterative \(iterativePassCount)x" : "Iterative"
+            features.append(label)
+        }
+        if usedQueryRouting { features.append("Routing") }
+        if usedSummaryRouting { features.append("Summaries") }
+        if usedParentDocumentRetrieval { features.append("Parent") }
+        if usedContextualCompression { features.append("Compression") }
+        if usedGraphPacking { features.append("GraphPack") }
+        if usedRetrievalCascade { features.append("Cascade") }
+        if usedSupplementaryVectorSearch { features.append("MultiVector") }
+        if usedFullUnlimitedReasoning { features.append("Unlimited") }
+        return features
+    }
 }
-#endif
 
 struct RAGAuditSnapshot: Identifiable, Sendable {
     let id = UUID()
@@ -136,6 +149,7 @@ struct RAGAuditSnapshot: Identifiable, Sendable {
     let reliabilityModeEnabled: Bool
     let allowUngroundedFallback: Bool
     let modelName: String
+    let featureFlags: RAGAuditFeatureFlags
 
     // Recursive RAG metrics (for Deep Think / agentic mode)
     /// Whether this used recursive RAG (multiple small calls instead of one large call)
@@ -190,6 +204,7 @@ struct RAGAuditSnapshot: Identifiable, Sendable {
         reliabilityModeEnabled: Bool,
         allowUngroundedFallback: Bool,
         modelName: String,
+        featureFlags: RAGAuditFeatureFlags = .empty,
         isRecursiveRAG: Bool = false,
         totalTokensAcrossCalls: Int = 0,
         llmCallCount: Int = 1
@@ -237,6 +252,7 @@ struct RAGAuditSnapshot: Identifiable, Sendable {
         self.reliabilityModeEnabled = reliabilityModeEnabled
         self.allowUngroundedFallback = allowUngroundedFallback
         self.modelName = modelName
+        self.featureFlags = featureFlags
         self.isRecursiveRAG = isRecursiveRAG
         self.totalTokensAcrossCalls = totalTokensAcrossCalls
         self.llmCallCount = llmCallCount
@@ -323,6 +339,14 @@ class RAGService: ObservableObject {
     func intelligenceReport(for containerId: UUID?) -> LibraryIntelligenceCenter.IntelligenceReport? {
         guard let id = containerId else { return nil }
         return containerIntelligence[id]
+    }
+
+    /// Clear cached intelligence for a container (call when embedding/chunking config changes)
+    @MainActor
+    func clearIntelligence(for containerId: UUID) {
+        containerIntelligence.removeValue(forKey: containerId)
+        corpusVocabularyCache.removeValue(forKey: containerId)
+        Log.info("[RAGService] Cleared intelligence and vocabulary cache for container \(containerId)", category: .retrieval)
     }
 
     /// Recompute the intelligence snapshot for a container on demand.
@@ -2563,71 +2587,17 @@ class RAGService: ObservableObject {
         let db = vectorRouter.db(for: container)
         let allChunks = try await db.allChunks()
 
-        let detailChunks = allChunks.filter { $0.metadata.abstractionLevel == .detail }
-        let candidateChunks = detailChunks.isEmpty ? allChunks : detailChunks
+        // Return a representative sample: first, middle, and distributed chunks
+        guard !allChunks.isEmpty else { return [] }
+        guard allChunks.count > limit else { return allChunks }
 
-        guard !candidateChunks.isEmpty else { return [] }
-        guard candidateChunks.count > limit else { return candidateChunks }
-
-        var byDocument: [UUID: [DocumentChunk]] = [:]
-        var documentOrder: [UUID] = []
-
-        for chunk in candidateChunks {
-            if byDocument[chunk.documentId] == nil {
-                documentOrder.append(chunk.documentId)
-            }
-            byDocument[chunk.documentId, default: []].append(chunk)
+        var sampleIndices: Set<Int> = []
+        let stride = allChunks.count / limit
+        for i in 0..<limit {
+            sampleIndices.insert(min(i * stride, allChunks.count - 1))
         }
 
-        let prioritizedDocs = documentOrder.sorted { lhs, rhs in
-            let leftCount = byDocument[lhs]?.count ?? 0
-            let rightCount = byDocument[rhs]?.count ?? 0
-            if leftCount != rightCount { return leftCount > rightCount }
-            return lhs.uuidString < rhs.uuidString
-        }
-
-        func distributedIndices(count: Int, target: Int) -> [Int] {
-            guard count > 0 else { return [] }
-            guard count > target else { return Array(0..<count) }
-            guard target > 1 else { return [count / 2] }
-
-            var result: [Int] = []
-            var seen: Set<Int> = []
-            let step = Double(count - 1) / Double(target - 1)
-            for i in 0..<target {
-                let index = min(Int((Double(i) * step).rounded()), count - 1)
-                if seen.insert(index).inserted {
-                    result.append(index)
-                }
-            }
-            return result
-        }
-
-        let docsToCover = max(1, min(prioritizedDocs.count, limit))
-        let perDocCandidateBudget = max(1, min(6, (limit / docsToCover) + 1))
-
-        var perDocSamples: [UUID: [DocumentChunk]] = [:]
-        for docId in prioritizedDocs {
-            let docChunks = byDocument[docId] ?? []
-            let indices = distributedIndices(count: docChunks.count, target: perDocCandidateBudget)
-            perDocSamples[docId] = indices.map { docChunks[$0] }
-        }
-
-        var sample: [DocumentChunk] = []
-        var round = 0
-        while sample.count < limit {
-            var addedThisRound = false
-            for docId in prioritizedDocs {
-                guard sample.count < limit else { break }
-                guard let docChunks = perDocSamples[docId], round < docChunks.count else { continue }
-                sample.append(docChunks[round])
-                addedThisRound = true
-            }
-            round += 1
-            if !addedThisRound { break }
-        }
-
-        return sample
+        return sampleIndices.sorted().map { allChunks[$0] }
     }
 
     func embeddingDiagnosticsSnapshot() async -> EmbeddingDiagnosticsSnapshot {
@@ -4626,7 +4596,7 @@ class RAGService: ObservableObject {
         config: InferenceConfig?,
         qualityMode: RAGQualityMode
     ) async throws -> RAGResponse {
-        // Check if user selected Maximum mode
+        // Check if user selected Maximum (unlimited) mode
         let isUnlimitedMode = qualityMode.isUnlimitedMode
         let modeLabel = isUnlimitedMode ? "MAXIMUM REASONING MODE" : "AGENTIC REASONING MODE"
 
@@ -4641,7 +4611,7 @@ class RAGService: ObservableObject {
 
         // Pipeline Trace: Agentic orchestration step
         Log.pipelineStep("A", title: "Agentic Orchestration", details: [
-            ("type", isUnlimitedMode ? "maximum" : "multi-session"),
+            ("type", isUnlimitedMode ? "unlimited" : "multi-session"),
             ("confTarget", isUnlimitedMode ? "98%" : "75%")
         ])
 
@@ -4652,23 +4622,23 @@ class RAGService: ObservableObject {
             content: [
                 "📝 Query: \(question)",
                 "🧠 Multi-session orchestration active",
-                isUnlimitedMode ? "🔥 Highest-effort reasoning targeting 98% confidence" : "⚡ Bypassing 4K single-session limit",
+                isUnlimitedMode ? "🔥 Unlimited reasoning until 98% confident" : "⚡ Bypassing 4K single-session limit",
             ]
         )
 
-        // Use the deepest config for Maximum mode, otherwise device-optimized
+        // Use unlimited config for Maximum mode, otherwise device-optimized
         let deviceService = DeviceCapabilityService.shared
         let optimizedConfig: AgenticConfig
         if isUnlimitedMode {
             optimizedConfig = qualityMode.agenticConfig // .unlimited config
-            Log.info("[Pipeline] Using MAXIMUM mode (98% confidence target)", category: .pipeline)
+            Log.info("[Pipeline] Using MAXIMUM mode (unlimited reasoning, 98% confidence threshold)", category: .pipeline)
         } else {
             optimizedConfig = deviceService.optimizedAgenticConfig()
         }
 
         let modeTitle = isUnlimitedMode ? "Maximum Mode" : "Deep Think Mode"
         let modeDetail = isUnlimitedMode
-            ? "Extended reasoning targeting 98% confidence (up to \(optimizedConfig.maxSteps) steps)"
+            ? "Unlimited reasoning until 98% confident (up to \(optimizedConfig.maxSteps) steps)"
             : "Starting multi-step reasoning (\(deviceService.tier.displayName) mode, up to \(optimizedConfig.maxSteps) steps)"
 
         emitThinkingEvent(
@@ -4861,6 +4831,22 @@ class RAGService: ObservableObject {
                 reliabilityModeEnabled: true,
                 allowUngroundedFallback: false,
                 modelName: "Apple Foundation Model (Agentic)",
+                featureFlags: RAGAuditFeatureFlags(
+                    answerIntent: isUnlimitedMode ? "maximum_agentic" : "deep_think_agentic",
+                    queryWasRewritten: result.steps.contains { $0.type == .reformulating },
+                    queryExpansionCount: 0,
+                    usedHyDE: false,
+                    usedIterativeRetrieval: false,
+                    iterativePassCount: 0,
+                    usedQueryRouting: raptorRoutingEnabled,
+                    usedSummaryRouting: false,
+                    usedParentDocumentRetrieval: false,
+                    usedContextualCompression: false,
+                    usedGraphPacking: result.steps.contains { $0.type == .expanding },
+                    usedRetrievalCascade: result.steps.contains { $0.type == .reformulating },
+                    usedSupplementaryVectorSearch: false,
+                    usedFullUnlimitedReasoning: isUnlimitedMode && llmCallCount >= 8
+                ),
                 isRecursiveRAG: true, // This tells UI to show tokens, not percentage
                 totalTokensAcrossCalls: totalTokensUsed,
                 llmCallCount: max(1, llmCallCount)
@@ -4897,10 +4883,20 @@ class RAGService: ObservableObject {
                 }
             }()
 
+            let agenticAnswer = repairMalformedURLs(humanizeCitations(result.finalAnswer, chunks: result.retrievedChunks))
+            let agenticAnswerIntent = QueryEnhancementService().classifyAnswerIntent(question)
+            let structuredAnswer = StructuredAnswer.from(
+                response: agenticAnswer,
+                retrievedChunks: result.retrievedChunks,
+                answerIntent: agenticAnswerIntent,
+                verificationResult: nil,
+                loops: max(1, result.steps.count)
+            )
+
             return RAGResponse(
                 queryId: UUID(),
                 retrievedChunks: result.retrievedChunks,
-                generatedResponse: repairMalformedURLs(humanizeCitations(result.finalAnswer, chunks: result.retrievedChunks)),
+                generatedResponse: agenticAnswer,
                 metadata: ResponseMetadata(
                     timeToFirstToken: totalTime / Double(max(1, result.steps.count)), // Estimate TTFT per step
                     totalGenerationTime: totalTime,
@@ -4916,13 +4912,7 @@ class RAGService: ObservableObject {
                     reasoningTrace: reasoningTrace // Now includes the thinking steps!
                 ),
                 confidenceScore: result.confidence,
-                structuredAnswer: StructuredAnswer.from(
-                    response: result.finalAnswer,
-                    retrievedChunks: result.retrievedChunks,
-                    answerIntent: .investigate,
-                    verificationResult: nil,
-                    loops: max(1, result.steps.count)
-                )
+                structuredAnswer: structuredAnswer
             )
         }
 
@@ -4979,6 +4969,23 @@ class RAGService: ObservableObject {
                 question, topK: topK, config: config, containerId: containerId
             )
         }
+    }
+
+    func queryWithAudit(
+        _ question: String,
+        topK: Int = 3,
+        config: InferenceConfig? = nil,
+        containerId: UUID? = nil,
+        streamHandler: LLMStreamHandler? = nil
+    ) async throws -> (response: RAGResponse, auditSnapshot: RAGAuditSnapshot?) {
+        let response = try await query(
+            question,
+            topK: topK,
+            config: config,
+            containerId: containerId,
+            streamHandler: streamHandler
+        )
+        return (response, lastAuditSnapshot)
     }
 
     private func queryInternal(
@@ -5069,31 +5076,7 @@ class RAGService: ObservableObject {
             return forced
         }
 
-        let preflightAnswerIntent = QueryEnhancementService().classifyAnswerIntent(question)
-        let preflightPolicy = GroundedAnswerPolicy(
-            query: question,
-            answerIntent: preflightAnswerIntent
-        )
-        let useDeterministicExtractionPath = preflightPolicy.deterministicExtraction
-        let useAgentic = !useDeterministicExtractionPath && (forceAgentic || qualityMode.usesAgenticOrchestrator)
-
-        if qualityMode.isUnlimitedMode {
-            let maximumDecision = await MainActor.run {
-                self.entitlementStore?.consumeMaximumModeUseIfNeeded() ?? .allowedUnlimited
-            }
-            switch maximumDecision {
-            case .allowedUnlimited:
-                break
-            case let .allowedMetered(remaining, dailyLimit):
-                Log.info(
-                    "[Billing] Maximum mode metered use consumed (\(remaining)/\(dailyLimit) remaining today)",
-                    category: .billing
-                )
-            case let .blocked(_, dailyLimit, _):
-                Log.warning("[Billing] Maximum mode blocked — free daily quota exhausted", category: .billing)
-                throw RAGServiceError.maximumModeQuotaReached(limit: dailyLimit)
-            }
-        }
+        let useAgentic = forceAgentic || qualityMode.usesAgenticOrchestrator
 
         // Track query context for potential "Go Deeper" re-query
         await MainActor.run {
@@ -5101,9 +5084,7 @@ class RAGService: ObservableObject {
             self.lastQueryText = question
         }
 
-        if useDeterministicExtractionPath {
-            Log.info("[Pipeline] Using Extraction mode (deterministic source reading)", category: .pipeline)
-        } else if forceAgentic {
+        if forceAgentic {
             Log.info("[Pipeline] Query FORCED to agentic mode by user request", category: .pipeline)
         } else if qualityMode.isUnlimitedMode {
             Log.info("[Pipeline] Using Maximum mode (user selected)", category: .pipeline)
@@ -5286,6 +5267,18 @@ class RAGService: ObservableObject {
         var auditAcceptanceOverride = false
         var usedRetrievalCascade = false
         var retryCandidates: [RetrievedChunk] = []
+        var auditAnswerIntent = "unknown"
+        var auditQueryWasRewritten = false
+        var auditQueryExpansionCount = 0
+        var auditUsedHyDE = false
+        var auditUsedIterativeRetrieval = false
+        var auditIterativePassCount = 0
+        var auditUsedQueryRouting = false
+        var auditUsedSummaryRouting = false
+        var auditUsedParentDocumentRetrieval = false
+        var auditUsedContextualCompression = false
+        var auditUsedGraphPacking = false
+        var auditUsedSupplementaryVectorSearch = false
 
         Log.box(
             "ENHANCED RAG QUERY PIPELINE",
@@ -5313,10 +5306,8 @@ class RAGService: ObservableObject {
 
         emitThinkingEvent(
             .planning,
-            title: useDeterministicExtractionPath ? "Extraction override" : "\(qualityModeDisplayName) mode",
-            detail: useDeterministicExtractionPath
-                ? (featureSummary.isEmpty ? "\(qualityModeDisplayName) profile" : "\(qualityModeDisplayName) profile • \(featureSummary)")
-                : (featureSummary.isEmpty ? "Minimal features" : featureSummary)
+            title: "\(qualityModeDisplayName) mode",
+            detail: featureSummary.isEmpty ? "Minimal features" : featureSummary
         )
 
         emitThinkingEvent(
@@ -5426,8 +5417,13 @@ class RAGService: ObservableObject {
                     }
                 }
 
+                let queryEnhancer = QueryEnhancementService(corpusVocabulary: finalCorpusVocabulary)
+                let preRewriteAnswerIntent = queryEnhancer.classifyAnswerIntent(question)
+                let simpleGroundedLookup = preRewriteAnswerIntent.isExtractiveFirst || (isTrivial && queryWords <= 8)
+
                 // Check advanced RAG settings
-                let useQueryRewriting = settingsStore?.enableQueryRewriting ?? qualityModeUsesQueryRewriting
+                let rewriteEnabledBySettings = settingsStore?.enableQueryRewriting ?? qualityModeUsesQueryRewriting
+                let useQueryRewriting = rewriteEnabledBySettings && !simpleGroundedLookup
                 // Note: Iterative retrieval is auto-enabled for multi-hop intents (investigate/compare/findings)
                 // and can be force-enabled via settings toggle. See Step 3 below.
 
@@ -5498,6 +5494,7 @@ class RAGService: ObservableObject {
                         )
                         effectiveQuery = rewriteResult.rewritten
                         queryWasRewritten = rewriteResult.wasRewritten
+                        auditQueryWasRewritten = rewriteResult.wasRewritten
 
                         if rewriteResult.wasRewritten {
                             var detail = "Intent: \(rewriteResult.intent.rawValue)"
@@ -5532,16 +5529,22 @@ class RAGService: ObservableObject {
                         duration: rewriteTime
                     )
                 } else {
-                    Log.debug("[RAGService] Query rewriting disabled, using original query", category: .pipeline)
+                    if rewriteEnabledBySettings && simpleGroundedLookup {
+                        Log.info("[RAGService] Query rewriting bypassed for simple grounded lookup", category: .retrieval)
+                        emitThinkingEvent(
+                            .planning,
+                            title: "Keeping query literal",
+                            detail: "Simple grounded lookup — skipping rewrite"
+                        )
+                    } else {
+                        Log.debug("[RAGService] Query rewriting disabled, using original query", category: .pipeline)
+                    }
                 }
 
                 // Step 1.5: Corpus-Aware Query Expansion
                 // QUALITY MODE: Check if query expansion is enabled
                 var expandedQueries: [String] = []
                 var expansionTime: TimeInterval = 0
-
-                // Create QueryEnhancementService at outer scope (used by expansion AND intent classification)
-                let queryEnhancer = QueryEnhancementService(corpusVocabulary: finalCorpusVocabulary)
 
                 if qualityModeUsesQueryExpansion {
                     Log.section("Step 1.5: Query Expansion", level: .info, category: .pipeline)
@@ -5605,6 +5608,7 @@ class RAGService: ObservableObject {
                     )
 
                     if !expandedQueries.isEmpty {
+                        auditQueryExpansionCount = expandedQueries.count
                         emitThinkingEvent(
                             .queryRewrite,
                             title: "Query expansion",
@@ -5623,11 +5627,7 @@ class RAGService: ObservableObject {
                 // Step 1.6: Answer Intent Classification (AppleRAG §6)
                 // Classify query intent to optimize retrieval and answering strategy
                 let answerIntent = queryEnhancer.classifyAnswerIntent(effectiveQuery)
-                let answerPolicy = GroundedAnswerPolicy(
-                    query: effectiveQuery,
-                    answerIntent: answerIntent
-                )
-                let deterministicExtractionMode = answerPolicy.deterministicExtraction
+                auditAnswerIntent = answerIntent.rawValue
                 Log.info(
                     "✓ Answer intent: \(answerIntent.rawValue) (extractive-first: \(answerIntent.isExtractiveFirst), multi-hop: \(answerIntent.benefitsFromMultiHop))",
                     category: .pipeline
@@ -5635,7 +5635,7 @@ class RAGService: ObservableObject {
                 emitThinkingEvent(
                     .intentRoute,
                     title: "Intent: \(answerIntent.rawValue)",
-                    detail: deterministicExtractionMode ? "Extraction mode" : (answerIntent.benefitsFromMultiHop ? "Multi-hop enabled" : (answerIntent.isExtractiveFirst ? "Extractive-first" : "Standard"))
+                    detail: answerIntent.isExtractiveFirst ? "Extractive-first" : (answerIntent.benefitsFromMultiHop ? "Multi-hop enabled" : "Standard")
                 )
 
                 // Step 2: Embed the user's query
@@ -5686,6 +5686,7 @@ class RAGService: ObservableObject {
                     do {
                         let hydeResult = try await hydeService.generateHyDEQuery(for: effectiveQuery)
                         hydeText = hydeResult.hypotheticalDocument
+                        auditUsedHyDE = true
                         Log.info("[HyDE] Generated hypothetical doc: \"\(hydeText?.prefix(80) ?? "")...\"", category: .retrieval)
                         emitThinkingEvent(
                             .hyde,
@@ -5758,8 +5759,18 @@ class RAGService: ObservableObject {
                 // (compare, investigate, findings) even if user hasn't toggled the setting.
                 // The infrastructure is fully built — this just activates it where it matters.
                 let userEnabledIterative = settingsStore?.enableIterativeRetrieval ?? false
-                let useIterative = !deterministicExtractionMode && (userEnabledIterative || (answerIntent.benefitsFromMultiHop && qualityModeUsesIterativeRetrieval))
+                let iterativeAllowedForIntent = !answerIntent.isExtractiveFirst
+                let useIterative = iterativeAllowedForIntent && (userEnabledIterative || (answerIntent.benefitsFromMultiHop && qualityModeUsesIterativeRetrieval))
                 let iterativeConfig = IterativeRetrievalConfig.default
+
+                if !iterativeAllowedForIntent && userEnabledIterative {
+                    Log.info("[RAGService] Iterative retrieval bypassed for extractive intent '\(answerIntent.rawValue)'", category: .retrieval)
+                    emitThinkingEvent(
+                        .iterative,
+                        title: "Iterative retrieval skipped",
+                        detail: "Extractive intent — prefer direct grounded lookup"
+                    )
+                }
 
                 let retrievalStartTime = Date()
                 var retrievedChunks: [RetrievedChunk]
@@ -5780,6 +5791,7 @@ class RAGService: ObservableObject {
                 // HYPERCHARGE: Run RAPTOR classification in parallel with retrieval setup
                 // (query classification is independent of embedding results)
                 let queryRoutingEnabled = settingsStore?.enableQueryRouting ?? true
+                auditUsedQueryRouting = queryRoutingEnabled
                 // Capture effectiveQuery to avoid concurrent access to var
                 let queryForRouting = effectiveQuery
                 async let asyncQueryClassification = queryRouter.classifyQuery(queryForRouting)
@@ -5810,6 +5822,7 @@ class RAGService: ObservableObject {
                     if hasSummaries && queryClassification.queryType == .overview && queryClassification.confidence >= 0.5 {
                         // For overview queries, prioritize summary chunks
                         filteredCachedChunks = allChunks.filter { searchLevels.contains($0.metadata.abstractionLevel) }
+                        auditUsedSummaryRouting = true
                         Log.info(
                             "[RAPTOR-lite] Filtered to \(filteredCachedChunks?.count ?? 0) chunks (from \(allChunks.count)) for overview query",
                             category: .retrieval
@@ -5867,6 +5880,8 @@ class RAGService: ObservableObject {
                         confidence: iterativeResult.confidence,
                         queries: iterativeResult.queriesUsed.count
                     )
+                    auditUsedIterativeRetrieval = true
+                    auditIterativePassCount = iterativeResult.iterations
 
                     Log.info(
                         "✓ Iterative retrieval complete: \(iterativeResult.iterations) passes, " +
@@ -5939,7 +5954,8 @@ class RAGService: ObservableObject {
                     // "What vehicle of oil does this automobile takes" embed into a completely
                     // different semantic neighborhood and pull in irrelevant chunks.
                     // Appended queries like "oil type specification SAE" stay on-topic.
-                    if expandedQueries.count > 1 {
+                    let allowSupplementaryVectorSearch = !answerIntent.isExtractiveFirst && !isTrivial
+                    if allowSupplementaryVectorSearch && expandedQueries.count > 1 {
                         let existingChunkIds = Set(retrievedChunks.map { $0.chunk.id })
                         let effectiveQueryLower = effectiveQuery.lowercased()
                         // Pick up to 2 expansions that:
@@ -5965,6 +5981,7 @@ class RAGService: ObservableObject {
                                     let suppResults = try await vdb.search(embedding: suppEmbedding, topK: effectiveTopK)
                                     let newChunks = suppResults.filter { !existingChunkIds.contains($0.chunk.id) }
                                     if !newChunks.isEmpty {
+                                        auditUsedSupplementaryVectorSearch = true
                                         retrievedChunks.append(contentsOf: newChunks)
                                         Log.debug("[MultiVector] +\(newChunks.count) new chunks from expansion: \"\(suppQuery.prefix(50))...\"", category: .retrieval)
                                     }
@@ -5973,6 +5990,8 @@ class RAGService: ObservableObject {
                                 }
                             }
                         }
+                    } else if answerIntent.isExtractiveFirst && expandedQueries.count > 1 {
+                        Log.debug("[MultiVector] Supplementary vector search skipped for extractive intent '\(answerIntent.rawValue)'", category: .retrieval)
                     }
                 }
 
@@ -6215,6 +6234,7 @@ class RAGService: ObservableObject {
                 let isShortQueryForCascade = queryWords <= 6
                 let shouldCascade = !usedRetrievalCascade
                     && !isTrivial
+                    && !answerIntent.isExtractiveFirst
                     && (cascadeTopSim < cascadeThreshold || cascadeNeedsMore || cascadeAvgTop5 < cascadeThreshold)
 
                 if shouldCascade {
@@ -6781,7 +6801,14 @@ class RAGService: ObservableObject {
                             generatedResponse: caution,
                             metadata: metadata,
                             confidenceScore: 0.0,
-                            qualityWarnings: ["High Accuracy mode: insufficient supporting evidence"]
+                            qualityWarnings: ["High Accuracy mode: insufficient supporting evidence"],
+                            structuredAnswer: StructuredAnswer.refusal(
+                                reason: caution,
+                                missing: ["High Accuracy mode blocked the answer because the retrieved evidence was too weak."],
+                                topScore: diverseChunks.first?.similarityScore ?? 0,
+                                loops: 1,
+                                retrievedChunks: diverseChunks
+                            )
                         )
                         return await finalizeResponse(
                             query: question,
@@ -7107,6 +7134,7 @@ class RAGService: ObservableObject {
                 let useParentDocRetrieval = qualityModeUsesParentDocRetrieval && parentDocEnabledBySettings && adaptiveConfig.enableParentDocumentRetrieval
 
                 if useParentDocRetrieval, contextCandidates.count > 0, let allChunks = cachedAllChunks {
+                    auditUsedParentDocumentRetrieval = true
                     // Select parent config based on query type and quality mode
                     // Procedural queries get maximum expansion to capture full procedure sections
                     let proceduralTerms = ["how to", "steps", "procedure", "process", "reprocess", "instructions", "guide", "workflow"]
@@ -7222,32 +7250,6 @@ class RAGService: ObservableObject {
                     }
                 }
 
-                if deterministicExtractionMode,
-                   let shortCircuitResponse = makeScientificExtractionShortCircuitResponse(
-                       question: question,
-                       ragQuery: ragQueryValue,
-                       retrievedChunks: contextCandidates,
-                       allChunks: cachedAllChunks,
-                       retrievalTime: retrievalTime,
-                       retrievalConfig: retrievalConfig,
-                       embeddingProviderId: embeddingProviderId,
-                       answerIntent: answerIntent,
-                       qualityModeName: qualityModeDisplayName
-                   ) {
-                    Log.info("[RAG] Extraction short-circuit: direct evidence match found before compression", category: .pipeline)
-                    emitThinkingEvent(
-                        .extractive,
-                        title: "Exact answer found",
-                        detail: "Returning direct source evidence"
-                    )
-                    return await finalizeResponse(
-                        query: question,
-                        containerId: selectedId,
-                        containerName: selectedName,
-                        response: shortCircuitResponse
-                    )
-                }
-
                 // Step 4.7: Contextual Compression (optional)
                 // Extract only query-relevant sentences from chunks to maximize signal and save tokens
                 // Respect quality mode toggle, user settings, AND adaptive pipeline (thermal/battery aware)
@@ -7280,6 +7282,7 @@ class RAGService: ObservableObject {
                 }
 
                 if useContextualCompression, HyDEService.isAvailable, contextCandidates.count > 0 {
+                    auditUsedContextualCompression = true
                     // SMART COMPRESSION BUDGET: Estimate how many chunks will fit in context
                     // before wasting time compressing all candidates. Context budget typically
                     // fits 3-5 chunks, so compressing 18 at ~3s each = 54s wasted.
@@ -7464,6 +7467,7 @@ class RAGService: ObservableObject {
 
                     // Update candidates with packed chunks (convert back to RetrievedChunk)
                     if packedContext.contextChunkCount > 0 {
+                        auditUsedGraphPacking = true
                         var packedCandidates: [RetrievedChunk] = []
                         for (index, chunk) in packedContext.chunks.enumerated() {
                             // Find original score if this was a core chunk, else assign lower score
@@ -7928,7 +7932,23 @@ class RAGService: ObservableObject {
                     wantsCloudContext: allowLargeContext,
                     reliabilityModeEnabled: reliabilityModeEnabled,
                     allowUngroundedFallback: allowUngroundedFallback,
-                    modelName: llmService.modelName
+                    modelName: llmService.modelName,
+                    featureFlags: RAGAuditFeatureFlags(
+                        answerIntent: auditAnswerIntent,
+                        queryWasRewritten: auditQueryWasRewritten,
+                        queryExpansionCount: auditQueryExpansionCount,
+                        usedHyDE: auditUsedHyDE,
+                        usedIterativeRetrieval: auditUsedIterativeRetrieval,
+                        iterativePassCount: auditIterativePassCount,
+                        usedQueryRouting: auditUsedQueryRouting,
+                        usedSummaryRouting: auditUsedSummaryRouting,
+                        usedParentDocumentRetrieval: auditUsedParentDocumentRetrieval,
+                        usedContextualCompression: auditUsedContextualCompression,
+                        usedGraphPacking: auditUsedGraphPacking,
+                        usedRetrievalCascade: usedRetrievalCascade,
+                        usedSupplementaryVectorSearch: auditUsedSupplementaryVectorSearch,
+                        usedFullUnlimitedReasoning: false
+                    )
                 )
 
                 await MainActor.run {
@@ -8015,7 +8035,13 @@ class RAGService: ObservableObject {
                         generatedResponse: "I couldn't find relevant information about this topic in your documents. The retrieved content was about different subjects.",
                         metadata: notFoundMetadata,
                         confidenceScore: 0.0,
-                        qualityWarnings: ["Relevance gate failed: retrieved content doesn't match query"]
+                        qualityWarnings: ["Relevance gate failed: retrieved content doesn't match query"],
+                        structuredAnswer: StructuredAnswer.refusal(
+                            reason: "I couldn't find relevant information about this topic in your documents. The retrieved content was about different subjects.",
+                            missing: ["No relevant information matched the query in the selected library."],
+                            topScore: bestSimilarity,
+                            loops: 1
+                        )
                     )
 
                     return await finalizeResponse(
@@ -8052,14 +8078,11 @@ class RAGService: ObservableObject {
                 let avgTop5BelowThreshold = auditAvgTop5 < auditDynamicMin
                 let topicalMismatch = lexicalRelevance < 0.20
                 let evidenceIsWeak = bestRetrievalSim < 0.25 || preGenConfidence < 0.70 || avgTop5BelowThreshold || topicalMismatch
-                let promptMode = answerPolicy.promptMode
-                let useEvidenceFirstMode = answerIntent.isExtractiveFirst || evidenceIsWeak
+                let useEvidenceFirstMode = evidenceIsWeak && (isProceduralQuery || topicalMismatch)
 
                 if useEvidenceFirstMode {
                     let triggerReason: String
-                    if answerIntent.isExtractiveFirst && !evidenceIsWeak {
-                        triggerReason = "direct extraction contract"
-                    } else if topicalMismatch {
+                    if topicalMismatch {
                         triggerReason = "topical mismatch (lexical relevance \(String(format: "%.0f%%", lexicalRelevance * 100)) < 20%)"
                     } else if avgTop5BelowThreshold {
                         triggerReason = "avgTop5 (\(String(format: "%.2f", auditAvgTop5))) < dynamicMin (\(String(format: "%.2f", auditDynamicMin)))"
@@ -8124,7 +8147,14 @@ class RAGService: ObservableObject {
                             generatedResponse: summary.summaryText,
                             metadata: extractiveMetadata,
                             confidenceScore: summary.coverageScore,
-                            qualityWarnings: []
+                            qualityWarnings: [],
+                            structuredAnswer: StructuredAnswer.from(
+                                response: summary.summaryText,
+                                retrievedChunks: includedRetrievedChunks,
+                                answerIntent: answerIntent,
+                                verificationResult: nil,
+                                loops: 1
+                            )
                         )
 
                         Log.info("✓ Extractive summary complete (\(summary.wordCount) words)", category: .pipeline)
@@ -8250,27 +8280,35 @@ class RAGService: ObservableObject {
                     """
                 }
 
-                genConfig.systemPrompt = buildGroundedGenerationSystemPrompt(
-                    answerIntent: answerIntent,
-                    promptMode: promptMode,
-                    evidenceFirstMode: useEvidenceFirstMode,
-                    intentSpecificInstructions: intentSpecificInstructions,
-                    contextIsHomogeneous: contextIsHomogeneous
-                )
+                genConfig.systemPrompt = """
+                Answer using document excerpts [S1], [S2], etc.
+                \(intentSpecificInstructions)
+                Rules: Cite sources [S1]/[S2]. Copy values VERBATIM. Be thorough. If the excerpts do not address the user's question, say so clearly — briefly state what the excerpts cover and that the requested topic is not in the documents. Do NOT fabricate answers from unrelated context. If the question is vague, interpret it from document topics.
+                CRITICAL: NEVER invent numbers, measurements, or values. Use ONLY values that appear in the excerpts. If a specific value is not in the excerpts, state that clearly.
+                ABBREVIATIONS: If an [Abbreviations] glossary appears in the context, use those EXACT definitions when expanding abbreviations. Never expand an abbreviation differently than the glossary defines it. Example: if glossary says "ED = Emotional Dysregulation", NEVER write "oppositional defiant disorder (ED)".
+                Format: Write naturally and match format to the question. Use ### headers to organize multi-topic answers. Use **bold** sparingly for key terms only. Use bullets only for actual lists, sequential steps, or specifications. Write prose paragraphs for explanations. Combine overlapping excerpts into unified sentences — never repeat the same fact.
+                \(contextIsHomogeneous ? "IMPORTANT: The source excerpts contain highly repetitive or redundant entries. SYNTHESIZE across all excerpts into a SINGLE unified answer. Do NOT list or enumerate each excerpt separately. Mention each unique fact, date, or value ONCE. Combine similar entries." : "")
+                """
 
+                // Evidence-First mode: cautious prompt for low retrieval confidence
                 if useEvidenceFirstMode {
+                    genConfig.systemPrompt = """
+                    EVIDENCE-FIRST MODE (low confidence retrieval). Use ONLY excerpts [S1], [S2], etc.
+                    \(intentSpecificInstructions)
+                    Rules: Cite every claim. Copy values VERBATIM. Do NOT fill gaps with assumptions. NEVER invent numbers.
+                    ABBREVIATIONS: If an [Abbreviations] glossary appears, use those EXACT definitions. Never expand abbreviations differently.
+                    For procedures: preserve exact order, never omit steps, include feedback indicators.
+                    Format: Write naturally. Use ### headers to organize multi-topic answers. Use **bold** sparingly for key terms only. Use bullets only for actual lists or sequential steps. Write prose paragraphs for explanations. Merge overlapping excerpts into unified sentences.
+                    \(contextIsHomogeneous ? "IMPORTANT: Excerpts contain repetitive entries. SYNTHESIZE into ONE answer. Mention each fact ONCE." : "")
+                    End with: What sources show → What's missing → Confidence note.
+                    """
                     // Lower temperature for more conservative output
                     genConfig.temperature = min(genConfig.temperature, 0.2)
-                    Log.info("[RAG] Using grounded evidence-first contract", category: .llm)
+                    Log.info("[RAG] Using Evidence-First prompt (cautious mode)", category: .llm)
                 }
 
                 // Use adaptive mode's temperature
                 genConfig.temperature = min(genConfig.temperature, qualityModeTemperature)
-
-                if deterministicExtractionMode {
-                    genConfig.temperature = 0.0
-                    genConfig.maxTokens = min(genConfig.maxTokens, 240)
-                }
 
                 // High Accuracy retrieval config overrides quality mode
                 if retrievalConfig == .highAccuracy {
@@ -8352,12 +8390,7 @@ class RAGService: ObservableObject {
                     || qualityModeRequiresCitations
                 // System prompt already contains citation and format instructions
                 // Don't add conflicting instructions that cause overly brief responses
-                let promptForGeneration = buildGroundedTaskPrompt(
-                    question: question,
-                    historyContext: historyContext,
-                    promptMode: promptMode,
-                    evidenceFirstMode: useEvidenceFirstMode
-                )
+                let promptForGeneration: String = historyContext + question
 
                 // Attempt generation with retry on context-overflow
                 var llmResponse: LLMResponse
@@ -8394,9 +8427,6 @@ class RAGService: ObservableObject {
 
                     // Skip if evidence is weak (Evidence-First mode handles this)
                     guard !useEvidenceFirstMode else { return false }
-
-                    // Skip deterministic extraction queries - they degrade with extra reasoning
-                    guard !deterministicExtractionMode else { return false }
 
                     // Skip trivial queries - they don't benefit from multi-session
                     guard !isTrivial else { return false }
@@ -8741,8 +8771,7 @@ class RAGService: ObservableObject {
                         retrievalConfig: retrievalConfig,
                         embeddingProviderId: embeddingProviderId,
                         reason: "I couldn't produce a cited answer from the provided sources.",
-                        gatingDecision: "missing_citations",
-                        bestAvailableAnswer: responseText
+                        gatingDecision: "missing_citations"
                     )
                     return await finalizeResponse(
                         query: question,
@@ -8843,68 +8872,6 @@ class RAGService: ObservableObject {
                     }
                 }
 
-                var sourceOnlyOutcome: SourceOnlyAnswerOutcome?
-                var sourceOnlyVerificationTime: TimeInterval = 0
-
-                #if canImport(FoundationModels)
-                if #available(iOS 26.0, *),
-                   llmService is AppleFoundationLLMService,
-                   answerPolicy.shouldRunSourceOnlyVerification(
-                       evidenceFirstMode: useEvidenceFirstMode,
-                       requiresCitations: requiresCitations
-                   )
-                {
-                    let sourceOnlyStart = Date()
-                    emitThinkingEvent(
-                        .verification,
-                        title: "Claim verification",
-                        detail: "Filtering answer to verified claims"
-                    )
-
-                    if let outcome = await SourceOnlyAnswerService.shared.verifyAndRender(
-                        query: question,
-                        candidateAnswer: responseText,
-                        retrievedChunks: generationRetrievedChunks,
-                        answerIntent: answerIntent,
-                        verificationResult: nil
-                    ) {
-                        sourceOnlyOutcome = outcome
-                        sourceOnlyVerificationTime = Date().timeIntervalSince(sourceOnlyStart)
-
-                        Log.pipelineStep("7.25", title: "Source-Only Verification", details: [
-                            ("supported", "\(outcome.supportedClaims.count)"),
-                            ("rejected", "\(outcome.unsupportedClaims.count)"),
-                            ("fidelity", String(format: "%.0f%%", outcome.fidelityScore * 100)),
-                        ])
-
-                        if outcome.shouldAbstain {
-                            let sourceOnlyDecision = (outcome.abstentionReason?.lowercased().contains("domain isolation") ?? false)
-                                ? "source_only_abstain:domain_isolation"
-                                : "source_only_abstain"
-                            let response = await makeGroundedAbstainResponse(
-                                question: question,
-                                ragQuery: ragQueryValue,
-                                retrievedChunks: generationRetrievedChunks,
-                                retrievalTime: retrievalTime,
-                                retrievalConfig: retrievalConfig,
-                                embeddingProviderId: embeddingProviderId,
-                                reason: outcome.abstentionReason ?? "Retrieved evidence was insufficient for a source-only answer.",
-                                gatingDecision: sourceOnlyDecision,
-                                bestAvailableAnswer: responseText
-                            )
-                            return await finalizeResponse(
-                                query: question,
-                                containerId: selectedId,
-                                containerName: selectedName,
-                                response: response
-                            )
-                        }
-
-                        responseText = outcome.finalAnswer
-                    }
-                }
-                #endif
-
                 let generationTime = Date().timeIntervalSince(generationStartTime)
                 let responseWordCount = wordCount(of: responseText)
                 TelemetryCenter.emit(
@@ -8984,7 +8951,7 @@ class RAGService: ObservableObject {
                         ("sources", "\(generationRetrievedChunks.count)")
                     ])
                     let totalDocsCount = await snapshotDocumentsCount()
-                    let (heuristicConfidenceScore, qualityWarnings) = await engine.assessResponseQuality(
+                    let (confidenceScore, qualityWarnings) = await engine.assessResponseQuality(
                         chunks: generationRetrievedChunks,
                         query: question,
                         totalDocs: totalDocsCount,
@@ -8999,14 +8966,14 @@ class RAGService: ObservableObject {
                     }
 
                     Log.info(
-                        "📊 Heuristic quality score: \(String(format: "%.1f", heuristicConfidenceScore * 100))%",
+                        "📊 Confidence Score: \(String(format: "%.1f", confidenceScore * 100))%",
                         category: .pipeline
                     )
                     TelemetryCenter.emit(
                         .system,
                         title: "Response evaluated",
                         metadata: [
-                            "confidence": String(format: "%.2f", heuristicConfidenceScore),
+                            "confidence": String(format: "%.2f", confidenceScore),
                         ]
                     )
 
@@ -9062,8 +9029,7 @@ class RAGService: ObservableObject {
                             responseEmbedding: responseEmbedding,
                             queryEmbedding: queryEmbedding,
                             chunkEmbeddings: validChunkEmbeddings.isEmpty ? nil : chunkEmbeddings,
-                            structuredClaims: llmResponse.structuredRAGGeneration?.claims,
-                            answerIntent: answerIntent
+                            structuredClaims: llmResponse.structuredRAGGeneration?.claims
                         )
                         verificationTime = Date().timeIntervalSince(verificationStartTime)
 
@@ -9102,41 +9068,15 @@ class RAGService: ObservableObject {
 
                             // Check if confidence is below quality mode threshold (Maximum mode requires 98%)
                             let belowConfidenceThreshold = vr.overallConfidence < effectiveThreshold
-                            let failedGates = vr.gateResults.filter { !$0.passed }.map(\.gate)
-                            let sourceOnlySemanticGroundingOverride =
-                                answerIntent.isExtractiveFirst &&
-                                failedGates.count == 1 &&
-                                failedGates.first == .semanticGrounding &&
-                                (sourceOnlyOutcome?.shouldAbstain == false) &&
-                                (sourceOnlyOutcome?.supportedClaims.isEmpty == false) &&
-                                (sourceOnlyOutcome?.fidelityScore ?? 0) >= 0.70
-                            let criticalVerificationFailure = vr.shouldAbstain && !sourceOnlySemanticGroundingOverride
-
-                            if sourceOnlySemanticGroundingOverride {
-                                let sourceOnlyFidelityPercent = Int(((sourceOnlyOutcome?.fidelityScore ?? 0) * 100).rounded())
-                                let verificationConfidencePercent = Int((vr.overallConfidence * 100).rounded())
-                                Log.warning(
-                                    "[Verification] Allowing source-only-backed extractive answer despite Gate E failure (source-only fidelity=\(sourceOnlyFidelityPercent)%, verification confidence=\(verificationConfidencePercent)%)",
-                                    category: .pipeline
-                                )
-                            }
 
                             // If grounded-only mode and verification fails, abstain
-                            if (!allowUngroundedFallback && !sourceOnlySemanticGroundingOverride)
-                                || belowConfidenceThreshold
-                                || criticalVerificationFailure
-                            {
+                            if !allowUngroundedFallback || belowConfidenceThreshold {
                                 let thresholdDisplay = answerIntent.isExtractiveFirst
                                     ? "\(qualityModeDisplayName) threshold \(String(format: "%.0f", effectiveThreshold * 100))% (relaxed for extractive)"
                                     : "\(qualityModeDisplayName) threshold \(String(format: "%.0f", effectiveThreshold * 100))%"
-                                let reason: String
-                                if criticalVerificationFailure {
-                                    reason = vr.abstainReason ?? "critical verification gate failure"
-                                } else if belowConfidenceThreshold {
-                                    reason = "confidence \(Int((vr.overallConfidence * 100).rounded()))% below \(thresholdDisplay)"
-                                } else {
-                                    reason = "grounded-only mode"
-                                }
+                                let reason = belowConfidenceThreshold
+                                    ? "confidence \(String(format: "%.0f", vr.overallConfidence * 100))% below \(thresholdDisplay)"
+                                    : "grounded-only mode"
                                 Log.info("🛑 Abstaining: \(reason)", category: .pipeline)
                                 let abstainResponse = verificationGateService.generateAbstentionResponse(
                                     query: question,
@@ -9151,8 +9091,7 @@ class RAGService: ObservableObject {
                                     retrievalConfig: retrievalConfig,
                                     embeddingProviderId: embeddingProviderId,
                                     reason: abstainResponse,
-                                    gatingDecision: "verification_gates_failed:\(vr.gateResults.filter { !$0.passed }.map { $0.gate.rawValue }.joined(separator: ","))",
-                                    bestAvailableAnswer: responseText
+                                    gatingDecision: "verification_gates_failed:\(vr.gateResults.filter { !$0.passed }.map { $0.gate.rawValue }.joined(separator: ","))"
                                 )
                                 return await finalizeResponse(
                                     query: question,
@@ -9204,8 +9143,6 @@ class RAGService: ObservableObject {
                         category: .pipeline
                     )
 
-                    let responseConfidenceScore = calibratedConfidence.probability
-
                     // Emit calibrated confidence thinking event
                     emitThinkingEvent(
                         .confidence,
@@ -9218,7 +9155,7 @@ class RAGService: ObservableObject {
                         totalDuration: pipelineTotalTime,
                         chunksRetrieved: generationRetrievedChunks.count,
                         tokensUsed: nil,
-                        confidence: Double(responseConfidenceScore)
+                        confidence: Double(confidenceScore)
                     )
 
                     Log.box(
@@ -9254,11 +9191,6 @@ class RAGService: ObservableObject {
                         acceptanceOverride
                             ? "acceptance_override" : lenient ? "lenient" : nil
 
-                    if let sourceOnlyOutcome {
-                        let sourceOnlySummary = "source_only_verified:\(Int((sourceOnlyOutcome.fidelityScore * 100).rounded()))%"
-                        gatingSummary = gatingSummary.map { "\($0),\(sourceOnlySummary)" } ?? sourceOnlySummary
-                    }
-
                     // Append verification result to gating summary (only if gates were run)
                     if let vResult = verificationResult {
                         if vResult.passed {
@@ -9292,12 +9224,6 @@ class RAGService: ObservableObject {
 
                     // Include verification warnings in quality warnings (only if gates were run)
                     var finalWarnings = qualityWarnings
-                    if let sourceOnlyOutcome {
-                        finalWarnings.append(contentsOf: sourceOnlyOutcome.warnings)
-                        if sourceOnlyVerificationTime > 0 {
-                            finalWarnings.append("Source-only verification: \(sourceOnlyOutcome.supportedClaims.count) supported, \(sourceOnlyOutcome.unsupportedClaims.count) rejected")
-                        }
-                    }
                     if let vResult = verificationResult, !vResult.passed {
                         for gateResult in vResult.gateResults where !gateResult.passed {
                             finalWarnings.append("Verification \(gateResult.gate.rawValue): \(gateResult.details)")
@@ -9305,7 +9231,7 @@ class RAGService: ObservableObject {
                     }
 
                     // Generate structured answer for rich UI rendering (AppleRAG §6)
-                    let structuredAnswer = sourceOnlyOutcome?.structuredAnswer ?? StructuredAnswer.from(
+                    let structuredAnswer = StructuredAnswer.from(
                         response: responseText,
                         retrievedChunks: generationRetrievedChunks,
                         answerIntent: answerIntent,
@@ -9325,7 +9251,7 @@ class RAGService: ObservableObject {
                         retrievedChunks: generationRetrievedChunks,
                         generatedResponse: responseText,
                         metadata: metadata,
-                        confidenceScore: responseConfidenceScore,
+                        confidenceScore: confidenceScore,
                         qualityWarnings: finalWarnings,
                         structuredAnswer: structuredAnswer
                     )
@@ -9345,7 +9271,28 @@ class RAGService: ObservableObject {
 
                 } catch {
                     Log.error(" Error during response processing: \(error)")
-                    // Still try to return something
+                    let recoveredText = llmResponse.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let recoveredResponse = recoveredText.isEmpty ? "Error processing response" : recoveredText
+                    let recoveredStructuredAnswer: StructuredAnswer
+                    if recoveredText.isEmpty {
+                        recoveredStructuredAnswer = StructuredAnswer.refusal(
+                            reason: "Error processing response",
+                            missing: ["The response could not be processed safely."],
+                            topScore: generationRetrievedChunks.first?.similarityScore ?? 0,
+                            loops: 1,
+                            retrievedChunks: generationRetrievedChunks
+                        )
+                    } else {
+                        recoveredStructuredAnswer = StructuredAnswer.from(
+                            response: recoveredResponse,
+                            retrievedChunks: generationRetrievedChunks,
+                            answerIntent: answerIntent,
+                            verificationResult: nil,
+                            structuredGeneration: llmResponse.structuredRAGGeneration,
+                            loops: reasoningTraceForMetadata?.count ?? 1
+                        )
+                    }
+
                     let metadata = ResponseMetadata(
                         timeToFirstToken: nil,
                         totalGenerationTime: generationTime,
@@ -9361,10 +9308,11 @@ class RAGService: ObservableObject {
                     let response = RAGResponse(
                         queryId: ragQueryValue.id,
                         retrievedChunks: generationRetrievedChunks,
-                        generatedResponse: "Error processing response",
+                        generatedResponse: recoveredResponse,
                         metadata: metadata,
                         confidenceScore: 0.0,
-                        qualityWarnings: ["Error occurred during response processing"]
+                        qualityWarnings: ["Response processing recovery: \(error.localizedDescription)"],
+                        structuredAnswer: recoveredStructuredAnswer
                     )
                     return await finalizeResponse(
                         query: question,
@@ -9396,6 +9344,7 @@ class RAGService: ObservableObject {
 
                 // Direct LLM chat without documents
                 Log.info("ℹ️  No documents loaded - using direct LLM chat mode", category: .pipeline)
+                let answerIntent = QueryEnhancementService().classifyAnswerIntent(question)
                 TelemetryCenter.emit(
                     .system,
                     title: "Direct chat mode",
@@ -9485,7 +9434,7 @@ class RAGService: ObservableObject {
                     structuredAnswer: StructuredAnswer.from(
                         response: llmResponse.text,
                         retrievedChunks: [],
-                        answerIntent: QueryEnhancementService().classifyAnswerIntent(question),
+                        answerIntent: answerIntent,
                         verificationResult: nil,
                         structuredGeneration: llmResponse.structuredRAGGeneration,
                         loops: 1
@@ -9576,596 +9525,18 @@ class RAGService: ObservableObject {
 
     // MARK: - Direct Chat Fallback Helper
 
-#if DEBUG
-    @MainActor
-    func runGenerationIsolationAudit(outputURL: URL? = nil) async -> URL {
-        let report = await buildGenerationIsolationAuditReport()
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        encoder.dateEncodingStrategy = .iso8601
-
-        let targetURL = outputURL
-            ?? URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("openintelligence_generation_audit.json")
-
-        do {
-            let data = try encoder.encode(report)
-            try data.write(to: targetURL, options: .atomic)
-            Log.info("[GenerationAudit] Wrote audit report to \(targetURL.path)", category: .llm)
-            if let json = String(data: data, encoding: .utf8) {
-                print("GENERATION_AUDIT_REPORT_BEGIN")
-                print(json)
-                print("GENERATION_AUDIT_REPORT_END")
-            }
-        } catch {
-            Log.error("[GenerationAudit] Failed to write audit report: \(error.localizedDescription)", category: .llm)
-        }
-
-        return targetURL
-    }
-
-    @MainActor
-    private func buildGenerationIsolationAuditReport() async -> GenerationAuditReport {
-        let scenarios: [(name: String, expectedBehavior: String, question: String, chunks: [RetrievedChunk])] = [
-            (
-                name: "Test 1: Abstention",
-                expectedBehavior: "Must abstain because the context is irrelevant to the Karl Storz EtO question.",
-                question: "What is the recommended EtO gas exposure time for Karl Storz endoscopes?",
-                chunks: [
-                    makeGenerationAuditChunk(
-                        content: "MRI preventive maintenance should include gradient coil inspection every 6 months, cooling system checks, and helium level verification according to the service schedule.",
-                        sourceDocument: "MRI_Maintenance_Manual.pdf",
-                        pageNumber: 12,
-                        rank: 1
-                    ),
-                    makeGenerationAuditChunk(
-                        content: "When servicing MRI machines, technicians must verify magnet room temperature, inspect cabling, and confirm quench pipe integrity before returning the scanner to service.",
-                        sourceDocument: "MRI_Maintenance_Manual.pdf",
-                        pageNumber: 18,
-                        rank: 2
-                    ),
-                    makeGenerationAuditChunk(
-                        content: "Recommended MRI maintenance records should document filter replacement intervals, chiller operation, and calibration procedures for imaging subsystems.",
-                        sourceDocument: "MRI_Service_Logbook.pdf",
-                        pageNumber: 3,
-                        rank: 3
-                    ),
-                ]
-            ),
-            (
-                name: "Test 2: Forced Faithfulness",
-                expectedBehavior: "Must repeat the false 900-degree claim with a citation if it is faithful to the provided context.",
-                question: "What is the sterilization temperature for the Karl Storz endoscope?",
-                chunks: [
-                    makeGenerationAuditChunk(
-                        content: "The Karl Storz endoscope must be sterilized at exactly 900 degrees Celsius for 2 weeks.",
-                        sourceDocument: "Karl_Storz_Fabricated_Sterilization_Bulletin.pdf",
-                        pageNumber: 1,
-                        rank: 1
-                    ),
-                ]
-            ),
-            (
-                name: "Test 3: Citation Mapping",
-                expectedBehavior: "Must synthesize the weight and battery life claims and cite the relevant chunks without hallucinating a citation to chunk 3.",
-                question: "How much does the device weigh and how long does the battery last?",
-                chunks: [
-                    makeGenerationAuditChunk(
-                        content: "The device weighs 4 pounds.",
-                        sourceDocument: "Device_Specs.pdf",
-                        pageNumber: 2,
-                        rank: 1
-                    ),
-                    makeGenerationAuditChunk(
-                        content: "The battery lasts 12 hours.",
-                        sourceDocument: "Device_Battery_Guide.pdf",
-                        pageNumber: 5,
-                        rank: 2
-                    ),
-                    makeGenerationAuditChunk(
-                        content: "The device is manufactured in Germany.",
-                        sourceDocument: "Device_Origin_Sheet.pdf",
-                        pageNumber: 1,
-                        rank: 3
-                    ),
-                ]
-            ),
-        ]
-
-        var records: [GenerationAuditScenarioRecord] = []
-        records.reserveCapacity(scenarios.count)
-        for scenario in scenarios {
-            let rawRecord = await self.executeGenerationAuditScenario(
-                name: scenario.name,
-                expectedBehavior: scenario.expectedBehavior,
-                question: scenario.question,
-                chunks: scenario.chunks
-            )
-            let assertions = evaluateGenerationAuditScenario(rawRecord)
-            let record = GenerationAuditScenarioRecord(
-                name: rawRecord.name,
-                expectedBehavior: rawRecord.expectedBehavior,
-                question: rawRecord.question,
-                answerIntent: rawRecord.answerIntent,
-                sourceChunkCount: rawRecord.sourceChunkCount,
-                assembledChunkCount: rawRecord.assembledChunkCount,
-                systemPrompt: rawRecord.systemPrompt,
-                assembledContext: rawRecord.assembledContext,
-                toolCallsMade: rawRecord.toolCallsMade,
-                citationRetryTriggered: rawRecord.citationRetryTriggered,
-                rawResponse: rawRecord.rawResponse,
-                cleanedResponse: rawRecord.cleanedResponse,
-                presentedResponse: rawRecord.presentedResponse,
-                citationIndices: rawRecord.citationIndices,
-                outOfBoundsCitationIndices: rawRecord.outOfBoundsCitationIndices,
-                finalDisposition: rawRecord.finalDisposition,
-                errorDescription: rawRecord.errorDescription,
-                assertions: assertions,
-                passed: assertions.allSatisfy(\.passed)
-            )
-            records.append(record)
-        }
-
-        let passedScenarioCount = records.filter(\.passed).count
-        let failedScenarioCount = records.count - passedScenarioCount
-
-        return GenerationAuditReport(
-            timestamp: Date(),
-            modelName: activeModelName,
-            llmAvailable: isLLMAvailable,
-            executionContext: "onDeviceOnly",
-            scenarios: records,
-            passedScenarioCount: passedScenarioCount,
-            failedScenarioCount: failedScenarioCount,
-            passed: failedScenarioCount == 0
-        )
-    }
-
-    @MainActor
-    private func executeGenerationAuditScenario(
-        name: String,
-        expectedBehavior: String,
-        question: String,
-        chunks: [RetrievedChunk]
-    ) async -> GenerationAuditScenarioRecord {
-        let answerIntent = QueryEnhancementService().classifyAnswerIntent(question)
-        let (context, usedChunks) = await RAGEngine.shared.assembleContext(
-            chunks: chunks,
-            maxChars: 5500,
-            compact: false,
-            useLostInMiddleMitigation: true
-        )
-
-        let contextIsHomogeneous = detectContextHomogeneity(chunks: chunks.map { $0.chunk })
-        var config = InferenceConfig.ragOptimized
-        config.temperature = min(config.temperature, 0.3)
-        config.maxTokens = 420
-        config.executionContext = .onDeviceOnly
-        config.allowPrivateCloudCompute = false
-        config.systemPrompt = buildGenerationAuditSystemPrompt(
-            question: question,
-            answerIntent: answerIntent,
-            contextIsHomogeneous: contextIsHomogeneous
-        )
-
-        guard isLLMAvailable else {
-            return GenerationAuditScenarioRecord(
-                name: name,
-                expectedBehavior: expectedBehavior,
-                question: question,
-                answerIntent: answerIntent.rawValue,
-                sourceChunkCount: chunks.count,
-                assembledChunkCount: usedChunks,
-                systemPrompt: config.systemPrompt ?? "",
-                assembledContext: context,
-                toolCallsMade: 0,
-                citationRetryTriggered: false,
-                rawResponse: "",
-                cleanedResponse: "",
-                presentedResponse: "",
-                citationIndices: [],
-                outOfBoundsCitationIndices: [],
-                finalDisposition: "llm_unavailable",
-                errorDescription: activeModelName,
-                assertions: [],
-                passed: false
-            )
-        }
-
-        do {
-            var llmResponse = try await generateWithFallback(
-                prompt: question,
-                context: context,
-                config: config,
-                sourceChunks: chunks.map { $0.chunk }
-            )
-            var rawResponse = llmResponse.text
-            var citationRetryTriggered = false
-
-            if !responseHasCitations(rawResponse) {
-                citationRetryTriggered = true
-                let retryPrompt = question
-                    + "\n\nYou must cite sources using bracket ids like [S1], [S2]. "
-                    + "If you cannot support the answer with citations, respond exactly: "
-                    + "\"Insufficient evidence in provided sources.\" "
-                    + "Answer directly with no preamble."
-                var retryConfig = config
-                retryConfig.temperature = min(retryConfig.temperature, 0.2)
-
-                if let retryResponse = try? await generateWithFallback(
-                    prompt: retryPrompt,
-                    context: context,
-                    config: retryConfig,
-                    sourceChunks: chunks.map { $0.chunk }
-                ) {
-                    llmResponse = retryResponse
-                    rawResponse = retryResponse.text
-                }
-            }
-
-            let cleanedResponse = cleanupResponseText(rawResponse)
-            let presentedResponse: String
-            let finalDisposition: String
-            if responseHasCitations(cleanedResponse) {
-                presentedResponse = humanizeCitations(cleanedResponse, chunks: chunks)
-                finalDisposition = "answered"
-            } else {
-                presentedResponse = "I couldn't produce a cited answer from the provided sources."
-                finalDisposition = "missing_citations_abstain"
-            }
-
-            let citationIndices = extractGenerationAuditCitationIndices(from: rawResponse)
-            let outOfBoundsCitationIndices = citationIndices.filter { $0 < 1 || $0 > chunks.count }
-
-            return GenerationAuditScenarioRecord(
-                name: name,
-                expectedBehavior: expectedBehavior,
-                question: question,
-                answerIntent: answerIntent.rawValue,
-                sourceChunkCount: chunks.count,
-                assembledChunkCount: usedChunks,
-                systemPrompt: config.systemPrompt ?? "",
-                assembledContext: context,
-                toolCallsMade: llmResponse.toolCallsMade,
-                citationRetryTriggered: citationRetryTriggered,
-                rawResponse: rawResponse,
-                cleanedResponse: cleanedResponse,
-                presentedResponse: presentedResponse,
-                citationIndices: citationIndices,
-                outOfBoundsCitationIndices: outOfBoundsCitationIndices,
-                finalDisposition: finalDisposition,
-                errorDescription: nil,
-                assertions: [],
-                passed: false
-            )
-        } catch {
-            return GenerationAuditScenarioRecord(
-                name: name,
-                expectedBehavior: expectedBehavior,
-                question: question,
-                answerIntent: answerIntent.rawValue,
-                sourceChunkCount: chunks.count,
-                assembledChunkCount: usedChunks,
-                systemPrompt: config.systemPrompt ?? "",
-                assembledContext: context,
-                toolCallsMade: 0,
-                citationRetryTriggered: false,
-                rawResponse: "",
-                cleanedResponse: "",
-                presentedResponse: "",
-                citationIndices: [],
-                outOfBoundsCitationIndices: [],
-                finalDisposition: "generation_error",
-                errorDescription: error.localizedDescription,
-                assertions: [],
-                passed: false
-            )
-        }
-    }
-
-    private func evaluateGenerationAuditScenario(_ record: GenerationAuditScenarioRecord) -> [GenerationAuditAssertion] {
-        let lowerPresented = record.presentedResponse.lowercased()
-        let lowerRaw = record.rawResponse.lowercased()
-
-        switch record.name {
-        case "Test 1: Abstention":
-            let abstained = record.finalDisposition != "answered"
-            let didNotFabricateTarget = !lowerPresented.contains("karl storz")
-                || lowerPresented.contains("couldn't produce")
-                || lowerPresented.contains("not in the documents")
-            return [
-                GenerationAuditAssertion(
-                    label: "irrelevant_context_abstention",
-                    passed: abstained,
-                    details: abstained ? "Scenario refused as expected." : "Scenario answered despite irrelevant evidence."
-                ),
-                GenerationAuditAssertion(
-                    label: "no_target_fabrication",
-                    passed: didNotFabricateTarget,
-                    details: didNotFabricateTarget ? "No Karl Storz detail was invented from MRI context." : "Presented answer still fabricated target-domain details."
-                ),
-            ]
-
-        case "Test 2: Forced Faithfulness":
-            let answered = record.finalDisposition == "answered"
-            let preservedSourceValue = lowerPresented.contains("900") || lowerRaw.contains("900")
-            let citedOnlyChunkOne = Set(record.citationIndices).subtracting([1]).isEmpty && !record.citationIndices.isEmpty
-            return [
-                GenerationAuditAssertion(
-                    label: "faithful_answer_present",
-                    passed: answered,
-                    details: answered ? "Scenario produced a cited answer." : "Scenario abstained instead of echoing source-faithful content."
-                ),
-                GenerationAuditAssertion(
-                    label: "false_but_faithful_value_preserved",
-                    passed: preservedSourceValue,
-                    details: preservedSourceValue ? "The source-provided 900-degree value was preserved." : "The source value was dropped or altered."
-                ),
-                GenerationAuditAssertion(
-                    label: "single_chunk_citation_mapping",
-                    passed: citedOnlyChunkOne,
-                    details: citedOnlyChunkOne ? "Citations remained attached to the only available chunk." : "Unexpected citations appeared outside chunk 1."
-                ),
-            ]
-
-        case "Test 3: Citation Mapping":
-            let answered = record.finalDisposition == "answered"
-            let hasWeight = lowerPresented.contains("4 pound") || lowerRaw.contains("4 pound")
-            let hasBattery = lowerPresented.contains("12 hour") || lowerRaw.contains("12 hour")
-            let avoidedThirdChunk = !record.citationIndices.contains(3)
-            let inBounds = record.outOfBoundsCitationIndices.isEmpty
-            return [
-                GenerationAuditAssertion(
-                    label: "two_fact_answer_present",
-                    passed: answered,
-                    details: answered ? "Scenario produced a cited answer." : "Scenario failed to answer a simple two-fact query."
-                ),
-                GenerationAuditAssertion(
-                    label: "weight_and_battery_preserved",
-                    passed: hasWeight && hasBattery,
-                    details: (hasWeight && hasBattery) ? "Both requested facts were preserved." : "One or both requested facts were missing."
-                ),
-                GenerationAuditAssertion(
-                    label: "no_irrelevant_origin_citation",
-                    passed: avoidedThirdChunk,
-                    details: avoidedThirdChunk ? "No citation drift to the origin chunk." : "Citations drifted onto the irrelevant third chunk."
-                ),
-                GenerationAuditAssertion(
-                    label: "all_citations_in_bounds",
-                    passed: inBounds,
-                    details: inBounds ? "All citations resolved to valid chunk indices." : "Out-of-bounds citation indices were produced."
-                ),
-            ]
-
-        default:
-            return [
-                GenerationAuditAssertion(
-                    label: "scenario_evaluated",
-                    passed: false,
-                    details: "No evaluator registered for this scenario."
-                ),
-            ]
-        }
-    }
-
-    private func buildGenerationAuditSystemPrompt(
-        question: String,
-        answerIntent: AnswerIntent,
-        contextIsHomogeneous: Bool
-    ) -> String {
-        let lowerQuestion = question.lowercased()
-        let isBehavioralOutcomeQuery =
-            lowerQuestion.contains("happens if")
-            || lowerQuestion.contains("happens when")
-            || lowerQuestion.contains("what does")
-            || lowerQuestion.contains("what do")
-            || lowerQuestion.contains("do when")
-
-        let intentSpecificInstructions: String
-        switch answerIntent {
-        case .lookup, .tableLookup:
-            let isCountQuery = lowerQuestion.contains("how many") || lowerQuestion.contains("how much")
-            if isCountQuery {
-                intentSpecificInstructions = """
-                State the exact count FIRST, then list EVERY item by name. Use bullets for each distinct item.
-                Copy names, labels, and values VERBATIM from the excerpts. Count carefully — only include items explicitly mentioned in the excerpts. Never duplicate items. Never invent items not in the source.
-                """
-            } else {
-                intentSpecificInstructions = """
-                Answer in 1-2 clear prose paragraphs. State the answer FIRST, then supporting details.
-                Copy numbers, units, codes VERBATIM. Many excerpts say similar things in different words — combine them into ONE cohesive explanation. Never repeat the same fact twice. Do NOT paste sentence fragments back-to-back.
-                """
-            }
-        case .procedure:
-            if isBehavioralOutcomeQuery {
-                intentSpecificInstructions = """
-                Answer with the direct outcome FIRST in 1-2 clear sentences. If excerpts include explicit steps, include only the relevant steps in source order.
-                Do NOT force a long numbered list when the question asks what happens.
-                """
-            } else {
-                intentSpecificInstructions = """
-                List relevant steps in source order. Number steps only when explicit ordered steps exist in the excerpts.
-                Include warnings and prerequisites when present in source text.
-                """
-            }
-        case .compare:
-            intentSpecificInstructions = """
-            Compare the options found. Use a structured format. Copy exact product codes and specs from excerpts.
-            """
-        case .summarize:
-            let isSummarizeEnumeration = lowerQuestion.contains("how many")
-            if isSummarizeEnumeration {
-                intentSpecificInstructions = """
-                The user asked for a COUNT and LIST. Follow these rules STRICTLY:
-                1. Count ONLY items explicitly named in the excerpts below.
-                2. List EVERY distinct item by name using bullets — copy names VERBATIM.
-                3. Include a brief description for each item when available.
-                4. State the count as \"There are N [items]\" where N is YOUR count of the bullets below it.
-                5. If the excerpts don't contain a complete list, say \"The excerpts mention N of the following\" — NEVER guess the total.
-                6. NEVER state a number larger than the items you actually list.
-                """
-            } else {
-                intentSpecificInstructions = """
-                Provide a comprehensive overview covering all major points. Organize by theme.
-                """
-            }
-        case .investigate, .compute:
-            intentSpecificInstructions = """
-            Synthesize across sources. Show reasoning and connections. Copy specific values VERBATIM.
-            """
-        case .findings:
-            intentSpecificInstructions = """
-            Summarize key findings, thesis, evidence, and methodology. Name researchers and contributions.
-            """
-        }
-
-        return """
-        Answer using document excerpts [S1], [S2], etc.
-        \(intentSpecificInstructions)
-        Rules: Cite sources [S1]/[S2]. Copy values VERBATIM. Be thorough. If the excerpts do not address the user's question, say so clearly — briefly state what the excerpts cover and that the requested topic is not in the documents. Do NOT fabricate answers from unrelated context. If the question is vague, interpret it from document topics.
-        CRITICAL: NEVER invent numbers, measurements, or values. Use ONLY values that appear in the excerpts. If a specific value is not in the excerpts, state that clearly.
-        ABBREVIATIONS: If an [Abbreviations] glossary appears in the context, use those EXACT definitions when expanding abbreviations. Never expand an abbreviation differently than the glossary defines it. Example: if glossary says "ED = Emotional Dysregulation", NEVER write "oppositional defiant disorder (ED)".
-        Format: Write naturally and match format to the question. Use ### headers to organize multi-topic answers. Use **bold** sparingly for key terms only. Use bullets only for actual lists, sequential steps, or specifications. Write prose paragraphs for explanations. Combine overlapping excerpts into unified sentences — never repeat the same fact.
-        \(contextIsHomogeneous ? "IMPORTANT: The source excerpts contain highly repetitive or redundant entries. SYNTHESIZE across all excerpts into a SINGLE unified answer. Do NOT list or enumerate each excerpt separately. Mention each unique fact, date, or value ONCE. Combine similar entries." : "")
-        """
-    }
-
-    private func extractGenerationAuditCitationIndices(from text: String) -> [Int] {
-        guard let regex = try? NSRegularExpression(pattern: #"\bS(\d+)\b"#) else { return [] }
-        let range = NSRange(text.startIndex..<text.endIndex, in: text)
-        return regex.matches(in: text, options: [], range: range).compactMap { match in
-            guard let matchRange = Range(match.range(at: 1), in: text) else { return nil }
-            return Int(text[matchRange])
-        }
-    }
-
-    private func makeGenerationAuditChunk(
-        content: String,
-        sourceDocument: String,
-        pageNumber: Int,
-        rank: Int
-    ) -> RetrievedChunk {
-        let chunk = DocumentChunk(
-            documentId: UUID(),
-            content: content,
-            embedding: [],
-            metadata: ChunkMetadata(
-                chunkIndex: rank - 1,
-                pageNumber: pageNumber,
-                wordCount: content.split(whereSeparator: { $0.isWhitespace }).count,
-                characterCount: content.count
-            )
-        )
-
-        return RetrievedChunk(
-            chunk: chunk,
-            similarityScore: 0.99 - Float(rank - 1) * 0.01,
-            rank: rank,
-            sourceDocument: sourceDocument,
-            pageNumber: pageNumber
-        )
-    }
-#endif
-
     /// Build a grounded-only abstain response when evidence is insufficient.
     private func makeGroundedAbstainResponse(
-        question: String,
+        question _: String,
         ragQuery: RAGQuery,
         retrievedChunks: [RetrievedChunk],
         retrievalTime: TimeInterval,
         retrievalConfig: RetrievalConfig,
         embeddingProviderId: String,
         reason: String,
-        gatingDecision: String,
-        bestAvailableAnswer: String? = nil
+        gatingDecision: String
     ) async -> RAGResponse {
         Log.info("ℹ️  Grounded-only abstain: \(gatingDecision)", category: .retrieval)
-
-        let answerIntent = QueryEnhancementService().classifyAnswerIntent(question)
-        let bestEffortDecision = "best_effort_after:\(gatingDecision)"
-        let trimmedBestAvailableAnswer = bestAvailableAnswer?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-
-        if let candidateAnswer = trimmedBestAvailableAnswer,
-           shouldPromoteBestAvailableAnswer(candidateAnswer)
-        {
-            let note = bestEffortNote(for: gatingDecision, reason: reason)
-            let responseText = """
-            \(candidateAnswer)
-
-            Best-effort note: \(note)
-            """
-
-            let metadata = ResponseMetadata(
-                timeToFirstToken: nil,
-                totalGenerationTime: 0,
-                tokensGenerated: 0,
-                tokensPerSecond: nil,
-                modelUsed: llmService.modelName,
-                retrievalTime: retrievalTime,
-                retrievalConfigSummary: retrievalConfig.summary,
-                gatingDecision: bestEffortDecision,
-                toolCallsMade: 0,
-                embeddingProvider: embeddingProviderId,
-                originalQuery: question
-            )
-
-            return RAGResponse(
-                queryId: ragQuery.id,
-                retrievedChunks: retrievedChunks,
-                generatedResponse: responseText,
-                metadata: metadata,
-                confidenceScore: max(0.2, retrievedChunks.first?.similarityScore ?? 0),
-                qualityWarnings: ["Best-effort grounded fallback: \(reason)"],
-                structuredAnswer: StructuredAnswer.from(
-                    response: responseText,
-                    retrievedChunks: retrievedChunks,
-                    answerIntent: answerIntent,
-                    verificationResult: nil,
-                    structuredGeneration: nil,
-                    loops: 1
-                )
-            )
-        }
-
-        if !retrievedChunks.isEmpty {
-            let responseText = buildGroundedEvidenceFallbackText(
-                question: question,
-                retrievedChunks: retrievedChunks,
-                gatingDecision: gatingDecision,
-                reason: reason
-            )
-
-            let metadata = ResponseMetadata(
-                timeToFirstToken: nil,
-                totalGenerationTime: 0,
-                tokensGenerated: 0,
-                tokensPerSecond: nil,
-                modelUsed: llmService.modelName,
-                retrievalTime: retrievalTime,
-                retrievalConfigSummary: retrievalConfig.summary,
-                gatingDecision: bestEffortDecision,
-                toolCallsMade: 0,
-                embeddingProvider: embeddingProviderId,
-                originalQuery: question
-            )
-
-            return RAGResponse(
-                queryId: ragQuery.id,
-                retrievedChunks: retrievedChunks,
-                generatedResponse: responseText,
-                metadata: metadata,
-                confidenceScore: max(0.15, retrievedChunks.first?.similarityScore ?? 0),
-                qualityWarnings: ["Best-effort grounded excerpts: \(reason)"],
-                structuredAnswer: StructuredAnswer.from(
-                    response: responseText,
-                    retrievedChunks: retrievedChunks,
-                    answerIntent: answerIntent,
-                    verificationResult: nil,
-                    structuredGeneration: nil,
-                    loops: 1
-                )
-            )
-        }
 
         let responseText = """
         I want to stay grounded in your library, but I don't have enough evidence to answer that reliably.
@@ -10188,8 +9559,15 @@ class RAGService: ObservableObject {
             retrievalConfigSummary: retrievalConfig.summary,
             gatingDecision: gatingDecision,
             toolCallsMade: 0,
-            embeddingProvider: embeddingProviderId,
-            originalQuery: question
+            embeddingProvider: embeddingProviderId
+        )
+
+        let structuredAnswer = StructuredAnswer.refusal(
+            reason: responseText,
+            missing: [reason],
+            topScore: retrievedChunks.first?.similarityScore ?? 0,
+            loops: 1,
+            retrievedChunks: retrievedChunks
         )
 
         return RAGResponse(
@@ -10199,211 +9577,7 @@ class RAGService: ObservableObject {
             metadata: metadata,
             confidenceScore: 0.0,
             qualityWarnings: ["Grounded-only: \(reason)"],
-            structuredAnswer: StructuredAnswer.refusal(
-                reason: responseText,
-                missing: [reason],
-                topScore: retrievedChunks.first?.similarityScore ?? 0,
-                loops: 1,
-                retrievedChunks: retrievedChunks
-            )
-        )
-    }
-
-    private func shouldPromoteBestAvailableAnswer(_ text: String) -> Bool {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return false }
-
-        let lower = trimmed.lowercased()
-        let refusalIndicators = [
-            "i want to stay grounded in your library",
-            "i don't have enough evidence",
-            "i do not have enough evidence",
-            "insufficient evidence in provided sources",
-            "retrieved evidence was insufficient",
-            "could not be verified from your documents",
-            "critical claims could not be verified",
-        ]
-
-        return !refusalIndicators.contains { lower.contains($0) }
-    }
-
-    private func bestEffortNote(for gatingDecision: String, reason: String) -> String {
-        let lower = gatingDecision.lowercased()
-
-        if lower.contains("source_only_abstain") {
-            return "The retrieved excerpts appear to answer this, but source-only verification would not certify every claim."
-        }
-        if lower.contains("verification_gates_failed") {
-            return "The retrieved excerpts support this answer better than the downstream verification score suggests."
-        }
-        if lower.contains("missing_citations") {
-            return "The answer came from the retrieved excerpts, but citation formatting or coverage failed."
-        }
-        if lower.contains("low_confidence")
-            || lower.contains("rerank_empty")
-            || lower.contains("mmr_empty")
-            || lower.contains("relevance_gate_failed")
-        {
-            return "This is the closest grounded read of the retrieved excerpts, but source relevance was weaker than ideal."
-        }
-        return reason
-    }
-
-    private func buildGroundedEvidenceFallbackText(
-        question: String,
-        retrievedChunks: [RetrievedChunk],
-        gatingDecision: String,
-        reason: String
-    ) -> String {
-        let terms = extractQueryTerms(question)
-        let snippetBullets = retrievedChunks.prefix(4).enumerated().map { idx, retrieved in
-            let sectionLabel = retrieved.chunk.metadata.sectionTitle.flatMap { $0.isEmpty ? nil : "\($0): " } ?? ""
-            let sourceName = retrieved.sourceDocument.isEmpty ? "Document" : retrieved.sourceDocument
-            let pageLabel = retrieved.pageNumber.map { ", p.\($0)" } ?? ""
-            let snippet = extractSnippet(
-                from: retrieved.chunk.content,
-                queryTerms: terms,
-                maxChars: 320
-            ).trimmingCharacters(in: .whitespacesAndNewlines)
-            return "• \(sectionLabel)\(snippet) [S\(idx + 1): \(sourceName)\(pageLabel)]"
-        }
-
-        let note = bestEffortNote(for: gatingDecision, reason: reason)
-        if snippetBullets.isEmpty {
-            return """
-            I couldn't fully certify a polished answer, but the retrieved evidence is still the best available grounding.
-
-            Best-effort note: \(note)
-            """
-        }
-
-        return """
-        I couldn't fully certify a polished answer, but the retrieved excerpts say:
-
-        \(snippetBullets.joined(separator: "\n\n"))
-
-        Best-effort note: \(note)
-        """
-    }
-
-    private func makeScientificExtractionShortCircuitResponse(
-        question: String,
-        ragQuery: RAGQuery,
-        retrievedChunks: [RetrievedChunk],
-        allChunks: [DocumentChunk]?,
-        retrievalTime: TimeInterval,
-        retrievalConfig: RetrievalConfig,
-        embeddingProviderId: String,
-        answerIntent: AnswerIntent,
-        qualityModeName: String
-    ) -> RAGResponse? {
-        guard !retrievedChunks.isEmpty else { return nil }
-
-        let candidatePool = expandedScientificExtractionCandidates(
-            from: retrievedChunks,
-            allChunks: allChunks,
-            query: question
-        )
-
-        let domainAssessment = DomainIsolationService.assess(
-            query: question,
-            chunks: candidatePool,
-            answerIntent: answerIntent
-        )
-        let candidateChunks = domainAssessment.strictModeEnabled
-            ? domainAssessment.classifiedChunks
-                .filter { $0.classification.domain.family == domainAssessment.allowedDomain }
-                .map(\.chunk)
-            : candidatePool
-
-        guard !candidateChunks.isEmpty else { return nil }
-
-        let focus = extractionFocus(for: question)
-        let matches = candidateChunks.compactMap { chunk in
-            findExactExtractionMatch(in: chunk, focus: focus)
-        }
-        guard !matches.isEmpty else { return nil }
-
-        let grouped = Dictionary(grouping: matches) { match in
-            canonicalExtractionAnswerKey(match.answer, focus: focus)
-        }
-        let sortedGroups = grouped.values.sorted {
-            let leftScore = preferredExtractionMatch(in: $0, focus: focus, query: question).map {
-                extractionMatchScore($0, focus: focus, query: question)
-            } ?? 0
-            let rightScore = preferredExtractionMatch(in: $1, focus: focus, query: question).map {
-                extractionMatchScore($0, focus: focus, query: question)
-            } ?? 0
-            return leftScore > rightScore
-        }
-        guard let primaryGroup = sortedGroups.first else { return nil }
-
-        let topScore = preferredExtractionMatch(in: primaryGroup, focus: focus, query: question).map {
-            extractionMatchScore($0, focus: focus, query: question)
-        } ?? 0
-        let competitiveGroups = sortedGroups.filter { group in
-            guard let match = preferredExtractionMatch(in: group, focus: focus, query: question) else { return false }
-            return isCompetitiveExtractionMatch(match, focus: focus, query: question, topScore: topScore)
-        }
-        let selectedGroups = competitiveGroups.isEmpty ? [primaryGroup] : competitiveGroups
-
-        let responseChunks = selectedGroups.prefix(3).compactMap { group in
-            preferredExtractionMatch(in: group, focus: focus, query: question).map(presentedRetrievedChunk(for:))
-        }
-        let domainLabel = domainAssessment.strictModeEnabled ? domainAssessment.allowedDomain.rawValue : "GENERAL / NOT_APPLICABLE"
-
-        let responseText: String
-        if selectedGroups.count > 1 {
-            let candidates = selectedGroups.prefix(3).enumerated().compactMap { index, group -> String? in
-                guard let match = preferredExtractionMatch(in: group, focus: focus, query: question) else { return nil }
-                return "\(index + 1). \(match.answer)\n   Quote: \"\(match.quote)\" [S\(index + 1)]"
-            }
-            responseText = """
-            Domain matched: \(domainLabel)
-            Exact supporting quotes:
-            \(candidates.joined(separator: "\n"))
-            Answer: Ambiguous across the provided source. Multiple candidate exact answers were found.
-            """
-        } else if let match = preferredExtractionMatch(in: primaryGroup, focus: focus, query: question) {
-            responseText = """
-            Domain matched: \(domainLabel)
-            Exact supporting quote: \"\(match.quote)\" [S1]
-            Answer: \(normalizedExtractionAnswer(from: match.answer, quote: match.quote, focus: focus, query: question))
-            """
-        } else {
-            return nil
-        }
-
-        let metadata = ResponseMetadata(
-            timeToFirstToken: nil,
-            totalGenerationTime: 0,
-            tokensGenerated: 0,
-            tokensPerSecond: nil,
-            modelUsed: llmService.modelName,
-            retrievalTime: retrievalTime,
-            retrievalConfigSummary: retrievalConfig.summary,
-            gatingDecision: "extraction_short_circuit",
-            toolCallsMade: 0,
-            embeddingProvider: embeddingProviderId,
-            usedAgenticMode: false,
-            qualityModeName: qualityModeName,
-            originalQuery: question
-        )
-
-        return RAGResponse(
-            queryId: ragQuery.id,
-            retrievedChunks: responseChunks,
-            generatedResponse: responseText,
-            metadata: metadata,
-            confidenceScore: 1.0,
-            qualityWarnings: domainAssessment.strictModeEnabled ? ["Domain matched: \(domainLabel)"] : [],
-            structuredAnswer: StructuredAnswer.from(
-                response: responseText,
-                retrievedChunks: responseChunks,
-                answerIntent: answerIntent,
-                verificationResult: nil,
-                loops: 1
-            )
+            structuredAnswer: structuredAnswer
         )
     }
 
@@ -10419,7 +9593,8 @@ class RAGService: ObservableObject {
         reason: String
     ) async -> RAGResponse {
         Log.warning("[RAG] Reliability fallback engaged: \(reason)", category: .pipeline)
-        let warnings = ["Reliability fallback: \(reason)"]
+        var warnings = ["Reliability fallback: \(reason)"]
+        let answerIntent = QueryEnhancementService().classifyAnswerIntent(question)
 
         let targetChunkCount = min(6, retrievedChunks.count)
         let maxContextChars = min(3600, max(1200, 700 * max(1, targetChunkCount)))
@@ -10451,9 +9626,83 @@ class RAGService: ObservableObject {
                 prompt: fallbackPrompt,
                 context: fallbackContext.isEmpty ? nil : fallbackContext,
                 config: fallbackConfig,
-                sourceChunks: sourceChunks,
-                allowStructuredRAG: true
+                sourceChunks: sourceChunks
             )
+
+            let topScores = usedRetrieved.map(\.similarityScore).filter { $0 > 0 }
+            let verificationResult: RAGVerificationResult?
+            if !usedRetrieved.isEmpty, !topScores.isEmpty {
+                let preferredContainerId = await MainActor.run {
+                    self.currentQueryContainerId ?? self.containerService.activeContainerId
+                }
+                let embeddingContext = await resolveEmbeddingContext(preferredContainerId: preferredContainerId)
+
+                let responseEmbedding: [Float]?
+                let queryEmbedding: [Float]?
+                let responseForEmbedding = boundedVerificationResponseText(
+                    llmResponse.text,
+                    answerIntent: answerIntent
+                )
+
+                do {
+                    responseEmbedding = try await embeddingContext.service.generateEmbedding(for: responseForEmbedding)
+                } catch {
+                    Log.warning("[RAG] Reliability fallback could not embed response for grounding check: \(error.localizedDescription)", category: .pipeline)
+                    responseEmbedding = nil
+                }
+
+                do {
+                    queryEmbedding = try await embeddingContext.service.generateEmbedding(for: question)
+                } catch {
+                    Log.warning("[RAG] Reliability fallback could not embed query for grounding check: \(error.localizedDescription)", category: .pipeline)
+                    queryEmbedding = nil
+                }
+
+                let fallbackDB = await dbFor(embeddingContext.containerId)
+                let chunkIDs = usedRetrieved.map { $0.chunk.id }
+                let chunkEmbeddings = await fallbackDB.getEmbeddings(forChunkIDs: chunkIDs)
+                let validChunkEmbeddings = chunkEmbeddings.filter { !$0.isEmpty }
+
+                if validChunkEmbeddings.isEmpty && responseEmbedding != nil {
+                    Log.warning("[RAG] Reliability fallback grounding skipped: no chunk embeddings loaded for fallback evidence", category: .pipeline)
+                }
+
+                verificationResult = await verificationGateService.verify(
+                    response: llmResponse.text,
+                    query: question,
+                    retrievedChunks: usedRetrieved,
+                    topScores: topScores,
+                    allCandidateChunks: retrievedChunks,
+                    responseEmbedding: responseEmbedding,
+                    queryEmbedding: queryEmbedding,
+                    chunkEmbeddings: validChunkEmbeddings.isEmpty ? nil : chunkEmbeddings,
+                    structuredClaims: llmResponse.structuredRAGGeneration?.claims
+                )
+            } else {
+                verificationResult = nil
+            }
+
+            if let verificationResult, !verificationResult.passed {
+                for gateResult in verificationResult.gateResults where !gateResult.passed {
+                    warnings.append("Reliability fallback verification \(gateResult.gate.rawValue): \(gateResult.details)")
+                }
+            }
+
+            let rejectingGates: Set<VerificationGate> = [
+                .retrievalConfidence,
+                .evidenceCoverage,
+                .numericSanity,
+                .semanticGrounding,
+                .quoteFaithfulness,
+            ]
+            let shouldUseExtractiveFallback = verificationResult?.failedGates.contains {
+                rejectingGates.contains($0)
+            } ?? false
+
+            if shouldUseExtractiveFallback {
+                warnings.append("Best-effort synthesis failed verification; showing excerpts instead.")
+                Log.warning("[RAG] Reliability fallback answer failed verification — using extractive fallback", category: .pipeline)
+            } else {
             let metadata = ResponseMetadata(
                 timeToFirstToken: llmResponse.timeToFirstToken,
                 totalGenerationTime: llmResponse.totalTime,
@@ -10471,17 +9720,18 @@ class RAGService: ObservableObject {
                 retrievedChunks: usedRetrieved,
                 generatedResponse: llmResponse.text,
                 metadata: metadata,
-                confidenceScore: 0.0,
+                confidenceScore: verificationResult?.overallConfidence ?? 0.0,
                 qualityWarnings: warnings,
                 structuredAnswer: StructuredAnswer.from(
                     response: llmResponse.text,
                     retrievedChunks: usedRetrieved,
-                    answerIntent: QueryEnhancementService().classifyAnswerIntent(question),
-                    verificationResult: nil,
+                    answerIntent: answerIntent,
+                    verificationResult: verificationResult,
                     structuredGeneration: llmResponse.structuredRAGGeneration,
                     loops: 1
                 )
             )
+            }
         } catch {
             Log.error("[RAG] Reliability fallback LLM also failed: \(error.localizedDescription) — falling through to extractive Path B", category: .pipeline)
         }
@@ -10533,9 +9783,8 @@ class RAGService: ObservableObject {
             structuredAnswer: StructuredAnswer.from(
                 response: responseText,
                 retrievedChunks: usedRetrieved,
-                answerIntent: QueryEnhancementService().classifyAnswerIntent(question),
+                answerIntent: answerIntent,
                 verificationResult: nil,
-                structuredGeneration: nil,
                 loops: 1
             )
         )
@@ -10552,6 +9801,7 @@ class RAGService: ObservableObject {
         fallbackNote: String? = nil
     ) async throws -> RAGResponse {
         Log.info("ℹ️  Falling back to direct LLM chat mode", category: .pipeline)
+        let answerIntent = QueryEnhancementService().classifyAnswerIntent(question)
         let retrievalConfig = await MainActor.run {
             self.containerService.activeContainer?.retrievalConfig ?? .default
         }
@@ -10618,7 +9868,7 @@ class RAGService: ObservableObject {
             structuredAnswer: StructuredAnswer.from(
                 response: llmResponse.text,
                 retrievedChunks: [],
-                answerIntent: QueryEnhancementService().classifyAnswerIntent(question),
+                answerIntent: answerIntent,
                 verificationResult: nil,
                 structuredGeneration: llmResponse.structuredRAGGeneration,
                 loops: 1
@@ -11883,6 +11133,7 @@ class RAGService: ObservableObject {
         let cleanedResponse = cleanupResponseText(response.generatedResponse)
         let humanizedResponse = humanizeCitations(cleanedResponse, chunks: response.retrievedChunks)
         let repairedResponse = repairMalformedURLs(humanizedResponse)
+        let finalizedStructuredAnswer = response.structuredAnswer?.updatingAnswer(repairedResponse)
         var finalResponse = response
         finalResponse = RAGResponse(
             queryId: response.queryId,
@@ -11891,7 +11142,7 @@ class RAGService: ObservableObject {
             metadata: response.metadata,
             confidenceScore: response.confidenceScore,
             qualityWarnings: response.qualityWarnings,
-            structuredAnswer: response.structuredAnswer
+            structuredAnswer: finalizedStructuredAnswer
         )
 
         await MainActor.run {
@@ -12176,609 +11427,6 @@ class RAGService: ObservableObject {
         }
 
         return result
-    }
-
-    private nonisolated func buildGroundedGenerationSystemPrompt(
-        answerIntent: AnswerIntent,
-        promptMode: GroundedPromptMode,
-        evidenceFirstMode: Bool,
-        intentSpecificInstructions: String,
-        contextIsHomogeneous: Bool
-    ) -> String {
-        let modeInstructions: String
-        switch promptMode {
-        case .directExtraction:
-            modeInstructions = """
-            MODE: DIRECT EXTRACTION.
-            Use this when the answer should come directly from the excerpts.
-            Prefer a short, direct answer.
-            Include only claims directly supported by the excerpts.
-            Do not generalize from nearby concepts or import outside knowledge.
-            If the excerpts do not directly answer the question, say so plainly.
-            """
-        case .constrainedSynthesis:
-            modeInstructions = """
-            MODE: CONSTRAINED SYNTHESIS.
-            Integrate multiple excerpts only when needed.
-            Keep every reasoning step tied to specific evidence.
-            Do not let prior generated text become evidence.
-            Clearly separate what the excerpts directly support from what is not established.
-            """
-        }
-
-        let evidenceModeInstructions = evidenceFirstMode
-            ? """
-            EVIDENCE-FIRST MODE.
-            Be conservative.
-            If support is thin, prefer an incomplete but faithful answer over a broad speculative one.
-            """
-            : ""
-
-        let answerShapeInstructions: String
-        switch promptMode {
-        case .directExtraction:
-            answerShapeInstructions = """
-            ANSWER SHAPE:
-            Lead with the direct answer.
-            Then give only the evidence-supported details needed to support it.
-            If needed, briefly state what is not established by the excerpts.
-            """
-        case .constrainedSynthesis:
-            answerShapeInstructions = """
-            ANSWER SHAPE:
-            Lead with the direct answer or conclusion.
-            Then give evidence-supported details.
-            If support is partial or mixed, state what is not established by the excerpts.
-            """
-        }
-
-        let repetitionInstructions = contextIsHomogeneous
-            ? "The excerpts are repetitive. Synthesize overlapping evidence once, without repeating the same fact."
-            : ""
-
-        return """
-        You are a high-precision, evidence-grounded research and answer agent.
-        Your top priority is factual accuracy and faithfulness to the provided excerpts.
-        If there is any conflict between sounding helpful and being faithful to the excerpts, choose faithfulness.
-        SOURCE HIERARCHY: Use retrieved excerpts first. Do not rely on background knowledge when the excerpts can answer the question.
-        CLAIM DISCIPLINE: Every sentence must be directly supported by the excerpts or be a conservative paraphrase of directly supported evidence. If not, delete or rewrite it.
-        HALLUCINATION PREVENTION: Do not fill gaps with plausible domain knowledge. Do not blend semantically related chunks into a stronger claim than the excerpts support. Do not answer a more general question than the user asked.
-        NO ENTITY DRIFT: Keep entities, mechanisms, time scales, species, and interventions exact. Do not merge nearby but different concepts.
-        NO CAUSAL INVERSION: Do not reverse mechanism or intervention direction unless the excerpts explicitly support it.
-        DOCUMENT-GROUNDED ANSWERING: Answer from the excerpts, not from memory. If the excerpts are insufficient, say so explicitly instead of guessing.
-        CITATIONS: Every factual claim must carry its supporting [S#] citation immediately.
-        VALUES: Copy numbers, units, codes, dates, and doses VERBATIM from the excerpts. Never invent missing values.
-        ABBREVIATIONS: If an [Abbreviations] glossary appears, use those EXACT definitions only.
-        \(modeInstructions)
-        \(evidenceModeInstructions)
-        \(intentSpecificInstructions)
-        \(answerShapeInstructions)
-        STYLE: concise, technically precise, neutral tone, no filler, no exaggerated confidence.
-        FINAL SELF-CHECK: Before finalizing, verify each sentence is supported by matching excerpts. If not, delete or rewrite it.
-        \(repetitionInstructions)
-        """
-    }
-
-    private nonisolated func buildGroundedTaskPrompt(
-        question: String,
-        historyContext: String,
-        promptMode: GroundedPromptMode,
-        evidenceFirstMode: Bool
-    ) -> String {
-        let cleanedHistory = normalizedHistoryContextForPrompt(historyContext)
-        let historyBlock = cleanedHistory.isEmpty
-            ? ""
-            : """
-            Conversation context:
-            \(cleanedHistory)
-
-            """
-
-        let modeRequirements: String
-        switch promptMode {
-        case .directExtraction:
-            modeRequirements = """
-            - Prefer direct extraction over synthesis
-            - Stop once the excerpts directly answer the question
-            - Do not add broader context unless the user explicitly asked for it
-            """
-        case .constrainedSynthesis:
-            modeRequirements = """
-            - Integrate multiple excerpts only when needed
-            - Keep each conclusion tied to cited evidence
-            - If support is mixed, say what remains unestablished
-            """
-        }
-
-        let strictnessRequirement = evidenceFirstMode
-            ? "- If support is thin, answer conservatively or say the excerpts are insufficient\n"
-            : ""
-
-        return """
-        \(historyBlock)Task:
-        Answer the question using only the provided retrieved evidence.
-
-        Question:
-        \(question)
-
-        Requirements:
-        - Use direct evidence from the retrieved excerpts
-        - Do not use outside knowledge unless explicitly requested
-        - If the answer is not directly supported, say so
-        - Distinguish clearly between direct support and what is not established
-        - Be precise about entities, mechanisms, timing, and causal direction
-        - Prefer a narrow correct answer over a broad speculative one
-        \(strictnessRequirement)\(modeRequirements)
-        """
-    }
-
-    private nonisolated func normalizedHistoryContextForPrompt(_ historyContext: String) -> String {
-        let trimmed = historyContext.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return "" }
-        return trimmed
-            .replacingOccurrences(of: "\nCURRENT QUESTION: ?", with: "", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private func extractionFocus(for query: String) -> ScientificExtractionFocus {
-        let lower = query.lowercased()
-        if lower.contains("route") || lower.contains("intraperitoneal") || lower.contains("intravenous") || lower.contains("oral") {
-            return .route
-        }
-        if lower.contains("dose") || lower.contains("mg/kg") || lower.contains("mg/day") || lower.contains("mg/ml") {
-            return .dose
-        }
-        if lower.contains("sample size") || lower.contains("n=") || lower.contains("how many animals") || lower.contains("how many rats") || lower.contains("how many mice") || lower.contains("how many patients") {
-            return .sampleSize
-        }
-        if lower.contains("p-value") || lower.contains("p value") || lower.contains("significance") {
-            return .pValue
-        }
-        if lower.contains("when") || lower.contains("what day") || lower.contains("days") || lower.contains("weeks") || lower.contains("hours") || lower.contains("timing") {
-            return .timing
-        }
-        return .generic
-    }
-
-    private func findExactExtractionMatch(
-        in chunk: RetrievedChunk,
-        focus: ScientificExtractionFocus
-    ) -> ScientificExtractionMatch? {
-        let text = chunk.chunk.parentContent ?? chunk.chunk.content
-        let patterns = regexPatterns(for: focus)
-        for pattern in patterns {
-            guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { continue }
-            let nsRange = NSRange(text.startIndex..<text.endIndex, in: text)
-            guard let match = regex.firstMatch(in: text, options: [], range: nsRange),
-                  let range = Range(match.range, in: text) else { continue }
-
-            let answer = String(text[range]).trimmingCharacters(in: .whitespacesAndNewlines)
-            let quote = extractSentenceQuote(from: text, around: match.range)
-            return ScientificExtractionMatch(answer: answer, quote: quote, chunk: chunk)
-        }
-        return nil
-    }
-
-    private func regexPatterns(for focus: ScientificExtractionFocus) -> [String] {
-        switch focus {
-        case .timing:
-            return [
-                #"\b(?:one|two|three|four|five|six|seven|eight|nine|ten|\d+)\s+(?:hours?|days?|weeks?|months?)\s+(?:after|post|before)\b[^.;\n]*"#,
-                #"\b(?:after|post)\s+(?:one|two|three|four|five|six|seven|eight|nine|ten|\d+)\s+(?:hours?|days?|weeks?|months?)\b[^.;\n]*"#,
-                #"\bonce a day for \d+\s+continuous\s+days\b"#
-            ]
-        case .route:
-            return [
-                #"\bintraperitoneally injected\b[^.;\n]*"#,
-                #"\bintraperitoneal(?:ly)?(?:\s*\(ip\))?\b"#,
-                #"\bintravenous(?:ly)?(?:\s*\(iv\))?\b"#,
-                #"\boral(?:\s+gavage|\s+tablet|\s*\(po\))?\b"#,
-                #"\biv infusion\b"#,
-                #"\bsubcutaneous\b"#,
-                #"\btopical\b"#,
-                #"\bincubation\b"#,
-                #"\bculture media\b"#
-            ]
-        case .dose:
-            return [
-                #"\b\d+(?:\.\d+)?\s*(?:mg/kg|mg/day|mg/ml|ug/ml|μg/ml|g/kg|g/day)\b"#,
-                #"\b\d+(?:\.\d+)?\s*bid\b"#
-            ]
-        case .sampleSize:
-            return [
-                #"\bn\s*=\s*\d+\b"#,
-                #"\b\d+\s+(?:rats?|mice|animals|patients|subjects|volunteers)\b"#
-            ]
-        case .pValue:
-            return [
-                #"\bp\s*[<=>]\s*0?\.\d+\b"#
-            ]
-        case .generic:
-            return [
-                #"\b(?:one|two|three|four|five|six|seven|eight|nine|ten|\d+)\s+(?:hours?|days?|weeks?)\s+(?:after|post)\b[^.;\n]*"#,
-                #"\bintraperitoneally injected\b[^.;\n]*"#,
-                #"\bonce a day for \d+\s+continuous\s+days\b"#,
-                #"\b\d+(?:\.\d+)?\s*(?:mg/kg|mg/day|mg/ml|ug/ml|μg/ml|g/kg|g/day)\b"#,
-                #"\bn\s*=\s*\d+\b"#,
-                #"\bp\s*[<=>]\s*0?\.\d+\b"#
-            ]
-        }
-    }
-
-    private func canonicalExtractionAnswerKey(_ answer: String, focus: ScientificExtractionFocus) -> String {
-        let lower = answer.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-        switch focus {
-        case .timing:
-            let replacements = [
-                "one week": "7 days",
-                "two weeks": "14 days",
-                "three weeks": "21 days",
-                "one day": "1 day",
-                "two days": "2 days"
-            ]
-            let normalized = replacements.reduce(lower) { partial, pair in
-                partial.replacingOccurrences(of: pair.key, with: pair.value)
-            }
-            if let regex = try? NSRegularExpression(pattern: #"\b(\d+)\s*(hour|day|week|month)s?\b"#),
-               let match = regex.firstMatch(in: normalized, options: [], range: NSRange(normalized.startIndex..<normalized.endIndex, in: normalized)),
-               let numberRange = Range(match.range(at: 1), in: normalized),
-               let unitRange = Range(match.range(at: 2), in: normalized) {
-                return "\(normalized[numberRange]) \(normalized[unitRange])"
-            }
-            return normalized
-        default:
-            return lower
-        }
-    }
-
-    private func normalizedExtractionAnswer(
-        from answer: String,
-        quote: String,
-        focus: ScientificExtractionFocus,
-        query: String
-    ) -> String {
-        if focus == .timing {
-            return normalizedTimingAnswer(answer: answer, quote: quote, query: query)
-        }
-        let trimmed = answer.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let last = trimmed.last, ![".", "!", "?"].contains(last) else {
-            return trimmed
-        }
-        return trimmed + "."
-    }
-
-    private func preferredExtractionMatch(
-        in matches: [ScientificExtractionMatch],
-        focus: ScientificExtractionFocus,
-        query: String
-    ) -> ScientificExtractionMatch? {
-        matches.max { lhs, rhs in
-            extractionMatchScore(lhs, focus: focus, query: query) < extractionMatchScore(rhs, focus: focus, query: query)
-        }
-    }
-
-    private func extractionMatchScore(
-        _ match: ScientificExtractionMatch,
-        focus: ScientificExtractionFocus,
-        query: String
-    ) -> Float {
-        let lowerQuote = match.quote.lowercased()
-        let lowerAnswer = match.answer.lowercased()
-        let queryTokens = Set(
-            query.lowercased()
-                .components(separatedBy: CharacterSet.alphanumerics.inverted)
-                .filter { $0.count >= 3 }
-        )
-        let quoteTokens = Set(
-            lowerQuote
-                .components(separatedBy: CharacterSet.alphanumerics.inverted)
-                .filter { $0.count >= 3 }
-        )
-        let overlap = Float(queryTokens.intersection(quoteTokens).count)
-        let queryProfile = extractionQueryProfile(for: query, focus: focus)
-        let anchorMatches = matchingAnchorCount(in: lowerQuote, sectionTitle: match.chunk.chunk.metadata.sectionTitle, anchors: queryProfile.anchors)
-
-        var score = match.chunk.similarityScore * 100
-        score += overlap * 8
-        score += min(Float(match.quote.count), 120) * 0.1
-        score += Float(anchorMatches) * 24
-
-        if lowerAnswer.rangeOfCharacter(from: .decimalDigits) != nil {
-            score += 18
-        }
-        if focus == .timing {
-            if lowerQuote.contains("bccao") || lowerQuote.contains("surgery") {
-                score += 20
-            }
-            if lowerQuote.contains("post-") || lowerQuote.contains("after") {
-                score += 8
-            }
-        }
-
-        if queryProfile.requiresAnchorMatch && anchorMatches == 0 {
-            score -= 90
-        }
-
-        let lowerSectionTitle = match.chunk.chunk.metadata.sectionTitle?.lowercased() ?? ""
-        if focus == .timing && (lowerSectionTitle.contains("drug administration") || lowerSectionTitle.contains("abstract")) {
-            score += 12
-        }
-        if focus == .dose && (lowerSectionTitle.contains("drug administration") || lowerSectionTitle.contains("materials")) {
-            score += 10
-        }
-        if match.chunk.chunk.metadata.structureType == "table" && focus != .timing {
-            score += 6
-        }
-
-        return score
-    }
-
-    private func isCompetitiveExtractionMatch(
-        _ match: ScientificExtractionMatch,
-        focus: ScientificExtractionFocus,
-        query: String,
-        topScore: Float
-    ) -> Bool {
-        let score = extractionMatchScore(match, focus: focus, query: query)
-        guard score > 0 else { return false }
-        if topScore <= 0 { return true }
-
-        let queryProfile = extractionQueryProfile(for: query, focus: focus)
-        let lowerQuote = match.quote.lowercased()
-        let anchorMatches = matchingAnchorCount(in: lowerQuote, sectionTitle: match.chunk.chunk.metadata.sectionTitle, anchors: queryProfile.anchors)
-        if queryProfile.requiresAnchorMatch && anchorMatches == 0 {
-            return false
-        }
-
-        return score >= max(topScore * 0.88, topScore - 18)
-    }
-
-    private func expandedScientificExtractionCandidates(
-        from retrievedChunks: [RetrievedChunk],
-        allChunks: [DocumentChunk]?,
-        query: String
-    ) -> [RetrievedChunk] {
-        guard let allChunks, !allChunks.isEmpty else { return retrievedChunks }
-
-        let docScores = retrievedChunks.reduce(into: [UUID: Float]()) { partial, chunk in
-            partial[chunk.chunk.documentId] = max(partial[chunk.chunk.documentId] ?? 0, chunk.similarityScore)
-        }
-        let topDocumentIds = docScores
-            .sorted { $0.value > $1.value }
-            .prefix(2)
-            .map(\.key)
-
-        guard !topDocumentIds.isEmpty else { return retrievedChunks }
-
-        let docNames = retrievedChunks.reduce(into: [UUID: String]()) { partial, chunk in
-            let current = partial[chunk.chunk.documentId]
-            if current == nil || (current?.isEmpty == true && !chunk.sourceDocument.isEmpty) {
-                partial[chunk.chunk.documentId] = chunk.sourceDocument
-            }
-        }
-        let queryTerms = Set(extractQueryTerms(query))
-        let existingIds = Set(retrievedChunks.map { $0.chunk.id })
-
-        var expanded = retrievedChunks
-        let additional = allChunks
-            .filter { topDocumentIds.contains($0.documentId) && !existingIds.contains($0.id) }
-            .compactMap { chunk -> (RetrievedChunk, Float)? in
-                let searchableText = (chunk.parentContent ?? chunk.content).lowercased()
-                let hits = queryTerms.filter { searchableText.contains($0.lowercased()) }.count
-                guard hits > 0 || searchableText.contains("bccao") || searchableText.contains("post-") else {
-                    return nil
-                }
-
-                let docScore = docScores[chunk.documentId] ?? 0.3
-                let pageBoost: Float = chunk.metadata.pageNumber == retrievedChunks.first(where: { $0.chunk.documentId == chunk.documentId })?.pageNumber ? 0.04 : 0
-                let lexicalBoost = min(Float(hits) * 0.03, 0.12)
-                let syntheticScore = max(0.18, min(0.95, docScore - 0.06 + pageBoost + lexicalBoost))
-
-                let retrieved = RetrievedChunk(
-                    chunk: chunk,
-                    similarityScore: syntheticScore,
-                    rank: retrievedChunks.count + hits,
-                    sourceDocument: docNames[chunk.documentId] ?? "Unknown",
-                    pageNumber: chunk.metadata.pageNumber
-                )
-                return (retrieved, syntheticScore)
-            }
-            .sorted { $0.1 > $1.1 }
-            .prefix(16)
-            .map(\.0)
-
-        expanded.append(contentsOf: additional)
-        return expanded
-    }
-
-    private func extractionQueryProfile(
-        for query: String,
-        focus: ScientificExtractionFocus
-    ) -> ScientificExtractionQueryProfile {
-        let lower = query.lowercased()
-        switch focus {
-        case .timing:
-            if lower.contains("treatment") || lower.contains("treated") || lower.contains("given") || lower.contains("administer") || lower.contains("inject") || lower.contains("dose") || lower.contains("drug") {
-                return ScientificExtractionQueryProfile(
-                    anchors: [
-                        "treatment", "treated", "administer", "administration", "given", "inject",
-                        "injected", "dosed", "dose", "drug", "citicoline", "nmn", "saline"
-                    ],
-                    requiresAnchorMatch: true
-                )
-            }
-            if lower.contains("measure") || lower.contains("measured") || lower.contains("monitor") || lower.contains("test") || lower.contains("assay") || lower.contains("record") {
-                return ScientificExtractionQueryProfile(
-                    anchors: ["measure", "measured", "monitor", "test", "assay", "recorded", "evaluated"],
-                    requiresAnchorMatch: true
-                )
-            }
-            return ScientificExtractionQueryProfile(
-                anchors: ["bccao", "surgery", "treatment", "administer", "given"],
-                requiresAnchorMatch: false
-            )
-        case .route:
-            return ScientificExtractionQueryProfile(
-                anchors: ["route", "inject", "gavage", "oral", "intraperitoneal", "intravenous"],
-                requiresAnchorMatch: true
-            )
-        case .dose:
-            return ScientificExtractionQueryProfile(
-                anchors: ["dose", "dosed", "mg/kg", "mg/day", "drug", "administer"],
-                requiresAnchorMatch: true
-            )
-        case .sampleSize:
-            return ScientificExtractionQueryProfile(
-                anchors: ["group", "cohort", "rats", "mice", "patients", "subjects", "animals"],
-                requiresAnchorMatch: false
-            )
-        case .pValue:
-            return ScientificExtractionQueryProfile(
-                anchors: ["significant", "significance", "p", "compared", "versus"],
-                requiresAnchorMatch: false
-            )
-        case .generic:
-            return ScientificExtractionQueryProfile(anchors: extractQueryTerms(query), requiresAnchorMatch: false)
-        }
-    }
-
-    private func matchingAnchorCount(
-        in quote: String,
-        sectionTitle: String?,
-        anchors: [String]
-    ) -> Int {
-        let lowerSection = sectionTitle?.lowercased() ?? ""
-        return anchors.reduce(into: 0) { count, anchor in
-            if quote.contains(anchor) || lowerSection.contains(anchor) {
-                count += 1
-            }
-        }
-    }
-
-    private func normalizedTimingAnswer(answer: String, quote: String, query: String) -> String {
-        let lowerCombined = normalizeTimingText(answer + " " + quote)
-        guard let regex = try? NSRegularExpression(pattern: #"\b(\d+)\s*(hour|day|week|month)s?\b"#, options: [.caseInsensitive]),
-              let match = regex.firstMatch(in: lowerCombined, options: [], range: NSRange(lowerCombined.startIndex..<lowerCombined.endIndex, in: lowerCombined)),
-              let numberRange = Range(match.range(at: 1), in: lowerCombined),
-              let unitRange = Range(match.range(at: 2), in: lowerCombined) else {
-            let trimmed = answer.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmed.hasSuffix(".") ? trimmed : trimmed + "."
-        }
-
-        var value = Int(lowerCombined[numberRange]) ?? 0
-        var unit = String(lowerCombined[unitRange])
-        let queryLower = query.lowercased()
-        if queryLower.contains("how many day") && unit == "week" {
-            value *= 7
-            unit = "day"
-        }
-
-        let unitText = value == 1 ? unit : unit + "s"
-        let lowerQuote = quote.lowercased()
-        let qualifier: String
-        if lowerQuote.contains("post-bccao") {
-            qualifier = " post-BCCAO"
-        } else if lowerQuote.contains("after bccao") {
-            qualifier = " after BCCAO"
-        } else if lowerQuote.contains("after surgery") || lowerQuote.contains("after the surgery") {
-            qualifier = " after surgery"
-        } else if lowerQuote.contains("post-surgery") || lowerQuote.contains("post surgery") {
-            qualifier = " after surgery"
-        } else {
-            qualifier = ""
-        }
-
-        return "\(value) \(unitText)\(qualifier)."
-    }
-
-    private func normalizeTimingText(_ text: String) -> String {
-        let lowered = text.lowercased()
-        let replacements = [
-            "one": "1",
-            "two": "2",
-            "three": "3",
-            "four": "4",
-            "five": "5",
-            "six": "6",
-            "seven": "7",
-            "eight": "8",
-            "nine": "9",
-            "ten": "10"
-        ]
-        return replacements.reduce(lowered) { partial, pair in
-            partial.replacingOccurrences(of: "\\b\(pair.key)\\b", with: pair.value, options: .regularExpression)
-        }
-    }
-
-    private func extractSentenceQuote(from text: String, around matchRange: NSRange) -> String {
-        guard let match = Range(matchRange, in: text) else {
-            return String(text.prefix(220)).trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-
-        let punctuation = CharacterSet(charactersIn: ".;\n")
-        let nsText = text as NSString
-        var start = matchRange.location
-        var end = matchRange.location + matchRange.length
-
-        while start > 0 {
-            let char = nsText.substring(with: NSRange(location: start - 1, length: 1)).unicodeScalars.first
-            if let scalar = char, punctuation.contains(scalar) { break }
-            start -= 1
-        }
-
-        while end < nsText.length {
-            let char = nsText.substring(with: NSRange(location: end, length: 1)).unicodeScalars.first
-            if let scalar = char, punctuation.contains(scalar) {
-                end += 1
-                break
-            }
-            end += 1
-        }
-
-        let quote = nsText.substring(with: NSRange(location: start, length: max(0, end - start)))
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        if !quote.isEmpty, quote.count >= max(24, matchRange.length + 8) {
-            return quote
-        }
-
-        let windowStart = max(0, matchRange.location - 80)
-        let windowEnd = min(nsText.length, matchRange.location + matchRange.length + 80)
-        let expanded = nsText.substring(with: NSRange(location: windowStart, length: max(0, windowEnd - windowStart)))
-            .replacingOccurrences(of: "\n", with: " ")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return expanded.isEmpty ? String(text[match]).trimmingCharacters(in: .whitespacesAndNewlines) : expanded
-    }
-
-    private enum ScientificExtractionFocus {
-        case timing
-        case route
-        case dose
-        case sampleSize
-        case pValue
-        case generic
-    }
-
-    private struct ScientificExtractionMatch {
-        let answer: String
-        let quote: String
-        let chunk: RetrievedChunk
-    }
-
-    private struct ScientificExtractionQueryProfile {
-        let anchors: [String]
-        let requiresAnchorMatch: Bool
-    }
-
-    private func presentedRetrievedChunk(for match: ScientificExtractionMatch) -> RetrievedChunk {
-        var presentedChunk = match.chunk.chunk
-        presentedChunk.text = match.quote
-        return RetrievedChunk(
-            chunk: presentedChunk,
-            similarityScore: match.chunk.similarityScore,
-            rank: match.chunk.rank,
-            sourceDocument: match.chunk.sourceDocument,
-            pageNumber: match.chunk.pageNumber
-        )
     }
 
     private nonisolated func wordCount(of text: String) -> Int {

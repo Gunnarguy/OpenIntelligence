@@ -36,9 +36,6 @@ struct StructuredAnswer: Codable, Sendable {
     /// Evidence passages used to support claims
     let evidence: [Evidence]
 
-    /// Claims that were considered but rejected or downgraded during verification
-    let rejectedClaims: [RejectedClaim]
-
     /// Information that was requested but not found in corpus
     let missing: [String]
 
@@ -91,36 +88,6 @@ struct StructuredAnswer: Codable, Sendable {
             case isExtracted = "is_extracted"
             case verificationVerdict = "verification_verdict"
             case verificationDetails = "verification_details"
-        }
-    }
-
-    /// Claim rejected during verification with reason for UI display
-    struct RejectedClaim: Codable, Sendable {
-        /// The rejected claim text
-        let claim: String
-
-        /// Verdict label such as unsupported, ambiguous, or contradicted
-        let verdict: String
-
-        /// Evidence IDs considered during rejection
-        let evidenceIds: [String]
-
-        /// Confidence/fidelity retained after verification
-        let confidence: Float
-
-        /// Whether this was a critical claim for answering the user
-        let isCritical: Bool
-
-        /// Optional reviewer note shown in diagnostics UI
-        let notes: String?
-
-        private enum CodingKeys: String, CodingKey {
-            case claim
-            case verdict
-            case evidenceIds = "evidence_ids"
-            case confidence
-            case isCritical = "is_critical"
-            case notes
         }
     }
 
@@ -182,41 +149,8 @@ struct StructuredAnswer: Codable, Sendable {
         case answer
         case claims
         case evidence
-        case rejectedClaims = "rejected_claims"
         case missing
         case debug
-    }
-
-    init(
-        refuse: Bool,
-        answerType: AnswerType,
-        answer: String,
-        claims: [Claim],
-        evidence: [Evidence],
-        rejectedClaims: [RejectedClaim] = [],
-        missing: [String],
-        debug: DebugInfo
-    ) {
-        self.refuse = refuse
-        self.answerType = answerType
-        self.answer = answer
-        self.claims = claims
-        self.evidence = evidence
-        self.rejectedClaims = rejectedClaims
-        self.missing = missing
-        self.debug = debug
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        refuse = try container.decode(Bool.self, forKey: .refuse)
-        answerType = try container.decode(AnswerType.self, forKey: .answerType)
-        answer = try container.decode(String.self, forKey: .answer)
-        claims = try container.decodeIfPresent([Claim].self, forKey: .claims) ?? []
-        evidence = try container.decodeIfPresent([Evidence].self, forKey: .evidence) ?? []
-        rejectedClaims = try container.decodeIfPresent([RejectedClaim].self, forKey: .rejectedClaims) ?? []
-        missing = try container.decodeIfPresent([String].self, forKey: .missing) ?? []
-        debug = try container.decode(DebugInfo.self, forKey: .debug)
     }
 }
 
@@ -230,7 +164,6 @@ extension StructuredAnswer {
         private var answer: String = ""
         private var claims: [Claim] = []
         private var evidence: [Evidence] = []
-        private var rejectedClaims: [RejectedClaim] = []
         private var missing: [String] = []
         private var topScore: Float = 0
         private var loops: Int = 1
@@ -287,25 +220,6 @@ extension StructuredAnswer {
             return self
         }
 
-        func addRejectedClaim(
-            _ text: String,
-            verdict: String,
-            evidenceIds: [String],
-            confidence: Float,
-            isCritical: Bool,
-            notes: String?
-        ) -> Builder {
-            rejectedClaims.append(RejectedClaim(
-                claim: text,
-                verdict: verdict,
-                evidenceIds: evidenceIds,
-                confidence: confidence,
-                isCritical: isCritical,
-                notes: notes
-            ))
-            return self
-        }
-
         func addMissing(_ item: String) -> Builder {
             missing.append(item)
             return self
@@ -344,7 +258,6 @@ extension StructuredAnswer {
                 answer: answer,
                 claims: claims,
                 evidence: evidence,
-                rejectedClaims: rejectedClaims,
                 missing: uniqueMissing,
                 debug: DebugInfo(
                     topScore: topScore,
@@ -393,7 +306,6 @@ extension StructuredAnswer {
             answer: updatedAnswer,
             claims: claims,
             evidence: evidence,
-            rejectedClaims: rejectedClaims,
             missing: missing,
             debug: debug
         )
@@ -436,53 +348,89 @@ extension StructuredAnswer {
             )
         }
 
+        let answerText = trimmedResponse
+
         let builder = Builder()
             .setAnswerType(AnswerType(rawValue: answerIntent.rawValue) ?? .lookup)
-            .setAnswer(trimmedResponse)
+            .setAnswer(answerText)
             .setLoops(loops)
 
         let topScore = retrievedChunks.first?.similarityScore ?? 0
         _ = builder.setTopScore(topScore)
 
-        var selectedEvidence: [RetrievedChunk] = []
-        let claimsToUse = Array(extractClaims(from: trimmedResponse, answerIntent: answerIntent).prefix(6))
-
-        for claimText in claimsToUse {
-            let inlineEvidenceIds = citedEvidenceIDs(in: claimText, retrievedChunks: retrievedChunks)
-            let supportingChunks: [RetrievedChunk]
-            if inlineEvidenceIds.isEmpty {
-                supportingChunks = supportingEvidence(for: claimText, in: retrievedChunks)
-            } else {
-                supportingChunks = retrievedChunks.filter { inlineEvidenceIds.contains($0.chunk.id.uuidString) }
+        let claims: [StructuredRAGClaim]
+        if let structuredGeneration, !structuredGeneration.claims.isEmpty {
+            claims = Array(structuredGeneration.claims.prefix(6))
+        } else {
+            claims = extractClaims(from: answerText, answerIntent: answerIntent).prefix(6).map {
+                StructuredRAGClaim(
+                    claim: $0,
+                    citations: [],
+                    isExtracted: false
+                )
             }
+        }
+
+        var selectedEvidence: [RetrievedChunk] = []
+
+        for claim in claims {
+            let citedChunks = citedEvidence(for: claim.citations, in: retrievedChunks)
+            let supportingChunks = citedChunks.isEmpty
+                ? supportingEvidence(for: claim.claim, in: retrievedChunks)
+                : citedChunks
             let evidenceIds = supportingChunks.map { $0.chunk.id.uuidString }
-            let verification = claimVerification(for: claimText, in: verificationResult)
-            let adjustedConfidence = calibratedClaimConfidence(
-                confidence(for: claimText, evidence: supportingChunks),
-                verification: verification
+            let extractionConfidence = confidence(for: claim.claim, evidence: supportingChunks)
+            let structuredConfidence = Float(structuredGeneration?.confidence ?? 0) / 100.0
+            let claimConfidence = citedChunks.isEmpty
+                ? extractionConfidence
+                : min(1.0, max(0.2, (extractionConfidence * 0.7) + (structuredConfidence * 0.3)))
+            let isExtracted = claim.isExtracted || isExtractiveClaim(
+                claim.claim,
+                evidence: supportingChunks,
+                answerIntent: answerIntent
             )
+            let verification = claimVerification(for: claim.claim, in: verificationResult)
+            let adjustedClaimConfidence = calibratedClaimConfidence(claimConfidence, verification: verification)
+
+            if evidenceIds.isEmpty {
+                _ = builder.addMissing("Support not found for: \(String(claim.claim.prefix(72)))")
+            }
 
             _ = builder.addClaim(
-                claimText,
+                claim.claim,
                 evidenceIds: evidenceIds,
-                confidence: evidenceIds.isEmpty ? max(0.35, min(adjustedConfidence, topScore * 0.5)) : adjustedConfidence,
-                isExtracted: answerIntent.isExtractiveFirst || isExtractiveClaim(
-                    claimText,
-                    evidence: supportingChunks,
-                    answerIntent: answerIntent
-                ),
+                confidence: adjustedClaimConfidence,
+                isExtracted: isExtracted,
                 verificationVerdict: verification.map { mapVerificationVerdict($0.verdict) },
                 verificationDetails: verification?.details
             )
 
-            if evidenceIds.isEmpty {
-                _ = builder.addMissing("Support not found for: \(String(claimText.prefix(72)))")
+            for chunk in supportingChunks where !selectedEvidence.contains(where: { $0.chunk.id == chunk.chunk.id }) {
+                selectedEvidence.append(chunk)
             }
-
-            appendUnique(supportingChunks, to: &selectedEvidence)
         }
 
-        addEvidenceEntries(from: selectedEvidence, fallback: retrievedChunks, to: builder)
+        if selectedEvidence.isEmpty {
+            selectedEvidence = Array(retrievedChunks.prefix(3))
+        }
+
+        let evidencePool = (selectedEvidence + retrievedChunks).reduce(into: [RetrievedChunk]()) { partial, chunk in
+            if !partial.contains(where: { $0.chunk.id == chunk.chunk.id }) {
+                partial.append(chunk)
+            }
+        }
+
+        for chunk in evidencePool.prefix(12) {  // Max 12 per spec
+            let quoteSource = chunk.chunk.parentContent ?? chunk.chunk.content
+            _ = builder.addEvidence(
+                id: chunk.chunk.id.uuidString,
+                page: chunk.chunk.metadata.pageNumber,
+                quote: String(quoteSource.prefix(240)),
+                documentName: chunk.sourceDocument.isEmpty ? nil : chunk.sourceDocument,
+                sectionPath: chunk.chunk.metadata.sectionPath
+            )
+        }
+
         applyVerification(verificationResult, to: builder)
 
         return builder.build()
@@ -531,7 +479,10 @@ extension StructuredAnswer {
         let structuredConfidence = min(1.0, max(0.0, Float(structuredGeneration.confidence) / 100.0))
         var selectedEvidence: [RetrievedChunk] = []
 
-        appendUnique(citedEvidence(for: structuredGeneration.citations, in: retrievedChunks), to: &selectedEvidence)
+        appendUnique(
+            citedEvidence(for: structuredGeneration.citations, in: retrievedChunks),
+            to: &selectedEvidence
+        )
 
         for claim in normalizedClaims {
             let citedChunks = citedEvidence(for: claim.citations, in: retrievedChunks)
@@ -572,6 +523,10 @@ extension StructuredAnswer {
             )
 
             appendUnique(supportingChunks, to: &selectedEvidence)
+        }
+
+        if selectedEvidence.isEmpty {
+            appendUnique(Array(retrievedChunks.prefix(3)), to: &selectedEvidence)
         }
 
         addEvidenceEntries(from: selectedEvidence, fallback: retrievedChunks, to: builder)
@@ -655,26 +610,6 @@ extension StructuredAnswer {
             if !partial.contains(where: { $0.chunk.id == chunk.chunk.id }) {
                 partial.append(chunk)
             }
-        }
-    }
-
-    private static func citedEvidenceIDs(
-        in claimText: String,
-        retrievedChunks: [RetrievedChunk]
-    ) -> [String] {
-        guard let regex = try? NSRegularExpression(pattern: #"\[S(\d+)\]"#) else { return [] }
-        let range = NSRange(claimText.startIndex..<claimText.endIndex, in: claimText)
-        let matches = regex.matches(in: claimText, options: [], range: range)
-        return matches.compactMap { match in
-            guard let matchRange = Range(match.range(at: 1), in: claimText),
-                  let index = Int(claimText[matchRange])
-            else {
-                return nil
-            }
-
-            let chunkIndex = index - 1
-            guard chunkIndex >= 0, chunkIndex < retrievedChunks.count else { return nil }
-            return retrievedChunks[chunkIndex].chunk.id.uuidString
         }
     }
 

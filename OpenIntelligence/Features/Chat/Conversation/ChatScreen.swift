@@ -1457,7 +1457,8 @@ struct ChatScreen: View {
                             role: .assistant,
                             content: response.generatedResponse,
                             metadata: response.metadata,
-                            retrievedChunks: response.retrievedChunks
+                            retrievedChunks: response.retrievedChunks,
+                            structuredAnswer: response.structuredAnswer
                         )
                         messages.append(deeperMessage)
 
