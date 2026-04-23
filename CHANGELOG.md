@@ -2,6 +2,14 @@
 
 This is the public version history for OpenIntelligence. It focuses on user-visible product changes and intentionally omits private engine tuning, thresholds, and internal implementation details.
 
+## 3.1 - April 2026
+
+- Preserved grounded partial answers in Deep Think and Maximum when a late-stage generation interruption happens, instead of dropping generic stop text onto useful output
+- Improved ingestion for noisy scans, multi-column PDFs, and corrupted tables so rows and columns survive extraction more reliably
+- Strengthened table-aware retrieval and structured evidence packing for specification sheets, statistical tables, and dense scientific documents
+- Tightened claim verification so unsupported statements are pruned or downgraded before final answers are shown
+- Improved long-form reasoning with better evidence clustering, corrective retrieval, and more conservative abstention when support is weak
+
 ## 3.0 - April 2026
 
 - Reworked noisy PDF and OCR table ingestion so structured rows survive extraction instead of collapsing into column-order garbage

@@ -1,12 +1,10 @@
-Version 3.0
+Version 3.1
 
-Major reliability upgrade focused on hard technical documents, noisy OCR, and broken table extraction.
+Reliability upgrade focused on hard technical documents, noisy OCR, multi-column layouts, and grounded answer quality.
 
-Since 2.6:
-- Deep Think and Maximum now preserve strong grounded partial answers when a late-stage generation hiccup interrupts the final polish pass, instead of dropping a generic failure footer onto an otherwise useful response.
-- Repaired row alignment for corrupted and multi-column tables so extracted evidence is less likely to collapse into jumbled garbage.
-- Added a corrective retrieval pass that automatically re-scans chunk and page indexes before generation when first-pass evidence is weak.
-- Improved extractive handling for statistical tables, specification sheets, and dense factual lookups with stronger table-priority evidence selection.
-- Tightened grounded abstention behavior when retrieval is off-topic or structurally weak, reducing confident answers built on bad evidence.
-- Improved source review for dense scientific PDFs with better evidence packing and more reliable structured excerpts.
-- Added audit visibility for corrective retrieval so retrieval failures are easier to diagnose and verify.
+- Deep Think and Maximum now preserve strong grounded partial answers when a late-stage generation interruption happens, instead of dropping generic stop text onto useful output.
+- Multi-column PDFs and corrupted tables now ingest more cleanly with layout-aware OCR fallback and better row and column preservation.
+- Table retrieval is stronger for specs, measurements, and statistical values through better schema, row, and cell anchoring.
+- Weak first-pass retrieval now triggers a corrective evidence pass before answer generation when the initial evidence pack is too thin or too generic.
+- Unsupported or weakly supported claims are handled more conservatively before final answers are shown.
+- Dense scientific PDFs and technical manuals hold up better during source review, with clearer structured excerpts and better abstention when support is weak.

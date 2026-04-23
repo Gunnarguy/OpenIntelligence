@@ -39,6 +39,14 @@ Submit to App Store Connect for review
 
 Build, upload, and submit the current App Store version for review
 
+### ios ready_for_review
+
+```sh
+[bundle exec] fastlane ios ready_for_review
+```
+
+Build, upload, and leave the current App Store version ready for review
+
 ### ios submit_review_existing_build
 
 ```sh

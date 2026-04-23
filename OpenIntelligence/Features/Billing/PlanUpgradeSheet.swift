@@ -104,7 +104,9 @@ struct PlanUpgradeSheet: View {
                         tierCard(for: option)
                     }
 
-                    addOnCard
+                    if entitlementStore.shouldOfferDocumentPack {
+                        addOnCard
+                    }
                     multiDocumentTip
                     managementControls
                     complianceFooter
@@ -331,7 +333,7 @@ private extension PlanUpgradeSheet {
     }
 
     var shouldShowRefillQuickAction: Bool {
-        !entitlementStore.hasReachedDocumentPackCap
+        entitlementStore.shouldOfferDocumentPack && !entitlementStore.hasReachedDocumentPackCap
     }
 
     var refillQuickAction: some View {

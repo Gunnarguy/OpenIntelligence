@@ -315,7 +315,7 @@ Text(label)
 
             HStack(spacing: 10) {
                 Button {
-                    openURL(OpenIntelligenceLinks.feedbackMailtoURL)
+                    openURL(OpenIntelligenceLinks.feedbackMailtoURL(source: "Settings Screen"))
                 } label: {
                     Label("Send Feedback", systemImage: "envelope.fill")
                         .frame(maxWidth: .infinity)

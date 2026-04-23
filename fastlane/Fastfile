@@ -84,6 +84,27 @@ platform :ios do
     )
   end
 
+  desc "Build, upload, and leave the current App Store version ready for review"
+  lane :ready_for_review do
+    api_key = asc_api_key
+    build
+    upload_to_app_store(
+      api_key: api_key,
+      app_identifier: APP_IDENTIFIER,
+      skip_screenshots: true,
+      force: true,
+      reject_if_possible: true,
+      submit_for_review: false,
+      automatic_release: false,
+      precheck_include_in_app_purchases: false,
+      app_review_information: app_review_information_payload,
+      submission_information: {
+        export_compliance_uses_encryption: false,
+        content_rights_contains_third_party_content: false,
+      }
+    )
+  end
+
   desc "Submit the current App Store version for review using the latest uploaded build"
   lane :submit_review_existing_build do
     api_key = asc_api_key

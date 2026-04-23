@@ -3666,6 +3666,7 @@ extension AgenticOrchestrator {
         // Mode detection for confidence-based session scaling
         let isUnlimitedMode = config.sessionCount >= 20
         let isDeepThinkMode = config.sessionCount >= 4 && config.sessionCount <= 10 && !isUnlimitedMode
+        let usesEvidenceDrivenStopping = isUnlimitedMode || isDeepThinkMode
 
         // All multi-session modes report confidence for dynamic scaling
         let shouldReportConfidence = isUnlimitedMode || isDeepThinkMode || forceConfidenceReporting
@@ -3682,6 +3683,15 @@ extension AgenticOrchestrator {
         // Deep Think: Start at 10% (shows we're just beginning)
         // Maximum mode: Start at 5% (longer journey to 98%)
         var cumulativeConfidence: Float = shouldReportConfidence ? (isUnlimitedMode ? 0.05 : 0.10) : 0
+        let queryEnhancer = QueryEnhancementService()
+        var evidenceTracker = FactBank()
+        if usesEvidenceDrivenStopping {
+            evidenceTracker.queryIntent = queryEnhancer.classifyIntent(query)
+            evidenceTracker.initializeWithQuery(query)
+        }
+        var lowNoveltyStreak = 0
+        var saturationStreak = 0
+        var usedWindowSources: Set<String> = []
 
         Log.info("[ReasoningChain] Starting \(isDeepThinkMode ? "dynamic 4-8" : String(config.sessionCount))-session chain for: \(query.prefix(40))... (confidence reporting: \(shouldReportConfidence), threshold: \(Int(confidenceThreshold * 100))%)", category: .llm)
 
@@ -3728,6 +3738,7 @@ extension AgenticOrchestrator {
         let totalAvailableChunks = chunks.count
 
         // Generate enough context windows for all possible sessions
+        var sessionSourceSets: [Set<String>] = []
         while sessionContexts.count < effectiveMaxSessions {
             let startIdx = min(sessionOffset, max(0, totalAvailableChunks - chunksPerSession))
             let endIdx = min(startIdx + chunksPerSession, totalAvailableChunks)
@@ -3739,6 +3750,7 @@ extension AgenticOrchestrator {
             // Universal across all document types — same extraction as Standard pipeline.
             let windowChunks = Array(chunks[startIdx..<endIdx])
             for c in windowChunks { allSources.insert(c.sourceDocument) }
+            sessionSourceSets.append(Set(windowChunks.map(\.sourceDocument)))
 
             let extraction = ragService.extractRelevantSentences(
                 from: windowChunks,
@@ -3806,10 +3818,27 @@ extension AgenticOrchestrator {
             // - Maximum (unlimited): min 8 sessions, target 98%
             // - Deep Think: min 4 sessions, target 85%, max 8 sessions
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            if sessionIndex >= minSessionsBeforeEarlyStop, cumulativeConfidence >= confidenceThreshold {
-                let modeName = isUnlimitedMode ? "Maximum" : "Deep Think"
-                Log.info("[ReasoningChain] \(modeName) mode: Stopping at \(Int(cumulativeConfidence * 100))% confidence (threshold: \(Int(confidenceThreshold * 100))%)", category: .llm)
-                break
+            if sessionIndex >= minSessionsBeforeEarlyStop {
+                if usesEvidenceDrivenStopping {
+                    let evidenceCoverageTarget: Float = evidenceTracker.subQuestions.count >= 4 ? 0.70 : 0.55
+                    let sourceCoverage = Float(usedWindowSources.count) / Float(max(allSources.count, 1))
+                    let noveltyExhausted = lowNoveltyStreak >= 2 || saturationStreak >= 2 || sourceCoverage >= 0.85
+
+                    if cumulativeConfidence >= confidenceThreshold,
+                       evidenceTracker.subQuestionConfidence >= evidenceCoverageTarget,
+                       noveltyExhausted {
+                        let modeName = isUnlimitedMode ? "Maximum" : "Deep Think"
+                        Log.info(
+                            "[ReasoningChain] \(modeName) mode: stopping at \(Int(cumulativeConfidence * 100))% confidence, coverage=\(Int(evidenceTracker.subQuestionConfidence * 100))%, sourceCoverage=\(Int(sourceCoverage * 100))%, lowNovelty=\(lowNoveltyStreak), saturation=\(saturationStreak)",
+                            category: .llm
+                        )
+                        break
+                    }
+                } else if cumulativeConfidence >= confidenceThreshold {
+                    let modeName = isUnlimitedMode ? "Maximum" : "Deep Think"
+                    Log.info("[ReasoningChain] \(modeName) mode: Stopping at \(Int(cumulativeConfidence * 100))% confidence (threshold: \(Int(confidenceThreshold * 100))%)", category: .llm)
+                    break
+                }
             }
 
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -3857,13 +3886,23 @@ extension AgenticOrchestrator {
                 insightsForPrompt = chainInsights
             }
 
+            let sessionObjective = usesEvidenceDrivenStopping
+                ? buildSessionObjective(
+                    query: query,
+                    factBank: evidenceTracker,
+                    sessionIndex: sessionIndex,
+                    sessionCount: effectiveSessionCount
+                )
+                : nil
+
             let (prompt, systemPrompt) = buildChainPrompt(
                 sessionIndex: sessionIndex,
                 sessionCount: effectiveSessionCount,
                 query: query,
                 context: sessionContext,
                 previousInsights: insightsForPrompt,
-                maxInsightLength: isUnlimitedMode ? 600 : (isDeepThinkMode ? 800 : config.maxInsightLength)  // Shorter for multi-session modes
+                maxInsightLength: isUnlimitedMode ? 600 : (isDeepThinkMode ? 800 : config.maxInsightLength),  // Shorter for multi-session modes
+                sessionObjective: sessionObjective
             )
 
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -3927,7 +3966,8 @@ extension AgenticOrchestrator {
                             query: query,
                             context: reducedContext,
                             previousInsights: reducedInsights,
-                            maxInsightLength: Int(Double(config.maxInsightLength) * reductionFactor)
+                            maxInsightLength: Int(Double(config.maxInsightLength) * reductionFactor),
+                            sessionObjective: sessionObjective
                         )
                         sessionPrompt = reducedPrompt
                         continue
@@ -4015,10 +4055,66 @@ extension AgenticOrchestrator {
                 continue
             }
 
+            var evidenceConfidence: Float? = nil
+            var evidenceCoverage: Float = 0
+            var evidenceNovelty: Float = 0
+            var evidenceSaturation: Float = 0
+
+            if usesEvidenceDrivenStopping {
+                if contextIndex < sessionSourceSets.count {
+                    usedWindowSources.formUnion(sessionSourceSets[contextIndex])
+                }
+
+                let factUpdate = evidenceTracker.addFacts(from: insight)
+                evidenceCoverage = evidenceTracker.subQuestionConfidence
+                evidenceNovelty = factUpdate.noveltyScore
+
+                if factUpdate.addedFacts == 0 || factUpdate.noveltyScore < 0.18 {
+                    lowNoveltyStreak += 1
+                } else {
+                    lowNoveltyStreak = 0
+                }
+
+                let usedSourceCoverage = Float(usedWindowSources.count) / Float(max(allSources.count, 1))
+                let (calculatedConfidence, saturationScore) = calculateRealConfidence(
+                    insight: insight,
+                    allInsights: chainInsights + [insight],
+                    query: query,
+                    totalSources: allSources.count,
+                    sessionNum: sessionNum,
+                    subQuestionConfidence: evidenceCoverage,
+                    noveltyScore: factUpdate.noveltyScore,
+                    sourceCoverage: usedSourceCoverage
+                )
+                evidenceConfidence = calculatedConfidence
+                evidenceSaturation = saturationScore
+
+                if saturationScore > 0.85,
+                   factUpdate.noveltyScore < 0.18,
+                   factUpdate.newlyAnsweredSubQuestions == 0 {
+                    saturationStreak += 1
+                } else {
+                    saturationStreak = 0
+                }
+            }
+
             // Parse confidence if present, or estimate based on response quality
             // Do this BEFORE appending insight so we can compare with previous insights
             if let conf = parseConfidence(from: successResponse.text) {
-                cumulativeConfidence = (cumulativeConfidence + conf) / 2
+                if let evidenceConfidence {
+                    let confidenceCap: Float = isDeepThinkMode ? 0.90 : 0.99
+                    let blendedConfidence = min((evidenceConfidence * 0.8) + (conf * 0.2), confidenceCap)
+                    cumulativeConfidence = max(cumulativeConfidence, blendedConfidence)
+                } else {
+                    cumulativeConfidence = (cumulativeConfidence + conf) / 2
+                }
+            } else if let evidenceConfidence {
+                let confidenceCap: Float = isDeepThinkMode ? 0.90 : 0.99
+                cumulativeConfidence = max(cumulativeConfidence, min(evidenceConfidence, confidenceCap))
+                Log.info(
+                    "[ReasoningChain] Evidence confidence: \(Int(cumulativeConfidence * 100))% (coverage: \(Int(evidenceCoverage * 100))%, novelty: \(Int(evidenceNovelty * 100))%, saturation: \(Int(evidenceSaturation * 100))%, lowNovelty=\(lowNoveltyStreak), saturationStreak=\(saturationStreak))",
+                    category: .llm
+                )
             } else if isUnlimitedMode || isDeepThinkMode {
                 // Heuristic confidence for Maximum mode:
                 // Designed to require 8-15+ sessions before hitting 98%
@@ -6123,7 +6219,8 @@ extension AgenticOrchestrator {
         query: String,
         context: String,
         previousInsights: [String],
-        maxInsightLength: Int
+        maxInsightLength: Int,
+        sessionObjective: String? = nil
     ) -> (prompt: String, systemPrompt: String) {
         // FIXED: Reduced insight budget from 2500 to 1200 chars.
         // With context doubling fix, real budget is:
@@ -6150,6 +6247,12 @@ extension AgenticOrchestrator {
             }
         }
 
+        let objectiveBlock = sessionObjective.map { """
+        SESSION OBJECTIVE:
+        \($0)
+
+        """ } ?? ""
+
         // Context budget: session 1 gets full context, later sessions share with insights
         let contextForPrompt = previousInsights.isEmpty
             ? String(context.prefix(4000))
@@ -6164,7 +6267,7 @@ extension AgenticOrchestrator {
             let prompt = """
             QUESTION: \(query)
 
-            DOCUMENTS:
+            \(objectiveBlock)DOCUMENTS:
             \(contextForPrompt)
 
             Write a detailed answer using the information found in these documents.
@@ -6182,8 +6285,7 @@ extension AgenticOrchestrator {
             QUESTION: \(query)
 
             \(insightSummary)
-
-            ADDITIONAL DOCUMENTS:
+            \(objectiveBlock)ADDITIONAL DOCUMENTS:
             \(contextForPrompt)
 
             Using these additional documents, write ONLY new details about: "\(query)"
@@ -6200,8 +6302,7 @@ extension AgenticOrchestrator {
             QUESTION: \(query)
 
             \(insightSummary)
-
-            DOCUMENTS:
+            \(objectiveBlock)DOCUMENTS:
             \(contextForPrompt)
 
             Write a comprehensive answer to: "\(query)"
@@ -6224,8 +6325,7 @@ extension AgenticOrchestrator {
             QUESTION: \(query)
 
             \(insightSummary)
-
-            ADDITIONAL DOCUMENTS:
+            \(objectiveBlock)ADDITIONAL DOCUMENTS:
             \(contextForPrompt)
 
             Using these additional documents, add NEW details about: "\(query)"
@@ -6236,6 +6336,31 @@ extension AgenticOrchestrator {
             """
             return (prompt, systemPrompt)
         }
+    }
+
+    private func buildSessionObjective(
+        query: String,
+        factBank: FactBank,
+        sessionIndex: Int,
+        sessionCount: Int
+    ) -> String? {
+        guard sessionIndex > 0 else { return nil }
+
+        let unanswered = Array(factBank.unansweredQuestions.prefix(3))
+
+        if sessionIndex == sessionCount - 1 {
+            if unanswered.isEmpty {
+                return "Synthesize only what is supported by the accumulated evidence. If any detail is still weakly supported, qualify it instead of guessing."
+            }
+
+            return "Before final synthesis, verify whether these remaining gaps are actually answered: \(unanswered.joined(separator: "; ")). If not, state that the documents do not fully resolve them instead of inferring beyond the evidence."
+        }
+
+        if unanswered.isEmpty {
+            return "Pressure-test the current answer. Look for contradictions, missing qualifiers, numeric details, edge cases, and source-backed caveats instead of repeating the same summary."
+        }
+
+        return "Prioritize coverage for these unresolved sub-questions: \(unanswered.joined(separator: "; ")). Surface contradictions or missing evidence explicitly instead of repeating prior findings."
     }
 
     /// Extract insight from response - keep FULL content, just clean up formatting

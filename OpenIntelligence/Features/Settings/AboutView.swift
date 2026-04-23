@@ -5,8 +5,21 @@ enum OpenIntelligenceLinks {
     static let feedbackBoardURL = URL(string: "https://gunzino.notion.site/483120d0efa34513816f9fa43764ee2e?v=97202e3dfa49450b93f0159beb0978c9&pvs=25")!
     static let githubURL = URL(string: "https://github.com/Gunnarguy/OpenIntelligence")!
     static let appStoreURL = URL(string: "https://apps.apple.com/us/app/openintelligence/id6756559175")!
-    static let feedbackEmailAddress = "feedback@openintelligence.app"
-    static let feedbackMailtoURL = URL(string: "mailto:feedback@openintelligence.app?subject=OpenIntelligence%20Feedback")!
+    static let feedbackEmailAddress = "Gunnarguy@me.com"
+
+    static func feedbackMailtoURL(source: String) -> URL {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "unknown"
+
+        var components = URLComponents()
+        components.scheme = "mailto"
+        components.path = feedbackEmailAddress
+        components.queryItems = [
+            URLQueryItem(name: "subject", value: "[OpenIntelligence App Feedback] \(source) | v\(version) (\(build))"),
+            URLQueryItem(name: "body", value: "Source: \(source)\nApp Version: \(version) (\(build))\n\nTopic:\n\nDetails:\n")
+        ]
+        return components.url ?? URL(string: "mailto:\(feedbackEmailAddress)")!
+    }
 }
 
 /// Presents product metadata and device-specific capability information.
@@ -262,7 +275,7 @@ struct AboutView: View {
     }
 
     private func openEmail() {
-        openURL(OpenIntelligenceLinks.feedbackMailtoURL)
+        openURL(OpenIntelligenceLinks.feedbackMailtoURL(source: "About Screen"))
     }
 }
 
