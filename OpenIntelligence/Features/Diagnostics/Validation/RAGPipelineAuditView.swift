@@ -282,6 +282,7 @@ struct RAGPipelineAuditView: View {
                 LabeledContent("Query routing", value: snapshot.featureFlags.usedQueryRouting ? "Yes" : "No")
                 LabeledContent("Summary routing", value: snapshot.featureFlags.usedSummaryRouting ? "Yes" : "No")
                 LabeledContent("Parent expansion", value: snapshot.featureFlags.usedParentDocumentRetrieval ? "Yes" : "No")
+                LabeledContent("Corrective retrieval", value: snapshot.featureFlags.usedCorrectiveRetrieval ? "Yes" : "No")
                 LabeledContent("Compression", value: snapshot.featureFlags.usedContextualCompression ? "Yes" : "No")
                 LabeledContent("Graph packing", value: snapshot.featureFlags.usedGraphPacking ? "Yes" : "No")
                 LabeledContent("Retrieval cascade", value: snapshot.featureFlags.usedRetrievalCascade ? "Yes" : "No")

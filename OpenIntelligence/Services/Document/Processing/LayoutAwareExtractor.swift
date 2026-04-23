@@ -23,9 +23,13 @@ struct TextBlock: Sendable {
     let boundingBox: CGRect  // Normalized 0-1 coordinates
     let confidence: Float
     let pageNumber: Int
+    let id = UUID()
 
     /// Center X coordinate for column detection
     nonisolated var centerX: CGFloat { boundingBox.midX }
+
+    /// Left edge for line-level ordering
+    nonisolated var minX: CGFloat { boundingBox.minX }
 
     /// Top Y coordinate for vertical ordering (Vision uses bottom-left origin)
     nonisolated var topY: CGFloat { boundingBox.maxY }
@@ -69,6 +73,9 @@ struct TableRegion: Sendable {
     let boundingBox: CGRect
     let rows: [[String]]
     let pageNumber: Int
+
+    nonisolated var topY: CGFloat { boundingBox.maxY }
+    nonisolated var minX: CGFloat { boundingBox.minX }
 }
 
 // MARK: - Layout-Aware Extractor
@@ -93,6 +100,12 @@ actor LayoutAwareExtractor {
 
     /// Minimum confidence for text recognition
     private let minConfidence: Float = 0.5
+
+    private struct ReadingElement: Sendable {
+        let text: String
+        let topY: CGFloat
+        let minX: CGFloat
+    }
 
     // MARK: - Public API
 
@@ -429,38 +442,99 @@ actor LayoutAwareExtractor {
 
     /// Detect table regions and separate from regular text
     private func detectAndSeparateTables(blocks: [TextBlock], pageNumber: Int) -> ([TableRegion], [TextBlock]) {
-        // Simple heuristic: look for grid-like alignment patterns
-        // Blocks with similar X positions that repeat = likely table columns
+        guard blocks.count >= 4 else { return ([], blocks) }
 
-        // Group blocks by approximate X position
-        let xTolerance: CGFloat = 0.02
-        var xGroups: [CGFloat: [TextBlock]] = [:]
-
-        for block in blocks {
-            let roundedX = (block.boundingBox.minX / xTolerance).rounded() * xTolerance
-            xGroups[roundedX, default: []].append(block)
+        let avgHeight = blocks.map { $0.height }.reduce(0, +) / CGFloat(blocks.count)
+        let lineThreshold = max(0.015, avgHeight * lineToleranceRatio)
+        let sortedBlocks = blocks.sorted { lhs, rhs in
+            if abs(lhs.topY - rhs.topY) > lineThreshold {
+                return lhs.topY > rhs.topY
+            }
+            return lhs.minX < rhs.minX
         }
 
-        // Find X positions with many blocks (potential table columns)
-        let potentialTableColumns = xGroups.filter { $0.value.count >= 3 }
+        var rows: [[TextBlock]] = []
+        var currentRow: [TextBlock] = []
+        var currentY: CGFloat?
 
-        // If we have multiple aligned columns, it might be a table
-        if potentialTableColumns.count >= 2 {
-            // For now, don't extract as table - just note it exists
-            // Tables are better handled by Vision's RecognizeDocumentsRequest
-            // We just want to ensure we don't mangle them
+        func flushRow() {
+            guard !currentRow.isEmpty else { return }
+            rows.append(currentRow.sorted { $0.minX < $1.minX })
+            currentRow.removeAll(keepingCapacity: true)
         }
 
-        // Return all blocks as non-table for now
-        // Vision's table detection is more reliable
-        return ([], blocks)
+        for block in sortedBlocks {
+            if let previousY = currentY, abs(block.topY - previousY) >= lineThreshold {
+                flushRow()
+            }
+            currentRow.append(block)
+            currentY = block.topY
+        }
+        flushRow()
+
+        var tables: [TableRegion] = []
+        var tableBlockIDs: Set<UUID> = []
+        var rowIndex = 0
+
+        while rowIndex < rows.count {
+            let columnCount = rows[rowIndex].count
+
+            guard columnCount >= 2 else {
+                rowIndex += 1
+                continue
+            }
+
+            var tableRows: [[TextBlock]] = [rows[rowIndex]]
+            var nextIndex = rowIndex + 1
+
+            while nextIndex < rows.count {
+                let nextColumnCount = rows[nextIndex].count
+                if nextColumnCount >= 2 && abs(nextColumnCount - columnCount) <= 1 {
+                    tableRows.append(rows[nextIndex])
+                    nextIndex += 1
+                } else {
+                    break
+                }
+            }
+
+            if tableRows.count >= 2,
+               hasConsistentColumnAlignment(tableRows),
+               shouldTreatAsTable(tableRows, totalBlockCount: blocks.count)
+            {
+                let allTableBlocks = tableRows.flatMap { $0 }
+                let minX = allTableBlocks.map(\.minX).min() ?? 0
+                let maxX = allTableBlocks.map { $0.boundingBox.maxX }.max() ?? 1
+                let minY = allTableBlocks.map { $0.boundingBox.minY }.min() ?? 0
+                let maxY = allTableBlocks.map(\.topY).max() ?? 1
+
+                tables.append(TableRegion(
+                    boundingBox: CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY),
+                    rows: tableRows.map { $0.map(\.text) },
+                    pageNumber: pageNumber
+                ))
+
+                for block in allTableBlocks {
+                    tableBlockIDs.insert(block.id)
+                }
+
+                Log.debug(
+                    "[LayoutAwareExtractor] Page \(pageNumber): detected table with \(tableRows.count) rows × \(columnCount) columns",
+                    category: .ingestion
+                )
+            }
+
+            rowIndex = nextIndex
+        }
+
+        let remaining = blocks.filter { !tableBlockIDs.contains($0.id) }
+        return (tables, remaining)
     }
 
     // MARK: - Reading Order Construction
 
     /// Build text in proper reading order from detected columns
     private func buildReadingOrderText(columns: [DetectedColumn], tables: [TableRegion]) -> String {
-        var result: [String] = []
+        var elements: [ReadingElement] = []
 
         // Sort columns left to right
         let sortedColumns = columns.sorted { $0.xRange.lowerBound < $1.xRange.lowerBound }
@@ -480,18 +554,33 @@ actor LayoutAwareExtractor {
                 // Sort blocks within line left-to-right
                 let sortedLineBlocks = lineBlocks.sorted { $0.boundingBox.minX < $1.boundingBox.minX }
                 let lineText = sortedLineBlocks.map { $0.text }.joined(separator: " ")
-                result.append(lineText)
+                let trimmedLine = lineText.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmedLine.isEmpty else { continue }
+
+                elements.append(ReadingElement(
+                    text: trimmedLine,
+                    topY: sortedLineBlocks.map(\.topY).max() ?? 0,
+                    minX: sortedLineBlocks.map(\.minX).min() ?? 0
+                ))
             }
         }
 
-        // Add table content
         for table in tables {
-            for row in table.rows {
-                result.append(row.joined(separator: " | "))
-            }
+            elements.append(ReadingElement(
+                text: renderTableText(table),
+                topY: table.topY,
+                minX: table.minX
+            ))
         }
 
-        return result.joined(separator: "\n")
+        let orderedElements = elements.sorted { lhs, rhs in
+            if abs(lhs.topY - rhs.topY) > 0.02 {
+                return lhs.topY > rhs.topY
+            }
+            return lhs.minX < rhs.minX
+        }
+
+        return orderedElements.map(\.text).joined(separator: "\n")
     }
 
     /// Group blocks that appear on the same line based on Y position
@@ -516,6 +605,93 @@ actor LayoutAwareExtractor {
         }
 
         return groups
+    }
+
+    private func hasConsistentColumnAlignment(_ rows: [[TextBlock]]) -> Bool {
+        guard rows.count >= 2 else { return false }
+
+        let referenceXs = rows[0].map(\.centerX)
+        let alignmentThreshold: CGFloat = 0.05
+
+        for row in rows.dropFirst() {
+            let rowXs = row.map(\.centerX)
+            var alignedCount = 0
+
+            for x in rowXs {
+                if referenceXs.contains(where: { abs($0 - x) < alignmentThreshold }) {
+                    alignedCount += 1
+                }
+            }
+
+            if alignedCount < max(1, row.count / 2) {
+                return false
+            }
+        }
+
+        return true
+    }
+
+    private func shouldTreatAsTable(_ rows: [[TextBlock]], totalBlockCount: Int) -> Bool {
+        let cellTexts = rows
+            .flatMap { $0 }
+            .map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard !cellTexts.isEmpty else { return false }
+
+        let maxColumns = rows.map(\.count).max() ?? 0
+        let headerCells = rows.first?
+            .map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty } ?? []
+        let headerLikeFirstRow = !headerCells.isEmpty && headerCells.allSatisfy {
+            isShortTableCell($0) && $0.rangeOfCharacter(from: .decimalDigits) == nil
+        }
+
+        let numericCellRatio = Double(cellTexts.filter {
+            $0.rangeOfCharacter(from: .decimalDigits) != nil
+        }.count) / Double(cellTexts.count)
+        let shortCellRatio = Double(cellTexts.filter(isShortTableCell).count) / Double(cellTexts.count)
+        let narrativeCellRatio = Double(cellTexts.filter(isNarrativeTableCell).count) / Double(cellTexts.count)
+        let tableCoverage = Double(rows.flatMap { $0 }.count) / Double(max(1, totalBlockCount))
+
+        let looksNarrativeColumns = maxColumns == 2
+            && numericCellRatio < 0.15
+            && narrativeCellRatio >= 0.5
+            && !headerLikeFirstRow
+        let looksTabular = maxColumns >= 3
+            || numericCellRatio >= 0.2
+            || headerLikeFirstRow
+            || (shortCellRatio >= 0.7 && narrativeCellRatio <= 0.35)
+
+        return looksTabular && !looksNarrativeColumns && tableCoverage >= 0.55
+    }
+
+    private func renderTableText(_ table: TableRegion) -> String {
+        guard !table.rows.isEmpty else { return "" }
+
+        var output = "[Table]\n"
+        let firstRow = table.rows[0]
+        output += "| " + firstRow.joined(separator: " | ") + " |\n"
+        output += "|" + firstRow.map { _ in "---" }.joined(separator: "|") + "|\n"
+
+        for row in table.rows.dropFirst() {
+            output += "| " + row.joined(separator: " | ") + " |\n"
+        }
+
+        output += "[/Table]"
+        return output
+    }
+
+    private func isShortTableCell(_ text: String) -> Bool {
+        let wordCount = text.split(whereSeparator: \.isWhitespace).count
+        return wordCount <= 4 && text.count <= 36
+    }
+
+    private func isNarrativeTableCell(_ text: String) -> Bool {
+        let wordCount = text.split(whereSeparator: \.isWhitespace).count
+        let punctuationCount = text.unicodeScalars.filter {
+            CharacterSet(charactersIn: ".,;:!?").contains($0)
+        }.count
+        return wordCount >= 8 || punctuationCount >= 2
     }
 }
 

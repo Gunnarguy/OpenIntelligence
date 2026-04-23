@@ -1,18 +1,11 @@
-Version 2.6
+Version 3.0
 
-Massive new capabilities: You can now chat directly with Audio, Video, Code, and Office files natively and 100% offline. 
+Major reliability upgrade focused on hard technical documents, noisy OCR, and broken table extraction.
 
-Since 2.1:
-- Starter questions now come from representative samples of your active library, so the opening prompts better match the documents and sections you're actually working with.
-- Refreshing starter questions does a better job surfacing different grounded prompts instead of repeating the same generic ideas.
-- Follow-up suggestions are more reliable after each answer and when switching libraries, including deeper follow-up, clarification, and comparison flows.
-- Answers now go through stronger grounded-QA routing before they are shown, using a stricter path for fact-heavy questions and a more constrained synthesis path when needed.
-- Evidence verification is tighter before final answer presentation, so the app is less willing to bluff when support is weak.
-- Weakly supported answers are handled more clearly, with better answer review and source inspection when you need to check what was actually grounded.
-- Response details are easier to inspect, with better source cards, clearer filenames, and scrollable excerpts for dense passages.
-- Tables, lists, quotes, headings, separators, and other structured technical output render much better.
-- Malformed links in generated answers are repaired more aggressively.
-- PDF imports do a better job filtering garbage text and noisy extraction on messier files.
-- Maximum mode now has a real daily free-use quota path with clearer paid-tier behavior.
-- Historical paid users are protected more generously in entitlement handling.
-- Settings, billing, and plan messaging were cleaned up to better match the actual entitlement model.
+Since 2.6:
+- Repaired row alignment for corrupted and multi-column tables so extracted evidence is less likely to collapse into jumbled garbage.
+- Added a corrective retrieval pass that automatically re-scans chunk and page indexes before generation when first-pass evidence is weak.
+- Improved extractive handling for statistical tables, specification sheets, and dense factual lookups with stronger table-priority evidence selection.
+- Tightened grounded abstention behavior when retrieval is off-topic or structurally weak, reducing confident answers built on bad evidence.
+- Improved source review for dense scientific PDFs with better evidence packing and more reliable structured excerpts.
+- Added audit visibility for corrective retrieval so retrieval failures are easier to diagnose and verify.

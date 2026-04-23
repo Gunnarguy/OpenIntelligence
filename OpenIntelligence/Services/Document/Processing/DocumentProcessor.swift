@@ -4468,10 +4468,20 @@ class DocumentProcessor {
 
     // MARK: - Layout-Aware Text Extraction (OCR)
 
-    /// Extract text with awareness of multi-column layouts
-    /// Groups observations by columns and processes each column top-to-bottom
+    private struct OCRReadingBlock {
+        let text: String
+        let topY: CGFloat
+        let minX: CGFloat
+    }
+
+    /// Extract text with awareness of tables and multi-column layouts.
+    /// Rebuilds table-heavy OCR pages row-by-row and otherwise reads columns top-to-bottom.
     private func extractTextWithColumnAwareness(from observations: [VNRecognizedTextObservation]) -> String {
         guard !observations.isEmpty else { return "" }
+
+        if let tableText = extractTableDominantText(from: observations) {
+            return tableText
+        }
 
         // Collect X midpoints to detect columns
         let xMidpoints = observations.map { $0.boundingBox.midX }
@@ -4524,6 +4534,164 @@ class DocumentProcessor {
         }
 
         return allText.joined(separator: "\n")
+    }
+
+    /// Rebuild table-heavy OCR pages in row order instead of dumping full columns sequentially.
+    private func extractTableDominantText(from observations: [VNRecognizedTextObservation]) -> String? {
+        let (tables, remaining) = detectTables(from: observations)
+        guard shouldPreferDetectedTables(
+            tables,
+            remaining: remaining,
+            totalObservationCount: observations.count
+        ) else {
+            return nil
+        }
+
+        var blocks = tables.compactMap { table -> OCRReadingBlock? in
+            let text = table.toText().trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else { return nil }
+            return OCRReadingBlock(
+                text: text,
+                topY: table.boundingBox.maxY,
+                minX: table.boundingBox.minX
+            )
+        }
+        blocks.append(contentsOf: buildOCRReadingBlocks(from: remaining))
+
+        let orderedBlocks = blocks.sorted { lhs, rhs in
+            if abs(lhs.topY - rhs.topY) > 0.02 {
+                return lhs.topY > rhs.topY
+            }
+            return lhs.minX < rhs.minX
+        }
+
+        guard !orderedBlocks.isEmpty else { return nil }
+
+        Log.info(
+            "[DocumentProcessor] Table-aware OCR reconstruction: \(tables.count) tables, \(remaining.count) residual observations",
+            category: .ingestion
+        )
+        return orderedBlocks.map(\.text).joined(separator: "\n")
+    }
+
+    private func shouldPreferDetectedTables(
+        _ tables: [DetectedTable],
+        remaining: [VNRecognizedTextObservation],
+        totalObservationCount: Int
+    ) -> Bool {
+        guard !tables.isEmpty else { return false }
+
+        let cellTexts = tables
+            .flatMap(\.rows)
+            .flatMap { $0 }
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard !cellTexts.isEmpty else { return false }
+
+        let maxColumns = tables
+            .compactMap { table in
+                table.rows.map(\.count).max()
+            }
+            .max() ?? 0
+        let headerCells = tables.first?.rows.first?
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty } ?? []
+        let headerLikeFirstRow = !headerCells.isEmpty && headerCells.allSatisfy {
+            isShortOCRCell($0) && $0.rangeOfCharacter(from: .decimalDigits) == nil
+        }
+
+        let numericCellRatio = Double(cellTexts.filter {
+            $0.rangeOfCharacter(from: .decimalDigits) != nil
+        }.count) / Double(cellTexts.count)
+        let shortCellRatio = Double(cellTexts.filter(isShortOCRCell).count) / Double(cellTexts.count)
+        let narrativeCellRatio = Double(cellTexts.filter(isNarrativeOCRCell).count) / Double(cellTexts.count)
+        let tableCoverage = Double(totalObservationCount - remaining.count) / Double(max(1, totalObservationCount))
+
+        let looksNarrativeColumns = maxColumns == 2
+            && numericCellRatio < 0.15
+            && narrativeCellRatio >= 0.5
+            && !headerLikeFirstRow
+        let looksTabular = maxColumns >= 3
+            || numericCellRatio >= 0.2
+            || headerLikeFirstRow
+            || (shortCellRatio >= 0.7 && narrativeCellRatio <= 0.35)
+
+        let shouldUseTablePath = looksTabular
+            && !looksNarrativeColumns
+            && (tableCoverage >= 0.55 || remaining.count <= 6)
+
+        if !shouldUseTablePath {
+            Log.debug(
+                "[DocumentProcessor] Table candidates resemble narrative columns; keeping column reading order",
+                category: .ingestion
+            )
+        }
+
+        return shouldUseTablePath
+    }
+
+    private func buildOCRReadingBlocks(from observations: [VNRecognizedTextObservation]) -> [OCRReadingBlock] {
+        guard !observations.isEmpty else { return [] }
+
+        let lineThreshold: CGFloat = 0.02
+        let sorted = observations.sorted { lhs, rhs in
+            let leftY = lhs.boundingBox.midY
+            let rightY = rhs.boundingBox.midY
+
+            if abs(leftY - rightY) > lineThreshold {
+                return leftY > rightY
+            }
+            return lhs.boundingBox.minX < rhs.boundingBox.minX
+        }
+
+        var blocks: [OCRReadingBlock] = []
+        var currentLine: [VNRecognizedTextObservation] = []
+        var currentY: CGFloat?
+
+        func flushCurrentLine() {
+            guard !currentLine.isEmpty else { return }
+
+            let orderedLine = currentLine.sorted { $0.boundingBox.minX < $1.boundingBox.minX }
+            let result = ConfidenceVerifier.assembleVerifiedText(from: orderedLine)
+            let text = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            if !text.isEmpty {
+                blocks.append(OCRReadingBlock(
+                    text: text,
+                    topY: orderedLine.map { $0.boundingBox.maxY }.max() ?? 0,
+                    minX: orderedLine.map { $0.boundingBox.minX }.min() ?? 0
+                ))
+            }
+
+            currentLine.removeAll(keepingCapacity: true)
+        }
+
+        for observation in sorted {
+            let y = observation.boundingBox.midY
+
+            if let previousY = currentY, abs(y - previousY) >= lineThreshold {
+                flushCurrentLine()
+            }
+
+            currentLine.append(observation)
+            currentY = y
+        }
+
+        flushCurrentLine()
+        return blocks
+    }
+
+    private func isShortOCRCell(_ text: String) -> Bool {
+        let wordCount = text.split(whereSeparator: \.isWhitespace).count
+        return wordCount <= 4 && text.count <= 36
+    }
+
+    private func isNarrativeOCRCell(_ text: String) -> Bool {
+        let wordCount = text.split(whereSeparator: \.isWhitespace).count
+        let punctuationCount = text.unicodeScalars.filter {
+            CharacterSet(charactersIn: ".,;:!?").contains($0)
+        }.count
+        return wordCount >= 8 || punctuationCount >= 2
     }
 
     /// Detect column boundaries using X-position clustering

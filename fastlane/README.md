@@ -31,6 +31,22 @@ Build the app for App Store submission
 
 Submit to App Store Connect for review
 
+### ios submit_review
+
+```sh
+[bundle exec] fastlane ios submit_review
+```
+
+Build, upload, and submit the current App Store version for review
+
+### ios submit_review_existing_build
+
+```sh
+[bundle exec] fastlane ios submit_review_existing_build
+```
+
+Submit the current App Store version for review using the latest uploaded build
+
 ### ios beta
 
 ```sh
@@ -70,14 +86,6 @@ Update live App Store listing (description, keywords, promo text)
 ```
 
 Validate app metadata and screenshots
-
-### ios public_signal
-
-```sh
-[bundle exec] fastlane ios public_signal
-```
-
-Commit public-safe release notes and summary in the private repo
 
 ### ios verify_iap
 

@@ -2,25 +2,18 @@
 
 Public release highlights for OpenIntelligence.
 
-## 2.5
+## 3.0
 
-This is the user-facing 2.5 summary of everything that changed after the real 2.1 baseline.
+This is the user-facing 3.0 summary focused on the reliability work shipped after 2.6.
 
 ## Highlights
 
-- Starter questions now come from representative samples of your active library, so the opening prompts better match the documents and sections you're actually working with.
-- Refreshing starter questions does a better job surfacing different grounded prompts instead of repeating the same generic ideas.
-- Follow-up suggestions are more reliable after each answer and when switching libraries, including deeper follow-up, clarification, and comparison flows.
-- Answers now go through stronger grounded-QA routing before they are shown, using a stricter path for fact-heavy questions and a more constrained synthesis path when needed.
-- Evidence verification is tighter before final answer presentation, so the app is less willing to bluff when support is weak.
-- Weakly supported answers are handled more clearly, with better answer review and source inspection when you need to check what was actually grounded.
-- Response details are easier to inspect, with better source cards, clearer filenames, and scrollable excerpts for dense passages.
-- Tables, lists, quotes, headings, separators, and other structured technical output render much better.
-- Malformed links in generated answers are repaired more aggressively.
-- PDF imports do a better job filtering garbage text and noisy extraction on messier files.
-- Maximum mode now has a real daily free-use quota path with clearer paid-tier behavior.
-- Historical paid users are protected more generously in entitlement handling.
-- Settings, billing, and plan messaging were cleaned up to better match the actual entitlement model.
+- Corrupted and multi-column tables now ingest more reliably, with OCR/table reconstruction that preserves row alignment instead of flattening left-column data into garbage.
+- Weak retrieval now triggers a corrective evidence pass before answer generation, using targeted full-text chunk and page recovery when the first pass is too thin or too generic.
+- Fact-heavy answers are more resistant to table and spec misses through stronger extractive prioritization, table-aware evidence ordering, and page-level recovery.
+- The answer pipeline is more willing to abstain when evidence is off-topic or structurally weak instead of synthesizing over bad matches.
+- Dense technical PDFs and noisy scientific supplements hold up better during source review, with stronger evidence packs and clearer structured excerpts.
+- Diagnostics now expose when corrective retrieval activated, making retrieval failures easier to inspect instead of hiding them behind a final answer.
 
 ## Earlier Milestones
 

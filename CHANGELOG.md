@@ -2,6 +2,14 @@
 
 This is the public version history for OpenIntelligence. It focuses on user-visible product changes and intentionally omits private engine tuning, thresholds, and internal implementation details.
 
+## 3.0 - April 2026
+
+- Reworked noisy PDF and OCR table ingestion so structured rows survive extraction instead of collapsing into column-order garbage
+- Added a corrective retrieval pass that runs before answer generation when first-pass evidence is weak, thin, or too generic
+- Strengthened extractive handling for tables, specifications, and statistical outputs with better table-priority evidence selection and page recovery
+- Tightened grounded abstention behavior when retrieved evidence is structurally weak or topically mismatched
+- Improved diagnostics so retrieval hardening and corrective recovery are visible during pipeline review
+
 ## 2.5 - April 2026
 
 - Starter questions now come from representative samples of the active library instead of generic prompts

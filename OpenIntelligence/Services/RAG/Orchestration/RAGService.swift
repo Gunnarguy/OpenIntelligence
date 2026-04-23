@@ -54,6 +54,7 @@ struct RAGAuditFeatureFlags: Sendable {
     let usedQueryRouting: Bool
     let usedSummaryRouting: Bool
     let usedParentDocumentRetrieval: Bool
+    let usedCorrectiveRetrieval: Bool
     let usedContextualCompression: Bool
     let usedGraphPacking: Bool
     let usedRetrievalCascade: Bool
@@ -70,6 +71,7 @@ struct RAGAuditFeatureFlags: Sendable {
         usedQueryRouting: false,
         usedSummaryRouting: false,
         usedParentDocumentRetrieval: false,
+        usedCorrectiveRetrieval: false,
         usedContextualCompression: false,
         usedGraphPacking: false,
         usedRetrievalCascade: false,
@@ -89,6 +91,7 @@ struct RAGAuditFeatureFlags: Sendable {
         if usedQueryRouting { features.append("Routing") }
         if usedSummaryRouting { features.append("Summaries") }
         if usedParentDocumentRetrieval { features.append("Parent") }
+        if usedCorrectiveRetrieval { features.append("Corrective") }
         if usedContextualCompression { features.append("Compression") }
         if usedGraphPacking { features.append("GraphPack") }
         if usedRetrievalCascade { features.append("Cascade") }
@@ -4841,6 +4844,7 @@ class RAGService: ObservableObject {
                     usedQueryRouting: raptorRoutingEnabled,
                     usedSummaryRouting: false,
                     usedParentDocumentRetrieval: false,
+                    usedCorrectiveRetrieval: false,
                     usedContextualCompression: false,
                     usedGraphPacking: result.steps.contains { $0.type == .expanding },
                     usedRetrievalCascade: result.steps.contains { $0.type == .reformulating },
@@ -5276,6 +5280,7 @@ class RAGService: ObservableObject {
         var auditUsedQueryRouting = false
         var auditUsedSummaryRouting = false
         var auditUsedParentDocumentRetrieval = false
+        var auditUsedCorrectiveRetrieval = false
         var auditUsedContextualCompression = false
         var auditUsedGraphPacking = false
         var auditUsedSupplementaryVectorSearch = false
@@ -7500,6 +7505,128 @@ class RAGService: ObservableObject {
                     }
                 }
 
+                let shouldAttemptCorrective = shouldAttemptCorrectiveRetrieval(
+                    query: effectiveQuery,
+                    candidates: contextCandidates,
+                    answerIntentIsExtractive: answerIntent.isExtractiveFirst,
+                    targetCount: effectiveTopK
+                )
+
+                if shouldAttemptCorrective {
+                    let correctiveStartTime = Date()
+                    let preCorrectiveLexical = checkLexicalRelevance(
+                        query: effectiveQuery,
+                        chunks: Array(contextCandidates.prefix(5))
+                    )
+                    let preCorrectiveTopSim = contextCandidates.first?.similarityScore ?? 0
+                    let hadStructuredEvidence = contextCandidates.prefix(5).contains { candidate in
+                        looksTableLike(
+                            text: candidate.chunk.parentContent ?? candidate.chunk.content,
+                            structureType: candidate.chunk.metadata.structureType
+                        )
+                    }
+
+                    let correctiveCandidates = await performCorrectiveRetrieval(
+                        query: effectiveQuery,
+                        containerId: selectedId,
+                        allChunks: cachedAllChunks,
+                        existingCandidates: contextCandidates,
+                        targetCount: max(effectiveTopK, 4)
+                    )
+
+                    if !correctiveCandidates.isEmpty {
+                        let mergedCandidates = mergeUniqueChunks(contextCandidates, correctiveCandidates)
+                        if mergedCandidates.count > contextCandidates.count {
+                            let rerankLimit = min(max(effectiveTopK * 3, 10), mergedCandidates.count)
+                            let correctiveRerankStart = Date()
+                            let correctedCandidates: [RetrievedChunk]
+
+                            if qualityModeUsesReRanking {
+                                correctedCandidates = await engine.rerank(
+                                    chunks: mergedCandidates,
+                                    query: question,
+                                    topK: rerankLimit
+                                )
+                                rerankTime += Date().timeIntervalSince(correctiveRerankStart)
+                            } else {
+                                correctedCandidates = Array(
+                                    mergedCandidates
+                                        .sorted { $0.similarityScore > $1.similarityScore }
+                                        .prefix(rerankLimit)
+                                )
+                            }
+
+                            let postCorrectiveLexical = checkLexicalRelevance(
+                                query: effectiveQuery,
+                                chunks: Array(correctedCandidates.prefix(5))
+                            )
+                            let postCorrectiveTopSim = correctedCandidates.first?.similarityScore ?? 0
+                            let hasStructuredEvidence = correctedCandidates.prefix(5).contains { candidate in
+                                looksTableLike(
+                                    text: candidate.chunk.parentContent ?? candidate.chunk.content,
+                                    structureType: candidate.chunk.metadata.structureType
+                                )
+                            }
+
+                            let shouldAdoptCorrective =
+                                postCorrectiveLexical > preCorrectiveLexical + 0.08
+                                || postCorrectiveTopSim > preCorrectiveTopSim + 0.04
+                                || (answerIntent.isExtractiveFirst
+                                    && postCorrectiveLexical >= preCorrectiveLexical
+                                    && hasStructuredEvidence
+                                    && !hadStructuredEvidence)
+                                || (answerIntent.isExtractiveFirst
+                                    && preCorrectiveLexical < 0.55
+                                    && postCorrectiveLexical >= preCorrectiveLexical)
+
+                            if shouldAdoptCorrective {
+                                contextCandidates = correctedCandidates
+                                contextStrategy = "corrective_fts"
+                                auditUsedCorrectiveRetrieval = true
+
+                                let correctiveTime = Date().timeIntervalSince(correctiveStartTime)
+                                retrievalTime += correctiveTime
+                                recoveryRetrievalTime = retrievalTime
+                                let preLexicalPercent = String(format: "%.0f%%", preCorrectiveLexical * 100)
+                                let postLexicalPercent = String(format: "%.0f%%", postCorrectiveLexical * 100)
+
+                                Log.info(
+                                    "[Corrective] Adopted lexical corrective retrieval: +\(correctiveCandidates.count) hits, lexical \(preLexicalPercent)->\(postLexicalPercent)",
+                                    category: .retrieval
+                                )
+                                TelemetryCenter.emit(
+                                    .retrieval,
+                                    title: "Corrective retrieval",
+                                    metadata: [
+                                        "added": "\(correctiveCandidates.count)",
+                                        "preLexical": String(format: "%.2f", preCorrectiveLexical),
+                                        "postLexical": String(format: "%.2f", postCorrectiveLexical),
+                                        "preTop": String(format: "%.2f", preCorrectiveTopSim),
+                                        "postTop": String(format: "%.2f", postCorrectiveTopSim),
+                                    ],
+                                    duration: correctiveTime
+                                )
+                                emitThinkingEvent(
+                                    .retrieval,
+                                    title: "Corrective retrieval",
+                                    detail: "+\(correctiveCandidates.count) lexical/page hits"
+                                )
+
+                                if Log.pipelineTraceEnabled {
+                                    logChunkTrace(contextCandidates, stage: "Post-CorrectiveRetrieval", query: question)
+                                }
+                            } else {
+                                let preLexicalPercent = String(format: "%.0f%%", preCorrectiveLexical * 100)
+                                let postLexicalPercent = String(format: "%.0f%%", postCorrectiveLexical * 100)
+                                Log.info(
+                                    "[Corrective] Rejected corrective retrieval: lexical \(preLexicalPercent)->\(postLexicalPercent)",
+                                    category: .retrieval
+                                )
+                            }
+                        }
+                    }
+                }
+
                 // Step 5: Construct context from retrieved chunks (off-main)
                 // Note: rawContext assembly is handled via engine.assembleContext with size limits
                 HardwareTelemetryState.shared.reportRAGPipeline(stage: "Context Assembly")
@@ -7943,6 +8070,7 @@ class RAGService: ObservableObject {
                         usedQueryRouting: auditUsedQueryRouting,
                         usedSummaryRouting: auditUsedSummaryRouting,
                         usedParentDocumentRetrieval: auditUsedParentDocumentRetrieval,
+                        usedCorrectiveRetrieval: auditUsedCorrectiveRetrieval,
                         usedContextualCompression: auditUsedContextualCompression,
                         usedGraphPacking: auditUsedGraphPacking,
                         usedRetrievalCascade: usedRetrievalCascade,
@@ -11627,6 +11755,240 @@ class RAGService: ObservableObject {
         )
         let usedChunks = Array(trimmed.prefix(used))
         return (context, usedChunks)
+    }
+
+    private func shouldAttemptCorrectiveRetrieval(
+        query: String,
+        candidates: [RetrievedChunk],
+        answerIntentIsExtractive: Bool,
+        targetCount: Int
+    ) -> Bool {
+        if answerIntentIsExtractive {
+            return true
+        }
+
+        let lexical = checkLexicalRelevance(query: query, chunks: Array(candidates.prefix(5)))
+        let topSimilarity = candidates.first?.similarityScore ?? 0
+        let minimumCandidateCount = max(3, min(targetCount, 5))
+
+        return candidates.count < minimumCandidateCount
+            || lexical < 0.45
+            || topSimilarity < 0.52
+    }
+
+    private func buildCorrectiveRetrievalQueries(from question: String) -> [String] {
+        var seen = Set<String>()
+        let orderedTerms = extractQueryTerms(question).filter { seen.insert($0).inserted }
+
+        var queries: [String] = [question]
+        if !orderedTerms.isEmpty {
+            queries.append(orderedTerms.prefix(4).joined(separator: " "))
+        }
+        if orderedTerms.count >= 2 {
+            queries.append(orderedTerms.prefix(2).joined(separator: " "))
+        }
+        if orderedTerms.count >= 3 {
+            queries.append(Array(orderedTerms.suffix(3)).joined(separator: " "))
+        }
+
+        var dedupedSeen = Set<String>()
+        return queries
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty && dedupedSeen.insert($0).inserted }
+    }
+
+    private func looksTableLike(text: String, structureType: String?) -> Bool {
+        if structureType == "table" {
+            return true
+        }
+
+        if text.contains("|") && text.components(separatedBy: "|").count >= 4 {
+            return true
+        }
+
+        if text.contains("\t") {
+            return true
+        }
+
+        let lines = text.split(separator: "\n").prefix(6)
+        let structuredLines = lines.filter { line in
+            let lineText = String(line)
+            let hasNumbers = lineText.rangeOfCharacter(from: .decimalDigits) != nil
+            let hasColumns = lineText.contains(":") || lineText.contains("  ") || lineText.contains("\t")
+            return hasNumbers && hasColumns
+        }
+
+        return structuredLines.count >= 2
+    }
+
+    private func correctiveRetrievalScore(
+        content: String,
+        queryTerms: [String],
+        structureType: String?,
+        baseScore: Float
+    ) -> Float {
+        let lowercased = content.lowercased()
+        let matchingTerms = queryTerms.filter { lowercased.contains($0) }
+        guard !matchingTerms.isEmpty else { return 0 }
+
+        var score = baseScore
+        let coverage = Float(matchingTerms.count) / Float(max(1, queryTerms.count))
+        score += min(0.20, coverage * 0.20)
+        score += min(0.12, Float(countSpecPatterns(content)) * 0.015)
+
+        if looksTableLike(text: content, structureType: structureType) {
+            score += 0.08
+        }
+        if content.rangeOfCharacter(from: .decimalDigits) != nil {
+            score += 0.05
+        }
+        if matchingTerms.count >= min(2, queryTerms.count) {
+            score += 0.04
+        }
+
+        return min(score, 0.93)
+    }
+
+    private func performCorrectiveRetrieval(
+        query: String,
+        containerId: UUID,
+        allChunks: [DocumentChunk]?,
+        existingCandidates: [RetrievedChunk],
+        targetCount: Int
+    ) async -> [RetrievedChunk] {
+        var seenTerms = Set<String>()
+        let queryTerms = extractQueryTerms(query).filter { seenTerms.insert($0).inserted }
+        guard !queryTerms.isEmpty else { return [] }
+
+        let queryVariants = buildCorrectiveRetrievalQueries(from: query)
+        let chunkLookup: [String: DocumentChunk] = {
+            guard let allChunks else { return [:] }
+            var lookup: [String: DocumentChunk] = [:]
+            lookup.reserveCapacity(allChunks.count)
+            for chunk in allChunks {
+                lookup["\(chunk.documentId.uuidString)_\(chunk.metadata.chunkIndex)"] = chunk
+            }
+            return lookup
+        }()
+
+        var seenChunkIds = Set(existingCandidates.map { $0.chunk.id })
+        var seenPageKeys = Set(existingCandidates.compactMap { candidate -> String? in
+            guard let pageNumber = candidate.pageNumber else { return nil }
+            return "\(candidate.chunk.documentId.uuidString)_page_\(pageNumber)"
+        })
+        var scoredHits: [(chunk: RetrievedChunk, score: Float, structured: Bool)] = []
+
+        for variant in queryVariants {
+            let chunkHits = await SQLiteFullTextService.shared.searchChunks(
+                query: variant,
+                containerId: containerId,
+                limit: max(6, targetCount * 2)
+            )
+
+            for hit in chunkHits {
+                let lookupKey = "\(hit.documentId.uuidString)_\(hit.chunkIndex)"
+                guard let docChunk = chunkLookup[lookupKey], !seenChunkIds.contains(docChunk.id) else { continue }
+
+                let score = correctiveRetrievalScore(
+                    content: docChunk.content,
+                    queryTerms: queryTerms,
+                    structureType: docChunk.metadata.structureType,
+                    baseScore: 0.50
+                )
+                guard score >= 0.48 else { continue }
+
+                let docName = await documentName(for: docChunk.documentId)
+                let retrieved = RetrievedChunk(
+                    chunk: docChunk,
+                    similarityScore: score,
+                    rank: scoredHits.count,
+                    sourceDocument: docName,
+                    pageNumber: docChunk.metadata.pageNumber
+                )
+                scoredHits.append((
+                    chunk: retrieved,
+                    score: score,
+                    structured: looksTableLike(text: docChunk.content, structureType: docChunk.metadata.structureType)
+                ))
+                seenChunkIds.insert(docChunk.id)
+            }
+
+            let pageHits = await SQLiteFullTextService.shared.searchPages(
+                query: variant,
+                containerId: containerId,
+                limit: max(4, targetCount)
+            )
+
+            for hit in pageHits {
+                let pageKey = "\(hit.documentId.uuidString)_page_\(hit.pageNumber)"
+                guard seenPageKeys.insert(pageKey).inserted else { continue }
+
+                let snippet = extractSnippet(
+                    from: hit.content,
+                    queryTerms: queryTerms,
+                    maxChars: 1200
+                ).trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !snippet.isEmpty else { continue }
+
+                let structureType = looksTableLike(text: hit.content, structureType: nil) ? "table" : nil
+                let score = correctiveRetrievalScore(
+                    content: snippet,
+                    queryTerms: queryTerms,
+                    structureType: structureType,
+                    baseScore: 0.56
+                )
+                guard score >= 0.50 else { continue }
+
+                let syntheticChunk = DocumentChunk(
+                    documentId: hit.documentId,
+                    content: snippet,
+                    parentContent: nil,
+                    contextualPrefix: nil,
+                    embedding: [],
+                    metadata: ChunkMetadata(
+                        chunkIndex: max(0, hit.pageNumber * 1000),
+                        pageNumber: hit.pageNumber,
+                        keywords: queryTerms,
+                        hasNumericData: snippet.rangeOfCharacter(from: .decimalDigits) != nil,
+                        wordCount: wordCount(of: snippet),
+                        characterCount: snippet.count,
+                        structureType: structureType
+                    )
+                )
+
+                let docName = await documentName(for: hit.documentId)
+                let retrieved = RetrievedChunk(
+                    chunk: syntheticChunk,
+                    similarityScore: score,
+                    rank: scoredHits.count,
+                    sourceDocument: docName,
+                    pageNumber: hit.pageNumber
+                )
+                scoredHits.append((
+                    chunk: retrieved,
+                    score: score,
+                    structured: structureType == "table"
+                ))
+            }
+        }
+
+        scoredHits.sort {
+            if abs($0.score - $1.score) < 0.01 {
+                return $0.structured && !$1.structured
+            }
+            return $0.score > $1.score
+        }
+
+        let limited = scoredHits.prefix(max(targetCount, 6))
+        return limited.enumerated().map { index, entry in
+            RetrievedChunk(
+                chunk: entry.chunk.chunk,
+                similarityScore: entry.score,
+                rank: index,
+                sourceDocument: entry.chunk.sourceDocument,
+                pageNumber: entry.chunk.pageNumber
+            )
+        }
     }
 
     /// Guarantee that at least a subset of the retrieved chunks span multiple documents when available.
