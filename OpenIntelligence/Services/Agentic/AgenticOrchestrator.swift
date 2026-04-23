@@ -3596,6 +3596,13 @@ struct DocumentCluster {
     var chunks: [RetrievedChunk]
 }
 
+private struct DocumentSemanticProfile {
+    let documentName: String
+    let chunks: [RetrievedChunk]
+    let totalScore: Float
+    let weightedTerms: [String: Int]
+}
+
 /// Result from a reasoning chain
 struct ReasoningChainResult: Sendable {
     let finalAnswer: String
@@ -4359,8 +4366,18 @@ extension AgenticOrchestrator {
     /// A scored fact with relevance to the original query
     struct ScoredFact {
         let content: String
+        let normalizedClaim: String
+        let supportTerms: [String]
+        let evidenceKind: EvidenceKind
         var relevanceScore: Float  // 0-1, higher = more relevant to query
         let sessionAdded: Int      // When it was added (for recency bonus)
+
+        enum EvidenceKind: String {
+            case numeric
+            case cited
+            case procedural
+            case descriptive
+        }
     }
 
     /// Sub-question for query decomposition
@@ -4374,6 +4391,13 @@ extension AgenticOrchestrator {
     /// Evicts LOW RELEVANCE facts first, not just oldest
     /// Tracks which sub-questions have been answered for REAL confidence
     struct FactBank {
+        struct Update {
+            let addedFacts: Int
+            let noveltyScore: Float
+            let newlyAnsweredSubQuestions: Int
+            let evidenceCoverage: Float
+        }
+
         /// Core facts with relevance scores
         var scoredFacts: [ScoredFact] = []
         /// Maximum characters for the entire fact bank
@@ -4515,19 +4539,32 @@ extension AgenticOrchestrator {
         }
 
         /// Add new facts with relevance scoring
-        mutating func addFacts(from insight: String) {
+        mutating func addFacts(from insight: String) -> Update {
             currentSession += 1
 
             // Extract content based on query intent
             let newFacts = extractFactsFromInsight(insight)
+            var existingKeys = Set(scoredFacts.map { normalizedFactKey($0.content) })
+            let answeredBefore = subQuestions.filter(\ .answered).count
+            var addedFacts = 0
+            var noveltyScores: [Float] = []
 
             for factContent in newFacts {
+                let normalizedKey = normalizedFactKey(factContent)
+                guard !normalizedKey.isEmpty, !existingKeys.contains(normalizedKey) else { continue }
+
+                existingKeys.insert(normalizedKey)
+                noveltyScores.append(noveltyScore(for: factContent))
                 let score = scoreRelevance(factContent, session: currentSession)
                 scoredFacts.append(ScoredFact(
                     content: factContent,
+                    normalizedClaim: normalizedKey,
+                    supportTerms: supportTerms(for: factContent),
+                    evidenceKind: evidenceKind(for: factContent),
                     relevanceScore: score,
                     sessionAdded: currentSession
                 ))
+                addedFacts += 1
 
                 // Check if this fact addresses any sub-questions
                 updateSubQuestionCoverage(fact: factContent)
@@ -4535,6 +4572,18 @@ extension AgenticOrchestrator {
 
             // Compress using RELEVANCE-BASED eviction
             compressIntelligently()
+
+            let answeredAfter = subQuestions.filter(\ .answered).count
+            let averageNovelty = noveltyScores.isEmpty
+                ? 0
+                : noveltyScores.reduce(0, +) / Float(noveltyScores.count)
+
+            return Update(
+                addedFacts: addedFacts,
+                noveltyScore: averageNovelty,
+                newlyAnsweredSubQuestions: max(0, answeredAfter - answeredBefore),
+                evidenceCoverage: subQuestionConfidence
+            )
         }
 
         /// Compress by removing LEAST RELEVANT facts first
@@ -4556,6 +4605,9 @@ extension AgenticOrchestrator {
                 scoredFacts = scoredFacts.map { fact in
                     ScoredFact(
                         content: String(fact.content.prefix(100)),
+                        normalizedClaim: fact.normalizedClaim,
+                        supportTerms: fact.supportTerms,
+                        evidenceKind: fact.evidenceKind,
                         relevanceScore: fact.relevanceScore,
                         sessionAdded: fact.sessionAdded
                     )
@@ -4621,11 +4673,84 @@ extension AgenticOrchestrator {
             return extracted
         }
 
+        private func normalizedFactKey(_ fact: String) -> String {
+            fact.lowercased()
+                .replacingOccurrences(of: #"[^a-z0-9\s]"#, with: " ", options: .regularExpression)
+                .split(separator: " ")
+                .map(String.init)
+                .filter { $0.count > 3 && !Self.factStopWords.contains($0) }
+                .prefix(20)
+                .joined(separator: " ")
+        }
+
+        private func noveltyScore(for fact: String) -> Float {
+            let factTokens = tokenSet(for: fact)
+            guard !factTokens.isEmpty else { return 0 }
+            guard !scoredFacts.isEmpty else { return 1 }
+
+            let maxOverlap = scoredFacts.reduce(Float(0)) { currentMax, existing in
+                let existingTokens = tokenSet(for: existing.content)
+                guard !existingTokens.isEmpty else { return currentMax }
+                let overlap = Float(factTokens.intersection(existingTokens).count)
+                let union = Float(factTokens.union(existingTokens).count)
+                guard union > 0 else { return currentMax }
+                return max(currentMax, overlap / union)
+            }
+
+            return max(0, 1 - maxOverlap)
+        }
+
+        private func supportTerms(for fact: String) -> [String] {
+            var seen: Set<String> = []
+            return fact.lowercased()
+                .replacingOccurrences(of: #"[^a-z0-9\s]"#, with: " ", options: .regularExpression)
+                .split(separator: " ")
+                .map(String.init)
+                .filter { $0.count > 3 && !Self.factStopWords.contains($0) }
+                .filter { seen.insert($0).inserted }
+                .prefix(5)
+                .map { $0 }
+        }
+
+        private func evidenceKind(for fact: String) -> ScoredFact.EvidenceKind {
+            let lower = fact.lowercased()
+            if fact.contains(where: { $0.isNumber }) || fact.contains("%") {
+                return .numeric
+            }
+            if fact.contains("[S") || (fact.contains("(") && fact.contains(")")) {
+                return .cited
+            }
+            if lower.hasPrefix("step") || lower.hasPrefix("first") || lower.hasPrefix("then") {
+                return .procedural
+            }
+            return .descriptive
+        }
+
+        private func tokenSet(for text: String) -> Set<String> {
+            Set(
+                text.lowercased()
+                    .replacingOccurrences(of: #"[^a-z0-9\s]"#, with: " ", options: .regularExpression)
+                    .split(separator: " ")
+                    .map(String.init)
+                    .filter { $0.count > 3 && !Self.factStopWords.contains($0) }
+            )
+        }
+
+        private static let factStopWords: Set<String> = [
+            "about", "after", "also", "among", "been", "being", "could", "from", "into", "just",
+            "more", "much", "only", "over", "same", "some", "than", "that", "their", "there",
+            "these", "they", "this", "very", "were", "what", "when", "where", "which", "with",
+            "would"
+        ]
+
         /// Get fact bank as context string (sorted by relevance)
         func asContext() -> String {
             if scoredFacts.isEmpty { return "" }
             let sorted = scoredFacts.sorted { $0.relevanceScore > $1.relevanceScore }
-            return "ESTABLISHED FACTS:\n• " + sorted.map(\.content).joined(separator: "\n• ")
+            return "CLAIM BANK:\n" + sorted.map { fact in
+                let termSummary = fact.supportTerms.isEmpty ? "" : "; terms=" + fact.supportTerms.joined(separator: ",")
+                return "• claim=\(fact.content); kind=\(fact.evidenceKind.rawValue)\(termSummary)"
+            }.joined(separator: "\n")
         }
 
         /// Get REAL confidence based on sub-question coverage
@@ -4643,7 +4768,7 @@ extension AgenticOrchestrator {
         /// Get count and size info
         var summary: String {
             let answered = subQuestions.filter(\.answered).count
-            return "\(scoredFacts.count) facts, \(answered)/\(subQuestions.count) sub-Qs answered"
+            return "\(scoredFacts.count) claims, \(answered)/\(subQuestions.count) sub-Qs answered"
         }
 
         /// Legacy accessor for coreFacts (compatibility)
@@ -4702,6 +4827,7 @@ extension AgenticOrchestrator {
 
         // Track content saturation via semantic similarity
         var saturationStreak = 0
+        var lowNoveltyStreak = 0
         var consecutiveFailures = 0 // Track empty/failed responses from model
         let saturationThreshold = 3 // Trigger expansion after 3 consecutive low-value sessions
         var expansionCount = 0
@@ -4731,10 +4857,20 @@ extension AgenticOrchestrator {
         // THE UNLIMITED LOOP - runs until confidence OR exhaustion
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         for sessionNum in 1...maxSessions {
-            // Check if we've hit target confidence
-            if confidence >= targetConfidence {
+            let evidenceCoverageTarget: Float = factBank.subQuestions.count >= 4 ? 0.70 : 0.55
+            let noveltyExhausted = lowNoveltyStreak >= 2 || saturationStreak >= saturationThreshold
+                || usedChunkIds.count >= sortedChunks.count
+
+            // Stop only when confidence, evidence coverage, and novelty exhaustion all line up.
+            if confidence >= targetConfidence,
+               factBank.subQuestionConfidence >= evidenceCoverageTarget,
+               noveltyExhausted
+            {
                 terminationReason = .confidenceReached
-                Log.info("[Unlimited] Session \(sessionNum): Confidence \(Int(confidence * 100))% >= \(Int(targetConfidence * 100))% - STOPPING", category: .llm)
+                Log.info(
+                    "[Unlimited] Session \(sessionNum): confidence=\(Int(confidence * 100))%, coverage=\(Int(factBank.subQuestionConfidence * 100))%, lowNoveltyStreak=\(lowNoveltyStreak) - STOPPING",
+                    category: .llm
+                )
                 break
             }
 
@@ -4908,25 +5044,40 @@ extension AgenticOrchestrator {
             // HIERARCHICAL COMPRESSION: Extract facts into Fact Bank
             // This is the "alternator" that never overflows
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            factBank.addFacts(from: insight)
+            let factUpdate = factBank.addFacts(from: insight)
+            if factUpdate.addedFacts == 0 || factUpdate.noveltyScore < 0.18 {
+                lowNoveltyStreak += 1
+            } else {
+                lowNoveltyStreak = 0
+            }
+
             if sessionNum % 3 == 0 {
-                Log.info("[Unlimited] Fact Bank: \(factBank.summary)", category: .llm)
+                Log.info(
+                    "[Unlimited] Fact Bank: \(factBank.summary), +\(factUpdate.addedFacts) facts, novelty=\(Int(factUpdate.noveltyScore * 100))%, coverage=\(Int(factUpdate.evidenceCoverage * 100))%",
+                    category: .llm
+                )
             }
 
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
             // REAL CONFIDENCE CALCULATION - blends session progress with sub-question coverage
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            let usedSourceCoverage = Float(usedChunkIds.count) / Float(max(sortedChunks.count, 1))
             let (newConfidence, saturationScore) = calculateRealConfidence(
                 insight: insight,
                 allInsights: allInsights,
                 query: query,
                 totalSources: sortedChunks.count,
                 sessionNum: sessionNum,
-                subQuestionConfidence: factBank.subQuestionConfidence
+                subQuestionConfidence: factBank.subQuestionConfidence,
+                noveltyScore: factUpdate.noveltyScore,
+                sourceCoverage: usedSourceCoverage
             )
 
             // Update saturation tracking
-            if saturationScore > 0.85 {
+            if saturationScore > 0.85,
+               factUpdate.noveltyScore < 0.18,
+               factUpdate.newlyAnsweredSubQuestions == 0
+            {
                 saturationStreak += 1
                 Log.info("[Unlimited] Session \(sessionNum): High saturation (\(Int(saturationScore * 100))%), streak=\(saturationStreak)", category: .llm)
             } else {
@@ -4972,7 +5123,10 @@ extension AgenticOrchestrator {
             steps.append(step)
             await onStep?(step)
 
-            Log.info("[Unlimited] Session \(sessionNum): confidence=\(Int(confidence * 100))%, saturation=\(Int(saturationScore * 100))%, tokens=\(response.tokensGenerated)", category: .llm)
+            Log.info(
+                "[Unlimited] Session \(sessionNum): confidence=\(Int(confidence * 100))%, coverage=\(Int(factBank.subQuestionConfidence * 100))%, novelty=\(Int(factUpdate.noveltyScore * 100))%, saturation=\(Int(saturationScore * 100))%, tokens=\(response.tokensGenerated)",
+                category: .llm
+            )
         }
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -5035,25 +5189,31 @@ extension AgenticOrchestrator {
         query: String,
         totalSources: Int,
         sessionNum: Int,
-        subQuestionConfidence: Float
+        subQuestionConfidence: Float,
+        noveltyScore: Float,
+        sourceCoverage: Float
     ) -> (confidence: Float, saturationScore: Float) {
-        // Factor 1: Session progress (0-0.50) - primary driver, logarithmic curve
-        // Reaches ~50% by session 10, ~70% by session 20, ~85% by session 35
-        let sessionProgress = min(0.85, log(Float(sessionNum) + 1) / log(50.0) * 0.85)
+        // Factor 1: Session progress (0-0.68) - still matters, but no longer dominates.
+        let sessionProgress = min(0.68, log(Float(sessionNum) + 1) / log(50.0) * 0.68)
 
-        // Factor 2: Sub-question coverage bonus (0-0.10)
-        // Adds up to 10% if sub-questions are being answered
-        let subQBonus = subQuestionConfidence * 0.10
+        // Factor 2: Evidence coverage bonus (0-0.18)
+        let subQBonus = subQuestionConfidence * 0.18
 
-        // Factor 3: Content depth bonus (0-0.05)
+        // Factor 3: Source coverage bonus (0-0.05)
+        let sourceCoverageBonus = min(sourceCoverage, 1.0) * 0.05
+
+        // Factor 4: Content depth bonus (0-0.03)
         let totalChars = allInsights.joined().count
-        let depthBonus = min(Float(totalChars) / 20000.0, 1.0) * 0.05
+        let depthBonus = min(Float(totalChars) / 20000.0, 1.0) * 0.03
 
-        // Factor 4: Query term coverage (0-0.05)
+        // Factor 5: Query term coverage (0-0.04)
         let queryTerms = Set(query.lowercased().split(separator: " ").filter { $0.count > 3 })
         let answerText = allInsights.joined().lowercased()
         let termsFound = queryTerms.filter { answerText.contains($0) }.count
-        let queryBonus = Float(termsFound) / max(1, Float(queryTerms.count)) * 0.05
+        let queryBonus = Float(termsFound) / max(1, Float(queryTerms.count)) * 0.04
+
+        // Factor 6: Novelty bonus (0-0.05) - new evidence should increase confidence.
+        let noveltyBonus = min(0.05, max(0, noveltyScore) * 0.05)
 
         // Calculate saturation (diminishing returns indicator)
         var saturationScore: Float = 0
@@ -5064,11 +5224,14 @@ extension AgenticOrchestrator {
             saturationScore = Float(overlap) / max(1, Float(recentWords.count))
         }
 
+        // Penalize saturation so repeated low-value passes do not inflate confidence.
+        let saturationPenalty = saturationScore * 0.10
+
         // Combine all factors, cap at 98%
-        let rawConfidence = sessionProgress + subQBonus + depthBonus + queryBonus
+        let rawConfidence = sessionProgress + subQBonus + sourceCoverageBonus + depthBonus + queryBonus + noveltyBonus - saturationPenalty
         let finalConfidence = min(rawConfidence, 0.98)
 
-        return (finalConfidence, saturationScore)
+        return (max(0.05, finalConfidence), saturationScore)
     }
 
     /// Build prompt for unlimited session based on stage
@@ -5497,32 +5660,169 @@ extension AgenticOrchestrator {
             docToChunks[docName, default: []].append(chunk)
         }
 
-        // Sort documents by total relevance (sum of chunk scores)
-        let sortedDocs = docToChunks.keys.sorted { doc1, doc2 in
-            let score1 = docToChunks[doc1, default: []].reduce(0.0) { $0 + $1.similarityScore }
-            let score2 = docToChunks[doc2, default: []].reduce(0.0) { $0 + $1.similarityScore }
-            return score1 > score2
+        let profiles = docToChunks.map { documentName, chunks in
+            buildSemanticProfile(documentName: documentName, chunks: chunks)
+        }.sorted { lhs, rhs in
+            lhs.totalScore > rhs.totalScore
         }
 
-        // Distribute documents into clusters
-        let numClusters = min(maxClusters, max(1, sortedDocs.count / minDocsPerCluster))
-        var clusters: [DocumentCluster] = (0 ..< numClusters).map { idx in
-            DocumentCluster(name: "Research Cluster \(idx + 1)", documents: [], chunks: [])
+        guard !profiles.isEmpty else { return [] }
+
+        let numClusters = min(maxClusters, max(1, Int(ceil(Double(profiles.count) / Double(max(1, minDocsPerCluster))))))
+        var clusterProfiles: [[DocumentSemanticProfile]] = Array(repeating: [], count: numClusters)
+        var clusterTerms: [[String: Int]] = Array(repeating: [:], count: numClusters)
+
+        for (index, profile) in profiles.prefix(numClusters).enumerated() {
+            clusterProfiles[index].append(profile)
+            clusterTerms[index] = profile.weightedTerms
         }
 
-        // Round-robin distribution to balance cluster sizes
-        for (idx, docName) in sortedDocs.enumerated() {
-            let clusterIdx = idx % numClusters
-            clusters[clusterIdx].documents.append(docName)
-            clusters[clusterIdx].chunks.append(contentsOf: docToChunks[docName, default: []])
+        for profile in profiles.dropFirst(numClusters) {
+            var bestIndex = 0
+            var bestScore = -Float.infinity
+
+            for index in 0..<numClusters {
+                let score = semanticClusterScore(
+                    profile: profile,
+                    clusterTerms: clusterTerms[index],
+                    clusterSize: clusterProfiles[index].count
+                )
+                if score > bestScore {
+                    bestScore = score
+                    bestIndex = index
+                }
+            }
+
+            clusterProfiles[bestIndex].append(profile)
+            clusterTerms[bestIndex] = mergedTermWeights(clusterTerms[bestIndex], with: profile.weightedTerms)
         }
 
-        // Sort chunks within each cluster by relevance
-        for i in 0 ..< clusters.count {
-            clusters[i].chunks.sort { $0.similarityScore > $1.similarityScore }
+        return clusterProfiles.enumerated().compactMap { index, profilesInCluster in
+            guard !profilesInCluster.isEmpty else { return nil }
+            let clusterChunks = profilesInCluster
+                .flatMap(\ .chunks)
+                .sorted { $0.similarityScore > $1.similarityScore }
+
+            return DocumentCluster(
+                name: semanticClusterName(index: index, terms: clusterTerms[index]),
+                documents: profilesInCluster.map(\ .documentName),
+                chunks: clusterChunks
+            )
+        }
+    }
+
+    private func buildSemanticProfile(
+        documentName: String,
+        chunks: [RetrievedChunk]
+    ) -> DocumentSemanticProfile {
+        var weightedTerms: [String: Int] = [:]
+
+        for term in semanticTerms(from: documentName, minimumLength: 3, limit: 6) {
+            weightedTerms[term, default: 0] += 2
         }
 
-        return clusters.filter { !$0.chunks.isEmpty }
+        for chunk in chunks {
+            for term in chunk.chunk.metadata.keywords.map({ $0.lowercased() }) where term.count > 2 {
+                weightedTerms[term, default: 0] += 3
+            }
+            for term in chunk.chunk.metadata.entities.map({ $0.lowercased() }) where term.count > 2 {
+                weightedTerms[term, default: 0] += 3
+            }
+            if let sectionTitle = chunk.chunk.metadata.sectionTitle {
+                for term in semanticTerms(from: sectionTitle, minimumLength: 3, limit: 5) {
+                    weightedTerms[term, default: 0] += 2
+                }
+            }
+            if let sectionPath = chunk.chunk.metadata.sectionPath {
+                for term in sectionPath.flatMap({ semanticTerms(from: $0, minimumLength: 3, limit: 4) }) {
+                    weightedTerms[term, default: 0] += 2
+                }
+            }
+            if let structureType = chunk.chunk.metadata.structureType?.lowercased(), structureType.count > 2 {
+                weightedTerms[structureType, default: 0] += 2
+            }
+
+            let content = chunk.chunk.parentContent ?? chunk.chunk.content
+            for term in semanticTerms(from: content, minimumLength: 4, limit: 18) {
+                weightedTerms[term, default: 0] += 1
+            }
+        }
+
+        let totalScore = chunks.reduce(0) { $0 + $1.similarityScore }
+
+        return DocumentSemanticProfile(
+            documentName: documentName,
+            chunks: chunks,
+            totalScore: totalScore,
+            weightedTerms: weightedTerms
+        )
+    }
+
+    private func semanticTerms(
+        from text: String,
+        minimumLength: Int,
+        limit: Int
+    ) -> [String] {
+        Array(
+            Set(
+                text.lowercased()
+                    .replacingOccurrences(of: #"[^a-z0-9\s]"#, with: " ", options: .regularExpression)
+                    .split(separator: " ")
+                    .map(String.init)
+                    .filter { $0.count >= minimumLength && !Self.commonStopWords.contains($0) }
+            )
+            .prefix(limit)
+        )
+    }
+
+    private func semanticClusterScore(
+        profile: DocumentSemanticProfile,
+        clusterTerms: [String: Int],
+        clusterSize: Int
+    ) -> Float {
+        guard !clusterTerms.isEmpty else { return profile.totalScore }
+
+        let sharedTerms = Set(profile.weightedTerms.keys).intersection(clusterTerms.keys)
+        let overlapWeight = sharedTerms.reduce(0) { partial, term in
+            partial + min(profile.weightedTerms[term] ?? 0, clusterTerms[term] ?? 0)
+        }
+
+        let unionTerms = Set(profile.weightedTerms.keys).union(clusterTerms.keys)
+        let unionWeight = unionTerms.reduce(0) { partial, term in
+            partial + max(profile.weightedTerms[term] ?? 0, clusterTerms[term] ?? 0)
+        }
+
+        let semanticSimilarity = unionWeight == 0 ? 0 : Float(overlapWeight) / Float(unionWeight)
+        let relevanceBonus = min(profile.totalScore / 10.0, 0.25)
+        let sizePenalty = Float(max(0, clusterSize - 1)) * 0.03
+        return semanticSimilarity + relevanceBonus - sizePenalty
+    }
+
+    private func mergedTermWeights(
+        _ lhs: [String: Int],
+        with rhs: [String: Int]
+    ) -> [String: Int] {
+        rhs.reduce(into: lhs) { partial, entry in
+            partial[entry.key, default: 0] += entry.value
+        }
+    }
+
+    private func semanticClusterName(index: Int, terms: [String: Int]) -> String {
+        let topTerms = terms
+            .sorted { lhs, rhs in
+                if lhs.value == rhs.value {
+                    return lhs.key < rhs.key
+                }
+                return lhs.value > rhs.value
+            }
+            .map(\ .key)
+            .prefix(2)
+
+        guard !topTerms.isEmpty else {
+            return "Semantic Cluster \(index + 1)"
+        }
+
+        return "Semantic Cluster \(index + 1): \(topTerms.joined(separator: " / "))"
     }
 
     /// Execute a reasoning chain for a single document cluster

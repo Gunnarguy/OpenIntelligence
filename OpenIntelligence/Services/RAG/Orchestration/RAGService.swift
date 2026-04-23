@@ -4896,11 +4896,15 @@ class RAGService: ObservableObject {
                 verificationResult: nil,
                 loops: max(1, result.steps.count)
             )
+            let displayResponseText = resolvedDisplayResponse(
+                fallback: agenticAnswer,
+                structuredAnswer: structuredAnswer
+            )
 
             return RAGResponse(
                 queryId: UUID(),
                 retrievedChunks: result.retrievedChunks,
-                generatedResponse: agenticAnswer,
+                generatedResponse: displayResponseText,
                 metadata: ResponseMetadata(
                     timeToFirstToken: totalTime / Double(max(1, result.steps.count)), // Estimate TTFT per step
                     totalGenerationTime: totalTime,
@@ -8272,7 +8276,16 @@ class RAGService: ObservableObject {
                         let extractiveResponse = RAGResponse(
                             queryId: ragQueryValue.id,
                             retrievedChunks: includedRetrievedChunks,
-                            generatedResponse: summary.summaryText,
+                            generatedResponse: resolvedDisplayResponse(
+                                fallback: summary.summaryText,
+                                structuredAnswer: StructuredAnswer.from(
+                                    response: summary.summaryText,
+                                    retrievedChunks: includedRetrievedChunks,
+                                    answerIntent: answerIntent,
+                                    verificationResult: nil,
+                                    loops: 1
+                                )
+                            ),
                             metadata: extractiveMetadata,
                             confidenceScore: summary.coverageScore,
                             qualityWarnings: [],
@@ -9367,6 +9380,10 @@ class RAGService: ObservableObject {
                         structuredGeneration: llmResponse.structuredRAGGeneration,
                         loops: reasoningTraceForMetadata?.count ?? 1
                     )
+                    let displayResponseText = resolvedDisplayResponse(
+                        fallback: responseText,
+                        structuredAnswer: structuredAnswer
+                    )
 
                     // Log structured answer summary
                     Log.debug(
@@ -9377,7 +9394,7 @@ class RAGService: ObservableObject {
                     let response = RAGResponse(
                         queryId: ragQueryValue.id,
                         retrievedChunks: generationRetrievedChunks,
-                        generatedResponse: responseText,
+                        generatedResponse: displayResponseText,
                         metadata: metadata,
                         confidenceScore: confidenceScore,
                         qualityWarnings: finalWarnings,
@@ -9421,6 +9438,11 @@ class RAGService: ObservableObject {
                         )
                     }
 
+                    let recoveredDisplayText = resolvedDisplayResponse(
+                        fallback: recoveredResponse,
+                        structuredAnswer: recoveredStructuredAnswer
+                    )
+
                     let metadata = ResponseMetadata(
                         timeToFirstToken: nil,
                         totalGenerationTime: generationTime,
@@ -9436,7 +9458,7 @@ class RAGService: ObservableObject {
                     let response = RAGResponse(
                         queryId: ragQueryValue.id,
                         retrievedChunks: generationRetrievedChunks,
-                        generatedResponse: recoveredResponse,
+                        generatedResponse: recoveredDisplayText,
                         metadata: metadata,
                         confidenceScore: 0.0,
                         qualityWarnings: ["Response processing recovery: \(error.localizedDescription)"],
@@ -9554,19 +9576,23 @@ class RAGService: ObservableObject {
                     embeddingProvider: embeddingProviderId
                 )
 
+                let structuredAnswer = StructuredAnswer.from(
+                    response: llmResponse.text,
+                    retrievedChunks: [],
+                    answerIntent: answerIntent,
+                    verificationResult: nil,
+                    structuredGeneration: llmResponse.structuredRAGGeneration,
+                    loops: 1
+                )
                 let response = RAGResponse(
                     queryId: ragQueryValue.id,
                     retrievedChunks: [], // No chunks in direct chat mode
-                    generatedResponse: llmResponse.text,
+                    generatedResponse: resolvedDisplayResponse(
+                        fallback: llmResponse.text,
+                        structuredAnswer: structuredAnswer
+                    ),
                     metadata: metadata,
-                    structuredAnswer: StructuredAnswer.from(
-                        response: llmResponse.text,
-                        retrievedChunks: [],
-                        answerIntent: answerIntent,
-                        verificationResult: nil,
-                        structuredGeneration: llmResponse.structuredRAGGeneration,
-                        loops: 1
-                    )
+                    structuredAnswer: structuredAnswer
                 )
 
                 let totalTime = Date().timeIntervalSince(pipelineStartTime)
@@ -9843,21 +9869,25 @@ class RAGService: ObservableObject {
                 toolCallsMade: llmResponse.toolCallsMade,
                 embeddingProvider: embeddingProviderId
             )
+            let structuredAnswer = StructuredAnswer.from(
+                response: llmResponse.text,
+                retrievedChunks: usedRetrieved,
+                answerIntent: answerIntent,
+                verificationResult: verificationResult,
+                structuredGeneration: llmResponse.structuredRAGGeneration,
+                loops: 1
+            )
             return RAGResponse(
                 queryId: ragQuery.id,
                 retrievedChunks: usedRetrieved,
-                generatedResponse: llmResponse.text,
+                generatedResponse: resolvedDisplayResponse(
+                    fallback: llmResponse.text,
+                    structuredAnswer: structuredAnswer
+                ),
                 metadata: metadata,
                 confidenceScore: verificationResult?.overallConfidence ?? 0.0,
                 qualityWarnings: warnings,
-                structuredAnswer: StructuredAnswer.from(
-                    response: llmResponse.text,
-                    retrievedChunks: usedRetrieved,
-                    answerIntent: answerIntent,
-                    verificationResult: verificationResult,
-                    structuredGeneration: llmResponse.structuredRAGGeneration,
-                    loops: 1
-                )
+                structuredAnswer: structuredAnswer
             )
             }
         } catch {
@@ -9986,21 +10016,25 @@ class RAGService: ObservableObject {
         var warnings: [String] = []
         if let note = fallbackNote { warnings.append(note) }
 
+        let structuredAnswer = StructuredAnswer.from(
+            response: llmResponse.text,
+            retrievedChunks: [],
+            answerIntent: answerIntent,
+            verificationResult: nil,
+            structuredGeneration: llmResponse.structuredRAGGeneration,
+            loops: 1
+        )
         let response = RAGResponse(
             queryId: ragQuery.id,
             retrievedChunks: [],
-            generatedResponse: llmResponse.text,
+            generatedResponse: resolvedDisplayResponse(
+                fallback: llmResponse.text,
+                structuredAnswer: structuredAnswer
+            ),
             metadata: metadata,
             confidenceScore: 1.0,
             qualityWarnings: warnings,
-            structuredAnswer: StructuredAnswer.from(
-                response: llmResponse.text,
-                retrievedChunks: [],
-                answerIntent: answerIntent,
-                verificationResult: nil,
-                structuredGeneration: llmResponse.structuredRAGGeneration,
-                loops: 1
-            )
+            structuredAnswer: structuredAnswer
         )
 
         let totalTime = Date().timeIntervalSince(pipelineStartTime)
@@ -11724,6 +11758,14 @@ class RAGService: ObservableObject {
                 pageNumber: retrieved.pageNumber
             )
         }
+    }
+
+    private func resolvedDisplayResponse(
+        fallback: String,
+        structuredAnswer: StructuredAnswer?
+    ) -> String {
+        let candidate = structuredAnswer?.answer.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return candidate.isEmpty ? fallback : candidate
     }
 
     private func buildEvidencePackContext(

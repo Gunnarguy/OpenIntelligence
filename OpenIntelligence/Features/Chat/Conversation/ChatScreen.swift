@@ -1378,14 +1378,17 @@ struct ChatScreen: View {
         flushStreamingBufferToVisibleText()
 
         // If we have partial text, save it as a message
-        if !streamingText.isEmpty {
+        let sanitizedPartial = sanitizeFinalResponse(streamingText)
+        if let partialContent = partialResponseMessageContent(
+            sanitizedPartial: sanitizedPartial,
+            userInitiatedStop: true
+        ) {
             var partial = ChatMessage(
                 role: .assistant,
-                content: streamingText + "\n\n*(Generation stopped)*"
+                content: partialContent
             )
             partial.containerId = ragService.containerService.activeContainerId
-            messages.append(partial)
-            persistChatHistory(for: partial.containerId)
+            appendAndPersistMessage(partial, for: partial.containerId ?? ragService.containerService.activeContainerId)
         }
 
         // Reset all processing state
@@ -2360,23 +2363,34 @@ struct ChatScreen: View {
                     }
 
                     let friendlyMessage = userFacingErrorMessage(error)
-
                     self.toastManager.clearAll()
-                    let toastTitle = friendlyMessage.count > 42 ? "Couldn't complete" : friendlyMessage
-                    self.pushToast(toastTitle, icon: "exclamationmark.triangle.fill", tint: .red)
 
                     self.flushStreamingBufferToVisibleText()
                     let partial = self.streamingText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let sanitizedPartial = self.sanitizeFinalResponse(partial)
+                    let preservedAsAnswer = self.shouldKeepPartialResponseAsAnswer(sanitizedPartial)
 
-                    if !partial.isEmpty {
-                        let note = "\n\n*(Generation stopped. \(friendlyMessage))*"
+                    if let partialContent = self.partialResponseMessageContent(
+                        sanitizedPartial: sanitizedPartial,
+                        failureMessage: friendlyMessage
+                    ) {
+                        if preservedAsAnswer {
+                            self.pushToast("Saved partial answer", icon: "checkmark.circle.fill", tint: .orange)
+                        } else {
+                            let toastTitle = friendlyMessage.count > 42 ? "Couldn't complete" : friendlyMessage
+                            self.pushToast(toastTitle, icon: "exclamationmark.triangle.fill", tint: .red)
+                        }
+
                         var partialMessage = ChatMessage(
                             role: .assistant,
-                            content: partial + note
+                            content: partialContent
                         )
                         partialMessage.containerId = capturedUsedContainerId
                         self.appendAndPersistMessage(partialMessage, for: capturedUsedContainerId)
                     } else {
+                        let toastTitle = friendlyMessage.count > 42 ? "Couldn't complete" : friendlyMessage
+                        self.pushToast(toastTitle, icon: "exclamationmark.triangle.fill", tint: .red)
+
                         var errorMsg = ChatMessage(
                             role: .assistant,
                             content: "\(friendlyMessage)\n\nPlease try again."
@@ -2574,6 +2588,53 @@ struct ChatScreen: View {
         }
 
         return cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Returns the text to persist for an interrupted response.
+    /// Strong partial answers are kept as-is; weak fragments stay visibly marked as partial.
+    private func partialResponseMessageContent(
+        sanitizedPartial: String,
+        failureMessage: String? = nil,
+        userInitiatedStop: Bool = false
+    ) -> String? {
+        let cleaned = sanitizedPartial.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty else { return nil }
+
+        if userInitiatedStop || shouldKeepPartialResponseAsAnswer(cleaned) {
+            return cleaned
+        }
+
+        guard let failureMessage, !failureMessage.isEmpty else {
+            return cleaned + "\n\n*(Partial answer)*"
+        }
+
+        return cleaned + "\n\n*(Partial answer. \(failureMessage))*"
+    }
+
+    /// Heuristic for deciding whether an interrupted response is already useful enough
+    /// to keep without an inline failure footer.
+    private func shouldKeepPartialResponseAsAnswer(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 180 else { return false }
+
+        let hasCitations = trimmed.range(of: #"\[S\d+\]"#, options: .regularExpression) != nil
+        if hasCitations { return true }
+
+        let sentenceCount = trimmed
+            .components(separatedBy: CharacterSet(charactersIn: ".!?"))
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { $0.count >= 20 }
+            .count
+
+        if sentenceCount >= 4 { return true }
+        if sentenceCount >= 3 && trimmed.count >= 240 { return true }
+
+        let hasStructuredLayout = trimmed.contains("\n### ") ||
+            trimmed.contains("\n## ") ||
+            trimmed.contains("\n- ") ||
+            trimmed.contains("\n1. ")
+
+        return hasStructuredLayout && sentenceCount >= 2 && trimmed.count >= 220
     }
 
     private func userFacingErrorMessage(_ error: Error) -> String {

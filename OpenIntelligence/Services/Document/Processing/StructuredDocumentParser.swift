@@ -163,13 +163,15 @@ struct TableData: Sendable {
         }
     }
 
-    /// Convert table to a text representation that preserves structure for retrieval
-    /// Uses THREE complementary formats for maximum retrievability across ANY domain:
-    /// 1. Natural language sentences ("The viscosity grade is SAE 0W-20")
-    /// 2. Key-value pairs ("Viscosity Grade: SAE 0W-20")
-    /// 3. Markdown table format (for LLM comprehension)
+    /// Convert table to a text representation that preserves structure for retrieval.
+    /// The representation keeps multiple views of the same table so retrieval can match
+    /// by schema, row record, individual cell, or full-table context.
     nonisolated var textRepresentation: String {
         var lines: [String] = []
+        let columnCount = maxColumnCount
+        let headers = normalizedHeaders(for: columnCount)
+        let records = rowRecords(headers: headers)
+        let cells = cellDescriptions(headers: headers)
 
         // DEBUG: Log table structure
         Log.debug("[TableData] Building textRepresentation: \(rows.count) rows, \(rows.first?.count ?? 0) cols, headerRow=\(headerRow != nil)", category: .ingestion)
@@ -181,6 +183,12 @@ struct TableData: Sendable {
             lines.append("Table:")
         }
         lines.append("")
+
+        if let headers, !headers.isEmpty {
+            lines.append("[Schema]")
+            lines.append("Columns: " + headers.joined(separator: " | "))
+            lines.append("")
+        }
 
         // === Section 2: Natural Language Summary (UNIVERSAL) ===
         // Generate plain English sentences from key-value pairs
@@ -201,9 +209,15 @@ struct TableData: Sendable {
                 lines.append("\(key): \(value)")
             }
             lines.append("")
+        }
+
+        // === Section 3: Row-level records (preserves cross-cell relationships) ===
+        if !records.isEmpty {
+            lines.append("[Rows]")
+            lines.append(contentsOf: records)
+            lines.append("")
         } else if rows.count > 0 {
-            // === Fallback: Row-by-row content (when no key-value structure detected) ===
-            // This ensures table content is ALWAYS searchable even without headers
+            // Fallback for unusual row shapes when we can't build labeled records.
             lines.append("[Row Contents]")
             for (rowIndex, row) in rows.enumerated() {
                 let rowContent = row.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }.joined(separator: ", ")
@@ -218,7 +232,14 @@ struct TableData: Sendable {
             lines.append("")
         }
 
-        // === Section 4: Detected Entities (Vision auto-extraction) ===
+        // === Section 4: Cell-level anchors (high precision lookup) ===
+        if !cells.isEmpty && totalCellCount <= 120 {
+            lines.append("[Cells]")
+            lines.append(contentsOf: cells)
+            lines.append("")
+        }
+
+        // === Section 5: Detected Entities (Vision auto-extraction) ===
         if !detectedEntities.isEmpty {
             lines.append("[Detected Data]")
             for entity in detectedEntities {
@@ -227,28 +248,126 @@ struct TableData: Sendable {
             lines.append("")
         }
 
-        // === Section 5: Full Markdown Table (for LLM comprehension) ===
+        // === Section 6: Full Markdown Table (for LLM comprehension) ===
         lines.append("[Table Data]")
-        for (index, row) in rows.enumerated() {
+        for (index, row) in normalizedRows.enumerated() {
             let formattedRow = "| " + row.joined(separator: " | ") + " |"
             lines.append(formattedRow)
 
             // Add separator after header row with alignment hints
             if index == 0 && headerRow != nil {
-                let alignmentMarkers = cellAlignments.first?.map { alignment -> String in
+                let alignmentMarkers = normalizedAlignmentRow(at: 0, columnCount: columnCount).map { alignment -> String in
                     switch alignment {
                     case .left: return ":---"
                     case .right: return "---:"
                     case .center: return ":---:"
                     case .unknown: return "---"
                     }
-                } ?? row.map { _ in "---" }
+                }
                 let separator = "|" + alignmentMarkers.joined(separator: "|") + "|"
                 lines.append(separator)
             }
         }
 
         return lines.joined(separator: "\n")
+    }
+
+    nonisolated private var maxColumnCount: Int {
+        rows.map(\.count).max() ?? 0
+    }
+
+    nonisolated private var totalCellCount: Int {
+        normalizedRows.reduce(0) { total, row in
+            total + row.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.count
+        }
+    }
+
+    nonisolated private var normalizedRows: [[String]] {
+        let columnCount = maxColumnCount
+        guard columnCount > 0 else { return rows }
+
+        return rows.map { row in
+            var normalized = row.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            if normalized.count < columnCount {
+                normalized.append(contentsOf: Array(repeating: "", count: columnCount - normalized.count))
+            } else if normalized.count > columnCount {
+                normalized = Array(normalized.prefix(columnCount))
+            }
+            return normalized
+        }
+    }
+
+    nonisolated private func normalizedHeaders(for columnCount: Int) -> [String]? {
+        guard columnCount > 0, let headerRow else { return nil }
+
+        return (0..<columnCount).map { columnIndex in
+            let rawHeader = columnIndex < headerRow.count ? headerRow[columnIndex] : ""
+            let trimmedHeader = rawHeader.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmedHeader.isEmpty ? "Column \(columnIndex + 1)" : trimmedHeader
+        }
+    }
+
+    nonisolated private func normalizedAlignmentRow(at index: Int, columnCount: Int) -> [TableCellAlignment] {
+        guard index < cellAlignments.count else {
+            return Array(repeating: .unknown, count: max(0, columnCount))
+        }
+
+        var row = cellAlignments[index]
+        if row.count < columnCount {
+            row.append(contentsOf: Array(repeating: .unknown, count: columnCount - row.count))
+        } else if row.count > columnCount {
+            row = Array(row.prefix(columnCount))
+        }
+        return row
+    }
+
+    nonisolated private func rowRecords(headers: [String]?) -> [String] {
+        let sourceRows: ArraySlice<[String]>
+        if headerRow != nil && normalizedRows.count > 1 {
+            sourceRows = normalizedRows.dropFirst()
+        } else {
+            sourceRows = ArraySlice(normalizedRows)
+        }
+
+        return sourceRows.enumerated().compactMap { offset, row in
+            if headers == nil, row.count >= 2 {
+                let key = row[0].trimmingCharacters(in: .whitespacesAndNewlines)
+                let value = row[1].trimmingCharacters(in: .whitespacesAndNewlines)
+                if !key.isEmpty && !value.isEmpty {
+                    return "Row \(offset + 1): \(key)=\(value)"
+                }
+            }
+
+            let visibleCells = row.enumerated().compactMap { columnIndex, cell -> String? in
+                let value = cell.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !value.isEmpty else { return nil }
+
+                let label = headers?[columnIndex] ?? "Column \(columnIndex + 1)"
+                return "\(label)=\(value)"
+            }
+
+            guard !visibleCells.isEmpty else { return nil }
+            return "Row \(offset + 1): " + visibleCells.joined(separator: "; ")
+        }
+    }
+
+    nonisolated private func cellDescriptions(headers: [String]?) -> [String] {
+        let sourceRows: ArraySlice<[String]>
+        if headerRow != nil && normalizedRows.count > 1 {
+            sourceRows = normalizedRows.dropFirst()
+        } else {
+            sourceRows = ArraySlice(normalizedRows)
+        }
+
+        return sourceRows.enumerated().flatMap { rowOffset, row in
+            row.enumerated().compactMap { columnOffset, cell -> String? in
+                let value = cell.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !value.isEmpty else { return nil }
+
+                let label = headers?[columnOffset] ?? "Column \(columnOffset + 1)"
+                return "Cell r\(rowOffset + 1)c\(columnOffset + 1) [\(label)]: \(value)"
+            }
+        }
     }
 
     /// Generate a natural language sentence from a key-value pair (domain-agnostic)
@@ -364,6 +483,12 @@ struct StructuredPageContent: Sendable {
 actor StructuredDocumentParser {
 
     static let shared = StructuredDocumentParser()
+
+    private struct OCRFallbackReadingBlock: Sendable {
+        let text: String
+        let topY: CGFloat
+        let minX: CGFloat
+    }
 
     /// Dynamic custom words for the current document being processed.
     /// Set by DocumentProcessor before structured parsing begins.
@@ -886,19 +1011,152 @@ actor StructuredDocumentParser {
             try await configuredRequest.perform(on: imageData)
         }
 
-        // Use confidence-verified text assembly for better accuracy
-        // topCandidates(5) gives us more alternatives for confidence comparison
-        var lines: [String] = []
-        for observation in observations {
-            let candidates = observation.topCandidates(5)
-            if let best = candidates.first {
-                lines.append(best.string)
-            }
-        }
-        let recognizedText = lines.joined(separator: "\n")
+        let recognizedText = assembleSpatiallyOrderedFallbackText(from: observations)
 
         Log.debug("[StructuredDocumentParser] RecognizeTextRequest fallback captured \(recognizedText.count) chars", category: .ingestion)
         return recognizedText
+    }
+
+    private func assembleSpatiallyOrderedFallbackText(from observations: [RecognizedTextObservation]) -> String {
+        guard !observations.isEmpty else { return "" }
+
+        let xMidpoints = observations.map { $0.boundingBox.cgRect.midX }
+        let columns = detectFallbackColumns(from: xMidpoints)
+
+        guard columns.count > 1 else {
+            return buildFallbackReadingBlocks(from: observations)
+                .map(\.text)
+                .joined(separator: "\n")
+        }
+
+        var columnGroups: [[RecognizedTextObservation]] = Array(repeating: [], count: columns.count)
+
+        for observation in observations {
+            let xMid = observation.boundingBox.cgRect.midX
+            var closestColumn = 0
+            var minDistance = CGFloat.greatestFiniteMagnitude
+
+            for (index, columnCenter) in columns.enumerated() {
+                let distance = abs(xMid - columnCenter)
+                if distance < minDistance {
+                    minDistance = distance
+                    closestColumn = index
+                }
+            }
+
+            columnGroups[closestColumn].append(observation)
+        }
+
+        let columnTexts = columnGroups.compactMap { group -> String? in
+            let text = buildFallbackReadingBlocks(from: group)
+                .map(\.text)
+                .joined(separator: "\n")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return text.isEmpty ? nil : text
+        }
+
+        return columnTexts.joined(separator: "\n\n")
+    }
+
+    private func buildFallbackReadingBlocks(from observations: [RecognizedTextObservation]) -> [OCRFallbackReadingBlock] {
+        guard !observations.isEmpty else { return [] }
+
+        let lineThreshold: CGFloat = 0.02
+        let sorted = observations.sorted { lhs, rhs in
+            let leftBox = lhs.boundingBox.cgRect
+            let rightBox = rhs.boundingBox.cgRect
+
+            if abs(leftBox.midY - rightBox.midY) > lineThreshold {
+                return leftBox.midY > rightBox.midY
+            }
+            return leftBox.minX < rightBox.minX
+        }
+
+        var blocks: [OCRFallbackReadingBlock] = []
+        var currentLine: [RecognizedTextObservation] = []
+        var currentY: CGFloat?
+
+        func flushCurrentLine() {
+            guard !currentLine.isEmpty else { return }
+
+            let orderedLine = currentLine.sorted { $0.boundingBox.cgRect.minX < $1.boundingBox.cgRect.minX }
+            let lineText = orderedLine
+                .compactMap { fallbackCandidateText(from: $0) }
+                .joined(separator: " ")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+
+            if !lineText.isEmpty {
+                blocks.append(OCRFallbackReadingBlock(
+                    text: lineText,
+                    topY: orderedLine.map { $0.boundingBox.cgRect.maxY }.max() ?? 0,
+                    minX: orderedLine.map { $0.boundingBox.cgRect.minX }.min() ?? 0
+                ))
+            }
+
+            currentLine.removeAll(keepingCapacity: true)
+        }
+
+        for observation in sorted {
+            let y = observation.boundingBox.cgRect.midY
+
+            if let previousY = currentY, abs(y - previousY) >= lineThreshold {
+                flushCurrentLine()
+            }
+
+            currentLine.append(observation)
+            currentY = y
+        }
+
+        flushCurrentLine()
+        return blocks.sorted { lhs, rhs in
+            if abs(lhs.topY - rhs.topY) > 0.02 {
+                return lhs.topY > rhs.topY
+            }
+            return lhs.minX < rhs.minX
+        }
+    }
+
+    private func fallbackCandidateText(from observation: RecognizedTextObservation) -> String? {
+        let bestText = observation.topCandidates(1).first?.string ?? observation.transcript
+        let trimmed = bestText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let deconfused = deconfuseCyrillicLatin(trimmed)
+        let corrected = fixReversedTextIfNeeded(deconfused)
+        let (cleaned, _) = validateAndCleanOCR(corrected)
+        return cleaned.isEmpty ? nil : cleaned
+    }
+
+    private func detectFallbackColumns(from xMidpoints: [CGFloat]) -> [CGFloat] {
+        guard xMidpoints.count > 3 else { return [] }
+
+        let sorted = xMidpoints.sorted()
+        var gaps: [(position: CGFloat, gap: CGFloat)] = []
+
+        for index in 1..<sorted.count {
+            let gap = sorted[index] - sorted[index - 1]
+            gaps.append((position: (sorted[index] + sorted[index - 1]) / 2, gap: gap))
+        }
+
+        let significantGapThreshold: CGFloat = 0.15
+        let columnBoundaries = gaps
+            .filter { $0.gap > significantGapThreshold }
+            .map { $0.position }
+
+        if columnBoundaries.isEmpty {
+            return [sorted.reduce(0, +) / CGFloat(sorted.count)]
+        }
+
+        var centers: [CGFloat] = []
+        var previousBoundary: CGFloat = 0
+
+        for boundary in columnBoundaries.sorted() {
+            centers.append((previousBoundary + boundary) / 2)
+            previousBoundary = boundary
+        }
+        centers.append((previousBoundary + 1.0) / 2)
+
+        return centers
     }
 
     nonisolated private func imageToData(_ ciImage: CIImage) -> Data? {

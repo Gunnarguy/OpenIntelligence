@@ -1,4 +1,4 @@
-Quick human note: I realized after the last approval that I had mismatched the previous App Store "What's New" version text and undersold the scope of the update. The 2.5 draft corrects that metadata cleanup. Sorry about the noise.
+Quick human note: this build keeps the same 3.0 reliability scope and fixes one visible long-answer regression in Deep Think / Maximum. If a late-stage generation issue happens after a grounded answer is already streaming, the app now preserves the useful partial answer instead of appending a generic failure footer.
 
 No login required. No account creation. The app works entirely offline.
 
@@ -35,10 +35,11 @@ TEST STEPS:
 2. Tap "Start Exploring" → sample docs ready to query
 3. Ask: "What are the pricing tiers?" or "How does the RAG pipeline work?"
 4. Test quality modes: tap the mode selector, try Standard then Deep Think
-5. After any answer, tap AI Hub toolbar → test Key Facts, Step-by-Step transforms
-6. Tap '+' → import your own document from Files → ask questions about it
-7. Create a second library → verify answers don't leak between libraries
-8. Tap Motherboard HUD icon → verify live telemetry overlay
+5. For longer Deep Think answers, verify that if generation is interrupted late, any already-streamed grounded answer remains visible instead of being replaced by a generic failure footer
+6. After any answer, tap AI Hub toolbar → test Key Facts, Step-by-Step transforms
+7. Tap '+' → import your own document from Files → ask questions about it
+8. Create a second library → verify answers don't leak between libraries
+9. Tap Motherboard HUD icon → verify live telemetry overlay
 
 PRIVACY: All processing on-device via Apple Foundation Models. Private Cloud Compute may be used by iOS automatically for complex queries — zero data retention, cryptographically verified. No third-party AI services. No analytics. No tracking.
 

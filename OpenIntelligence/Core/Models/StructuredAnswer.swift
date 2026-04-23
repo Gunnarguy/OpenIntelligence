@@ -16,11 +16,17 @@
 import Foundation
 import NaturalLanguage
 
+private struct StructuredAnswerRenderableClaim {
+    let claim: String
+    let citations: [String]
+    let verdict: StructuredAnswer.Claim.VerificationVerdict?
+}
+
 // MARK: - Structured Answer (AppleRAG §6)
 
 /// Structured answer output per AppleRAG spec §6.
 /// Every answer is decomposed into claims with explicit evidence citations.
-struct StructuredAnswer: Codable, Sendable {
+nonisolated struct StructuredAnswer: Codable, Sendable {
     /// Whether the system refused to answer (insufficient evidence)
     let refuse: Bool
 
@@ -158,7 +164,7 @@ struct StructuredAnswer: Codable, Sendable {
 
 extension StructuredAnswer {
     /// Builder for constructing structured answers incrementally
-    class Builder {
+    nonisolated final class Builder {
         private var refuse: Bool = false
         private var answerType: AnswerType = .lookup
         private var answer: String = ""
@@ -271,7 +277,7 @@ extension StructuredAnswer {
     }
 
     /// Create a refusal response
-    static func refusal(
+    nonisolated static func refusal(
         reason: String,
         missing: [String] = [],
         topScore: Float = 0,
@@ -291,7 +297,6 @@ extension StructuredAnswer {
 
         addEvidenceEntries(from: retrievedChunks, fallback: [], to: builder)
         applyVerification(verificationResult, to: builder)
-
         return builder.build()
     }
 }
@@ -299,7 +304,7 @@ extension StructuredAnswer {
 // MARK: - Conversion from RAGResponse
 
 extension StructuredAnswer {
-    func updatingAnswer(_ updatedAnswer: String) -> StructuredAnswer {
+    nonisolated func updatingAnswer(_ updatedAnswer: String) -> StructuredAnswer {
         StructuredAnswer(
             refuse: refuse,
             answerType: answerType,
@@ -311,14 +316,14 @@ extension StructuredAnswer {
         )
     }
 
-    private static let claimStopWords: Set<String> = [
+    nonisolated private static let claimStopWords: Set<String> = [
         "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "how", "in", "is", "it",
         "of", "on", "or", "that", "the", "this", "to", "was", "were", "what", "when", "where", "with"
     ]
 
     /// Convert a RAGResponse to StructuredAnswer format
     /// This bridges the existing response format to the AppleRAG spec format
-    static func from(
+    nonisolated static func from(
         response: String,
         retrievedChunks: [RetrievedChunk],
         answerIntent: AnswerIntent,
@@ -433,10 +438,14 @@ extension StructuredAnswer {
 
         applyVerification(verificationResult, to: builder)
 
-        return builder.build()
+        return sanitizeForVerification(
+            builder.build(),
+            answerIntent: answerIntent,
+            verificationResult: verificationResult
+        )
     }
 
-    private static func buildFromStructuredGeneration(
+    nonisolated private static func buildFromStructuredGeneration(
         response: String,
         retrievedChunks: [RetrievedChunk],
         answerIntent: AnswerIntent,
@@ -531,11 +540,14 @@ extension StructuredAnswer {
 
         addEvidenceEntries(from: selectedEvidence, fallback: retrievedChunks, to: builder)
         applyVerification(verificationResult, to: builder)
-
-        return builder.build()
+        return sanitizeForVerification(
+            builder.build(),
+            answerIntent: answerIntent,
+            verificationResult: verificationResult
+        )
     }
 
-    private static func extractClaims(from response: String, answerIntent: AnswerIntent) -> [String] {
+    nonisolated private static func extractClaims(from response: String, answerIntent: AnswerIntent) -> [String] {
         let lines = response
             .components(separatedBy: .newlines)
             .map { cleanClaimText($0) }
@@ -551,7 +563,7 @@ extension StructuredAnswer {
             return uniqueClaims(bulletClaims).prefix(6).map { $0 }
         }
 
-        var tokenizer = NLTokenizer(unit: .sentence)
+        let tokenizer = NLTokenizer(unit: .sentence)
         tokenizer.string = response
         var sentences: [String] = []
         tokenizer.enumerateTokens(in: response.startIndex..<response.endIndex) { range, _ in
@@ -570,7 +582,7 @@ extension StructuredAnswer {
         return [cleanClaimText(response)]
     }
 
-    private static func supportingEvidence(for claim: String, in retrievedChunks: [RetrievedChunk]) -> [RetrievedChunk] {
+    nonisolated private static func supportingEvidence(for claim: String, in retrievedChunks: [RetrievedChunk]) -> [RetrievedChunk] {
         let claimTokens = keywordTokens(from: claim)
 
         let scored = retrievedChunks.map { chunk -> (RetrievedChunk, Float) in
@@ -598,7 +610,7 @@ extension StructuredAnswer {
         return Array(filtered.prefix(3).map { $0.0 })
     }
 
-    private static func citedEvidence(for citations: [String], in retrievedChunks: [RetrievedChunk]) -> [RetrievedChunk] {
+    nonisolated private static func citedEvidence(for citations: [String], in retrievedChunks: [RetrievedChunk]) -> [RetrievedChunk] {
         let resolved = citations.compactMap { citation -> RetrievedChunk? in
             guard let index = citationIndex(from: citation), retrievedChunks.indices.contains(index) else {
                 return nil
@@ -613,7 +625,7 @@ extension StructuredAnswer {
         }
     }
 
-    private static func confidence(for claim: String, evidence: [RetrievedChunk]) -> Float {
+    nonisolated private static func confidence(for claim: String, evidence: [RetrievedChunk]) -> Float {
         guard !evidence.isEmpty else { return 0.15 }
         let topEvidence = evidence[0]
         let content = topEvidence.chunk.parentContent ?? topEvidence.chunk.content
@@ -623,7 +635,7 @@ extension StructuredAnswer {
         return min(1.0, max(0.2, (topEvidence.similarityScore * 0.5) + (overlap * 0.5)))
     }
 
-    private static func isExtractiveClaim(_ claim: String, evidence: [RetrievedChunk], answerIntent: AnswerIntent) -> Bool {
+    nonisolated private static func isExtractiveClaim(_ claim: String, evidence: [RetrievedChunk], answerIntent: AnswerIntent) -> Bool {
         guard answerIntent.isExtractiveFirst else { return false }
         let normalizedClaim = normalizeForMatch(claim)
         return evidence.contains { chunk in
@@ -632,11 +644,11 @@ extension StructuredAnswer {
         }
     }
 
-    private static func minimumClaimLength(for answerIntent: AnswerIntent) -> Int {
+    nonisolated private static func minimumClaimLength(for answerIntent: AnswerIntent) -> Int {
         answerIntent.isExtractiveFirst ? 8 : 20
     }
 
-    private static func keywordTokens(from text: String) -> Set<String> {
+    nonisolated private static func keywordTokens(from text: String) -> Set<String> {
         Set(
             text.lowercased()
                 .split { !$0.isLetter && !$0.isNumber }
@@ -645,7 +657,7 @@ extension StructuredAnswer {
         )
     }
 
-    private static func cleanClaimText(_ text: String) -> String {
+    nonisolated private static func cleanClaimText(_ text: String) -> String {
         text
             .replacingOccurrences(of: #"\[S\d+\]"#, with: "", options: .regularExpression)
             .replacingOccurrences(of: #"^#{1,6}\s*"#, with: "", options: .regularExpression)
@@ -653,7 +665,7 @@ extension StructuredAnswer {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private static func citationIndex(from citation: String) -> Int? {
+    nonisolated private static func citationIndex(from citation: String) -> Int? {
         let pattern = #"S(\d+)"#
         guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
             return nil
@@ -670,12 +682,12 @@ extension StructuredAnswer {
         return index - 1
     }
 
-    private static func normalizeForMatch(_ text: String) -> String {
+    nonisolated private static func normalizeForMatch(_ text: String) -> String {
         text.lowercased()
             .replacingOccurrences(of: #"[^a-z0-9]"#, with: "", options: .regularExpression)
     }
 
-    private static func uniqueClaims(_ claims: [String]) -> [String] {
+    nonisolated private static func uniqueClaims(_ claims: [String]) -> [String] {
         var seen: Set<String> = []
         var unique: [String] = []
         for claim in claims {
@@ -687,13 +699,13 @@ extension StructuredAnswer {
         return unique
     }
 
-    private static func appendUnique(_ chunks: [RetrievedChunk], to selectedEvidence: inout [RetrievedChunk]) {
+    nonisolated private static func appendUnique(_ chunks: [RetrievedChunk], to selectedEvidence: inout [RetrievedChunk]) {
         for chunk in chunks where !selectedEvidence.contains(where: { $0.chunk.id == chunk.chunk.id }) {
             selectedEvidence.append(chunk)
         }
     }
 
-    private static func addEvidenceEntries(from preferredChunks: [RetrievedChunk], fallback: [RetrievedChunk], to builder: Builder) {
+    nonisolated private static func addEvidenceEntries(from preferredChunks: [RetrievedChunk], fallback: [RetrievedChunk], to builder: Builder) {
         let evidencePool = (preferredChunks + fallback).reduce(into: [RetrievedChunk]()) { partial, chunk in
             if !partial.contains(where: { $0.chunk.id == chunk.chunk.id }) {
                 partial.append(chunk)
@@ -712,7 +724,7 @@ extension StructuredAnswer {
         }
     }
 
-    private static func claimVerification(
+    nonisolated private static func claimVerification(
         for claim: String,
         in verificationResult: RAGVerificationResult?
     ) -> RAGVerificationResult.ClaimResult? {
@@ -725,7 +737,7 @@ extension StructuredAnswer {
         }
     }
 
-    private static func calibratedClaimConfidence(
+    nonisolated private static func calibratedClaimConfidence(
         _ baseConfidence: Float,
         verification: RAGVerificationResult.ClaimResult?
     ) -> Float {
@@ -743,7 +755,7 @@ extension StructuredAnswer {
         }
     }
 
-    private static func mapVerificationVerdict(
+    nonisolated private static func mapVerificationVerdict(
         _ verdict: RAGVerificationResult.ClaimResult.Verdict
     ) -> Claim.VerificationVerdict {
         switch verdict {
@@ -756,7 +768,7 @@ extension StructuredAnswer {
         }
     }
 
-    private static func applyVerification(_ verificationResult: RAGVerificationResult?, to builder: Builder) {
+    nonisolated private static func applyVerification(_ verificationResult: RAGVerificationResult?, to builder: Builder) {
         guard let verificationResult else { return }
 
         var gateResults: [String: Bool] = [:]
@@ -778,5 +790,168 @@ extension StructuredAnswer {
         if verificationResult.shouldAbstain, let reason = verificationResult.abstainReason {
             _ = builder.addMissing(reason)
         }
+    }
+
+    nonisolated private static func sanitizeForVerification(
+        _ structuredAnswer: StructuredAnswer,
+        answerIntent: AnswerIntent,
+        verificationResult: RAGVerificationResult?
+    ) -> StructuredAnswer {
+        guard let verificationResult else { return structuredAnswer }
+
+        let acceptedClaims = structuredAnswer.claims.filter { $0.verificationVerdict != .unsupported }
+        let hasClaimVerification = structuredAnswer.claims.contains { $0.verificationVerdict != nil }
+            || !verificationResult.claimResults.isEmpty
+
+        guard hasClaimVerification else { return structuredAnswer }
+
+        if acceptedClaims.isEmpty {
+            let refusalReason = verificationResult.abstainReason ?? "I couldn't verify a reliable answer from the retrieved evidence."
+            return StructuredAnswer(
+                refuse: true,
+                answerType: .refused,
+                answer: refusalReason,
+                claims: [],
+                evidence: structuredAnswer.evidence,
+                missing: structuredAnswer.missing,
+                debug: DebugInfo(
+                    topScore: structuredAnswer.debug.topScore,
+                    loops: structuredAnswer.debug.loops,
+                    intent: AnswerType.refused.rawValue,
+                    gateResults: structuredAnswer.debug.gateResults,
+                    generationTimeMs: structuredAnswer.debug.generationTimeMs
+                )
+            )
+        }
+
+        let referencedEvidenceIds = Set(acceptedClaims.flatMap(\.evidenceIds))
+        let filteredEvidence = referencedEvidenceIds.isEmpty
+            ? structuredAnswer.evidence
+            : structuredAnswer.evidence.filter { referencedEvidenceIds.contains($0.evidenceId) }
+
+        let renderableClaims = acceptedClaims.map { claim in
+            StructuredAnswerRenderableClaim(
+                claim: cleanClaimText(claim.claim),
+                citations: citationLabels(for: claim.evidenceIds, in: filteredEvidence),
+                verdict: claim.verificationVerdict
+            )
+        }
+
+        let sanitizedAnswer = renderAnswer(
+            from: renderableClaims,
+            answerIntent: answerIntent,
+            fallback: structuredAnswer.answer
+        )
+
+        return StructuredAnswer(
+            refuse: false,
+            answerType: structuredAnswer.answerType,
+            answer: sanitizedAnswer,
+            claims: acceptedClaims,
+            evidence: filteredEvidence,
+            missing: structuredAnswer.missing,
+            debug: structuredAnswer.debug
+        )
+    }
+
+    nonisolated private static func citationLabels(for evidenceIds: [String], in evidence: [Evidence]) -> [String] {
+        let labels = evidenceIds.compactMap { evidenceId -> String? in
+            guard let index = evidence.firstIndex(where: { $0.evidenceId == evidenceId }) else {
+                return nil
+            }
+            return "[S\(index + 1)]"
+        }
+
+        return Array(NSOrderedSet(array: labels)) as? [String] ?? labels
+    }
+
+    nonisolated private static func renderAnswer(
+        from claims: [StructuredAnswerRenderableClaim],
+        answerIntent: AnswerIntent,
+        fallback: String
+    ) -> String {
+        let renderedClaims = claims
+            .map(renderedClaimText)
+            .filter { !$0.isEmpty }
+
+        guard !renderedClaims.isEmpty else {
+            return fallback.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        switch answerIntent {
+        case .lookup, .tableLookup, .compute:
+            if renderedClaims.count == 1 {
+                return renderedClaims[0]
+            }
+            return renderedClaims.map { "• \($0)" }.joined(separator: "\n")
+        case .procedure:
+            return renderedClaims.enumerated().map { index, claim in
+                "\(index + 1). \(claim)"
+            }.joined(separator: "\n")
+        case .compare, .summarize, .investigate, .findings:
+            return renderedClaims.joined(separator: "\n\n")
+        }
+    }
+
+    nonisolated private static func renderedClaimText(_ claim: StructuredAnswerRenderableClaim) -> String {
+        let baseText: String
+        switch claim.verdict {
+        case .partial:
+            baseText = hedgedClaimText(claim.claim)
+        case .supported, .unsupported, .none:
+            baseText = punctuatedSentence(claim.claim)
+        }
+
+        guard !claim.citations.isEmpty else {
+            return baseText
+        }
+
+        return sentenceWithCitations(baseText, citations: claim.citations)
+    }
+
+    nonisolated private static func hedgedClaimText(_ claim: String) -> String {
+        let trimmed = claim.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lower = trimmed.lowercased()
+
+        if lower.hasPrefix("the documents suggest")
+            || lower.hasPrefix("the evidence suggests")
+            || lower.hasPrefix("it appears")
+            || lower.hasPrefix("it may")
+            || lower.hasPrefix("possibly")
+            || lower.hasPrefix("likely")
+        {
+            return punctuatedSentence(trimmed)
+        }
+
+        let prefix = lower.hasPrefix("the ") || lower.hasPrefix("this ") || lower.hasPrefix("these ")
+            ? "The documents suggest "
+            : "The documents suggest that "
+        return punctuatedSentence(prefix + lowercasedLeadingCharacter(trimmed))
+    }
+
+    nonisolated private static func sentenceWithCitations(_ sentence: String, citations: [String]) -> String {
+        let trimmed = sentence.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let lastCharacter = trimmed.last else { return citations.joined(separator: " ") }
+
+        if [".", "!", "?"].contains(lastCharacter) {
+            let body = String(trimmed.dropLast()).trimmingCharacters(in: .whitespacesAndNewlines)
+            return "\(body) \(citations.joined(separator: " "))\(lastCharacter)"
+        }
+
+        return "\(trimmed) \(citations.joined(separator: " "))."
+    }
+
+    nonisolated private static func punctuatedSentence(_ text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let lastCharacter = trimmed.last else { return trimmed }
+        if [".", "!", "?"].contains(lastCharacter) {
+            return trimmed
+        }
+        return trimmed + "."
+    }
+
+    nonisolated private static func lowercasedLeadingCharacter(_ text: String) -> String {
+        guard let first = text.first else { return text }
+        return first.lowercased() + text.dropFirst()
     }
 }

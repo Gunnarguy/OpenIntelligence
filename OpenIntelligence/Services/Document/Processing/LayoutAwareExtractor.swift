@@ -534,16 +534,27 @@ actor LayoutAwareExtractor {
 
     /// Build text in proper reading order from detected columns
     private func buildReadingOrderText(columns: [DetectedColumn], tables: [TableRegion]) -> String {
-        var elements: [ReadingElement] = []
-
-        // Sort columns left to right
         let sortedColumns = columns.sorted { $0.xRange.lowerBound < $1.xRange.lowerBound }
+        guard !sortedColumns.isEmpty else {
+            return tables
+                .sorted { lhs, rhs in
+                    if abs(lhs.topY - rhs.topY) > 0.02 {
+                        return lhs.topY > rhs.topY
+                    }
+                    return lhs.minX < rhs.minX
+                }
+                .map(renderTableText)
+                .joined(separator: "\n\n")
+        }
 
-        // For each column, we need to handle potential row alignment across columns
-        // This is complex for true multi-column reading order
+        var renderedSections: [String] = []
+        var assignedTableIndexes = Set<Int>()
 
-        // Simple approach: read each column top-to-bottom, left-to-right
+        // In true multi-column layouts, prose should stay within each column's reading flow.
+        // Only order elements vertically inside a column, then move to the next column.
         for column in sortedColumns {
+            var elements: [ReadingElement] = []
+
             // Group blocks by approximate Y position (same line)
             let lineGroups = groupBlocksByLine(column.blocks)
 
@@ -563,24 +574,84 @@ actor LayoutAwareExtractor {
                     minX: sortedLineBlocks.map(\.minX).min() ?? 0
                 ))
             }
-        }
 
-        for table in tables {
-            elements.append(ReadingElement(
-                text: renderTableText(table),
-                topY: table.topY,
-                minX: table.minX
-            ))
-        }
-
-        let orderedElements = elements.sorted { lhs, rhs in
-            if abs(lhs.topY - rhs.topY) > 0.02 {
-                return lhs.topY > rhs.topY
+            for (tableIndex, table) in tables.enumerated() where assignedColumnIndex(for: table, columns: sortedColumns) == column.index {
+                assignedTableIndexes.insert(tableIndex)
+                elements.append(ReadingElement(
+                    text: renderTableText(table),
+                    topY: table.topY,
+                    minX: table.minX
+                ))
             }
-            return lhs.minX < rhs.minX
+
+            let orderedElements = elements.sorted { lhs, rhs in
+                if abs(lhs.topY - rhs.topY) > 0.02 {
+                    return lhs.topY > rhs.topY
+                }
+                return lhs.minX < rhs.minX
+            }
+
+            let columnText = orderedElements
+                .map(\.text)
+                .joined(separator: "\n")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+
+            if !columnText.isEmpty {
+                renderedSections.append(columnText)
+            }
         }
 
-        return orderedElements.map(\.text).joined(separator: "\n")
+        let orphanTables = tables.enumerated()
+            .filter { !assignedTableIndexes.contains($0.offset) }
+            .sorted { lhs, rhs in
+                if abs(lhs.element.topY - rhs.element.topY) > 0.02 {
+                    return lhs.element.topY > rhs.element.topY
+                }
+                return lhs.element.minX < rhs.element.minX
+            }
+            .map { renderTableText($0.element) }
+
+        renderedSections.append(contentsOf: orphanTables)
+        return renderedSections.joined(separator: "\n\n")
+    }
+
+    private func assignedColumnIndex(for table: TableRegion, columns: [DetectedColumn]) -> Int? {
+        guard !columns.isEmpty else { return nil }
+
+        // Wide tables often span the page and shouldn't be forced into a single column flow.
+        if columns.count > 1 && table.boundingBox.width >= 0.7 {
+            return nil
+        }
+
+        let overlappingColumns = columns.compactMap { column -> (index: Int, overlap: CGFloat, distance: CGFloat)? in
+            let overlap = horizontalOverlapWidth(between: table.boundingBox, and: column.xRange)
+            guard overlap > 0 else { return nil }
+
+            let columnMidX = (column.xRange.lowerBound + column.xRange.upperBound) / 2
+            let distance = abs(table.boundingBox.midX - columnMidX)
+            return (index: column.index, overlap: overlap, distance: distance)
+        }
+
+        if let bestOverlap = overlappingColumns.max(by: { lhs, rhs in
+            if abs(lhs.overlap - rhs.overlap) > 0.001 {
+                return lhs.overlap < rhs.overlap
+            }
+            return lhs.distance > rhs.distance
+        }) {
+            return bestOverlap.index
+        }
+
+        return columns.min(by: { lhs, rhs in
+            let lhsMidX = (lhs.xRange.lowerBound + lhs.xRange.upperBound) / 2
+            let rhsMidX = (rhs.xRange.lowerBound + rhs.xRange.upperBound) / 2
+            return abs(table.boundingBox.midX - lhsMidX) < abs(table.boundingBox.midX - rhsMidX)
+        })?.index
+    }
+
+    private func horizontalOverlapWidth(between rect: CGRect, and range: ClosedRange<CGFloat>) -> CGFloat {
+        let overlapMin = max(rect.minX, range.lowerBound)
+        let overlapMax = min(rect.maxX, range.upperBound)
+        return max(0, overlapMax - overlapMin)
     }
 
     /// Group blocks that appear on the same line based on Y position

@@ -8,6 +8,7 @@ This is the user-facing 3.0 summary focused on the reliability work shipped afte
 
 ## Highlights
 
+- Deep Think and Maximum now fail softer on long answers: if a late-stage generation error happens after a strong grounded answer is already streaming, the app preserves the useful partial answer instead of replacing it with a generic stop footer.
 - Corrupted and multi-column tables now ingest more reliably, with OCR/table reconstruction that preserves row alignment instead of flattening left-column data into garbage.
 - Weak retrieval now triggers a corrective evidence pass before answer generation, using targeted full-text chunk and page recovery when the first pass is too thin or too generic.
 - Fact-heavy answers are more resistant to table and spec misses through stronger extractive prioritization, table-aware evidence ordering, and page-level recovery.

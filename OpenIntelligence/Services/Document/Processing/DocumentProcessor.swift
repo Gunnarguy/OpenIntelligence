@@ -2301,25 +2301,27 @@ class DocumentProcessor {
 
                     group.addTask {
                         let pageNumber = pageIndex + 1
+                        let bestAvailableText = (renderData.layoutText ?? renderData.plainText)?
+                            .trimmingCharacters(in: .whitespacesAndNewlines)
 
                         // No page data available
                         guard let pageImage = renderData.pageImage else {
                             // PHASE -1: when text layer is garbled, don't use PDFKit fallback
-                            if !isGarbled, let plainText = renderData.plainText, !plainText.isEmpty {
+                            if !isGarbled, let nativeText = bestAvailableText, !nativeText.isEmpty {
                                 self.traceIngestionOutcome(
                                     pageNumber: pageNumber,
-                                    path: "structured-skip-vision-native",
-                                    chars: plainText.count
+                                    path: renderData.layoutText != nil ? "structured-skip-vision-layout" : "structured-skip-vision-native",
+                                    chars: nativeText.count
                                 )
                                 return PageParseResult(
                                     pageIndex: pageIndex,
                                     elements: [StructuredElementWrapper(
-                                        text: plainText,
+                                        text: nativeText,
                                         elementType: "paragraph",
                                         pageNumber: pageNumber,
                                         isAtomicChunk: false
                                     )],
-                                    pageText: plainText,
+                                    pageText: nativeText,
                                     hasStructure: false,
                                     usedOCR: false,
                                     tablesFound: 0,
@@ -2507,6 +2509,28 @@ class DocumentProcessor {
                                     headersFound: 0
                                 )
                             }
+                            if !isGarbled, let nativeText = bestAvailableText, !nativeText.isEmpty {
+                                self.traceIngestionOutcome(
+                                    pageNumber: pageNumber,
+                                    path: renderData.layoutText != nil ? "structured-no-document-layout" : "structured-no-document-native",
+                                    chars: nativeText.count
+                                )
+                                return PageParseResult(
+                                    pageIndex: pageIndex,
+                                    elements: [StructuredElementWrapper(
+                                        text: nativeText,
+                                        elementType: "paragraph",
+                                        pageNumber: pageNumber,
+                                        isAtomicChunk: false
+                                    )],
+                                    pageText: nativeText,
+                                    hasStructure: false,
+                                    usedOCR: false,
+                                    tablesFound: 0,
+                                    listsFound: 0,
+                                    headersFound: 0
+                                )
+                            }
                             self.traceIngestionOutcome(
                                 pageNumber: pageNumber,
                                 path: "structured-no-document-empty",
@@ -2516,17 +2540,22 @@ class DocumentProcessor {
 
                         } catch {
                             Log.warning("[DocumentProcessor] Structured parsing failed for page \(pageNumber): \(error.localizedDescription)", category: .ingestion)
-                            // Fallback to plain text — but NOT if text layer is garbled
-                            if !isGarbled, let plainText = renderData.plainText, !plainText.isEmpty {
+                            // Fallback to the best native/layout text — but NOT if text layer is garbled
+                            if !isGarbled, let nativeText = bestAvailableText, !nativeText.isEmpty {
                                 self.traceIngestionOutcome(
                                     pageNumber: pageNumber,
-                                    path: "structured-error-fallback-native",
-                                    chars: plainText.count
+                                    path: renderData.layoutText != nil ? "structured-error-fallback-layout" : "structured-error-fallback-native",
+                                    chars: nativeText.count
                                 )
                                 return PageParseResult(
                                     pageIndex: pageIndex,
-                                    elements: [],
-                                    pageText: plainText,
+                                    elements: [StructuredElementWrapper(
+                                        text: nativeText,
+                                        elementType: "paragraph",
+                                        pageNumber: pageNumber,
+                                        isAtomicChunk: false
+                                    )],
+                                    pageText: nativeText,
                                     hasStructure: false,
                                     usedOCR: false,
                                     tablesFound: 0,

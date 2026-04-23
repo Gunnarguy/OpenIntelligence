@@ -3,6 +3,7 @@ Version 3.0
 Major reliability upgrade focused on hard technical documents, noisy OCR, and broken table extraction.
 
 Since 2.6:
+- Deep Think and Maximum now preserve strong grounded partial answers when a late-stage generation hiccup interrupts the final polish pass, instead of dropping a generic failure footer onto an otherwise useful response.
 - Repaired row alignment for corrupted and multi-column tables so extracted evidence is less likely to collapse into jumbled garbage.
 - Added a corrective retrieval pass that automatically re-scans chunk and page indexes before generation when first-pass evidence is weak.
 - Improved extractive handling for statistical tables, specification sheets, and dense factual lookups with stronger table-priority evidence selection.
