@@ -246,6 +246,11 @@ class SemanticChunker {
             /// Abbreviation→expansion mappings extracted from inline definitions.
             /// Example: ["ED": "Emotional Dysregulation", "ODD": "Oppositional Defiant Disorder"]
             let abbreviations: [String: String]
+            let documentCategory: DocumentSemanticCategory?
+            let chunkType: ChunkSemanticType
+            let tableTitle: String?
+            let hasCrossReferences: Bool
+            let resolvedReferences: [String]
         }
     }
 
@@ -254,7 +259,8 @@ class SemanticChunker {
         _ text: String,
         documentId: UUID,
         config: ChunkingConfig = ChunkingConfig(),
-        pageNumbers: [Int: Range<String.Index>]? = nil
+        pageNumbers: [Int: Range<String.Index>]? = nil,
+        documentCategory: DocumentSemanticCategory? = nil
     ) -> [EnhancedChunk] {
         Log.debug("[SemanticChunker] Starting advanced chunking", category: .ingestion)
         Log.debug("[SemanticChunker] Target: \(config.targetSize)w, Min: \(config.minSize)w, Max: \(config.maxSize)w", category: .ingestion)
@@ -264,7 +270,12 @@ class SemanticChunker {
         let wordCount = tokenWordCount(text)
         if wordCount < config.minSize {
             Log.warning("[SemanticChunker] Text too small (\(wordCount) words); creating single chunk", category: .ingestion)
-            let small = createSingleChunk(text, documentId: documentId, pageNumbers: pageNumbers)
+            let small = createSingleChunk(
+                text,
+                documentId: documentId,
+                pageNumbers: pageNumbers,
+                documentCategory: documentCategory
+            )
             // Update diagnostics for tiny docs
             self.lastDiagnostics = ChunkingDiagnostics(
                 language: detectLanguage(for: text),
@@ -319,7 +330,8 @@ class SemanticChunker {
                             range: currentPosition..<text.endIndex,
                             in: text,
                             sections: sections,
-                            pageNumbers: pageNumbers
+                            pageNumbers: pageNumbers,
+                            documentCategory: documentCategory
                         )
                         let parentContent = buildParentContent(
                             for: currentPosition ..< text.endIndex,
@@ -393,7 +405,8 @@ class SemanticChunker {
                 range: chunkRange,
                 in: text,
                 sections: sections,
-                pageNumbers: pageNumbers
+                pageNumbers: pageNumbers,
+                documentCategory: documentCategory
             )
 
             let parentContent = buildParentContent(
@@ -457,7 +470,12 @@ class SemanticChunker {
                     startOffset: prev.metadata.startOffset,
                     endOffset: chunk.metadata.endOffset,
                     entities: Array(Set(prev.metadata.entities + chunk.metadata.entities)),
-                    abbreviations: prev.metadata.abbreviations.merging(chunk.metadata.abbreviations) { first, _ in first }
+                    abbreviations: prev.metadata.abbreviations.merging(chunk.metadata.abbreviations) { first, _ in first },
+                    documentCategory: prev.metadata.documentCategory ?? chunk.metadata.documentCategory,
+                    chunkType: prev.metadata.chunkType == .warning || chunk.metadata.chunkType == .warning ? .warning : prev.metadata.chunkType,
+                    tableTitle: prev.metadata.tableTitle ?? chunk.metadata.tableTitle,
+                    hasCrossReferences: prev.metadata.hasCrossReferences || chunk.metadata.hasCrossReferences,
+                    resolvedReferences: Array(Set(prev.metadata.resolvedReferences + chunk.metadata.resolvedReferences)).sorted()
                 )
                 mergedChunks.append(EnhancedChunk(content: mergedContent, parentContent: mergedParent, metadata: mergedMeta, embedding: nil))
                 Log.debug("[SemanticChunker] Merged micro-chunk (\(chunk.metadata.wordCount) words) into previous", category: .ingestion)
@@ -514,7 +532,8 @@ class SemanticChunker {
         _ text: String,
         documentId: UUID,
         config: ChunkingConfig,
-        pageNumbers: [Int: Range<String.Index>]? = nil
+        pageNumbers: [Int: Range<String.Index>]? = nil,
+        documentCategory: DocumentSemanticCategory? = nil
     ) async -> [EnhancedChunk] {
         Log.debug("[SemanticChunker] Starting async chunking with embedding boundaries", category: .ingestion)
 
@@ -534,7 +553,8 @@ class SemanticChunker {
             documentId: documentId,
             config: config,
             topicBoundaries: allBoundaries,
-            pageNumbers: pageNumbers
+            pageNumbers: pageNumbers,
+            documentCategory: documentCategory
         )
 
         // Update diagnostics with embedding boundary count
@@ -567,11 +587,12 @@ class SemanticChunker {
         documentId: UUID,
         config: ChunkingConfig,
         topicBoundaries: [String.Index],
-        pageNumbers: [Int: Range<String.Index>]?
+        pageNumbers: [Int: Range<String.Index>]?,
+        documentCategory: DocumentSemanticCategory?
     ) -> [EnhancedChunk] {
         let wordCount = tokenWordCount(text)
         if wordCount < config.minSize {
-            return [createSingleChunk(text, documentId: documentId, pageNumbers: pageNumbers)]
+            return [createSingleChunk(text, documentId: documentId, pageNumbers: pageNumbers, documentCategory: documentCategory)]
         }
 
         let sections = detectSections(text)
@@ -596,7 +617,8 @@ class SemanticChunker {
                             range: currentPosition ..< text.endIndex,
                             in: text,
                             sections: sections,
-                            pageNumbers: pageNumbers
+                            pageNumbers: pageNumbers,
+                            documentCategory: documentCategory
                         )
                         let parentContent = buildParentContent(
                             for: currentPosition ..< text.endIndex,
@@ -633,7 +655,8 @@ class SemanticChunker {
                 range: chunkRange,
                 in: text,
                 sections: sections,
-                pageNumbers: pageNumbers
+                pageNumbers: pageNumbers,
+                documentCategory: documentCategory
             )
             let parentContent = buildParentContent(
                 for: chunkRange,
@@ -1378,7 +1401,8 @@ class SemanticChunker {
         range: Range<String.Index>,
         in fullText: String,
         sections: [DetectedSection],
-        pageNumbers: [Int: Range<String.Index>]?
+        pageNumbers: [Int: Range<String.Index>]?,
+        documentCategory: DocumentSemanticCategory?
     ) -> EnhancedChunk.ChunkMetadata {
         let wordCount = tokenWordCount(chunkText)
         let keywords = extractKeywords(chunkText, topN: 5)
@@ -1409,6 +1433,9 @@ class SemanticChunker {
         // Extract abbreviation→expansion mappings from inline definitions
         let abbreviations = extractAbbreviations(chunkText)
 
+        let resolvedReferences = GraphIndexService.extractReferenceTargets(from: chunkText)
+        let inferredChunkType: ChunkSemanticType = isWarningLike(text: chunkText, sectionTitle: sectionTitle) ? .warning : .prose
+
         return EnhancedChunk.ChunkMetadata(
             documentId: documentId,
             chunkIndex: chunkIndex,
@@ -1425,8 +1452,21 @@ class SemanticChunker {
             startOffset: startOffset,
             endOffset: endOffset,
             entities: entities,
-            abbreviations: abbreviations
+            abbreviations: abbreviations,
+            documentCategory: documentCategory,
+            chunkType: inferredChunkType,
+            tableTitle: nil,
+            hasCrossReferences: !resolvedReferences.isEmpty,
+            resolvedReferences: resolvedReferences
         )
+    }
+
+    private func isWarningLike(text: String, sectionTitle: String?) -> Bool {
+        let combined = [sectionTitle, text.prefix(240).description]
+            .compactMap { $0?.lowercased() }
+            .joined(separator: " ")
+        let warningTerms = ["warning", "caution", "danger", "important", "notice", "precaution"]
+        return warningTerms.contains(where: { combined.contains($0) })
     }
 
     // MARK: - Entity Extraction (Connective Tissue for GraphRAG)
@@ -1740,7 +1780,8 @@ class SemanticChunker {
     private func createSingleChunk(
         _ text: String,
         documentId: UUID,
-        pageNumbers: [Int: Range<String.Index>]? = nil
+        pageNumbers: [Int: Range<String.Index>]? = nil,
+        documentCategory: DocumentSemanticCategory? = nil
     ) -> EnhancedChunk {
         let wordCount = tokenWordCount(text)
 
@@ -1749,6 +1790,8 @@ class SemanticChunker {
         let hasNumeric = text.range(of: #"\d+"#, options: .regularExpression) != nil
         let hasList = text.contains("•") || text.range(of: #"^\d+\."#, options: .regularExpression) != nil
         let entities = extractEntities(text)
+        let resolvedReferences = GraphIndexService.extractReferenceTargets(from: text)
+        let chunkType: ChunkSemanticType = isWarningLike(text: text, sectionTitle: nil) ? .warning : .prose
 
         let metadata = EnhancedChunk.ChunkMetadata(
             documentId: documentId,
@@ -1766,7 +1809,12 @@ class SemanticChunker {
             startOffset: 0,
             endOffset: text.count,
             entities: entities,
-            abbreviations: extractAbbreviations(text)
+            abbreviations: extractAbbreviations(text),
+            documentCategory: documentCategory,
+            chunkType: chunkType,
+            tableTitle: nil,
+            hasCrossReferences: !resolvedReferences.isEmpty,
+            resolvedReferences: resolvedReferences
         )
 
         return EnhancedChunk(

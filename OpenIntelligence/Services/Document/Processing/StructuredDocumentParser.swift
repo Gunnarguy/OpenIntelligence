@@ -516,7 +516,16 @@ actor StructuredDocumentParser {
     ///     ground truth denominator instead of Vision's own transcript word count,
     ///     which under-counts dense tables and inflates qualityScore (Gap 2 fix).
     ///     Only trusted when text layer is validated (not garbled) — caller enforces this.
-    func parsePageImage(_ image: CIImage, pageNumber: Int, customWords: [String], nativeWordCount: Int? = nil) async throws -> StructuredPageContent {
+    ///   - preferFullResolution: Use the original 360 DPI page image for structure parsing
+    ///     instead of the default 180 DPI downscaled pass. Reserved for high-risk pages
+    ///     where small table cells or degraded text layers need maximum OCR fidelity.
+    func parsePageImage(
+        _ image: CIImage,
+        pageNumber: Int,
+        customWords: [String],
+        nativeWordCount: Int? = nil,
+        preferFullResolution: Bool = false
+    ) async throws -> StructuredPageContent {
         let startTime = Date()
 
         // Report ANE activity to HUD (RecognizeDocumentsRequest uses Neural Engine)
@@ -524,32 +533,38 @@ actor StructuredDocumentParser {
             HardwareTelemetryState.shared.pulse(.llmInference, intensity: 0.8, duration: 0.5)  // Use llmInference for "structure analysis"
         }
 
-        // MEMORY: Scale to 50% (180 DPI from 360 DPI source) before PNG conversion.
-        // RecognizeDocumentsRequest detects document STRUCTURE (table outlines, heading
-        // positions, list nesting) — layout geometry, not glyph-level detail.
-        // 180 DPI is above Apple's recommended 150 DPI minimum for text recognition.
+        // MEMORY: Most pages can use a 50% downscaled structure pass (180 DPI from the
+        // 360 DPI source), but high-risk pages should keep the original resolution.
+        // This preserves small table cells and weak text layers without forcing the
+        // entire document through the expensive path.
         //
         // Memory impact per page:
         //   360 DPI: createCGImage → 274 MB + UIGraphicsImageRenderer → 137 MB = ~411 MB
         //   180 DPI: createCGImage →  68 MB + UIGraphicsImageRenderer →  34 MB = ~102 MB
         //
-        // With 3-5 concurrent parsePageImage calls in the TaskGroup:
-        //   Before fix: 3×411 MB + 3×206 MB (batchRenderData) = ~1.85 GB → OOM kill on pg 35
-        //   After fix:  3×102 MB + 3×206 MB (batchRenderData) = ~0.92 GB → safe
+        // With 3-5 concurrent parsePageImage calls in the TaskGroup, the downscaled path
+        // remains the default. Full resolution is only used for pages flagged by the
+        // caller as high fidelity critical.
         //
         // CIImage.transformed(by:) is lazy — no pixel allocation until createCGImage fires.
-        let scaledForStructure = image.transformed(by: CGAffineTransform(scaleX: 0.5, y: 0.5))
+        let structureImage = preferFullResolution
+            ? image
+            : image.transformed(by: CGAffineTransform(scaleX: 0.5, y: 0.5))
 
         // Convert scaled CIImage to Data for RecognizeDocumentsRequest (structure detection only).
         // The original full-resolution image is retained separately for the VNRecognizeTextRequest
         // fallback path, which is a pure OCR path where 360 DPI matters for fine print.
-        guard let structureImageData = imageToData(scaledForStructure) else {
+        guard let structureImageData = imageToData(structureImage) else {
             Log.warning("[StructuredDocumentParser] Failed to convert image to data, falling back to OCR", category: .ingestion)
             throw StructuredParsingError.imageConversionFailed
         }
         // Lazily produce full-res data only if the OCR fallback path is actually needed.
         // Avoids the memory cost on the happy path (structure found).
         lazy var fullResImageData: Data? = imageToData(image)
+
+        if preferFullResolution {
+            Log.info("[StructuredDocumentParser] Page \(pageNumber): using full-resolution structure parsing for maximum fidelity", category: .ingestion)
+        }
 
         // Create and configure the request
         // RecognizeDocumentsRequest is simpler in iOS 26 - it handles text recognition internally

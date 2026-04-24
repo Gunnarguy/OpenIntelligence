@@ -320,7 +320,7 @@ class RAGService: ObservableObject {
     private let contextPackingService: ContextPackingService
     private let confidenceCalibrationService = ConfidenceCalibrationService()
     private let extractiveSummarizationService: ExtractiveSummarizationService
-    // specificationExtractor removed — ExtractiveQA bypass disabled, all queries go through LLM
+    private let specificationExtractor = SpecificationExtractor()
     private weak var entitlementStore: EntitlementStore?
     private var cancellables = Set<AnyCancellable>()
     @MainActor private weak var settingsStore: SettingsStore?
@@ -330,6 +330,7 @@ class RAGService: ObservableObject {
     @MainActor private var suppressProcessingSummary: Bool = false
     @MainActor private var ingestionTask: Task<Void, Never>?
     @MainActor private var ingestionContexts: [UUID: IngestionContext] = [:]
+    private let extractiveLookupOverrideThreshold: Float = 0.82
 
     /// Helper to get document name by ID
     @MainActor
@@ -1420,6 +1421,24 @@ class RAGService: ObservableObject {
             let content = chunk.chunk.content
             let range = NSRange(content.startIndex..., in: content)
 
+            for target in chunk.chunk.metadata.resolvedReferences {
+                let parts = target.split(separator: ":", maxSplits: 1).map(String.init)
+                guard parts.count == 2 else { continue }
+                switch parts[0] {
+                case "page":
+                    let pageParts = parts[1].components(separatedBy: CharacterSet(charactersIn: "-–"))
+                    for pagePart in pageParts {
+                        if let pageNum = Int(pagePart.trimmingCharacters(in: .whitespaces)) {
+                            referencedPages.insert(pageNum)
+                        }
+                    }
+                case "section", "chapter", "appendix":
+                    referencedSections.insert(parts[1])
+                default:
+                    break
+                }
+            }
+
             // Check section name patterns
             for (regex, group) in patterns {
                 let matches = regex.matches(in: content, range: range)
@@ -1485,7 +1504,8 @@ class RAGService: ObservableObject {
                     let hasTableIndicator = chunk.metadata.structureType == "table" ||
                         chunk.content.contains("|") && chunk.content.components(separatedBy: "|").count >= 4
                     let hasNumbers = chunk.content.rangeOfCharacter(from: .decimalDigits) != nil
-                    let score: Float = (hasTableIndicator && hasNumbers) ? 0.65 : 0.55
+                    let rawScore: Float = (hasTableIndicator && hasNumbers) ? 0.65 : 0.55
+                    let score = max(rawScore, crossReferenceScoreFloor(for: chunk))
                     matchingChunks.append((chunk, score))
                 }
             }
@@ -1517,7 +1537,7 @@ class RAGService: ObservableObject {
 
             // Prioritize table/spec chunks from the referenced page
             let scored: [(chunk: DocumentChunk, score: Float)] = pageChunks.map { chunk in
-                var score: Float = 0.60
+                var score: Float = max(0.60, crossReferenceScoreFloor(for: chunk))
                 // Strong boost for actual table structure
                 if chunk.metadata.structureType == "table" { score += 0.15 }
                 // Boost for pipe-delimited table content
@@ -1548,6 +1568,13 @@ class RAGService: ObservableObject {
         }
 
         return additionalChunks
+    }
+
+    private func crossReferenceScoreFloor(for chunk: DocumentChunk) -> Float {
+        guard let category = chunk.metadata.documentCategory, category.isSpecificationHeavy else {
+            return 0.55
+        }
+        return 0.60
     }
 
     // MARK: - Spec Table Sniper
@@ -3661,8 +3688,19 @@ class RAGService: ObservableObject {
                     wordCount: base.wordCount,
                     characterCount: base.characterCount,
                     createdAt: base.createdAt,
+                    structureType: base.structureType,
+                    siblingGroupId: base.siblingGroupId,
+                    siblingCount: base.siblingCount,
                     entities: base.entities,
-                    abbreviations: base.abbreviations
+                    abbreviations: base.abbreviations,
+                    abstractionLevel: base.abstractionLevel,
+                    sectionPath: base.sectionPath,
+                    bboxArray: base.bboxArray,
+                    documentCategory: base.documentCategory,
+                    chunkType: base.chunkType,
+                    tableTitle: base.tableTitle,
+                    hasCrossReferences: base.hasCrossReferences,
+                    resolvedReferences: base.resolvedReferences
                 )
                 return DocumentChunk(
                     documentId: document.id,
@@ -3875,7 +3913,7 @@ class RAGService: ObservableObject {
             var updatedDocument = document
             if let existingMetadata = document.processingMetadata {
                 // Create new metadata with embedding time added
-                let completeMetadata = ProcessingMetadata(
+                var completeMetadata = ProcessingMetadata(
                     fileSizeMB: fileSizeMB,
                     totalCharacters: existingMetadata.totalCharacters,
                     totalWords: existingMetadata.totalWords,
@@ -3887,6 +3925,21 @@ class RAGService: ObservableObject {
                     ocrPagesCount: existingMetadata.ocrPagesCount,
                     chunkStats: existingMetadata.chunkStats
                 )
+                completeMetadata.usedStructuredParsing = existingMetadata.usedStructuredParsing
+                completeMetadata.structuredParsingQuality = existingMetadata.structuredParsingQuality
+                completeMetadata.tablesExtracted = existingMetadata.tablesExtracted
+                completeMetadata.tableRowsTotal = existingMetadata.tableRowsTotal
+                completeMetadata.tableColumnsMax = existingMetadata.tableColumnsMax
+                completeMetadata.listsExtracted = existingMetadata.listsExtracted
+                completeMetadata.listItemsTotal = existingMetadata.listItemsTotal
+                completeMetadata.titlesDetected = existingMetadata.titlesDetected
+                completeMetadata.figureReferences = existingMetadata.figureReferences
+                completeMetadata.visionEntitiesDetected = existingMetadata.visionEntitiesDetected
+                completeMetadata.sectionPathDepth = existingMetadata.sectionPathDepth
+                completeMetadata.structuredParsingTimeSeconds = existingMetadata.structuredParsingTimeSeconds
+                completeMetadata.atomicTableChunks = existingMetadata.atomicTableChunks
+                completeMetadata.atomicListChunks = existingMetadata.atomicListChunks
+                completeMetadata.documentCategory = existingMetadata.documentCategory
 
                 updatedDocument = Document(
                     id: document.id,
@@ -4887,8 +4940,13 @@ class RAGService: ObservableObject {
                 }
             }()
 
-            let agenticAnswer = repairMalformedURLs(humanizeCitations(result.finalAnswer, chunks: result.retrievedChunks))
             let agenticAnswerIntent = QueryEnhancementService().classifyAnswerIntent(question)
+            let generatedAgenticAnswer = repairMalformedURLs(humanizeCitations(result.finalAnswer, chunks: result.retrievedChunks))
+            let agenticAnswer = await highPrecisionLookupOverrideAnswer(
+                question: question,
+                answerIntent: agenticAnswerIntent,
+                retrievedChunks: result.retrievedChunks
+            ) ?? generatedAgenticAnswer
             let structuredAnswer = StructuredAnswer.from(
                 response: agenticAnswer,
                 retrievedChunks: result.retrievedChunks,
@@ -8375,6 +8433,7 @@ class RAGService: ObservableObject {
                         intentSpecificInstructions = """
                         Answer in 1-2 clear prose paragraphs. State the answer FIRST, then supporting details.
                         Copy numbers, units, codes VERBATIM. Many excerpts say similar things in different words — combine them into ONE cohesive explanation. Never repeat the same fact twice. Do NOT paste sentence fragments back-to-back.
+                        If the question assumes a mapping or condition that the excerpts contradict, correct the premise explicitly using the exact source mapping instead of accepting the user's wording.
                         """
                     }
                 case .procedure:
@@ -9081,6 +9140,21 @@ class RAGService: ObservableObject {
                             )
                         }
                         throw RAGServiceError.modelNotAvailable
+                    }
+
+                    if answerIntent.isExtractiveFirst,
+                       let extractiveOverride = await highPrecisionLookupOverrideAnswer(
+                           question: question,
+                           answerIntent: answerIntent,
+                           retrievedChunks: generationRetrievedChunks
+                       )
+                    {
+                        let normalizedLLM = responseText.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let normalizedOverride = extractiveOverride.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if normalizedLLM != normalizedOverride {
+                            Log.info("[ExtractiveQA] Overriding lookup response with direct source extraction", category: .retrieval)
+                            responseText = normalizedOverride
+                        }
                     }
 
                     // Step 7: Calculate confidence score and quality warnings
@@ -11766,6 +11840,32 @@ class RAGService: ObservableObject {
     ) -> String {
         let candidate = structuredAnswer?.answer.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return candidate.isEmpty ? fallback : candidate
+    }
+
+    private func highPrecisionLookupOverrideAnswer(
+        question: String,
+        answerIntent: AnswerIntent,
+        retrievedChunks: [RetrievedChunk]
+    ) async -> String? {
+        guard answerIntent.isExtractiveFirst, !retrievedChunks.isEmpty else { return nil }
+
+        let candidateChunks = Array(retrievedChunks.prefix(12))
+        let extraction = await specificationExtractor.extract(
+            query: question,
+            chunks: candidateChunks,
+            answerIntent: answerIntent
+        )
+
+        guard case let .success(result) = extraction,
+              result.confidence >= extractiveLookupOverrideThreshold else {
+            return nil
+        }
+
+        if let label = result.matchedLabel, !label.isEmpty {
+            return "\(label): \(result.answerSpan). \(result.citation)"
+        }
+
+        return result.formattedAnswer
     }
 
     private func buildEvidencePackContext(

@@ -9,6 +9,7 @@
 import Foundation
 import UIKit
 import CoreML
+import Metal
 
 /// Device capability tiers for Apple Intelligence
 enum DeviceCapabilityTier: String, Sendable, Comparable {
@@ -86,6 +87,58 @@ enum DeviceFormFactor: String, Sendable {
     }
 }
 
+struct MetalHardwareSnapshot: Sendable {
+    let deviceName: String
+    let hasUnifiedMemory: Bool
+    let recommendedWorkingSetMB: Int
+    let maxBufferLengthMB: Int
+    let maxThreadsPerThreadgroup: Int
+    let maxThreadgroupMemoryKB: Int
+
+    static let unavailable = MetalHardwareSnapshot(
+        deviceName: "Metal unavailable",
+        hasUnifiedMemory: false,
+        recommendedWorkingSetMB: 0,
+        maxBufferLengthMB: 0,
+        maxThreadsPerThreadgroup: 0,
+        maxThreadgroupMemoryKB: 0
+    )
+
+    var workingSetDescription: String {
+        guard recommendedWorkingSetMB > 0 else { return "System managed" }
+        if recommendedWorkingSetMB >= 1024 {
+            return String(format: "%.1f GB", Double(recommendedWorkingSetMB) / 1024.0)
+        }
+        return "\(recommendedWorkingSetMB) MB"
+    }
+}
+
+struct HardwareExecutionEnvelope: Sendable {
+    let deviceIdentifier: String
+    let chipName: String
+    let formFactor: DeviceFormFactor
+    let memoryGB: Double
+    let npuTops: Int
+    let metal: MetalHardwareSnapshot
+    let maxSafeGPUAccelerationLevel: Double
+    let requestedGPUAccelerationLevel: Double
+    let activeGPUAccelerationLevel: Double
+    let coreMLRoute: String
+    let embeddingRoute: String
+    let visionOperationConcurrency: Int
+    let visionCooldownMilliseconds: Int
+    let visionPipelinePages: Int
+    let ocrPipelinePages: Int
+    let pdfRenderSlots: Int
+    let pdfPageMemory360MB: Int
+    let pdfPageMemory432MB: Int
+    let embeddingConcurrency: Int
+    let embeddingBatchSize: Int
+    let vectorBatchSize: Int
+    let batchMatrixMultiplyThreshold: Int
+    let gpuConcurrency: Int
+}
+
 /// Comprehensive device capability detection
 final class DeviceCapabilityService: @unchecked Sendable {
     static let shared = DeviceCapabilityService()
@@ -96,6 +149,7 @@ final class DeviceCapabilityService: @unchecked Sendable {
     private let cachedFormFactor: DeviceFormFactor
     private let cachedDeviceIdentifier: String
     private let cachedNPUTops: Int // Accurate TOPS for this specific chip
+    private let cachedMetalSnapshot: MetalHardwareSnapshot
 
     private init() {
         let (tier, chip, formFactor, identifier, tops) = Self.detectFullCapability()
@@ -105,6 +159,7 @@ final class DeviceCapabilityService: @unchecked Sendable {
         cachedDeviceIdentifier = identifier
         cachedNPUTops = tops
         cachedMemoryGB = Self.detectMemoryGB()
+        cachedMetalSnapshot = Self.detectMetalHardwareSnapshot()
 
         // Set sensible default GPU acceleration if never set (0.0 means unset)
         // Balanced (0.5) is a good default - uses ANE primarily with GPU assist
@@ -126,6 +181,9 @@ final class DeviceCapabilityService: @unchecked Sendable {
 
     /// Available RAM in GB
     var memoryGB: Double { cachedMemoryGB }
+
+    /// Metal device limits exposed via public APIs
+    var metalSnapshot: MetalHardwareSnapshot { cachedMetalSnapshot }
 
     /// Device form factor (iPhone, iPad mini, iPad Air, iPad Pro, Mac)
     var formFactor: DeviceFormFactor { cachedFormFactor }
@@ -157,6 +215,124 @@ final class DeviceCapabilityService: @unchecked Sendable {
     /// Whether Apple Intelligence is available on this device
     var supportsAppleIntelligence: Bool {
         cachedTier != .unsupported
+    }
+
+    /// Highest GPU level this device should sustain without pushing into crash-prone territory.
+    var maxSafeGPUAccelerationLevel: Double {
+        if isMac {
+            return 1.0
+        }
+
+        switch cachedFormFactor {
+        case .iPadPro:
+            return 1.0
+        case .iPadAir:
+            return cachedTier >= .advanced ? 1.0 : 0.9
+        case .iPadMini:
+            return 0.7
+        case .iPhone:
+            switch cachedTier {
+            case .unsupported:
+                return 0.5
+            case .baseline:
+                return 0.8
+            case .enhanced:
+                return cachedMemoryGB >= 8 ? 0.9 : 0.8
+            case .advanced, .ultraAdvanced:
+                return 1.0
+            }
+        case .mac:
+            return 1.0
+        case .unknown:
+            return 0.6
+        }
+    }
+
+    /// Requested level after applying per-hardware ceilings.
+    var activeGPUAccelerationLevel: Double {
+        min(gpuAccelerationLevel, maxSafeGPUAccelerationLevel)
+    }
+
+    /// Actual Vision OCR concurrency ceiling used to avoid Metal command buffer instability.
+    var visionOperationConcurrency: Int {
+        if isMac || ProcessInfo.processInfo.isiOSAppOnMac {
+            return 4
+        }
+
+        if chipIsAtLeast("A20") || chipIsAtLeast("M5") || chipIsAtLeast("A19") || chipIsAtLeast("M4") {
+            return 8
+        }
+        if chipIsAtLeast("A18") || chipIsAtLeast("M3") {
+            return 6
+        }
+        if chipIsAtLeast("A17") || chipIsAtLeast("M2") || chipIsAtLeast("M1") {
+            return 4
+        }
+        return 2
+    }
+
+    /// Brief cooldown that lets Metal/Vision finish outstanding work between OCR requests.
+    var visionOperationCooldownSeconds: TimeInterval {
+        if isMac || ProcessInfo.processInfo.isiOSAppOnMac {
+            return 0.003
+        }
+
+        if chipIsAtLeast("A20") || chipIsAtLeast("M5") || chipIsAtLeast("A19") || chipIsAtLeast("M4") {
+            return 0.001
+        }
+        if chipIsAtLeast("A18") || chipIsAtLeast("M3") {
+            return 0.002
+        }
+        if chipIsAtLeast("A17") || chipIsAtLeast("M2") || chipIsAtLeast("M1") {
+            return 0.003
+        }
+        return 0.006
+    }
+
+    var visionOperationCooldownMilliseconds: Int {
+        Int((visionOperationCooldownSeconds * 1000).rounded())
+    }
+
+    var preferredComputeUnitsDescription: String {
+        Self.describeComputeUnits(preferredComputeUnits)
+    }
+
+    var embeddingComputeUnitsDescription: String {
+        Self.describeComputeUnits(embeddingComputeUnitsDuringIngestion)
+    }
+
+    var hardwareExecutionEnvelope: HardwareExecutionEnvelope {
+        HardwareExecutionEnvelope(
+            deviceIdentifier: deviceIdentifier,
+            chipName: chipName,
+            formFactor: formFactor,
+            memoryGB: memoryGB,
+            npuTops: npuTops,
+            metal: metalSnapshot,
+            maxSafeGPUAccelerationLevel: maxSafeGPUAccelerationLevel,
+            requestedGPUAccelerationLevel: gpuAccelerationLevel,
+            activeGPUAccelerationLevel: activeGPUAccelerationLevel,
+            coreMLRoute: preferredComputeUnitsDescription,
+            embeddingRoute: embeddingComputeUnitsDescription,
+            visionOperationConcurrency: visionOperationConcurrency,
+            visionCooldownMilliseconds: visionOperationCooldownMilliseconds,
+            visionPipelinePages: visionParsingConcurrency,
+            ocrPipelinePages: ocrExtractionConcurrency,
+            pdfRenderSlots: pdfRenderingConcurrency,
+            pdfPageMemory360MB: estimatedPDFPageMegabytes(at: 360),
+            pdfPageMemory432MB: estimatedPDFPageMegabytes(at: 432),
+            embeddingConcurrency: embeddingConcurrency,
+            embeddingBatchSize: embeddingBatchSize,
+            vectorBatchSize: vectorBatchSize,
+            batchMatrixMultiplyThreshold: batchMatrixMultiplyThreshold,
+            gpuConcurrency: gpuConcurrency
+        )
+    }
+
+    func estimatedPDFPageMegabytes(at dpi: Int) -> Int {
+        let baselineMB = 206.0
+        let scaleFactor = Double(dpi) / 360.0
+        return Int((baselineMB * scaleFactor * scaleFactor).rounded())
     }
 
     /// Maximum recommended concurrent agentic steps
@@ -394,7 +570,7 @@ final class DeviceCapabilityService: @unchecked Sendable {
 
     /// CoreML compute units based on GPU acceleration level
     var preferredComputeUnits: MLComputeUnits {
-        let level = gpuAccelerationLevel
+        let level = activeGPUAccelerationLevel
         if level >= 0.9 {
             return .cpuAndGPU  // Force GPU, bypass Neural Engine
         } else if level >= 0.6 {
@@ -424,7 +600,7 @@ final class DeviceCapabilityService: @unchecked Sendable {
 
     /// Whether to use GPU-backed CIContext for PDF rendering
     var useGPUForPDFRendering: Bool {
-        gpuAccelerationLevel >= 0.3
+        activeGPUAccelerationLevel >= 0.3
     }
 
     /// Maximum concurrent GPU operations (image processing, rendering)
@@ -443,7 +619,7 @@ final class DeviceCapabilityService: @unchecked Sendable {
             return 6  // Mac: Active cooling, more GPU cores
         }
 
-        let level = gpuAccelerationLevel
+        let level = activeGPUAccelerationLevel
         if level >= 0.9 {
             // Maximum mode - CRANKED maximums for iOS
             switch cachedTier {
@@ -479,7 +655,7 @@ final class DeviceCapabilityService: @unchecked Sendable {
 
     /// Whether to use Metal compute shaders for vector operations
     var useMetalForVectorOps: Bool {
-        gpuAccelerationLevel >= 0.6
+        activeGPUAccelerationLevel >= 0.6
     }
 
     /// Get optimized AgenticConfig for current device
@@ -987,6 +1163,43 @@ final class DeviceCapabilityService: @unchecked Sendable {
         let memoryBytes = ProcessInfo.processInfo.physicalMemory
         return Double(memoryBytes) / (1024 * 1024 * 1024)
     }
+
+    private static func detectMetalHardwareSnapshot() -> MetalHardwareSnapshot {
+        guard let device = MTLCreateSystemDefaultDevice() else {
+            return .unavailable
+        }
+
+        let maxThreads = device.maxThreadsPerThreadgroup
+        let threadCount = Int(maxThreads.width * maxThreads.height * maxThreads.depth)
+
+        return MetalHardwareSnapshot(
+            deviceName: device.name,
+            hasUnifiedMemory: device.hasUnifiedMemory,
+            recommendedWorkingSetMB: Int(device.recommendedMaxWorkingSetSize / 1_048_576),
+            maxBufferLengthMB: Int(device.maxBufferLength / 1_048_576),
+            maxThreadsPerThreadgroup: threadCount,
+            maxThreadgroupMemoryKB: Int(device.maxThreadgroupMemoryLength / 1024)
+        )
+    }
+
+    private func chipIsAtLeast(_ chipPrefix: String) -> Bool {
+        cachedChipName.hasPrefix(chipPrefix)
+    }
+
+    private static func describeComputeUnits(_ units: MLComputeUnits) -> String {
+        switch units {
+        case .all:
+            return "Auto (CPU + GPU + Neural Engine)"
+        case .cpuOnly:
+            return "CPU only"
+        case .cpuAndGPU:
+            return "CPU + GPU"
+        case .cpuAndNeuralEngine:
+            return "CPU + Neural Engine"
+        @unknown default:
+            return "System default"
+        }
+    }
 }
 
 // MARK: - AgenticOrchestrator Integration
@@ -1011,8 +1224,10 @@ extension DeviceCapabilityService {
                 • Chip: \(chipName)
                 • Memory: \(String(format: "%.1f", memoryGB)) GB
             • NPU: \(npuTops) TOPS
+                • Metal: \(metalSnapshot.deviceName) • \(metalSnapshot.workingSetDescription) working set
                 • Form Factor: \(formFactor.rawValue)
                 • Apple Intelligence: \(supportsAppleIntelligence ? "✓" : "✗")
+                • Vision OCR Ceiling: \(visionOperationConcurrency) ops @ \(visionOperationCooldownMilliseconds)ms
                 • Max Agentic Steps: \(maxConcurrentAgenticSteps)
                 • Token Budget: \(maxAgenticTokenBudget)
             """, category: .initialization)

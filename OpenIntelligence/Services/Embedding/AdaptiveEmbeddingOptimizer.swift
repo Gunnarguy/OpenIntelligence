@@ -582,17 +582,33 @@ actor LibraryIntelligenceCenter {
 
     private func detectCodeSnippets(in text: String) -> Bool {
         guard !text.isEmpty else { return false }
-        let codePatterns = [
-            "func ", "def ", "class ", "import ", "function", "const ", "let ", "var ",
-            "return ", "if (", "} else", "public ", "private ", "void ", "int ", "String ",
-            "```", "::", "#include", "switch (",
+        let strongPatterns = [
+            "func ", "def ", "class ", "#include", "```", "switch (", "if (", "} else",
         ]
-        if codePatterns.contains(where: { text.contains($0) }) {
-            return true
-        }
+        let moderatePatterns = [
+            "import ", "const ", "let ", "var ", "return ", "public ", "private ",
+            "void ", "int ", "String ", "function", "::",
+        ]
+
+        let strongMatches = strongPatterns.filter { text.contains($0) }.count
+        let moderateMatches = moderatePatterns.filter { text.contains($0) }.count
         let braceDensity = Double(text.filter { "{}[]".contains($0) }.count)
             / Double(max(1, text.count))
-        return braceDensity > 0.02
+        let semicolonDensity = Double(text.filter { $0 == ";" }.count) / Double(max(1, text.count))
+
+        if strongMatches >= 2 {
+            return true
+        }
+
+        if strongMatches >= 1 && (braceDensity > 0.01 || semicolonDensity > 0.003) {
+            return true
+        }
+
+        if moderateMatches >= 3 && braceDensity > 0.01 {
+            return true
+        }
+
+        return braceDensity > 0.025 && semicolonDensity > 0.004
     }
 
     private func detectMathematicalContent(in text: String) -> Bool {

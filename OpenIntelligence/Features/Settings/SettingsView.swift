@@ -614,6 +614,10 @@ Text(deviceService.chipName)
 
             Divider()
 
+            hardwareEnvelopeSection(deviceService: deviceService)
+
+            Divider()
+
             // Context Window
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
@@ -735,6 +739,75 @@ Text(deviceService.chipName)
         .background(Color.secondary.opacity(0.1))
         .clipShape(Capsule())
     }
+
+            @ViewBuilder
+            private func hardwareEnvelopeSection(deviceService: DeviceCapabilityService) -> some View {
+                let envelope = deviceService.hardwareExecutionEnvelope
+                let fidelityDPI = settings.ingestionFidelityMode == .maximum ? 432 : 360
+                let perPageMB = fidelityDPI == 432 ? envelope.pdfPageMemory432MB : envelope.pdfPageMemory360MB
+                let imageBudgetMB = perPageMB * envelope.pdfRenderSlots
+                let gpuCeilingText: String = {
+                    if envelope.activeGPUAccelerationLevel < envelope.requestedGPUAccelerationLevel {
+                        return "\(Int(envelope.activeGPUAccelerationLevel * 100))% active of \(Int(envelope.requestedGPUAccelerationLevel * 100))% requested"
+                    }
+                    return "Up to \(Int(envelope.maxSafeGPUAccelerationLevel * 100))% safe on this device"
+                }()
+
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "cpu.fill")
+                            .font(.caption)
+                            .foregroundColor(.indigo)
+                        Text("Hardware Envelope")
+                            .font(.subheadline.weight(.medium))
+                        Spacer()
+                        Text("Core ML + Metal")
+                            .font(.caption2.weight(.medium))
+                            .foregroundColor(.indigo)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.indigo.opacity(0.15))
+                            .clipShape(Capsule())
+                    }
+
+                    Text("These ceilings come from public hardware signals the app can inspect safely: device ID, chip mapping, RAM, Metal working-set budget, threadgroup limits, and crash-tested Vision/Core ML guardrails. Apple does not expose live Neural Engine occupancy.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        hardwareLimitRow(icon: "number", label: "Device ID", value: envelope.deviceIdentifier)
+                        hardwareLimitRow(icon: "memorychip", label: "Metal Device", value: envelope.metal.deviceName)
+                        hardwareLimitRow(icon: "square.stack.3d.up", label: "Unified Memory", value: "\(envelope.metal.hasUnifiedMemory ? "Yes" : "No") • \(envelope.metal.workingSetDescription) working set")
+                        hardwareLimitRow(icon: "square.grid.3x3.fill", label: "Threadgroup Ceiling", value: "\(envelope.metal.maxThreadsPerThreadgroup) threads • \(envelope.metal.maxThreadgroupMemoryKB) KB shared")
+                        hardwareLimitRow(icon: "gauge.with.needle", label: "GPU Ceiling", value: gpuCeilingText)
+                        hardwareLimitRow(icon: "cpu", label: "CoreML Route", value: envelope.coreMLRoute)
+                        hardwareLimitRow(icon: "text.badge.checkmark", label: "Embedding Route", value: envelope.embeddingRoute)
+                        hardwareLimitRow(icon: "eye.fill", label: "Vision OCR Ceiling", value: "\(envelope.visionOperationConcurrency) ops • \(envelope.visionCooldownMilliseconds) ms cooldown")
+                        hardwareLimitRow(icon: "photo.stack", label: "Full-Res PDF Budget", value: "\(envelope.pdfRenderSlots) pages • ~\(imageBudgetMB) MB @ \(fidelityDPI) DPI")
+                        hardwareLimitRow(icon: "function", label: "Vector Search Ceiling", value: "\(envelope.vectorBatchSize) batch • matrix @ \(envelope.batchMatrixMultiplyThreshold)+")
+                    }
+                }
+                .padding(12)
+                .background(Color.indigo.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+
+            @ViewBuilder
+            private func hardwareLimitRow(icon: String, label: String, value: String) -> some View {
+                HStack(spacing: 8) {
+                    Image(systemName: icon)
+                        .font(.caption2)
+                        .foregroundColor(.indigo)
+                        .frame(width: 16)
+                    Text(label)
+                        .font(.caption.weight(.medium))
+                    Spacer()
+                    Text(value)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.trailing)
+                }
+            }
 
     @ViewBuilder
     private func contextInfoPill(icon: String, label: String, value: String) -> some View {
@@ -904,13 +977,27 @@ Text(deviceService.chipName)
                 .font(.caption)
                 .foregroundColor(.secondary)
 
+            if deviceService.activeGPUAccelerationLevel < gpuLevel {
+                HStack(spacing: 6) {
+                    Image(systemName: "shield.lefthalf.filled")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                    Text("\(deviceService.chipName) is holding active GPU to \(Int(deviceService.activeGPUAccelerationLevel * 100))% even though \(Int(gpuLevel * 100))% was requested. This ceiling is deliberate to avoid unstable sustained loads.")
+                        .font(.caption2)
+                        .foregroundColor(.orange)
+                }
+                .padding(8)
+                .background(Color.orange.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+
             // GPU Level Slider
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
                     Text("GPU Level")
                         .font(.caption.weight(.medium))
                     Spacer()
-                    Text("\(Int(gpuLevel * 100))%")
+                    Text(gpuLevelSummary(deviceService: deviceService))
                         .font(.caption.monospacedDigit().bold())
                         .foregroundColor(gpuModeColor)
                         .contentTransition(.numericText())
@@ -939,12 +1026,48 @@ Text(deviceService.chipName)
             .clipShape(RoundedRectangle(cornerRadius: 10))
             .animation(.easeInOut(duration: 0.15), value: gpuLevel)
 
+            Divider()
+                .padding(.vertical, 2)
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    Text("Ingestion Fidelity")
+                        .font(.caption.weight(.medium))
+                    Spacer()
+                    Text(settings.ingestionFidelityMode.uiBadgeText)
+                        .font(.caption2.weight(.medium))
+                        .foregroundColor(ingestionFidelityColor(for: settings.ingestionFidelityMode))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(ingestionFidelityColor(for: settings.ingestionFidelityMode).opacity(0.15))
+                        .clipShape(Capsule())
+                }
+
+                Text("This controls how aggressively PDFs stay full-resolution during OCR and structured parsing. It is separate from Standard, Deep Think, and Maximum answer modes.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                VStack(spacing: 8) {
+                    ForEach(IngestionFidelityMode.allCases) { mode in
+                        Button {
+                            settings.ingestionFidelityMode = mode
+                        } label: {
+                            ingestionFidelityRow(mode: mode, isSelected: settings.ingestionFidelityMode == mode)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .padding(10)
+            .background(Color.orange.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+
             // Current settings based on level - LIVE UPDATING
             VStack(alignment: .leading, spacing: 6) {
                 gpuSettingRow(
                     icon: "cpu",
                     label: "CoreML Compute",
-                    value: gpuLevel >= 0.9 ? "GPU + CPU" : (gpuLevel >= 0.6 ? "All (Auto)" : "CPU + Neural Engine")
+                    value: deviceService.preferredComputeUnitsDescription
                 )
                 gpuSettingRow(
                     icon: "doc.text.image",
@@ -993,7 +1116,7 @@ Text(deviceService.chipName)
                 gpuSettingRow(
                     icon: "photo.stack",
                     label: "PDF Render Slots",
-                    value: "\(deviceService.pdfRenderingConcurrency) concurrent (360 DPI)"
+                    value: "\(deviceService.pdfRenderingConcurrency) concurrent (adaptive 360/432 DPI)"
                 )
                 gpuSettingRow(
                     icon: "cube.transparent",
@@ -1009,10 +1132,17 @@ Text(deviceService.chipName)
                     .font(.caption.weight(.medium))
                 let renderSlots = deviceService.pdfRenderingConcurrency
                 let batches = 400 / renderSlots
-                let estimatedSeconds = batches * 3  // ~3s per render+OCR batch average (360 DPI)
+                let secondsPerBatch: Int = {
+                    switch settings.ingestionFidelityMode {
+                    case .balanced: return 3
+                    case .high: return 4
+                    case .maximum: return 5
+                    }
+                }()
+                let estimatedSeconds = batches * secondsPerBatch
                 let minutes = estimatedSeconds / 60
                 let seconds = estimatedSeconds % 60
-                Text("~\(minutes)m \(seconds)s extraction • \(batches) batches of \(renderSlots) pages")
+                Text("~\(minutes)m \(seconds)s extraction • \(batches) batches of \(renderSlots) pages • \(settings.ingestionFidelityMode.displayName) fidelity")
                     .font(.caption2.monospacedDigit())
                     .foregroundColor(.secondary)
             }
@@ -1044,17 +1174,28 @@ Text(deviceService.chipName)
         }
     }
 
+    private func gpuLevelSummary(deviceService: DeviceCapabilityService) -> String {
+        let requested = Int(gpuLevel * 100)
+        let active = Int(deviceService.activeGPUAccelerationLevel * 100)
+        if active < requested {
+            return "\(requested)% req / \(active)% act"
+        }
+        return "\(requested)%"
+    }
+
     private var gpuModeName: String {
-        if gpuLevel >= 0.9 { return "Maximum" }
-        if gpuLevel >= 0.6 { return "Performance" }
-        if gpuLevel >= 0.3 { return "Balanced" }
+        let level = DeviceCapabilityService.shared.activeGPUAccelerationLevel
+        if level >= 0.9 { return "Maximum" }
+        if level >= 0.6 { return "Performance" }
+        if level >= 0.3 { return "Balanced" }
         return "Efficient"
     }
 
     private var gpuModeColor: Color {
-        if gpuLevel >= 0.9 { return .red }
-        if gpuLevel >= 0.6 { return .orange }
-        if gpuLevel >= 0.3 { return .green }
+        let level = DeviceCapabilityService.shared.activeGPUAccelerationLevel
+        if level >= 0.9 { return .red }
+        if level >= 0.6 { return .orange }
+        if level >= 0.3 { return .green }
         return .blue
     }
 
@@ -1071,6 +1212,47 @@ Text(deviceService.chipName)
             Text(value)
                 .font(.caption2.weight(.medium))
                 .foregroundColor(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private func ingestionFidelityRow(mode: IngestionFidelityMode, isSelected: Bool) -> some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(mode.displayName)
+                        .font(.caption.weight(.medium))
+                        .foregroundColor(isSelected ? ingestionFidelityColor(for: mode) : .primary)
+                    if isSelected {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.caption2)
+                            .foregroundColor(ingestionFidelityColor(for: mode))
+                    }
+                }
+                Text(mode.shortDescription)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(isSelected ? ingestionFidelityColor(for: mode).opacity(0.12) : Color.secondary.opacity(0.06))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(isSelected ? ingestionFidelityColor(for: mode).opacity(0.35) : Color.clear, lineWidth: 1)
+        )
+    }
+
+    private func ingestionFidelityColor(for mode: IngestionFidelityMode) -> Color {
+        switch mode {
+        case .balanced: return .blue
+        case .high: return .orange
+        case .maximum: return .red
         }
     }
 

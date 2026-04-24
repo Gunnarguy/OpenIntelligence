@@ -98,95 +98,14 @@ nonisolated private func synchronizeGPU() {
 /// Higher-tier devices (A18 Pro, M-series) can sustain more parallel Vision ops
 /// Lower-tier devices are limited to 2 to prevent Metal command buffer overflow
 nonisolated private let maxConcurrentVisionOps: Int = {
-    // Detect device tier at initialization
-    // Uses same logic as DeviceCapabilityService but without creating dependency cycle
-    var systemInfo = utsname()
-    uname(&systemInfo)
-    let machine = withUnsafePointer(to: &systemInfo.machine) {
-        $0.withMemoryRebound(to: CChar.self, capacity: 1) {
-            String(cString: $0)
-        }
-    }
-
-    // Check if running as iOS app on Mac (iPad compatibility mode)
-    // On Mac, Metal command buffer behaves differently - need more conservative limits
-    let isRunningOnMac = machine.contains("Mac") || ProcessInfo.processInfo.isiOSAppOnMac
-
-    // Metal Feature Set Tables (Oct 2025):
-    // Apple9 (A18/M3): 1024 threads/group, 32KB threadgroup mem, 256KB imageblock
-    // Apple10 (A19/M4/M5): Same limits + 8x MSAA, 32K textures, sampler LOD bias
-    //
-    // Vision uses Neural Engine (16-core) + GPU. Higher-tier devices sustain more parallelism.
-    // The semaphore controls actual Vision ops; pipeline pre-rendering can exceed this.
-    //
-    // ADAPTIVE OCR: PageComplexityAnalyzer now pre-screens pages, so we only run Vision OCR
-    // on pages that truly need it. This means fewer total Vision calls, so we can be
-    // slightly more aggressive with concurrency without risking crashes.
-    //
-    // IMPORTANT: Mac has different Metal command buffer scheduling than iPhone.
-    // MTLDebugBlitCommandEncoder crashes happen when command buffers pile up.
-    // Mac needs LOWER concurrency despite more powerful hardware!
-
-    if isRunningOnMac {
-        // Mac (M-series): Active cooling + unified memory = can sustain more parallel Vision ops
-        // M4 Pro/Max have improved Metal command buffer scheduling
-        return 4   // Boosted: active cooling handles the thermal load
-    } else if machine.contains("iPhone18") || machine.contains("iPad16") {
-        return 8   // A19 Pro/M4 iPad: 16-core ANE @ 45 TOPS, aggressive with adaptive filtering
-    } else if machine.contains("iPhone17") || machine.contains("iPad15") {
-        return 6   // A18 Pro/M3 iPad: 16-core ANE @ 38 TOPS, elevated with adaptive filtering
-    } else if machine.contains("iPhone16") || machine.contains("iPad14") {
-        return 4   // A17 Pro/M2: 16-core ANE @ 35 TOPS, boosted
-    } else if machine.contains("iPad13") {
-        return 4   // M1 iPad Pro: active cooling, boosted
-    } else {
-        return 2   // Older devices - safe (was 1, now 2 with fewer OCR pages)
-    }
+    DeviceCapabilityService.shared.visionOperationConcurrency
 }()
 
 /// Cooldown time between Vision operations (seconds)
 /// Brief delay to let GPU command buffers settle
 /// High-tier devices use shorter cooldown
 nonisolated private let gpuCooldownSeconds: TimeInterval = {
-    // Match the tier detection from above
-    var systemInfo = utsname()
-    uname(&systemInfo)
-    let machine = withUnsafePointer(to: &systemInfo.machine) {
-        $0.withMemoryRebound(to: CChar.self, capacity: 1) {
-            String(cString: $0)
-        }
-    }
-
-    // Check if running as iOS app on Mac
-    let isRunningOnMac = machine.contains("Mac") || ProcessInfo.processInfo.isiOSAppOnMac
-
-    // Metal GPU command buffer synchronization needs minimal cooldown on high-tier devices.
-    // Apple9+ has improved command buffer scheduling and 64-bit atomics for synchronization.
-    //
-    // ADAPTIVE OCR: PageComplexityAnalyzer now filters pages BEFORE they reach Vision.
-    // With fewer concurrent Vision calls (only complex pages), we can use shorter cooldowns.
-    // The reduction in total Vision calls (often 50-80% skip rate) is the main speedup.
-    //
-    // IMPORTANT: Mac requires slightly longer cooldown due to different Metal lifecycle.
-
-    // CRANKED: Adaptive OCR filtering means fewer total Vision calls per document.
-    // With 50-80% skip rate from PageComplexityAnalyzer, actual concurrent load is lower
-    // than maxConcurrentVisionOps suggests. Cooldowns are pure waste on modern ANE.
-    // Apple9+ (A18/M3) has improved command buffer scheduling + 64-bit atomics.
-    if isRunningOnMac {
-        // Mac: Active cooling eliminates thermal concern; minimal cooldown for Metal lifecycle
-        return 0.003  // 3ms - active cooling, improved Metal scheduling
-    } else if machine.contains("iPhone18") || machine.contains("iPad16") {
-        return 0.001  // 1ms - A19/M4: Apple10 Metal feature set, near-zero cooldown
-    } else if machine.contains("iPhone17") || machine.contains("iPad15") {
-        return 0.002  // 2ms - A18/M3: Apple9 Metal, very fast scheduling
-    } else if machine.contains("iPhone16") || machine.contains("iPad14") {
-        return 0.003  // 3ms - A17/M2: still fast with adaptive filtering
-    } else if machine.contains("iPad13") {
-        return 0.003  // 3ms - M1 iPad Pro: active cooling
-    } else {
-        return 0.006  // 6ms - older devices: reduced from 10ms, still safe
-    }
+    DeviceCapabilityService.shared.visionOperationCooldownSeconds
 }()
 
 // MARK: - Actor-Based Async Semaphore (Apple-approved approach)

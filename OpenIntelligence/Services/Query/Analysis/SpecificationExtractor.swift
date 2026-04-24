@@ -28,6 +28,9 @@ struct SpecificationExtractionResult: Sendable {
     /// The extracted answer span (e.g., "0W-20", "4.5 liters")
     let answerSpan: String
 
+    /// Optional matched label/key for key-value style lookups.
+    let matchedLabel: String?
+
     /// Confidence in this extraction (0-1)
     let confidence: Float
 
@@ -131,6 +134,15 @@ actor SpecificationExtractor {
 
         Log.debug("[ExtractiveQA] Primary entities: \(queryEntities.primaryEntities)", category: .retrieval)
         Log.debug("[ExtractiveQA] Descriptive keywords: \(queryEntities.descriptiveKeywords.prefix(5))", category: .retrieval)
+
+        if let stateResult = extractFromStateMappings(
+            chunks: chunks,
+            query: query,
+            queryEntities: queryEntities
+        ) {
+            Log.info("[ExtractiveQA] ✓ State mapping lookup succeeded: '\(stateResult.matchedLabel ?? "")' → '\(stateResult.answerSpan)'", category: .retrieval)
+            return .success(stateResult)
+        }
 
         // ═══════════════════════════════════════════════════════════════════════════
         // PHASE 1: STRUCTURED TABLE LOOKUP (PREFERRED)
@@ -294,6 +306,7 @@ actor SpecificationExtractor {
                         )
                         return .success(SpecificationExtractionResult(
                             answerSpan: entityCandidate.value,
+                            matchedLabel: nil,
                             confidence: entityScore,
                             sourceChunk: entityCandidate.chunk,
                             surroundingContext: context,
@@ -325,6 +338,7 @@ actor SpecificationExtractor {
 
         let result = SpecificationExtractionResult(
             answerSpan: bestCandidate.value,
+            matchedLabel: nil,
             confidence: bestScore,
             sourceChunk: bestCandidate.chunk,
             surroundingContext: context,
@@ -515,6 +529,175 @@ actor SpecificationExtractor {
 
     // MARK: - Proximity-Based Extraction
 
+    private func extractFromStateMappings(
+        chunks: [RetrievedChunk],
+        query: String,
+        queryEntities: QueryEntities
+    ) -> SpecificationExtractionResult? {
+        let queryLabels = buildStateLookupLabels(from: query)
+        guard !queryLabels.isEmpty else { return nil }
+
+        var bestMatch: (label: String, value: String, score: Float, chunk: RetrievedChunk)?
+
+        for chunk in chunks {
+            let content = chunk.chunk.parentContent ?? chunk.chunk.content
+            let mappings = parseStateMappings(in: content)
+
+            for mapping in mappings {
+                let labelScore = scoreStateLabelMatch(mapping.label, queryLabels: queryLabels)
+                guard labelScore >= 0.78 else { continue }
+
+                var score = labelScore
+                if chunk.chunk.metadata.structureType == "table" {
+                    score += 0.05
+                }
+                if mapping.value.count >= 8 {
+                    score += 0.03
+                }
+                if queryEntities.descriptiveKeywords.contains(where: { keyword in
+                    let loweredValue = mapping.value.lowercased()
+                    return keyword.count >= 4 && loweredValue.contains(keyword)
+                }) {
+                    score += 0.03
+                }
+                score += min(0.04, chunk.similarityScore * 0.05)
+
+                if bestMatch == nil || score > bestMatch!.score {
+                    bestMatch = (mapping.label, mapping.value, min(0.98, score), chunk)
+                }
+            }
+        }
+
+        guard let match = bestMatch, match.score >= 0.82 else {
+            return nil
+        }
+
+        return SpecificationExtractionResult(
+            answerSpan: match.value,
+            matchedLabel: match.label,
+            confidence: match.score,
+            sourceChunk: match.chunk,
+            surroundingContext: "\(match.label) \(match.value)",
+            specificationType: "StateMapping",
+            matchedKeywords: queryEntities.keywords
+        )
+    }
+
+    private func buildStateLookupLabels(from query: String) -> [String] {
+        let pattern = #"\b(flash(?:ing)?|blink(?:ing)?|solid|steady|puls(?:e|ing)|rapid|slow)\s+([a-z-]+)\b"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else {
+            return []
+        }
+
+        let nsQuery = query as NSString
+        let matches = regex.matches(in: query, range: NSRange(location: 0, length: nsQuery.length))
+        let labels = matches.compactMap { match -> String? in
+            guard match.numberOfRanges >= 3 else { return nil }
+            let state = canonicalStateToken(nsQuery.substring(with: match.range(at: 1)))
+            let color = nsQuery.substring(with: match.range(at: 2)).capitalized
+            return "\(state) \(color)"
+        }
+
+        return Array(Set(labels))
+    }
+
+    private func canonicalStateToken(_ token: String) -> String {
+        let lower = token.lowercased()
+        if lower.hasPrefix("flash") { return "Flashing" }
+        if lower.hasPrefix("blink") { return "Blinking" }
+        if lower.hasPrefix("puls") { return "Pulsing" }
+        if lower == "solid" { return "Solid" }
+        if lower == "steady" { return "Steady" }
+        if lower == "rapid" { return "Rapid" }
+        if lower == "slow" { return "Slow" }
+        return token.capitalized
+    }
+
+    private func scoreStateLabelMatch(_ label: String, queryLabels: [String]) -> Float {
+        let normalizedLabel = normalizeStatePhrase(label)
+        var best: Float = 0
+
+        for queryLabel in queryLabels {
+            let normalizedQuery = normalizeStatePhrase(queryLabel)
+            if normalizedLabel == normalizedQuery {
+                best = max(best, 0.95)
+                continue
+            }
+
+            if normalizedLabel.contains(normalizedQuery) || normalizedQuery.contains(normalizedLabel) {
+                best = max(best, 0.88)
+                continue
+            }
+
+            let labelTokens = Set(normalizedLabel.split(separator: " ").map(String.init))
+            let queryTokens = Set(normalizedQuery.split(separator: " ").map(String.init))
+            let overlap = labelTokens.intersection(queryTokens)
+            let coverage = Float(overlap.count) / Float(max(1, queryTokens.count))
+            if coverage >= 1.0 {
+                best = max(best, 0.90)
+            } else if coverage >= 0.5 {
+                best = max(best, 0.80)
+            }
+        }
+
+        return best
+    }
+
+    private func normalizeStatePhrase(_ phrase: String) -> String {
+        phrase
+            .lowercased()
+            .replacingOccurrences(of: #"[^a-z0-9\s-]"#, with: " ", options: .regularExpression)
+            .replacingOccurrences(of: #"\bflash\b"#, with: "flashing", options: .regularExpression)
+            .replacingOccurrences(of: #"\bblink\b"#, with: "blinking", options: .regularExpression)
+            .replacingOccurrences(of: #"\bpulse\b"#, with: "pulsing", options: .regularExpression)
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func parseStateMappings(in content: String) -> [(label: String, value: String)] {
+        let flattened = content
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\t", with: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let pattern = #"((?:Flashing|Solid|Blinking|Steady|Pulsing|Rapid|Slow)\s+[A-Z][A-Za-z-]+)\s+(.+?)(?=\s+(?:(?:Flashing|Solid|Blinking|Steady|Pulsing|Rapid|Slow)\s+[A-Z][A-Za-z-]+)|$)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else {
+            return []
+        }
+
+        let nsContent = flattened as NSString
+        let matches = regex.matches(in: flattened, range: NSRange(location: 0, length: nsContent.length))
+
+        var seen = Set<String>()
+        var results: [(label: String, value: String)] = []
+
+        for match in matches {
+            guard match.numberOfRanges >= 3 else { continue }
+            let label = nsContent.substring(with: match.range(at: 1)).trimmingCharacters(in: .whitespacesAndNewlines)
+            let rawValue = nsContent.substring(with: match.range(at: 2))
+            let value = cleanupStateMappingValue(rawValue)
+            guard !value.isEmpty else { continue }
+
+            let dedupeKey = "\(label.lowercased())::\(value.lowercased())"
+            if seen.insert(dedupeKey).inserted {
+                results.append((label: label, value: value))
+            }
+        }
+
+        return results
+    }
+
+    private func cleanupStateMappingValue(_ rawValue: String) -> String {
+        rawValue
+            .replacingOccurrences(of: #"^\(\d+\s*"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"^\d+\s+"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"\bsecs?\)"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"^[-:]+\s*"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: CharacterSet(charactersIn: " -:\t\n()"))
+    }
+
     /// Extract answers using proximity scoring - finds part numbers near query keywords.
     ///
     /// **Why this exists**: Document data is often inline like:
@@ -626,6 +809,7 @@ actor SpecificationExtractor {
 
             return SpecificationExtractionResult(
                 answerSpan: match.value,
+                matchedLabel: nil,
                 confidence: min(0.90, match.score * 0.8 + 0.25), // Conservative: 0.55→0.69, 0.75→0.85, 0.95→0.90
                 sourceChunk: match.chunk,
                 surroundingContext: match.context,

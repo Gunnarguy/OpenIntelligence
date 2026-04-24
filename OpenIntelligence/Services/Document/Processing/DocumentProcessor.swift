@@ -150,6 +150,55 @@ class DocumentProcessor {
         )
     }
 
+    private func preferredOCRRenderScale(
+        for analysis: PageComplexityAnalysis?,
+        documentTextLayerGarbled: Bool
+    ) -> CGFloat {
+        let fidelityMode = IngestionFidelityMode.current
+
+        guard let analysis else {
+            return documentTextLayerGarbled ? 6.0 : 5.0
+        }
+
+        if documentTextLayerGarbled {
+            return 6.0
+        }
+
+        if analysis.fineTextRisk >= fidelityMode.fineTextRiskThreshold {
+            return 6.0
+        }
+
+        return 5.0
+    }
+
+    private func shouldPreferHighResolutionStructure(
+        for analysis: PageComplexityAnalysis?,
+        strategy: PageProcessingStrategy,
+        documentTextLayerGarbled: Bool
+    ) -> Bool {
+        if documentTextLayerGarbled {
+            return true
+        }
+
+        let requiresTableOCR = (analysis?.tablePresence ?? 0) > 0.2 || (analysis?.numericDensity ?? 0) > 0.3
+        if requiresTableOCR || strategy == .fullOCR {
+            return true
+        }
+
+        let fidelityMode = IngestionFidelityMode.current
+        switch fidelityMode {
+        case .balanced:
+            return (analysis?.fineTextRisk ?? 0) >= 0.60
+        case .high:
+            return (analysis?.fineTextRisk ?? 0) >= 0.45
+                || (analysis?.columnCount ?? 1) > 1
+                || (analysis?.tablePresence ?? 0) > 0.12
+                || (analysis?.layoutComplexity ?? 0) >= 0.35
+        case .maximum:
+            return true
+        }
+    }
+
     struct ChunkingOverride: Sendable {
         let targetWordWindow: Int
         let overlapWords: Int
@@ -173,13 +222,25 @@ class DocumentProcessor {
         let pageNumber: Int
         let isAtomicChunk: Bool  // Tables should be chunked as single units
         let detectedEntities: [(type: String, value: String)]  // Vision-detected entities (emails, phones, etc.)
+        let tableData: TableData?
+        let listItems: [String]?
 
-        nonisolated init(text: String, elementType: String, pageNumber: Int, isAtomicChunk: Bool, detectedEntities: [(type: String, value: String)] = []) {
+        nonisolated init(
+            text: String,
+            elementType: String,
+            pageNumber: Int,
+            isAtomicChunk: Bool,
+            detectedEntities: [(type: String, value: String)] = [],
+            tableData: TableData? = nil,
+            listItems: [String]? = nil
+        ) {
             self.text = text
             self.elementType = elementType
             self.pageNumber = pageNumber
             self.isAtomicChunk = isAtomicChunk
             self.detectedEntities = detectedEntities
+            self.tableData = tableData
+            self.listItems = listItems
         }
     }
 
@@ -567,6 +628,14 @@ class DocumentProcessor {
         // Step D: Strip page break sentinels for chunking — chunker must see continuous text
         let chunkableText = normalizedText.replacingOccurrences(of: Self.pageBreakSentinel, with: "\n\n")
 
+        let documentCategory = classifyDocumentCategory(
+            text: chunkableText,
+            filename: filename,
+            documentType: documentType,
+            structuredElements: structuredElements
+        )
+        Log.info("[DocumentProcessor] Document category: \(documentCategory.rawValue)", category: .ingestion)
+
         // Chunk the text using semantic chunker
         emitProgress(stage: "chunking", detail: "✂️ Semantic chunking text...", page: nil, totalPages: nil)
         await Task.yield() // Yield to UI without blocking (was 0.3s sleep)
@@ -612,7 +681,9 @@ class DocumentProcessor {
                 fullText: chunkableText,
                 config: chunkerConfig,
                 documentId: documentId,
-                pageInfo: pageInfo
+                pageInfo: pageInfo,
+                filename: filename,
+                documentCategory: documentCategory
             )
             emitProgress(stage: "chunking", detail: "✅ Created \(processedChunks.count) chunks", page: nil, totalPages: nil)
             Log.info("[DocumentProcessor] Created \(processedChunks.count) structure-aware chunks", category: .ingestion)
@@ -628,7 +699,8 @@ class DocumentProcessor {
                 chunkableText,
                 documentId: documentId,
                 config: chunkerConfig,
-                pageNumbers: pageMapping
+                pageNumbers: pageMapping,
+                documentCategory: documentCategory
             )
 
             // Extract text strings and metadata for downstream use
@@ -648,7 +720,12 @@ class DocumentProcessor {
                     structureType: nil,  // Legacy flat text extraction
                     entities: chunk.metadata.entities,
                     abbreviations: chunk.metadata.abbreviations,
-                    sectionPath: chunk.metadata.sectionPath.isEmpty ? nil : chunk.metadata.sectionPath
+                    sectionPath: chunk.metadata.sectionPath.isEmpty ? nil : chunk.metadata.sectionPath,
+                    documentCategory: chunk.metadata.documentCategory,
+                    chunkType: chunk.metadata.chunkType,
+                    tableTitle: chunk.metadata.tableTitle,
+                    hasCrossReferences: chunk.metadata.hasCrossReferences,
+                    resolvedReferences: chunk.metadata.resolvedReferences
                 )
                 return ProcessedChunk(text: chunk.content, parentText: chunk.parentContent, metadata: metadata)
             }
@@ -745,6 +822,13 @@ class DocumentProcessor {
             metadata.sectionPathDepth = maxSectionDepth
             metadata.atomicTableChunks = atomicTableChunkCount
             metadata.atomicListChunks = atomicListChunkCount
+            metadata.documentCategory = documentCategory
+
+            let tableDataSet = structuredElements.compactMap(\ .tableData)
+            metadata.tableRowsTotal = tableDataSet.reduce(0) { $0 + $1.rows.count }
+            metadata.tableColumnsMax = tableDataSet.map { $0.rows.map(\ .count).max() ?? 0 }.max() ?? 0
+            metadata.listItemsTotal = structuredElements.compactMap(\ .listItems).reduce(0) { $0 + $1.count }
+            metadata.figureReferences = structuredElements.filter { $0.elementType == "figure" }.count
 
             if usedStructuredParsing {
                 Log.info("[DocumentProcessor] Structured parsing stats: \(tableElements.count) tables, \(listElements.count) lists, \(titleElements.count) titles, \(lastDetectedEntities.count) entities detected", category: .ingestion)
@@ -1510,6 +1594,7 @@ class DocumentProcessor {
                     let pageNumber = pageIndex + 1
                     let complexity = pageComplexity[pageNumber]
                     let strategy = complexity?.processingStrategy ?? .enhancedOCR  // Default to safe
+                    let renderScale = preferredOCRRenderScale(for: complexity, documentTextLayerGarbled: documentTextLayerGarbled)
 
                     let pageString = page.string
 
@@ -1527,7 +1612,10 @@ class DocumentProcessor {
                     var pageImage: CIImage? = nil
                     if documentTextLayerGarbled || strategy == .basicOCR || strategy == .enhancedOCR || strategy == .fullOCR {
                         // Complex page - render and preprocess image with adaptive strategy
-                        pageImage = renderPDFPageAsImage(page: page)
+                        if renderScale > 5.0 {
+                            Log.info("[DocumentProcessor] Page \(pageNumber): fine text risk \(Int((complexity?.fineTextRisk ?? 0) * 100))% → rendering at \(Int(72 * renderScale)) DPI", category: .ingestion)
+                        }
+                        pageImage = renderPDFPageAsImage(page: page, scale: renderScale)
                         if let image = pageImage {
                             let textQuality = complexity?.textQuality ?? 0.7
                             let isScanned = complexity?.processingStrategy == .fullOCR
@@ -2053,6 +2141,7 @@ class DocumentProcessor {
             let pageImage: CIImage?
             let plainText: String?
             let layoutText: String?  // Layout-aware extracted text
+            let preferHighResolutionStructure: Bool
         }
 
         // Result container for parallel processing
@@ -2154,18 +2243,24 @@ class DocumentProcessor {
             for pageIndex in subBatchIndices {
                 autoreleasepool {
                     guard let page = pdfDocument.page(at: pageIndex) else {
-                        batchRenderData.append(PageRenderData(pageIndex: pageIndex, pageImage: nil, plainText: nil, layoutText: nil))
+                        batchRenderData.append(PageRenderData(pageIndex: pageIndex, pageImage: nil, plainText: nil, layoutText: nil, preferHighResolutionStructure: false))
                         return
                     }
 
                     let pageNumber = pageIndex + 1
                     let complexity = pageComplexity[pageNumber]
                     let strategy = complexity?.processingStrategy ?? .enhancedOCR  // Safe default
+                    let renderScale = preferredOCRRenderScale(for: complexity, documentTextLayerGarbled: documentTextLayerGarbled)
                     // PHASE -1 override: garbled text layer → ALL pages need Vision OCR
                     let needsVision = documentTextLayerGarbled || strategy == .basicOCR || strategy == .enhancedOCR || strategy == .fullOCR
                     let plainText = page.string
                     let hasText = (plainText?.trimmingCharacters(in: .whitespacesAndNewlines).count ?? 0) > 0
                     let requiresTableOCR = (complexity?.tablePresence ?? 0) > 0.2 || (complexity?.numericDensity ?? 0) > 0.3
+                    let preferHighResolutionStructure = shouldPreferHighResolutionStructure(
+                        for: complexity,
+                        strategy: strategy,
+                        documentTextLayerGarbled: documentTextLayerGarbled
+                    )
 
                     traceIngestionDecision(
                         pageNumber: pageNumber,
@@ -2181,7 +2276,10 @@ class DocumentProcessor {
                     // PHASE -1 override: garbled text → ALWAYS render image for OCR
                     var pageImage: CIImage? = nil
                     if needsVision {
-                        pageImage = renderPDFPageAsImage(page: page)
+                        if renderScale > 5.0 {
+                            Log.info("[DocumentProcessor] Page \(pageNumber): fine text risk \(Int((complexity?.fineTextRisk ?? 0) * 100))% → rendering at \(Int(72 * renderScale)) DPI", category: .ingestion)
+                        }
+                        pageImage = renderPDFPageAsImage(page: page, scale: renderScale)
                         if let image = pageImage {
                             let textQuality = documentTextLayerGarbled ? 0.0 : (complexity?.textQuality ?? 0.7)
                             let isScanned = documentTextLayerGarbled || strategy == .fullOCR
@@ -2206,7 +2304,13 @@ class DocumentProcessor {
                         Log.debug("[DocumentProcessor] Page \(pageNumber): Using PDFKit spatial extraction (skipped Vision)", category: .ingestion)
                     }
 
-                    batchRenderData.append(PageRenderData(pageIndex: pageIndex, pageImage: pageImage, plainText: plainText, layoutText: layoutText))
+                    batchRenderData.append(PageRenderData(
+                        pageIndex: pageIndex,
+                        pageImage: pageImage,
+                        plainText: plainText,
+                        layoutText: layoutText,
+                        preferHighResolutionStructure: preferHighResolutionStructure
+                    ))
                 }
             }
 
@@ -2272,7 +2376,8 @@ class DocumentProcessor {
                             pageIndex: old.pageIndex,
                             pageImage: old.pageImage,
                             plainText: old.plainText,
-                            layoutText: layoutText
+                            layoutText: layoutText,
+                            preferHighResolutionStructure: old.preferHighResolutionStructure
                         )
                     }
                 }
@@ -2344,7 +2449,13 @@ class DocumentProcessor {
                             // nativeWordCount: PDFKit word count as quality score ground truth
                             //   (Gap 2 fix). nil when garbled (PDFKit text untrustworthy).
                             let nativeCount = !isGarbled ? renderData.plainText?.split(separator: " ").count : nil
-                            let structuredContent = try await parser.parsePageImage(pageImage, pageNumber: pageNumber, customWords: capturedCustomWords, nativeWordCount: nativeCount)
+                            let structuredContent = try await parser.parsePageImage(
+                                pageImage,
+                                pageNumber: pageNumber,
+                                customWords: capturedCustomWords,
+                                nativeWordCount: nativeCount,
+                                preferFullResolution: renderData.preferHighResolutionStructure
+                            )
 
                             var elements: [StructuredElementWrapper] = []
                             var pageTablesCount = 0
@@ -2366,7 +2477,7 @@ class DocumentProcessor {
 
                             // Convert structured elements to wrappers and count types
                             for element in elementsToUse {
-                                let isAtomic = element.elementType == "table"
+                                let isAtomic = element.elementType == "table" || element.elementType == "list"
 
                                 // Count element types for live metrics
                                 switch element.elementType {
@@ -2377,6 +2488,14 @@ class DocumentProcessor {
                                 }
 
                                 var entities: [(type: String, value: String)] = []
+                                var tableData: TableData?
+                                var listItems: [String]?
+                                if case .table(let parsedTable) = element {
+                                    tableData = parsedTable
+                                    entities = parsedTable.detectedEntities.map { ($0.type.rawValue, $0.value) }
+                                } else if case .list(let items, _) = element {
+                                    listItems = items
+                                }
                                 if case .table(let tableData) = element {
                                     entities = tableData.detectedEntities.map { ($0.type.rawValue, $0.value) }
                                 }
@@ -2391,7 +2510,9 @@ class DocumentProcessor {
                                             elementType: "paragraph",
                                             pageNumber: pageNumber,
                                             isAtomicChunk: false,
-                                            detectedEntities: []
+                                            detectedEntities: [],
+                                            tableData: nil,
+                                            listItems: nil
                                         ))
                                         usedLayoutForParagraph = true
                                     }
@@ -2403,7 +2524,9 @@ class DocumentProcessor {
                                     elementType: element.elementType,
                                     pageNumber: element.pageNumber,
                                     isAtomicChunk: isAtomic,
-                                    detectedEntities: entities
+                                    detectedEntities: entities,
+                                    tableData: tableData,
+                                    listItems: listItems
                                 ))
                             }
 
@@ -2414,7 +2537,9 @@ class DocumentProcessor {
                                     elementType: "paragraph",
                                     pageNumber: pageNumber,
                                     isAtomicChunk: false,
-                                    detectedEntities: []
+                                    detectedEntities: [],
+                                    tableData: nil,
+                                    listItems: nil
                                 ))
                             }
 
@@ -2426,7 +2551,9 @@ class DocumentProcessor {
                                     elementType: "figure",
                                     pageNumber: pageNumber,
                                     isAtomicChunk: true,
-                                    detectedEntities: []
+                                    detectedEntities: [],
+                                    tableData: nil,
+                                    listItems: nil
                                 ))
                             }
 
@@ -2499,7 +2626,9 @@ class DocumentProcessor {
                                         text: ocrText,
                                         elementType: "paragraph",
                                         pageNumber: pageNumber,
-                                        isAtomicChunk: false
+                                        isAtomicChunk: false,
+                                        tableData: nil,
+                                        listItems: nil
                                     )],
                                     pageText: ocrText,
                                     hasStructure: false,
@@ -2521,7 +2650,9 @@ class DocumentProcessor {
                                         text: nativeText,
                                         elementType: "paragraph",
                                         pageNumber: pageNumber,
-                                        isAtomicChunk: false
+                                        isAtomicChunk: false,
+                                        tableData: nil,
+                                        listItems: nil
                                     )],
                                     pageText: nativeText,
                                     hasStructure: false,
@@ -2553,7 +2684,9 @@ class DocumentProcessor {
                                         text: nativeText,
                                         elementType: "paragraph",
                                         pageNumber: pageNumber,
-                                        isAtomicChunk: false
+                                        isAtomicChunk: false,
+                                        tableData: nil,
+                                        listItems: nil
                                     )],
                                     pageText: nativeText,
                                     hasStructure: false,
@@ -2687,10 +2820,14 @@ class DocumentProcessor {
         fullText: String,
         config: SemanticChunker.ChunkingConfig,
         documentId: UUID,
-        pageInfo: PageInfo
+        pageInfo: PageInfo,
+        filename: String,
+        documentCategory: DocumentSemanticCategory
     ) -> [ProcessedChunk] {
         var chunks: [ProcessedChunk] = []
         var chunkIndex = 0
+
+        _ = pageInfo
 
         // Collect all detected entities from structured elements
         var allDetectedEntities: [(type: String, value: String)] = []
@@ -2706,6 +2843,43 @@ class DocumentProcessor {
 
         // Group paragraphs for semantic chunking, but tables and lists become atomic chunks
         var paragraphBuffer: [(text: String, page: Int)] = []
+
+        func appendChunk(
+            text: String,
+            parentText: String?,
+            pageNumber: Int,
+            sectionTitle: String?,
+            structureType: String,
+            chunkType: ChunkSemanticType,
+            semanticDensity: Float,
+            hasNumericData: Bool,
+            hasListStructure: Bool,
+            sectionPath: [String],
+            entities: [String] = [],
+            abbreviations: [String: String] = [:],
+            tableTitle: String? = nil,
+            siblingGroupId: String? = nil
+        ) {
+            let metadata = makeChunkMetadata(
+                chunkIndex: chunkIndex,
+                text: text,
+                pageNumber: pageNumber,
+                sectionTitle: sectionTitle,
+                structureType: structureType,
+                chunkType: chunkType,
+                documentCategory: documentCategory,
+                sectionPath: sectionPath,
+                semanticDensity: semanticDensity,
+                hasNumericData: hasNumericData,
+                hasListStructure: hasListStructure,
+                entities: entities,
+                abbreviations: abbreviations,
+                tableTitle: tableTitle,
+                siblingGroupId: siblingGroupId
+            )
+            chunks.append(ProcessedChunk(text: text, parentText: parentText, metadata: metadata))
+            chunkIndex += 1
+        }
 
         func flushParagraphBuffer() {
             guard !paragraphBuffer.isEmpty else { return }
@@ -2743,7 +2917,8 @@ class DocumentProcessor {
                 combinedText,
                 documentId: documentId,
                 config: config,
-                pageNumbers: localPageRanges
+                pageNumbers: localPageRanges,
+                documentCategory: documentCategory
             )
 
             for subChunk in subChunks {
@@ -2760,7 +2935,14 @@ class DocumentProcessor {
                     wordCount: subChunk.metadata.wordCount,
                     characterCount: subChunk.metadata.characterCount,
                     structureType: "paragraph",
-                    sectionPath: subChunk.metadata.sectionPath.isEmpty ? nil : subChunk.metadata.sectionPath
+                    entities: subChunk.metadata.entities,
+                    abbreviations: subChunk.metadata.abbreviations,
+                    sectionPath: subChunk.metadata.sectionPath.isEmpty ? nil : subChunk.metadata.sectionPath,
+                    documentCategory: subChunk.metadata.documentCategory,
+                    chunkType: subChunk.metadata.chunkType,
+                    tableTitle: subChunk.metadata.tableTitle,
+                    hasCrossReferences: subChunk.metadata.hasCrossReferences,
+                    resolvedReferences: subChunk.metadata.resolvedReferences
                 )
                 chunks.append(ProcessedChunk(
                     text: subChunk.content,
@@ -2797,85 +2979,148 @@ class DocumentProcessor {
                 // Flush any pending paragraphs first
                 flushParagraphBuffer()
 
-                // Tables and important lists become single atomic chunks
-                var text = OCRConfiguration.normalizeExtractedText(element.text)
-
-                // Universal garbage filtering for atomic structured content.
-                // This prevents OCR-corrupted rows/headers from becoming retrieval anchors.
-                let (filteredAtomicText, removedAtomicLines) = OCRConfiguration.filterGarbageText(text)
-                if removedAtomicLines > 0 {
-                    Log.debug(
-                        "[DocumentProcessor] Atomic \(element.elementType) cleanup removed \(removedAtomicLines) noisy lines",
-                        category: .ingestion
+                if element.elementType == "table", let tableData = element.tableData {
+                    let tableTitle = resolveTableTitle(tableData: tableData, sectionTitle: currentSectionTitle)
+                    let siblingGroupId = siblingGroupIdentifier(
+                        prefix: "table",
+                        pageNumber: element.pageNumber,
+                        title: tableTitle
                     )
-                    text = filteredAtomicText
-                }
 
-                guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
+                    let structuralText = buildStructuralTableText(
+                        tableData: tableData,
+                        tableTitle: tableTitle,
+                        filename: filename,
+                        sectionPath: currentSectionPath
+                    )
 
-                // UNIVERSAL: Prepend FULL section path to table for hierarchical context
-                // Works for ANY domain: "Operating Materials > Engine Oil > Viscosity Grades"
-                //                       "Medications > Dosing > Adult Dosage"
-                //                       "Financial > Q4 2025 > Revenue Breakdown"
-                var contextPrefix = ""
-                if !currentSectionPath.isEmpty && element.elementType == "table" {
-                    // Build full hierarchical path (e.g., "Section Path: Chapter > Topic > Subtopic")
-                    let pathString = currentSectionPath.joined(separator: " > ")
-                    contextPrefix = "Section Path: \(pathString)\n"
-                    text = contextPrefix + text
-                    Log.debug("[DocumentProcessor] Table with full path: \(pathString)", category: .ingestion)
-                } else if let sectionTitle = currentSectionTitle,
-                          element.elementType == "table",
-                          sanitizeStructuredLabel(sectionTitle) != nil
-                {
-                    // Fallback to single section title if no path available
-                    contextPrefix = "Section: \(sectionTitle)\n"
-                    text = contextPrefix + text
-                    Log.debug("[DocumentProcessor] Table with section: \(sectionTitle)", category: .ingestion)
-                }
+                    let structuralWords = countWords(structuralText)
+                    let maxAtomicWords = 380
+                    if structuralWords > maxAtomicWords {
+                        let baseMetadata = makeChunkMetadata(
+                            chunkIndex: chunkIndex,
+                            text: structuralText,
+                            pageNumber: element.pageNumber,
+                            sectionTitle: currentSectionTitle,
+                            structureType: "table",
+                            chunkType: .tableStructural,
+                            documentCategory: documentCategory,
+                            sectionPath: currentSectionPath,
+                            semanticDensity: 0.90,
+                            hasNumericData: true,
+                            hasListStructure: false,
+                            entities: element.detectedEntities.map(\ .value),
+                            tableTitle: tableTitle,
+                            siblingGroupId: siblingGroupId
+                        )
+                        let splitChunks = splitOversizedAtomicChunk(
+                            text: structuralText,
+                            contextPrefix: "",
+                            element: element,
+                            baseMetadata: baseMetadata,
+                            parentText: currentSectionTitle,
+                            maxWords: maxAtomicWords
+                        )
+                        chunks.append(contentsOf: splitChunks)
+                        chunkIndex += splitChunks.count
+                    } else {
+                        appendChunk(
+                            text: structuralText,
+                            parentText: currentSectionTitle,
+                            pageNumber: element.pageNumber,
+                            sectionTitle: currentSectionTitle,
+                            structureType: "table",
+                            chunkType: .tableStructural,
+                            semanticDensity: 0.90,
+                            hasNumericData: true,
+                            hasListStructure: false,
+                            sectionPath: currentSectionPath,
+                            entities: element.detectedEntities.map(\ .value),
+                            tableTitle: tableTitle,
+                            siblingGroupId: siblingGroupId
+                        )
+                    }
 
-                let wordCount = text.split(separator: " ").count
-                let metadata = ChunkMetadata(
-                    chunkIndex: chunkIndex,
-                    startPosition: 0,
-                    endPosition: text.count,
-                    pageNumber: element.pageNumber,
-                    sectionTitle: currentSectionTitle,  // NOW carries section context
-                    keywords: extractKeywordsFromStructuredElement(text, type: element.elementType),
-                    semanticDensity: 0.8,  // Tables are very information-dense
-                    hasNumericData: element.elementType == "table",
-                    hasListStructure: element.elementType == "list",
-                    wordCount: wordCount,
-                    characterCount: text.count,
-                    structureType: element.elementType,
-                    sectionPath: currentSectionPath.isEmpty ? nil : currentSectionPath  // NOW carries section path
-                )
-
-                // Check if atomic chunk exceeds embedding token limit (~400 words ≈ 500 tokens)
-                // If so, split into multiple chunks while preserving context prefix
-                let maxAtomicWords = 380  // Leave room for context prefix in 510 token limit
-                if wordCount > maxAtomicWords {
-                    // Split oversized table/list into multiple chunks
-                    let splitChunks = splitOversizedAtomicChunk(
-                        text: text,
-                        contextPrefix: contextPrefix,
-                        element: element,
-                        baseChunkIndex: chunkIndex,
-                        sectionTitle: currentSectionTitle,
+                    let semanticText = buildSemanticTableSummary(
+                        tableData: tableData,
+                        tableTitle: tableTitle,
+                        filename: filename,
                         sectionPath: currentSectionPath,
-                        maxWords: maxAtomicWords
+                        documentCategory: documentCategory
                     )
-                    chunks.append(contentsOf: splitChunks)
-                    chunkIndex += splitChunks.count
-                    Log.debug("[DocumentProcessor] Split oversized \(element.elementType) (\(wordCount)w) into \(splitChunks.count) chunks", category: .ingestion)
-                } else {
-                    chunks.append(ProcessedChunk(
-                        text: text,
-                        parentText: currentSectionTitle,  // Parent text is the section title
-                        metadata: metadata
-                    ))
-                    chunkIndex += 1
-                    Log.debug("[DocumentProcessor] Created atomic \(element.elementType) chunk (\(wordCount) words) from page \(element.pageNumber), section: \(currentSectionTitle ?? "none")", category: .ingestion)
+                    appendChunk(
+                        text: semanticText,
+                        parentText: currentSectionTitle,
+                        pageNumber: element.pageNumber,
+                        sectionTitle: currentSectionTitle,
+                        structureType: "table",
+                        chunkType: .tableSemantic,
+                        semanticDensity: 0.82,
+                        hasNumericData: semanticText.rangeOfCharacter(from: .decimalDigits) != nil,
+                        hasListStructure: false,
+                        sectionPath: currentSectionPath,
+                        entities: element.detectedEntities.map(\ .value),
+                        tableTitle: tableTitle,
+                        siblingGroupId: siblingGroupId
+                    )
+
+                    if shouldEmitCompatibilityRowChunks(tableData: tableData, tableTitle: tableTitle) {
+                        let rowTexts = buildCompatibilityRowTexts(
+                            tableData: tableData,
+                            tableTitle: tableTitle,
+                            filename: filename,
+                            sectionPath: currentSectionPath
+                        )
+                        for rowText in rowTexts {
+                            appendChunk(
+                                text: rowText,
+                                parentText: currentSectionTitle,
+                                pageNumber: element.pageNumber,
+                                sectionTitle: currentSectionTitle,
+                                structureType: "table",
+                                chunkType: .tableStructural,
+                                semanticDensity: 0.88,
+                                hasNumericData: rowText.rangeOfCharacter(from: .decimalDigits) != nil,
+                                hasListStructure: false,
+                                sectionPath: currentSectionPath,
+                                entities: element.detectedEntities.map(\ .value),
+                                tableTitle: tableTitle,
+                                siblingGroupId: siblingGroupId
+                            )
+                        }
+                    }
+
+                    Log.debug("[DocumentProcessor] Created companion table chunks for page \(element.pageNumber), section: \(currentSectionTitle ?? "none")", category: .ingestion)
+                    continue
+                }
+
+                if element.elementType == "list" {
+                    let siblingGroupId = siblingGroupIdentifier(
+                        prefix: "list",
+                        pageNumber: element.pageNumber,
+                        title: currentSectionTitle ?? "list"
+                    )
+                    let listItems = normalizedListItems(from: element)
+                    for item in listItems {
+                        let listText = buildListItemText(item: item, sectionPath: currentSectionPath, sectionTitle: currentSectionTitle)
+                        let itemChunkType: ChunkSemanticType = isWarningLikeListItem(item, sectionTitle: currentSectionTitle) ? .warning : .listItem
+                        appendChunk(
+                            text: listText,
+                            parentText: currentSectionTitle,
+                            pageNumber: element.pageNumber,
+                            sectionTitle: currentSectionTitle,
+                            structureType: "list",
+                            chunkType: itemChunkType,
+                            semanticDensity: 0.72,
+                            hasNumericData: listText.rangeOfCharacter(from: .decimalDigits) != nil,
+                            hasListStructure: true,
+                            sectionPath: currentSectionPath,
+                            entities: element.detectedEntities.map(\ .value),
+                            siblingGroupId: siblingGroupId
+                        )
+                    }
+                    Log.debug("[DocumentProcessor] Created \(listItems.count) list item chunks from page \(element.pageNumber)", category: .ingestion)
+                    continue
                 }
 
             } else if element.elementType == "paragraph" || element.elementType == "title" {
@@ -2910,6 +3155,311 @@ class DocumentProcessor {
         Log.info("[DocumentProcessor] Structure-aware chunking: \(tableChunks) tables, \(listChunks) lists, \(paragraphChunks) paragraphs", category: .ingestion)
 
         return chunks
+    }
+
+    private func classifyDocumentCategory(
+        text: String,
+        filename: String,
+        documentType: DocumentType,
+        structuredElements: [StructuredElementWrapper]
+    ) -> DocumentSemanticCategory {
+        let lowerFilename = filename.lowercased()
+        let sampleLength = max(200, min(text.count / 10, 12000))
+        let sample = String(text.prefix(sampleLength)).lowercased()
+
+        var scores: [DocumentSemanticCategory: Double] = [
+            .technicalManual: 0,
+            .scientificPaper: 0,
+            .referenceTable: 0,
+            .regulatory: 0,
+            .general: 0.25,
+        ]
+
+        func add(_ category: DocumentSemanticCategory, _ amount: Double) {
+            scores[category, default: 0] += amount
+        }
+
+        let technicalTerms = ["manual", "user guide", "owner", "instructions for use", "ifu", "installation", "troubleshooting", "specifications", "record button", "device", "charging", "indicator"]
+        let scientificTerms = ["abstract", "introduction", "methods", "materials", "results", "discussion", "conclusion", "references", "doi", "p <", "confidence interval", "randomized", "study"]
+        let regulatoryTerms = ["compliance", "regulatory", "iec", "fda", "emc", "warning", "contraindications", "adverse", "authorized representative", "labeling"]
+        let referenceTerms = ["table", "specification", "capacity", "dimensions", "part number", "model number", "sku", "compatibility", "matrix", "requirements"]
+
+        for term in technicalTerms where sample.contains(term) || lowerFilename.contains(term) {
+            add(.technicalManual, lowerFilename.contains(term) ? 1.5 : 0.8)
+        }
+
+        for term in scientificTerms where sample.contains(term) || lowerFilename.contains(term) {
+            add(.scientificPaper, lowerFilename.contains(term) ? 1.4 : 0.8)
+        }
+
+        for term in regulatoryTerms where sample.contains(term) || lowerFilename.contains(term) {
+            add(.regulatory, lowerFilename.contains(term) ? 1.6 : 0.9)
+        }
+
+        for term in referenceTerms where sample.contains(term) || lowerFilename.contains(term) {
+            add(.referenceTable, lowerFilename.contains(term) ? 1.2 : 0.7)
+        }
+
+        if documentType == .pdf {
+            add(.technicalManual, 0.2)
+        }
+
+        let tableCount = structuredElements.filter { $0.elementType == "table" }.count
+        let listCount = structuredElements.filter { $0.elementType == "list" }.count
+        if tableCount >= 3 {
+            add(.referenceTable, 1.3)
+            add(.technicalManual, 0.4)
+        }
+        if listCount >= 3 {
+            add(.technicalManual, 0.5)
+            add(.regulatory, 0.2)
+        }
+
+        let numericDensity = Double(sample.filter { $0.isNumber }.count) / Double(max(sample.count, 1))
+        if numericDensity > 0.08 {
+            add(.referenceTable, 0.6)
+            add(.scientificPaper, 0.2)
+        }
+
+        if sample.contains("table ") && sample.contains("figure ") {
+            add(.scientificPaper, 0.9)
+        }
+
+        if sample.contains("error code") || sample.contains("troubleshooting") {
+            add(.technicalManual, 0.8)
+        }
+
+        return scores.max(by: { $0.value < $1.value })?.key ?? .general
+    }
+
+    private func makeChunkMetadata(
+        chunkIndex: Int,
+        text: String,
+        pageNumber: Int?,
+        sectionTitle: String?,
+        structureType: String,
+        chunkType: ChunkSemanticType,
+        documentCategory: DocumentSemanticCategory,
+        sectionPath: [String],
+        semanticDensity: Float,
+        hasNumericData: Bool,
+        hasListStructure: Bool,
+        entities: [String] = [],
+        abbreviations: [String: String] = [:],
+        tableTitle: String? = nil,
+        siblingGroupId: String? = nil
+    ) -> ChunkMetadata {
+        let references = GraphIndexService.extractReferenceTargets(from: text)
+        return ChunkMetadata(
+            chunkIndex: chunkIndex,
+            startPosition: 0,
+            endPosition: text.count,
+            pageNumber: pageNumber,
+            sectionTitle: sectionTitle,
+            keywords: extractKeywordsFromStructuredElement(text, type: structureType),
+            semanticDensity: semanticDensity,
+            hasNumericData: hasNumericData,
+            hasListStructure: hasListStructure,
+            wordCount: countWords(text),
+            characterCount: text.count,
+            structureType: structureType,
+            siblingGroupId: siblingGroupId,
+            entities: entities,
+            abbreviations: abbreviations,
+            sectionPath: sectionPath.isEmpty ? nil : sectionPath,
+            documentCategory: documentCategory,
+            chunkType: chunkType,
+            tableTitle: tableTitle,
+            hasCrossReferences: !references.isEmpty,
+            resolvedReferences: references
+        )
+    }
+
+    private func resolveTableTitle(tableData: TableData, sectionTitle: String?) -> String {
+        if let caption = sanitizeStructuredLabel(tableData.caption ?? "") {
+            return caption
+        }
+        if let sectionTitle, let cleanSection = sanitizeStructuredLabel(sectionTitle) {
+            return cleanSection
+        }
+        return "Table"
+    }
+
+    private func siblingGroupIdentifier(prefix: String, pageNumber: Int, title: String) -> String {
+        let normalizedTitle = title.lowercased()
+            .replacingOccurrences(of: #"[^a-z0-9]+"#, with: "-", options: .regularExpression)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+        return "\(prefix)-p\(pageNumber)-\(normalizedTitle)"
+    }
+
+    private func normalizedListItems(from element: StructuredElementWrapper) -> [String] {
+        if let listItems = element.listItems, !listItems.isEmpty {
+            return listItems
+                .map { OCRConfiguration.normalizeExtractedText($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+        }
+
+        return element.text
+            .components(separatedBy: CharacterSet.newlines)
+            .map { OCRConfiguration.normalizeExtractedText($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .map { $0.replacingOccurrences(of: #"^(?:[-*•]\s*|\d+[\.)]\s*)"#, with: "", options: .regularExpression) }
+            .filter { !$0.isEmpty }
+    }
+
+    private func buildListItemText(item: String, sectionPath: [String], sectionTitle: String?) -> String {
+        var lines: [String] = []
+        if !sectionPath.isEmpty {
+            lines.append("Section Path: \(sectionPath.joined(separator: " > "))")
+        } else if let sectionTitle {
+            lines.append("Section: \(sectionTitle)")
+        }
+        lines.append(item)
+        return lines.joined(separator: "\n")
+    }
+
+    private func isWarningLikeListItem(_ item: String, sectionTitle: String?) -> Bool {
+        let combined = [sectionTitle, item].compactMap { $0?.lowercased() }.joined(separator: " ")
+        let warningTerms = ["warning", "caution", "danger", "important", "notice", "precaution"]
+        return warningTerms.contains(where: { combined.contains($0) })
+    }
+
+    private func buildStructuralTableText(
+        tableData: TableData,
+        tableTitle: String,
+        filename: String,
+        sectionPath: [String]
+    ) -> String {
+        let headers = inferredHeaders(for: tableData)
+        let rows = dataRows(for: tableData)
+
+        var lines: [String] = []
+        if !sectionPath.isEmpty {
+            lines.append("Section Path: \(sectionPath.joined(separator: " > "))")
+        }
+        lines.append("TABLE: \(tableTitle)")
+        lines.append("HEADERS: \(headers.joined(separator: " | "))")
+
+        for (index, row) in rows.enumerated() {
+            let normalizedRow = normalizedRow(row, columnCount: headers.count)
+            lines.append("ROW \(index + 1): \(normalizedRow.joined(separator: " | "))")
+        }
+
+        lines.append("SOURCE: \(filename), page \(tableData.pageNumber)")
+        return lines.joined(separator: "\n")
+    }
+
+    private func buildSemanticTableSummary(
+        tableData: TableData,
+        tableTitle: String,
+        filename: String,
+        sectionPath: [String],
+        documentCategory: DocumentSemanticCategory
+    ) -> String {
+        let headers = inferredHeaders(for: tableData)
+        let rows = dataRows(for: tableData)
+        let categoryDescriptor: String = {
+            switch documentCategory {
+            case .technicalManual: return "technical reference"
+            case .scientificPaper: return "research data"
+            case .referenceTable: return "reference table"
+            case .regulatory: return "regulatory table"
+            case .general: return "document table"
+            }
+        }()
+
+        var sentences: [String] = []
+        sentences.append("This \(categoryDescriptor) from \(filename) page \(tableData.pageNumber) describes \(tableTitle.lowercased()).")
+
+        if !sectionPath.isEmpty {
+            sentences.append("It appears under \(sectionPath.joined(separator: " > ")).")
+        }
+
+        if !headers.isEmpty {
+            let displayedHeaders = headers.prefix(5).joined(separator: ", ")
+            sentences.append("Columns include \(displayedHeaders).")
+        }
+
+        if let keyValuePairs = tableData.keyValuePairs, !keyValuePairs.isEmpty {
+            let preview = keyValuePairs.prefix(4).map { "\($0.key): \($0.value)" }.joined(separator: "; ")
+            sentences.append("Key values include \(preview).")
+        } else if !rows.isEmpty {
+            let preview = rows.prefix(2)
+                .map { normalizedRow($0, columnCount: headers.count).filter { !$0.isEmpty }.joined(separator: " | ") }
+                .filter { !$0.isEmpty }
+                .joined(separator: " || ")
+            if !preview.isEmpty {
+                sentences.append("Representative rows: \(preview).")
+            }
+        }
+
+        return sentences.joined(separator: " ")
+    }
+
+    private func shouldEmitCompatibilityRowChunks(tableData: TableData, tableTitle: String) -> Bool {
+        let headers = inferredHeaders(for: tableData).map { $0.lowercased() }
+        let lowerTitle = tableTitle.lowercased()
+        let signals = ["compat", "requirement", "supported", "model", "camera", "head", "coupler"]
+        let headerSignal = headers.contains { header in signals.contains(where: { header.contains($0) }) }
+        let titleSignal = signals.contains { lowerTitle.contains($0) }
+        return (titleSignal || headerSignal) && headers.count >= 3 && dataRows(for: tableData).count >= 2
+    }
+
+    private func buildCompatibilityRowTexts(
+        tableData: TableData,
+        tableTitle: String,
+        filename: String,
+        sectionPath: [String]
+    ) -> [String] {
+        let headers = inferredHeaders(for: tableData)
+        return dataRows(for: tableData).compactMap { row in
+            let normalized = normalizedRow(row, columnCount: headers.count)
+            let visiblePairs = zip(headers, normalized).filter { !$0.1.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            guard !visiblePairs.isEmpty else { return nil }
+
+            var lines: [String] = []
+            if !sectionPath.isEmpty {
+                lines.append("Section Path: \(sectionPath.joined(separator: " > "))")
+            }
+            lines.append("COMPATIBILITY ROW: \(tableTitle)")
+            lines.append("CATEGORY: \(visiblePairs.first?.1 ?? "Item")")
+            lines.append("VALUES: \(visiblePairs.map { "\($0.0)=\($0.1)" }.joined(separator: " | "))")
+            lines.append("SOURCE: \(filename), page \(tableData.pageNumber)")
+            return lines.joined(separator: "\n")
+        }
+    }
+
+    private func inferredHeaders(for tableData: TableData) -> [String] {
+        let columnCount = tableData.rows.map(\ .count).max() ?? 0
+        guard columnCount > 0 else { return [] }
+
+        if let headerRow = tableData.headerRow, !headerRow.isEmpty {
+            return (0..<columnCount).map { index in
+                if index < headerRow.count {
+                    let trimmed = headerRow[index].trimmingCharacters(in: .whitespacesAndNewlines)
+                    return trimmed.isEmpty ? "Column \(index + 1)" : trimmed
+                }
+                return "Column \(index + 1)"
+            }
+        }
+
+        return (0..<columnCount).map { "Column \($0 + 1)" }
+    }
+
+    private func dataRows(for tableData: TableData) -> [[String]] {
+        if tableData.headerRow != nil && tableData.rows.count > 1 {
+            return Array(tableData.rows.dropFirst())
+        }
+        return tableData.rows
+    }
+
+    private func normalizedRow(_ row: [String], columnCount: Int) -> [String] {
+        var normalized = row.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        if normalized.count < columnCount {
+            normalized.append(contentsOf: Array(repeating: "", count: columnCount - normalized.count))
+        } else if normalized.count > columnCount {
+            normalized = Array(normalized.prefix(columnCount))
+        }
+        return normalized
     }
 
     /// Sanitizes potential section labels/titles used for section context.
@@ -2955,9 +3505,8 @@ class DocumentProcessor {
         text: String,
         contextPrefix: String,
         element: StructuredElementWrapper,
-        baseChunkIndex: Int,
-        sectionTitle: String?,
-        sectionPath: [String],
+        baseMetadata: ChunkMetadata,
+        parentText: String?,
         maxWords: Int
     ) -> [ProcessedChunk] {
         var chunks: [ProcessedChunk] = []
@@ -3040,23 +3589,34 @@ class DocumentProcessor {
                 chunkLines.append(contentsOf: currentChunkLines)
 
                 let chunkContent = contextPrefix + "[Part \(chunkNumber + 1)]\n" + chunkLines.joined(separator: "\n")
-                let totalWordCount = currentWordCount + headerWords
                 let metadata = ChunkMetadata(
-                    chunkIndex: baseChunkIndex + chunkNumber,
-                    startPosition: 0,
+                    chunkIndex: baseMetadata.chunkIndex + chunkNumber,
+                    startPosition: baseMetadata.startPosition,
                     endPosition: chunkContent.count,
-                    pageNumber: element.pageNumber,
-                    sectionTitle: sectionTitle,
+                    pageNumber: baseMetadata.pageNumber,
+                    sectionTitle: baseMetadata.sectionTitle,
                     keywords: extractKeywordsFromStructuredElement(chunkContent, type: element.elementType),
-                    semanticDensity: 0.8,
-                    hasNumericData: element.elementType == "table",
-                    hasListStructure: element.elementType == "list",
-                    wordCount: totalWordCount,
+                    semanticDensity: baseMetadata.semanticDensity,
+                    hasNumericData: baseMetadata.hasNumericData,
+                    hasListStructure: baseMetadata.hasListStructure,
+                    wordCount: countWords(chunkContent),
                     characterCount: chunkContent.count,
-                    structureType: element.elementType,
-                    sectionPath: sectionPath.isEmpty ? nil : sectionPath
+                    createdAt: baseMetadata.createdAt,
+                    structureType: baseMetadata.structureType,
+                    siblingGroupId: baseMetadata.siblingGroupId,
+                    siblingCount: baseMetadata.siblingCount,
+                    entities: baseMetadata.entities,
+                    abbreviations: baseMetadata.abbreviations,
+                    abstractionLevel: baseMetadata.abstractionLevel,
+                    sectionPath: baseMetadata.sectionPath,
+                    bboxArray: baseMetadata.bboxArray,
+                    documentCategory: baseMetadata.documentCategory,
+                    chunkType: baseMetadata.chunkType,
+                    tableTitle: baseMetadata.tableTitle,
+                    hasCrossReferences: baseMetadata.hasCrossReferences,
+                    resolvedReferences: baseMetadata.resolvedReferences
                 )
-                chunks.append(ProcessedChunk(text: chunkContent, parentText: sectionTitle, metadata: metadata))
+                chunks.append(ProcessedChunk(text: chunkContent, parentText: parentText, metadata: metadata))
                 chunkNumber += 1
                 currentChunkLines = []
                 currentWordCount = 0
@@ -3079,23 +3639,34 @@ class DocumentProcessor {
             chunkLines.append(contentsOf: currentChunkLines)
 
             let chunkContent = contextPrefix + (chunkNumber > 0 ? "[Part \(chunkNumber + 1)]\n" : "") + chunkLines.joined(separator: "\n")
-            let totalWordCount = currentWordCount + (chunkNumber > 0 ? headerWords : 0)
             let metadata = ChunkMetadata(
-                chunkIndex: baseChunkIndex + chunkNumber,
-                startPosition: 0,
+                chunkIndex: baseMetadata.chunkIndex + chunkNumber,
+                startPosition: baseMetadata.startPosition,
                 endPosition: chunkContent.count,
-                pageNumber: element.pageNumber,
-                sectionTitle: sectionTitle,
+                pageNumber: baseMetadata.pageNumber,
+                sectionTitle: baseMetadata.sectionTitle,
                 keywords: extractKeywordsFromStructuredElement(chunkContent, type: element.elementType),
-                semanticDensity: 0.8,
-                hasNumericData: element.elementType == "table",
-                hasListStructure: element.elementType == "list",
-                wordCount: totalWordCount,
+                semanticDensity: baseMetadata.semanticDensity,
+                hasNumericData: baseMetadata.hasNumericData,
+                hasListStructure: baseMetadata.hasListStructure,
+                wordCount: countWords(chunkContent),
                 characterCount: chunkContent.count,
-                structureType: element.elementType,
-                sectionPath: sectionPath.isEmpty ? nil : sectionPath
+                createdAt: baseMetadata.createdAt,
+                structureType: baseMetadata.structureType,
+                siblingGroupId: baseMetadata.siblingGroupId,
+                siblingCount: baseMetadata.siblingCount,
+                entities: baseMetadata.entities,
+                abbreviations: baseMetadata.abbreviations,
+                abstractionLevel: baseMetadata.abstractionLevel,
+                sectionPath: baseMetadata.sectionPath,
+                bboxArray: baseMetadata.bboxArray,
+                documentCategory: baseMetadata.documentCategory,
+                chunkType: baseMetadata.chunkType,
+                tableTitle: baseMetadata.tableTitle,
+                hasCrossReferences: baseMetadata.hasCrossReferences,
+                resolvedReferences: baseMetadata.resolvedReferences
             )
-            chunks.append(ProcessedChunk(text: chunkContent, parentText: sectionTitle, metadata: metadata))
+            chunks.append(ProcessedChunk(text: chunkContent, parentText: parentText, metadata: metadata))
         }
 
         return chunks
@@ -3358,7 +3929,18 @@ class DocumentProcessor {
             wordCount: wordCount,
             characterCount: text.count,
             structureType: parent.metadata.structureType,
-            sectionPath: parent.metadata.sectionPath
+            siblingGroupId: parent.metadata.siblingGroupId,
+            siblingCount: parent.metadata.siblingCount,
+            entities: parent.metadata.entities,
+            abbreviations: parent.metadata.abbreviations,
+            abstractionLevel: parent.metadata.abstractionLevel,
+            sectionPath: parent.metadata.sectionPath,
+            bboxArray: parent.metadata.bboxArray,
+            documentCategory: parent.metadata.documentCategory,
+            chunkType: parent.metadata.chunkType,
+            tableTitle: parent.metadata.tableTitle,
+            hasCrossReferences: parent.metadata.hasCrossReferences,
+            resolvedReferences: parent.metadata.resolvedReferences
         )
         return ProcessedChunk(text: text, parentText: parent.parentText, metadata: metadata)
     }

@@ -83,6 +83,34 @@ enum ChunkAbstractionLevel: Int, Codable, Sendable, CaseIterable {
     var isSummary: Bool { rawValue > 0 }
 }
 
+/// High-level semantic category inferred from document content.
+/// Used to steer ingestion and retrieval policies for manuals, tables, papers, and regulatory docs.
+enum DocumentSemanticCategory: String, Codable, Sendable, CaseIterable {
+    case technicalManual = "technical_manual"
+    case scientificPaper = "scientific_paper"
+    case referenceTable = "reference_table"
+    case regulatory = "regulatory"
+    case general = "general"
+
+    var isSpecificationHeavy: Bool {
+        switch self {
+        case .technicalManual, .referenceTable, .regulatory:
+            return true
+        case .scientificPaper, .general:
+            return false
+        }
+    }
+}
+
+/// Fine-grained chunk role for retrieval and synthesis ordering.
+enum ChunkSemanticType: String, Codable, Sendable, CaseIterable {
+    case prose = "prose"
+    case tableStructural = "table_structural"
+    case tableSemantic = "table_semantic"
+    case listItem = "list_item"
+    case warning = "warning"
+}
+
 /// Metadata for tracking chunk provenance and semantics
 struct ChunkMetadata: Codable, Sendable {
     let chunkIndex: Int
@@ -151,6 +179,25 @@ struct ChunkMetadata: Codable, Sendable {
     /// nil for non-spatial sources (plain text, audio transcriptions)
     let bboxArray: [CGFloat]?
 
+    // MARK: - Document Semantics (Apr 2026)
+
+    /// High-level document category inferred during ingestion.
+    /// Helps route technical manuals and table-heavy docs differently from narrative prose.
+    let documentCategory: DocumentSemanticCategory?
+
+    /// Fine-grained chunk role used for retrieval weighting and synthesis ordering.
+    let chunkType: ChunkSemanticType?
+
+    /// Human-readable table title or heading associated with this chunk.
+    /// Only populated for table-derived chunks.
+    let tableTitle: String?
+
+    /// Whether this chunk explicitly references other pages/sections/tables/figures.
+    let hasCrossReferences: Bool
+
+    /// Normalized list of cross-reference targets (for example, "page:15", "table:2").
+    let resolvedReferences: [String]
+
     /// Convenience accessor to get CGRect from stored array
     var bbox: CGRect? {
         guard let arr = bboxArray, arr.count == 4 else { return nil }
@@ -177,7 +224,12 @@ struct ChunkMetadata: Codable, Sendable {
         abbreviations: [String: String] = [:],
         abstractionLevel: ChunkAbstractionLevel = .detail,
         sectionPath: [String]? = nil,
-        bboxArray: [CGFloat]? = nil
+        bboxArray: [CGFloat]? = nil,
+        documentCategory: DocumentSemanticCategory? = nil,
+        chunkType: ChunkSemanticType? = nil,
+        tableTitle: String? = nil,
+        hasCrossReferences: Bool = false,
+        resolvedReferences: [String] = []
     ) {
         self.chunkIndex = chunkIndex
         self.startPosition = startPosition
@@ -199,6 +251,11 @@ struct ChunkMetadata: Codable, Sendable {
         self.abstractionLevel = abstractionLevel
         self.sectionPath = sectionPath
         self.bboxArray = bboxArray
+        self.documentCategory = documentCategory
+        self.chunkType = chunkType
+        self.tableTitle = tableTitle
+        self.hasCrossReferences = hasCrossReferences
+        self.resolvedReferences = resolvedReferences
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -222,6 +279,11 @@ struct ChunkMetadata: Codable, Sendable {
         case abstractionLevel
         case sectionPath
         case bboxArray
+        case documentCategory
+        case chunkType
+        case tableTitle
+        case hasCrossReferences
+        case resolvedReferences
     }
 
     init(from decoder: Decoder) throws {
@@ -258,6 +320,11 @@ struct ChunkMetadata: Codable, Sendable {
         sectionPath = try container.decodeIfPresent([String].self, forKey: .sectionPath)
         // Bounding box (optional for backward compatibility)
         bboxArray = try container.decodeIfPresent([CGFloat].self, forKey: .bboxArray)
+        documentCategory = try container.decodeIfPresent(DocumentSemanticCategory.self, forKey: .documentCategory)
+        chunkType = try container.decodeIfPresent(ChunkSemanticType.self, forKey: .chunkType)
+        tableTitle = try container.decodeIfPresent(String.self, forKey: .tableTitle)
+        hasCrossReferences = try container.decodeIfPresent(Bool.self, forKey: .hasCrossReferences) ?? false
+        resolvedReferences = try container.decodeIfPresent([String].self, forKey: .resolvedReferences) ?? []
     }
 
     func encode(to encoder: Encoder) throws {
@@ -299,6 +366,13 @@ struct ChunkMetadata: Codable, Sendable {
         }
         // Bounding box
         try container.encodeIfPresent(bboxArray, forKey: .bboxArray)
+        try container.encodeIfPresent(documentCategory, forKey: .documentCategory)
+        try container.encodeIfPresent(chunkType, forKey: .chunkType)
+        try container.encodeIfPresent(tableTitle, forKey: .tableTitle)
+        if hasCrossReferences { try container.encode(hasCrossReferences, forKey: .hasCrossReferences) }
+        if !resolvedReferences.isEmpty {
+            try container.encode(resolvedReferences, forKey: .resolvedReferences)
+        }
     }
 }
 
@@ -368,6 +442,7 @@ struct ProcessingMetadata: Codable {
     var structuredParsingTimeSeconds: Double = 0
     var atomicTableChunks: Int = 0
     var atomicListChunks: Int = 0
+    var documentCategory: DocumentSemanticCategory? = nil
 }
 
 struct ChunkStatistics: Codable {

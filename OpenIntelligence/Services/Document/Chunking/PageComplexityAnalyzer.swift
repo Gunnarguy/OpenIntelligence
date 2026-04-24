@@ -110,6 +110,7 @@ struct PageComplexityAnalysis: Sendable {
     // Text Analysis
     let textCoverage: Double            // Text area / total page area
     let textQuality: Double             // 0=garbled, 1=perfect readable text
+    let fineTextRisk: Double            // 0=normal text, 1=ultra-fine text needing extra DPI
     let hasNativeTextLayer: Bool        // PDF has extractable text
 
     // Visual Element Detection
@@ -140,6 +141,7 @@ struct PageComplexityAnalysis: Sendable {
     var summary: String {
         let signals = [
             textCoverage > 0.5 ? "text:\(Int(textCoverage*100))%" : nil,
+            fineTextRisk > 0.45 ? "fine:\(Int(fineTextRisk*100))%" : nil,
             imagePresence > 0.2 ? "img:\(Int(imagePresence*100))%" : nil,
             tablePresence > 0.2 ? "tbl:\(Int(tablePresence*100))%" : nil,
             chartPresence > 0.2 ? "chart:\(Int(chartPresence*100))%" : nil,
@@ -207,6 +209,7 @@ final class PageComplexityAnalyzer: @unchecked Sendable {
 
         var textCoverage = 0.0
         var textQuality = 0.0
+        var fineTextRisk = 0.0
         var columnCount = 1
         var numericDensity = 0.0
         var listPatternStrength = 0.0
@@ -223,6 +226,9 @@ final class PageComplexityAnalyzer: @unchecked Sendable {
 
             // Detect columns
             columnCount = detectColumnCount(text, pageWidth: bounds.width)
+
+            // Estimate whether the page is densely packed with tiny text
+            fineTextRisk = analyzeFineTextRisk(text, pageBounds: bounds, columnCount: columnCount)
 
             // Analyze content patterns
             let patterns = analyzeTextPatterns(text)
@@ -308,6 +314,7 @@ final class PageComplexityAnalyzer: @unchecked Sendable {
             complexity: complexity,
             textCoverage: textCoverage,
             textQuality: textQuality,
+            fineTextRisk: fineTextRisk,
             hasNativeTextLayer: hasNativeTextLayer,
             imagePresence: imagePresence,
             figurePresence: figurePresence,
@@ -387,6 +394,44 @@ final class PageComplexityAnalyzer: @unchecked Sendable {
         }
 
         return max(0, min(1, qualityScore))
+    }
+
+    /// Estimate whether a page contains unusually small text that benefits from
+    /// a higher OCR render scale. This is intentionally cheap and uses only the
+    /// native text layer geometry proxy: line density and character density.
+    private func analyzeFineTextRisk(_ text: String, pageBounds: CGRect, columnCount: Int) -> Double {
+        let nonEmptyLines = text
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard nonEmptyLines.count >= 20 else { return 0.0 }
+
+        let columns = max(1, columnCount)
+        let effectiveLineCount = Double(nonEmptyLines.count) / Double(columns)
+        let estimatedLineHeight = Double(pageBounds.height) / max(effectiveLineCount, 1)
+
+        let characterCount = nonEmptyLines.reduce(0) { $0 + $1.count }
+        let pageAreaSquareInches = Double(pageBounds.width * pageBounds.height) / (72.0 * 72.0)
+        let charactersPerSquareInch = Double(characterCount) / max(pageAreaSquareInches, 1.0)
+        let averageCharactersPerLine = Double(characterCount) / Double(max(nonEmptyLines.count, 1))
+
+        let lineHeightRisk: Double = {
+            guard estimatedLineHeight < 11 else { return 0.0 }
+            return min(1.0, (11.0 - estimatedLineHeight) / 4.0)
+        }()
+
+        let densityRisk: Double = {
+            guard charactersPerSquareInch > 55 else { return 0.0 }
+            return min(1.0, (charactersPerSquareInch - 55.0) / 25.0)
+        }()
+
+        let lineLengthRisk: Double = {
+            guard averageCharactersPerLine > 95 else { return 0.0 }
+            return min(0.25, (averageCharactersPerLine - 95.0) / 80.0)
+        }()
+
+        return min(1.0, lineHeightRisk * 0.55 + densityRisk * 0.35 + lineLengthRisk)
     }
 
     // MARK: - Column Detection

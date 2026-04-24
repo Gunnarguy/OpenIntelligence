@@ -54,6 +54,7 @@ final class SettingsStore: ObservableObject {
 
         // Quality mode - "standard" | "deepThink" (legacy: "fast" | "balanced" | "thorough" | "agentic")
         static let ragQualityMode = "ragQualityMode"
+        static let ingestionFidelityMode = IngestionFidelityMode.storageKey
 
         // Advanced RAG Intelligence (all enabled by default, controlled by mode)
         static let enableQueryRewriting = "enableQueryRewriting"
@@ -209,6 +210,9 @@ final class SettingsStore: ObservableObject {
     /// - balanced: Good accuracy with smart context selection (default)
     /// - thorough: Maximum accuracy with multi-pass verification
     @Published var ragQualityMode: RAGQualityMode
+
+    /// Controls how aggressively document ingestion preserves source fidelity.
+    @Published var ingestionFidelityMode: IngestionFidelityMode
 
     // MARK: - Appearance
 
@@ -472,6 +476,14 @@ final class SettingsStore: ObservableObject {
             ragQualityMode = .standard
             defaults.set(RAGQualityMode.standard.rawValue, forKey: Keys.ragQualityMode)
         }
+        if let savedFidelity = defaults.string(forKey: Keys.ingestionFidelityMode),
+           let mode = IngestionFidelityMode(rawValue: savedFidelity)
+        {
+            ingestionFidelityMode = mode
+        } else {
+            ingestionFidelityMode = .balanced
+            defaults.set(IngestionFidelityMode.balanced.rawValue, forKey: Keys.ingestionFidelityMode)
+        }
         lenientRetrievalMode = false
         defaults.set(false, forKey: Keys.lenient)
 
@@ -547,6 +559,7 @@ final class SettingsStore: ObservableObject {
             $enableTranslation.map { _ in () }.eraseToAnyPublisher(),
             $enableSpeechAnalysis.map { _ in () }.eraseToAnyPublisher(),
             $smartReplyCount.map { _ in () }.eraseToAnyPublisher(),
+            $ingestionFidelityMode.map { _ in () }.eraseToAnyPublisher(),
         ]
         Publishers.MergeMany(publishers)
             .sink { [weak self] in
@@ -656,6 +669,7 @@ final class SettingsStore: ObservableObject {
 
         // Quality mode
         defaults.set(ragQualityMode.rawValue, forKey: Keys.ragQualityMode)
+        defaults.set(ingestionFidelityMode.rawValue, forKey: Keys.ingestionFidelityMode)
         defaults.set(reliabilityModeEnabled, forKey: Keys.reliabilityModeEnabled)
 
         // Advanced RAG Intelligence

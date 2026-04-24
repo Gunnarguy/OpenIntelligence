@@ -151,23 +151,27 @@ actor GraphIndexService {
 
     /// Extract all cross-references from chunk content
     func extractCrossReferences(from content: String) -> [CrossReference] {
-        extractCrossReferencesSync(from: content)
+        Self.extractCrossReferencesStatic(from: content)
     }
 
-    /// Synchronous extraction for use within actor-isolated contexts
-    private nonisolated func extractCrossReferencesSync(from content: String) -> [CrossReference] {
+    /// Extract normalized cross-reference targets without requiring an actor instance.
+    nonisolated static func extractReferenceTargets(from content: String) -> [String] {
+        extractCrossReferencesStatic(from: content).map(\ .targetId)
+    }
+
+    /// Extract all cross-references without requiring an actor instance.
+    nonisolated static func extractCrossReferencesStatic(from content: String) -> [CrossReference] {
         var references: [CrossReference] = []
         let nsContent = content as NSString
         let fullRange = NSRange(location: 0, length: nsContent.length)
 
-        var matchedRanges: [NSRange] = []  // Avoid duplicates
+        var matchedRanges: [NSRange] = []
 
         for (pattern, type, targetGroup) in Self.referencePatterns {
             guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { continue }
             let matches = regex.matches(in: content, options: [], range: fullRange)
 
             for match in matches {
-                // Skip if this range overlaps with a previous match
                 let matchRange = match.range
                 if matchedRanges.contains(where: { NSIntersectionRange($0, matchRange).length > 0 }) {
                     continue
@@ -175,13 +179,11 @@ actor GraphIndexService {
 
                 let rawText = nsContent.substring(with: matchRange)
 
-                // Extract target identifier
                 if targetGroup <= match.numberOfRanges - 1 {
                     let targetRange = match.range(at: targetGroup)
                     if targetRange.location != NSNotFound {
                         let target = nsContent.substring(with: targetRange)
                         let targetId = "\(type.rawValue):\(target)"
-
                         let swiftRange = Range<Int>(uncheckedBounds: (matchRange.location, matchRange.location + matchRange.length))
 
                         references.append(CrossReference(
@@ -198,6 +200,11 @@ actor GraphIndexService {
         }
 
         return references
+    }
+
+    /// Synchronous extraction for use within actor-isolated contexts
+    private nonisolated func extractCrossReferencesSync(from content: String) -> [CrossReference] {
+        Self.extractCrossReferencesStatic(from: content)
     }
 
     // MARK: - Graph Edge Building
