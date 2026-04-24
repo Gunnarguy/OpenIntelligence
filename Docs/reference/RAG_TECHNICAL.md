@@ -1,5 +1,7 @@
 # OpenIntelligence Technical Overview
 
+> Archived reference snapshot. For current repo-grounded guidance, use [../RagTechnical.md](../RagTechnical.md).
+
 This is the public technical overview for OpenIntelligence. It describes the product shape and engineering goals at a high level without exposing proprietary retrieval or reasoning details.
 
 ## Product Goals

@@ -1,5 +1,7 @@
 # Release & Operations Guide
 
+> Archived reference snapshot. For current repo-grounded guidance, use [../Release.md](../Release.md).
+
 **Last Updated**: March 2026
 **Status**: Production (v2.0 — Build 19)
 

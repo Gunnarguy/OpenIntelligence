@@ -4,6 +4,13 @@ Version 2.0
 
 This is the public architecture summary for OpenIntelligence. It documents the major product layers and their responsibilities without exposing private engine internals.
 
+For internal/source-grounded analysis, use:
+
+- [Docs/CURRENT_STATE_AND_GAPS.md](./Docs/CURRENT_STATE_AND_GAPS.md)
+- [Docs/IMPLEMENTATION_ANALYSIS_2026_04_24.md](./Docs/IMPLEMENTATION_ANALYSIS_2026_04_24.md)
+- [Docs/STORAGE_AND_PIPELINE_TRACE.md](./Docs/STORAGE_AND_PIPELINE_TRACE.md)
+- [Docs/BUYER_READINESS_AND_EVALUATION.md](./Docs/BUYER_READINESS_AND_EVALUATION.md)
+
 ## High-Level View
 
 ```text
@@ -50,6 +57,7 @@ The app source is organized to separate product experience, shared domain types,
 - Clear separation between app experience and engine internals
 - Platform integrations routed through Apple frameworks whenever possible
 - Product features shipped only when they are supportable in code and UI
+- Conservative claims around Apple Foundation Models, PCC, and regulated use cases
 
 ## Publicly Documented Areas
 

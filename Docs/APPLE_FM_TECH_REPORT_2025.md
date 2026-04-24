@@ -1,10 +1,28 @@
 # Apple Intelligence Foundation Language Models — Tech Report 2025
 
 > **Source**: [arXiv:2507.13575v3](https://arxiv.org/abs/2507.13575) (August 2025)
-> **Blog**: [machinelearning.apple.com/research/apple-foundation-models-2025-updates](https://machinelearning.apple.com/research/apple-foundation-models-2025-updates)
-> **Last Verified**: February 2026
+> **Apple Research**: [machinelearning.apple.com/research/apple-foundation-models-tech-report-2025](https://machinelearning.apple.com/research/apple-foundation-models-tech-report-2025)
+> **Last Verified**: April 24, 2026
 
 **DO NOT deviate from these facts. This is what Apple actually shipped.**
+
+## April 2026 Repo Grounding
+
+This report describes Apple's model family. It does not mean OpenIntelligence has direct app access to every model or context window described in the paper.
+
+Current app-safe interpretation:
+
+- Public app generation uses Apple's Foundation Models framework where available.
+- The repo budgets `LanguageModelSession` work at 4096 tokens.
+- The server/PCC model is platform context, not a direct OpenIntelligence server-model dependency.
+- Foundation Models are used for generation, guided output, and tool calling; current embeddings are Core ML/Natural Language based.
+- The shipped architecture should be described as retrieval-first, not long-context-first.
+
+See also:
+
+- [Apple Intelligence and Foundation Models Research](./Research/APPLE_INTELLIGENCE_AND_FOUNDATION_MODELS.md)
+- [Private Cloud Compute](./PRIVATE_CLOUD_COMPUTE.md)
+- [Hard Limits](./HARD_LIMITS.md)
 
 ---
 
@@ -346,7 +364,7 @@ Server model is **behind** LLaMA 4 Scout, Qwen-3-235B, and GPT-4o on all benchma
 
 3. **We do NOT have access to PT-MoE** — the server model with its 65K context window and higher quality is Apple-internal only. Our entire pipeline runs through the ~3B on-device model.
 
-4. **GraphRAG with LLM-powered entity resolution and triple extraction is NOT feasible on-device** — those operations require large context windows and high reasoning capability. The 3B model at 2-bit would produce unreliable entity disambiguation and relationship extraction.
+4. **Full GraphRAG with LLM-powered entity resolution and triple extraction is not a shipped claim** — those operations require evaluated entity extraction, relationship extraction, clustering, and community summaries. The current app uses graph-lite context packing, deterministic entities, and RAPTOR-lite summaries.
 
 5. **Our existing pipeline is correctly architected** — semantic chunking + vector search + BM25 hybrid + context packing into ~5500 chars is the RIGHT approach for a 4096-token model. The multi-session agentic approach (3-50 sessions) is exactly what Apple recommends for complex tasks.
 

@@ -1,8 +1,26 @@
 # Apple Document Intelligence Reference
 
 > **Comprehensive reference for Apple's document processing, OCR, NLP, and ML frameworks.**
-> Last updated: February 2026 | iOS 26.0+ APIs included
+> Last updated: April 24, 2026 | iOS 26.0+ APIs included
 > **Implementation Status**: `OCRConfiguration.swift` centralizes all Vision OCR config. `AdaptivePreprocessor` provides 5 GPU strategies. `ConfidenceVerifier` uses `topCandidates(5)` for multi-candidate OCR.
+
+---
+
+## April 2026 Repo Grounding
+
+Current document intelligence implementation:
+
+- `DocumentProcessor.swift` uses PDFKit text extraction first when trustworthy, then Vision OCR fallback for scanned, garbled, or image-heavy pages.
+- OCR preprocessing uses a Metal-backed Core Image context with adaptive strategies and 5x-6x render scale depending on page quality, table risk, and fidelity mode.
+- The app stores normalized full document text, page text, and chunk text into SQLite/FTS5 for exact lookup and BM25 retrieval.
+- `VNRecognizeTextRequest` is the active OCR foundation in the code path. Apple's newer `RecognizeDocumentsRequest` is important research/future API context for tables/lists/document structure, but should not be described as the active production path unless wired and verified.
+- Current embeddings are Core ML/Natural Language based. Foundation Models are generation/tool/guided-output APIs in this app, not the embedding provider.
+
+Related docs:
+
+- [Current State and Gaps](./CURRENT_STATE_AND_GAPS.md)
+- [Document Intelligence and OCR Research](./Research/DOCUMENT_INTELLIGENCE_AND_OCR.md)
+- [Core ML, Metal, and On-Device AI Research](./Research/COREML_METAL_ON_DEVICE_AI.md)
 
 ---
 

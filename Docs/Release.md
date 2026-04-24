@@ -1,9 +1,19 @@
 # Release & Operations Guide
 
-**Last Updated**: February 2026
-**Status**: Production (v2.0 — Build 19)
+**Last Updated**: April 24, 2026
+**Status**: Release-candidate operations guide. Verify version/build from Xcode before submission.
 
 This is the consolidated guide for releasing OpenIntelligence to the App Store. It combines release checklists, smoke testing, StoreKit configuration, and App Store Connect setup.
+
+Current source-of-truth docs before release:
+
+- [Current State and Gaps](./CURRENT_STATE_AND_GAPS.md)
+- [Hard Limits](./HARD_LIMITS.md)
+- [Pricing and Packaging Strategy](./PRICING_STRATEGY.md)
+- [Implementation Analysis](./IMPLEMENTATION_ANALYSIS_2026_04_24.md)
+- [Storage and Pipeline Trace](./STORAGE_AND_PIPELINE_TRACE.md)
+- [Buyer Readiness and Evaluation Plan](./BUYER_READINESS_AND_EVALUATION.md)
+- [Research Index](./Research/README.md)
 
 ---
 
@@ -33,8 +43,11 @@ This is the consolidated guide for releasing OpenIntelligence to the App Store. 
 
 - [ ] `PRIVACY.md` matches app behavior
 - [ ] Cloud consent flow works correctly
-- [ ] OpenAI settings hidden in production builds
+- [ ] Any non-Apple provider settings are hidden or explicitly consent-gated in production builds
 - [ ] No user data logged in release builds
+- [ ] App metadata does not claim direct PCC server-model access or 65K FoundationModels context
+- [ ] Healthcare/medical-device copy avoids HIPAA, diagnostic, or clinical-decision claims unless formally verified
+- [ ] Buyer-facing material uses the evaluation-pilot framing from `Docs/BUYER_READINESS_AND_EVALUATION.md`
 
 ### StoreKit
 
@@ -54,7 +67,7 @@ This is the consolidated guide for releasing OpenIntelligence to the App Store. 
 ## 2. Smoke Test Protocol
 
 **Time**: ~10 minutes
-**Device**: iPhone 17 Pro Max Simulator (iOS 26.0+)
+**Device**: Physical Apple Intelligence-capable device for FoundationModels validation. Simulator is acceptable only for UI/storage/fallback smoke tests.
 
 ### Setup
 
@@ -62,15 +75,15 @@ This is the consolidated guide for releasing OpenIntelligence to the App Store. 
 # Reset app state
 defaults delete com.openintelligence.OpenIntelligence 2>/dev/null || true
 
-# Build & Run
-open OpenIntelligence.xcodeproj  # ⌘R
+# Build and run
+open OpenIntelligence.xcodeproj
 ```
 
 ### Test 1: Onboarding (3 min)
 
 1. Launch app → Onboarding checklist appears
 2. **Step 1**: Tap "Import Now" → Sample docs imported
-3. **Step 2**: Open Settings → Select model → Step complete
+3. **Step 2**: Open Settings → Confirm Apple Intelligence availability or fallback state
 4. **Step 3**: Go to Chat → Ask "What documents were imported?" → Response received
 5. Quit & relaunch → Onboarding does NOT reappear
 
@@ -82,13 +95,13 @@ open OpenIntelligence.xcodeproj  # ⌘R
 ### Test 3: RAG Query (2 min)
 
 1. Chat tab → Type "What is this document about?"
-2. Verify: Streaming response → Inference badge shows (📱/☁️/🔑)
+2. Verify: Streaming response → Inference badge matches actual execution path
 
-### Test 4: Model Switching (2 min)
+### Test 4: FoundationModels Availability (2 min)
 
-1. Settings → Change Primary Model
-2. Return to Chat → Ask question
-3. Verify: Response uses new model
+1. On a physical device, confirm `SystemLanguageModel.default` is available or shows the correct unavailable reason
+2. Ask a short cited question from an imported document
+3. Verify no context-window/PCC/server-model claims appear in UI copy
 
 ### Test 5: Container Isolation (1 min)
 
@@ -104,6 +117,14 @@ open OpenIntelligence.xcodeproj  # ⌘R
 | Query embedding                          | <200ms |
 | Hybrid search (100 chunks)               | <100ms |
 | LLM TTFT (on-device)                     | <1s    |
+
+### Required Manual Accuracy Checks
+
+- [ ] Exact numeric/specification query returns the source value and citation
+- [ ] Table/spec-sheet query returns the value from the correct row/section, not a nearby cross-reference
+- [ ] Missing-evidence query abstains or states evidence gap
+- [ ] Broad summary query cites multiple relevant chunks or clearly states limited evidence
+- [ ] Multi-document query does not mix unrelated libraries/containers
 
 ---
 
@@ -191,10 +212,12 @@ This repo uses **two schemes** so local StoreKit testing never leaks into “rea
 
 | Product ID        | Type           | Price     | Notes                                  |
 | ----------------- | -------------- | --------- | -------------------------------------- |
-| `pro_monthly`     | Subscription   | $5.99/mo  | 7-day trial                            |
+| `pro_monthly`     | Subscription   | $5.99/mo  | No trial in current fastlane setup     |
 | `pro_annual`      | Subscription   | $49.99/yr | Family Sharing                         |
 | `lifetime_cohort` | Non-consumable | $59.99    | Limited availability (lifetime unlock) |
 | `doc_pack_addon`  | Consumable     | $2.99     | +10 documents                          |
+
+**Release decision needed**: `doc_pack_addon` remains in `BillingProduct.swift` and `fastlane/subscriptions.json`, while current in-app Terms copy says legacy document packs are no longer sold in-app. Resolve before submission.
 
 ### Validate Catalog
 
@@ -283,7 +306,7 @@ For each product:
 | ----------------- | ---------- | ------------- |
 | `pro_monthly`     | S6         | $5.99         |
 | `pro_annual`      | S39        | $49.99        |
-| `lifetime_cohort` | Tier TBD   | $59.99        |
+| `lifetime_cohort` | Tier 60    | $59.99        |
 | `doc_pack_addon`  | Tier 3     | $2.99         |
 
 ### App Store Metadata
@@ -335,13 +358,13 @@ For each product:
 xcodebuild test -scheme OpenIntelligence -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max'
 ```
 
-### GGUF Local Model Setup
+### FoundationModels Device Check
 
-1. Xcode → File → Add Packages → Add Local → `Vendor/LocalLLMClient`
-2. Link to target: `LocalLLMClient`, `LocalLLMClientLlama`
-3. Build for device (not Simulator)
-4. Import GGUF model via Settings → Model Downloads
-5. Settings → Model Selection → Set Local Primary → Pick GGUF model
+1. Build the `OpenIntelligence` scheme to a physical Apple Intelligence-capable device.
+2. Confirm Apple Intelligence is enabled in Settings and the model is ready.
+3. Run the onboarding/import/query smoke test with a small document.
+4. Run one exact-value question and one missing-evidence question.
+5. If the model is unavailable, verify the app surfaces the correct availability state instead of failing silently.
 
 ### Troubleshooting
 
@@ -351,4 +374,5 @@ xcodebuild test -scheme OpenIntelligence -destination 'platform=iOS Simulator,na
 | Documents not importing        | Check file picker permissions     |
 | Streaming not working          | Verify LLM service selection      |
 | StoreKit sheet not appearing   | Verify .storekit file in scheme   |
-| GGUF out of memory             | Use smaller model (2-3B Q4_K_M)   |
+| FoundationModels unavailable   | Confirm device eligibility, Apple Intelligence Settings state, model readiness, and simulator/device target |
+| Context window exceeded        | Reduce retrieved chunks, disable tool schemas, shorten prompt/instructions, or split into another session |

@@ -2,8 +2,27 @@
 
 > **Scope**: Token limits, context rules, and integration constraints for iOS 26+ Foundation Models.
 > **Source**: Official Apple Developer Documentation (iOS 26.0+)
-> **Last Updated**: February 2026
+> **Last Updated**: April 24, 2026
 > **Tech Note**: [TN3193: Managing the on-device foundation model's context window](https://developer.apple.com/documentation/Technotes/tn3193-managing-the-on-device-foundation-model-s-context-window)
+
+---
+
+## April 2026 Repo Grounding
+
+Current source code agrees with Apple's public context limit:
+
+- `LLMService.swift` sets `contextWindowSize = 4096`.
+- `RAGService.swift` retries smaller prompts when context overflows and disables tools when retrieved context is already assembled.
+- `OpenIntelligenceEngine.swift` exposes Apple Intelligence availability states and maps query requests into `InferenceConfig`.
+- `AppleFMEmbeddingProvider.swift` is not an active embedding provider. Current embeddings come from Core ML/Natural Language paths.
+
+Do not market a 65K-token OpenIntelligence context path. Apple's 2025 tech report describes server-model training and PCC architecture, but the public Foundation Models framework path used by this app must be budgeted as 4096 tokens unless a future Apple API and physical-device test prove otherwise.
+
+Related docs:
+
+- [Current State and Gaps](./CURRENT_STATE_AND_GAPS.md)
+- [Apple Intelligence and Foundation Models Research](./Research/APPLE_INTELLIGENCE_AND_FOUNDATION_MODELS.md)
+- [Hard Limits](./HARD_LIMITS.md)
 
 ---
 

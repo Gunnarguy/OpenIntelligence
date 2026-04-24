@@ -1,5 +1,7 @@
 # Private Cloud Compute (PCC) — Security Architecture Reference
 
+> Archived reference snapshot. For current repo-grounded guidance, use [../PRIVATE_CLOUD_COMPUTE.md](../PRIVATE_CLOUD_COMPUTE.md).
+
 > **Source**: [security.apple.com/blog/private-cloud-compute](https://security.apple.com/blog/private-cloud-compute/)
 > **Authors**: Apple SEAR, User Privacy, Core OS, ASE, AIML
 > **Last Verified**: February 2026

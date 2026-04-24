@@ -4,6 +4,8 @@ Version 2.0
 
 This document explains the product workflow at a high level. It is intentionally written for users, reviewers, and collaborators who want to understand what the app does without exposing the full internal retrieval and reasoning design.
 
+For the internal engineering trace, see [Docs/STORAGE_AND_PIPELINE_TRACE.md](./Docs/STORAGE_AND_PIPELINE_TRACE.md).
+
 ## Workflow Overview
 
 ```text
@@ -24,7 +26,7 @@ When a user asks a question, OpenIntelligence searches the imported material for
 
 ## 4. Answer
 
-The app turns retrieved evidence into a readable response with citations. Depending on device state and Apple platform availability, answer generation may stay fully on-device or use Apple-managed capabilities exposed by the platform.
+The app turns retrieved evidence into a readable response with citations. The engine is designed around Apple's public Foundation Models path where available and a small public session context, so it retrieves, compresses, and verifies evidence instead of trying to place an entire library into one prompt.
 
 ## 5. Review
 

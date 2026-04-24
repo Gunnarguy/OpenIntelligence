@@ -1,14 +1,18 @@
 # RAG Technical Specifications
 
-**Version**: 1.4
-**Updated**: February 23, 2026
+**Version**: 1.5
+**Updated**: April 24, 2026
 **Compatibility**: iOS 26+ / Apple Intelligence
 
 This document provides the technical formulas, algorithms, and deep dive specifications for the RAG pipeline.
 
-> **For the High-Level Flow**: See [HOW_IT_WORKS.md](../../HOW_IT_WORKS.md)
+> **For the High-Level Flow**: See [HOW_IT_WORKS.md](../HOW_IT_WORKS.md)
 
-> **Full Architecture**: See [ARCHITECTURE.md](../../ARCHITECTURE.md) → "Complete Service Inventory (102 Services)"
+> **Full Architecture**: See [ARCHITECTURE.md](../ARCHITECTURE.md). The current repo contains 107 Swift service files under `OpenIntelligence/Services`.
+
+> **Current State**: See [CURRENT_STATE_AND_GAPS.md](./CURRENT_STATE_AND_GAPS.md). The repo currently has 107 Swift service files under `OpenIntelligence/Services`. The 29-step pipeline below is a logical/audit view; the implementation is adaptive and does not run every step for every query.
+
+> **Research Links**: See [Docs/Research/RAG_AND_RETRIEVAL_2024_2026.md](./Research/RAG_AND_RETRIEVAL_2024_2026.md) and [Docs/Research/CAG_AND_CONTEXT_ENGINEERING_2024_2026.md](./Research/CAG_AND_CONTEXT_ENGINEERING_2024_2026.md).
 
 ---
 
@@ -16,12 +20,12 @@ This document provides the technical formulas, algorithms, and deep dive specifi
 
 ```
 INGESTION (6 steps):
-  1. Parse (PDFKit/Vision OCR 360 DPI/Office ZIP)
+  1. Parse (PDFKit/Vision OCR, adaptive 5x-6x render scale/Office ZIP)
   2. SemanticChunker (≤310w, section detection)
   3. Entity Extraction (NLTagger NER + PascalCase)
   4. Token Validation (BertTokenizer ≤510)
   5. Embedding (384-dim MiniLM)
-  6. Store (HNSW index + FTS5 + EntityIndex)
+  6. Store (per-container vector store + SQLite FTS5 + metadata)
 
 QUERY → RESPONSE (23 steps):
   Step 0:   Corpus Analysis (vocabulary cache)
@@ -41,10 +45,10 @@ QUERY → RESPONSE (23 steps):
   Step 5:   Context Assembly (Lost-in-Middle reorder)
   Step 5.9: Extractive Summarization (for summarize intent)
   Step 5.10: Extractive QA (for lookup intent)
-  Step 6:   LLM Generation (Apple FM / PCC)
+  Step 6:   LLM Generation (Apple FoundationModels public session budget)
   Step 6.5: Response Formatting (markdown preservation pipeline)
   Step 7:   Quality Assessment (confidence scoring)
-  Step 7.5: Verification Gates A-G (anti-hallucination)
+  Step 7.5: Verification Gates A-I (anti-hallucination + completeness/domain isolation)
   Step 8:   Package Results
   Step 8.1: Calibrated Confidence (Platt scaling)
   Step 9:   Response Metadata (timing, sources, metrics)
@@ -60,12 +64,21 @@ QUERY → RESPONSE (23 steps):
 | HyDE                      | `HyDEService.swift`                  | `enableHyDE`                    | ON      | +15-25% recall            |
 | Parent Document Retrieval | `ParentDocumentService.swift`        | `enableParentDocumentRetrieval` | ON      | Multi-paragraph coherence |
 | Contextual Compression    | `ContextualCompressionService.swift` | `enableContextualCompression`   | ON      | -40-60% tokens            |
-| Agentic Orchestration     | `AgenticOrchestrator.swift`          | `.agentic` quality mode         | Manual  | 16K-48K context           |
+| Agentic Orchestration     | `AgenticOrchestrator.swift`          | `.agentic` quality mode         | Manual  | Multi-session reasoning, not one larger context |
 | Lost-in-Middle            | `RAGEngine.swift`                    | Always on                       | ON      | Better LLM attention      |
 | Cross-Encoder Rerank      | `RAGEngine.swift`                    | Always on                       | ON      | Improved ranking          |
 | Query Rewriting           | `QueryRewriterService.swift`         | `enableQueryRewriting`          | ON      | Clarifies ambiguity       |
 | Iterative Retrieval       | `IterativeRetrievalService.swift`    | `enableIterativeRetrieval`      | OFF     | Multi-pass refinement     |
 | **Adaptive Pipeline**     | `AdaptivePipelineOptimizer.swift`    | Automatic                       | ON      | Thermal/battery aware     |
+
+## Current Implementation Notes
+
+- The active public LLM path must fit Apple's 4096-token FoundationModels session budget. Tool schemas, retrieved context, guided output schemas, prompts, and responses all count.
+- `RAGService.swift` disables tools when context has already been assembled, because tool schemas can consume roughly 1000 tokens.
+- Exact-value/specification queries have a deterministic high-precision lookup override path. It can force an extractive attempt for precision-value questions and requires quantitative answer signals before overriding generation.
+- `VerificationGateService.swift` now defines gates A-I, not only A-G.
+- The vector store is not only HNSW. The current BNNS/Accelerate implementation persists memory-mapped vectors and uses Metal for larger searches when available; Vectura/HNSW is a selectable backend path.
+- Full GraphRAG is not a shipped claim. The app has graph-style context packing, deterministic entities, and RAPTOR-lite summaries, but not evaluated LLM-derived entity graph/community summaries.
 
 ---
 

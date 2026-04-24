@@ -1,5 +1,7 @@
 # Apple Intelligence Foundation Language Models — Tech Report 2025
 
+> Archived reference snapshot. For current repo-grounded guidance, use [../APPLE_FM_TECH_REPORT_2025.md](../APPLE_FM_TECH_REPORT_2025.md).
+
 > **Source**: [arXiv:2507.13575v3](https://arxiv.org/abs/2507.13575) (August 2025)
 > **Blog**: [machinelearning.apple.com/research/apple-foundation-models-2025-updates](https://machinelearning.apple.com/research/apple-foundation-models-2025-updates)
 > **Last Verified**: February 2026
