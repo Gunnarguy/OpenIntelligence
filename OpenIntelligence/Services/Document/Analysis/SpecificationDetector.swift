@@ -50,8 +50,9 @@ enum SpecificationDetector: Sendable {
         ("Standard", #"(?:ISO|ASTM|SAE|DIN|EN|ANSI|IEEE|IEC|BS|JIS|NF|UL)\s*[-:]?\s*\d+(?:[A-Z])?(?:[-.:]\d+)*"#),
 
         // MEASUREMENTS WITH UNITS: Number + unit abbreviation
-        // Matches: 4.5L, 500mg, 32psi, 25Nm, 120V, 15A, 98.6°F, 37°C
-        ("Measurement", #"\d+(?:[.,]\d+)?\s*(?:L|mL|ml|gal|qt|oz|fl\.?\s*oz|kg|g|mg|µg|lb|lbs|psi|bar|kPa|MPa|Pa|Nm|N·m|ft-?lb|lb-?ft|in-?lb|V|kV|mV|A|mA|W|kW|MW|HP|hp|Hz|kHz|MHz|GHz|Ω|ohm|°[CF]|deg(?:rees?)?\s*[CF]|mm|cm|m|km|in|ft|yd|mi)"#),
+        // Matches: 4.5L, 14.3 US gal, 500mg, 32psi, 25Nm, 120V, 15A, 98.6°F, 37°C
+        // IMPORTANT: Require a unit boundary so page refs like "8-14 liftgate" do not become "14 l".
+        ("Measurement", #"\b\d+(?:[.,]\d+)?\s*(?:(?:U\.?S\.?\s*)?(?:gal(?:lon)?s?|qt|qts?|L|mL|ml|oz|fl\.?\s*oz|kg|g|mg|µg|lb|lbs|psi|bar|kPa|MPa|Pa|Nm|N·m|ft-?lb|lb-?ft|in-?lb|V|kV|mV|A|mA|W|kW|MW|HP|hp|Hz|kHz|MHz|GHz|Ω|ohm|°[CF]|deg(?:rees?)?\s*[CF]|mm|cm|m|km|in|ft|yd|mi))\b"#),
 
         // VISCOSITY/GRADE PATTERNS: Alphanumeric grade codes
         // Matches: 0W-20, 5W-30, 10W-40, 20W-50

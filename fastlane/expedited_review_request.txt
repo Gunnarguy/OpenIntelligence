@@ -1,0 +1,13 @@
+Expedited review request for OpenIntelligence 3.2.5
+
+This update fixes a critical answer-quality regression introduced in the recent 3.2 line. The previous update was ambitious and improved the document reasoning pipeline, but it also made some simple source-backed questions slower or less reliable than intended. In some cases, users could ask for an exact value that was clearly present in an uploaded document, but the app would overthink, take too long, or fail to return the direct cited answer.
+
+Version 3.2.5 restores the expected behavior. Exact values in uploaded documents are now checked first and cited directly when present, including table rows, specification values, measurements, counts, dates, limits, and prices. Deep Think and Maximum also perform this precision check before longer reasoning.
+
+Steps to reproduce in the current version:
+1. Import a dense PDF or table/specification-heavy document.
+2. Ask a simple exact-value question where the value appears in the source, such as a measurement, capacity, count, date, price, or limit.
+3. In some cases the current version overthinks, takes too long, or fails to answer directly despite the source containing the answer.
+
+Expected result in 3.2.5:
+The app returns a concise answer with a citation when the exact source value is present.

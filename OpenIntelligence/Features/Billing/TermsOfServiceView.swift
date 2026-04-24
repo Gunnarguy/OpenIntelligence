@@ -24,7 +24,7 @@ By accessing or using OpenIntelligence ("the App"), you agree to be bound by the
 """)
 
                         section(title: "2. Service Description", content: """
-OpenIntelligence provides privacy-first document retrieval and AI-powered question answering. The App processes your documents locally whenever possible, with optional cloud processing via Apple Private Cloud Compute or other providers you explicitly authorize.
+OpenIntelligence provides privacy-first document retrieval and AI-powered question answering. The App processes your documents locally whenever possible, with any Apple-managed platform processing or other provider processing controlled by platform availability, user settings, and provider authorization where applicable.
 """)
 
                         section(title: "3. Subscriptions & Billing", content: """

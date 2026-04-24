@@ -21,17 +21,18 @@ struct PrivacyPolicyView: View {
 
                     Group {
                         section(title: "Our Privacy Commitment", content: """
-OpenIntelligence is designed privacy-first. Your documents stay on your device whenever possible. When cloud processing is needed, requests may be handled by Apple Private Cloud Compute or providers you explicitly enable, and OpenIntelligence does not store your raw documents on any developer-operated server.
+OpenIntelligence is designed privacy-first. Your documents stay on your device by default. If Apple-managed platform processing or another provider you explicitly enable is used, OpenIntelligence does not store your raw documents on any developer-operated server.
 """)
 
                         section(title: "Information We Collect", content: """
 **On-Device Processing (Default):**
 • Document content and embeddings stored locally in app sandbox
 • Usage telemetry (feature usage, performance metrics) - stays on-device only
-• No data leaves your device unless you explicitly use Apple Intelligence features
+• No data leaves your device for developer-operated processing unless you explicitly enable an external provider path
 
-**Cloud Processing (With Your Consent):**
-• Apple Private Cloud Compute: Encrypted query context, no persistent storage
+**Cloud Processing (With Your Consent or Platform Routing):**
+• Apple-managed platform processing, where available, is governed by Apple's privacy and security policies
+• Explicitly enabled provider paths are governed by the provider's terms and privacy policies
 • All telemetry and diagnostics remain entirely on-device
 
 **Billing Data:**
@@ -53,9 +54,9 @@ We never:
 """)
 
                         section(title: "Data Storage & Security", content: """
-• **Local Storage**: Documents and embeddings encrypted at rest using iOS Keychain
-                        • **Cloud Providers**: Apple PCC uses confidential computing enclaves
-• **Retention**: Local data persists until you delete it; cloud providers do not retain data after processing
+• **Local Storage**: Documents and embeddings are stored in the app sandbox and protected by platform data protection
+• **Cloud Providers**: Any enabled provider path is governed by that provider's privacy and security policies
+• **Retention**: Local data persists until you delete it; provider retention is governed by the relevant provider policy
 • **Backups**: iCloud backups may include local app data if enabled in device settings
 """)
 
@@ -67,8 +68,9 @@ We never:
 """)
 
                         section(title: "Third-Party Services", content: """
-When you enable cloud providers:
-• **Apple Private Cloud Compute**: Governed by Apple's privacy policies
+When you enable provider paths:
+• **Apple-managed services**: Governed by Apple's privacy policies
+• **Explicitly enabled third-party providers**: Governed by their own terms and privacy policies
 
 We do not control third-party practices. Review their policies before enabling.
 """)

@@ -21,6 +21,9 @@ struct ContentView: View {
     private let screenshotMode: ScreenshotMode
 
     init() {
+        #if DEBUG
+            DebugRAGValidationHarness.configureStorageIfNeeded()
+        #endif
         self.screenshotMode = ScreenshotMode.current
         #if DEBUG
             if !screenshotMode.isEnabled {
@@ -130,6 +133,14 @@ struct ContentView: View {
             {
                 Log.warning("[GenerationAudit] Startup audit flag ignored in this build configuration", category: .llm)
                 exit(0)
+            }
+
+            if DebugRAGValidationHarness.isEnabled {
+                await DebugRAGValidationHarness.runIfNeeded(
+                    ragService: ragService,
+                    settingsStore: settingsStore
+                )
+                return
             }
             #endif
 

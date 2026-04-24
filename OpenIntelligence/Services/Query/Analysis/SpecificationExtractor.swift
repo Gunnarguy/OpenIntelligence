@@ -202,9 +202,19 @@ actor SpecificationExtractor {
 
         // Step 3.5: OPTIMIZED — Filter out irrelevant categories before ambiguity check.
         // If we have Grade candidates, suppress Code candidates that don't match query context.
+        let prefersMeasurementCandidates = isMeasurementStyleQuery(queryEntities)
+            && scoredCandidates.contains { candidate, _ in
+                candidate.category == "Measurement"
+                    && measurementUnitMatchesQuery(candidate.value, queryEntities: queryEntities)
+            }
         let hasGradeCandidate = scoredCandidates.contains { $0.0.category == "Grade" }
         let relevantCandidates: [(AnswerCandidate, Float)]
-        if hasGradeCandidate {
+        if prefersMeasurementCandidates {
+            relevantCandidates = scoredCandidates.filter { candidate, _ in
+                candidate.category == "Measurement"
+                    || measurementUnitMatchesQuery(candidate.value, queryEntities: queryEntities)
+            }
+        } else if hasGradeCandidate {
             // Prefer Grade/Measurement over generic Code when Grade exists
             relevantCandidates = scoredCandidates.filter { candidate, _ in
                 candidate.category != "Code" || queryEntities.keywords.contains(where: { kw in
@@ -441,6 +451,7 @@ actor SpecificationExtractor {
     /// "a relevant candidate".
     private func scoreCandidate(_ candidate: AnswerCandidate, queryEntities: QueryEntities) -> Float {
         var score: Float = 0.0
+        let measurementStyleQuery = isMeasurementStyleQuery(queryEntities)
 
         // 1. Keyword proximity (important but not primary) - 0 to 0.25
         // Closer = better. Within 50 chars = max score
@@ -489,6 +500,22 @@ actor SpecificationExtractor {
             score += 0.02
         }
 
+        if measurementStyleQuery {
+            if candidate.category == "Measurement" {
+                score += 0.12
+                if measurementUnitMatchesQuery(candidate.value, queryEntities: queryEntities) {
+                    score += 0.22
+                }
+                if candidate.matchedKeywords.contains(where: isMeasurementAnchorKeyword(_:)) {
+                    score += 0.10
+                }
+            } else if looksLikeIndexReference(candidate.value) {
+                score -= 0.20
+            }
+        } else if looksLikeIndexReference(candidate.value) {
+            score -= 0.10
+        }
+
         // ========================================================================
         // 6. PRIMARY ENTITY CONTAINMENT - THE KEY SIGNAL (0 to 0.50)
         // This is the most important scoring factor for entity-centric queries.
@@ -525,6 +552,71 @@ actor SpecificationExtractor {
         }
 
         return max(0, min(1.0, score))
+    }
+
+    private func isMeasurementStyleQuery(_ queryEntities: QueryEntities) -> Bool {
+        queryEntities.descriptiveKeywords.contains(where: isMeasurementKeyword(_:))
+    }
+
+    private func isMeasurementKeyword(_ keyword: String) -> Bool {
+        let measurementKeywords: Set<String> = [
+            "capacity", "volume", "gallons", "gallon", "liters", "liter", "quarts", "quart",
+            "weight", "length", "width", "height", "pressure", "temperature", "amount", "size",
+        ]
+        return measurementKeywords.contains(keyword)
+    }
+
+    private func isMeasurementAnchorKeyword(_ keyword: String) -> Bool {
+        let anchorKeywords: Set<String> = ["gas", "gasoline", "fuel", "tank", "capacity", "volume", "coolant", "oil"]
+        return anchorKeywords.contains(keyword)
+    }
+
+    private func measurementUnitMatchesQuery(_ value: String, queryEntities: QueryEntities) -> Bool {
+        let loweredValue = value.lowercased()
+
+        if queryEntities.descriptiveKeywords.contains(where: { ["gallons", "gallon", "capacity", "volume", "liters", "liter", "quarts", "quart"].contains($0) }) {
+            let liquidUnits = ["us gal", "gal", "gallon", "gallons", "l)", " l", "liter", "liters", "qt", "quarts", "quart"]
+            if liquidUnits.contains(where: { loweredValue.contains($0) }) {
+                return true
+            }
+        }
+
+        if queryEntities.descriptiveKeywords.contains(where: { ["weight"].contains($0) }) {
+            let weightUnits = ["kg", "lb", "lbs", "oz", "g "]
+            if weightUnits.contains(where: { loweredValue.contains($0) }) {
+                return true
+            }
+        }
+
+        if queryEntities.descriptiveKeywords.contains(where: { ["length", "width", "height", "size"].contains($0) }) {
+            let sizeUnits = ["mm", "cm", " m", "in", "inch", "ft"]
+            if sizeUnits.contains(where: { loweredValue.contains($0) }) {
+                return true
+            }
+        }
+
+        if queryEntities.descriptiveKeywords.contains(where: { ["pressure"].contains($0) }) {
+            let pressureUnits = ["psi", "kpa", "bar"]
+            if pressureUnits.contains(where: { loweredValue.contains($0) }) {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    private func looksLikeIndexReference(_ value: String) -> Bool {
+        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if normalized.contains("\n") {
+            return true
+        }
+        if normalized.range(of: #"\b\d+-\d+\b"#, options: .regularExpression) != nil {
+            return true
+        }
+        if normalized.range(of: #"\bvolume\s+\d+-\d+\b"#, options: [.regularExpression, .caseInsensitive]) != nil {
+            return true
+        }
+        return false
     }
 
     // MARK: - Proximity-Based Extraction
@@ -901,6 +993,18 @@ actor SpecificationExtractor {
         // Add domain-aware expansions to descriptive keywords based on context
         if tokens.contains("capacity") || tokens.contains("much") || tokens.contains("many") {
             descriptiveKeywords.append(contentsOf: ["liters", "quarts", "gallons", "capacity", "volume"])
+        }
+        if tokens.contains("gas") {
+            descriptiveKeywords.append(contentsOf: ["fuel", "gasoline"])
+        }
+        if tokens.contains("fuel") || tokens.contains("gasoline") {
+            descriptiveKeywords.append(contentsOf: ["gas"])
+        }
+        if tokens.contains("hold") || tokens.contains("holds") || tokens.contains("holding") {
+            descriptiveKeywords.append(contentsOf: ["capacity", "volume"])
+        }
+        if tokens.contains("car") {
+            descriptiveKeywords.append("vehicle")
         }
 
         // All keywords = entities + descriptive (for backwards compatibility)

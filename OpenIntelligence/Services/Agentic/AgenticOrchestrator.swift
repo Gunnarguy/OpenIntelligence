@@ -1572,7 +1572,12 @@ final class AgenticOrchestrator: Sendable {
         ragService: RAGService
     ) async throws -> [String] {
         let prompt = """
-        Write 4 different ways to search for the answer to this question. Each line should be a different search phrase.
+        Write concrete search phrases for the exact question below.
+
+        Rules:
+        - Keep the same entities, units, and objects from the question.
+        - Do not add placeholders, brackets, examples, or unknown make/model text.
+        - Return only search phrases, one per line.
 
         Question: \(originalQuery)
 
@@ -1588,7 +1593,14 @@ final class AgenticOrchestrator: Sendable {
         )
 
         // Parse numbered lines or JSON array from response
-        var queries = [originalQuery] // Always include original
+        var queries = deterministicSearchQueries(for: originalQuery) // Always includes original
+
+        func appendIfUseful(_ candidate: String) {
+            let queryText = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard isUsableGeneratedSearchQuery(queryText, originalQuery: originalQuery) else { return }
+            guard !queries.contains(where: { $0.caseInsensitiveCompare(queryText) == .orderedSame }) else { return }
+            queries.append(queryText)
+        }
 
         // Try JSON array first
         if let jsonStart = response.text.firstIndex(of: "["),
@@ -1596,14 +1608,12 @@ final class AgenticOrchestrator: Sendable {
             let jsonString = String(response.text[jsonStart...jsonEnd])
             if let data = jsonString.data(using: .utf8),
                let parsed = try? JSONSerialization.jsonObject(with: data) as? [String] {
-                for q in parsed where !q.isEmpty && q.lowercased() != originalQuery.lowercased() {
-                    queries.append(q)
-                }
+                for q in parsed { appendIfUseful(q) }
             }
         }
 
         // Fallback: parse numbered lines (e.g., "2. some query", "3. another query")
-        if queries.count <= 1 {
+        if queries.count <= 4 {
             // Apple FM often puts ALL queries on one line: "query1? 2. query2 3. query3 4. query4"
             // First, try splitting on mid-line numbered patterns before falling back to newline split
             let fullText = response.text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1629,28 +1639,22 @@ final class AgenticOrchestrator: Sendable {
                     if !lastSegment.isEmpty && lastSegment.count > 3 {
                         splitQueries.append(lastSegment)
                     }
-                    for q in splitQueries where q.lowercased() != originalQuery.lowercased() {
-                        queries.append(q)
-                    }
+                    for q in splitQueries { appendIfUseful(q) }
                 }
             }
 
             // If mid-line split didn't work, try line-by-line
-            if queries.count <= 1 {
+            if queries.count <= 4 {
                 let lines = response.text.components(separatedBy: .newlines)
                 for line in lines {
                     let trimmed = line.trimmingCharacters(in: .whitespaces)
                     // Match "2. query text" or "- query text" patterns
                     if let dotRange = trimmed.range(of: #"^\d+[\.\)]\s*"#, options: .regularExpression) {
                         let queryText = String(trimmed[dotRange.upperBound...]).trimmingCharacters(in: .whitespaces)
-                        if !queryText.isEmpty && queryText.count > 3 && queryText.lowercased() != originalQuery.lowercased() {
-                            queries.append(queryText)
-                        }
+                        appendIfUseful(queryText)
                     } else if trimmed.hasPrefix("- ") {
                         let queryText = String(trimmed.dropFirst(2)).trimmingCharacters(in: .whitespaces)
-                        if !queryText.isEmpty && queryText.count > 3 && queryText.lowercased() != originalQuery.lowercased() {
-                            queries.append(queryText)
-                        }
+                        appendIfUseful(queryText)
                     }
                 }
             }
@@ -1658,6 +1662,104 @@ final class AgenticOrchestrator: Sendable {
 
         Log.info("[MultiQuery] Generated \(queries.count) search queries: \(queries)", category: .retrieval)
         return Array(queries.prefix(5)) // Cap at 5 to limit latency
+    }
+
+    private func deterministicSearchQueries(for originalQuery: String) -> [String] {
+        let original = originalQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !original.isEmpty else { return [] }
+
+        let lower = original.lowercased()
+        var queries: [String] = [original]
+
+        let hasFuelTerm = ["gas", "gasoline", "fuel"].contains { lower.contains($0) }
+        let hasCapacityTerm = ["capacity", "capacities", "hold", "holds", "holding", "volume", "amount", "how many", "how much"].contains { lower.contains($0) }
+        let hasLiquidUnit = ["gallon", "gallons", "gal", "liter", "liters", "litre", "litres"].contains { lower.contains($0) }
+
+        if hasFuelTerm && (hasCapacityTerm || hasLiquidUnit) {
+            queries.append("fuel gasoline gal capacity")
+            queries.append("fuel tank capacity US gal")
+            queries.append("gasoline fuel capacity liters gallons")
+        } else if hasCapacityTerm || hasLiquidUnit {
+            queries.append("\(original) capacity volume")
+            if hasLiquidUnit {
+                queries.append("\(original) gal liters")
+            }
+        }
+
+        let stopWords: Set<String> = [
+            "what", "which", "when", "where", "why", "how", "many", "much",
+            "does", "this", "that", "these", "those", "the", "and", "for",
+            "with", "from", "can", "could", "would", "should", "have", "has",
+            "had", "its", "into", "about"
+        ]
+        let keyTerms = lower
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { $0.count > 2 && !stopWords.contains($0) }
+
+        if keyTerms.count >= 2 {
+            queries.append(keyTerms.prefix(6).joined(separator: " "))
+        }
+
+        return uniqueSearchQueries(queries)
+    }
+
+    private func isUsableGeneratedSearchQuery(_ candidate: String, originalQuery: String) -> Bool {
+        let trimmed = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count > 3, trimmed.count <= 160 else { return false }
+
+        let lower = trimmed.lowercased()
+        let rejectedFragments = [
+            "[", "]", "{", "}", "<", ">",
+            "make and model", "car make", "specific make", "specific model",
+            "insert", "placeholder", "example", "your query", "search phrase"
+        ]
+        guard !rejectedFragments.contains(where: { lower.contains($0) }) else { return false }
+        guard lower != originalQuery.lowercased() else { return false }
+
+        let originalTerms = Set(
+            originalQuery.lowercased()
+                .components(separatedBy: CharacterSet.alphanumerics.inverted)
+                .filter { $0.count > 2 && !Self.stopWords.contains($0) }
+        )
+        let candidateTerms = Set(
+            lower
+                .components(separatedBy: CharacterSet.alphanumerics.inverted)
+                .filter { $0.count > 2 && !Self.stopWords.contains($0) }
+        )
+
+        if originalTerms.isEmpty || candidateTerms.isEmpty {
+            return true
+        }
+
+        let overlap = originalTerms.intersection(candidateTerms)
+        if !overlap.isEmpty { return true }
+
+        // Allow safe concept normalizations for common specification language.
+        if originalTerms.contains("gas") && candidateTerms.intersection(["fuel", "gasoline"]).isEmpty == false {
+            return true
+        }
+        if originalTerms.contains("gallons") && candidateTerms.intersection(["gal", "liters", "capacity"]).isEmpty == false {
+            return true
+        }
+        if originalTerms.contains("hold") && candidateTerms.intersection(["capacity", "volume"]).isEmpty == false {
+            return true
+        }
+
+        return false
+    }
+
+    private func uniqueSearchQueries(_ queries: [String]) -> [String] {
+        var seen = Set<String>()
+        var result: [String] = []
+        for query in queries {
+            let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            let key = trimmed.lowercased()
+            if seen.insert(key).inserted {
+                result.append(trimmed)
+            }
+        }
+        return result
     }
 
     /// Execute multi-query search: search with multiple query variations and fuse results.

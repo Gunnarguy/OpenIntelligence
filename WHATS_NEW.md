@@ -2,6 +2,18 @@
 
 Public release highlights for OpenIntelligence.
 
+## 3.2.5
+
+This is a corrective quality update for the 3.2 line, focused on making obvious source-backed answers fast and reliable again.
+
+## Highlights
+
+- Exact lookups now lock onto table rows, specification values, measurements, counts, limits, dates, and prices more directly when the source clearly contains the answer.
+- Deep Think and Maximum run a precision lookup before longer reasoning, so simple questions can still get short cited answers in higher-effort modes.
+- Standard, Deep Think, and Maximum share stronger retrieval rescue for table and specification passages.
+- Starter questions are generated from actual uploaded passages with stricter grounding checks instead of loose document labels.
+- Exact measurement answers are cleaner and can include nearby equivalent units when the source provides them.
+
 ## 3.1
 
 This is the user-facing 3.1 summary focused on document understanding, OCR reliability, and grounded answer quality after the rushed 3.0 cut.

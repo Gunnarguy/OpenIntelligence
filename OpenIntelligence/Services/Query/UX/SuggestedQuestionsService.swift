@@ -4,8 +4,8 @@
 //
 //  Created by Gunnar Hostetler on 2025.
 //
-//  LLM-first suggested question generation from actual document content.
-//  Generates ultra-specific, grounded questions that showcase RAG capabilities.
+//  Source-first suggested question generation from actual document content.
+//  Generates specific, grounded questions that showcase RAG capabilities.
 //
 
 import Foundation
@@ -17,16 +17,16 @@ import FoundationModels
 
 /// Service that generates contextual suggested questions from actual document content.
 ///
-/// **Architecture (v2 — LLM-first, content-grounded):**
+/// **Architecture (v3 — source-first, content-grounded):**
 ///
 /// 1. Select diverse representative chunks across the library (different docs, sections, topics)
-/// 2. Feed chunk TEXT directly to Apple FM with a constrained prompt
-/// 3. Parse structured output into display-ready questions
-/// 4. Fall back to content-phrase extraction when LLM is unavailable (Simulator)
+/// 2. Generate deterministic questions from specs, procedures, warnings, and definitions
+/// 3. Let Apple FM add variety only when outputs pass strict passage-grounding checks
+/// 4. Fall back to safe generic chat starters instead of fake-specific questions
 ///
 /// **Why this is 10x:**
-/// - Questions are generated FROM the actual text, not from entity labels
-/// - "What is Analysis?" → "How does the Jaccard similarity threshold detect font-encoded PDFs?"
+/// - Questions are generated FROM the actual text, not from loose entity labels
+/// - "What is Analysis?" → "What is the fuel tank capacity?"
 /// - Diversity is enforced at the chunk selection level, not post-hoc filtering
 /// - Cache invalidates on document change, not never
 
@@ -138,26 +138,32 @@ actor SuggestedQuestionsService {
         let inputChunks = forceRefresh ? sampleChunks.shuffled() : sampleChunks
         let diverseChunks = selectDiverseChunks(from: inputChunks, documents: documents, targetCount: 6)
 
-        // Step 2: Try LLM generation first (iOS 26+)
+        // Step 2: Build deterministic passage-grounded questions first.
+        // The LLM can add variety, but these are the reliability floor.
         var questions: [SuggestedQuestion] = []
+        let contentQuestions = generateFromContent(chunks: diverseChunks, documents: documents)
 
         #if canImport(FoundationModels)
         if #available(iOS 26.0, *) {
-            questions = await generateWithLLM(
+            let llmQuestions = await generateWithLLM(
                 chunks: diverseChunks,
                 documents: documents,
                 avoidTexts: previousTexts
             )
+            questions = dedupeSuggestedQuestionsPreservingOrder(llmQuestions + contentQuestions)
         }
         #endif
 
         // Step 3: Fall back to content-grounded extraction if LLM failed or unavailable
         if questions.isEmpty {
-            questions = generateFromContent(chunks: diverseChunks, documents: documents)
+            questions = contentQuestions
         }
 
         // Step 4: Ensure diversity — no two questions from the same document
-        let deduped = enforceDiversity(questions, count: max(count, 6))
+        let deduped = enforceDiversity(
+            dedupeSuggestedQuestionsPreservingOrder(questions),
+            count: max(count, 6)
+        )
 
         // Cache
         cachedQuestions[containerId] = CachedEntry(
@@ -322,6 +328,12 @@ actor SuggestedQuestionsService {
         let bodyTokens: Set<String>
     }
 
+    private struct QuestionDraft: Sendable {
+        let text: String
+        let category: QuestionCategory
+        let confidence: Double
+    }
+
     // MARK: - Step 2: LLM Generation (iOS 26+)
 
     #if canImport(FoundationModels)
@@ -369,14 +381,15 @@ actor SuggestedQuestionsService {
         - Each question should clearly come from ONE specific passage, not from a blurry mix of the whole library
         - Prefer details that make it obvious which document or section the question came from
         - Sound natural and direct — under 12 words each
-        - Mix question types: some "how much/many", some "what happens if", some "which", some "why"
-        - Do NOT use phrases like "What role does", "What is the significance of", "What are the key", "Can you explain"
+        - Prefer answerable lookup questions: "what is", "how much/many", "which", "when", "what happens if"
+        - Do NOT use phrases like "What role does", "What is the significance of", "What are the key", "Can you explain", "Why is X important"
         - Do NOT ask about the documents themselves ("What does the document say about...")
         - Do NOT include square brackets, placeholders, or template text like "[thing from passage]"
         - Do NOT write a quantity question that already includes the answer number or measurement
         - If the passage is a manual, warning, or procedure, prefer a concrete condition, requirement, or consequence from that passage
         - Do NOT copy or rephrase any example below — your questions must come ONLY from the passages
         - Ask about the CONTENT as if you read it and want to know more
+        - If you cannot anchor a question to exact words in one passage, omit it
 
         Style guide (for tone only — do NOT reuse these topics):
         - "What happens if a required step is skipped?"
@@ -444,125 +457,262 @@ actor SuggestedQuestionsService {
     ) -> [SuggestedQuestion] {
 
         var questions: [SuggestedQuestion] = []
+        let passages = buildGroundedPassages(from: chunks, documents: documents, limit: chunks.count)
 
-        for chunk in chunks {
-            let rawDocName = documents.first(where: { $0.id == chunk.documentId })?.filename ?? "Document"
-            let docName = displayDocumentName(rawDocName)
-            let sectionLabel = primarySectionLabel(for: chunk)
-            let content = chunk.content
-
-            if let conditionalQuestion = extractConditionalQuestion(from: content) {
-                questions.append(SuggestedQuestion(
-                    id: UUID(),
-                    text: conditionalQuestion,
-                    category: .analytical,
-                    relevantDocuments: [docName],
-                    sourceSections: sectionLabel.map { [$0] } ?? [],
-                    confidence: 0.88
-                ))
-            }
-
-            // Strategy 1: Questions from abbreviation definitions
-            for (abbr, expansion) in chunk.metadata.abbreviations.prefix(2) {
-                questions.append(SuggestedQuestion(
-                    id: UUID(),
-                    text: "What does \(abbr) (\(expansion)) do?",
-                    category: .factRetrieval,
-                    relevantDocuments: [docName],
-                    sourceSections: sectionLabel.map { [$0] } ?? [],
-                    confidence: 0.85
-                ))
-            }
-
-            // Strategy 2: Questions from section titles (if specific enough)
-            if let section = chunk.metadata.sectionTitle,
-               section.count >= 8,
-               !isGenericSectionTitle(section) {
-                questions.append(SuggestedQuestion(
-                    id: UUID(),
-                    text: "What's important about \(naturalQuestionTopic(section))?",
-                    category: .summarization,
-                    relevantDocuments: [docName],
-                    sourceSections: [section],
-                    confidence: 0.80
-                ))
-            }
-
-            // Strategy 3: Questions from numeric data
-            if chunk.metadata.hasNumericData {
-                let numbers = extractSpecificNumbers(from: content)
-                if let detail = numbers.first {
-                    questions.append(SuggestedQuestion(
-                        id: UUID(),
-                        text: "Why is \(detail) important here?",
-                        category: .numerical,
-                        relevantDocuments: [docName],
-                        sourceSections: sectionLabel.map { [$0] } ?? [],
-                        confidence: 0.82
-                    ))
+        for passage in passages {
+            for draft in deterministicQuestionDrafts(for: passage) {
+                let questionText = draft.text.hasSuffix("?") ? draft.text : draft.text + "?"
+                guard isUsableGeneratedQuestion(questionText, passages: [passage]),
+                      !isSelfAnsweringGeneratedQuestion(questionText)
+                else {
+                    continue
                 }
-            }
 
-            // Strategy 4: Questions from named entities (but only specific ones, not generic nouns)
-            let specificEntities = chunk.metadata.entities.filter { entity in
-                entity.count >= 4 &&
-                !Self.genericStopEntities.contains(entity.lowercased()) &&
-                entity.first?.isUppercase == true
-            }
-            if let entity = specificEntities.first {
                 questions.append(SuggestedQuestion(
                     id: UUID(),
-                    text: "What does \(entity) actually do?",
-                    category: .factRetrieval,
-                    relevantDocuments: [docName],
-                    sourceSections: sectionLabel.map { [$0] } ?? [],
-                    confidence: 0.78
-                ))
-            }
-
-            // Strategy 5: Questions from key multi-word phrases in content
-            let keyPhrases = extractKeyPhrases(from: content)
-            if let phrase = keyPhrases.first {
-                questions.append(SuggestedQuestion(
-                    id: UUID(),
-                    text: "How does \(phrase) work?",
-                    category: .analytical,
-                    relevantDocuments: [docName],
-                    sourceSections: sectionLabel.map { [$0] } ?? [],
-                    confidence: 0.75
-                ))
-            }
-
-            // Strategy 6: Procedural questions for list-structured content
-            if chunk.metadata.hasListStructure {
-                let topic = chunk.metadata.sectionTitle ?? keyPhrases.first ?? docName
-                questions.append(SuggestedQuestion(
-                    id: UUID(),
-                    text: "What are the steps for \(topic.lowercased())?",
-                    category: .procedural,
-                    relevantDocuments: [docName],
-                    sourceSections: sectionLabel.map { [$0] } ?? [],
-                    confidence: 0.77
+                    text: questionText,
+                    category: draft.category,
+                    relevantDocuments: [passage.documentName],
+                    sourceSections: passage.sectionName.map { [$0] } ?? [],
+                    confidence: draft.confidence
                 ))
             }
         }
 
-        // If we got nothing useful (extremely sparse content), generate doc-level questions
-        if questions.isEmpty {
-            for doc in documents.prefix(4) {
-                let cleanName = displayDocumentName(doc.filename)
-                questions.append(SuggestedQuestion(
-                    id: UUID(),
-                    text: "What's the main point of \(cleanName)?",
-                    category: .summarization,
-                    relevantDocuments: [cleanName],
-                    sourceSections: [],
-                    confidence: 0.60
-                ))
-            }
+        // If we cannot make source-grounded suggestions, return nothing and let the
+        // chat screen show safe generic starter prompts instead of fake specificity.
+        return dedupeSuggestedQuestionsPreservingOrder(questions)
+    }
+
+    private func deterministicQuestionDrafts(for passage: GroundedPassage) -> [QuestionDraft] {
+        var drafts: [QuestionDraft] = []
+
+        if let specQuestion = extractSpecificationQuestion(from: passage) {
+            drafts.append(QuestionDraft(
+                text: specQuestion,
+                category: .numerical,
+                confidence: 0.93
+            ))
         }
 
-        return questions
+        if let conditionalQuestion = extractConditionalQuestion(from: passage.content) {
+            drafts.append(QuestionDraft(
+                text: conditionalQuestion,
+                category: .analytical,
+                confidence: 0.88
+            ))
+        }
+
+        for (abbr, expansion) in passage.chunk.metadata.abbreviations.prefix(2) {
+            let cleanAbbr = abbr.trimmingCharacters(in: .whitespacesAndNewlines)
+            let cleanExpansion = expansion.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard cleanAbbr.count >= 2,
+                  cleanAbbr.count <= 12,
+                  cleanExpansion.count >= 4,
+                  !cleanAbbr.contains("["),
+                  !cleanExpansion.contains("[")
+            else {
+                continue
+            }
+
+            drafts.append(QuestionDraft(
+                text: "What does \(cleanAbbr) stand for?",
+                category: .factRetrieval,
+                confidence: 0.86
+            ))
+        }
+
+        if passage.chunk.metadata.hasListStructure,
+           let topic = concreteTopic(from: passage.sectionName),
+           passage.content.count >= 80
+        {
+            drafts.append(QuestionDraft(
+                text: "What are the steps for \(topic)?",
+                category: .procedural,
+                confidence: 0.84
+            ))
+        }
+
+        if let tableQuestion = extractTableTopicQuestion(from: passage) {
+            drafts.append(QuestionDraft(
+                text: tableQuestion,
+                category: .factRetrieval,
+                confidence: 0.82
+            ))
+        }
+
+        return drafts
+    }
+
+    private func extractSpecificationQuestion(from passage: GroundedPassage) -> String? {
+        guard passage.chunk.metadata.hasNumericData else { return nil }
+
+        let lines = candidateLines(from: passage.content)
+        for line in lines {
+            guard let match = firstMeasurementMatch(in: line) else { continue }
+            guard let subject = specificationSubject(in: line, measurementRange: match, sectionName: passage.sectionName) else {
+                continue
+            }
+
+            if isLiquidCapacityLine(line) || subject.lowercased().contains("capacity") {
+                return "What is the \(capacitySubject(from: subject))?"
+            }
+
+            if subject.lowercased().contains("deadline") || subject.lowercased().contains("date") {
+                return "When is the \(subject)?"
+            }
+
+            return "What is the \(subject)?"
+        }
+
+        return nil
+    }
+
+    private func extractTableTopicQuestion(from passage: GroundedPassage) -> String? {
+        guard passage.chunk.metadata.structureType == "table" || passage.chunk.metadata.chunkType == .tableSemantic else {
+            return nil
+        }
+        guard let topic = concreteTopic(from: passage.sectionName ?? passage.chunk.metadata.tableTitle) else {
+            return nil
+        }
+
+        if passage.chunk.metadata.hasNumericData {
+            return "What values are listed for \(topic)?"
+        }
+        return "What is listed under \(topic)?"
+    }
+
+    private func candidateLines(from text: String) -> [String] {
+        let lineBreaks = text.components(separatedBy: .newlines)
+        let sentenceBreaks = text.components(separatedBy: CharacterSet(charactersIn: ".;"))
+        return (lineBreaks + sentenceBreaks)
+            .map { $0.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression) }
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { $0.count >= 8 && $0.count <= 220 }
+    }
+
+    private func firstMeasurementMatch(in text: String) -> NSRange? {
+        let pattern = #"(?i)\b\d+(?:[.,]\d+)?\s*(?:US\s*)?(?:%|DPI|Hz|MHz|GHz|MB|GB|TB|KB|ms|sec|s|min|hr|mg|mL|ml|L|l|liters?|litres?|kg|g|lb|lbs|oz|ft|in|cm|mm|m|km|mi|mph|rpm|psi|kPa|bar|°C|°F|watts?|volts?|amps?|tokens?|gal|gals|gallons?|qt|quarts?|N·m|Nm|lb-ft|ft-lb|hp|kW)\b"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+        let nsText = text as NSString
+        let range = NSRange(location: 0, length: nsText.length)
+        return regex.firstMatch(in: text, range: range)?.range
+    }
+
+    private func specificationSubject(
+        in line: String,
+        measurementRange: NSRange,
+        sectionName: String?
+    ) -> String? {
+        let nsLine = line as NSString
+        let prefix = nsLine.substring(to: measurementRange.location)
+        let suffixStart = measurementRange.location + measurementRange.length
+        let suffix = suffixStart < nsLine.length ? nsLine.substring(from: suffixStart) : ""
+
+        let prefixSubject = cleanedSpecSubject(prefix)
+        let suffixSubject = cleanedSpecSubject(suffix)
+        let sectionSubject = concreteTopic(from: sectionName)
+
+        let rawSubject: String?
+        if let prefixSubject, prefixSubject.count >= 3 {
+            rawSubject = prefixSubject
+        } else if let sectionSubject {
+            rawSubject = sectionSubject
+        } else {
+            rawSubject = suffixSubject
+        }
+
+        guard let rawSubject else { return nil }
+        let subject = normalizeSpecSubject(rawSubject)
+        guard subject.count >= 3, !isGenericQuestionTopic(subject) else { return nil }
+        return subject
+    }
+
+    private func cleanedSpecSubject(_ text: String) -> String? {
+        let cleaned = text
+            .replacingOccurrences(of: #"(?i)\b(?:table|page|section|chapter)\s+\d+[A-Za-z.-]*\b"#, with: " ", options: .regularExpression)
+            .replacingOccurrences(of: #"[:|•=]+"#, with: " ", options: .regularExpression)
+            .replacingOccurrences(of: #"\([^)]*$"#, with: " ", options: .regularExpression)
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
+
+        guard !cleaned.isEmpty else { return nil }
+
+        let words = cleaned
+            .split(separator: " ")
+            .map(String.init)
+            .filter { word in
+                let lower = word.lowercased().trimmingCharacters(in: .punctuationCharacters)
+                return lower.count >= 2 && !Self.specSubjectStopTokens.contains(lower)
+            }
+
+        guard !words.isEmpty else { return nil }
+        return words.suffix(6).joined(separator: " ")
+    }
+
+    private func normalizeSpecSubject(_ subject: String) -> String {
+        let cleaned = subject
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
+
+        if cleaned == cleaned.uppercased() {
+            return cleaned.lowercased()
+        }
+        return cleaned.prefix(1).lowercased() + String(cleaned.dropFirst())
+    }
+
+    private func capacitySubject(from subject: String) -> String {
+        let lower = subject.lowercased()
+        if lower == "fuel" || lower == "gas" || lower == "gasoline" {
+            return "fuel tank capacity"
+        }
+        if lower.contains("fuel") || lower.contains("gasoline") || lower.contains("gas") {
+            return lower.contains("capacity") ? subject : "\(subject) capacity"
+        }
+        if lower.contains("oil") || lower.contains("coolant") || lower.contains("fluid") {
+            return lower.contains("capacity") ? subject : "\(subject) capacity"
+        }
+        return lower.contains("capacity") ? subject : "\(subject) capacity"
+    }
+
+    private func isLiquidCapacityLine(_ line: String) -> Bool {
+        let lower = line.lowercased()
+        let hasLiquidUnit = lower.range(
+            of: #"\b(?:gal|gals|gallons?|qt|quarts?|l|liters?|litres?|ml)\b"#,
+            options: .regularExpression
+        ) != nil
+        let hasLiquidSubject = [
+            "fuel", "gas", "gasoline", "oil", "coolant", "fluid", "tank", "capacity", "volume"
+        ].contains { lower.contains($0) }
+        return hasLiquidUnit && hasLiquidSubject
+    }
+
+    private func concreteTopic(from text: String?) -> String? {
+        guard let text else { return nil }
+        let cleaned = text
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
+        guard cleaned.count >= 4,
+              cleaned.count <= 80,
+              !isGenericSectionTitle(cleaned),
+              !isGenericQuestionTopic(cleaned)
+        else {
+            return nil
+        }
+
+        if cleaned == cleaned.uppercased() {
+            return cleaned.lowercased()
+        }
+        return cleaned.prefix(1).lowercased() + String(cleaned.dropFirst())
+    }
+
+    private func isGenericQuestionTopic(_ topic: String) -> Bool {
+        let tokens = meaningfulTokens(from: topic)
+        guard !tokens.isEmpty else { return true }
+        if tokens.count == 1, let only = tokens.first {
+            return Self.genericStopEntities.contains(only) || Self.specSubjectStopTokens.contains(only)
+        }
+        return tokens.allSatisfy { Self.genericStopEntities.contains($0) || Self.specSubjectStopTokens.contains($0) }
     }
 
     // MARK: - Step 4: Diversity Enforcement
@@ -761,6 +911,19 @@ actor SuggestedQuestionsService {
         return deduped
     }
 
+    private func dedupeSuggestedQuestionsPreservingOrder(_ questions: [SuggestedQuestion]) -> [SuggestedQuestion] {
+        var seen: Set<String> = []
+        var deduped: [SuggestedQuestion] = []
+
+        for question in questions {
+            let key = normalizedQuestionKey(question.text)
+            guard !key.isEmpty, seen.insert(key).inserted else { continue }
+            deduped.append(question)
+        }
+
+        return deduped
+    }
+
     private func normalizedQuestionKey(_ question: String) -> String {
         question
             .lowercased()
@@ -779,6 +942,7 @@ actor SuggestedQuestionsService {
             "specific thing from passage",
             "condition from passage",
             "specific detail from the passage",
+            "specific detail",
             "what does the document say",
             "what do the documents say",
             "uploaded document",
@@ -787,6 +951,17 @@ actor SuggestedQuestionsService {
             "from the passage",
             "style guide",
             "real person casually asking",
+            "what's important about",
+            "what is important about",
+            "why is ",
+            " important here",
+            "actually do",
+            "main point",
+            "key points",
+            "key details",
+            "can you explain",
+            "tell me about",
+            "what are the key",
         ]
 
         if bannedFragments.contains(where: { lower.contains($0) }) {
@@ -802,9 +977,20 @@ actor SuggestedQuestionsService {
         let overlapCount =
             tokens.intersection(groundedPassage.bodyTokens).count
             + tokens.intersection(groundedPassage.sectionTokens).count
-            + tokens.intersection(groundedPassage.documentTokens).count
+        let bodyOverlap = tokens.intersection(groundedPassage.bodyTokens).count
+        let sectionOverlap = tokens.intersection(groundedPassage.sectionTokens).count
+        let asksForValue = isQuantityQuestion(question)
+            || lower.contains("capacity")
+            || lower.contains("value")
+            || lower.contains("listed")
 
-        return overlapCount >= 2 || groundingScore(for: question, passage: groundedPassage) >= 3.0
+        if bodyOverlap >= 2 { return true }
+        if bodyOverlap >= 1 && sectionOverlap >= 1 { return true }
+        if asksForValue, groundedPassage.chunk.metadata.hasNumericData, bodyOverlap >= 1 {
+            return true
+        }
+
+        return overlapCount >= 3 && groundingScore(for: question, passage: groundedPassage) >= 4.0
     }
 
     private func isSelfAnsweringGeneratedQuestion(_ question: String) -> Bool {
@@ -860,6 +1046,7 @@ actor SuggestedQuestionsService {
         "study", "research", "process", "framework", "structure", "design",
         "implementation", "performance", "evaluation", "table", "figure",
         "section", "chapter", "page", "document", "paper", "report",
+        "specification", "specifications",
         "information", "content", "text", "type", "level", "value",
         "group", "number", "part", "case", "example", "form", "area",
         "point", "time", "work", "thing", "way", "issue", "problem",
@@ -870,12 +1057,21 @@ actor SuggestedQuestionsService {
         "the", "and", "for", "with", "from", "that", "this", "what", "when",
         "where", "which", "about", "into", "your", "their", "does", "have",
         "here", "there", "under", "over", "should", "would", "could", "after",
-        "before", "using", "used", "than", "then", "they", "them"
+        "before", "using", "used", "than", "then", "they", "them", "much",
+        "many", "long", "happens", "important", "actually", "main", "point",
+        "points", "details", "explain", "tell"
     ]
 
-    /// Extract number-in-context phrases like "360 DPI", "0.15 threshold", "$49.99/year"
+    private static let specSubjectStopTokens: Set<String> = [
+        "recommended", "equivalent", "maximum", "minimum", "approx", "approximately",
+        "about", "page", "section", "table", "figure", "see", "refer", "when",
+        "where", "which", "with", "without", "and", "or", "the", "for", "from",
+        "value", "values", "specification", "specifications"
+    ]
+
+    /// Extract number-in-context phrases like "360 DPI", "14.3 US gal", "$49.99/year"
     private func extractSpecificNumbers(from text: String) -> [String] {
-        let pattern = #"(\d+[\.,]?\d*)\s*(%|(?:DPI|Hz|MHz|GHz|MB|GB|TB|KB|ms|s|min|hr|mg|ml|kg|lb|oz|ft|in|cm|mm|m|km|mph|rpm|psi|°[CF]|watts?|volts?|amps?|tokens?))\b"#
+        let pattern = #"(\d+[\.,]?\d*)\s*(?:US\s*)?(%|(?:DPI|Hz|MHz|GHz|MB|GB|TB|KB|ms|sec|s|min|hr|mg|mL|ml|L|l|liters?|litres?|kg|g|lb|lbs|oz|ft|in|cm|mm|m|km|mi|mph|rpm|psi|kPa|bar|°[CF]|watts?|volts?|amps?|tokens?|gal|gals|gallons?|qt|quarts?|N·m|Nm|lb-ft|ft-lb|hp|kW))\b"#
         guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
             return []
         }

@@ -1614,25 +1614,33 @@ class RAGService: ObservableObject {
         let queryLower = query.lowercased()
 
         // Extract meaningful query words (skip stopwords and short words)
+        let precisionStopWords = Self.stopWords.union(["many", "much"])
         let queryWords = queryLower
             .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .filter { $0.count > 2 && !Self.stopWords.contains($0) }
-        let queryWordSet = Set(queryWords)
+            .filter { $0.count > 2 && !precisionStopWords.contains($0) }
+        let queryConcepts = buildSpecSearchConcepts(from: queryWords)
 
         // Need at least 2 meaningful keywords for targeted search
-        guard queryWordSet.count >= 2 else { return [] }
+        guard queryConcepts.count >= 2 else { return [] }
 
         var candidates: [(chunk: DocumentChunk, score: Float, matchCount: Int)] = []
 
         for chunk in allChunks where !excludeIds.contains(chunk.id) {
             let contentLower = chunk.content.lowercased()
 
-            // Count query keyword matches via substring search
-            let matchingWords = queryWordSet.filter { contentLower.contains($0) }
+            // Count query concept matches via substring search with safe aliases.
+            // This bridges colloquial questions ("gallons of gas can this car hold")
+            // to spec-table language ("14.3 US gal (54 L) Gasoline").
+            let matchingConcepts = queryConcepts.filter { concept in
+                concept.aliases.contains { alias in
+                    guard alias.count > 1 else { return false }
+                    return contentLower.contains(alias)
+                }
+            }
 
             // Require at least 2 keyword matches (or all if query has only 2 keywords)
-            let minRequired = min(2, queryWordSet.count)
-            guard matchingWords.count >= minRequired else { continue }
+            let minRequired = min(2, queryConcepts.count)
+            guard matchingConcepts.count >= minRequired else { continue }
 
             // Must contain numeric data — specs always have numbers
             guard chunk.content.rangeOfCharacter(from: .decimalDigits) != nil else { continue }
@@ -1641,7 +1649,7 @@ class RAGService: ObservableObject {
             var score: Float = 0.60 // Base score for keyword+number co-occurrence
 
             // Keyword coverage bonus (up to +0.15 for 100% coverage)
-            let coverage = Float(matchingWords.count) / Float(queryWordSet.count)
+            let coverage = Float(matchingConcepts.count) / Float(queryConcepts.count)
             score += coverage * 0.15
 
             // Table structure indicators
@@ -1672,7 +1680,7 @@ class RAGService: ObservableObject {
             let hasCrossRef = crossRefIndicators.contains { contentLower.contains($0) }
             if hasCrossRef && contentLower.contains("page") { score -= 0.20 }
 
-            candidates.append((chunk, score, matchingWords.count))
+            candidates.append((chunk, score, matchingConcepts.count))
         }
 
         // Sort by score, then by keyword match count for ties
@@ -1691,6 +1699,49 @@ class RAGService: ObservableObject {
                 pageNumber: chunk.metadata.pageNumber
             )
         }
+    }
+
+    private struct SpecSearchConcept {
+        let aliases: [String]
+    }
+
+    private nonisolated func buildSpecSearchConcepts(from terms: [String]) -> [SpecSearchConcept] {
+        var seen = Set<String>()
+        var concepts: [SpecSearchConcept] = []
+
+        for rawTerm in terms {
+            let term = rawTerm.lowercased()
+            guard seen.insert(term).inserted else { continue }
+
+            var aliases = [term]
+            switch term {
+            case "gas":
+                aliases.append(contentsOf: ["gasoline", "fuel"])
+            case "gasoline":
+                aliases.append(contentsOf: ["gas", "fuel"])
+            case "fuel":
+                aliases.append(contentsOf: ["gas", "gasoline"])
+            case "gallon", "gallons", "gal":
+                aliases.append(contentsOf: ["gal", "gallon", "gallons", "galon", "galons", "us gal"])
+            case "liter", "liters", "litre", "litres":
+                aliases.append(contentsOf: ["liter", "liters", "litre", "litres"])
+            case "capacity", "capacities":
+                aliases.append(contentsOf: ["capacity", "capacities", "volume"])
+            case "hold", "holds", "holding":
+                aliases.append(contentsOf: ["capacity", "capacities", "volume"])
+            case "vehicle":
+                aliases.append("car")
+            case "car":
+                aliases.append("vehicle")
+            default:
+                break
+            }
+
+            let uniqueAliases = Array(Set(aliases)).filter { $0.count > 1 }
+            concepts.append(SpecSearchConcept(aliases: uniqueAliases))
+        }
+
+        return concepts
     }
 
     /// Demote chunks that merely contain cross-references to other sections.
@@ -2634,18 +2685,20 @@ class RAGService: ObservableObject {
         }
         let db = vectorRouter.db(for: container)
         let allChunks = try await db.allChunks()
+        let detailChunks = allChunks.filter { $0.metadata.abstractionLevel == .detail }
+        let sampleSource = detailChunks.isEmpty ? allChunks : detailChunks
 
         // Return a representative sample: first, middle, and distributed chunks
-        guard !allChunks.isEmpty else { return [] }
-        guard allChunks.count > limit else { return allChunks }
+        guard !sampleSource.isEmpty else { return [] }
+        guard sampleSource.count > limit else { return sampleSource }
 
         var sampleIndices: Set<Int> = []
-        let stride = allChunks.count / limit
+        let stride = sampleSource.count / limit
         for i in 0..<limit {
-            sampleIndices.insert(min(i * stride, allChunks.count - 1))
+            sampleIndices.insert(min(i * stride, sampleSource.count - 1))
         }
 
-        return sampleIndices.sorted().map { allChunks[$0] }
+        return sampleIndices.sorted().map { sampleSource[$0] }
     }
 
     func embeddingDiagnosticsSnapshot() async -> EmbeddingDiagnosticsSnapshot {
@@ -4660,6 +4713,145 @@ class RAGService: ObservableObject {
         }
     }
 
+    private func executeAgenticPrecisionLookupIfAvailable(
+        question: String,
+        containerId: UUID,
+        qualityMode: RAGQualityMode,
+        startTime: Date
+    ) async throws -> RAGResponse? {
+        let answerIntent = QueryEnhancementService().classifyAnswerIntent(question)
+        guard answerIntent.isExtractiveFirst || isPrecisionValueQuery(question) else {
+            return nil
+        }
+
+        emitThinkingEvent(
+            .retrieval,
+            title: "Precision lookup",
+            detail: "Checking exact source values before multi-session reasoning"
+        )
+
+        func buildPrecisionResponse(
+            directAnswer: String,
+            precisionChunks: [RetrievedChunk],
+            retrievalTime: TimeInterval,
+            strategy: String
+        ) async -> RAGResponse {
+            emitThinkingEvent(
+                .generation,
+                title: "Direct answer locked",
+                detail: "Exact value extracted from retrieved source"
+            )
+            let precisionConfidence = max(0.90, precisionChunks.first?.similarityScore ?? 0.0)
+            emitThinkingEvent(
+                .confidence,
+                title: "Confidence: very high",
+                detail: "\(String(format: "%.0f%%", precisionConfidence * 100)) source-locked"
+            )
+
+            let structuredAnswer = StructuredAnswer.from(
+                response: directAnswer,
+                retrievedChunks: precisionChunks,
+                answerIntent: answerIntent,
+                verificationResult: nil,
+                loops: 1
+            )
+
+            let metadata = ResponseMetadata(
+                timeToFirstToken: retrievalTime,
+                totalGenerationTime: Date().timeIntervalSince(startTime),
+                tokensGenerated: 0,
+                tokensPerSecond: nil,
+                modelUsed: "Direct Source Extraction (\(qualityMode.displayName))",
+                retrievalTime: retrievalTime,
+                retrievalConfigSummary: strategy,
+                gatingDecision: "agentic_precision_extractive_override",
+                toolCallsMade: 0,
+                usedAgenticMode: true,
+                qualityModeName: qualityMode.displayName,
+                originalQuery: question,
+                reasoningTrace: [
+                    "Precision lookup: found a high-confidence numeric source span and skipped multi-session synthesis."
+                ]
+            )
+
+            await MainActor.run {
+                self.deepThinkLiveSteps = 1
+                self.deepThinkLiveConfidence = precisionConfidence
+                self.deepThinkLiveTokens = 0
+            }
+
+            return RAGResponse(
+                queryId: UUID(),
+                retrievedChunks: precisionChunks,
+                generatedResponse: resolvedDisplayResponse(
+                    fallback: directAnswer,
+                    structuredAnswer: structuredAnswer
+                ),
+                metadata: metadata,
+                confidenceScore: precisionConfidence,
+                structuredAnswer: structuredAnswer
+            )
+        }
+
+        let retrievalStart = Date()
+
+        let embeddingContext = await resolveEmbeddingContext()
+        let db = await dbFor(embeddingContext.containerId)
+        let allChunks = try await db.allChunks()
+        let sniperChunks = specTableSniper(
+            query: question,
+            allChunks: allChunks,
+            excludeIds: []
+        )
+        if let directAnswer = await highPrecisionLookupOverrideAnswer(
+            question: question,
+            answerIntent: answerIntent,
+            retrievedChunks: sniperChunks
+        ) {
+            let retrievalTime = Date().timeIntervalSince(retrievalStart)
+            emitThinkingEvent(
+                .retrieval,
+                title: "Spec sniper",
+                detail: "+\(sniperChunks.count) targeted chunks via keyword+number co-occurrence"
+            )
+            return await buildPrecisionResponse(
+                directAnswer: directAnswer,
+                precisionChunks: sniperChunks,
+                retrievalTime: retrievalTime,
+                strategy: "Agentic precision lookup"
+            )
+        }
+
+        let precisionChunks = try await executeFullRetrievalPipeline(
+            query: question,
+            topK: max(24, qualityMode.initialTopK),
+            minSimilarity: 0.03,
+            qualityMode: qualityMode,
+            onDetailedEvent: nil
+        )
+        let retrievalTime = Date().timeIntervalSince(retrievalStart)
+
+        guard let directAnswer = await highPrecisionLookupOverrideAnswer(
+            question: question,
+            answerIntent: answerIntent,
+            retrievedChunks: precisionChunks
+        ) else {
+            emitThinkingEvent(
+                .verification,
+                title: "Precision lookup",
+                detail: "No high-confidence source span locked"
+            )
+            return nil
+        }
+
+        return await buildPrecisionResponse(
+            directAnswer: directAnswer,
+            precisionChunks: precisionChunks,
+            retrievalTime: retrievalTime,
+            strategy: "Agentic precision lookup"
+        )
+    }
+
     // MARK: - Agentic Query Execution
 
     /// Execute a multi-session agentic query for complex reasoning
@@ -4686,7 +4878,7 @@ class RAGService: ObservableObject {
         // Pipeline Trace: Agentic orchestration step
         Log.pipelineStep("A", title: "Agentic Orchestration", details: [
             ("type", isUnlimitedMode ? "unlimited" : "multi-session"),
-            ("confTarget", isUnlimitedMode ? "98%" : "75%")
+            ("confTarget", isUnlimitedMode ? "98%" : "85%")
         ])
 
         Log.box(
@@ -4721,7 +4913,6 @@ class RAGService: ObservableObject {
             detail: modeDetail
         )
 
-        let orchestrator = AgenticOrchestrator(ragService: self, config: optimizedConfig, qualityMode: qualityMode)
         let startTime = Date()
 
         // Always start agentic work from a clean FM session.
@@ -4730,6 +4921,22 @@ class RAGService: ObservableObject {
         await MainActor.run {
             self.cancelActiveGeneration(resetSession: true)
         }
+
+        do {
+            if let precisionResponse = try await executeAgenticPrecisionLookupIfAvailable(
+                question: question,
+                containerId: containerId,
+                qualityMode: qualityMode,
+                startTime: startTime
+            ) {
+                return precisionResponse
+            }
+        } catch {
+            Log.warning("[AgenticPrecision] Direct lookup failed, continuing with agentic reasoning: \(error.localizedDescription)", category: .retrieval)
+            emitThinkingEvent(.warning, title: "Precision lookup fallback", detail: "Continuing with Deep Think")
+        }
+
+        let orchestrator = AgenticOrchestrator(ragService: self, config: optimizedConfig, qualityMode: qualityMode)
 
         // Wrap execution in a tracked task so it can be cancelled by subsequent queries
         let agenticTask = Task<RAGResponse, Error> {
@@ -5017,6 +5224,19 @@ class RAGService: ObservableObject {
             throw CancellationError()
         } catch {
             await MainActor.run { self.activeAgenticTask = nil }
+            if shouldFallbackAgenticPrecisionQuery(error: error, question: question) {
+                Log.warning("[Agentic] Precision lookup fallback: rerouting to standard retrieval pipeline", category: .pipeline)
+                await MainActor.run {
+                    self.resetThinkingTimeline()
+                }
+                return try await self.queryInternal(
+                    question,
+                    topK: 3,
+                    config: config,
+                    containerId: containerId,
+                    qualityModeOverride: .standard
+                )
+            }
             Log.error("[Agentic] Failed: \(error.localizedDescription)", category: .pipeline)
             throw error
         }
@@ -5052,7 +5272,7 @@ class RAGService: ObservableObject {
         resetThinkingTimeline()
         return try await LLMStreamingContext.$handler.withValue(streamHandler) {
             try await self.queryInternal(
-                question, topK: topK, config: config, containerId: containerId
+                question, topK: topK, config: config, containerId: containerId, qualityModeOverride: nil
             )
         }
     }
@@ -5075,7 +5295,11 @@ class RAGService: ObservableObject {
     }
 
     private func queryInternal(
-        _ question: String, topK: Int, config: InferenceConfig?, containerId: UUID?
+        _ question: String,
+        topK: Int,
+        config: InferenceConfig?,
+        containerId: UUID?,
+        qualityModeOverride: RAGQualityMode?
     ) async throws -> RAGResponse {
         // Mark query start in trace file for pipeline debugging
         Log.traceQueryStart(question)
@@ -5152,7 +5376,7 @@ class RAGService: ObservableObject {
         // If user selected "deepThink" (Deep Think), use agentic orchestrator
         // Otherwise, use single-pass retrieval based on quality mode parameters
         let qualityMode = await MainActor.run {
-            self.settingsStore?.ragQualityMode ?? .standard
+            qualityModeOverride ?? self.settingsStore?.ragQualityMode ?? .standard
         }
 
         // Also check for manual override via forceAgenticOnNextQuery
@@ -8397,6 +8621,57 @@ class RAGService: ObservableObject {
                 // proceed to LLM generation for reliable answers.
                 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+                if let extractiveOverride = await highPrecisionLookupOverrideAnswer(
+                    question: question,
+                    answerIntent: answerIntent,
+                    retrievedChunks: includedRetrievedChunks
+                ) {
+                    Log.info("[ExtractiveQA] Returning direct source extraction before LLM generation", category: .retrieval)
+
+                    let structuredAnswer = StructuredAnswer.from(
+                        response: extractiveOverride,
+                        retrievedChunks: includedRetrievedChunks,
+                        answerIntent: answerIntent,
+                        verificationResult: nil,
+                        loops: 1
+                    )
+                    let extractiveMetadata = ResponseMetadata(
+                        timeToFirstToken: nil,
+                        totalGenerationTime: 0,
+                        tokensGenerated: 0,
+                        tokensPerSecond: nil,
+                        modelUsed: "Direct Source Extraction",
+                        retrievalTime: retrievalTime,
+                        retrievalConfigSummary: retrievalConfig.summary,
+                        gatingDecision: "extractive_override_pre_generation",
+                        toolCallsMade: nil,
+                        embeddingProvider: embeddingProviderId,
+                        usedAgenticMode: false,
+                        qualityModeName: qualityModeDisplayName,
+                        originalQuery: question,
+                        reasoningTrace: nil
+                    )
+                    let extractiveResponse = RAGResponse(
+                        queryId: ragQueryValue.id,
+                        retrievedChunks: includedRetrievedChunks,
+                        generatedResponse: resolvedDisplayResponse(
+                            fallback: extractiveOverride,
+                            structuredAnswer: structuredAnswer
+                        ),
+                        metadata: extractiveMetadata,
+                        confidenceScore: max(includedRetrievedChunks.first?.similarityScore ?? 0.0, 0.85),
+                        qualityWarnings: [],
+                        structuredAnswer: structuredAnswer
+                    )
+
+                    return await finalizeResponse(
+                        query: question,
+                        containerId: selectedId,
+                        containerName: selectedName,
+                        response: extractiveResponse
+                    )
+                }
+
                 // Step 6: Generate response using LLM with augmented context
                 Log.section("Step 6: LLM Generation", level: .info, category: .pipeline)
 
@@ -9165,12 +9440,11 @@ class RAGService: ObservableObject {
                         throw RAGServiceError.modelNotAvailable
                     }
 
-                    if answerIntent.isExtractiveFirst,
-                       let extractiveOverride = await highPrecisionLookupOverrideAnswer(
-                           question: question,
-                           answerIntent: answerIntent,
-                           retrievedChunks: generationRetrievedChunks
-                       )
+                    if let extractiveOverride = await highPrecisionLookupOverrideAnswer(
+                        question: question,
+                        answerIntent: answerIntent,
+                        retrievedChunks: generationRetrievedChunks
+                    )
                     {
                         let normalizedLLM = responseText.trimmingCharacters(in: .whitespacesAndNewlines)
                         let normalizedOverride = extractiveOverride.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -9847,6 +10121,43 @@ class RAGService: ObservableObject {
         Log.warning("[RAG] Reliability fallback engaged: \(reason)", category: .pipeline)
         var warnings = ["Reliability fallback: \(reason)"]
         let answerIntent = QueryEnhancementService().classifyAnswerIntent(question)
+
+        if let extractiveOverride = await highPrecisionLookupOverrideAnswer(
+            question: question,
+            answerIntent: answerIntent,
+            retrievedChunks: retrievedChunks
+        ) {
+            let structuredAnswer = StructuredAnswer.from(
+                response: extractiveOverride,
+                retrievedChunks: retrievedChunks,
+                answerIntent: answerIntent,
+                verificationResult: nil,
+                loops: 1
+            )
+            return RAGResponse(
+                queryId: ragQuery.id,
+                retrievedChunks: retrievedChunks,
+                generatedResponse: resolvedDisplayResponse(
+                    fallback: extractiveOverride,
+                    structuredAnswer: structuredAnswer
+                ),
+                metadata: ResponseMetadata(
+                    timeToFirstToken: nil,
+                    totalGenerationTime: 0,
+                    tokensGenerated: 0,
+                    tokensPerSecond: nil,
+                    modelUsed: "Direct Source Extraction",
+                    retrievalTime: retrievalTime,
+                    retrievalConfigSummary: retrievalConfig.summary,
+                    gatingDecision: "reliability_extractive_override",
+                    toolCallsMade: 0,
+                    embeddingProvider: embeddingProviderId
+                ),
+                confidenceScore: max(retrievedChunks.first?.similarityScore ?? 0.0, 0.85),
+                qualityWarnings: warnings,
+                structuredAnswer: structuredAnswer
+            )
+        }
 
         let targetChunkCount = min(6, retrievedChunks.count)
         let maxContextChars = min(3600, max(1200, 700 * max(1, targetChunkCount)))
@@ -11871,25 +12182,137 @@ class RAGService: ObservableObject {
         answerIntent: AnswerIntent,
         retrievedChunks: [RetrievedChunk]
     ) async -> String? {
-        guard answerIntent.isExtractiveFirst, !retrievedChunks.isEmpty else { return nil }
+        guard !retrievedChunks.isEmpty else { return nil }
+
+        // Universal behavior: if intent classification misses but the query is clearly
+        // asking for a precise value/spec, still attempt extractive locking with a stricter threshold.
+        let forceExtractiveAttempt = !answerIntent.isExtractiveFirst && isPrecisionValueQuery(question)
+        guard answerIntent.isExtractiveFirst || forceExtractiveAttempt else { return nil }
 
         let candidateChunks = Array(retrievedChunks.prefix(12))
+        let extractorIntent: AnswerIntent = answerIntent.isExtractiveFirst ? answerIntent : .lookup
         let extraction = await specificationExtractor.extract(
             query: question,
             chunks: candidateChunks,
-            answerIntent: answerIntent
+            answerIntent: extractorIntent
         )
 
+        let confidenceThreshold: Float = forceExtractiveAttempt ? max(extractiveLookupOverrideThreshold, 0.90) : extractiveLookupOverrideThreshold
         guard case let .success(result) = extraction,
-              result.confidence >= extractiveLookupOverrideThreshold else {
+              result.confidence >= confidenceThreshold else {
             return nil
         }
 
+        // For forced attempts, only lock if the extracted span looks like a concrete
+        // measurement/value (prevents accidental override for open-ended prompts).
+        if forceExtractiveAttempt,
+           !hasQuantitativeAnswerSignal(result.answerSpan)
+        {
+            return nil
+        }
+
+        let answerSpan = enrichedPrecisionAnswerSpan(for: result)
+
         if let label = result.matchedLabel, !label.isEmpty {
-            return "\(label): \(result.answerSpan). \(result.citation)"
+            return "\(label): \(answerSpan). \(result.citation)"
+        }
+
+        if isPrecisionValueQuery(question) || result.specificationType == "Measurement" {
+            return "\(answerSpan). \(result.citation)"
         }
 
         return result.formattedAnswer
+    }
+
+    private func enrichedPrecisionAnswerSpan(for result: SpecificationExtractionResult) -> String {
+        let base = result.answerSpan.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !base.isEmpty, !base.contains("(") else { return base }
+
+        let content = result.sourceChunk.chunk.parentContent ?? result.sourceChunk.chunk.content
+        guard let baseRange = content.range(of: base) else { return base }
+
+        let suffix = String(content[baseRange.upperBound...].prefix(40))
+        guard let equivalentRange = suffix.range(
+            of: #"^\s*\(\s*\d+(?:[.,]\d+)?\s*(?:L|l|liter|liters|litre|litres|gal|gallon|gallons|qt|quart|quarts|ml|mL)\s*\)"#,
+            options: [.regularExpression, .caseInsensitive]
+        ) else {
+            return base
+        }
+
+        let equivalent = String(suffix[equivalentRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+        return "\(base) \(equivalent)"
+    }
+
+    private func shouldFallbackAgenticPrecisionQuery(error: Error, question: String) -> Bool {
+        guard isPrecisionValueQuery(question) else { return false }
+        if error is CancellationError { return false }
+
+        if let llmError = error as? LLMError {
+            switch llmError {
+            case .modelUnavailable, .rateLimited, .concurrentRequests, .generationFailed:
+                return true
+            default:
+                break
+            }
+        }
+
+        let description = error.localizedDescription.lowercased()
+        let indicators = [
+            "foundationmodels.languagemodelsession.generationerror",
+            "generationerror",
+            "apple intelligence",
+            "physical device",
+            "model unavailable",
+            "concurrent request",
+            "rate-limited",
+            "temporarily rate-limited",
+        ]
+        return indicators.contains { description.contains($0) }
+    }
+
+    /// Detects queries that ask for a concrete numeric/measurement value.
+    /// This is domain-agnostic and intentionally conservative.
+    private nonisolated func isPrecisionValueQuery(_ query: String) -> Bool {
+        let lower = query.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !lower.isEmpty else { return false }
+
+        let numericIntentMarkers = [
+            "how many", "how much", "what is", "what's", "give me the", "exact", "spec", "specification",
+        ]
+        let valueMarkers = [
+            "capacity", "size", "amount", "value", "rating", "limit", "range", "weight", "length", "width", "height",
+            "volume", "pressure", "temperature", "speed", "torque", "power", "voltage", "current", "frequency", "dose", "dosage",
+            "price", "cost",
+        ]
+
+        let hasNumericIntent = numericIntentMarkers.contains { lower.contains($0) }
+        let hasValueTarget = valueMarkers.contains { lower.contains($0) }
+
+        // Unit-like tokens in the question are a strong indicator of precision lookup.
+        let unitPattern = #"\b(?:gal(?:lon)?s?|l(?:iter)?s?|ml|kg|g|lb?s?|oz|mm|cm|m|km|mi|mph|km/h|psi|kpa|bar|v|a|w|kw|hz|mhz|ghz|°c|°f|%)\b"#
+        let hasUnits = lower.range(of: unitPattern, options: .regularExpression) != nil
+
+        return (hasNumericIntent && hasValueTarget) || (hasNumericIntent && hasUnits)
+    }
+
+    /// Ensures we only force-lock answers that contain concrete values.
+    private nonisolated func hasQuantitativeAnswerSignal(_ text: String) -> Bool {
+        let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return false }
+
+        let numberPattern = #"\b\d+(?:\.\d+)?\b"#
+        guard normalized.range(of: numberPattern, options: .regularExpression) != nil else {
+            return false
+        }
+
+        let unitPattern = #"\b(?:gal(?:lon)?s?|l(?:iter)?s?|ml|kg|g|lb?s?|oz|mm|cm|m|km|mi|mph|km/h|psi|kpa|bar|v|a|w|kw|hz|mhz|ghz|°c|°f|%)\b"#
+        if normalized.lowercased().range(of: unitPattern, options: .regularExpression) != nil {
+            return true
+        }
+
+        // Also accept compact spec codes with numeric payload (e.g., "0W-20", "ISO 9001")
+        let specCodePattern = #"\b[A-Z]{1,6}[\s-]?\d+(?:\.\d+)?\b|\b\d+(?:\.\d+)?[A-Z]{1,4}\b"#
+        return normalized.range(of: specCodePattern, options: .regularExpression) != nil
     }
 
     private func buildEvidencePackContext(
@@ -13018,6 +13441,25 @@ extension RAGService: RAGToolHandler {
 
         if preFilterCount > retrievedChunks.count {
             await onDetailedEvent?(.context, "Quality filter", "Kept \(retrievedChunks.count)/\(preFilterCount) (≥\(Int(minSimilarity * 100))% threshold)")
+        }
+
+        // Precision/spec lookups need the same rescue path in Deep Think that
+        // Standard mode uses. Rerankers often prefer prose around a spec table
+        // over the actual row containing the value.
+        let fullPipelineAnswerIntent = QueryEnhancementService().classifyAnswerIntent(query)
+        if fullPipelineAnswerIntent.isExtractiveFirst || isPrecisionValueQuery(query) {
+            let existingIds = Set(retrievedChunks.map { $0.chunk.id })
+            let sniperResults = specTableSniper(
+                query: query,
+                allChunks: allChunks,
+                excludeIds: existingIds
+            )
+            if !sniperResults.isEmpty {
+                retrievedChunks.insert(contentsOf: sniperResults, at: 0)
+                demoteCrossReferenceChunks(&retrievedChunks)
+                await onDetailedEvent?(.retrieval, "Spec sniper", "+\(sniperResults.count) targeted chunks via keyword+number co-occurrence")
+                Log.info("[FullRetrieval] Spec sniper added \(sniperResults.count) targeted chunks", category: .retrieval)
+            }
         }
 
         // Step 7.5: Parent Document Retrieval (expand with sibling chunks for context)
