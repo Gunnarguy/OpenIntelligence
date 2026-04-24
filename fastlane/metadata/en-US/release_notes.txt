@@ -1,10 +1,9 @@
-Version 3.1
+Version 3.2
 
-Reliability upgrade focused on hard technical documents, noisy OCR, multi-column layouts, and grounded answer quality.
+What's changed since 3.1:
 
-- Deep Think and Maximum now preserve strong grounded partial answers when a late-stage generation interruption happens, instead of dropping generic stop text onto useful output.
-- Multi-column PDFs and corrupted tables now ingest more cleanly with layout-aware OCR fallback and better row and column preservation.
-- Table retrieval is stronger for specs, measurements, and statistical values through better schema, row, and cell anchoring.
-- Weak first-pass retrieval now triggers a corrective evidence pass before answer generation when the initial evidence pack is too thin or too generic.
-- Unsupported or weakly supported claims are handled more conservatively before final answers are shown.
-- Dense scientific PDFs and technical manuals hold up better during source review, with clearer structured excerpts and better abstention when support is weak.
+- Deep Think and Maximum are more stable during repeated use, including back-to-back deep reasoning in the same thread and “Go Deeper” after a Standard answer.
+- A live reasoning strip now appears in the unified bar above chat so users can watch the current retrieval or reasoning step in real time if they want the extra transparency.
+- Long Deep Think answers are less likely to cut off mid-bullet or mid-thought, with better continuation handling when a response stops at a real boundary problem instead of a natural finish.
+- Standard got a higher-quality pass for non-trivial prompts, with adaptive multi-session reasoning for harder questions while still staying quick on obvious simple lookups.
+- This is another fast follow-up because 3.1 improved a lot of the pipeline but still left some answer-quality regressions in the live app. This build is the corrective pass focused on stability, completeness, and trust.

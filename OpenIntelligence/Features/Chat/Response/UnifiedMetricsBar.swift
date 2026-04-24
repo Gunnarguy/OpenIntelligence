@@ -152,6 +152,9 @@ struct UnifiedMetricsBar: View {
     var liveConfidence: Float = 0
     var isMaximumMode: Bool = false
     var maximumModeSessionCount: Int = 0
+    var liveReasoningTitle: String = ""
+    var liveReasoningDetail: String = ""
+    var liveReasoningKind: ThinkingEvent.Kind? = nil
 
     // Callbacks
     var onTapDetails: (() -> Void)?
@@ -315,7 +318,9 @@ struct UnifiedMetricsBar: View {
 
     @ViewBuilder
     private var modeSpecificDetailRow: some View {
-        if isMaximumMode {
+        if shouldShowLiveReasoning {
+            liveReasoningDetailRow
+        } else if isMaximumMode {
             // MAXIMUM: Show confidence progress bar toward 98% + session count
             maximumModeDetailRow
         } else if isRecursiveRAG {
@@ -324,6 +329,65 @@ struct UnifiedMetricsBar: View {
         } else if speedHistory.count > 1 && (isProcessing || tokensGenerated > 0) {
             // STANDARD: Simple sparkline + sources
             standardModeDetailRow
+        }
+    }
+
+    private var shouldShowLiveReasoning: Bool {
+        isProcessing && (!liveReasoningTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !liveReasoningDetail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+    }
+
+    private var liveReasoningSummary: String {
+        let parts = [liveReasoningTitle, liveReasoningDetail]
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return parts.joined(separator: " • ")
+    }
+
+    private var liveReasoningAccent: Color {
+        switch liveReasoningKind?.color {
+        case "blue": return .blue
+        case "green": return .green
+        case "orange": return .orange
+        case "teal": return .teal
+        case "cyan": return .cyan
+        case "yellow": return .yellow
+        case "pink": return .pink
+        case "red": return .red
+        case "indigo": return .indigo
+        case "mint": return .mint
+        default: return qualityModeColor
+        }
+    }
+
+    private var liveReasoningDetailRow: some View {
+        HStack(spacing: 8) {
+            HStack(spacing: 4) {
+                Image(systemName: liveReasoningKind?.systemIconName ?? qualityMode.icon)
+                    .font(.system(size: 8, weight: .semibold))
+
+                Text(isMaximumMode ? "Thinking" : isRecursiveRAG ? "Reasoning" : "Working")
+                    .font(.system(size: 8, weight: .bold))
+            }
+            .foregroundStyle(liveReasoningAccent)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(
+                Capsule()
+                    .fill(liveReasoningAccent.opacity(0.12))
+            )
+
+            Text(liveReasoningSummary)
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+
+            Spacer(minLength: 0)
+
+            if isMaximumMode || isRecursiveRAG {
+                modeProgressIndicator
+            } else if sourceCount > 0 {
+                premiumSourcesBadge
+            }
         }
     }
 

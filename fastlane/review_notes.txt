@@ -1,46 +1,27 @@
-Quick human note: this 3.1 build expands the 3.0 reliability work with cleaner multi-column and table ingestion, stricter evidence handling, and safer long-answer behavior in Deep Think / Maximum. If a late-stage generation issue happens after a grounded answer is already streaming, the app now preserves the useful partial answer instead of appending a generic failure footer.
+Quick human note: this 3.2 build is a corrective follow-up to 3.1. The prior release improved retrieval and ingestion quality, but it also left some live deep-reasoning regressions that I did not want to leave in review. This update specifically stabilizes repeated Deep Think use, improves long-answer completeness, and raises the floor on Standard mode quality. Apologies for the back-to-back submissions.
 
-No login required. No account creation. The app works entirely offline.
+No login required. No account creation. No demo credentials needed. The app works offline.
 
 APP OVERVIEW:
-OpenIntelligence is an on-device RAG (Retrieval-Augmented Generation) engine. Users import documents (PDF, Word, Excel, PowerPoint, Markdown, CSV, RTF, TXT, images), the app indexes them locally using a 29-step retrieval pipeline, and then answers natural language questions with cited sources. All AI processing uses Apple Foundation Models on-device. 102 services across 11 categories. Zero network dependency for core functionality.
+OpenIntelligence is an on-device RAG engine. Users import documents (PDF, Word, Excel, PowerPoint, Markdown, CSV, RTF, TXT, images), the app indexes them locally, and then answers natural-language questions with cited sources. Core AI uses Apple Foundation Models on-device, with PCC used only when iOS decides it is needed.
 
 KEY FEATURES:
-- 29-step retrieval pipeline: semantic chunking, hybrid search (BM25 + neural embeddings), cross-encoder reranking, MMR diversification, parent document retrieval, graph context packing, lost-in-middle mitigation
-- 7 anti-hallucination verification gates (A-G): retrieval confidence, evidence coverage, numeric sanity, contradiction detection, semantic grounding, quote faithfulness, generation quality
-- Claim-level answer sanitization removes or downgrades unsupported sentences before final answers are shown
-- Evidence-First mode: when query-document overlap is low, AI states available evidence instead of generating unsupported answers
-- 3 quality modes: Standard (fast), Deep Think (4-8 reasoning sessions), Maximum (8-50 sessions, research-grade)
-- 8 agentic tools: search, compare, summarize, timeline, extract, define, calculate, analyze
-- AI Hub transforms: Key Facts, Step-by-Step, Plain English, Gap Analysis, Illustrate — all grounded in source documents
-- Multi-column OCR at 360 DPI with layout-aware fallback ordering and font cipher detection (forces full OCR when text layer is garbled)
-- Motherboard HUD: real-time Apple Silicon telemetry overlay
-- Device-optimized: 3-tier Metal GPU shaders adapt to chip family (A15 through M4)
-
-ONBOARDING FLOW:
-1. Page 1: Welcome with use-case cards (Research, Work, Study)
-2. Page 2: Pipeline Theater — 3 sample documents auto-import with live progress (words, chunks, vectors, time)
-3. Sample docs bypass free tier quota. Retry button if import fails.
-4. VoiceOver labels and reduceMotion support throughout
-
-IN-APP PURCHASES:
-- Free: 5 documents, full pipeline, all quality modes
-- Pro Monthly ($5.99): 1,000 documents, 5 libraries
-- Pro Annual ($49.99): same as monthly, 30% savings
-- Lifetime ($59.99): one-time, all features forever
+- Grounded document Q&A with citations and source review
+- 3 quality modes: Standard, Deep Think, Maximum
+- Live reasoning strip in the unified bar during deeper reasoning
+- Verification and answer-sanitization to reduce unsupported claims
+- AI Hub transforms grounded in imported source material
+- Library isolation so answers do not leak across libraries
 
 TEST STEPS:
-1. Launch app → complete 2-page onboarding → 3 sample docs auto-import
-2. Tap "Start Exploring" → sample docs ready to query
-3. Ask: "What are the pricing tiers?" or "How does the RAG pipeline work?"
-4. Test quality modes: tap the mode selector, try Standard then Deep Think
-5. For longer Deep Think answers, verify that if generation is interrupted late, any already-streamed grounded answer remains visible instead of being replaced by a generic failure footer
-6. Import a dense PDF or table-heavy document from Files and verify the extracted answer cites row-aligned values instead of mixing adjacent columns
-7. After any answer, tap AI Hub toolbar → test Key Facts, Step-by-Step transforms
-8. Tap '+' → import your own document from Files → ask questions about it
-9. Create a second library → verify answers don't leak between libraries
-10. Tap Motherboard HUD icon → verify live telemetry overlay
+1. Launch app, complete onboarding, and let the 3 sample documents import.
+2. Ask: "What are the pricing tiers?" or "How does the RAG pipeline work?"
+3. In Standard mode, ask a question, then tap "Go Deeper" and verify the app stays responsive while the deeper answer streams.
+4. In Deep Think mode, run two deeper queries in the same thread and verify the app remains responsive.
+5. During Deep Think or Maximum, verify the unified bar under the library and quality selectors shows the current live reasoning step.
+6. Ask a longer question in Deep Think and verify the final answer does not end mid-bullet or mid-thought.
+7. Import a dense PDF or table-heavy document and verify answers stay grounded and cite the right values.
+8. Test AI Hub transforms after an answer.
+9. Create a second library and verify answers do not leak between libraries.
 
-PRIVACY: All processing is on-device via Apple Foundation Models. Private Cloud Compute may be used by iOS automatically for complex queries with zero data retention. No third-party AI services. No analytics. No tracking.
-
-NO DEMO CREDENTIALS NEEDED.
+PRIVACY: Processing is local by default using Apple Foundation Models. No third-party AI services. No analytics. No tracking.

@@ -4393,7 +4393,7 @@ extension AgenticOrchestrator {
                         prompt: synthesisPrompt,
                         context: "",
                         systemPrompt: synthesisSystemPrompt,
-                        maxTokens: 700
+                        maxTokens: 1500
                     )
                     finalAnswer = cleanupFinalAnswer(synthesisResponse.text)
                     totalTokens += synthesisResponse.tokensGenerated
@@ -6756,7 +6756,9 @@ extension RAGService {
         onProgress: ((String, String) async -> Void)? = nil  // (title, detail)
     ) async throws -> ReasoningChainResult {
         let orchestrator = AgenticOrchestrator(ragService: self, config: .fast, qualityMode: .standard)
-        let totalSessions = ReasoningChainConfig.light.sessionCount
+        let complexity = QueryComplexityAnalyzer.shared.analyze(query).complexity
+        let reasoningConfig: ReasoningChainConfig = complexity == .simple ? .light : .standard
+        let totalSessions = reasoningConfig.sessionCount
 
         // Track session number for UI
         var sessionNum = 0
@@ -6800,7 +6802,7 @@ extension RAGService {
         return try await orchestrator.executeReasoningChain(
             query: query,
             chunks: chunks,
-            config: .light, // 3 sessions for Standard mode
+            config: reasoningConfig,
             onStep: onStep
         )
     }

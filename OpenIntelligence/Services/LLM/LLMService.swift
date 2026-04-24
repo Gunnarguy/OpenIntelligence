@@ -1586,23 +1586,26 @@ struct LLMResponse {
             let wordCount = trimmed.split(separator: " ").count
             if wordCount < 15 { return false }
 
-            // Long responses (>150 words) are almost certainly complete — the LLM
-            // chose to stop, not hit a hard cutoff. Continuation just causes repetition.
-            if wordCount > 150 { return false }
-
             // If response contains repetition already, do NOT continue — it'll only get worse
             if containsRepetition(trimmed) { return false }
 
             // Check for obvious truncation indicators
             guard let lastChar = trimmed.last else { return false }
+            let lastLine = trimmed.components(separatedBy: .newlines).last?.trimmingCharacters(in: .whitespacesAndNewlines) ?? trimmed
+            let listPrefixes = ["- ", "* ", "• "]
 
             // Response ends mid-sentence (no terminal punctuation)
             let terminalPunctuation: Set<Character> = [".", "!", "?", ":", ";", "\"", "'", ")", "]", "}"]
             if !terminalPunctuation.contains(lastChar) {
-                // But not if it's a code block, list item, or ends with newline
-                if !trimmed.hasSuffix("```") && !trimmed.hasSuffix("-") && !trimmed.hasSuffix("\n") {
+                // But not if it's a code block or explicit newline termination
+                if !trimmed.hasSuffix("```") && !trimmed.hasSuffix("\n") {
                     return true
                 }
+            }
+
+            // Incomplete bullet/list lines are strong evidence of truncation even in long answers.
+            if listPrefixes.contains(where: { lastLine.hasPrefix($0) }) && !terminalPunctuation.contains(lastChar) {
+                return true
             }
 
             // Response ends with incomplete conjunction/article (genuine mid-sentence cutoff)
@@ -1610,6 +1613,12 @@ struct LLMResponse {
             let lastWord = String(trimmed.split(separator: " ").last ?? "").lowercased()
             if incompleteMarkers.contains(lastWord) {
                 return true
+            }
+
+            // Once the answer is already very long and doesn't show cutoff markers,
+            // continuation tends to introduce repetition instead of completing content.
+            if wordCount > 300 {
+                return false
             }
 
             return false
@@ -1663,12 +1672,12 @@ struct LLMResponse {
             config _: InferenceConfig
         ) async throws -> String {
             // Use a simple continuation prompt
-            let continuationPrompt = "Please continue your response from where you left off."
+            let continuationPrompt = "Continue exactly from the last incomplete sentence or bullet. Do not restart the answer or repeat earlier content."
 
             var continuedText = ""
             let maxContinuations = 2 // Reduced from 3 — fewer chances to loop
             var continuationCount = 0
-            let maxContinuationChars = 800 // Hard cap on total continuation length
+            let maxContinuationChars = 1600 // Hard cap on total continuation length
 
             while continuationCount < maxContinuations {
                 continuationCount += 1

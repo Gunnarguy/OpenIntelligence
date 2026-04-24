@@ -183,6 +183,7 @@ struct ChatScreen: View {
     private func primaryMetricsBar(metricsData: ConsolidatedMetrics) -> some View {
         let deepThinkTokens = isProcessing ? ragService.deepThinkLiveTokens : (ragService.lastAuditSnapshot?.totalTokensAcrossCalls ?? ragService.deepThinkLiveTokens)
         let audit = ragService.lastAuditSnapshot
+        let liveReasoningEvent = thinkingEvents.last
 
         UnifiedMetricsBar(
             stage: stage,
@@ -249,6 +250,9 @@ struct ChatScreen: View {
             liveConfidence: ragService.deepThinkLiveConfidence,
             isMaximumMode: effectiveQualityMode.isUnlimitedMode,
             maximumModeSessionCount: ragService.deepThinkLiveSteps,
+            liveReasoningTitle: liveReasoningEvent?.title ?? "",
+            liveReasoningDetail: liveReasoningEvent?.detail ?? "",
+            liveReasoningKind: liveReasoningEvent?.kind,
             onTapDetails: !metricsData.isStreaming ? { showRetrievedDetails = true } : nil
         )
     }
@@ -259,6 +263,7 @@ struct ChatScreen: View {
         let auditSnapshot = ragService.lastAuditSnapshot
         let minimalVectorWt = Double(auditSnapshot?.retrievalConfig.vectorWeight ?? 0.6)
         let minimalLexicalWt = Double(auditSnapshot?.retrievalConfig.lexicalWeight ?? 0.4)
+        let liveReasoningEvent = thinkingEvents.last
 
         UnifiedMetricsBar(
             stage: stage,
@@ -325,6 +330,9 @@ struct ChatScreen: View {
             liveConfidence: ragService.deepThinkLiveConfidence,
             isMaximumMode: effectiveQualityMode.isUnlimitedMode,
             maximumModeSessionCount: ragService.deepThinkLiveSteps,
+            liveReasoningTitle: liveReasoningEvent?.title ?? "",
+            liveReasoningDetail: liveReasoningEvent?.detail ?? "",
+            liveReasoningKind: liveReasoningEvent?.kind,
             onTapDetails: nil
         )
     }
@@ -1300,8 +1308,7 @@ struct ChatScreen: View {
 
     private func newChat() {
         // Cancel any in-flight query task
-        currentQueryTask?.cancel()
-        currentQueryTask = nil
+        cancelInFlightQueryWork()
         followUpSuggestionsTask?.cancel()
         followUpSuggestionsTask = nil
 
@@ -1335,8 +1342,7 @@ struct ChatScreen: View {
 
     private func clearChat() {
         // Cancel any in-flight query task
-        currentQueryTask?.cancel()
-        currentQueryTask = nil
+        cancelInFlightQueryWork()
         followUpSuggestionsTask?.cancel()
         followUpSuggestionsTask = nil
 
@@ -1371,8 +1377,7 @@ struct ChatScreen: View {
         guard isProcessing else { return }
 
         // Cancel the running query task
-        currentQueryTask?.cancel()
-        currentQueryTask = nil
+        cancelInFlightQueryWork()
 
         // Flush any buffered text immediately
         flushStreamingBufferToVisibleText()
@@ -1427,6 +1432,10 @@ struct ChatScreen: View {
         guard !isProcessing else { return }
 
         DSHaptics.selection()
+        cancelInFlightQueryWork()
+        followUpSuggestionsTask?.cancel()
+        followUpSuggestionsTask = nil
+        followUpSuggestions = []
 
         // Show immediate feedback
         toastManager.show(
@@ -1438,41 +1447,71 @@ struct ChatScreen: View {
             duration: 2.0
         )
 
-        Task {
-            isProcessing = true
-            stage = .searching // Use searching stage for agentic re-query
-            streamingText = ""
-            generationStart = Date()
+        let querySessionId = UUID()
+        currentQuerySessionId = querySessionId
+
+        currentQueryTask = Task(priority: .userInitiated) { [weak ragService] in
+            guard let capturedService = ragService else { return }
+
+            defer {
+                Task { @MainActor in
+                    guard self.currentQuerySessionId == querySessionId else { return }
+                    self.currentQuerySessionId = nil
+                    self.currentQueryTask = nil
+                    self.isProcessing = false
+                    if self.stage == .searching || self.stage == .generating {
+                        self.stage = .idle
+                    }
+                }
+            }
+
+            await MainActor.run {
+                self.isProcessing = true
+                self.stage = .searching
+                self.resetStreamingState()
+                self.generationStart = Date()
+            }
 
             do {
                 // Create inline stream handler for this re-query
                 // Note: Can't use [weak self] because ChatScreen is a struct
                 let goDeeperStreamHandler: LLMStreamHandler = { event in
                     Task { @MainActor in
-                        self.streamingText += event.text
+                        if event.isFinal {
+                            self.flushStreamingBufferToVisibleText()
+                        } else {
+                            self.enqueueStreamingText(event.text)
+                        }
                     }
                 }
 
-                if let response = try await ragService.reQueryWithAgenticMode(streamHandler: goDeeperStreamHandler) {
+                if let response = try await capturedService.reQueryWithAgenticMode(streamHandler: goDeeperStreamHandler) {
                     await MainActor.run {
+                        guard self.currentQuerySessionId == querySessionId else { return }
+                        let containerId = capturedService.containerService.activeContainerId
                         // Add the deeper response as a new assistant message
-                        let deeperMessage = ChatMessage(
+                        var deeperMessage = ChatMessage(
                             role: .assistant,
-                            content: response.generatedResponse,
+                            content: sanitizeFinalResponse(response.generatedResponse),
                             metadata: response.metadata,
                             retrievedChunks: response.retrievedChunks,
                             structuredAnswer: response.structuredAnswer
                         )
-                        messages.append(deeperMessage)
+                        deeperMessage.containerId = containerId
+                        deeperMessage.thinkingEvents = self.thinkingEvents
+                        self.appendAndPersistMessage(deeperMessage, for: containerId)
 
-                        streamingText = ""
-                        isProcessing = false
-                        stage = .complete
+                        self.currentRetrievedChunks = response.retrievedChunks
+                        self.currentMetadata = response.metadata
+                        self.currentStructuredAnswer = response.structuredAnswer
+                        self.resetStreamingState()
+                        self.stage = .idle
 
                         DSHaptics.success()
                     }
                 } else {
                     await MainActor.run {
+                        guard self.currentQuerySessionId == querySessionId else { return }
                         toastManager.show(
                             ToastItem(
                                 title: "No previous query to analyze deeper",
@@ -1481,12 +1520,16 @@ struct ChatScreen: View {
                             ),
                             duration: 2.0
                         )
-                        isProcessing = false
-                        stage = .idle
                     }
+                }
+            } catch is CancellationError {
+                await MainActor.run {
+                    guard self.currentQuerySessionId == querySessionId else { return }
+                    self.resetStreamingState()
                 }
             } catch {
                 await MainActor.run {
+                    guard self.currentQuerySessionId == querySessionId else { return }
                     toastManager.show(
                         ToastItem(
                             title: "Deeper analysis failed: \(error.localizedDescription)",
@@ -1495,8 +1538,7 @@ struct ChatScreen: View {
                         ),
                         duration: 3.0
                     )
-                    isProcessing = false
-                    stage = .idle
+                    self.resetStreamingState()
                 }
             }
         }
@@ -2045,16 +2087,14 @@ struct ChatScreen: View {
         // rather than canceling it during a follow-up tap.
         if let existingTask = currentQueryTask {
             if isProcessing {
-                currentQuerySessionId = nil
                 existingTask.cancel()
-                currentQueryTask = nil
+                cancelInFlightQueryWork()
                 // Brief yield to let cancellation propagate
                 Task { @MainActor in
                     try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
                 }
             } else {
-                currentQuerySessionId = nil
-                currentQueryTask = nil
+                cancelInFlightQueryWork(resetLLMSession: false)
             }
         }
 
@@ -2455,6 +2495,13 @@ struct ChatScreen: View {
         streamingBuffer.removeAll(keepingCapacity: true)
         streamingText = ""
         hasReceivedStreamToken = false
+    }
+
+    private func cancelInFlightQueryWork(resetLLMSession: Bool = true) {
+        currentQuerySessionId = nil
+        currentQueryTask?.cancel()
+        currentQueryTask = nil
+        ragService.cancelActiveGeneration(resetSession: resetLLMSession)
     }
 
     /// Queues incoming streamed text and starts the drip pump when idle.

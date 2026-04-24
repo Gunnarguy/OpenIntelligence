@@ -515,6 +515,24 @@ class RAGService: ObservableObject {
         }
     }
 
+    /// Cancels any active long-running generation work and clears shared agentic state.
+    /// This prevents back-to-back Deep Think runs from contending for the same FM session.
+    @MainActor
+    func cancelActiveGeneration(resetSession: Bool = true) {
+        if let activeAgenticTask {
+            Log.info("[RAGService] Cancelling active agentic generation", category: .llm)
+            activeAgenticTask.cancel()
+            self.activeAgenticTask = nil
+        }
+
+        forceAgenticOnNextQuery = false
+        resetDeepThinkLiveMetrics()
+
+        if resetSession {
+            resetLLMSession()
+        }
+    }
+
     /// Resets Deep Think / Maximum mode live metrics to prevent stale state in UI.
     /// Call this when:
     /// - Chat is cleared
@@ -4706,17 +4724,11 @@ class RAGService: ObservableObject {
         let orchestrator = AgenticOrchestrator(ragService: self, config: optimizedConfig, qualityMode: qualityMode)
         let startTime = Date()
 
-        // Cancel any running agentic query before starting a new one.
-        // Without this, two orchestrators compete for Apple FM, freezing the app.
+        // Always start agentic work from a clean FM session.
+        // Reusing transcript state across Go Deeper or repeated Deep Think queries
+        // is what causes the visible freezes in chat.
         await MainActor.run {
-            if let existing = self.activeAgenticTask {
-                Log.info("[Agentic] Cancelling previous orchestration before starting new query", category: .pipeline)
-                existing.cancel()
-                self.activeAgenticTask = nil
-            }
-            self.deepThinkLiveTokens = 0
-            self.deepThinkLiveSteps = 0
-            self.deepThinkLiveConfidence = 0
+            self.cancelActiveGeneration(resetSession: true)
         }
 
         // Wrap execution in a tracked task so it can be cancelled by subsequent queries
@@ -4988,11 +5000,19 @@ class RAGService: ObservableObject {
         }
 
         do {
-            let response = try await agenticTask.value
+            let response = try await withTaskCancellationHandler {
+                try await agenticTask.value
+            } onCancel: {
+                Task { @MainActor [weak self] in
+                    self?.cancelActiveGeneration(resetSession: true)
+                }
+            }
             await MainActor.run { self.activeAgenticTask = nil }
             return response
         } catch is CancellationError {
-            await MainActor.run { self.activeAgenticTask = nil }
+            await MainActor.run {
+                self.cancelActiveGeneration(resetSession: true)
+            }
             Log.info("[Agentic] Query cancelled (user sent new message)", category: .pipeline)
             throw CancellationError()
         } catch {
@@ -8609,6 +8629,7 @@ class RAGService: ObservableObject {
                 // which lets developers test multi-session reasoning from Standard mode.
                 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                 let forceChain = settingsStore?.forceReasoningChain ?? false
+                let standardComplexity = QueryComplexityAnalyzer.shared.analyze(question)
                 let useReasoningChain: Bool = {
                     // Only use for Apple Foundation Models (reasoning chain uses FM-specific features)
                     guard llmService is AppleFoundationLLMService else { return false }
@@ -8619,9 +8640,9 @@ class RAGService: ObservableObject {
                         return true
                     }
 
-                    // CRITICAL: Standard mode does NOT use reasoning chain
-                    // Users must select Deep Think or Maximum for multi-session reasoning
-                    guard qualityMode.usesAgenticOrchestrator else {
+                    // Standard now gets adaptive multi-session reasoning for non-trivial prompts.
+                    // Only obviously simple lookups stay single-pass.
+                    guard qualityMode.canonical == .standard else {
                         return false
                     }
 
@@ -8631,27 +8652,29 @@ class RAGService: ObservableObject {
                     // Skip trivial queries - they don't benefit from multi-session
                     guard !isTrivial else { return false }
 
+                    guard standardComplexity.complexity != .simple else { return false }
+
                     // Need some retrieval quality
-                    guard bestRetrievalSim >= 0.25 else { return false }
+                    guard bestRetrievalSim >= 0.30 else { return false }
 
                     // Need some context to benefit from chaining
-                    guard contextSize > 500 else { return false }
+                    guard contextSize > 900 else { return false }
 
-                    // Need at least 2 chunks to distribute across sessions
-                    guard includedRetrievedChunks.count >= 2 else { return false }
+                    // Need enough evidence to distribute across sessions
+                    guard includedRetrievedChunks.count >= 3 else { return false }
 
                     return true
                 }()
 
                 if useReasoningChain {
-                    Log.info("[RAG] ✨ REASONING CHAIN ACTIVATED (3 sessions × 4096 = 12K+ effective tokens)", category: .pipeline)
+                    Log.info("[RAG] ✨ REASONING CHAIN ACTIVATED for Standard mode (adaptive multi-session)", category: .pipeline)
                     Log.info("[RAG]   - bestRetrievalSim: \(bestRetrievalSim)", category: .pipeline)
                     Log.info("[RAG]   - contextSize: \(contextSize)", category: .pipeline)
                     Log.info("[RAG]   - chunks: \(includedRetrievedChunks.count)", category: .pipeline)
                     emitThinkingEvent(
                         .planning,
                         title: "🔗 Reasoning chain",
-                        detail: "3 sessions × 4K = 12K+ effective context"
+                        detail: "\(standardComplexity.complexity == .complex ? 4 : 3) sessions × 4K = expanded Standard reasoning"
                     )
 
                     // Track reasoning trace for UI display
@@ -9433,6 +9456,7 @@ class RAGService: ObservableObject {
                         toolCallsMade: llmResponse.toolCallsMade,
                         embeddingProvider: embeddingProviderId,
                         usedAgenticMode: false, // Single-pass mode
+                        qualityModeName: qualityMode.displayName,
                         originalQuery: question, // For "Go Deeper" re-query
                         reasoningTrace: reasoningTraceForMetadata // Chained session insights
                     )
