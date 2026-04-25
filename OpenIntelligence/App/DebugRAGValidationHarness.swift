@@ -9,6 +9,8 @@ enum DebugRAGValidationHarness {
         let outputDirectory: URL
         let qualityMode: RAGQualityMode?
         let shouldIngest: Bool
+        let pccConsent: String?
+        let benchmarkEntitlement: WorkspaceTier?
     }
 
     private static let cachedConfiguration: Configuration? = makeConfiguration()
@@ -20,6 +22,8 @@ enum DebugRAGValidationHarness {
     static func configureStorageIfNeeded() {
         guard let configuration = cachedConfiguration else { return }
         AppSupportPaths.configureBaseDir(configuration.storageDirectory)
+        seedPCCConsentIfNeeded(configuration.pccConsent)
+        seedBenchmarkEntitlementIfNeeded(configuration.benchmarkEntitlement)
     }
 
     static func runIfNeeded(
@@ -121,6 +125,12 @@ enum DebugRAGValidationHarness {
         lines.append("Container: \(containerName) [\(containerId.uuidString)]")
         lines.append("Storage: \(configuration.storageDirectory.path)")
         lines.append("Quality Mode: \(response.metadata.qualityModeName ?? configuration.qualityMode?.displayName ?? "Unknown")")
+        if let pccConsent = configuration.pccConsent {
+            lines.append("Benchmark PCC Consent: \(pccConsent)")
+        }
+        if let benchmarkEntitlement = configuration.benchmarkEntitlement {
+            lines.append("Benchmark Entitlement: \(benchmarkEntitlement.rawValue)")
+        }
         lines.append("Model: \(response.metadata.modelUsed)")
         #if targetEnvironment(simulator)
         lines.append("Runtime: Simulator")
@@ -208,6 +218,12 @@ enum DebugRAGValidationHarness {
         lines.append("Timestamp: \(ISO8601DateFormatter().string(from: Date()))")
         lines.append("Query: \(configuration.query)")
         lines.append("Storage: \(configuration.storageDirectory.path)")
+        if let pccConsent = configuration.pccConsent {
+            lines.append("Benchmark PCC Consent: \(pccConsent)")
+        }
+        if let benchmarkEntitlement = configuration.benchmarkEntitlement {
+            lines.append("Benchmark Entitlement: \(benchmarkEntitlement.rawValue)")
+        }
         lines.append("Status: FAILED")
         lines.append("Error: \(error.localizedDescription)")
         lines.append("")
@@ -258,13 +274,15 @@ enum DebugRAGValidationHarness {
 
         let storageDirectory: URL = {
             if let explicitPath = LaunchArguments.valueEither(for: "rag-validation-storage"), !explicitPath.isEmpty {
-                return URL(fileURLWithPath: explicitPath, isDirectory: true)
+                return resolveSandboxPath(
+                    explicitPath,
+                    defaultBase: applicationSupportDirectory(),
+                    isDirectory: true
+                )
             }
 
             let runId = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
-            let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-                ?? FileManager.default.temporaryDirectory
-            return appSupport
+            return applicationSupportDirectory()
                 .appendingPathComponent("OpenIntelligenceRAGValidation", isDirectory: true)
                 .appendingPathComponent(runId, isDirectory: true)
         }()
@@ -273,6 +291,8 @@ enum DebugRAGValidationHarness {
         let inputURLs = parseInputURLs()
         let qualityMode = parseQualityMode(LaunchArguments.valueEither(for: "rag-validation-quality"))
         let shouldIngest = !(LaunchArguments.has("--rag-validation-skip-ingest") || LaunchArguments.has("rag-validation-skip-ingest"))
+        let pccConsent = parsePCCConsent(LaunchArguments.valueEither(for: "rag-validation-pcc-consent"))
+        let benchmarkEntitlement = parseBenchmarkEntitlement(LaunchArguments.valueEither(for: "rag-validation-entitlement"))
 
         return Configuration(
             query: query,
@@ -280,8 +300,72 @@ enum DebugRAGValidationHarness {
             storageDirectory: storageDirectory,
             outputDirectory: outputDirectory,
             qualityMode: qualityMode,
-            shouldIngest: shouldIngest
+            shouldIngest: shouldIngest,
+            pccConsent: pccConsent,
+            benchmarkEntitlement: benchmarkEntitlement
         )
+    }
+
+    private static func seedPCCConsentIfNeeded(_ consent: String?) {
+        guard let consent else { return }
+        let key = "cloudConsent.applePCC"
+        let defaults = UserDefaults.standard
+        switch consent {
+        case "allowed", "denied":
+            defaults.set(consent, forKey: key)
+        case "default":
+            defaults.removeObject(forKey: key)
+        default:
+            return
+        }
+        defaults.synchronize()
+        print("[RAGValidation] PCC consent preset: \(consent)")
+    }
+
+    private static func seedBenchmarkEntitlementIfNeeded(_ tier: WorkspaceTier?) {
+        guard let tier else { return }
+
+        let defaults = UserDefaults.standard
+        defaults.set(tier.rawValue, forKey: "entitlement.activeTier")
+        if tier == .free {
+            defaults.set(LegacyProtectionState.none.rawValue, forKey: "entitlement.legacyProtectionState")
+        } else {
+            defaults.set(LegacyProtectionState.historicalPaidPurchase.rawValue, forKey: "entitlement.legacyProtectionState")
+        }
+        defaults.synchronize()
+        print("[RAGValidation] Benchmark entitlement preset: \(tier.rawValue)")
+    }
+
+    private static func applicationSupportDirectory() -> URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+    }
+
+    private static func documentsDirectory() -> URL {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+    }
+
+    private static func appDataContainerRoot() -> URL {
+        documentsDirectory().deletingLastPathComponent()
+    }
+
+    private static func resolveSandboxPath(
+        _ rawPath: String,
+        defaultBase: URL,
+        isDirectory: Bool
+    ) -> URL {
+        let trimmed = rawPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("/") {
+            return URL(fileURLWithPath: trimmed, isDirectory: isDirectory)
+        }
+
+        let rootPrefixes = ["Documents", "Library", "tmp"]
+        let rootRelative = rootPrefixes.contains { prefix in
+            trimmed == prefix || trimmed.hasPrefix("\(prefix)/")
+        }
+        let base = rootRelative ? appDataContainerRoot() : defaultBase
+        return base.appendingPathComponent(trimmed, isDirectory: isDirectory)
     }
 
     private static func parseInputURLs() -> [URL] {
@@ -294,7 +378,13 @@ enum DebugRAGValidationHarness {
             .split(separator: ",")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
-            .map { URL(fileURLWithPath: $0) }
+            .map {
+                resolveSandboxPath(
+                    $0,
+                    defaultBase: documentsDirectory(),
+                    isDirectory: false
+                )
+            }
     }
 
     private static func parseQualityMode(_ rawValue: String?) -> RAGQualityMode? {
@@ -306,6 +396,36 @@ enum DebugRAGValidationHarness {
             return .deepThink
         case "maximum", "max":
             return .maximum
+        default:
+            return nil
+        }
+    }
+
+    private static func parsePCCConsent(_ rawValue: String?) -> String? {
+        guard let rawValue else { return nil }
+        switch rawValue.lowercased() {
+        case "allow", "allowed":
+            return "allowed"
+        case "deny", "denied":
+            return "denied"
+        case "default", "ask", "reset", "notdetermined", "not-determined":
+            return "default"
+        default:
+            return nil
+        }
+    }
+
+    private static func parseBenchmarkEntitlement(_ rawValue: String?) -> WorkspaceTier? {
+        guard let rawValue else { return nil }
+        switch rawValue.lowercased() {
+        case "free":
+            return .free
+        case "pro":
+            return .pro
+        case "lifetime", "lifetime-cohort", "lifetime_cohort":
+            return .lifetime
+        case "current", "default", "none":
+            return nil
         default:
             return nil
         }

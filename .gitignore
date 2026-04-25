@@ -27,6 +27,9 @@ Build/
 Xrays/*.log
 Xrays/*.txt
 
+# Local RAG benchmark run artifacts
+BenchmarkRuns/
+
 # Swift Package Manager
 .swiftpm/
 .build/

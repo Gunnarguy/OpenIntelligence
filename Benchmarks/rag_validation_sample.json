@@ -1,0 +1,97 @@
+{
+  "version": 1,
+  "name": "local-rag-validation-sample",
+  "description": "Placeholder benchmark cases for the DebugRAGValidationHarness. Replace fixture paths with local private documents before using for real scoring.",
+  "defaults": {
+    "quality_mode": "standard",
+    "timeout_seconds": 300
+  },
+  "cases": [
+    {
+      "id": "exact_value_capacity",
+      "category": "exact_value",
+      "input_files": [
+        "Benchmarks/Fixtures/private_vehicle_manual.pdf"
+      ],
+      "query": "How many gallons of gasoline can this vehicle hold?",
+      "quality_mode": "standard",
+      "expected_behavior": "answer",
+      "expected_answer_patterns": [
+        "(?i)\\b14\\.3\\s*(us\\s*)?gal(lons?)?\\b",
+        "(?i)\\b54\\s*l(iters?)?\\b"
+      ],
+      "expected_source": {
+        "filename": "private_vehicle_manual.pdf",
+        "page": null
+      }
+    },
+    {
+      "id": "table_spec_payload_limit",
+      "category": "table_spec",
+      "input_files": [
+        "Benchmarks/Fixtures/private_spec_sheet.pdf"
+      ],
+      "query": "What is the maximum payload listed in the specifications table?",
+      "quality_mode": "standard",
+      "expected_behavior": "answer",
+      "expected_answer_patterns": [
+        "(?i)\\b[0-9][0-9,\\.]*\\s*(lb|lbs|pounds|kg|kilograms)\\b"
+      ],
+      "expected_source": {
+        "filename": "private_spec_sheet.pdf",
+        "page": null
+      }
+    },
+    {
+      "id": "missing_evidence_service_interval",
+      "category": "missing_evidence",
+      "input_files": [
+        "Benchmarks/Fixtures/private_policy.pdf"
+      ],
+      "query": "What is the warranty coverage for the unreleased 2032 prototype battery pack?",
+      "quality_mode": "deep-think",
+      "expected_behavior": "abstain",
+      "expected_answer_patterns": [],
+      "expected_source": {
+        "filename": "private_policy.pdf",
+        "page": null
+      }
+    },
+    {
+      "id": "lost_in_middle_warning",
+      "category": "lost_in_middle",
+      "input_files": [
+        "Benchmarks/Fixtures/private_long_manual.pdf"
+      ],
+      "query": "What warning is listed for the emergency release procedure in the middle of the manual?",
+      "quality_mode": "maximum",
+      "expected_behavior": "answer",
+      "expected_answer_patterns": [
+        "(?i)\\b(warning|caution|danger)\\b"
+      ],
+      "expected_source": {
+        "filename": "private_long_manual.pdf",
+        "page": null
+      }
+    },
+    {
+      "id": "multi_hop_policy_comparison",
+      "category": "multi_hop",
+      "input_files": [
+        "Benchmarks/Fixtures/private_policy_part_a.pdf",
+        "Benchmarks/Fixtures/private_policy_part_b.pdf"
+      ],
+      "query": "Compare the escalation requirement in the incident policy with the reporting deadline in the compliance policy.",
+      "quality_mode": "deep-think",
+      "expected_behavior": "answer",
+      "expected_answer_patterns": [
+        "(?i)\\b(escalat(e|ion)|report(ing)?)\\b",
+        "(?i)\\b(deadline|within|hours?|days?)\\b"
+      ],
+      "expected_source": {
+        "filename": null,
+        "page": null
+      }
+    }
+  ]
+}
