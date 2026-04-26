@@ -1,112 +1,63 @@
 # Pricing
 
-This is a starting commercial structure for early design partner sales.
-It is intentionally simple.
-It is not legal language and it is not meant to lock you into a final long-term pricing model.
+This is a founder-stage pricing note for prototype evaluation and design-partner conversations.
 
-## Positioning Rule
+## Current Rule
 
-Right now, price the engagement as:
+Do not price this like a polished commodity SDK.
 
+Price it like:
+
+- technical evaluation
 - pilot
-- evaluation
-- integration design
-- founder-led access
+- diligence support
+- founder-led transfer risk
 
-Do not price it yet like a polished commodity SDK.
-
-## Option 1: Paid Evaluation
+## Option 1: Paid Technical Evaluation
 
 Best for:
 
 - teams that want to assess fit quickly
 - teams with a narrow document set
-- teams not ready for full integration work
+- teams still validating whether the codebase is even worth deeper review
 
 Suggested structure:
 
 - one-time fee: `$5,000 - $10,000`
 - timebox: `1-2 weeks`
-- includes:
-  - document-set review
-  - success criteria definition
-  - live demo / working session
-  - written fit assessment
+- includes code and capability review plus scoped evaluation work
 
-## Option 2: Design Partner Pilot
+## Option 2: Design-Partner Pilot
 
 Best for:
 
-- teams that want real proof over their own materials
-- teams considering a future SDK/integration path
-- the strongest next-week sale
+- teams that want to test real workflows on their documents
+- teams considering license, integration, or handoff if the prototype proves useful
 
 Suggested structure:
 
 - one-time fee: `$12,500 - $25,000`
 - timebox: `3-6 weeks`
-- includes:
-  - evaluation
-  - pilot scope
-  - working sessions
-  - engine tuning against target use cases
-  - integration planning
-  - priority roadmap input
+- includes pilot scope, evaluation work, working sessions, and integration planning
 
-## Option 3: Pilot + First Commercial Delivery
+## Option 3: Pilot Plus Handoff Discussion
 
 Best for:
 
-- teams that already know they want to move forward if the pilot works
-- stronger design partners that want a path to sealed SDK delivery
+- teams that already expect deeper licensing or transfer discussion if the pilot goes well
 
 Suggested structure:
 
 - initial pilot fee: `$15,000 - $30,000`
-- follow-on delivery fee: custom, typically `+$15,000 - $40,000`
-- includes:
-  - pilot
-  - implementation plan
-  - first commercial handoff milestone
-  - limited onboarding support
+- follow-on codebase transfer, license, or packaging work: custom after diligence
 
-## Ongoing Support Structure
+## Practical Guardrail
 
-Once the binary SDK is real and cleaner, you can evolve into:
+Do not promise production-grade SDK delivery inside the cheapest offer.
 
-- annual support / maintenance
-- versioned SDK updates
-- onboarding retainers
-- enterprise licensing
-
-Suggested early support placeholder:
-
-- `$1,500 - $5,000 / month` depending on involvement
-
-## Discount Logic For First Partners
-
-It is reasonable to discount the first `2-3` design partners if they provide:
-
-- fast feedback
-- fast decision cycles
-- real use cases
-- permission to use them as a reference later
-
-That discount should buy something.
-Do not discount just because the product is early.
-
-## Commercial Rule Of Thumb
-
-- If the company is small and exploratory: sell the evaluation.
-- If the company has real need and urgency: sell the pilot.
-- If the company already wants delivery and support: sell pilot plus follow-on milestone.
-
-## Internal Pricing Guardrail
-
-Do not promise production-grade SDK delivery inside the lowest-priced offer.
-Your early offers should pay for:
+The early offers need to pay for:
 
 - your time
-- your iteration loop
-- your packaging work
-- your transfer risk
+- prototype evaluation work
+- packaging and transfer risk
+- documentation and support during diligence

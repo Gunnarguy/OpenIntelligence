@@ -5,34 +5,38 @@
 The workspace currently contains:
 
 - app target: `OpenIntelligence`
+- framework target: `OpenIntelligenceEngine`
+- shared engine scheme for fresh framework and archive builds
 - staged evaluation `OpenIntelligenceEngine.xcframework` artifact in the deliverable folder
 - a generated evaluation host project that now acts as a room-ready pitch demo
 
 Current validation completed:
 
-- buyer packet staging and rebuild succeed from the current on-disk artifact set
+- `OpenIntelligenceEngine` framework builds from current source for `generic/platform=iOS Simulator`
+- evaluation device and simulator archives succeed with isolated per-platform DerivedData paths
+- evaluation XCFramework rebuild succeeds from current source
+- buyer packet staging and rebuild succeed from the fresh evaluation artifact
 - evaluation host app builds for `iPhone 17 Pro` simulator
 - the self-contained `output/OpenIntelligence-SDK-Package/SampleApp/` build path also succeeds for `iPhone 17 Pro` simulator
 - evaluation host app has a configured on-device path for Apple Intelligence-capable iPhone validation once signing and hardware are available
-- evaluation `OpenIntelligenceEngine.xcframework` is restorable from the buyer packet and remains usable for same-toolchain evaluation
+- evaluation `OpenIntelligenceEngine.xcframework` remains usable for same-toolchain evaluation
 
 Still not completed:
 
-- reproducible `OpenIntelligenceEngine` framework target build path in the current project file
-- module-stable device archive
-- module-stable simulator archive suitable for XCFramework packaging
+- module-stable commercial archive path with `BUILD_LIBRARY_FOR_DISTRIBUTION=YES`
 - final module-stable `OpenIntelligenceEngine.xcframework`
 - sealed stable buyer handoff with no evaluation-support shims
 
 ## Current Packaging Blocker
 
 The current blocker is not the engine target itself.
-The blocker is XCFramework archive with `BUILD_LIBRARY_FOR_DISTRIBUTION=YES`, where the upstream local package dependency `swift-transformers` fails Swift module-interface verification for its `Generation` module during archive.
+The blocker is XCFramework archive with `BUILD_LIBRARY_FOR_DISTRIBUTION=YES`, where the upstream local package dependency `swift-transformers` fails Swift module-interface verification inside `Hub.swiftinterface` during archive.
 
 Observed behavior:
 
-- the repo no longer exposes a buildable/shared `OpenIntelligenceEngine` scheme
-- the evaluation artifact can still be restored and staged from the buyer packet plus archived support outputs
+- the repo now exposes a buildable/shared `OpenIntelligenceEngine` scheme again
+- the evaluation artifact can now be rebuilt and staged directly from current source
+- the evaluation archive path needed per-platform DerivedData roots to avoid simulator/device archive intermediate collisions
 - module-stable binary packaging is still blocked before a final stable XCFramework path exists
 
 Practical implication:
@@ -97,7 +101,7 @@ Do not sell it as:
 - `scripts/validate_sdk_package.sh`
 - `scripts/build_sdk_buyer_bundle.sh`
 
-These scripts are real and currently support the evaluation handoff path, even though the original framework target is no longer buildable from the current project file.
+These scripts are real and currently support a source-backed evaluation handoff path. The stable commercial path is still blocked by upstream package interface verification.
 
 Additional packet-local sample staging script:
 

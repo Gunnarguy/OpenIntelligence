@@ -2,6 +2,19 @@
 import Foundation
 
 enum DebugRAGValidationHarness {
+    private final class RunGate: @unchecked Sendable {
+        private let lock = NSLock()
+        private var started = false
+
+        func claim() -> Bool {
+            lock.lock()
+            defer { lock.unlock() }
+            guard !started else { return false }
+            started = true
+            return true
+        }
+    }
+
     struct Configuration: Sendable {
         let query: String
         let inputURLs: [URL]
@@ -14,6 +27,7 @@ enum DebugRAGValidationHarness {
     }
 
     private static let cachedConfiguration: Configuration? = makeConfiguration()
+    private static let runGate = RunGate()
 
     static var isEnabled: Bool {
         cachedConfiguration != nil
@@ -26,11 +40,29 @@ enum DebugRAGValidationHarness {
         seedBenchmarkEntitlementIfNeeded(configuration.benchmarkEntitlement)
     }
 
+    static func runHeadlessIfNeeded() {
+        guard cachedConfiguration != nil else { return }
+        configureStorageIfNeeded()
+
+        Task { @MainActor in
+            let containerService = ContainerService()
+            let billingService = StoreKitBillingService()
+            let entitlementStore = EntitlementStore(billingService: billingService)
+            let ragService = RAGService(containerService: containerService, entitlementStore: entitlementStore)
+            let settingsStore = SettingsStore(ragService: ragService)
+
+            await runIfNeeded(
+                ragService: ragService,
+                settingsStore: settingsStore
+            )
+        }
+    }
+
     static func runIfNeeded(
         ragService: RAGService,
         settingsStore: SettingsStore
     ) async {
-        guard let configuration = cachedConfiguration else { return }
+        guard let configuration = cachedConfiguration, runGate.claim() else { return }
 
         let previousMode = settingsStore.ragQualityMode
         let previousTraceSetting = settingsStore.enablePipelineTrace
@@ -134,6 +166,8 @@ enum DebugRAGValidationHarness {
         lines.append("Model: \(response.metadata.modelUsed)")
         #if targetEnvironment(simulator)
         lines.append("Runtime: Simulator")
+        #elseif targetEnvironment(macCatalyst)
+        lines.append("Runtime: Mac Catalyst")
         #else
         lines.append("Runtime: Device")
         #endif

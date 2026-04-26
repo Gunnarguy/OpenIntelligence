@@ -14,6 +14,7 @@ import html
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -32,9 +33,10 @@ DEFAULT_CONFIGURATION = "Debug"
 DEFAULT_BUNDLE_ID = "Gunndamental.OpenIntelligence"
 DEFAULT_TIMEOUT_SECONDS = 300
 DEFAULT_BUILD_TIMEOUT_SECONDS = 900
-DEFAULT_RUNTIME = "simulator"
+DEFAULT_RUNTIME = "mac"
 DEFAULT_SIMULATOR_BUILD_DESTINATION = "generic/platform=iOS Simulator"
 DEFAULT_DEVICE_BUILD_DESTINATION = "generic/platform=iOS"
+DEFAULT_MAC_BUILD_DESTINATION = "platform=macOS,variant=Mac Catalyst"
 DEFAULT_DERIVED_DATA_ROOT = Path("/tmp/openintelligence-rag-bench")
 DEFAULT_PCC_CONSENT = "allow"
 DEFAULT_BENCHMARK_ENTITLEMENT = "lifetime"
@@ -431,21 +433,33 @@ def xcodebuild_env() -> dict[str, str]:
 def build_destination(args: argparse.Namespace) -> str:
     if args.destination:
         return args.destination
+    if args.runtime == "mac":
+        return DEFAULT_MAC_BUILD_DESTINATION
     if args.runtime == "device":
         return DEFAULT_DEVICE_BUILD_DESTINATION
     return DEFAULT_SIMULATOR_BUILD_DESTINATION
 
 
 def build_sdk(args: argparse.Namespace) -> str:
+    if args.runtime == "mac":
+        return "macosx"
     return "iphoneos" if args.runtime == "device" else "iphonesimulator"
 
 
 def product_platform_suffix(args: argparse.Namespace) -> str:
+    if args.runtime == "mac":
+        return "maccatalyst"
     return "iphoneos" if args.runtime == "device" else "iphonesimulator"
 
 
+def product_dir_names(args: argparse.Namespace) -> list[str]:
+    if args.runtime == "mac":
+        return [args.configuration, f"{args.configuration}-maccatalyst"]
+    return [f"{args.configuration}-{product_platform_suffix(args)}"]
+
+
 def build_command(args: argparse.Namespace, derived_data: Path) -> list[str]:
-    return [
+    command = [
         "xcodebuild",
         "-project",
         str(Path(args.project).expanduser()),
@@ -461,14 +475,19 @@ def build_command(args: argparse.Namespace, derived_data: Path) -> list[str]:
         str(derived_data),
         "build",
     ]
+    if args.runtime == "mac":
+        command.insert(-1, "EFFECTIVE_PLATFORM_NAME_MAC_CATALYST_USE_DISTINCT_BUILD_DIR=NO")
+    return command
 
 
 def find_app(args: argparse.Namespace, derived_data: Path) -> Path | None:
-    suffix = product_platform_suffix(args)
-    app_path = derived_data / "Build" / "Products" / f"{args.configuration}-{suffix}" / f"{args.app_name}.app"
-    if app_path.exists():
-        return app_path
-    candidates = sorted((derived_data / "Build" / "Products").glob(f"*-{suffix}/{args.app_name}.app"))
+    for product_dir_name in product_dir_names(args):
+        app_path = derived_data / "Build" / "Products" / product_dir_name / f"{args.app_name}.app"
+        if app_path.exists():
+            return app_path
+
+    products_dir = derived_data / "Build" / "Products"
+    candidates = sorted(products_dir.glob(f"*/{args.app_name}.app"))
     return candidates[0] if candidates else None
 
 
@@ -480,14 +499,20 @@ def log_tail(path: Path, limit: int = 4000) -> str:
     return text[-limit:]
 
 
+def app_executable_path(args: argparse.Namespace, app_path: Path) -> Path:
+    if args.runtime == "mac":
+        return app_path / "Contents" / "MacOS" / args.app_name
+    return app_path / args.app_name
+
+
 def app_bundle_ready(args: argparse.Namespace, app_path: Path | None) -> bool:
     if app_path is None or not app_path.exists():
         return False
-    if not (app_path / args.app_name).exists():
+    if not app_executable_path(args, app_path).exists():
         return False
     if not (app_path / "_CodeSignature" / "CodeResources").exists():
         return False
-    if args.runtime == "device":
+    if args.runtime in {"device", "mac"}:
         return True
     verification = subprocess.run(
         ["codesign", "--verify", "--deep", "--strict", str(app_path)],
@@ -630,6 +655,24 @@ def uninstall_app_from_physical_device(device_ref: str, bundle_id: str, run_dir:
     )
 
 
+def mac_app_container_root(bundle_id: str) -> Path:
+    return Path.home() / "Library" / "Containers" / bundle_id / "Data"
+
+
+def mac_app_executable(app_path: Path) -> Path:
+    return app_path / "Contents" / "MacOS" / app_path.stem
+
+
+def quit_mac_app(bundle_id: str) -> None:
+    subprocess.run(
+        ["osascript", "-e", f'tell application id "{bundle_id}" to quit'],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+
 def refresh_app_install(
     args: argparse.Namespace,
     *,
@@ -647,6 +690,13 @@ def refresh_app_install(
         device_ref = str(target_info["identifier"])
         uninstall_app_from_physical_device(device_ref, args.bundle_id, run_dir)
         install_app_on_physical_device(device_ref, app_path, run_dir)
+    elif args.runtime == "mac":
+        container_root = mac_app_container_root(args.bundle_id)
+        shutil.rmtree(container_root / "Documents" / "OpenIntelligenceRAGBenchmarkInputs", ignore_errors=True)
+        shutil.rmtree(
+            container_root / "Library" / "Application Support" / "OpenIntelligenceRAGBenchmark",
+            ignore_errors=True,
+        )
     else:
         device_udid = str(target_info["udid"])
         uninstall_app(device_udid, args.bundle_id, run_dir)
@@ -804,6 +854,129 @@ def copy_device_artifact(
     if completed.returncode != 0:
         return None
     return destination_path if destination_path.exists() else None
+
+
+def copy_case_inputs_to_mac(case: dict[str, Any], *, bundle_id: str, input_dir: str) -> list[str]:
+    if not case["input_files"]:
+        return []
+
+    container_root = mac_app_container_root(bundle_id)
+    destination_root = container_root / input_dir
+    destination_root.mkdir(parents=True, exist_ok=True)
+
+    mac_paths: list[str] = []
+    for input_file in case["input_files"]:
+        destination = destination_root / input_file.name
+        shutil.copy2(input_file, destination)
+        mac_paths.append(f"{input_dir}/{input_file.name}")
+    return mac_paths
+
+
+def copy_mac_artifact(
+    *,
+    bundle_id: str,
+    relative_output_dir: str,
+    filename: str,
+    local_output_dir: Path,
+) -> Path | None:
+    source = mac_app_container_root(bundle_id) / relative_output_dir / filename
+    if not source.exists():
+        return None
+    local_output_dir.mkdir(parents=True, exist_ok=True)
+    destination = local_output_dir / filename
+    shutil.copy2(source, destination)
+    return destination
+
+
+def launch_case_on_mac(
+    case: dict[str, Any],
+    *,
+    run_id_value: str,
+    app_path: Path,
+    bundle_id: str,
+    case_dir: Path,
+    pcc_consent: str,
+    benchmark_entitlement: str,
+) -> dict[str, Any]:
+    storage_dir = case_dir / "storage"
+    output_dir = storage_dir / "ValidationOutput"
+    stdout_path = case_dir / "mac_open_stdout.log"
+    stderr_path = case_dir / "mac_open_stderr.log"
+    case_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    relative_paths = device_case_paths(run_id_value, case)
+    mac_input_files = copy_case_inputs_to_mac(
+        case,
+        bundle_id=bundle_id,
+        input_dir=relative_paths["input_dir"],
+    )
+
+    command = [
+        str(mac_app_executable(app_path)),
+        "--rag-validation",
+        "--rag-validation-query",
+        case["query"],
+        "--rag-validation-storage",
+        relative_paths["storage_dir"],
+        "--rag-validation-quality",
+        case["quality_mode"],
+    ]
+    if mac_input_files:
+        command.extend(["--rag-validation-files", ",".join(mac_input_files)])
+    if case["skip_ingest"]:
+        command.append("--rag-validation-skip-ingest")
+    if pcc_consent != "default":
+        command.extend(["--rag-validation-pcc-consent", pcc_consent])
+    if benchmark_entitlement != "current":
+        command.extend(["--rag-validation-entitlement", benchmark_entitlement])
+
+    start = time.monotonic()
+    timed_out = False
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=REPO_ROOT,
+            text=True,
+            capture_output=True,
+            timeout=case["timeout_seconds"],
+        )
+        stdout = completed.stdout or ""
+        stderr = completed.stderr or ""
+        returncode = completed.returncode
+    except subprocess.TimeoutExpired as exc:
+        timed_out = True
+        stdout = exc.stdout or ""
+        stderr = exc.stderr or ""
+        returncode = -1
+    latency = time.monotonic() - start
+    stdout_path.write_text(stdout, encoding="utf-8")
+    stderr_path.write_text(stderr, encoding="utf-8")
+    quit_mac_app(bundle_id)
+
+    report_path = copy_mac_artifact(
+        bundle_id=bundle_id,
+        relative_output_dir=relative_paths["output_dir"],
+        filename="rag_validation_report.txt",
+        local_output_dir=output_dir,
+    )
+    trace_path = copy_mac_artifact(
+        bundle_id=bundle_id,
+        relative_output_dir=relative_paths["output_dir"],
+        filename="pipeline_trace.log",
+        local_output_dir=output_dir,
+    )
+
+    return {
+        "launcher": "mac-executable",
+        "launch_returncode": returncode,
+        "latency_seconds": round(latency, 3),
+        "timed_out": timed_out,
+        "report_path": report_path,
+        "trace_path": trace_path,
+        "stdout_path": stdout_path,
+        "stderr_path": stderr_path,
+    }
 
 
 def launch_case_on_physical_device(
@@ -1674,6 +1847,15 @@ def run_benchmark(args: argparse.Namespace) -> int:
                 print(f"Using physical device: {target_info['name']} ({target_info['model']})", flush=True)
                 app_path = build_app(args, "", run_dir)
                 install_app_on_physical_device(str(target_info["identifier"]), app_path, run_dir)
+            elif args.runtime == "mac":
+                target_info = {
+                    "name": "My Mac",
+                    "udid": None,
+                    "runtime": "macOS",
+                    "variant": "Mac Catalyst",
+                }
+                print("Using this Mac: Mac Catalyst debug build", flush=True)
+                app_path = build_app(args, "", run_dir)
             else:
                 simulator = find_simulator(args.device)
                 target_info = {
@@ -1718,6 +1900,16 @@ def run_benchmark(args: argparse.Namespace) -> int:
                         case,
                         run_id_value=this_run_id,
                         device_ref=str(target_info["identifier"]),
+                        bundle_id=args.bundle_id,
+                        case_dir=case_dir,
+                        pcc_consent=args.pcc_consent,
+                        benchmark_entitlement=args.benchmark_entitlement,
+                    )
+                elif args.runtime == "mac":
+                    launch = launch_case_on_mac(
+                        case,
+                        run_id_value=this_run_id,
+                        app_path=app_path,
                         bundle_id=args.bundle_id,
                         case_dir=case_dir,
                         pcc_consent=args.pcc_consent,
@@ -1809,9 +2001,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--configuration", default=DEFAULT_CONFIGURATION)
     parser.add_argument(
         "--runtime",
-        choices=["simulator", "device"],
+        choices=["simulator", "device", "mac"],
         default=DEFAULT_RUNTIME,
-        help="Run on an iOS Simulator or a connected physical iPhone/iPad.",
+        help="Run on an iOS Simulator, connected physical iPhone/iPad, or this Mac through Mac Catalyst.",
     )
     parser.add_argument(
         "--destination",
@@ -1819,7 +2011,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help=(
             "Override xcodebuild build destination. Defaults to "
             f"{DEFAULT_SIMULATOR_BUILD_DESTINATION!r} for simulator and "
-            f"{DEFAULT_DEVICE_BUILD_DESTINATION!r} for device."
+            f"{DEFAULT_DEVICE_BUILD_DESTINATION!r} for device and "
+            f"{DEFAULT_MAC_BUILD_DESTINATION!r} for mac."
         ),
     )
     parser.add_argument(

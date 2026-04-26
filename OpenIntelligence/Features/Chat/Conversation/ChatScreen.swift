@@ -585,11 +585,13 @@ struct ChatScreen: View {
     if let containerId = ragService.containerService.activeContainerId as UUID? {
         activity.userInfo = ["containerId": containerId]
     }
-}
-// MARK: - Translation Overlay
-.translationPresentation(isPresented: $showTranslation, text: translationText)
-// MARK: - WritingTools Result Sheet
-.sheet(isPresented: $showWritingToolsResult) {
+    }
+    // MARK: - Translation Overlay
+    #if !targetEnvironment(macCatalyst)
+    .translationPresentation(isPresented: $showTranslation, text: translationText)
+    #endif
+    // MARK: - WritingTools Result Sheet
+    .sheet(isPresented: $showWritingToolsResult) {
     WritingToolsResultSheet(
         title: writingToolsTitle,
         result: writingToolsResult,

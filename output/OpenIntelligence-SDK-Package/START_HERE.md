@@ -1,31 +1,28 @@
 # Start Here
 
-This packet is the current buyer-safe evaluation handoff for OpenIntelligence Engine.
+This packet is the current evaluation slice of the OpenIntelligence engine story.
 
-What you have:
+## What It Is
 
-- `OpenIntelligenceEngine.xcframework`
-- `EvaluationSupport/` for same-toolchain evaluation imports
-- `SampleApp/` as a self-contained validation host app
-- `README.md`, `INSTALL.md`, `API.md`, and `PACKAGE_SUMMARY.md`
+- a staged evaluation packet
+- a technical-review aid
+- a same-toolchain testing path when the staged artifact is present
 
-Fastest path for a founder or startup evaluator:
+## What It Is Not
 
-1. Read `PACKAGE_SUMMARY.md` for the honest readiness snapshot.
-2. If you want proof that the SDK imports, go to `SampleApp/`.
-3. Run `./build_sample_app.sh` inside `SampleApp/` for a simulator compile check.
-4. Open `SampleApp/EngineEvaluationHost.xcodeproj` in Xcode.
-5. Read `SampleApp/DEMO_SCRIPT.md` for the live evaluation flow.
-6. For runtime evaluation, choose an Apple Intelligence-capable iPhone and your own signing team in Xcode if needed.
+- a full source-code handoff
+- a finished enterprise SDK
+- a regulated-use artifact
 
-Commercial framing:
+## Fastest Review Path
 
-- This is a guided evaluation XCFramework packet.
-- It is appropriate for design-partner conversations, pilot integration, and technical evaluation.
-- It is not yet a toolchain-agnostic sealed binary SDK or finished SPM package.
+1. Read `PACKAGE_SUMMARY.md`.
+2. Read `API.md`.
+3. Read `INSTALL.md`.
+4. Open `SampleApp/` if you want to inspect the packet-local host path.
 
-If you are evaluating direct integration into your own app:
+## Commercial Framing
 
-1. Start with `INSTALL.md`.
-2. Use `SampleApp/` as the concrete reference for framework search paths and evaluation support wiring.
-3. Expect same-toolchain evaluation, not final long-term binary stability.
+Use this packet for design-partner and technical-evaluation conversations.
+
+Do not use it by itself to claim the engine is already a polished, finished SDK product.

@@ -13,6 +13,10 @@ import TipKit
 @main
 struct OpenIntelligenceApp: App {
     init() {
+        #if DEBUG
+        DebugRAGValidationHarness.runHeadlessIfNeeded()
+        #endif
+
         // Configure TipKit for contextual user guidance
         AppTipConfiguration.configure()
 

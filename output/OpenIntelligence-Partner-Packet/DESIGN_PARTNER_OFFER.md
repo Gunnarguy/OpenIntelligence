@@ -2,120 +2,60 @@
 
 ## What This Is
 
-OpenIntelligence is an Apple-native private document intelligence engine for teams that need grounded answers over internal document libraries without sending proprietary material to a third-party AI vendor.
+OpenIntelligence is a local-first Apple-native document-intelligence prototype and codebase head start for teams exploring private document QA on Apple devices.
 
-The product focus is:
+The value here is not a finished self-serve SDK. The value is meaningful existing engine work:
 
-- ingest private documents
-- build a local answerable knowledge layer
-- answer natural-language questions with source-backed responses
-- abstain when evidence is weak instead of bluffing
-
-## Why This Matters
-
-Most AI document products optimize for fluent answers.
-That is not enough for teams working from product documents, manuals, internal knowledge, technical references, regulated materials, or high-value sales/support content.
-
-The value here is not just "AI chat."
-The value is:
-
-- private ingestion
-- grounded retrieval
-- evidence-first answer behavior
-- support-aware abstention
-- Apple-native deployment
+- ingestion and OCR
+- local indexing and retrieval
+- source-reviewed answer generation
+- verification-oriented behavior
+- benchmark and diligence tooling
 
 ## Current Delivery Model
 
-This is currently best sold as a design partner engagement, not as a mass-market self-serve SDK.
+This is currently best sold as a founder-led evaluation or design-partner engagement.
 
-The design partner model includes:
+That can include:
 
-- founder-led onboarding
-- use-case scoping
-- document-set evaluation
-- evaluation XCFramework handoff for same-toolchain testing when appropriate
-- a tiny evaluation host app path for live demo validation
-- integration planning
-- product feedback loop
-- phased delivery toward a sealed SDK / framework handoff
+- code walkthrough
+- scoped corpus evaluation
+- live demo against real documents
+- staged evaluation-packet review
+- early integration planning
+- licensing or handoff discussion if there is strong fit
 
 ## What A Partner Gets
 
-- direct access to the founder/builder
+- direct access to the founder and codebase context
 - evaluation of their document/problem shape
-- working demos against realistic materials
-- an evaluation SDK packet for same-toolchain testing when appropriate
-- integration planning for Apple-native deployment
-- priority influence on the first SDK boundary
-- early commercial terms before broader packaging
+- honest inventory of what is reusable vs app-specific
+- known limitations and claim guardrails
+- benchmark-driven testing path
+- staged evaluation collateral where appropriate
 
 ## What The Engine Can Credibly Do Today
 
-- ingest documents into a private knowledge layer
-- support grounded question answering over those materials
-- expose evidence-aware answer behavior
-- distinguish between exact extraction and broader synthesis behavior
-- run through an Apple-native deployment path
+- ingest documents into a local knowledge layer
+- build full-text and vector indexes
+- run grounded question answering over imported material
+- expose source review and verification-oriented behavior
+- support technical evaluation on Apple-device workflows
 
-## What Is Still In Progress
+## What It Is Not Ready For
 
-- final stable closed-source XCFramework packaging
-- fully tightened SDK target membership
-- demo app that validates binary-only integration
-- final buyer-ready binary handoff package
-
-That means the current offer is best framed as:
-
-- paid pilot
-- design partner program
-- private evaluation with delivery milestones
-- evaluation SDK now, stable SDK later
+- finished enterprise SDK positioning
+- regulated decision support
+- guaranteed accuracy claims
+- medical, legal, safety, or IFU workflows as-is
 
 ## Best-Fit Design Partners
 
-The best early partners are teams that:
-
-- already live on Apple platforms
-- have high-value internal documents
-- care about privacy or offline-first behavior
-- need grounded answers more than generic chat
-- are comfortable working closely with a founder during early integration
-
-Good categories:
-
-- product and enablement teams
-- field service or support teams
-- training/manual-heavy businesses
-- regulated or privacy-sensitive Apple-native workflows
-
-## Example Engagement Structure
-
-### Phase 1: Evaluation
-
-- understand the document set
-- define success criteria
-- confirm fit
-
-### Phase 2: Pilot
-
-- run real document flows
-- validate answer behavior
-- define integration boundary
-
-### Phase 3: Delivery
-
-- finalize the minimal engine surface
-- package the commercial handoff
-- support first integration
-
-## Why Join Early
-
-- early pricing
-- direct product influence
-- priority roadmap input
-- lower transfer risk because the builder is still deeply involved
+- teams exploring private document QA on Apple devices
+- manual-heavy or support-heavy workflows
+- enterprise knowledge teams that want local-first behavior
+- buyers who value a codebase head start more than polished packaging
 
 ## Simple Positioning Line
 
-OpenIntelligence is a private Apple-native document intelligence engine built for grounded answers, evidence-aware behavior, and offline-first deployment over internal document libraries.
+OpenIntelligence is a substantial Apple-native engine prototype for private document QA, best understood today as a codebase head start and evaluation-stage asset rather than a finished enterprise SDK.

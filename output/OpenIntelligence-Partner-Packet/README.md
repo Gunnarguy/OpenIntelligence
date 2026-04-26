@@ -1,60 +1,38 @@
 # OpenIntelligence Partner Packet
 
-This folder is the commercial bridge between:
+This folder is the commercial bridge between the current app, the underlying engine prototype, and early buyer conversations.
 
-- the working app
-- the in-progress SDK productization work
-- the first paid partner conversations
+## Current Status
 
-It is intentionally written for selling the capability honestly before the binary SDK is fully finished.
+Treat this packet as founder-led evaluation and diligence material around a substantial engine prototype.
 
-## What Is In Here
+Do not treat it as proof that the repo is already a finished enterprise SDK business.
 
-- `DESIGN_PARTNER_OFFER.md`
-- `OUTREACH.md`
-- `PRICING.md`
-- `CURRENT_COMMITMENTS.md`
-- `EVALUATION_PROCESS.md`
-- `TARGET_ACCOUNT_FRAMEWORK.md`
+## Best Use Today
 
-## How To Use It
+Use this packet for:
 
-1. Read `CURRENT_COMMITMENTS.md` first so you know what you can promise safely.
-2. Use `DESIGN_PARTNER_OFFER.md` as the one-pager.
-3. Use `EVALUATION_PROCESS.md` to decide when to use no NDA, an NDA, or a real evaluation agreement.
-4. Use `OUTREACH.md` for email, DM, and intro copy.
-5. Use `PRICING.md` as the starting structure, not a legal contract.
-6. Use `TARGET_ACCOUNT_FRAMEWORK.md` to build the first company list.
+- early buyer qualification
+- design-partner conversations
+- prototype evaluation framing
+- codebase-head-start discussions
 
-## Cofounder Quick Path
+## What This Packet Should Communicate
 
-If you are opening this repo to understand the commercial path quickly, use this order:
+- there is real engine code behind the app behavior
+- the prototype is meaningful and technically serious
+- the current best motion is evaluation, pilot, diligence, licensing, or handoff discussion
+- the repo should not be represented as a finished enterprise SDK or regulated-use product
 
-1. Read `CURRENT_COMMITMENTS.md` to understand the honest current state.
-2. Read `DESIGN_PARTNER_OFFER.md` to see the offer structure.
-3. Read `EVALUATION_PROCESS.md` to understand the safe commercial path from intro call to paid pilot.
-4. Read `OUTREACH.md` to see the exact founder email, DM, and packet-send language.
-5. Read `TARGET_ACCOUNT_FRAMEWORK.md` before building the first outreach list.
-6. Then move to `output/OpenIntelligence-SDK-Package/README.md` to see the technical handoff path.
+## Read These First
 
-If you only remember one thing, it is this:
+1. `CURRENT_COMMITMENTS.md`
+2. `DESIGN_PARTNER_OFFER.md`
+3. `OUTREACH.md`
+4. `PRICING.md`
 
-- the strongest current sale is a private evaluation with founder support
-- the current artifact is an evaluation XCFramework
-- the current sendable packet is `output/OpenIntelligence-SDK-Package/build/OpenIntelligenceEngine-Buyer-Packet.zip`
-- the final stable sealed SDK is still the next step
+## Practical Rule
 
-## Current Honest Position
+Lead with honest prototype value and codebase-transfer potential.
 
-Right now, the strongest sale is:
-
-- founder-led pilot
-- design partner engagement
-- private evaluation
-- phased delivery toward a closed-source SDK
-
-Right now, the weakest sale is:
-
-- "Here is the finished plug-and-play SDK today"
-
-That distinction matters.
+Do not lead with polished-product certainty.

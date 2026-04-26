@@ -1,192 +1,157 @@
 # OpenIntelligence Implementation Analysis
 
-**Updated**: April 24, 2026
-**Scope**: Internal engineering and buyer-diligence analysis of the current repository.
+**Updated**: April 25, 2026
+**Scope**: Internal engineering and buyer-diligence view of the current repository.
 
-This is the deeper implementation layer behind [CURRENT_STATE_AND_GAPS.md](./CURRENT_STATE_AND_GAPS.md). It is intentionally more specific than the public architecture summary.
+This document describes the repo as it exists today, not as a finished product roadmap.
 
 ## Executive Verdict
 
-OpenIntelligence is a real engine, not just an app shell. The repo contains:
+OpenIntelligence is a real engine inside a real app codebase.
 
-- A complete Apple-platform application.
-- A public engine facade in `OpenIntelligence/SDK/OpenIntelligenceEngine.swift`.
-- A generated evaluation package under `output/OpenIntelligence-SDK-Package/`.
-- 107 Swift service files under `OpenIntelligence/Services`.
-- A dense retrieval, storage, verification, and generation stack centered on `RAGService.swift`.
+The repo includes:
 
-The product is strongest when described as:
+- a working Apple-platform application
+- a narrow public engine facade in `OpenIntelligence/SDK/OpenIntelligenceEngine.swift`
+- ingestion, OCR, chunking, storage, retrieval, generation, and verification services under `OpenIntelligence/Services/`
+- a staged evaluation packet under `output/OpenIntelligence-SDK-Package/`
+- a debug benchmark harness and Python runner
 
-> A local-first Apple-native document intelligence engine that ingests private files, builds local full-text and vector indexes, retrieves evidence, generates through Apple's public Foundation Models path when available, and verifies answers against source material.
+What it is today:
 
-The main engineering risk is not the idea. It is concentration: too much critical policy is still in `RAGService.swift`, `DocumentProcessor.swift`, and `AgenticOrchestrator.swift`.
+- substantial Swift/iOS document-intelligence prototype
+- codebase head start for private document QA on Apple devices
+- evaluation-stage engine boundary
 
-## Service Inventory
+What it is not today:
 
-| Service Area | Count | Role | Commercial Meaning |
-| --- | ---: | --- | --- |
-| Document | 24 | File parsing, OCR, chunking, classification, summaries, entities, speech/audio extraction | Turns messy source material into searchable evidence. |
-| Infrastructure | 21 | settings, quotas, device capability, telemetry, background work, projections, Spotlight | Makes the engine shippable inside an Apple app. |
-| RAG | 17 | retrieval, packing, extraction, verification, confidence, orchestration | Core defensible engine logic. |
-| Query | 10 | query routing, rewriting, HyDE, compression, suggestions | Adapts user intent before retrieval/generation. |
-| Billing | 8 | StoreKit, tiers, entitlements, maximum-mode quotas | Consumer monetization, mostly outside SDK boundary. |
-| Embedding | 7 | provider selection, Core ML/NL embedding paths, token counting | Builds local semantic search substrate. |
-| Agentic | 7 | multi-step reasoning, tool calls, memory, App Intents/writing tools | Useful for high-value demos, but partly app-shaped. |
-| LLM | 6 | FoundationModels integration, model resolution, streaming, prompt evaluation | Generation/runtime layer. |
-| VectorStore | 4 | vector DB protocol, router, BNNS/mmap backend, Vectura backend | Local semantic retrieval performance layer. |
-| Storage | 3 | SQLite FTS5, full-text storage, documentation cache | Exact lookup and durable retrieval layer. |
+- finished enterprise SDK
+- cleanly decoupled reusable framework
+- audited accuracy or compliance product
 
-## What Is Implemented
+## Current Boundary Reality
 
-### Ingestion
+| Category       | What is in it today                                                                                                   | Commercial meaning                                                         |
+| -------------- | --------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Core engine    | ingestion, OCR, chunking, embeddings, SQLite/FTS, vector search, retrieval, context packing, generation, verification | Real transferable technical value                                          |
+| App-specific   | SwiftUI, onboarding, paywalls, StoreKit, settings presentation, diagnostics, App Store release surfaces               | Useful for demoing and proving a live product, not the engine asset itself |
+| Shared/support | container config, runtime paths, device capability logic, logging, model/config types, benchmark entitlement helpers  | Important glue, but still partially app-shaped                             |
 
-Implemented:
+## Implemented Engine Subsystems
 
-- PDFKit-first text extraction with fallback to Vision OCR.
-- Garbled text-layer detection using sample OCR/PDFKit comparison.
-- Metal-backed Core Image preprocessing for OCR pages.
-- Page-level text preservation.
-- Structure-aware chunking with metadata.
-- Contextual prefixes before embedding.
-- Token validation against provider tokenizers.
-- Core ML/Natural Language embedding providers.
-- Per-container vector store selection.
-- SQLite FTS5 document, chunk, and page indexes.
+### SDK facade
 
-Missing or incomplete:
+- `OpenIntelligence/SDK/OpenIntelligenceEngine.swift` exposes a small ingest/query surface and already supports an optional `storageURL` override.
+- It matters because it shows the intended commercial API boundary.
+- Caveat: it still instantiates `ContainerService`, `RAGService`, and app-oriented runtime paths under the hood.
 
-- A formal ingestion benchmark suite by file type and quality level.
-- A buyer-facing corpus readiness report after ingestion.
-- A stable table-first representation for tabular documents. The code has table-aware OCR heuristics, but not a TableRAG-style SQL/table reasoning layer.
-- Public Apple FoundationModels embeddings. `AppleFMEmbeddingProvider.swift` is a scaffold, not a shipped provider.
+### Ingestion and OCR
 
-### Retrieval
+- `DocumentProcessor.swift` and related processing files perform file parsing, OCR fallback, page preservation, and chunk production.
+- `OCRConfiguration.swift` centralizes Vision OCR behavior and the repo still enforces the documented OCR render constraints.
+- Caveat: the code is strong, but table-heavy and procedural documents remain a weakness.
 
-Implemented:
+### Chunking
 
-- Hybrid vector + BM25 retrieval.
-- Reciprocal rank fusion.
-- MMR diversification.
-- Query rewriting and expansion.
-- HyDE for appropriate synthesis-style queries.
-- Iterative/corrective retrieval behavior.
-- Parent document retrieval.
-- RAPTOR-lite document-summary routing.
-- Graph-style context packing.
-- Exact-value lookup protections.
+- `SemanticChunker.swift` performs structure-aware chunking with entity extraction, section paths, and metadata enrichment.
+- The implementation respects the practical embedding-token constraints documented elsewhere.
+- Caveat: chunking quality is good, but not a guarantee of table/spec fidelity.
 
-Missing or incomplete:
+### Embeddings
 
-- Full GraphRAG community extraction, clustering, and community summaries.
-- A public eval report showing retrieval recall by query category.
-- A deterministic alias/entity graph with source-span provenance.
-- Table-specific retrieval and reasoning for heterogeneous documents.
+- `EmbeddingService.swift` supports Core ML and Natural Language providers.
+- `CoreMLSentenceEmbeddingProvider.swift` is the practical current path.
+- `AppleFMEmbeddingProvider.swift` exists only as a scaffold and reports unavailable.
 
-### Generation and Verification
+### Storage
 
-Implemented:
+- `SQLiteFullTextService.swift` provides shared-table FTS5 storage with `container_id` isolation and separate full-document lookup tables.
+- `VectorStoreRouter.swift` plus `BNNSVectorDatabase.swift` provide per-container vector persistence and search.
+- Caveat: storage currently assumes app-owned runtime paths and shared singleton patterns.
 
-- Apple FoundationModels `LanguageModelSession` generation.
-- Tool calling when useful.
-- Tool disabling when context is already assembled to reclaim tokens.
-- Structured output through `@Generable`.
-- Verification gates A-I.
-- Source-only claim verification and trust payloads.
-- Calibrated confidence and response metadata.
-- Extractive override paths for exact-value/specification queries.
+### Retrieval, reranking, and packing
 
-Missing or incomplete:
+- `HybridSearchService.swift` combines vector and BM25 retrieval using RRF and further boosts/filters results.
+- `ParentDocumentService.swift`, `GraphIndexService.swift`, and `ContextPackingService.swift` expand and trim context.
+- The engine has graph-style retrieval support, but not full GraphRAG.
 
-- A maintained scenario set for each answer lane.
-- Buyer-readable evaluation artifacts.
-- Clear separation between verification gates and source-only verification responsibilities.
-- A formal policy for when Maximum mode should stop, abstain, or keep searching.
+### Generation
 
-### SDK/Productization
+- `LLMService.swift` is the generation abstraction.
+- The main buyer-facing story is Apple Foundation Models generation where available, plus extractive and fallback behavior.
+- Caveat: tool calling is real, but the current tool set is still strongly app-shaped.
 
-Implemented:
+### Verification
 
-- Public wrapper in `OpenIntelligence/SDK/OpenIntelligenceEngine.swift`.
-- Availability states for simulator/device/model readiness.
-- Public ingest/query request and result types.
-- Generated evaluation package with an `OpenIntelligenceEngine.xcframework`.
-- Sample host app and buyer-packet artifacts under `output/OpenIntelligence-SDK-Package/`.
+- `VerificationGateService.swift`, `SourceOnlyAnswerService.swift`, and related safety services implement real post-generation checks.
+- This is useful engineering and a real differentiator for evaluation conversations.
+- Caveat: verification gates improve behavior but do not guarantee correctness.
 
-Still needed:
+### Benchmarking
 
-- A reproducible framework target and shared scheme from the current Xcode project.
-- Target-membership cleanup so app/UI/billing code cannot leak into the SDK.
-- Caller-controlled storage root by default.
-- Fewer singleton assumptions for multi-instance SDK use.
-- Stable semantic versioning and package validation.
+- `OpenIntelligence/App/DebugRAGValidationHarness.swift` exercises the engine through the Debug app runtime.
+- `scripts/run_rag_benchmarks.py` and `scripts/rag_benchmark_studio.py` provide runnable harness control and reporting.
+- Caveat: this is early benchmark infrastructure, not a mature external evaluation program.
 
-## The 29-Step Pipeline, Interpreted Correctly
+## App-Specific Surfaces That Should Not Be Sold As Engine Value
 
-The 29-step pipeline is a logical/audit model. It is not a guarantee that every query runs every step.
+These areas prove product effort but should not be confused with the engine asset:
 
-For example:
+- SwiftUI chat, document, onboarding, billing, and settings screens
+- StoreKit products and consumer paywall flows
+- App Store metadata, screenshots, and Fastlane operations
+- telemetry and visual dashboards aimed at app/debug workflows
 
-- A direct exact-value query should lean toward extraction and exact search.
-- A broad summary query should route through summaries and source diversity.
-- A multi-hop query should use iterative retrieval, graph packing, and more verification.
-- A well-supported direct lookup should not waste tokens on tool schemas or broad agentic exploration.
+Current app-specific pricing note:
 
-This adaptive behavior is correct. The docs should not make it sound like every answer always pays the full pipeline cost.
+- `BillingProduct.swift` still includes `doc_pack_addon`
+- `QuotaPolicy.swift` still supports add-on increments
+- `TermsOfServiceView.swift` says document packs are no longer sold in-app
 
-## Why It Works
+That inconsistency should be treated as app-surface churn, not engine scope.
 
-The engine works because it avoids relying on the small language model for everything.
+## Packaging Reality
 
-- OCR/parsing is done by Apple document frameworks and local heuristics.
-- Full-text lookup is handled by SQLite FTS5/BM25.
-- Semantic recall is handled by local embeddings and vector search.
-- Ranking/diversity are algorithmic.
-- The LLM is reserved for synthesis, tool decisions, formatting, and structured output.
-- Verification runs after generation to catch unsupported or conflicting claims.
+The repo contains a staged evaluation packet and public facade. That is useful. It is not the same thing as proving a final SDK productization path.
 
-This is the right architecture for a 4096-token public FoundationModels session.
+Current truthful packaging statement:
 
-## Why It Still Misses Data Sometimes
+- there is a staged evaluation packet and evaluation XCFramework artifact in the repo
+- there is a small public facade
+- there is not yet a fully proven, cleanly decoupled, toolchain-agnostic enterprise SDK story
 
-Likely causes:
+## Concentration Risks
 
-1. The relevant page/chunk exists in SQLite but not in the final packed context.
-2. OCR/table structure flattened values that need row/column relationships.
-3. Query expansion or HyDE drifts away from exact source language.
-4. Retrieval finds a nearby cross-reference instead of the table/value source.
-5. Context compression removes the value or surrounding unit.
-6. Verification correctly rejects weak answers, but the fallback retrieval does not broaden in the right direction.
-7. Multi-document/library routing excludes the relevant container.
+The main engineering risk is not that the engine is fake. It is that too much important behavior is still concentrated in a few app-owned orchestration paths.
 
-The Sportage fuel-tank trace files in the working tree are exactly the kind of evaluation artifact that should become a maintained exact-value regression.
+Most important concentration points:
 
-## Buyer-Ready Claims
+- `RAGService.swift`
+- `DocumentProcessor.swift`
+- app-owned container/runtime services and shared singletons
+
+## Claims That Survive Diligence
 
 Safe:
 
-- Local-first private document QA on Apple devices.
-- Local full-text and vector indexes.
-- Hybrid retrieval instead of vector-only search.
-- Cited answers with source inspection.
-- Conservative verification and abstention behavior.
-- Evaluation-stage SDK package exists.
+- local-first Apple-native document intelligence prototype
+- local full-text and vector indexing
+- hybrid retrieval with source review
+- verification-oriented answer pipeline
+- real benchmark harness and regression tooling
+- meaningful codebase head start for Apple-device document QA
 
-Needs evidence before saying:
+Not safe:
 
-- Healthcare production readiness.
-- HIPAA compliance.
-- Clinical decision support.
-- Diagnostic assistance.
-- Guaranteed correctness.
-- Full GraphRAG.
-- Direct PCC server-model access.
-- 65K FoundationModels context.
+- finished SDK readiness
+- HIPAA or compliance readiness
+- reliable medical/legal/safety/IFU use
+- Apple embedding support through Foundation Models
+- full GraphRAG
+- guaranteed correctness
 
-## Highest-Value Next Engineering Work
+## Practical Conclusion
 
-1. Build a small eval set from real failure traces, including the Sportage exact-value cases.
-2. Add table/value-specific retrieval tests.
-3. Split exact-value retrieval policy out of `RAGService.swift` into a focused service.
-4. Add a buyer-readable evaluation report template.
-5. Make the SDK build path reproducible from source, not artifact-only.
-6. Create a "source inventory after ingestion" report so users and buyers can see what was actually indexed.
+This repo is substantial enough to support evaluation, diligence, acquisition, licensing, or design-partner discussions.
+
+It should be sold as a strong engine prototype and codebase asset, not as a finished enterprise product.

@@ -66,10 +66,54 @@ Validate a manifest without building or launching the app:
 python3 scripts/run_rag_benchmarks.py Benchmarks/rag_validation_sample.json --dry-run
 ```
 
+## Ad Hoc Document Studio
+
+For document-specific testing without hand-writing a manifest, start the local
+studio on this Mac:
+
+```bash
+python3 scripts/rag_benchmark_studio.py --open
+```
+
+If `--open` is blocked by your shell session, open this URL manually:
+
+```text
+http://127.0.0.1:8765/
+```
+
+The studio page lets you drop one or more local documents, add question rows,
+choose quality/runtime settings, and press **Run Benchmark**. It writes the
+uploaded files and generated manifest under `BenchmarkRuns/<run-id>/`, then
+invokes `scripts/run_rag_benchmarks.py` with the existing debug validation
+harness. The page polls the local server for progress and links directly to the
+run dashboard, `results.json`, and generated manifest.
+
+By default the studio uses:
+
+- target runtime: this MacBook, through the Debug Mac Catalyst destination
+- benchmark entitlement: `lifetime`
+- PCC consent: `allow`
+- app refresh limit: disabled through the runner default
+
+The Debug configuration enables Mac Catalyst for benchmarking. The runner uses
+that path when you choose `--runtime mac`, copies uploaded documents into the
+app's Mac container, launches the debug harness locally, then copies the report
+and trace back into `BenchmarkRuns/<run-id>/`.
+
+Run the benchmark on this MacBook directly:
+
+```bash
+python3 scripts/run_rag_benchmarks.py Benchmarks/rag_validation_sample.json --open-dashboard
+```
+
+The runner defaults to `--runtime mac` in this repo. Pass `--runtime simulator`
+or `--runtime device` only when you explicitly want those targets.
+
 Run the benchmark on an available iOS Simulator:
 
 ```bash
-python3 scripts/run_rag_benchmarks.py Benchmarks/rag_validation_sample.json
+python3 scripts/run_rag_benchmarks.py Benchmarks/rag_validation_sample.json \
+  --runtime simulator
 ```
 
 Run the benchmark on a connected physical iPhone or iPad:
@@ -85,6 +129,7 @@ Useful options:
 
 ```bash
 python3 scripts/run_rag_benchmarks.py Benchmarks/rag_validation_sample.json \
+  --runtime device \
   --device "iPhone 17 Pro" \
   --output-dir BenchmarkRuns \
   --timeout-seconds 420
@@ -106,8 +151,8 @@ Use `--benchmark-entitlement current` to leave the app's existing debug
 entitlement state alone, or `--benchmark-entitlement free` when intentionally
 testing free-tier quota behavior.
 
-The runner builds `OpenIntelligence` in Debug by default, installs it into the
-selected simulator or device, and launches one isolated app run per case.
+The runner builds `OpenIntelligence` in Debug by default and launches one
+isolated app run per case on the selected Mac, simulator, or device runtime.
 
 The old reinstall-after-5-files workaround is still available, but it is no
 longer the default:
@@ -123,14 +168,15 @@ The entitlement preset and refresh option are debug-harness only. They do not
 change `QuotaPolicy`, `RAGService`, retrieval, ranking, generation, or
 verification behavior.
 
-Builds use Xcode's generic iOS Simulator destination by default, then install
-the produced app onto the selected simulator for each benchmark case. Derived
-data is reused at `/tmp/openintelligence-rag-bench/DerivedData` so later runs do
-not pay a full clean-build cost every time. Use `--derived-data` to override it.
-With `--runtime device`, the runner builds with the generic iOS device
-destination, installs through `xcrun devicectl`, copies each case's fixture files
-into the app data container, launches the debug harness on the phone, then copies
-the report and trace back into `BenchmarkRuns/<run-id>/cases/<case-id>/storage/`.
+Builds use reusable derived data at `/tmp/openintelligence-rag-bench/DerivedData`
+so later runs do not pay a full clean-build cost every time. Use
+`--derived-data` to override it. With `--runtime mac`, the runner builds for
+Xcode's Mac Catalyst destination, copies each case's fixture files into the
+app's Mac container, launches the debug harness locally, then copies the report
+and trace back into
+`BenchmarkRuns/<run-id>/cases/<case-id>/storage/`. With `--runtime device`, the
+runner builds with the generic iOS device destination, installs through
+`xcrun devicectl`, and uses the app data container on the connected device.
 
 If Xcode gets stuck in simulator/device discovery, cap the build step:
 
@@ -140,21 +186,17 @@ python3 scripts/run_rag_benchmarks.py Benchmarks/rag_validation_sample.json \
 ```
 
 Important runtime limitation: answer-generation cases that reach Apple
-Foundation Models should run with `--runtime device` on a supported physical
-device. The iOS Simulator can still exercise build/install/ingestion plumbing,
-but it cannot complete Foundation Models generation. In that case the report is
-still preserved, but the case fails with the harness error.
+Foundation Models should run with `--runtime mac` on this Apple silicon Mac or
+`--runtime device` on a supported physical device. The iOS Simulator can still
+exercise build/install/ingestion plumbing, but it cannot complete Foundation
+Models generation. In that case the report is still preserved, but the case
+fails with the harness error.
 
 The PCC consent and entitlement presets are debug-harness only. PCC writes the
 same `cloudConsent.applePCC` app setting that the consent sheet persists, and
 the entitlement preset seeds the Debug app's entitlement defaults before the
 benchmark `RAGService` instance is created. Neither changes production app
 behavior.
-
-Running on the Mac itself would require a macOS or Mac Catalyst target/harness.
-This project currently builds the app for `iphoneos` and `iphonesimulator`, so
-the connected iPhone path is the practical way to run Apple Foundation Models
-for these iOS benchmark cases.
 
 Open the visual dashboard after a run:
 
@@ -259,7 +301,7 @@ JSON/corpus/qrels based rather than raw PDFs.
 
 ## Limitations
 
-- This is a local debug harness for Simulator or a connected physical device,
+- This is a local debug harness for this Mac, Simulator, or a connected physical device,
   not a production telemetry system.
 - It scores the plain text validation report, so it depends on the current
   report format.

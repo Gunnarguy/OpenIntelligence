@@ -1,7 +1,17 @@
 # Storage and Pipeline Trace
 
-**Updated**: April 24, 2026
-**Scope**: Internal trace of how data moves from import to answer.
+**Updated**: April 25, 2026
+**Scope**: Internal trace of how data moves through the current prototype engine from import to answer.
+
+## Current Status
+
+This document describes the current engine flow as implemented in the repo.
+
+It does not prove:
+
+- answer accuracy for every document type
+- stable SDK productization
+- regulated-workflow readiness
 
 ## End-to-End Flow
 
@@ -20,100 +30,126 @@ File URL
   -> SwiftUI answer/citation surfaces
 ```
 
+The engine-relevant flow ends at the trust payload and retrieved evidence. SwiftUI presentation is an app surface, not a core engine requirement.
+
 ## Ingestion Trace
 
-| Stage | Main Code | Output |
-| --- | --- | --- |
-| File classification | `DocumentProcessor.swift` | document type and extraction path |
-| Text extraction | PDFKit, Office XML parsing, plain text, CSV, OCR, SpeechAnalyzer | raw text |
-| OCR fallback | `VNRecognizeTextRequest`, `OCRConfiguration.swift`, `VisionOCRThrottle.swift` | observations, text, confidence, bounding boxes |
-| Cleanup | `OCRConfiguration` filters and normalizers | normalized text |
-| Page preservation | `DocumentProcessor.pageBreakSentinel` and page store calls | page-level rows in SQLite |
-| Chunking | `SemanticChunker.swift`, structure metadata | `DocumentChunk` records |
-| Enrichment | entities, keywords, section paths, contextual prefix | searchable/retrievable chunk metadata |
-| Embedding | `EmbeddingService.swift` and providers | vectors |
-| Durable storage | `SQLiteFullTextService.swift`, `VectorStoreRouter.swift` | FTS rows and vector files |
+| Stage               | Main code                                                         | Output                            | Current note                                                            |
+| ------------------- | ----------------------------------------------------------------- | --------------------------------- | ----------------------------------------------------------------------- |
+| File classification | `DocumentProcessor.swift`                                         | document type and extraction path | Real reusable engine logic                                              |
+| Text extraction     | PDFKit, XML parsing, text/CSV parsing, OCR, speech analysis paths | raw text                          | Strong base, file-type coverage should still be tested corpus by corpus |
+| OCR fallback        | `OCRConfiguration.swift`, Vision OCR, throttle helpers            | recognized text and observations  | Good foundation, but not a claim of table-perfect capture               |
+| Cleanup             | OCR filters and normalizers                                       | normalized text                   | Reusable                                                                |
+| Page preservation   | page sentinel plus page-store calls                               | page-level rows in SQLite         | Important for source review and exact lookup                            |
+| Chunking            | `SemanticChunker.swift`                                           | `DocumentChunk` records           | Reusable, but not immune to table/procedure errors                      |
+| Enrichment          | entities, keywords, section paths, contextual prefix              | chunk metadata                    | Helps retrieval and verification                                        |
+| Embedding           | `EmbeddingService.swift` and providers                            | vectors                           | Current production path is Core ML/NL, not Apple FM embeddings          |
+| Durable storage     | `SQLiteFullTextService.swift`, `VectorStoreRouter.swift`          | local indexes                     | Real engine asset                                                       |
 
-## SQLite Storage
+## SQLite Storage Reality
 
-`SQLiteFullTextService.swift` creates one FTS database with shared tables and `container_id` isolation.
+`SQLiteFullTextService.swift` uses shared tables with `container_id` isolation.
 
-| Table | Type | Purpose |
-| --- | --- | --- |
-| `documents` | FTS5 | whole-document searchable text |
-| `document_meta` | regular SQLite | document id, container id, counts, created time |
-| `document_content` | regular SQLite | fast direct full-document lookup by `document_id` |
-| `chunks` | FTS5 | chunk-level BM25 search with searchable section title/path |
-| `document_pages` | FTS5 | page-level search and context isolation |
+| Table              | Type           | Purpose                                       |
+| ------------------ | -------------- | --------------------------------------------- |
+| `documents`        | FTS5           | whole-document searchable text                |
+| `document_meta`    | regular SQLite | document id, container id, counts, timestamps |
+| `document_content` | regular SQLite | fast direct full-document lookup              |
+| `chunks`           | FTS5           | chunk-level BM25 and section-aware lookup     |
+| `document_pages`   | FTS5           | page-level search and context isolation       |
 
-Important correction: libraries are not separate SQLite databases. They are isolated by `container_id`.
+Important correction:
 
-## Vector Storage
+- libraries are not separate SQLite databases
+- container isolation currently comes from `container_id` within shared tables
+
+That is a practical and reusable design, but still a prototype implementation rather than a hardened enterprise isolation story.
+
+## Vector Storage Reality
 
 `VectorStoreRouter.swift` manages vector databases per knowledge container.
 
 `BNNSVectorDatabase.swift` persists:
 
-- `_meta.json`: chunk metadata without embedded vectors.
-- `_vectors.bin`: raw contiguous Float32 vectors, memory-mapped on load.
-- `_norms.bin`: precomputed vector norms.
+- `_meta.json` for chunk metadata
+- `_vectors.bin` for raw contiguous Float32 vectors
+- `_norms.bin` for precomputed vector norms
 
-Search behavior:
+Search behavior today:
 
-- Small searches use Accelerate/vDSP.
-- Larger searches can use Metal compute.
-- The router can search across containers and merge results when requested.
+- smaller searches use Accelerate/vDSP
+- larger searches can use Metal compute
+- the router can search across containers and fuse results when requested
+
+This is real engine code and reusable. The main current caveat is runtime coupling through app support paths and app-shaped lifecycle behavior.
 
 ## Container Configuration
 
-`KnowledgeContainer.swift` stores per-library retrieval configuration:
+`KnowledgeContainer.swift` and `ContainerService.swift` currently hold per-library configuration such as:
 
 - embedding provider id
 - embedding dimension
 - vector DB kind
 - chunking directive
 - retrieval config
-- document/chunk stats
-- preferred language and auto-tag options
+- document and chunk counts
 
-Default/high-accuracy containers use `coreml_sentence_embedding` at 384 dimensions.
+This is useful engine configuration. It is also part of the current app coupling because the SDK facade still routes through container concepts and app persistence.
 
 ## Query Trace
 
-| Stage | Main Code | Notes |
-| --- | --- | --- |
-| Availability/config | `OpenIntelligenceEngine.swift`, `DeviceCapabilityService.swift` | device/model readiness |
-| Intent/routing | `QueryEnhancementService.swift`, `QueryRouterService.swift`, `GroundedAnswerPolicy.swift` | lookup/procedure/compare/summarize/synthesis |
-| Query rewrite/expansion | `QueryRewriterService.swift`, `HyDEService.swift`, `ContainerVocabularyService.swift` | guarded for exact lookup paths |
-| Retrieval | `HybridSearchService.swift`, `VectorStoreRouter.swift`, `SQLiteFullTextService.swift` | vector + BM25 + RRF |
-| Expansion/diversity | `ParentDocumentService.swift`, MMR, source diversity | improves coherence |
-| Context packing | `ContextPackingService.swift`, graph packing, lost-in-middle ordering | fits 4096-token budget |
-| Generation | `LLMService.swift` | FoundationModels session |
-| Extraction fallback | `ExtractiveQAService.swift`, exact-value override logic | protects direct factual questions |
-| Verification | `VerificationGateService.swift`, `SourceOnlyAnswerService.swift` | gates A-I and claim support |
-| Presentation | `StructuredAnswer.swift`, `RAGStructuredResponse.swift`, chat response views | citations and trust details |
+| Stage                   | Main code                                                       | Current note                                                |
+| ----------------------- | --------------------------------------------------------------- | ----------------------------------------------------------- |
+| Availability/config     | `OpenIntelligenceEngine.swift`, `DeviceCapabilityService.swift` | Small public entry point exists                             |
+| Intent/routing          | query analysis and policy services                              | Real logic, still app-owned overall orchestration           |
+| Query rewrite/expansion | rewriter, HyDE, vocabulary services                             | Present and useful, but should not be oversold              |
+| Retrieval               | hybrid vector plus BM25 services                                | Strong core engine asset                                    |
+| Expansion/diversity     | parent retrieval, MMR, source diversity                         | Real and valuable                                           |
+| Context packing         | `ContextPackingService.swift`                                   | Tuned around today's public Apple token budget              |
+| Generation              | `LLMService.swift`                                              | Apple-native path where available, with app-shaped tool set |
+| Extraction fallback     | extractive QA services                                          | Important exact-value protection                            |
+| Verification            | gate and source-only services                                   | Real safeguards, not correctness proof                      |
+| Presentation            | structured response models plus SwiftUI                         | App layer                                                   |
 
-## Where Answers Can Fail
+## Reusable Engine Parts vs App-Coupled Wrappers
 
-| Failure | Likely Cause | Practical Fix |
-| --- | --- | --- |
-| Value exists but answer says missing | relevant chunk/page did not make final context | exact-value retrieval regression test |
-| Wrong numeric value | table flattened or cross-reference retrieved | table/value-aware retrieval and Gate C tests |
-| Over-refusal | verification thresholds too strict | lane-specific eval set |
-| Hallucinated synthesis | retrieved context weak or prompt too broad | stricter source-only path and abstention |
-| Slow ingestion | OCR-heavy document, high render scale, large XML | file-type benchmarks |
-| SDK integration friction | app-owned storage/singletons | caller-provided storage root and target split |
+Mostly reusable today:
 
-## Evaluation Artifacts To Keep
+- ingestion and OCR core
+- chunking
+- SQLite full-text storage
+- BNNS/Metal vector search
+- hybrid retrieval and reranking
+- context packing
+- verification logic
+- benchmark runner pattern
 
-Keep small human-readable traces for:
+Still app-coupled today:
 
-- exact lookup questions
-- table values
-- missing evidence
-- multi-document comparison
-- broad summary
-- procedural/manual questions
-- OCR-heavy scans
+- `ContainerService`
+- `AppSupportPaths` and runtime-path assumptions
+- `RAGService` orchestration as the main integration point
+- app-specific tool calling surfaces inside the generation path
+- SwiftUI answer and citation presentation
 
-The current `SportageTraceFuelTankCapacity`, `SportageFuelTankTrace`, and `FULLSPORTAGEMANUAL` files should be treated as seed material for an exact-value/manual QA eval.
+## Where Answers Still Fail
+
+| Failure                              | Likely cause                                                        |
+| ------------------------------------ | ------------------------------------------------------------------- |
+| Value exists but answer says missing | relevant page or chunk did not survive final packing                |
+| Wrong numeric value                  | table flattening, nearby cross-reference retrieval, or context loss |
+| Source mismatch                      | retrieved chunk is related but not the exact supporting span        |
+| Over-refusal                         | verification thresholds or weak evidence coverage                   |
+| Hallucinated synthesis               | weak retrieval plus overly broad generation lane                    |
+| Procedural/manual miss               | multi-step structure not preserved well enough                      |
+
+## Benchmark Hooks
+
+Current benchmark and trace hooks live in:
+
+- `OpenIntelligence/App/DebugRAGValidationHarness.swift`
+- `scripts/run_rag_benchmarks.py`
+- `scripts/rag_benchmark_studio.py`
+- `Benchmarks/README.md`
+
+That makes the current pipeline inspectable and regression-testable, but still early.

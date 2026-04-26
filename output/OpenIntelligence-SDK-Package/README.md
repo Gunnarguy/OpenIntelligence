@@ -1,128 +1,66 @@
-# OpenIntelligence Engine SDK
+# OpenIntelligence Engine Evaluation Packet
 
-Closed-source Apple-native document intelligence SDK for grounded question answering over private document libraries.
+This folder is staged evaluation collateral for the OpenIntelligence engine.
 
-## What It Is
+## Current Status
 
-OpenIntelligence Engine is intended to let a client application:
+Treat this folder as an evaluation packet around a strong engine prototype.
 
-- ingest private documents locally
-- build an answerable on-device knowledge layer
-- query that material in natural language
-- receive source-backed answers with trust metadata
+It is useful for:
 
-## Who It Is For
+- guided technical evaluation
+- same-toolchain import testing
+- design-partner diligence
+- founder-led demos
 
-Teams building Apple-native products that need private document QA without exposing implementation details or shipping a server-side retrieval stack first.
+It is not proof of:
 
-## Supported Platforms
+- a finished enterprise SDK
+- toolchain-agnostic binary stability
+- production accuracy guarantees
+- regulated-use readiness
 
-Target packaging scope:
+## What Is In Here
 
-- Apple Intelligence-capable iPhone
-- Apple Intelligence-capable iPad
-- Apple Intelligence-capable Mac
+- staged `OpenIntelligenceEngine.xcframework` collateral
+- install and API docs
+- package summary and evaluator guide
+- sample host app materials
+- evaluation-support structure for current packet testing
 
-## What It Includes
+## What This Packet Actually Represents
 
-- document ingestion pipeline
-- embeddings, indexing, and retrieval
-- grounded answer orchestration
-- source-only verification behavior
-- availability and capability handling
+This packet represents the current evaluation boundary around the engine.
 
-## What It Does Not Include
+It shows that:
 
-- app UI
-- billing
-- onboarding
-- diagnostics dashboards
-- source code for the engine internals
+- a narrow public Swift facade exists
+- staged SDK-style collateral exists in the repo
+- there is a sample host path for evaluation
+- the engine can be discussed and tested as a serious prototype
 
-## Status
+It does not prove that the engine is already a finished, broadly transferable enterprise SDK.
 
-This deliverable folder currently contains:
+## Best Use Today
 
-- packaging specification
-- a start-here evaluation guide
-- API design
-- buyer-safe packet documents
-- build and validation scripts
-- an evaluation `OpenIntelligenceEngine.xcframework` handoff artifact
-- a self-contained evaluation sample app
+Use this folder when the conversation is:
 
-Current validation state:
+- design-partner evaluation
+- founder-led technical review
+- early integration diligence
+- same-toolchain proof-of-import exercise
 
-- evaluation `OpenIntelligenceEngine.xcframework` is present in this folder for founder and design-partner use on the same Xcode toolchain
-- evaluation support modules can be staged alongside the XCFramework for simulator import validation
-- device compatibility modules can be staged alongside the XCFramework for evaluation-host iPhone builds
-- the current repo no longer exposes a buildable/shared `OpenIntelligenceEngine` scheme, so the evaluation handoff may need to be restored from the existing buyer packet plus archived simulator support on disk
-- module-stable XCFramework packaging is still blocked by upstream `swift-transformers` module-interface verification during `BUILD_LIBRARY_FOR_DISTRIBUTION=YES`
-- sample host-app validation exists for the evaluation path, including a real SwiftUI pitch demo that builds in simulator and has a prepared Apple Intelligence-capable iPhone path, but a fully standalone stable SDK handoff is not yet complete
-- the sample host now includes a bundled four-document demo pack plus an operator script for room-ready demos from a clean app install
+If the conversation is about license, acquisition, or full source-code handoff, use this packet as supplemental collateral rather than the full story.
 
-## Send This Today
+## Read These First
 
-If you need a buyer-safe artifact today, send only:
+1. `START_HERE.md`
+2. `PACKAGE_SUMMARY.md`
+3. `API.md`
+4. `INSTALL.md`
 
-- `output/OpenIntelligence-SDK-Package/build/OpenIntelligenceEngine-Buyer-Packet.zip`
+## Practical Rule
 
-That ZIP is the current commercial handoff.
-It contains the evaluation XCFramework, evaluation support modules, the self-contained sample app, and the buyer-safe docs.
+Describe this folder as an evaluation packet for a substantial Apple-native engine prototype.
 
-Do not lead with SPM today.
-Do not zip the full folder manually.
-Lead with the curated buyer packet and describe it as a same-toolchain evaluation SDK handoff.
-
-## Sharing Model
-
-Buyer-safe files stay at the root of `output/OpenIntelligence-SDK-Package/`.
-
-Internal-only sales and demo materials live under:
-
-- `output/OpenIntelligence-SDK-Package/Internal/`
-
-Do not zip the whole folder manually for external sharing.
-Instead, generate the buyer-safe artifact with:
-
-- `./scripts/build_sdk_buyer_bundle.sh`
-- `./scripts/prepare_engine_buyer_packet.sh`
-
-The first script assumes the evaluation artifact is already staged.
-The second script stages or restores the evaluation artifact, validates the package, and then creates the curated buyer zip.
-
-## Cofounder Quick Path
-
-If David opens this repo and wants the shortest useful route, use this order:
-
-1. Start in `output/OpenIntelligence-SDK-Package/README.md`.
-2. Read `output/OpenIntelligence-SDK-Package/START_HERE.md` for the fastest evaluator path.
-3. Read `output/OpenIntelligence-SDK-Package/PACKAGE_SUMMARY.md` for the honest readiness snapshot.
-4. Read `output/OpenIntelligence-SDK-Package/INSTALL.md` for the actual integration path.
-5. Open `output/OpenIntelligence-SDK-Package/OpenIntelligenceEngine.xcframework` to see the evaluation artifact that is being handed off.
-6. If you want proof that it can be imported without the full repo, go to `output/OpenIntelligence-SDK-Package/SampleApp/` and run `./build_sample_app.sh`.
-7. For the live room flow, read `output/OpenIntelligence-SDK-Package/SampleApp/DEMO_SCRIPT.md` and use the in-app `Load Demo Pack` action before indexing.
-
-What this means operationally:
-
-- the private repo is the source of truth for founder trials
-- the buyer-safe packet lives under `output/OpenIntelligence-SDK-Package/`
-- the partner-facing commercial copy lives under `output/OpenIntelligence-Partner-Packet/`
-- the sample import app lives under `Samples/EngineEvaluationHost/`
-- that sample app is now a real SwiftUI pitch demo for private-doc ingestion and grounded QA, with a bundled room-demo dataset and operator script, not the final production product UI
-
-## Honest Tomorrow-Morning Status
-
-If you are speaking with buyers tomorrow, the truthful framing is:
-
-- the engine logic is real
-- the public evaluation artifact imports and builds cleanly in the sample host path
-- the public SDK surface is defined
-- an evaluation XCFramework can be handed off now for same-toolchain integration
-- the evaluation handoff can include support modules for simulator import validation
-- the evaluation host app builds in simulator today and has a prepared Apple Intelligence-capable iPhone path using the staged support artifacts
-- the fully module-stable binary SDK handoff is still being finalized
-
-That is strong enough for a design-partner or early-access conversation.
-It is strong enough to support a drag-and-drop evaluation handoff.
-It is not yet strong enough to promise a fully stable, toolchain-agnostic binary SDK handoff.
+Do not describe it as a finished enterprise SDK launch.

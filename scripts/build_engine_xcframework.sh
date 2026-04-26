@@ -7,6 +7,9 @@ TARGET="${TARGET:-OpenIntelligenceEngine}"
 OUTPUT_DIR="${OUTPUT_DIR:-output/OpenIntelligence-SDK-Package}"
 BUILD_DIR="${BUILD_DIR:-$OUTPUT_DIR/build}"
 FRAMEWORK_NAME="${FRAMEWORK_NAME:-$TARGET}"
+DEVICE_DERIVED_DATA_DIR="$BUILD_DIR/DerivedData-iphoneos"
+SIM_DERIVED_DATA_DIR="$BUILD_DIR/DerivedData-iphonesimulator"
+MAC_DERIVED_DATA_DIR="$BUILD_DIR/DerivedData-macos"
 
 function fail() {
   echo "error: $1" >&2
@@ -46,25 +49,33 @@ SIM_ARCHIVE="$BUILD_DIR/${FRAMEWORK_NAME}-iphonesimulator.xcarchive"
 MAC_ARCHIVE="$BUILD_DIR/${FRAMEWORK_NAME}-macos.xcarchive"
 XCFRAMEWORK_PATH="$OUTPUT_DIR/${FRAMEWORK_NAME}.xcframework"
 
-rm -rf "$DEVICE_ARCHIVE" "$SIM_ARCHIVE" "$MAC_ARCHIVE" "$XCFRAMEWORK_PATH"
+rm -rf \
+  "$DEVICE_ARCHIVE" \
+  "$SIM_ARCHIVE" \
+  "$MAC_ARCHIVE" \
+  "$XCFRAMEWORK_PATH" \
+  "$DEVICE_DERIVED_DATA_DIR" \
+  "$SIM_DERIVED_DATA_DIR" \
+  "$MAC_DERIVED_DATA_DIR"
 
 COMMON_ARGS=(
   -project "$PROJECT"
   -scheme "$TARGET"
   SKIP_INSTALL=NO
   BUILD_LIBRARY_FOR_DISTRIBUTION=YES
-  -derivedDataPath "$BUILD_DIR/DerivedData"
 )
 
 echo "Archiving iOS device slice..."
 xcodebuild archive \
   "${COMMON_ARGS[@]}" \
+  -derivedDataPath "$DEVICE_DERIVED_DATA_DIR" \
   -destination "generic/platform=iOS" \
   -archivePath "$DEVICE_ARCHIVE"
 
 echo "Archiving iOS simulator slice..."
 xcodebuild archive \
   "${COMMON_ARGS[@]}" \
+  -derivedDataPath "$SIM_DERIVED_DATA_DIR" \
   -destination "generic/platform=iOS Simulator" \
   -archivePath "$SIM_ARCHIVE"
 
@@ -73,6 +84,7 @@ if grep -q "macOS" "$LIST_OUTPUT"; then
   echo "Archiving macOS slice..."
   xcodebuild archive \
     "${COMMON_ARGS[@]}" \
+    -derivedDataPath "$MAC_DERIVED_DATA_DIR" \
     -destination "generic/platform=macOS" \
     -archivePath "$MAC_ARCHIVE"
   MAC_ARGS=(

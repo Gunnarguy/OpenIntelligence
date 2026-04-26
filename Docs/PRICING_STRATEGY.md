@@ -1,98 +1,102 @@
 # Pricing and Packaging Strategy
 
-**Updated**: April 24, 2026
-**Status**: Repo-grounded working strategy. Do not use the older Starter/RevenueCat draft numbers.
+**Updated**: April 25, 2026
+**Status**: Working repo-grounded note. This is not a final enterprise pricing sheet.
 
-This document separates the current App Store SKU set from enterprise/buyer packaging. The consumer app pricing is not the same thing as the sales story for EHR, medical-device, field-service, or enterprise document-intelligence buyers.
+## Current Status
+
+This repo contains two different commercial stories:
+
+- a live consumer app with StoreKit and quota logic
+- a substantial engine/codebase asset that could support evaluation, licensing, or handoff discussions
+
+Those are not the same thing.
+
+Use app pricing as evidence that the product has been monetized and shipped in some form. Do not use app pricing as the main way to describe the engine's value.
 
 ## Current App Store Product Shape
 
-Current repo sources:
+Current code sources:
 
-- `OpenIntelligence/Core/Models/WorkspaceTier.swift`: `free`, `pro`, `lifetime`
-- `OpenIntelligence/Services/Billing/BillingProduct.swift`: `pro_monthly`, `pro_annual`, `lifetime_cohort`, `doc_pack_addon`
-- `OpenIntelligence/Services/Infrastructure/Configuration/QuotaPolicy.swift`: limits and daily Maximum-mode quota
-- `fastlane/subscriptions.json`: App Store Connect product setup reference
+- `OpenIntelligence/Core/Models/WorkspaceTier.swift`
+- `OpenIntelligence/Services/Billing/BillingProduct.swift`
+- `OpenIntelligence/Services/Infrastructure/Configuration/QuotaPolicy.swift`
+- `fastlane/subscriptions.json`
 
-| Tier / SKU | Current Price | Current Allowance | Notes |
-| --- | ---: | --- | --- |
-| Free | $0 | 5 documents, 1 library, Standard/Deep Think, 3 Maximum-mode uses per day | Keep this as the frictionless reviewer/demo tier. |
-| `pro_monthly` | $5.99/mo | 1,000 documents, 5 libraries, unlimited Maximum mode | Main consumer subscription. |
-| `pro_annual` | $49.99/yr | 1,000 documents, 5 libraries, unlimited Maximum mode | Annual Pro. Fastlane marks Family Sharing enabled. |
-| `lifetime_cohort` | $59.99 one-time | Unlimited documents in `QuotaPolicy`, 10 libraries, unlimited Maximum mode | The fastlane localization still says 1,000 docs in one English string. Fix before release if Lifetime is meant to be unlimited. |
-| `doc_pack_addon` | $2.99 consumable | +10 documents | Code and fastlane still include the SKU. Current Terms copy says legacy document packs are no longer sold in-app. Decide before release. |
+| Tier or SKU       | Current code reality                                                         | Notes                                               |
+| ----------------- | ---------------------------------------------------------------------------- | --------------------------------------------------- |
+| Free              | 5 documents, 1 library, Standard and Deep Think, 3 Maximum-mode uses per day | App-only limit                                      |
+| `pro_monthly`     | Pro subscription                                                             | 1,000 documents, 5 libraries                        |
+| `pro_annual`      | Pro subscription                                                             | same practical quota as monthly                     |
+| `lifetime_cohort` | one-time purchase                                                            | unlimited documents in code, 10 libraries           |
+| `doc_pack_addon`  | consumable add-on in code                                                    | still exists in billing code and fastlane artifacts |
 
-## Immediate Pricing Loose Ends
+## App-Only Pricing Caveats
 
-1. Pick one `doc_pack_addon` policy:
-   - Keep selling it as a consumable and update Terms.
-   - Hide it and keep it only as a grandfathering/receipt-migration SKU.
-2. Align Lifetime copy:
-   - `QuotaPolicy.lifetimeDocumentLimit` is unlimited.
-   - `fastlane/subscriptions.json` has at least one Lifetime review/localization string saying "up to 1,000 documents."
-3. Keep external-provider claims precise:
-   - Do not promise third-party API egress is impossible if the app still has explicitly authorized provider paths.
-   - For the core shipped positioning, say core document ingestion, indexing, retrieval, and Apple FoundationModels generation are local-first/Apple-native.
-4. Do not market a Starter tier unless the product IDs, entitlement model, StoreKit config, UI, and Terms all implement it.
+Current mismatch to keep out of buyer overclaim language:
 
-## Consumer Packaging
+- `BillingProduct.swift` still includes `doc_pack_addon`
+- `QuotaPolicy.swift` still supports add-on increments
+- `TermsOfServiceView.swift` says legacy document packs are no longer sold in-app
 
-Use simple consumer copy:
+That means app monetization is still in flux. Treat it as app-only business policy, not engine value.
 
-- Free: try the full engine on a small library.
-- Pro: serious personal or professional document libraries.
-- Lifetime Cohort: early-supporter one-time unlock, availability controlled by release strategy.
+## What Matters For Engine Conversations
 
-Avoid "unlimited" language for Pro while the code caps Pro at 1,000 documents and 5 libraries.
+For engine, licensing, or acquisition discussions, the buyer is not primarily paying for:
 
-## Enterprise and Acquisition Packaging
+- consumer paywalls
+- App Store pricing tiers
+- in-app quota upsells
 
-Do not lead enterprise conversations with App Store prices. Lead with a pilot or design-partner package:
+They are paying for some combination of:
 
-| Package | Audience | Shape | Success Criteria |
-| --- | --- | --- | --- |
-| Evaluation Pilot | EHR, medical-device, field-service, compliance teams | 2-4 week device-local evaluation against their documents | Exact-value accuracy, citation faithfulness, abstention quality, offline behavior, ingestion success. |
-| Design Partner | Strategic buyer that wants workflow integration | Custom dataset, feedback loop, SDK package, support channel | Clear integration path and repeatable eval metrics. |
-| License / Acquisition | Buyer wants the engine or team/IP | SDK artifact, source diligence, architecture review, privacy/security review | Reproducible package, clean claims, current docs, eval evidence. |
+- source code and app project
+- working ingestion and retrieval engine
+- benchmark harness and evaluation tooling
+- prototype SDK facade
+- founder knowledge transfer
 
-## Healthcare and Medical Device Sales Notes
+## Best Current Commercial Framing
 
-Safe language:
+Use one of these frames instead of consumer subscription language:
 
-- "Designed for private technical documents on Apple devices."
-- "Local full-text and vector indexes."
-- "Cited answers with source inspection."
-- "No third-party model dependency for core document QA."
-- "Evaluation required on your source documents."
+### Technical evaluation
 
-Unsafe language unless formally verified:
+- buyer wants to inspect capability on a narrow corpus
+- benchmark harness and code walkthrough matter more than packaging polish
 
-- "HIPAA compliant."
-- "Clinical decision support."
-- "Diagnostic assistant."
-- "Guaranteed correct."
-- "Certified medical workflow."
-- "Uses Apple's PCC server model directly."
+### Design-partner pilot
 
-## Metrics to Track
+- buyer wants a guided evaluation and early integration planning
+- staged evaluation packet may help, but the real value is the codebase and founder guidance
 
-For consumer:
+### License, handoff, or acquisition discussion
 
-- Free-to-Pro conversion after document quota hit.
-- Maximum-mode daily quota hits.
-- Ingestion failure rate by file type.
-- Restore-purchase success rate.
-- Refund rate by SKU.
+- buyer wants the engine head start, not just app subscriptions
+- requires clear scope around source, docs, limitations, and claims
 
-For enterprise:
+## Healthcare, Safety, and Regulated Claims
 
-- Retrieval recall on known-answer questions.
-- Numeric/specification exactness.
-- Citation faithfulness.
-- Abstention rate when evidence is missing.
-- Time to ingest buyer sample corpus.
-- Offline query latency on target devices.
+Do not use pricing or sales language to imply:
 
-## Next Review
+- HIPAA compliance
+- clinical decision support
+- diagnostic assistance
+- legal or safety readiness
+- IFU reliability
 
-Review after the next release candidate and before any serious buyer packet is sent. The key release decision is whether `doc_pack_addon` remains sold or becomes legacy-only.
+If a regulated-adjacent buyer is interested, the correct commercial frame is:
+
+- prototype evaluation on their own documents
+- source inspection
+- measured success criteria
+- explicit limitations
+
+## Practical Conclusion
+
+Consumer app pricing is useful context.
+
+It is not the engine sale story.
+
+The current engine story is evaluation, pilot, licensing, or codebase transfer, with consumer monetization treated as separate app context.

@@ -10,6 +10,8 @@ FRAMEWORK_NAME="${FRAMEWORK_NAME:-$TARGET}"
 SUPPORT_DIR="$OUTPUT_DIR/EvaluationSupport"
 SIM_SUPPORT_DIR="$SUPPORT_DIR/iphonesimulator"
 DEVICE_SUPPORT_DIR="$SUPPORT_DIR/iphoneos"
+DEVICE_DERIVED_DATA_DIR="$BUILD_DIR/DerivedData-iphoneos"
+SIM_DERIVED_DATA_DIR="$BUILD_DIR/DerivedData-iphonesimulator"
 PROJECT_FILE="$PROJECT/project.pbxproj"
 SHARED_SCHEME_PATH="$PROJECT/xcshareddata/xcschemes/${TARGET}.xcscheme"
 BUYER_PACKET_DIR="${BUYER_PACKET_DIR:-$OUTPUT_DIR/build/${FRAMEWORK_NAME}-Buyer-Packet}"
@@ -18,8 +20,8 @@ XCFRAMEWORK_PATH="$OUTPUT_DIR/${FRAMEWORK_NAME}.xcframework"
 DEVICE_ARCHIVE="$BUILD_DIR/${FRAMEWORK_NAME}-iphoneos.xcarchive"
 SIM_ARCHIVE="$BUILD_DIR/${FRAMEWORK_NAME}-iphonesimulator.xcarchive"
 CLEAN_DIR="$BUILD_DIR/clean-xcframework-inputs"
-DEVICE_BUILD_PRODUCTS="$BUILD_DIR/DerivedData/Build/Intermediates.noindex/ArchiveIntermediates/$TARGET/BuildProductsPath/Release-iphoneos"
-SIM_BUILD_PRODUCTS="$BUILD_DIR/DerivedData/Build/Intermediates.noindex/ArchiveIntermediates/$TARGET/BuildProductsPath/Release-iphonesimulator"
+DEVICE_BUILD_PRODUCTS="$DEVICE_DERIVED_DATA_DIR/Build/Intermediates.noindex/ArchiveIntermediates/$TARGET/BuildProductsPath/Release-iphoneos"
+SIM_BUILD_PRODUCTS="$SIM_DERIVED_DATA_DIR/Build/Intermediates.noindex/ArchiveIntermediates/$TARGET/BuildProductsPath/Release-iphonesimulator"
 
 function fail() {
   echo "error: $1" >&2
@@ -164,7 +166,14 @@ EOF
 function build_from_project() {
   mkdir -p "$OUTPUT_DIR" "$BUILD_DIR"
 
-  rm -rf "$DEVICE_ARCHIVE" "$SIM_ARCHIVE" "$XCFRAMEWORK_PATH" "$CLEAN_DIR" "$SUPPORT_DIR"
+  rm -rf \
+    "$DEVICE_ARCHIVE" \
+    "$SIM_ARCHIVE" \
+    "$XCFRAMEWORK_PATH" \
+    "$CLEAN_DIR" \
+    "$SUPPORT_DIR" \
+    "$DEVICE_DERIVED_DATA_DIR" \
+    "$SIM_DERIVED_DATA_DIR"
 
   local common_args=(
     -project "$PROJECT"
@@ -173,18 +182,19 @@ function build_from_project() {
     BUILD_LIBRARY_FOR_DISTRIBUTION=NO
     CODE_SIGNING_ALLOWED=NO
     CODE_SIGNING_REQUIRED=NO
-    -derivedDataPath "$BUILD_DIR/DerivedData"
   )
 
   echo "Archiving evaluation iOS device slice..."
   xcodebuild archive \
     "${common_args[@]}" \
+    -derivedDataPath "$DEVICE_DERIVED_DATA_DIR" \
     -destination "generic/platform=iOS" \
     -archivePath "$DEVICE_ARCHIVE"
 
   echo "Archiving evaluation iOS simulator slice..."
   xcodebuild archive \
     "${common_args[@]}" \
+    -derivedDataPath "$SIM_DERIVED_DATA_DIR" \
     -destination "generic/platform=iOS Simulator" \
     -archivePath "$SIM_ARCHIVE"
 

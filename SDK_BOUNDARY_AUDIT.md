@@ -32,19 +32,20 @@ The wrong first SDK boundary is:
 
 Current state observed from the workspace:
 
-- one native Xcode target:
+- two native Xcode targets:
   - `OpenIntelligence`
+  - `OpenIntelligenceEngine`
 - one filesystem-synchronized source root: `OpenIntelligence/`
 - one local Swift package dependency tree: `OpenIntelligence/swift-transformers`
 - bundled model resources under `OpenIntelligence/Resources/MLModels`
-- no dedicated `OpenIntelligenceEngine` framework target or shared scheme is currently present in the Xcode project
-- evaluation `OpenIntelligenceEngine.xcframework` output exists under `output/OpenIntelligence-SDK-Package/`
-- simulator support artifacts can be restored from archived evaluation build products already on disk
+- a dedicated `OpenIntelligenceEngine` framework target and shared scheme are present in the Xcode project
+- evaluation `OpenIntelligenceEngine.xcframework` can now be rebuilt from current source under `output/OpenIntelligence-SDK-Package/`
+- simulator support artifacts are staged from fresh evaluation build products
 - device compatibility modules can be generated for the evaluation host iPhone path when native `iphoneos` support artifacts are unavailable
 - a self-contained evaluation `SampleApp/` can be staged inside `output/OpenIntelligence-SDK-Package/` for external import validation
 - a curated buyer-safe evaluation ZIP can be produced at `output/OpenIntelligence-SDK-Package/build/OpenIntelligenceEngine-Buyer-Packet.zip`
 
-This means the current buyer-facing SDK handoff depends on an existing staged evaluation artifact, not a reproducible framework build path from the current project file.
+This means the current buyer-facing SDK handoff is now reproducible from current source for evaluation use, but it is still not the final module-stable commercial packaging path.
 
 ## Navigation Map
 
@@ -167,9 +168,13 @@ Potential future optional resources:
 
 Local package products currently linked by the app target:
 
-- `Hub`
 - `Tokenizers`
-- `Transformers`
+
+Transitive package modules that still matter for packaging:
+
+- `Hub`
+- `Jinja`
+- `OrderedCollections`
 
 Apple frameworks directly used across the engine:
 
@@ -186,12 +191,12 @@ Apple frameworks directly used across the engine:
 
 ## Main Blockers To A Closed Binary SDK
 
-### 1. Dedicated Framework Target And Membership Cleanup
+### 1. Framework Boundary Hardening
 
-The intended framework boundary is defined in code and docs, but the current project file no longer exposes a buildable/shared `OpenIntelligenceEngine` target.
-That means the sendable evaluation handoff is artifact-based today rather than rebuilt directly from a dedicated framework scheme.
+A buildable/shared `OpenIntelligenceEngine` framework target now exists again and is sufficient for fresh evaluation builds.
+What is still missing is hardening that boundary so the shipping framework does not accidentally include app-only code as the source tree evolves.
 
-Before shipping a sealed SDK, restore the dedicated framework target and tighten target membership so the shipping framework does not accidentally include:
+Before shipping a sealed SDK, keep tightening target membership so the shipping framework does not accidentally include:
 
 - `App/*`
 - `Features/*`
@@ -245,9 +250,10 @@ The SDK should expose a smaller public surface:
 
 The commercial packaging path is still incomplete:
 
-- the current project file does not contain a buildable/shared `OpenIntelligenceEngine` target
-- the evaluation handoff depends on restoring the staged XCFramework and simulator support artifacts already on disk
-- the buyer packet is sendable and now includes a self-contained sample app, but it is still a same-toolchain evaluation handoff rather than the final stable binary package
+- the current project file now contains a buildable/shared `OpenIntelligenceEngine` target and scheme
+- the evaluation XCFramework and buyer packet can now be rebuilt from current source
+- the buyer packet is sendable and includes a self-contained sample app, but it is still a same-toolchain evaluation handoff rather than the final stable binary package
+- the module-stable commercial build still fails in transitive dependency interface verification inside `swift-transformers/Hub`
 - a fresh module-stable commercial SDK build path is still missing
 
 ## Smallest Viable Public API

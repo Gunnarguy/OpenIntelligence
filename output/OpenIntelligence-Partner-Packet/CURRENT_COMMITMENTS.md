@@ -1,93 +1,44 @@
 # Current Commitments
 
-This is the honesty sheet.
-Use it to stay consistent in sales conversations.
+This is the honesty sheet for partner conversations.
 
 ## Safe To Say Now
 
-- There is a working Apple-native document intelligence engine in the repo.
-- The engine supports private document ingestion and grounded question answering.
-- The system is being shaped into a closed-source SDK / framework.
-- A founder-evaluation XCFramework exists for same-toolchain trials.
-- A buyer-safe evaluation packet ZIP exists for serious founder and startup evaluation.
-- The buyer-safe packet includes a self-contained sample app for import validation.
-- A live evaluation host app path exists for demo validation.
-- The current host app can be shown as engine behavior under a temporary demo UI.
-- The product is strongest when the source documents are clear and internally consistent.
-- The current offer is a founder-led pilot / design partner engagement.
+- there is a working Apple-native document-intelligence engine in the repo
+- the engine supports private document ingestion and grounded question answering
+- the repo includes a narrow SDK-style facade
+- the repo includes a benchmark harness and evaluation tooling
+- the current strongest offer is a founder-led evaluation, pilot, diligence, or handoff discussion
+- the codebase is a substantial head start for Apple-device document QA
 
 ## Say Carefully
 
-- A stable sealed binary SDK is in progress.
-- The core engine boundary is real and productizable.
-- Closed-source delivery is part of the roadmap for design partners.
-- The current repo no longer exposes a buildable/shared `OpenIntelligenceEngine` scheme, so the evaluation handoff currently relies on the staged evaluation artifact plus support modules.
-- The evaluation packaging path works, but the stable toolchain-agnostic packaging path is not yet finished.
-- Same-toolchain evaluation is viable now; toolchain-agnostic handoff is later.
-- A Swift Package binary wrapper is planned, but it does not exist yet as the commercial delivery path.
-
-Use language like:
-
-- "phased delivery"
-- "design partner path"
-- "evaluation SDK now, stable SDK path in progress"
-- "closed-source handoff milestone"
-- "buyer-safe evaluation packet"
+- the SDK boundary exists, but it is still evaluation-stage
+- staged evaluation packet materials exist, but they do not equal a finished enterprise SDK
+- local-first behavior is a real design goal and often true in practice, but execution mode and Apple-managed routing still matter
+- verification and citations improve behavior, but do not guarantee correctness
+- regulated-adjacent document evaluation may be interesting, but the repo is not ready for regulated decision-making use as-is
 
 ## Do Not Say Yet
 
-- "It is a finished plug-and-play SDK today."
-- "It is a finished Swift Package today."
-- "Any team can integrate it immediately without founder involvement."
-- "The final stable XCFramework package is ready right now."
-- "It is production-ready for every document type and workflow."
-- "It guarantees correctness."
+- it is a finished enterprise SDK today
+- it is production-ready for every document type and workflow
+- it guarantees correctness
+- it is HIPAA compliant
+- it is ready for clinical, legal, safety, or IFU use
+- it has Apple Foundation Models embeddings
+- it has a public 65K Foundation Models context path
+- it is full GraphRAG
 
-## Product Claims That Are Credible
+## Best Current Offer
 
-- private ingestion
-- grounded answer behavior
-- source-aware response handling
-- evidence-first philosophy
-- Apple-native deployment path
-- offline-first / privacy-sensitive positioning
+The best current offer is:
 
-## Product Claims That Need Qualification
+- technical evaluation
+- design-partner pilot
+- source-code diligence
+- licensing or handoff discussion
 
-- scientific / technical reliability
-- commercial transfer readiness
-- enterprise deployment readiness
-- broad SDK reuse across many clients
+The weakest current offer is:
 
-Qualify them with:
-
-- "best fit for early partners"
-- "founder-led"
-- "currently being productized"
-- "narrowed to high-value use cases first"
-
-## Best Current Sale
-
-The best sale today is:
-
-- a paid evaluation
-- a design partner pilot
-- a founder-led integration planning engagement
-
-The best sale is not:
-
-- instant self-serve SDK licensing
-
-## Internal Reality Check
-
-If someone asks, "Can we buy and integrate the binary SDK today?"
-
-The honest answer is:
-
-"Not as a finished stable off-the-shelf package today. The best current path is a pilot / design partner engagement using the evaluation packet, which then leads into sealed SDK delivery."
-
-If someone asks, "Do you have Swift Package Manager delivery today?"
-
-The honest answer is:
-
-"No. The current commercial path is the evaluation XCFramework plus guided support. A Swift Package wrapper is a later packaging step, not the current handoff."
+- broad self-serve SDK sale as if packaging and validation were complete
