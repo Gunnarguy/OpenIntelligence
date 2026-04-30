@@ -639,7 +639,7 @@ Text(deviceService.chipName)
                         .font(.caption)
                         .foregroundColor(.secondary)
                 } else {
-                    Text("Standard mode runs a single 4K-token LLM pass with verification gates and graph context packing. Complex queries (high retrieval similarity, multiple chunks) automatically escalate to a 3-session reasoning chain.")
+                    Text("Standard mode runs a single 4K-token LLM pass with verification gates and graph context packing. It stays single-pass by default; use Deep Think or Maximum when you want multi-session reasoning.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }

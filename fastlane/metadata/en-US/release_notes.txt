@@ -1,10 +1,10 @@
-Version 3.2.5
+Version 3.3
 
-What's changed since 3.2:
+What's new in 3.3:
 
-- Exact fact lookups are much more direct. If the answer is clearly present in a table, spec row, or short source passage, OpenIntelligence now locks onto that source value faster instead of overthinking it.
-- Deep Think and Maximum now run a precision lookup before longer reasoning, so simple questions can still get quick cited answers even in the higher-effort modes.
-- Standard, Deep Think, and Maximum share stronger table/spec retrieval rescue for measurements, capacities, limits, prices, counts, and other exact values.
-- Suggested starter questions are now generated from actual passages instead of loose document labels, so "Ask something real" should be much more relevant to the library you uploaded.
-- The answer text for exact measurements is cleaner, including nearby equivalent units when the source provides them.
-- This is a fast corrective update for answer-quality regressions in the 3.2 line. Sorry for the quick follow-up, and thank you for bearing with the pace while I tighten the engine.
+- Table-heavy libraries now preserve more real structure during ingestion. OpenIntelligence keeps parsed table titles, headers, and rows in SQLite instead of relying only on flattened chunk text.
+- Table lookup fallback is stronger when exact values live under table headings or spec schemas, which improves grounded retrieval for capacities, limits, measurements, compatibility data, and similar reference questions.
+- Exact-answer behavior from the 3.2 corrective line stays in place: Standard is more direct, Deep Think and Maximum still check precision paths first for simple cited lookups, and citations are less noisy on straightforward fact questions.
+- Suggested starter questions remain anchored to real passages so the first questions you tap should line up better with what the engine can actually answer.
+
+This update is focused on making the underlying library data more queryable and trustworthy, not just making the wording of answers look better.

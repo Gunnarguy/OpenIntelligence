@@ -379,14 +379,18 @@ actor SuggestedQuestionsService {
         Rules:
         - Every question MUST reference a specific detail FROM the passages below — a name, number, date, step, requirement, or spec that actually appears in the text
         - Each question should clearly come from ONE specific passage, not from a blurry mix of the whole library
+        - Every question must be answerable mostly from that one passage with little or no inference
+        - Prefer questions the app can answer in one short grounded response
         - Prefer details that make it obvious which document or section the question came from
         - Sound natural and direct — under 12 words each
-        - Prefer answerable lookup questions: "what is", "how much/many", "which", "when", "what happens if"
+        - Prefer answerable lookup or instruction questions: "what is", "how much/many", "which", "when", "what should you do if"
         - Do NOT use phrases like "What role does", "What is the significance of", "What are the key", "Can you explain", "Why is X important"
+        - Avoid broad prompts like "What values are listed" or questions that would require summarizing multiple unrelated details
         - Do NOT ask about the documents themselves ("What does the document say about...")
         - Do NOT include square brackets, placeholders, or template text like "[thing from passage]"
         - Do NOT write a quantity question that already includes the answer number or measurement
-        - If the passage is a manual, warning, or procedure, prefer a concrete condition, requirement, or consequence from that passage
+        - If the passage is a manual, warning, or procedure, prefer a concrete condition, requirement, or required action from that passage
+        - If a passage says "If X, do Y", prefer "What should you do if X?" over "What happens if X?"
         - Do NOT copy or rephrase any example below — your questions must come ONLY from the passages
         - Ask about the CONTENT as if you read it and want to know more
         - If you cannot anchor a question to exact words in one passage, omit it
@@ -407,26 +411,32 @@ actor SuggestedQuestionsService {
             // @Generable: typed [String] array — eliminates numbered-line regex parsing.
             // Constrained sampling enforces the declared schema at the token level.
             let response = try await session.respond(to: prompt, generating: SuggestedQuestionList.self)
-            let lines = dedupeQuestionTextsPreservingOrder(
+            let candidates = dedupeQuestionTextsPreservingOrder(
                 response.content.questions.compactMap { sanitizeGeneratedQuestion($0) }
-            ).filter {
-                isUsableGeneratedQuestion($0, passages: passages)
-                    && !isSelfAnsweringGeneratedQuestion($0)
+            ).compactMap { text -> (text: String, passage: GroundedPassage)? in
+                guard let groundedPassage = bestGroundingPassage(for: text, passages: passages) else {
+                    return nil
+                }
+                guard isUsableGeneratedQuestion(text, passages: [groundedPassage]),
+                      !isSelfAnsweringGeneratedQuestion(text),
+                      isAnswerableSuggestedQuestion(text, passage: groundedPassage)
+                else {
+                    return nil
+                }
+                return (text, groundedPassage)
             }
 
-            guard lines.count >= 2 else {
-                Log.warning("[SuggestedQuestions] LLM returned too few valid questions (\(lines.count))")
+            guard candidates.count >= 2 else {
+                Log.warning("[SuggestedQuestions] LLM returned too few valid questions (\(candidates.count))")
                 return []
             }
 
-            let questions = lines.prefix(6).enumerated().map { index, text in
-                let cleanText = text.hasSuffix("?") ? text : text + "?"
-                let groundedPassage = bestGroundingPassage(for: cleanText, passages: passages)
-                let sourceDoc = groundedPassage?.documentName ?? passages.first?.documentName ?? "Document"
-                let sourceSection = groundedPassage?.sectionName
-                let confidence = groundedPassage.map { passage in
-                    groundedConfidence(for: cleanText, passage: passage)
-                } ?? 0.90
+            let questions = candidates.prefix(6).enumerated().map { index, candidate in
+                let cleanText = candidate.text.hasSuffix("?") ? candidate.text : candidate.text + "?"
+                let groundedPassage = candidate.passage
+                let sourceDoc = groundedPassage.documentName
+                let sourceSection = groundedPassage.sectionName
+                let confidence = groundedConfidence(for: cleanText, passage: groundedPassage)
                 return SuggestedQuestion(
                     id: UUID(),
                     text: cleanText,
@@ -463,7 +473,8 @@ actor SuggestedQuestionsService {
             for draft in deterministicQuestionDrafts(for: passage) {
                 let questionText = draft.text.hasSuffix("?") ? draft.text : draft.text + "?"
                 guard isUsableGeneratedQuestion(questionText, passages: [passage]),
-                      !isSelfAnsweringGeneratedQuestion(questionText)
+                      !isSelfAnsweringGeneratedQuestion(questionText),
+                      isAnswerableSuggestedQuestion(questionText, passage: passage)
                 else {
                     continue
                 }
@@ -498,7 +509,7 @@ actor SuggestedQuestionsService {
         if let conditionalQuestion = extractConditionalQuestion(from: passage.content) {
             drafts.append(QuestionDraft(
                 text: conditionalQuestion,
-                category: .analytical,
+                category: conditionalQuestion.lowercased().hasPrefix("what should you do if") ? .procedural : .analytical,
                 confidence: 0.88
             ))
         }
@@ -577,9 +588,11 @@ actor SuggestedQuestionsService {
         }
 
         if passage.chunk.metadata.hasNumericData {
-            return "What values are listed for \(topic)?"
+            let lowerTopic = topic.lowercased()
+            let usesPluralVerb = lowerTopic.hasSuffix("s") || lowerTopic.contains("specs") || lowerTopic.contains("values")
+            return usesPluralVerb ? "What are the \(topic)?" : "What is the \(topic)?"
         }
-        return "What is listed under \(topic)?"
+        return nil
     }
 
     private func candidateLines(from text: String) -> [String] {
@@ -717,39 +730,51 @@ actor SuggestedQuestionsService {
 
     // MARK: - Step 4: Diversity Enforcement
 
-    /// Ensure question diversity: spread categories, limit per-document concentration
+    /// Ensure question diversity by spreading across documents first while still
+    /// prioritizing the most answerable questions.
     /// The per-doc cap scales with how many documents exist — a single-doc library
     /// can still produce 4+ questions without being artificially cut to 2.
     private func enforceDiversity(_ questions: [SuggestedQuestion], count: Int) -> [SuggestedQuestion] {
         var result: [SuggestedQuestion] = []
         var docCounts: [String: Int] = [:]
-        var usedCategories: Set<QuestionCategory> = []
+        var selectedIds: Set<UUID> = []
+        var docsSeeded: Set<String> = []
 
         // Dynamic per-doc cap: allow more questions from same doc when few docs exist
         let uniqueDocs = Set(questions.flatMap { $0.relevantDocuments })
         let perDocCap = uniqueDocs.count <= 2 ? count : max(2, count / uniqueDocs.count + 1)
-
-        // First pass: pick one from each category
-        for question in questions.sorted(by: { $0.confidence > $1.confidence }) {
-            if !usedCategories.contains(question.category) {
-                let docKey = question.relevantDocuments.first ?? ""
-                if (docCounts[docKey] ?? 0) < perDocCap {
-                    result.append(question)
-                    usedCategories.insert(question.category)
-                    docCounts[docKey, default: 0] += 1
-                }
+        let rankedQuestions = questions.sorted { lhs, rhs in
+            let lhsScore = rankingScore(for: lhs)
+            let rhsScore = rankingScore(for: rhs)
+            if lhsScore == rhsScore {
+                return lhs.confidence > rhs.confidence
             }
-            if result.count >= count { break }
+            return lhsScore > rhsScore
         }
 
-        // Second pass: fill remaining slots with highest-confidence
+        // First pass: seed as many different documents as possible with the strongest,
+        // most answerable questions instead of forcing one-per-category.
+        for question in rankedQuestions {
+            let docKey = question.relevantDocuments.first ?? ""
+            guard !docsSeeded.contains(docKey) else { continue }
+            guard (docCounts[docKey] ?? 0) < perDocCap else { continue }
+
+            result.append(question)
+            selectedIds.insert(question.id)
+            docsSeeded.insert(docKey)
+            docCounts[docKey, default: 0] += 1
+
+            if result.count >= min(count, max(1, uniqueDocs.count)) { break }
+        }
+
+        // Second pass: fill remaining slots with the best remaining questions.
         if result.count < count {
-            let usedIds = Set(result.map { $0.id })
-            for question in questions.sorted(by: { $0.confidence > $1.confidence }) {
-                guard !usedIds.contains(question.id) else { continue }
+            for question in rankedQuestions {
+                guard !selectedIds.contains(question.id) else { continue }
                 let docKey = question.relevantDocuments.first ?? ""
                 if (docCounts[docKey] ?? 0) < perDocCap {
                     result.append(question)
+                    selectedIds.insert(question.id)
                     docCounts[docKey, default: 0] += 1
                 }
                 if result.count >= count { break }
@@ -770,7 +795,7 @@ actor SuggestedQuestionsService {
             let rawDocName = documents.first(where: { $0.id == chunk.documentId })?.filename ?? "Document"
             let docName = displayDocumentName(rawDocName)
             let sectionName = primarySectionLabel(for: chunk)
-            let content = String(chunk.content.prefix(400))
+            let content = groundedPassageContent(for: chunk)
             let searchable = [docName, sectionName, content]
                 .compactMap { $0 }
                 .joined(separator: " ")
@@ -845,7 +870,12 @@ actor SuggestedQuestionsService {
         if lowered.contains("compare") || lowered.contains("difference") || lowered.contains("which") {
             return .comparison
         }
-        if lowered.contains("step") || lowered.hasPrefix("how do") || lowered.hasPrefix("how should") {
+        if lowered.contains("step")
+            || lowered.hasPrefix("how do")
+            || lowered.hasPrefix("how should")
+            || lowered.hasPrefix("what should you do if")
+            || lowered.hasPrefix("what do you do if")
+        {
             return .procedural
         }
         if lowered.hasPrefix("why") || lowered.contains("what happens if") {
@@ -860,6 +890,79 @@ actor SuggestedQuestionsService {
 
         let categories: [QuestionCategory] = [.factRetrieval, .analytical, .procedural, .comparison, .summarization, .numerical]
         return categories[fallbackIndex % categories.count]
+    }
+
+    private func groundedPassageContent(for chunk: DocumentChunk) -> String {
+        let baseContent = chunk.parentContent ?? chunk.content
+        let combined = [chunk.contextualPrefix, baseContent]
+            .compactMap { text in
+                let cleaned = text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                return cleaned.isEmpty ? nil : cleaned
+            }
+            .joined(separator: "\n")
+
+        return String((combined.isEmpty ? chunk.content : combined).prefix(520))
+    }
+
+    private func isAnswerableSuggestedQuestion(
+        _ question: String,
+        passage: GroundedPassage
+    ) -> Bool {
+        let answerIntent = QueryEnhancementService().classifyAnswerIntent(question)
+        let tokens = meaningfulTokens(from: question)
+        let bodyOverlap = tokens.intersection(passage.bodyTokens).count
+        let sectionOverlap = tokens.intersection(passage.sectionTokens).count
+        let grounding = groundingScore(for: question, passage: passage)
+        let lower = question.lowercased()
+        let proceduralSupport = passage.chunk.metadata.hasListStructure
+            || lower.hasPrefix("what should you do if")
+            || lower.hasPrefix("what do you do if")
+            || passage.content.lowercased().contains(" if ")
+            || passage.content.lowercased().contains("must ")
+            || passage.content.lowercased().contains("should ")
+            || passage.content.lowercased().contains("do not ")
+        let structuredSupport = passage.chunk.metadata.structureType == "table"
+            || passage.chunk.metadata.chunkType == .tableSemantic
+            || passage.chunk.metadata.hasNumericData
+
+        switch answerIntent {
+        case .lookup:
+            if isQuantityQuestion(question) {
+                return passage.chunk.metadata.hasNumericData
+                    && grounding >= 3.5
+                    && (bodyOverlap >= 1 || sectionOverlap >= 1)
+            }
+            return grounding >= 3.5 && (bodyOverlap >= 2 || (bodyOverlap >= 1 && sectionOverlap >= 1))
+        case .tableLookup:
+            return structuredSupport
+                && grounding >= 3.5
+                && (bodyOverlap >= 1 || sectionOverlap >= 1)
+        case .procedure:
+            return proceduralSupport && grounding >= 3.0 && (bodyOverlap >= 1 || sectionOverlap >= 1)
+        default:
+            return false
+        }
+    }
+
+    private func rankingScore(for question: SuggestedQuestion) -> Double {
+        question.confidence + categoryBoost(for: question.category)
+    }
+
+    private func categoryBoost(for category: QuestionCategory) -> Double {
+        switch category {
+        case .numerical:
+            return 0.18
+        case .factRetrieval:
+            return 0.16
+        case .procedural:
+            return 0.14
+        case .comparison:
+            return 0.06
+        case .analytical:
+            return -0.02
+        case .summarization:
+            return -0.05
+        }
     }
 
     private func displayDocumentName(_ filename: String) -> String {
@@ -1147,12 +1250,26 @@ actor SuggestedQuestionsService {
             let condition = sentence[sentence.index(after: sentence.startIndex)..<commaIndex]
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            let consequence = sentence[sentence.index(after: commaIndex)...]
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
 
             guard condition.count >= 10, condition.count <= 90 else { continue }
 
             let conditionLower = condition.lowercased()
             if conditionLower.contains("thing from passage") || conditionLower.contains("document") {
                 continue
+            }
+
+            let consequenceLower = consequence.lowercased()
+            let actionIndicators = [
+                "must", "should", "need to", "do not", "don't", "replace", "remove",
+                "install", "use", "check", "inspect", "clean", "tighten", "wait",
+                "stop", "turn", "press", "keep", "let", "ensure", "verify", "return"
+            ]
+
+            if actionIndicators.contains(where: { consequenceLower.contains($0) }) {
+                return "What should you do if \(conditionLower)?"
             }
 
             return "What happens if \(conditionLower)?"

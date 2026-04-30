@@ -96,6 +96,11 @@ struct StructuredRAGGeneration: Sendable {
     let claims: [StructuredRAGClaim]
 }
 
+enum StructuredRAGMode: Sendable, Equatable {
+    case direct
+    case reasoned
+}
+
 enum LLMStreamingContext {
     @TaskLocal static var handler: LLMStreamHandler?
 
@@ -1410,7 +1415,8 @@ struct LLMResponse {
             prompt: String,
             context: String,
             config: InferenceConfig,
-            sourceCount: Int
+            sourceCount: Int,
+            mode: StructuredRAGMode = .direct
         ) async throws -> LLMResponse {
             guard sourceCount > 0 else {
                 throw LLMError.generationFailed("Structured generation requires source excerpts")
@@ -1437,73 +1443,126 @@ struct LLMResponse {
             let startTime = Date()
             let sanitizedPrompt = sanitizeForLanguageDetection(prompt)
             let sanitizedContext = sanitizeForLanguageDetection(context)
-            let fullPrompt = """
-            CONTEXT:
-            \(sanitizedContext)
+            let fullPrompt: String = {
+                switch mode {
+                case .reasoned:
+                    return """
+                    CONTEXT:
+                    \(sanitizedContext)
 
-            QUESTION: \(sanitizedPrompt)
+                    QUESTION: \(sanitizedPrompt)
 
-            Return grounded fields only.
-            - `reasoning`: concise grounded reasoning based only on the excerpts
-            - `answer`: direct answer from the excerpts
-            - `confidence`: 0-100 based only on excerpt support
-            - `citations`: source ids like [S1], [S2]
-            - `claims`: atomic answer claims with supporting source ids per claim
-            - `matchedTerms`: exact query terms supported by the excerpts
-            """
+                    Return grounded fields only.
+                    - `reasoning`: concise grounded reasoning based only on the excerpts
+                    - `answer`: direct answer from the excerpts
+                    - `confidence`: 0-100 based only on excerpt support
+                    - `citations`: source ids like [S1], [S2]
+                    - `claims`: atomic answer claims with supporting source ids per claim
+                    - `matchedTerms`: exact query terms supported by the excerpts
+                    """
+                case .direct:
+                    return """
+                    CONTEXT:
+                    \(sanitizedContext)
 
-            let response: LanguageModelSession.Response<RAGAnswer>
-            do {
-                response = try await session.respond(to: fullPrompt, generating: RAGAnswer.self)
-            } catch let error as LanguageModelSession.GenerationError {
-                switch error {
-                case let .exceededContextWindowSize(context):
-                    Log.warning("[FM] Structured context window exceeded: \(context)", category: .llm)
-                    throw error
-                case let .guardrailViolation(context):
-                    Log.warning("[FM] Structured guardrail violation: \(context)", category: .llm)
-                    throw LLMError.generationFailed("Structured answer was filtered by Apple Intelligence guardrails.")
-                case let .unsupportedLanguageOrLocale(context):
-                    Log.warning("[FM] Structured unsupported language/locale: \(context)", category: .llm)
-                    throw LLMError.generationFailed("Apple Intelligence does not support the current language/locale for structured generation.")
-                case let .rateLimited(context):
-                    Log.warning("[FM] Structured generation rate limited: \(context)", category: .llm)
-                    throw LLMError.rateLimited("Apple Intelligence is temporarily rate-limited. Please wait a moment and try again.")
-                case let .refusal(refusal, context):
-                    Log.warning("[FM] Structured generation refusal: \(refusal) - \(context)", category: .llm)
-                    throw LLMError.generationFailed("Apple Intelligence declined the structured answer request.")
-                case let .assetsUnavailable(context):
-                    Log.error("[FM] Structured generation assets unavailable: \(context)", category: .llm)
-                    throw LLMError.generationFailed("Apple Intelligence models are not currently available.")
-                case let .decodingFailure(context):
-                    Log.error("[FM] Structured generation decoding failure: \(context)", category: .llm)
-                    throw LLMError.generationFailed("Failed to decode the structured response.")
-                case let .concurrentRequests(context):
-                    Log.warning("[FM] Structured concurrent request blocked: \(context)", category: .llm)
-                    throw LLMError.concurrentRequests("A request is already in progress. Please wait for it to complete.")
-                case let .unsupportedGuide(context):
-                    Log.error("[FM] Structured unsupported guide: \(context)", category: .llm)
-                    throw LLMError.generationFailed("Unsupported structured generation guide.")
-                @unknown default:
-                    Log.error("[FM] Structured generation error: \(error)", category: .llm)
-                    throw error
+                    QUESTION: \(sanitizedPrompt)
+
+                    Return grounded fields only.
+                    - `answer`: direct answer from the excerpts with no extra reasoning text
+                    - `confidence`: 0-100 based only on excerpt support
+                    - `citations`: source ids like [S1], [S2]
+                    - `claims`: atomic answer claims with supporting source ids per claim
+                    - `matchedTerms`: exact query terms supported by the excerpts
+                    """
+                }
+            }()
+
+            func respondStructured<GeneratedType: Generable>(
+                to prompt: String,
+                generating type: GeneratedType.Type
+            ) async throws -> LanguageModelSession.Response<GeneratedType> {
+                do {
+                    return try await session.respond(to: prompt, generating: type)
+                } catch let error as LanguageModelSession.GenerationError {
+                    switch error {
+                    case let .exceededContextWindowSize(context):
+                        Log.warning("[FM] Structured context window exceeded: \(context)", category: .llm)
+                        throw error
+                    case let .guardrailViolation(context):
+                        Log.warning("[FM] Structured guardrail violation: \(context)", category: .llm)
+                        throw LLMError.generationFailed("Structured answer was filtered by Apple Intelligence guardrails.")
+                    case let .unsupportedLanguageOrLocale(context):
+                        Log.warning("[FM] Structured unsupported language/locale: \(context)", category: .llm)
+                        throw LLMError.generationFailed("Apple Intelligence does not support the current language/locale for structured generation.")
+                    case let .rateLimited(context):
+                        Log.warning("[FM] Structured generation rate limited: \(context)", category: .llm)
+                        throw LLMError.rateLimited("Apple Intelligence is temporarily rate-limited. Please wait a moment and try again.")
+                    case let .refusal(refusal, context):
+                        Log.warning("[FM] Structured generation refusal: \(refusal) - \(context)", category: .llm)
+                        throw LLMError.generationFailed("Apple Intelligence declined the structured answer request.")
+                    case let .assetsUnavailable(context):
+                        Log.error("[FM] Structured generation assets unavailable: \(context)", category: .llm)
+                        throw LLMError.generationFailed("Apple Intelligence models are not currently available.")
+                    case let .decodingFailure(context):
+                        Log.error("[FM] Structured generation decoding failure: \(context)", category: .llm)
+                        throw LLMError.generationFailed("Failed to decode the structured response.")
+                    case let .concurrentRequests(context):
+                        Log.warning("[FM] Structured concurrent request blocked: \(context)", category: .llm)
+                        throw LLMError.concurrentRequests("A request is already in progress. Please wait for it to complete.")
+                    case let .unsupportedGuide(context):
+                        Log.error("[FM] Structured unsupported guide: \(context)", category: .llm)
+                        throw LLMError.generationFailed("Unsupported structured generation guide.")
+                    @unknown default:
+                        Log.error("[FM] Structured generation error: \(error)", category: .llm)
+                        throw error
+                    }
                 }
             }
 
-            let normalizedCitations = normalizeStructuredCitations(response.content.citations, maxSourceCount: sourceCount)
-            let reasoningText = response.content.reasoning.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
-            let answerText = response.content.answer.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
-            let matchedTerms = response.content.matchedTerms
-                .map { $0.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) }
-                .filter { !$0.isEmpty }
-            let structuredClaims = response.content.claims.compactMap { claim -> StructuredRAGClaim? in
-                let claimText = claim.claim.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
-                guard !claimText.isEmpty else { return nil }
-                return StructuredRAGClaim(
-                    claim: claimText,
-                    citations: normalizeStructuredCitations(claim.citations, maxSourceCount: sourceCount),
-                    isExtracted: claim.isExtracted
-                )
+            let normalizedCitations: [String]
+            let reasoningText: String
+            let answerText: String
+            let matchedTerms: [String]
+            let structuredClaims: [StructuredRAGClaim]
+            let confidence: Int
+
+            switch mode {
+            case .reasoned:
+                let response = try await respondStructured(to: fullPrompt, generating: RAGAnswer.self)
+                normalizedCitations = normalizeStructuredCitations(response.content.citations, maxSourceCount: sourceCount)
+                reasoningText = response.content.reasoning.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+                answerText = response.content.answer.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+                matchedTerms = response.content.matchedTerms
+                    .map { $0.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+                structuredClaims = response.content.claims.compactMap { claim -> StructuredRAGClaim? in
+                    let claimText = claim.claim.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+                    guard !claimText.isEmpty else { return nil }
+                    return StructuredRAGClaim(
+                        claim: claimText,
+                        citations: normalizeStructuredCitations(claim.citations, maxSourceCount: sourceCount),
+                        isExtracted: claim.isExtracted
+                    )
+                }
+                confidence = response.content.confidence
+            case .direct:
+                let response = try await respondStructured(to: fullPrompt, generating: DirectRAGAnswer.self)
+                normalizedCitations = normalizeStructuredCitations(response.content.citations, maxSourceCount: sourceCount)
+                reasoningText = ""
+                answerText = response.content.answer.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+                matchedTerms = response.content.matchedTerms
+                    .map { $0.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+                structuredClaims = response.content.claims.compactMap { claim -> StructuredRAGClaim? in
+                    let claimText = claim.claim.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+                    guard !claimText.isEmpty else { return nil }
+                    return StructuredRAGClaim(
+                        claim: claimText,
+                        citations: normalizeStructuredCitations(claim.citations, maxSourceCount: sourceCount),
+                        isExtracted: claim.isExtracted
+                    )
+                }
+                confidence = response.content.confidence
             }
 
             guard !answerText.isEmpty else {
@@ -1547,7 +1606,7 @@ struct LLMResponse {
                 structuredRAGGeneration: StructuredRAGGeneration(
                     reasoning: reasoningText.isEmpty ? nil : reasoningText,
                     answer: answerText,
-                    confidence: response.content.confidence,
+                    confidence: confidence,
                     citations: normalizedCitations,
                     matchedTerms: matchedTerms,
                     claims: effectiveClaims

@@ -315,10 +315,8 @@ class RAGService: ObservableObject {
     private let intelligenceCenter = LibraryIntelligenceCenter()
     private let documentSummaryService: DocumentSummaryService
     private let queryRouter = QueryRouterService()
-    private let verificationGateService = VerificationGateService()
     private let graphIndexService = GraphIndexService()
     private let contextPackingService: ContextPackingService
-    private let confidenceCalibrationService = ConfidenceCalibrationService()
     private let extractiveSummarizationService: ExtractiveSummarizationService
     private let specificationExtractor = SpecificationExtractor()
     private weak var entitlementStore: EntitlementStore?
@@ -330,7 +328,6 @@ class RAGService: ObservableObject {
     @MainActor private var suppressProcessingSummary: Bool = false
     @MainActor private var ingestionTask: Task<Void, Never>?
     @MainActor private var ingestionContexts: [UUID: IngestionContext] = [:]
-    private let extractiveLookupOverrideThreshold: Float = 0.82
 
     /// Helper to get document name by ID
     @MainActor
@@ -1508,22 +1505,19 @@ class RAGService: ObservableObject {
 
             for chunk in allChunks where !existingIds.contains(chunk.id) {
                 let contentLower = chunk.content.lowercased()
-
-                // Strong match: content contains the full section name
-                if contentLower.contains(sectionLower) {
-                    matchingChunks.append((chunk, 0.70))
-                    continue
-                }
+                let isSpecificationHeavy = chunk.metadata.documentCategory?.isSpecificationHeavy ?? false
 
                 // Medium match: content contains most of the section name words (handles line breaks/OCR)
                 let matchingWords = sectionWords.filter { contentLower.contains($0) }
-                if matchingWords.count >= max(2, sectionWords.count * 2 / 3) {
-                    // Also check for table/spec indicators to prioritize structured content
-                    let hasTableIndicator = chunk.metadata.structureType == "table" ||
-                        chunk.content.contains("|") && chunk.content.components(separatedBy: "|").count >= 4
-                    let hasNumbers = chunk.content.rangeOfCharacter(from: .decimalDigits) != nil
-                    let rawScore: Float = (hasTableIndicator && hasNumbers) ? 0.65 : 0.55
-                    let score = max(rawScore, crossReferenceScoreFloor(for: chunk))
+                if let score = EvidenceScoringPolicyService.crossReferenceSectionScore(
+                    content: chunk.content,
+                    structureType: chunk.metadata.structureType,
+                    hasNumericData: chunk.metadata.hasNumericData,
+                    isSpecificationHeavy: isSpecificationHeavy,
+                    matchesFullSection: contentLower.contains(sectionLower),
+                    matchingWordCount: matchingWords.count,
+                    totalSectionWordCount: sectionWords.count
+                ) {
                     matchingChunks.append((chunk, score))
                 }
             }
@@ -1555,18 +1549,16 @@ class RAGService: ObservableObject {
 
             // Prioritize table/spec chunks from the referenced page
             let scored: [(chunk: DocumentChunk, score: Float)] = pageChunks.map { chunk in
-                var score: Float = max(0.60, crossReferenceScoreFloor(for: chunk))
-                // Strong boost for actual table structure
-                if chunk.metadata.structureType == "table" { score += 0.15 }
-                // Boost for pipe-delimited table content
-                if chunk.content.contains("|") && chunk.content.components(separatedBy: "|").count >= 4 { score += 0.10 }
-                // Boost for numeric data (specs have numbers)
-                if chunk.metadata.hasNumericData { score += 0.05 }
-                // Boost for query term overlap
                 let queryWords = Set(query.lowercased().split(separator: " ").map(String.init).filter { $0.count > 3 })
                 let contentLower = chunk.content.lowercased()
                 let overlap = queryWords.filter { contentLower.contains($0) }.count
-                if overlap > 0 { score += Float(overlap) * 0.05 }
+                let score = EvidenceScoringPolicyService.crossReferencePageScore(
+                    content: chunk.content,
+                    structureType: chunk.metadata.structureType,
+                    hasNumericData: chunk.metadata.hasNumericData,
+                    isSpecificationHeavy: chunk.metadata.documentCategory?.isSpecificationHeavy ?? false,
+                    queryWordOverlap: overlap
+                )
                 return (chunk, score)
             }
             .sorted { $0.score > $1.score }
@@ -1586,13 +1578,6 @@ class RAGService: ObservableObject {
         }
 
         return additionalChunks
-    }
-
-    private func crossReferenceScoreFloor(for chunk: DocumentChunk) -> Float {
-        guard let category = chunk.metadata.documentCategory, category.isSpecificationHeavy else {
-            return 0.55
-        }
-        return 0.60
     }
 
     // MARK: - Spec Table Sniper
@@ -1623,64 +1608,20 @@ class RAGService: ObservableObject {
         // Need at least 2 meaningful keywords for targeted search
         guard queryConcepts.count >= 2 else { return [] }
 
+        let conceptAliases = queryConcepts.map(\.aliases)
+
         var candidates: [(chunk: DocumentChunk, score: Float, matchCount: Int)] = []
 
         for chunk in allChunks where !excludeIds.contains(chunk.id) {
-            let contentLower = chunk.content.lowercased()
-
-            // Count query concept matches via substring search with safe aliases.
-            // This bridges colloquial questions ("gallons of gas can this car hold")
-            // to spec-table language ("14.3 US gal (54 L) Gasoline").
-            let matchingConcepts = queryConcepts.filter { concept in
-                concept.aliases.contains { alias in
-                    guard alias.count > 1 else { return false }
-                    return contentLower.contains(alias)
-                }
+            guard let candidate = EvidenceScoringPolicyService.specSniperScore(
+                content: chunk.content,
+                structureType: chunk.metadata.structureType,
+                queryConceptAliases: conceptAliases
+            ) else {
+                continue
             }
 
-            // Require at least 2 keyword matches (or all if query has only 2 keywords)
-            let minRequired = min(2, queryConcepts.count)
-            guard matchingConcepts.count >= minRequired else { continue }
-
-            // Must contain numeric data — specs always have numbers
-            guard chunk.content.rangeOfCharacter(from: .decimalDigits) != nil else { continue }
-
-            // Score based on quality indicators
-            var score: Float = 0.60 // Base score for keyword+number co-occurrence
-
-            // Keyword coverage bonus (up to +0.15 for 100% coverage)
-            let coverage = Float(matchingConcepts.count) / Float(queryConcepts.count)
-            score += coverage * 0.15
-
-            // Table structure indicators
-            if chunk.metadata.structureType == "table" { score += 0.10 }
-            let pipeCount = chunk.content.components(separatedBy: "|").count
-            if pipeCount >= 4 { score += 0.08 }
-
-            // Measurement unit patterns (universal across all domains)
-            let hasMeasurement = chunk.content.range(
-                of: #"\d+(?:\.\d+)?\s*(?:L|qt|gal|ml|mL|mg|g|kg|lb|oz|psi|kPa|bar|mm|cm|km|in|ft|yd|V|A|W|kW|mA|Ah|kWh|Hz|MHz|GHz|%|cc|cu)\b"#,
-                options: [.regularExpression, .caseInsensitive]
-            ) != nil
-            if hasMeasurement { score += 0.08 }
-
-            // Key-value pair indicators (colon or tab-separated with numbers)
-            let lines = chunk.content.components(separatedBy: "\n")
-            let kvLines = lines.filter { line in
-                (line.contains(":") || line.contains("\t")) &&
-                line.rangeOfCharacter(from: .decimalDigits) != nil
-            }
-            if kvLines.count >= 2 { score += 0.05 }
-
-            // PENALTY: Cross-reference chunks point to data but aren't the data itself.
-            // "The fuel tank capacity is given in X on page Y" has our keywords but
-            // shouldn't be selected over the actual spec table.
-            let crossRefIndicators = ["given in", "refer to", "see page", "found in",
-                                       "listed in", "shown in", "specified in", "provided in"]
-            let hasCrossRef = crossRefIndicators.contains { contentLower.contains($0) }
-            if hasCrossRef && contentLower.contains("page") { score -= 0.20 }
-
-            candidates.append((chunk, score, matchingConcepts.count))
+            candidates.append((chunk, candidate.score, candidate.matchCount))
         }
 
         // Sort by score, then by keyword match count for ties
@@ -1771,38 +1712,7 @@ class RAGService: ObservableObject {
     }
 
     private func countSpecPatterns(_ content: String) -> Int {
-        var score = 0
-
-        // Alphanumeric grade/code patterns: 0W-20, A2-70, ISO-9001, etc.
-        let gradePattern = #"[A-Z0-9]+[-][A-Z0-9]+"#
-        if let regex = try? NSRegularExpression(pattern: gradePattern, options: []) {
-            score += regex.numberOfMatches(in: content, options: [], range: NSRange(content.startIndex..., in: content)) * 2
-        }
-
-        // Measurement patterns: 3.5L, 100mm, 32psi, etc.
-        let measurementPattern = #"\d+(?:\.\d+)?\s*(?:L|ml|mm|cm|m|kg|g|psi|kPa|°[CF]|ft|in|lbs?)\b"#
-        if let regex = try? NSRegularExpression(pattern: measurementPattern, options: .caseInsensitive) {
-            score += regex.numberOfMatches(in: content, options: [], range: NSRange(content.startIndex..., in: content)) * 2
-        }
-
-        // Table/list indicators (specs often in tables)
-        if content.contains(":") && content.rangeOfCharacter(from: .decimalDigits) != nil {
-            score += 2
-        }
-
-        // Standard body codes: ISO, API, IEEE, ANSI, ASTM, etc.
-        let specCodePattern = #"\b(?:API|ISO|IEEE|ANSI|ASTM|IEC|SAE|ACEA)\s*[A-Z0-9-]+"#
-        if let regex = try? NSRegularExpression(pattern: specCodePattern, options: []) {
-            score += regex.numberOfMatches(in: content, options: [], range: NSRange(content.startIndex..., in: content)) * 3
-        }
-
-        // General numbers (lower weight)
-        let numberPattern = #"\b\d+(?:\.\d+)?\b"#
-        if let regex = try? NSRegularExpression(pattern: numberPattern, options: []) {
-            score += min(5, regex.numberOfMatches(in: content, options: [], range: NSRange(content.startIndex..., in: content)))  // Cap at 5
-        }
-
-        return score
+        EvidenceScoringPolicyService.specPatternCount(in: content)
     }
 
     // MARK: - Section Metadata Boost
@@ -1988,15 +1898,6 @@ class RAGService: ObservableObject {
             return SentenceExtractionResult(context: "", sourcesUsed: 0, sentencesIncluded: 0)
         }
 
-        // UNIVERSAL SPEC BOOST: When the intent classifier identifies an extractive query
-        // (lookup, tableLookup — ANY domain), boost sentences with concrete data patterns
-        // (numbers, units, spec codes, key-value pairs) over sentences that merely mention
-        // the topic. This is driven by answerIntent.isExtractiveFirst — computed from the
-        // query structure — not from hardcoded phrase patterns.
-        // Works universally: automotive specs, medical dosages, legal citations, financial
-        // figures, engineering tolerances, nutritional facts, etc.
-        let specBoostMultiplier: Double = isExtractiveFirst ? 2.5 : 1.0
-
         // Score every sentence across all candidates
         struct ScoredSentence {
             let text: String          // The sentence/line itself
@@ -2049,102 +1950,30 @@ class RAGService: ObservableObject {
 
                 for subLine in subLines {
                     guard subLine.count > 5 else { continue }
-                    let lineLower = subLine.lowercased()
-                    let headingLower = currentHeading.lowercased()
-
-                    // QUERY-ECHO GUARD: If this sentence is essentially the query repeated
-                    // back (from compression LLM hallucination), skip it entirely.
-                    // A sentence like "What's smart mode?" shouldn't score highly just
-                    // because it contains all query keywords — it has no ANSWER content.
-                    let lineWords = Set(lineLower
-                        .components(separatedBy: CharacterSet.alphanumerics.inverted)
-                        .filter { $0.count > 2 && !Self.stopWords.contains($0) })
-                    let queryWords = Set(queryKeywords)
-                    if !lineWords.isEmpty && !queryWords.isEmpty {
-                        let overlap = lineWords.intersection(queryWords).count
-                        let lineUnique = lineWords.subtracting(queryWords).count
-                        // If the sentence has ≥ all query keywords but ≤1 unique word beyond them,
-                        // it's a query echo, not an answer. Skip it.
-                        if overlap >= queryWords.count && lineUnique <= 1 {
-                            continue
+                    var headingContext = ""
+                    if !isHeading {
+                        headingContext = currentHeading
+                        if headingContext.isEmpty && lineIdx > 0 {
+                            headingContext = rawLines[lineIdx - 1]
                         }
                     }
 
-                    // Direct keyword hits on THIS line
-                    var directHits = 0
-                    for kw in queryKeywords {
-                        if lineLower.contains(kw) { directHits += 1 }
+                    guard let totalScore = EvidenceScoringPolicyService.sentenceScore(
+                        line: subLine,
+                        headingContext: headingContext,
+                        queryKeywords: queryKeywords,
+                        chunkIndex: chunkIdx,
+                        isExtractiveFirst: isExtractiveFirst
+                    ) else { continue }
+
+                    let subLineLower = subLine.lowercased()
+                    let headingLower = headingContext.lowercased()
+                    let directHits = queryKeywords.reduce(0) { partialResult, keyword in
+                        partialResult + (subLineLower.contains(keyword) ? 1 : 0)
                     }
-
-                    // HEADING INHERITANCE: keyword hits on the heading above this line.
-                    // In spec tables, "Engine Oil" is the heading, "SAE 0W-20" is the value.
-                    // The value line inherits the heading's keyword relevance.
-                    // Also check the PREVIOUS raw line as implicit heading context.
-                    var headingHits = 0
-                    if !isHeading {  // Don't let headings inherit from themselves
-                        for kw in queryKeywords {
-                            if headingLower.contains(kw) { headingHits += 1 }
-                        }
-                        // Also check immediate previous line as context
-                        if headingHits == 0 && lineIdx > 0 {
-                            let prevLower = rawLines[lineIdx - 1].lowercased()
-                            for kw in queryKeywords {
-                                if prevLower.contains(kw) { headingHits += 1 }
-                            }
-                        }
+                    let headingHits = queryKeywords.reduce(0) { partialResult, keyword in
+                        partialResult + (headingLower.contains(keyword) ? 1 : 0)
                     }
-
-                    let totalKeywordHits = directHits + headingHits
-
-                    // Must have at least 1 keyword match (direct OR inherited)
-                    guard totalKeywordHits > 0 else { continue }
-
-                    // Bonus for containing numbers (specs always have numbers)
-                    let hasNumbers = subLine.rangeOfCharacter(from: .decimalDigits) != nil
-                    let numberBonus: Double = hasNumbers ? 2.0 : 0.0
-
-                    // Bonus for measurement units (boosted for extractive queries)
-                    let unitPattern = #"\d+(?:\.\d+)?\s*(?:qt|quart|gal|gallon|L|liter|litre|ml|oz|fl|kg|g|lb|lbs|mg|mcg|ug|mm|cm|m|km|in|ft|yd|mi|psi|kPa|MPa|bar|atm|rpm|hp|kW|MW|GW|Hz|kHz|MHz|GHz|TB|GB|MB|KB|V|mV|A|mA|W|kWh|MWh|Ah|mAh|cal|kcal|kJ|MJ|BTU|dB|dBm|lux|lm|cd|mol|IU|%)\b"#
-                    let unitHits = (try? NSRegularExpression(pattern: unitPattern, options: .caseInsensitive))?
-                        .numberOfMatches(in: subLine, range: NSRange(subLine.startIndex..., in: subLine)) ?? 0
-                    let unitBonus = Double(min(unitHits, 3)) * 1.5 * specBoostMultiplier
-
-                    // Bonus for spec/standard codes (universal across every industry)
-                    let specCodePattern = #"\b(?:API|ISO|SAE|ACEA|ASTM|IEEE|ANSI|IEC|NIST|OSHA|EPA|FDA|WHO|USP|NF|BP|JP|MIL-|SPEC-|UL|CE|FCC|RoHS|REACH|GMP|HACCP|NFPA|ASHRAE|ACI|AISI|AISC|AWS|ASME|DOT|FMVSS|ECE|JIS|DIN|EN|BS|AS|NZS|CSA|CAN|GB|GB/T)\s*[A-Z0-9./-]+"#
-                    let specHits = (try? NSRegularExpression(pattern: specCodePattern))?
-                        .numberOfMatches(in: subLine, range: NSRange(subLine.startIndex..., in: subLine)) ?? 0
-                    let specBonus = Double(min(specHits, 3)) * 2.0 * specBoostMultiplier
-
-                    // Bonus for table row indicators (colon-separated key-value, boosted for extractive queries)
-                    let kvBonus: Double = (subLine.contains(":") && hasNumbers) ? 1.5 * specBoostMultiplier : 0.0
-
-                    // Bonus for structured alphanumeric codes/model numbers/grades
-                    // Catches: 5W-30, A2024-T3, 316L, Type III, Class 2, Grade 8,
-                    // NDC 12345-678, ICD-10 M54.5, CAS 64-17-5, etc.
-                    // Universal: any alphanumeric code with hyphens/dots = structured data
-                    let structuredCodePattern = #"\b[A-Z0-9]{1,6}[-./][A-Z0-9]{1,6}(?:[-./][A-Z0-9]{1,6})?\b"#
-                    let codeHits = (try? NSRegularExpression(pattern: structuredCodePattern))?
-                        .numberOfMatches(in: subLine, range: NSRange(subLine.startIndex..., in: subLine)) ?? 0
-                    let codeBonus = Double(min(codeHits, 3)) * 1.5 * specBoostMultiplier
-
-                    // Proximity bonus: chunk rank (higher-ranked chunks get a small boost)
-                    let rankBonus = max(0.0, 1.0 - Double(chunkIdx) * 0.05)
-
-                    // Direct keyword hits are worth MORE than inherited ones.
-                    // Direct: the line itself talks about "oil" → 3.0 per hit
-                    // Inherited: the heading says "oil", this line has the spec → 2.0 per hit
-                    let keywordScore = Double(directHits) * 3.0 + Double(headingHits) * 2.0
-
-                    // COVERAGE PENALTY: For short queries (2-3 keywords), a sentence matching
-                    // only 1 keyword is often off-topic. "smart key" matches [smart] but not
-                    // [mode] → likely irrelevant for "What's smart mode?". Apply a 60% penalty
-                    // when the sentence covers less than half the query's keywords.
-                    let coverageFraction = Double(totalKeywordHits) / Double(max(1, queryKeywords.count))
-                    let coveragePenalty: Double = (queryKeywords.count >= 2 && coverageFraction < 0.5) ? 0.4 : 1.0
-
-                    let totalScore = (keywordScore
-                        + numberBonus + unitBonus + specBonus + kvBonus + codeBonus + rankBonus)
-                        * coveragePenalty
 
                     // Determine heading context to include when packing
                     let effectiveHeading: String
@@ -3811,16 +3640,30 @@ class RAGService: ObservableObject {
             // This enables chunk-level BM25 scoring with section heading boosts:
             // "oil" matching in sectionTitle="Engine Oil" gets 10x the score of body text
             let fts5ChunkData: [(chunkIndex: Int, pageNumber: Int?, sectionTitle: String?,
-                                 sectionPath: String?, structureType: String?, content: String)] =
-                documentChunks.map { chunk in
+                                 sectionPath: String?, structureType: String?, chunkType: String?,
+                                 tableTitle: String?, content: String,
+                                 structuredMetadata: SQLiteFullTextService.StructuredChunkMetadata?)] =
+                zip(documentChunks, processedChunks).map { chunk, processedChunk in
                     let pathStr = chunk.metadata.sectionPath?.joined(separator: " > ")
+                    let structuredMetadata = processedChunk.structuredTable.map { table in
+                        SQLiteFullTextService.StructuredChunkMetadata(
+                            chunkType: chunk.metadata.chunkType?.rawValue,
+                            tableTitle: table.title,
+                            headers: table.headers,
+                            rows: table.rows,
+                            searchText: table.searchText
+                        )
+                    }
                     return (
                         chunkIndex: chunk.metadata.chunkIndex,
                         pageNumber: chunk.metadata.pageNumber,
                         sectionTitle: chunk.metadata.sectionTitle,
                         sectionPath: pathStr,
                         structureType: chunk.metadata.structureType,
-                        content: chunk.content
+                        chunkType: chunk.metadata.chunkType?.rawValue,
+                        tableTitle: chunk.metadata.tableTitle,
+                        content: chunk.content,
+                        structuredMetadata: structuredMetadata
                     )
                 }
             await SQLiteFullTextService.shared.storeChunks(
@@ -4748,13 +4591,45 @@ class RAGService: ObservableObject {
                 detail: "\(String(format: "%.0f%%", precisionConfidence * 100)) source-locked"
             )
 
-            let structuredAnswer = StructuredAnswer.from(
+            var precisionAnswer = directAnswer
+            var precisionWarnings: [String] = []
+            var gatingDecision = "agentic_precision_extractive_override"
+            var finalConfidence = precisionConfidence
+            var structuredAnswer = StructuredAnswer.from(
                 response: directAnswer,
                 retrievedChunks: precisionChunks,
                 answerIntent: answerIntent,
                 verificationResult: nil,
                 loops: 1
             )
+
+#if canImport(FoundationModels)
+            if #available(iOS 26.0, *),
+               let sourceOnlyOutcome = await sourceOnlyOutcomeIfNeeded(
+                   query: question,
+                   candidateAnswer: directAnswer,
+                   retrievedChunks: precisionChunks,
+                   answerIntent: answerIntent,
+                   verificationResult: nil
+               )
+            {
+                precisionAnswer = sourceOnlyOutcome.finalAnswer
+                structuredAnswer = sourceOnlyOutcome.structuredAnswer
+                gatingDecision = appendedGatingDecision(
+                    gatingDecision,
+                    sourceOnlyOutcome.shouldAbstain ? "source_only_abstained" : "source_only_refined"
+                )
+                precisionWarnings.append(contentsOf: sourceOnlyOutcome.warnings)
+                if sourceOnlyOutcome.shouldAbstain,
+                   let abstentionReason = sourceOnlyOutcome.abstentionReason
+                {
+                    precisionWarnings.append(abstentionReason)
+                }
+                finalConfidence = sourceOnlyOutcome.shouldAbstain
+                    ? min(precisionConfidence, 0.35)
+                    : min(precisionConfidence, max(sourceOnlyOutcome.fidelityScore, 0.75))
+            }
+#endif
 
             let metadata = ResponseMetadata(
                 timeToFirstToken: retrievalTime,
@@ -4764,7 +4639,7 @@ class RAGService: ObservableObject {
                 modelUsed: "Direct Source Extraction (\(qualityMode.displayName))",
                 retrievalTime: retrievalTime,
                 retrievalConfigSummary: strategy,
-                gatingDecision: "agentic_precision_extractive_override",
+                gatingDecision: gatingDecision,
                 toolCallsMade: 0,
                 usedAgenticMode: true,
                 qualityModeName: qualityMode.displayName,
@@ -4784,11 +4659,12 @@ class RAGService: ObservableObject {
                 queryId: UUID(),
                 retrievedChunks: precisionChunks,
                 generatedResponse: resolvedDisplayResponse(
-                    fallback: directAnswer,
+                    fallback: precisionAnswer,
                     structuredAnswer: structuredAnswer
                 ),
                 metadata: metadata,
-                confidenceScore: precisionConfidence,
+                confidenceScore: finalConfidence,
+                qualityWarnings: precisionWarnings,
                 structuredAnswer: structuredAnswer
             )
         }
@@ -5161,18 +5037,48 @@ class RAGService: ObservableObject {
 
             let agenticAnswerIntent = QueryEnhancementService().classifyAnswerIntent(question)
             let generatedAgenticAnswer = repairMalformedURLs(humanizeCitations(result.finalAnswer, chunks: result.retrievedChunks))
-            let agenticAnswer = await highPrecisionLookupOverrideAnswer(
+            let baseAgenticAnswer = await highPrecisionLookupOverrideAnswer(
                 question: question,
                 answerIntent: agenticAnswerIntent,
                 retrievedChunks: result.retrievedChunks
             ) ?? generatedAgenticAnswer
-            let structuredAnswer = StructuredAnswer.from(
-                response: agenticAnswer,
+            var agenticAnswer = baseAgenticAnswer
+            var agenticWarnings: [String] = []
+            var agenticConfidence = result.confidence
+            var gatingDecision: String?
+            var structuredAnswer = StructuredAnswer.from(
+                response: baseAgenticAnswer,
                 retrievedChunks: result.retrievedChunks,
                 answerIntent: agenticAnswerIntent,
                 verificationResult: nil,
                 loops: max(1, result.steps.count)
             )
+
+#if canImport(FoundationModels)
+            if #available(iOS 26.0, *),
+               let sourceOnlyOutcome = await sourceOnlyOutcomeIfNeeded(
+                   query: question,
+                   candidateAnswer: baseAgenticAnswer,
+                   retrievedChunks: result.retrievedChunks,
+                   answerIntent: agenticAnswerIntent,
+                   verificationResult: nil
+               )
+            {
+                agenticAnswer = sourceOnlyOutcome.finalAnswer
+                structuredAnswer = sourceOnlyOutcome.structuredAnswer
+                gatingDecision = sourceOnlyOutcome.shouldAbstain ? "source_only_abstained" : "source_only_refined"
+                agenticWarnings.append(contentsOf: sourceOnlyOutcome.warnings)
+                if sourceOnlyOutcome.shouldAbstain,
+                   let abstentionReason = sourceOnlyOutcome.abstentionReason
+                {
+                    agenticWarnings.append(abstentionReason)
+                }
+                agenticConfidence = sourceOnlyOutcome.shouldAbstain
+                    ? min(result.confidence, 0.35)
+                    : min(result.confidence, max(sourceOnlyOutcome.fidelityScore, 0.75))
+            }
+#endif
+
             let displayResponseText = resolvedDisplayResponse(
                 fallback: agenticAnswer,
                 structuredAnswer: structuredAnswer
@@ -5190,13 +5096,15 @@ class RAGService: ObservableObject {
                     modelUsed: "Apple Foundation Model (Agentic)",
                     retrievalTime: 0,
                     retrievalConfigSummary: "Agentic",
+                    gatingDecision: gatingDecision,
                     toolCallsMade: result.steps.filter { $0.type == .searching }.count,
                     usedAgenticMode: true, // Agentic (deep) mode was used
                     qualityModeName: isUnlimitedMode ? "Maximum" : "Deep Think",
                     originalQuery: question,
                     reasoningTrace: reasoningTrace // Now includes the thinking steps!
                 ),
-                confidenceScore: result.confidence,
+                confidenceScore: agenticConfidence,
+                qualityWarnings: agenticWarnings,
                 structuredAnswer: structuredAnswer
             )
         }
@@ -5414,9 +5322,14 @@ class RAGService: ObservableObject {
             raptorRouting: raptorRoutingEnabled
         )
 
+        let initialQueryProfile = await QueryProfileService.shared.buildProfile(
+            for: question,
+            routingEnabled: false
+        )
+
         // Get adaptive pipeline config based on current device state (thermal, battery, memory)
         // This dynamically adjusts feature usage to prevent thermal throttling and save battery
-        let queryComplexity = QueryComplexity.estimate(from: question)
+        let queryComplexity = initialQueryProfile.adaptiveComplexity
         let adaptiveConfig = AdaptivePipelineOptimizer.shared.configForQuery(complexity: queryComplexity)
         let adaptiveOptLevel = AdaptivePipelineOptimizer.shared.currentOptimizationLevel
         if adaptiveOptLevel != .full {
@@ -5445,7 +5358,6 @@ class RAGService: ObservableObject {
         // Quality mode parameters from user settings
         let qualityModeDisplayName = qualityMode.displayName
         let qualityModeInitialTopK = qualityMode.initialTopK
-        let qualityModeMinSimilarity = qualityMode.minSimilarity
         let qualityModeTemperature = qualityMode.temperature
         let qualityModeUsesQueryRewriting = qualityMode.usesQueryRewriting
         let qualityModeUsesIterativeRetrieval = qualityMode.usesIterativeRetrieval
@@ -5457,7 +5369,6 @@ class RAGService: ObservableObject {
         let qualityModeUsesMMR = qualityMode.usesMMR
         let qualityModeMMRLambda = qualityMode.mmrLambda
         let qualityModeUsesVerificationGates = qualityMode.usesVerificationGates
-        let qualityModeVerificationThreshold = qualityMode.verificationConfidenceThreshold
         let qualityModeUsesQueryExpansion = qualityMode.usesQueryExpansion
         let qualityModeMaxQueryExpansions = qualityMode.maxQueryExpansions
         let qualityModeUsesContainerVocabulary = qualityMode.usesContainerVocabulary
@@ -5538,8 +5449,8 @@ class RAGService: ObservableObject {
         let requestedTopK = max(topK, qualityModeInitialTopK)
         let baseTopK = max(requestedTopK, corpusSizeAdjustedTopK)
 
-        let queryWords = question.split(separator: " ").count
-        let isTrivial = isTrivialQuery(question)
+        let queryWords = initialQueryProfile.wordCount
+        let isTrivial = initialQueryProfile.isTrivial
         let applyTrivialTopKCap = isTrivial && !initialWantsCloudContext
 
         // Apply adaptive pipeline limit (thermal/battery/memory aware)
@@ -5729,8 +5640,7 @@ class RAGService: ObservableObject {
                 }
 
                 let queryEnhancer = QueryEnhancementService(corpusVocabulary: finalCorpusVocabulary)
-                let preRewriteAnswerIntent = queryEnhancer.classifyAnswerIntent(question)
-                let simpleGroundedLookup = preRewriteAnswerIntent.isExtractiveFirst || (isTrivial && queryWords <= 8)
+                let simpleGroundedLookup = initialQueryProfile.isSimpleGroundedLookup
 
                 // Check advanced RAG settings
                 let rewriteEnabledBySettings = settingsStore?.enableQueryRewriting ?? qualityModeUsesQueryRewriting
@@ -5935,9 +5845,18 @@ class RAGService: ObservableObject {
                     )
                 }
 
+                let queryRoutingEnabled = settingsStore?.enableQueryRouting ?? true
+                let effectiveQueryProfile = await QueryProfileService.shared.buildProfile(
+                    for: effectiveQuery,
+                    queryEnhancer: queryEnhancer,
+                    queryRouter: queryRouter,
+                    routingEnabled: queryRoutingEnabled
+                )
+
                 // Step 1.6: Answer Intent Classification (AppleRAG §6)
                 // Classify query intent to optimize retrieval and answering strategy
-                let answerIntent = queryEnhancer.classifyAnswerIntent(effectiveQuery)
+                let answerIntent = effectiveQueryProfile.answerIntent
+                let isProceduralQuery = answerIntent == .procedure
                 auditAnswerIntent = answerIntent.rawValue
                 Log.info(
                     "✓ Answer intent: \(answerIntent.rawValue) (extractive-first: \(answerIntent.isExtractiveFirst), multi-hop: \(answerIntent.benefitsFromMultiHop))",
@@ -6088,25 +6007,16 @@ class RAGService: ObservableObject {
                 var iterativeMetadata: (iterations: Int, confidence: Float, queries: Int)?
 
                 // Classify query intent for adaptive weight tuning (used in both paths)
-                let queryIntent = queryEnhancer.classifyIntent(effectiveQuery)
-                let adjustment = queryIntent.weightAdjustment
-                // UNIVERSAL FIX: Vector search must ALWAYS have at least 35% vote.
-                // Embeddings understand meaning even when OCR garbles text.
-                // BM25 on noisy OCR with >65% weight = retrieval failure.
-                let adjustedVectorWeight = max(0.35, min(0.65, retrievalConfig.vectorWeight + adjustment.vectorDelta))
-                let adjustedKeywordWeight = max(0.35, min(0.65, retrievalConfig.lexicalWeight + adjustment.keywordDelta))
+                let queryIntent = effectiveQueryProfile.searchIntent
+                let adjustedWeights = effectiveQueryProfile.adjustedHybridWeights(from: retrievalConfig)
+                let adjustedVectorWeight = adjustedWeights.vectorWeight
+                let adjustedKeywordWeight = adjustedWeights.keywordWeight
 
                 // Step 2.5: Query Classification for RAPTOR-lite (summary-first retrieval)
                 // Determines whether to search document summaries (L1) or detail chunks (L0)
                 // Controlled by settings.enableQueryRouting
-                // HYPERCHARGE: Run RAPTOR classification in parallel with retrieval setup
-                // (query classification is independent of embedding results)
-                let queryRoutingEnabled = settingsStore?.enableQueryRouting ?? true
                 auditUsedQueryRouting = queryRoutingEnabled
-                // Capture effectiveQuery to avoid concurrent access to var
-                let queryForRouting = effectiveQuery
-                async let asyncQueryClassification = queryRouter.classifyQuery(queryForRouting)
-                let queryClassification = await asyncQueryClassification
+                let queryClassification = effectiveQueryProfile.routingClassification
 
                 // Pipeline Trace: Step 2.5 (RAPTOR-lite)
                 if queryRoutingEnabled {
@@ -6115,7 +6025,7 @@ class RAGService: ObservableObject {
                         ("confidence", String(format: "%.0f%%", queryClassification.confidence * 100))
                     ])
                 }
-                let searchLevels = await queryRouter.abstractionLevelsToSearch(for: queryClassification)
+                let searchLevels = effectiveQueryProfile.abstractionLevelsToSearch
 
                 if queryRoutingEnabled {
                     Log.info(
@@ -6540,35 +6450,34 @@ class RAGService: ObservableObject {
                     guard !sims.isEmpty else { return 0 }
                     return sims.reduce(0, +) / Float(sims.count)
                 }()
-                let cascadeThreshold = max(0.32, min(0.45, retrievalConfig.minSimilarity - 0.05))
-                let cascadeNeedsMore = rerankedChunks.count < max(4, effectiveTopK / 2)
-                let isShortQueryForCascade = queryWords <= 6
-                let shouldCascade = !usedRetrievalCascade
-                    && !isTrivial
-                    && !answerIntent.isExtractiveFirst
-                    && (cascadeTopSim < cascadeThreshold || cascadeNeedsMore || cascadeAvgTop5 < cascadeThreshold)
+                let cascadeMetrics = RetrievalMetrics(
+                    topSimilarity: cascadeTopSim,
+                    secondSimilarity: 0,
+                    averageTopFive: cascadeAvgTop5,
+                    candidateCount: rerankedChunks.count
+                )
 
-                if shouldCascade {
+                if let cascadeDecision = RetrievalPolicyService.cascadeDecision(
+                    for: effectiveQueryProfile,
+                    qualityMode: qualityMode,
+                    retrievalConfig: retrievalConfig,
+                    effectiveTopK: effectiveTopK,
+                    totalStored: totalStored,
+                    metrics: cascadeMetrics,
+                    usedRetrievalCascade: usedRetrievalCascade
+                ) {
                     let baseCandidateCount = rerankedChunks.count
                     let cascadeStartTime = Date()
-                    let lexicalBoost: Float = isShortQueryForCascade ? 0.2 : 0.12
-                    var cascadeLexical = min(0.55, retrievalConfig.lexicalWeight + lexicalBoost)
-                    var cascadeVector = max(0.45, 1.0 - cascadeLexical)
-                    let weightTotal = cascadeLexical + cascadeVector
-                    cascadeLexical = cascadeLexical / weightTotal
-                    cascadeVector = cascadeVector / weightTotal
-
                     let cascadeQuery = (expandedQueries + [question]).joined(separator: " ")
-                    let cascadeTopK = min(max(effectiveTopK * 4, effectiveTopK * 3), max(1, totalStored))
                     let cascadeHybrid = HybridSearchService(
                         vectorDatabase: vdb,
-                        vectorWeight: cascadeVector,
-                        keywordWeight: cascadeLexical
+                        vectorWeight: cascadeDecision.vectorWeight,
+                        keywordWeight: cascadeDecision.lexicalWeight
                     )
                     let cascadeRetrieved = try await cascadeHybrid.search(
                         query: cascadeQuery,
                         embedding: queryEmbedding,
-                        topK: cascadeTopK
+                        topK: cascadeDecision.topK
                     )
 
                     let cascadeTime = Date().timeIntervalSince(cascadeStartTime)
@@ -6605,7 +6514,7 @@ class RAGService: ObservableObject {
 
                             let addedCount = max(0, mergedCandidates.count - baseCandidateCount)
                             Log.info(
-                                "🔁 Retrieval cascade added \(addedCount) candidates (lexical \(String(format: "%.2f", cascadeLexical)))",
+                                "🔁 Retrieval cascade added \(addedCount) candidates (lexical \(String(format: "%.2f", cascadeDecision.lexicalWeight)))",
                                 category: .retrieval
                             )
                             TelemetryCenter.emit(
@@ -6613,15 +6522,15 @@ class RAGService: ObservableObject {
                                 title: "Retrieval cascade",
                                 metadata: [
                                     "candidates": "\(mergedCandidates.count)",
-                                    "lexicalWeight": String(format: "%.2f", cascadeLexical),
-                                    "vectorWeight": String(format: "%.2f", cascadeVector),
+                                    "lexicalWeight": String(format: "%.2f", cascadeDecision.lexicalWeight),
+                                    "vectorWeight": String(format: "%.2f", cascadeDecision.vectorWeight),
                                 ],
                                 duration: cascadeTime
                             )
                             emitThinkingEvent(
                                 .retrieval,
                                 title: "Retrieval cascade",
-                                detail: "\(mergedCandidates.count) candidates • lex \(String(format: "%.2f", cascadeLexical))"
+                                detail: "\(mergedCandidates.count) candidates • lex \(String(format: "%.2f", cascadeDecision.lexicalWeight))"
                             )
                         }
                     }
@@ -6688,45 +6597,29 @@ class RAGService: ObservableObject {
                 auditSecondSim = secondSim
                 auditAvgTop5 = avgTop5
 
-                // Use adaptive mode's minSimilarity, adjusted for lenient/trivial
-                let qualityMinSim = qualityModeMinSimilarity
-                let baseMin: Float
-                if retrievalConfig == .highAccuracy {
-                    baseMin = retrievalConfig.minSimilarity
-                } else {
-                    // Simplified: use quality mode threshold directly
-                    baseMin = qualityMinSim
-                }
-
-                var dynamicMin: Float = lenient ? min(baseMin, 0.35) : baseMin
-
-                // Vocabulary mismatch detection: When ALL scores are low but we have a corpus,
-                // the problem is likely conversational-vs-technical language mismatch, not irrelevant docs.
-                // In this case, trust relative ranking over absolute thresholds.
-                let vocabularyMismatch = rerankedChunks.count >= 5 && topSim < 0.25 && avgTop5 < 0.20
+                let filteringMetrics = RetrievalMetrics(
+                    topSimilarity: topSim,
+                    secondSimilarity: secondSim,
+                    averageTopFive: avgTop5,
+                    candidateCount: rerankedChunks.count
+                )
+                let filteringDecision = RetrievalPolicyService.filteringDecision(
+                    for: effectiveQueryProfile,
+                    qualityMode: qualityMode,
+                    retrievalConfig: retrievalConfig,
+                    lenient: lenient,
+                    metrics: filteringMetrics
+                )
+                let baseMin = filteringDecision.baseMinSimilarity
+                let dynamicMin = filteringDecision.dynamicMinSimilarity
+                let vocabularyMismatch = filteringDecision.vocabularyMismatch
 
                 if vocabularyMismatch {
-                    // Adaptive floor: use the corpus's natural score distribution
-                    // Keep chunks that are in the top tier relative to this corpus
-                    let scoreSpread = topSim - avgTop5
-                    dynamicMin = max(0.10, avgTop5 - scoreSpread)
                     Log.info(
                         "[RAG] Vocabulary mismatch detected (topSim=\(String(format: "%.2f", topSim)), avgTop5=\(String(format: "%.2f", avgTop5))) - using adaptive floor \(String(format: "%.2f", dynamicMin))",
                         category: .retrieval
                     )
-                } else if !lenient, avgTop5 > 0, avgTop5 < baseMin {
-                    // Standard case: lower floor to preserve procedural/technical chunks
-                    dynamicMin = max(0.15, avgTop5 - 0.05)
-                }
-
-                // Procedural document detection: procedural queries need HIGHER quality evidence
-                // Wrong order in procedures is worse than no answer at all
-                let proceduralTerms = ["how to", "steps", "procedure", "process", "reprocess", "instructions", "guide", "workflow"]
-                let isProceduralQuery = proceduralTerms.contains { question.lowercased().contains($0) }
-                if isProceduralQuery {
-                    // Procedural queries require HIGHER thresholds, not lower
-                    // If evidence is weak, we should abstain rather than guess steps
-                    dynamicMin = max(dynamicMin, 0.25)
+                } else if effectiveQueryProfile.answerIntent == .procedure {
                     Log.info("[RAG] Procedural query detected - requiring higher evidence threshold \(dynamicMin)", category: .retrieval)
                 }
 
@@ -6738,12 +6631,7 @@ class RAGService: ObservableObject {
 
                 // Acceptance override if relative signals are strong even with modest absolute scores
                 // Also override for vocabulary mismatch scenarios where we trust relative ranking
-                let acceptanceOverride: Bool =
-                    vocabularyMismatch // Trust relative ranking when all scores are low
-                        || (topSim >= 0.50)
-                        || (topSim >= 0.38 && (topSim - avgTop5) >= 0.05)
-                        || ((topSim - secondSim) >= 0.07)
-                    || (topSim >= 0.15 && rerankedChunks.count >= 10) // Have corpus, use it
+                let acceptanceOverride = filteringDecision.acceptanceOverride
                 auditAcceptanceOverride = acceptanceOverride
 
                 TelemetryCenter.emit(
@@ -7446,26 +7334,14 @@ class RAGService: ObservableObject {
 
                 if useParentDocRetrieval, contextCandidates.count > 0, let allChunks = cachedAllChunks {
                     auditUsedParentDocumentRetrieval = true
-                    // Select parent config based on query type and quality mode
-                    // Procedural queries get maximum expansion to capture full procedure sections
-                    let proceduralTerms = ["how to", "steps", "procedure", "process", "reprocess", "instructions", "guide", "workflow"]
-                    let isProceduralQuery = proceduralTerms.contains { question.lowercased().contains($0) }
-
-                    // Create custom config with quality mode sibling limit
-                    var parentConfig: ParentDocumentService.Config
-                    if isProceduralQuery {
-                        parentConfig = .procedural // 8 siblings, 6000 tokens, very permissive
+                    let parentConfig = RetrievalPolicyService.parentDocumentConfig(
+                        for: effectiveQueryProfile,
+                        qualityMode: qualityMode,
+                        maxSiblingChunks: qualityModeMaxSiblingChunks,
+                        useAgentic: useAgentic
+                    )
+                    if effectiveQueryProfile.answerIntent == .procedure {
                         Log.info("[RAG] Procedural query - using maximum parent expansion (8 siblings)", category: .retrieval)
-                    } else if useAgentic {
-                        parentConfig = .thorough
-                    } else {
-                        // Use quality mode sibling limit
-                        parentConfig = ParentDocumentService.Config(
-                            maxSiblingsPerSide: qualityModeMaxSiblingChunks,
-                            maxExpandedTokens: 2000,
-                            allowCrossPageExpansion: false,
-                            minRelevanceForExpansion: 0.15
-                        )
                     }
                     let parentService = ParentDocumentService(config: parentConfig)
 
@@ -8157,30 +8033,16 @@ class RAGService: ObservableObject {
                     orderedCandidates = contextCandidates.sorted(by: { (a: RetrievedChunk, b: RetrievedChunk) -> Bool in
                         let aContent = a.chunk.parentContent ?? a.chunk.content
                         let bContent = b.chunk.parentContent ?? b.chunk.content
-                        let aLower = aContent.lowercased()
-                        let bLower = bContent.lowercased()
-
-                        // Count spec-like patterns: numbers, measurements, codes
-                        let aSpecScore = countSpecPatterns(aContent)
-                        let bSpecScore = countSpecPatterns(bContent)
-
-                        // Table structure bonus
-                        let aIsTable = a.chunk.metadata.structureType == "table" ||
-                                       (aContent.contains("|") && aContent.components(separatedBy: "|").count >= 4)
-                        let bIsTable = b.chunk.metadata.structureType == "table" ||
-                                       (bContent.contains("|") && bContent.components(separatedBy: "|").count >= 4)
-
-                        // Only use DISCRIMINATIVE keywords for bonus (generic ones discounted)
-                        let aKeywordHits = discriminativeKeywords.filter { aLower.contains($0) }.count
-                        let bKeywordHits = discriminativeKeywords.filter { bLower.contains($0) }.count
-
-                        // Compute composite priority score
-                        let aTableBonus = aIsTable ? 10 : 0
-                        let bTableBonus = bIsTable ? 10 : 0
-                        let aKeywordBonus = aKeywordHits * 5
-                        let bKeywordBonus = bKeywordHits * 5
-                        let aPriority = aSpecScore + aTableBonus + aKeywordBonus
-                        let bPriority = bSpecScore + bTableBonus + bKeywordBonus
+                        let aPriority = EvidenceScoringPolicyService.extractivePriorityScore(
+                            content: aContent,
+                            queryKeywords: discriminativeKeywords,
+                            structureType: a.chunk.metadata.structureType
+                        )
+                        let bPriority = EvidenceScoringPolicyService.extractivePriorityScore(
+                            content: bContent,
+                            queryKeywords: discriminativeKeywords,
+                            structureType: b.chunk.metadata.structureType
+                        )
 
                         // If one has clear advantage, prioritize it
                         if abs(aPriority - bPriority) >= 2 {
@@ -8628,13 +8490,46 @@ class RAGService: ObservableObject {
                 ) {
                     Log.info("[ExtractiveQA] Returning direct source extraction before LLM generation", category: .retrieval)
 
-                    let structuredAnswer = StructuredAnswer.from(
+                    var extractiveAnswer = extractiveOverride
+                    var extractiveWarnings: [String] = []
+                    var extractiveConfidence = max(includedRetrievedChunks.first?.similarityScore ?? 0.0, 0.85)
+                    var gatingDecision = "extractive_override_pre_generation"
+                    var structuredAnswer = StructuredAnswer.from(
                         response: extractiveOverride,
                         retrievedChunks: includedRetrievedChunks,
                         answerIntent: answerIntent,
                         verificationResult: nil,
                         loops: 1
                     )
+
+#if canImport(FoundationModels)
+                    if #available(iOS 26.0, *),
+                       let sourceOnlyOutcome = await sourceOnlyOutcomeIfNeeded(
+                           query: question,
+                           candidateAnswer: extractiveOverride,
+                           retrievedChunks: includedRetrievedChunks,
+                           answerIntent: answerIntent,
+                           verificationResult: nil
+                       )
+                    {
+                        extractiveAnswer = sourceOnlyOutcome.finalAnswer
+                        structuredAnswer = sourceOnlyOutcome.structuredAnswer
+                        gatingDecision = appendedGatingDecision(
+                            gatingDecision,
+                            sourceOnlyOutcome.shouldAbstain ? "source_only_abstained" : "source_only_refined"
+                        )
+                        extractiveWarnings.append(contentsOf: sourceOnlyOutcome.warnings)
+                        if sourceOnlyOutcome.shouldAbstain,
+                           let abstentionReason = sourceOnlyOutcome.abstentionReason
+                        {
+                            extractiveWarnings.append(abstentionReason)
+                        }
+                        extractiveConfidence = sourceOnlyOutcome.shouldAbstain
+                            ? min(extractiveConfidence, 0.35)
+                            : min(extractiveConfidence, max(sourceOnlyOutcome.fidelityScore, 0.75))
+                    }
+#endif
+
                     let extractiveMetadata = ResponseMetadata(
                         timeToFirstToken: nil,
                         totalGenerationTime: 0,
@@ -8643,7 +8538,7 @@ class RAGService: ObservableObject {
                         modelUsed: "Direct Source Extraction",
                         retrievalTime: retrievalTime,
                         retrievalConfigSummary: retrievalConfig.summary,
-                        gatingDecision: "extractive_override_pre_generation",
+                        gatingDecision: gatingDecision,
                         toolCallsMade: nil,
                         embeddingProvider: embeddingProviderId,
                         usedAgenticMode: false,
@@ -8655,12 +8550,12 @@ class RAGService: ObservableObject {
                         queryId: ragQueryValue.id,
                         retrievedChunks: includedRetrievedChunks,
                         generatedResponse: resolvedDisplayResponse(
-                            fallback: extractiveOverride,
+                            fallback: extractiveAnswer,
                             structuredAnswer: structuredAnswer
                         ),
                         metadata: extractiveMetadata,
-                        confidenceScore: max(includedRetrievedChunks.first?.similarityScore ?? 0.0, 0.85),
-                        qualityWarnings: [],
+                        confidenceScore: extractiveConfidence,
+                        qualityWarnings: extractiveWarnings,
                         structuredAnswer: structuredAnswer
                     )
 
@@ -8721,13 +8616,19 @@ class RAGService: ObservableObject {
                     let isCountQuery = lowerQuestion.contains("how many") || lowerQuestion.contains("how much")
                     if isCountQuery {
                         intentSpecificInstructions = """
-                        State the exact count FIRST, then list EVERY item by name. Use bullets for each distinct item.
-                        Copy names, labels, and values VERBATIM from the excerpts. Count carefully — only include items explicitly mentioned in the excerpts. Never duplicate items. Never invent items not in the source.
+                        State the exact count FIRST, then list only the directly relevant items by name.
+                        Keep each bullet brief. Copy names, labels, and values VERBATIM from the excerpts.
+                        Count carefully — only include items explicitly mentioned in the excerpts. Never duplicate items. Never invent items not in the source.
+                        Use only the minimum citations needed for the count sentence or for bullets that come from different sources.
                         """
                     } else {
                         intentSpecificInstructions = """
-                        Answer in 1-2 clear prose paragraphs. State the answer FIRST, then supporting details.
-                        Copy numbers, units, codes VERBATIM. Many excerpts say similar things in different words — combine them into ONE cohesive explanation. Never repeat the same fact twice. Do NOT paste sentence fragments back-to-back.
+                        Answer only the exact question being asked.
+                        Prefer one short paragraph, at most two sentences. State the answer in the first sentence.
+                        Add only one brief support sentence if it materially helps.
+                        Copy numbers, units, and codes VERBATIM.
+                        Use the minimum citations needed — usually one citation cluster at the end of the sentence or paragraph. Do not repeat citations after every clause or restated fact.
+                        Many excerpts say similar things in different words — combine them into one cohesive explanation. Never repeat the same fact twice.
                         If the question assumes a mapping or condition that the excerpts contradict, correct the premise explicitly using the exact source mapping instead of accepting the user's wording.
                         """
                     }
@@ -8778,10 +8679,10 @@ class RAGService: ObservableObject {
                 genConfig.systemPrompt = """
                 Answer using document excerpts [S1], [S2], etc.
                 \(intentSpecificInstructions)
-                Rules: Cite sources [S1]/[S2]. Copy values VERBATIM. Be thorough. If the excerpts do not address the user's question, say so clearly — briefly state what the excerpts cover and that the requested topic is not in the documents. Do NOT fabricate answers from unrelated context. If the question is vague, interpret it from document topics.
+                Rules: Cite sources [S1]/[S2] using the minimum citations needed to support the answer. Copy values VERBATIM. Answer exactly what was asked; be complete for the request, not exhaustive. If the excerpts do not address the user's question, say so clearly — briefly state what the excerpts cover and that the requested topic is not in the documents. Do NOT fabricate answers from unrelated context. If the question is vague, interpret it from document topics.
                 CRITICAL: NEVER invent numbers, measurements, or values. Use ONLY values that appear in the excerpts. If a specific value is not in the excerpts, state that clearly.
                 ABBREVIATIONS: If an [Abbreviations] glossary appears in the context, use those EXACT definitions when expanding abbreviations. Never expand an abbreviation differently than the glossary defines it. Example: if glossary says "ED = Emotional Dysregulation", NEVER write "oppositional defiant disorder (ED)".
-                Format: Write naturally and match format to the question. Use ### headers to organize multi-topic answers. Use **bold** sparingly for key terms only. Use bullets only for actual lists, sequential steps, or specifications. Write prose paragraphs for explanations. Combine overlapping excerpts into unified sentences — never repeat the same fact.
+                Format: Write naturally and match format to the question. Use ### headers only for multi-topic answers or explicit summaries. Use **bold** sparingly for key terms only. Use bullets only for actual lists, sequential steps, or specifications the user asked to enumerate. Write prose paragraphs for direct explanations and factual lookups. Combine overlapping excerpts into unified sentences — never repeat the same fact. For direct factual questions, prefer one short paragraph over sections or lists.
                 \(contextIsHomogeneous ? "IMPORTANT: The source excerpts contain highly repetitive or redundant entries. SYNTHESIZE across all excerpts into a SINGLE unified answer. Do NOT list or enumerate each excerpt separately. Mention each unique fact, date, or value ONCE. Combine similar entries." : "")
                 """
 
@@ -8790,10 +8691,10 @@ class RAGService: ObservableObject {
                     genConfig.systemPrompt = """
                     EVIDENCE-FIRST MODE (low confidence retrieval). Use ONLY excerpts [S1], [S2], etc.
                     \(intentSpecificInstructions)
-                    Rules: Cite every claim. Copy values VERBATIM. Do NOT fill gaps with assumptions. NEVER invent numbers.
+                    Rules: Cite only the minimum supporting sources needed for each grounded point. Copy values VERBATIM. Answer exactly what was asked. Do NOT fill gaps with assumptions. NEVER invent numbers.
                     ABBREVIATIONS: If an [Abbreviations] glossary appears, use those EXACT definitions. Never expand abbreviations differently.
                     For procedures: preserve exact order, never omit steps, include feedback indicators.
-                    Format: Write naturally. Use ### headers to organize multi-topic answers. Use **bold** sparingly for key terms only. Use bullets only for actual lists or sequential steps. Write prose paragraphs for explanations. Merge overlapping excerpts into unified sentences.
+                    Format: Write naturally. Use ### headers only for multi-topic answers. Use **bold** sparingly for key terms only. Use bullets only for actual lists or sequential steps. Write prose paragraphs for explanations and direct factual answers. Merge overlapping excerpts into unified sentences. For direct factual questions, answer in one short paragraph unless the user explicitly asked for a list or steps.
                     \(contextIsHomogeneous ? "IMPORTANT: Excerpts contain repetitive entries. SYNTHESIZE into ONE answer. Mention each fact ONCE." : "")
                     End with: What sources show → What's missing → Confidence note.
                     """
@@ -8904,22 +8805,16 @@ class RAGService: ObservableObject {
                 // which lets developers test multi-session reasoning from Standard mode.
                 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                 let forceChain = settingsStore?.forceReasoningChain ?? false
-                let standardComplexity = QueryComplexityAnalyzer.shared.analyze(question)
+                let standardComplexity = initialQueryProfile.reasoningComplexity
                 let useReasoningChain: Bool = {
                     // Only use for Apple Foundation Models (reasoning chain uses FM-specific features)
                     guard llmService is AppleFoundationLLMService else { return false }
 
-                    // If force enabled in settings, skip other checks
-                    if forceChain {
-                        Log.info("[RAG] Reasoning chain FORCED via settings", category: .pipeline)
-                        return true
-                    }
+                    // Standard stays single-pass unless a developer explicitly forces chaining.
+                    guard forceChain else { return false }
+                    guard qualityMode.canonical == .standard else { return false }
 
-                    // Standard now gets adaptive multi-session reasoning for non-trivial prompts.
-                    // Only obviously simple lookups stay single-pass.
-                    guard qualityMode.canonical == .standard else {
-                        return false
-                    }
+                    Log.info("[RAG] Reasoning chain FORCED via settings", category: .pipeline)
 
                     // Skip if evidence is weak (Evidence-First mode handles this)
                     guard !useEvidenceFirstMode else { return false }
@@ -8942,7 +8837,7 @@ class RAGService: ObservableObject {
                 }()
 
                 if useReasoningChain {
-                    Log.info("[RAG] ✨ REASONING CHAIN ACTIVATED for Standard mode (adaptive multi-session)", category: .pipeline)
+                    Log.info("[RAG] ✨ REASONING CHAIN ACTIVATED for Standard mode (developer override)", category: .pipeline)
                     Log.info("[RAG]   - bestRetrievalSim: \(bestRetrievalSim)", category: .pipeline)
                     Log.info("[RAG]   - contextSize: \(contextSize)", category: .pipeline)
                     Log.info("[RAG]   - chunks: \(includedRetrievedChunks.count)", category: .pipeline)
@@ -9500,6 +9395,13 @@ class RAGService: ObservableObject {
                     if runVerificationGates {
                         Log.section("Step 7.5: Verification Gates", level: .info, category: .pipeline)
 
+                        let confidencePolicy = ConfidencePolicyService.policy(
+                            for: question,
+                            answerIntent: answerIntent,
+                            qualityMode: qualityMode
+                        )
+                        let verificationService = VerificationGateService(config: confidencePolicy.verificationConfig)
+
                         let verificationStartTime = Date()
                         // Use the TOP reranked scores from the pipeline (auditTopSim, auditSecondSim, etc.)
                         // NOT the scores from generationRetrievedChunks which may be sibling chunks with discounted scores
@@ -9532,7 +9434,7 @@ class RAGService: ObservableObject {
                             Log.warning("[RAG] Gate E: No chunk embeddings loaded — vector DB may not support getEmbeddings. Gate E will be skipped.", category: .pipeline)
                         }
 
-                        verificationResult = await verificationGateService.verify(
+                        verificationResult = await verificationService.verify(
                             response: responseText,
                             query: question,
                             retrievedChunks: generationRetrievedChunks,
@@ -9565,17 +9467,9 @@ class RAGService: ObservableObject {
                                 Log.warning("   • Gate \(gateResult.gate.rawValue): \(gateResult.details)", category: .pipeline)
                             }
 
-                            // Intent-aware threshold adjustment:
-                            // For extractive/lookup intents, answers are directly from source - lower threshold acceptable
-                            // For synthesized answers (summarize, investigate), require higher confidence
-                            let effectiveThreshold: Float
+                            let effectiveThreshold = confidencePolicy.verificationPassThreshold
                             if answerIntent.isExtractiveFirst {
-                                // Extractive intents: halve the threshold (e.g., 50% → 25%)
-                                // Direct lookups from source don't need same rigor as synthesized answers
-                                effectiveThreshold = qualityModeVerificationThreshold * 0.5
                                 Log.debug("[Verification] Extractive intent '\(answerIntent.rawValue)' - using relaxed threshold \(String(format: "%.0f", effectiveThreshold * 100))%", category: .pipeline)
-                            } else {
-                                effectiveThreshold = qualityModeVerificationThreshold
                             }
 
                             // Check if confidence is below quality mode threshold (Maximum mode requires 98%)
@@ -9590,7 +9484,7 @@ class RAGService: ObservableObject {
                                     ? "confidence \(String(format: "%.0f", vr.overallConfidence * 100))% below \(thresholdDisplay)"
                                     : "grounded-only mode"
                                 Log.info("🛑 Abstaining: \(reason)", category: .pipeline)
-                                let abstainResponse = verificationGateService.generateAbstentionResponse(
+                                let abstainResponse = verificationService.generateAbstentionResponse(
                                     query: question,
                                     verificationResult: vr,
                                     retrievedChunks: generationRetrievedChunks
@@ -9644,11 +9538,20 @@ class RAGService: ObservableObject {
 
                     // Step 8.1: Calibrated Confidence (AppleRAG §7)
                     // P(correct) = σ(α*s_max + β*m + γ*log(1+n_evidence) - δ)
-                    let isTouchyQuery = question.lowercased().contains(["safety", "warning", "danger", "pressure", "temperature", "voltage", "maximum", "minimum", "limit"].first(where: { question.lowercased().contains($0) }) ?? "___never___")
-                    let calibratedConfidence = confidenceCalibrationService.calibrate(
+                    let confidencePolicy = ConfidencePolicyService.policy(
+                        for: question,
+                        answerIntent: answerIntent,
+                        qualityMode: qualityMode
+                    )
+                    let calibrationService = ConfidenceCalibrationService(
+                        params: confidencePolicy.calibrationParameters,
+                        abstentionThreshold: confidencePolicy.calibrationAbstentionThreshold,
+                        touchyThreshold: confidencePolicy.calibrationTouchyThreshold
+                    )
+                    let calibratedConfidence = calibrationService.calibrate(
                         chunks: generationRetrievedChunks,
                         verification: verificationResult,
-                        isTouchyQuery: isTouchyQuery
+                        isTouchyQuery: confidencePolicy.isTouchyQuery
                     )
                     Log.info(
                         "📊 Calibrated confidence: \(String(format: "%.1f", calibratedConfidence.probability * 100))% (\(calibratedConfidence.level.rawValue))",
@@ -9718,6 +9621,54 @@ class RAGService: ObservableObject {
                         gatingSummary = gatingSummary.map { "\($0),verification_skipped" } ?? "verification_skipped"
                     }
 
+                    // Include verification warnings in quality warnings (only if gates were run)
+                    var finalWarnings = qualityWarnings
+                    if let vResult = verificationResult, !vResult.passed {
+                        for gateResult in vResult.gateResults where !gateResult.passed {
+                            finalWarnings.append("Verification \(gateResult.gate.rawValue): \(gateResult.details)")
+                        }
+                    }
+
+                    // Generate structured answer for rich UI rendering (AppleRAG §6)
+                    var finalResponseText = responseText
+                    var finalConfidenceScore = confidenceScore
+                    var structuredAnswer = StructuredAnswer.from(
+                        response: responseText,
+                        retrievedChunks: generationRetrievedChunks,
+                        answerIntent: answerIntent,
+                        verificationResult: verificationResult,
+                        structuredGeneration: llmResponse.structuredRAGGeneration,
+                        loops: reasoningTraceForMetadata?.count ?? 1
+                    )
+
+#if canImport(FoundationModels)
+                    if #available(iOS 26.0, *),
+                       let sourceOnlyOutcome = await sourceOnlyOutcomeIfNeeded(
+                           query: question,
+                           candidateAnswer: responseText,
+                           retrievedChunks: generationRetrievedChunks,
+                           answerIntent: answerIntent,
+                           verificationResult: verificationResult
+                       )
+                    {
+                        finalResponseText = sourceOnlyOutcome.finalAnswer
+                        structuredAnswer = sourceOnlyOutcome.structuredAnswer
+                        gatingSummary = appendedGatingDecision(
+                            gatingSummary,
+                            sourceOnlyOutcome.shouldAbstain ? "source_only_abstained" : "source_only_refined"
+                        )
+                        finalWarnings.append(contentsOf: sourceOnlyOutcome.warnings)
+                        if sourceOnlyOutcome.shouldAbstain,
+                           let abstentionReason = sourceOnlyOutcome.abstentionReason
+                        {
+                            finalWarnings.append(abstentionReason)
+                        }
+                        finalConfidenceScore = sourceOnlyOutcome.shouldAbstain
+                            ? min(confidenceScore, 0.35)
+                            : min(confidenceScore, max(sourceOnlyOutcome.fidelityScore, 0.75))
+                    }
+#endif
+
                     let metadata = ResponseMetadata(
                         timeToFirstToken: llmResponse.timeToFirstToken,
                         totalGenerationTime: llmResponse.totalTime,
@@ -9735,25 +9686,8 @@ class RAGService: ObservableObject {
                         reasoningTrace: reasoningTraceForMetadata // Chained session insights
                     )
 
-                    // Include verification warnings in quality warnings (only if gates were run)
-                    var finalWarnings = qualityWarnings
-                    if let vResult = verificationResult, !vResult.passed {
-                        for gateResult in vResult.gateResults where !gateResult.passed {
-                            finalWarnings.append("Verification \(gateResult.gate.rawValue): \(gateResult.details)")
-                        }
-                    }
-
-                    // Generate structured answer for rich UI rendering (AppleRAG §6)
-                    let structuredAnswer = StructuredAnswer.from(
-                        response: responseText,
-                        retrievedChunks: generationRetrievedChunks,
-                        answerIntent: answerIntent,
-                        verificationResult: verificationResult,
-                        structuredGeneration: llmResponse.structuredRAGGeneration,
-                        loops: reasoningTraceForMetadata?.count ?? 1
-                    )
                     let displayResponseText = resolvedDisplayResponse(
-                        fallback: responseText,
+                        fallback: finalResponseText,
                         structuredAnswer: structuredAnswer
                     )
 
@@ -9768,7 +9702,7 @@ class RAGService: ObservableObject {
                         retrievedChunks: generationRetrievedChunks,
                         generatedResponse: displayResponseText,
                         metadata: metadata,
-                        confidenceScore: confidenceScore,
+                        confidenceScore: finalConfidenceScore,
                         qualityWarnings: finalWarnings,
                         structuredAnswer: structuredAnswer
                     )
@@ -10195,6 +10129,16 @@ class RAGService: ObservableObject {
             let topScores = usedRetrieved.map(\.similarityScore).filter { $0 > 0 }
             let verificationResult: RAGVerificationResult?
             if !usedRetrieved.isEmpty, !topScores.isEmpty {
+                let fallbackQualityMode = await MainActor.run {
+                    self.settingsStore?.ragQualityMode ?? .standard
+                }
+                let confidencePolicy = ConfidencePolicyService.policy(
+                    for: question,
+                    answerIntent: answerIntent,
+                    qualityMode: fallbackQualityMode
+                )
+                let verificationService = VerificationGateService(config: confidencePolicy.verificationConfig)
+
                 let preferredContainerId = await MainActor.run {
                     self.currentQueryContainerId ?? self.containerService.activeContainerId
                 }
@@ -10230,7 +10174,7 @@ class RAGService: ObservableObject {
                     Log.warning("[RAG] Reliability fallback grounding skipped: no chunk embeddings loaded for fallback evidence", category: .pipeline)
                 }
 
-                verificationResult = await verificationGateService.verify(
+                verificationResult = await verificationService.verify(
                     response: llmResponse.text,
                     query: question,
                     retrievedChunks: usedRetrieved,
@@ -11080,7 +11024,8 @@ class RAGService: ObservableObject {
         context: String?,
         config: InferenceConfig,
         sourceChunks: [DocumentChunk] = [],
-        allowStructuredRAG: Bool = false
+        allowStructuredRAG: Bool = false,
+        structuredRAGMode: StructuredRAGMode = .direct
     ) async throws -> LLMResponse {
         let upstreamHandler = LLMStreamingContext.handler
 
@@ -11201,17 +11146,19 @@ class RAGService: ObservableObject {
                        !sourceChunks.isEmpty {
                         let systemChars = (config.systemPrompt ?? "").count
                         let estimatedInputTokens = Int(ceil(Double(context.count + prompt.count + systemChars + 180) / 1.4))
-                        let structuredSchemaTokens = 220
+                        let structuredSchemaTokens = structuredRAGMode == .reasoned ? 220 : 160
                         let structuredOutputReserve = min(max(config.maxTokens, 180), 360)
                         let withinStructuredBudget = estimatedInputTokens + structuredSchemaTokens + structuredOutputReserve <= 3600
 
                         if withinStructuredBudget {
-                            Log.info("[RAG] Using constrained structured answer generation", category: .llm)
+                            let modeLabel = structuredRAGMode == .reasoned ? "reasoned" : "direct"
+                            Log.info("[RAG] Using constrained structured answer generation (\(modeLabel))", category: .llm)
                             response = try await appleService.generateStructuredRAGAnswer(
                                 prompt: prompt,
                                 context: context,
                                 config: config,
-                                sourceCount: sourceChunks.count
+                                sourceCount: sourceChunks.count,
+                                mode: structuredRAGMode
                             )
                         } else {
                             Log.debug("[RAG] Structured answer generation skipped due to token budget (~\(estimatedInputTokens) input tokens)", category: .llm)
@@ -11743,6 +11690,44 @@ class RAGService: ObservableObject {
         return finalResponse
     }
 
+    private nonisolated func appendedGatingDecision(_ existing: String?, _ decision: String) -> String {
+        existing.map { "\($0),\(decision)" } ?? decision
+    }
+
+#if canImport(FoundationModels)
+    @available(iOS 26.0, *)
+    private func sourceOnlyOutcomeIfNeeded(
+        query: String,
+        candidateAnswer: String,
+        retrievedChunks: [RetrievedChunk],
+        answerIntent: AnswerIntent,
+        verificationResult: RAGVerificationResult?
+    ) async -> SourceOnlyAnswerOutcome? {
+        let trimmedAnswer = candidateAnswer.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedAnswer.isEmpty, !retrievedChunks.isEmpty else { return nil }
+        guard answerIntent.isExtractiveFirst else { return nil }
+
+        guard let outcome = await SourceOnlyAnswerService.shared.verifyAndRender(
+            query: query,
+            candidateAnswer: trimmedAnswer,
+            retrievedChunks: retrievedChunks,
+            answerIntent: answerIntent,
+            verificationResult: verificationResult
+        ) else {
+            return nil
+        }
+
+        // Keep this conservative for user-facing quality.
+        // Use source-only when it strengthens a grounded lookup answer, not when it
+        // downgrades a plausible answer into a brittle abstention or ultra-thin rewrite.
+        guard !outcome.shouldAbstain else { return nil }
+        guard outcome.supportedClaims.count > 0 else { return nil }
+        guard outcome.fidelityScore >= 0.72 else { return nil }
+
+        return outcome
+    }
+#endif
+
     /// Repair malformed URLs in LLM output so links are tappable and correct.
     /// Fixes: spaces within URLs, missing percent-encoding, whitespace before TLDs.
     /// Preserves valid markdown links and bare URLs — only repairs, never removes.
@@ -12005,30 +11990,7 @@ class RAGService: ObservableObject {
     }
 
     private nonisolated func isTrivialQuery(_ query: String) -> Bool {
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return true }
-
-        let tokenCount = trimmed.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
-        if tokenCount <= 1 {
-            return true
-        }
-
-        let lower = trimmed.lowercased()
-        let trivialSet: Set<String> = [
-            "test",
-            "help",
-            "hello",
-            "hi",
-            "hey",
-            "ok",
-            "okay",
-            "thanks",
-            "thank you",
-            "yes",
-            "yep",
-            "yeah",
-        ]
-        return trivialSet.contains(lower)
+        QueryProfileService.isTrivialQuery(query)
     }
 
     private func buildNeighborAwareFallback(
@@ -12173,8 +12135,61 @@ class RAGService: ObservableObject {
         fallback: String,
         structuredAnswer: StructuredAnswer?
     ) -> String {
+        let fallbackText = fallback.trimmingCharacters(in: .whitespacesAndNewlines)
         let candidate = structuredAnswer?.answer.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return candidate.isEmpty ? fallback : candidate
+
+        guard !candidate.isEmpty else { return fallbackText }
+        guard !fallbackText.isEmpty else { return candidate }
+
+        if let structuredAnswer,
+           shouldPreferFallbackDisplay(
+                fallback: fallbackText,
+                candidate: candidate,
+                answerType: structuredAnswer.answerType
+           ) {
+            return fallbackText
+        }
+
+        return candidate
+    }
+
+    private func shouldPreferFallbackDisplay(
+        fallback: String,
+        candidate: String,
+        answerType: StructuredAnswer.AnswerType
+    ) -> Bool {
+        switch answerType {
+        case .lookup, .tableLookup, .compute:
+            let fallbackWords = fallback.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
+            let candidateWords = candidate.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
+            let fallbackCitations = citationCount(in: fallback)
+            let candidateCitations = citationCount(in: candidate)
+            let fallbackLooksList = fallback.contains("\n• ") || fallback.contains("\n1. ")
+            let candidateLooksList = candidate.contains("\n• ") || candidate.contains("\n1. ")
+            let fallbackLooksCompact = fallbackWords > 0 && fallbackWords <= 90
+
+            if fallbackLooksCompact {
+                if candidateLooksList && !fallbackLooksList {
+                    return true
+                }
+                if candidateCitations > max(2, fallbackCitations + 1) {
+                    return true
+                }
+                if candidateWords > fallbackWords + 18 {
+                    return true
+                }
+            }
+
+            return false
+        default:
+            return false
+        }
+    }
+
+    private func citationCount(in text: String) -> Int {
+        guard let regex = Self.citationRegex else { return 0 }
+        let range = NSRange(text.startIndex ..< text.endIndex, in: text)
+        return regex.numberOfMatches(in: text, options: [], range: range)
     }
 
     private func highPrecisionLookupOverrideAnswer(
@@ -12197,7 +12212,9 @@ class RAGService: ObservableObject {
             answerIntent: extractorIntent
         )
 
-        let confidenceThreshold: Float = forceExtractiveAttempt ? max(extractiveLookupOverrideThreshold, 0.90) : extractiveLookupOverrideThreshold
+        let confidenceThreshold = EvidenceScoringPolicyService.precisionLockThreshold(
+            forceExtractiveAttempt: forceExtractiveAttempt
+        )
         guard case let .success(result) = extraction,
               result.confidence >= confidenceThreshold else {
             return nil
@@ -12297,22 +12314,7 @@ class RAGService: ObservableObject {
 
     /// Ensures we only force-lock answers that contain concrete values.
     private nonisolated func hasQuantitativeAnswerSignal(_ text: String) -> Bool {
-        let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !normalized.isEmpty else { return false }
-
-        let numberPattern = #"\b\d+(?:\.\d+)?\b"#
-        guard normalized.range(of: numberPattern, options: .regularExpression) != nil else {
-            return false
-        }
-
-        let unitPattern = #"\b(?:gal(?:lon)?s?|l(?:iter)?s?|ml|kg|g|lb?s?|oz|mm|cm|m|km|mi|mph|km/h|psi|kpa|bar|v|a|w|kw|hz|mhz|ghz|°c|°f|%)\b"#
-        if normalized.lowercased().range(of: unitPattern, options: .regularExpression) != nil {
-            return true
-        }
-
-        // Also accept compact spec codes with numeric payload (e.g., "0W-20", "ISO 9001")
-        let specCodePattern = #"\b[A-Z]{1,6}[\s-]?\d+(?:\.\d+)?\b|\b\d+(?:\.\d+)?[A-Z]{1,4}\b"#
-        return normalized.range(of: specCodePattern, options: .regularExpression) != nil
+        EvidenceScoringPolicyService.hasQuantitativeSignal(text)
     }
 
     private func buildEvidencePackContext(
@@ -12387,27 +12389,7 @@ class RAGService: ObservableObject {
     }
 
     private func looksTableLike(text: String, structureType: String?) -> Bool {
-        if structureType == "table" {
-            return true
-        }
-
-        if text.contains("|") && text.components(separatedBy: "|").count >= 4 {
-            return true
-        }
-
-        if text.contains("\t") {
-            return true
-        }
-
-        let lines = text.split(separator: "\n").prefix(6)
-        let structuredLines = lines.filter { line in
-            let lineText = String(line)
-            let hasNumbers = lineText.rangeOfCharacter(from: .decimalDigits) != nil
-            let hasColumns = lineText.contains(":") || lineText.contains("  ") || lineText.contains("\t")
-            return hasNumbers && hasColumns
-        }
-
-        return structuredLines.count >= 2
+        EvidenceScoringPolicyService.isStructuredEvidence(text: text, structureType: structureType)
     }
 
     private func correctiveRetrievalScore(
@@ -12416,26 +12398,12 @@ class RAGService: ObservableObject {
         structureType: String?,
         baseScore: Float
     ) -> Float {
-        let lowercased = content.lowercased()
-        let matchingTerms = queryTerms.filter { lowercased.contains($0) }
-        guard !matchingTerms.isEmpty else { return 0 }
-
-        var score = baseScore
-        let coverage = Float(matchingTerms.count) / Float(max(1, queryTerms.count))
-        score += min(0.20, coverage * 0.20)
-        score += min(0.12, Float(countSpecPatterns(content)) * 0.015)
-
-        if looksTableLike(text: content, structureType: structureType) {
-            score += 0.08
-        }
-        if content.rangeOfCharacter(from: .decimalDigits) != nil {
-            score += 0.05
-        }
-        if matchingTerms.count >= min(2, queryTerms.count) {
-            score += 0.04
-        }
-
-        return min(score, 0.93)
+        EvidenceScoringPolicyService.correctiveRetrievalScore(
+            content: content,
+            queryTerms: queryTerms,
+            structureType: structureType,
+            baseScore: baseScore
+        )
     }
 
     private func performCorrectiveRetrieval(
@@ -13298,7 +13266,7 @@ extension RAGService: RAGToolHandler {
     func executeFullRetrievalPipeline(
         query: String,
         topK: Int = 20,
-        minSimilarity: Float = 0.08,
+        minSimilarity: Float? = nil,
         qualityMode: RAGQualityMode? = nil,
         onDetailedEvent: DetailedThinkingCallback? = nil
     ) async throws -> [RetrievedChunk] {
@@ -13309,6 +13277,7 @@ extension RAGService: RAGToolHandler {
         } else {
             mode = await MainActor.run { self.settingsStore?.ragQualityMode ?? .standard }
         }
+        let effectiveMinSimilarity = minSimilarity ?? RetrievalPolicyService.agenticMinSimilarity(for: mode, stage: .search)
         let embeddingContext = await resolveEmbeddingContext()
         let db = await dbFor(embeddingContext.containerId)
         let allChunks = try await db.allChunks()
@@ -13322,15 +13291,20 @@ extension RAGService: RAGToolHandler {
         // RAPTOR-lite: Query routing for summary-first retrieval
         // Only filter chunks if query routing is enabled AND we have summaries
         let queryRoutingEnabled = await MainActor.run { self.settingsStore?.enableQueryRouting ?? true }
+        let queryProfile = await QueryProfileService.shared.buildProfile(
+            for: query,
+            queryRouter: queryRouter,
+            routingEnabled: queryRoutingEnabled
+        )
         var effectiveChunks = allChunks
 
         if queryRoutingEnabled {
-            let queryClassification = await queryRouter.classifyQuery(query)
+            let queryClassification = queryProfile.routingClassification
             let hasSummaries = allChunks.contains { $0.metadata.abstractionLevel == .documentSummary }
 
             if hasSummaries && queryClassification.queryType == .overview && queryClassification.confidence >= 0.5 {
                 // For overview queries in agentic mode, use summaries first
-                let searchLevels = await queryRouter.abstractionLevelsToSearch(for: queryClassification)
+                let searchLevels = queryProfile.abstractionLevelsToSearch
                 effectiveChunks = allChunks.filter { searchLevels.contains($0.metadata.abstractionLevel) }
                 Log.info("[RAPTOR-lite] Agentic retrieval using \(effectiveChunks.count) summary chunks for overview query", category: .retrieval)
                 await onDetailedEvent?(.retrieval, "RAPTOR-lite routing", "Using \(effectiveChunks.count) summary chunks")
@@ -13365,11 +13339,10 @@ extension RAGService: RAGToolHandler {
         }
 
         let queryEnhancer = QueryEnhancementService(corpusVocabulary: agenticVocab)
-        let queryIntent = queryEnhancer.classifyIntent(query)
-        let adjustment = queryIntent.weightAdjustment
-        // UNIVERSAL FIX: Same floor/ceiling as main pipeline — vector always gets fair vote
-        let vectorWeight = max(0.35, min(0.65, 0.5 + adjustment.vectorDelta))
-        let keywordWeight = max(0.35, min(0.65, 0.5 + adjustment.keywordDelta))
+        let queryIntent = queryProfile.searchIntent
+        let adjustedWeights = queryProfile.adjustedHybridWeights(from: .default)
+        let vectorWeight = adjustedWeights.vectorWeight
+        let keywordWeight = adjustedWeights.keywordWeight
 
         // Emit: Query expansion
         await onDetailedEvent?(.queryRewrite, "Query expansion", "Intent: \(queryIntent.rawValue) → Vector \(Int(vectorWeight * 100))% / Keyword \(Int(keywordWeight * 100))%")
@@ -13437,16 +13410,16 @@ extension RAGService: RAGToolHandler {
 
         // Step 7: Filter by similarity
         let preFilterCount = retrievedChunks.count
-        retrievedChunks = await engine.filterBySimilarity(chunks: retrievedChunks, min: minSimilarity)
+        retrievedChunks = await engine.filterBySimilarity(chunks: retrievedChunks, min: effectiveMinSimilarity)
 
         if preFilterCount > retrievedChunks.count {
-            await onDetailedEvent?(.context, "Quality filter", "Kept \(retrievedChunks.count)/\(preFilterCount) (≥\(Int(minSimilarity * 100))% threshold)")
+            await onDetailedEvent?(.context, "Quality filter", "Kept \(retrievedChunks.count)/\(preFilterCount) (≥\(Int(effectiveMinSimilarity * 100))% threshold)")
         }
 
         // Precision/spec lookups need the same rescue path in Deep Think that
         // Standard mode uses. Rerankers often prefer prose around a spec table
         // over the actual row containing the value.
-        let fullPipelineAnswerIntent = QueryEnhancementService().classifyAnswerIntent(query)
+        let fullPipelineAnswerIntent = queryProfile.answerIntent
         if fullPipelineAnswerIntent.isExtractiveFirst || isPrecisionValueQuery(query) {
             let existingIds = Set(retrievedChunks.map { $0.chunk.id })
             let sniperResults = specTableSniper(

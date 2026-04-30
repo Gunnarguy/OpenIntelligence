@@ -56,6 +56,25 @@
         var matchedTerms: [String]
     }
 
+    @available(iOS 26.0, *)
+    @Generable
+    struct DirectRAGAnswer {
+        @Guide(description: "The direct answer synthesized from document content. Be concise but complete.")
+        var answer: String
+
+        @Guide(description: "Confidence score 0-100 based on source quality and relevance. 90+ means direct quote, 60-89 means strong inference, below 60 means partial or uncertain.")
+        var confidence: Int
+
+        @Guide(description: "Array of source ids such as [S1], [S2], matching the excerpt identifiers in the prompt.")
+        var citations: [String]
+
+        @Guide(description: "Claim-level breakdown of the answer. Keep each claim atomic and cite only the supporting source ids.")
+        var claims: [RAGAnswerClaim]
+
+        @Guide(description: "Key terms from the query that were found in sources. Helps verify retrieval quality.")
+        var matchedTerms: [String]
+    }
+
     /// Structured search result for document chunks
     /// Used when returning hybrid search results
     @available(iOS 26.0, *)

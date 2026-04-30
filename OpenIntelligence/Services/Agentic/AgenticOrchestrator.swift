@@ -343,7 +343,7 @@ final class AgenticOrchestrator: Sendable {
         // HARD EXIT: If both checks fail, don't try to salvage - just say "not found"
         // This prevents the "8 sessions of philosophical rambling" problem
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        if lexicalRelevance < 0.1 && !intentValid {
+        if lexicalRelevance < AgenticPolicyService.hardIrrelevanceLexicalThreshold() && !intentValid {
             Log.warning("[Agentic] HARD EXIT: Retrieved content is irrelevant (lexical=\(String(format: "%.0f%%", lexicalRelevance * 100)), intent=false)", category: .retrieval)
 
             let notFoundStep = ThinkingStep(
@@ -383,7 +383,7 @@ final class AgenticOrchestrator: Sendable {
         // Downgrade quality if semantic intent doesn't match but lexical has some overlap
         if !intentValid && (retrievalQuality == .excellent || retrievalQuality == .good) {
             Log.info("[Agentic] Semantic intent mismatch - downgrading from \(retrievalQuality.description) to moderate", category: .llm)
-            retrievalQuality = .moderate
+            retrievalQuality = AgenticPolicyService.downgradedForSemanticMismatch(retrievalQuality)
         }
 
         Log.info("[Agentic] Retrieval quality: \(retrievalQuality.description), Intent valid: \(intentValid)", category: .llm)
@@ -527,20 +527,11 @@ final class AgenticOrchestrator: Sendable {
                     // FIXED 2026-01: Previous version was too aggressive, discarding valid answers
                     let sessionConfidence = unlimitedResult.confidence
                     let verifyConfidence = verification.calibratedConfidence
-
-                    let finalConfidence: Float
-                    if verification.addressesQuestion {
-                        // Answer is relevant - blend session confidence with verification
-                        // Trust the sessions more (they did the work)
-                        finalConfidence = sessionConfidence * 0.7 + verifyConfidence * 0.3
-                    } else if verifyConfidence >= 0.5 {
-                        // Verification says not relevant, but confidence is decent
-                        // Maybe verification is wrong - use average
-                        finalConfidence = (sessionConfidence + verifyConfidence) / 2
-                    } else {
-                        // Both signals say bad - cap it, but not too harshly
-                        finalConfidence = min(sessionConfidence * 0.6, 0.5)
-                    }
+                    let finalConfidence = AgenticPolicyService.blendVerifiedFinalConfidence(
+                        sessionConfidence: sessionConfidence,
+                        verificationConfidence: verifyConfidence,
+                        addressesQuestion: verification.addressesQuestion
+                    )
 
                     Log.info("[Agentic] Maximum Mode: Calibrated confidence \(Int(sessionConfidence * 100))% → \(Int(finalConfidence * 100))% (addresses question: \(verification.addressesQuestion))", category: .llm)
 
@@ -887,7 +878,7 @@ final class AgenticOrchestrator: Sendable {
                 steps: steps,
                 totalTokens: totalTokens,
                 totalDuration: Date().timeIntervalSince(startTime),
-                confidence: max(retrievalQuality.confidenceScore, 0.55), // Moderate is at least 55% useful
+                confidence: AgenticPolicyService.moderateReturnConfidence(for: retrievalQuality),
                 sourcesUsed: allRetrievedChunks.count,
                 retrievedChunks: allRetrievedChunks
             )
@@ -907,11 +898,11 @@ final class AgenticOrchestrator: Sendable {
             // Only accept Speculative RAG if it meets the config's confidence threshold
             // Previously used 0.6 which was too low - answers were "grounded" but incomplete
             // Now we use the config threshold (e.g., 0.95 for thorough, 0.98 for unlimited)
-            let acceptanceThreshold = max(config.confidenceThreshold - 0.1, 0.75)
-
-            // Also check for query complexity - "what does X do" questions need exhaustive answers
             let isExhaustiveQuery = queryRequiresExhaustiveAnswer(query)
-            let effectiveThreshold = isExhaustiveQuery ? max(acceptanceThreshold, 0.90) : acceptanceThreshold
+            let effectiveThreshold = AgenticPolicyService.speculativeAcceptanceThreshold(
+                config: config,
+                requiresExhaustiveAnswer: isExhaustiveQuery
+            )
 
             if speculativeResult.confidence >= effectiveThreshold {
                 Log.info("[Agentic] Speculative RAG succeeded with \(String(format: "%.0f%%", speculativeResult.confidence * 100)) confidence (threshold: \(String(format: "%.0f%%", effectiveThreshold * 100)))", category: .llm)
@@ -943,7 +934,7 @@ final class AgenticOrchestrator: Sendable {
                 let broaderChunks = try await ragService.executeFullRetrievalPipeline(
                     query: query,
                     topK: 20,
-                    minSimilarity: 0.08, // Much lower threshold
+                    minSimilarity: RetrievalPolicyService.agenticMinSimilarity(for: qualityMode, stage: .fallback),
                     qualityMode: qualityMode,
                     onDetailedEvent: detailedForwarder
                 )
@@ -990,30 +981,7 @@ final class AgenticOrchestrator: Sendable {
 
     // MARK: - Retrieval Quality Evaluation
 
-    private enum RetrievalQuality {
-        case excellent // Top results > 0.5 similarity, good coverage
-        case good // Top results > 0.35 similarity
-        case moderate // Top results 0.2-0.35 similarity
-        case low // Top results < 0.2 similarity or no results
-
-        var confidenceScore: Float {
-            switch self {
-            case .excellent: return 0.9
-            case .good: return 0.75
-            case .moderate: return 0.5
-            case .low: return 0.3
-            }
-        }
-
-        var description: String {
-            switch self {
-            case .excellent: return "Excellent (>50% match)"
-            case .good: return "Good (35-50% match)"
-            case .moderate: return "Moderate (20-35% match)"
-            case .low: return "Low (<20% match)"
-            }
-        }
-    }
+    private typealias RetrievalQuality = AgenticRetrievalQuality
 
     // MARK: - Lexical Relevance Check
 
@@ -1065,28 +1033,7 @@ final class AgenticOrchestrator: Sendable {
     /// NOTE: Semantic similarity scores are inherently lower than people expect.
     /// 0.15-0.25 is often "good enough" for useful retrieval - don't give up too early!
     private func evaluateRetrievalQuality(chunks: [RetrievedChunk], query: String) -> RetrievalQuality {
-        guard !chunks.isEmpty else { return .low }
-
-        let topScore = chunks.first?.similarityScore ?? 0
-        let top3Avg = chunks.prefix(3).map { $0.similarityScore }.reduce(0, +) / Float(min(3, chunks.count))
-        let top5Avg = chunks.prefix(5).map { $0.similarityScore }.reduce(0, +) / Float(min(5, chunks.count))
-
-        // After re-ranking and MMR, scores are more meaningful:
-        // - 0.35+ is excellent - confident match
-        // - 0.20-0.35 is good - solid retrieval
-        // - 0.12-0.20 is moderate - usable with caveats
-        // - <0.12 is low - might need reformulation
-        //
-        // IMPORTANT: Don't short-circuit on "good" - the full pipeline makes Deep Think valuable
-        if topScore > 0.45, top3Avg > 0.35 {
-            return .excellent
-        } else if topScore > 0.30, top3Avg > 0.22 {
-            return .good
-        } else if topScore > 0.15 || top5Avg > 0.12 {
-            return .moderate
-        } else {
-            return .low
-        }
+        AgenticPolicyService.retrievalQuality(chunks: chunks, config: config)
     }
 
     /// Check if a query would benefit from decomposition
@@ -1487,7 +1434,7 @@ final class AgenticOrchestrator: Sendable {
         let searchResult = try await ragService.searchDocuments(
             query: subQuery,
             topK: 12,
-            minSimilarity: 0.25
+            minSimilarity: RetrievalPolicyService.agenticMinSimilarity(for: qualityMode, stage: .focusedSubquery)
         )
 
         return ThinkingStep(
@@ -1518,7 +1465,7 @@ final class AgenticOrchestrator: Sendable {
         let chunks = try await ragService.executeFullRetrievalPipeline(
             query: subQuery,
             topK: 20,
-            minSimilarity: 0.08, // Low threshold - let re-ranker decide quality
+            minSimilarity: RetrievalPolicyService.agenticMinSimilarity(for: qualityMode, stage: .search),
             qualityMode: qualityMode,
             onDetailedEvent: onDetailedEvent
         )
@@ -2026,7 +1973,7 @@ final class AgenticOrchestrator: Sendable {
             let sectionChunks = try await ragService.executeFullRetrievalPipeline(
                 query: section,
                 topK: 5,
-                minSimilarity: 0.10,  // Low threshold — we trust the document's cross-reference
+                minSimilarity: RetrievalPolicyService.agenticMinSimilarity(for: qualityMode, stage: .crossReference),
                 qualityMode: qualityMode,
                 onDetailedEvent: nil  // Don't spam detailed events for sub-searches
             )
@@ -2138,7 +2085,7 @@ final class AgenticOrchestrator: Sendable {
             let hopChunks = try await ragService.executeFullRetrievalPipeline(
                 query: entity,
                 topK: 4,
-                minSimilarity: 0.2,
+                minSimilarity: RetrievalPolicyService.agenticMinSimilarity(for: qualityMode, stage: .graphExpansion),
                 qualityMode: qualityMode,
                 onDetailedEvent: onDetailedEvent
             )
@@ -3017,30 +2964,25 @@ final class AgenticOrchestrator: Sendable {
 
         // 1. Check if answer addresses the question (semantic relevance)
         let addressScore = computeAnswerRelevance(query: query, answer: answer)
-        let addressesQuestion = addressScore >= 0.35
+        let addressesQuestion = AgenticPolicyService.addressesQuestion(for: addressScore)
 
         // 2. Verify citations are grounded in sources
         let citationResult = verifyCitations(answer: answer, sources: sourceChunks)
 
         // 3. Compute calibrated confidence
-        let calibrated = computeCalibratedConfidence(
+        let calibrated = AgenticPolicyService.calibrateSelfRAGConfidence(
             answerRelevance: addressScore,
             citationScore: citationResult.groundingScore,
             answerLength: answer.count,
             sourceCount: sourceChunks.count
         )
 
-        // 4. Determine action
-        let action: String
-        if !addressesQuestion {
-            action = "retry"  // Answer doesn't address question, need another attempt
-        } else if citationResult.groundingScore < 0.3 && citationResult.totalCitations > 0 {
-            action = "retry"  // Citations are mostly hallucinated
-        } else if calibrated < 0.5 {
-            action = "escalate"  // Low confidence, maybe escalate to Maximum mode
-        } else {
-            action = "accept"  // Good to go
-        }
+        let action = AgenticPolicyService.verificationAction(
+            addressesQuestion: addressesQuestion,
+            groundingScore: citationResult.groundingScore,
+            totalCitations: citationResult.totalCitations,
+            calibratedConfidence: calibrated
+        )
 
         let summary = buildVerificationSummary(
             addressesQuestion: addressesQuestion,
@@ -3257,40 +3199,6 @@ final class AgenticOrchestrator: Sendable {
             groundingScore: groundingScore,
             details: details
         )
-    }
-
-    /// Compute calibrated confidence from multiple signals
-    /// Returns 0-1 confidence that's actually meaningful (not just session count heuristics)
-    private func computeCalibratedConfidence(
-        answerRelevance: Float,
-        citationScore: Float,
-        answerLength: Int,
-        sourceCount: Int
-    ) -> Float {
-        // Weight the signals based on importance
-        // Relevance is most important (does it answer the question?)
-        let relevanceWeight: Float = 0.40
-        // Citation grounding is second (is it factual?)
-        let citationWeight: Float = 0.30
-        // Answer completeness (length + source coverage)
-        let completenessWeight: Float = 0.30
-
-        // Completeness score
-        let lengthScore = min(1.0, Float(answerLength) / 500.0)  // Cap at 500 chars
-        let sourceScore = min(1.0, Float(sourceCount) / 5.0)    // Cap at 5 sources
-        let completeness = (lengthScore + sourceScore) / 2
-
-        // Combine with weights
-        let rawConfidence = (answerRelevance * relevanceWeight) +
-                           (citationScore * citationWeight) +
-                           (completeness * completenessWeight)
-
-        // Apply floor and ceiling
-        // Floor: Never below 30% if we have any answer
-        // Ceiling: Never above 95% without human verification
-        let calibrated = min(0.95, max(0.30, rawConfidence))
-
-        return calibrated
     }
 
     /// Build human-readable verification summary
@@ -3761,33 +3669,20 @@ extension AgenticOrchestrator {
             throw AgenticError.serviceUnavailable
         }
 
+        let reasoningPolicy = AgenticPolicyService.reasoningPolicy(
+            for: config,
+            agenticConfig: self.config,
+            forceConfidenceReporting: forceConfidenceReporting
+        )
+
         var chainInsights: [String] = []
         var totalTokens = 0
         var allSources: Set<String> = []
-
-        // Mode detection for confidence-based session scaling
-        let isUnlimitedMode = config.sessionCount >= 20
-        let isDeepThinkMode = config.sessionCount >= 4 && config.sessionCount <= 10 && !isUnlimitedMode
-        let usesEvidenceDrivenStopping = isUnlimitedMode || isDeepThinkMode
-
-        // All multi-session modes report confidence for dynamic scaling
-        let shouldReportConfidence = isUnlimitedMode || isDeepThinkMode || forceConfidenceReporting
-
-        // Confidence thresholds:
-        // - Maximum (unlimited): 98% target, minimum 8 sessions
-        // - Deep Think: 85% target, minimum 4 sessions, max 8 sessions
-        let confidenceThreshold: Float = isUnlimitedMode ? self.config.confidenceThreshold : 0.85
-        let minSessionsBeforeEarlyStop = isUnlimitedMode ? 8 : 4
-        let maxSessionsForMode = isUnlimitedMode ? config.sessionCount : min(8, config.sessionCount + 4)
         var actualSessionCount = 0
-
-        // FIXED: Start with a meaningful baseline confidence so users see progress from the start
-        // Deep Think: Start at 10% (shows we're just beginning)
-        // Maximum mode: Start at 5% (longer journey to 98%)
-        var cumulativeConfidence: Float = shouldReportConfidence ? (isUnlimitedMode ? 0.05 : 0.10) : 0
+        var cumulativeConfidence: Float = reasoningPolicy.initialConfidence
         let queryEnhancer = QueryEnhancementService()
         var evidenceTracker = FactBank()
-        if usesEvidenceDrivenStopping {
+        if reasoningPolicy.usesEvidenceDrivenStopping {
             evidenceTracker.queryIntent = queryEnhancer.classifyIntent(query)
             evidenceTracker.initializeWithQuery(query)
         }
@@ -3795,7 +3690,7 @@ extension AgenticOrchestrator {
         var saturationStreak = 0
         var usedWindowSources: Set<String> = []
 
-        Log.info("[ReasoningChain] Starting \(isDeepThinkMode ? "dynamic 4-8" : String(config.sessionCount))-session chain for: \(query.prefix(40))... (confidence reporting: \(shouldReportConfidence), threshold: \(Int(confidenceThreshold * 100))%)", category: .llm)
+        Log.info("[ReasoningChain] Starting \(reasoningPolicy.isDeepThinkMode ? "dynamic 4-8" : String(config.sessionCount))-session chain for: \(query.prefix(40))... (confidence reporting: \(reasoningPolicy.shouldReportConfidence), threshold: \(Int(reasoningPolicy.confidenceThreshold * 100))%)", category: .llm)
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         // CHUNK ROTATION: Each session sees a sliding window of chunks
@@ -3812,8 +3707,8 @@ extension AgenticOrchestrator {
         // Session 1 (no insights): context up to 4000 chars, prompt text ~300 chars = 4300 (fits)
         // Session 2+ (with insights): context ≤ 2200 + insights ≤ 1200 + prompt ~300 = 3700 (fits)
         // buildChainPrompt handles the per-session budget split (4000 for S1, 2200 for S2+)
-        let maxChunksPerSession = (isUnlimitedMode || isDeepThinkMode) ? 4 : 6
-        let contextBudget = isUnlimitedMode ? 3000 : (isDeepThinkMode ? 3500 : (config.maxContextPerSession - 500))
+        let maxChunksPerSession = (reasoningPolicy.isUnlimitedMode || reasoningPolicy.isDeepThinkMode) ? 4 : 6
+        let contextBudget = reasoningPolicy.isUnlimitedMode ? 3000 : (reasoningPolicy.isDeepThinkMode ? 3500 : (config.maxContextPerSession - 500))
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         // SESSION CONTEXT ROTATION: Different sessions see different chunks
@@ -3832,7 +3727,7 @@ extension AgenticOrchestrator {
         let stride = max(1, chunksPerSession / 2)  // 50% overlap between sessions
 
         // Use dynamic max for Deep Think mode (can go up to 8 sessions)
-        let effectiveMaxSessions = isDeepThinkMode ? maxSessionsForMode : config.sessionCount
+        let effectiveMaxSessions = reasoningPolicy.isDeepThinkMode ? reasoningPolicy.maxSessionsForMode : config.sessionCount
 
         // Build ALL session contexts upfront; each session gets a sliding window
         var sessionContexts: [String] = []
@@ -3895,19 +3790,19 @@ extension AgenticOrchestrator {
         let sharedContext = sessionContexts.first ?? ""
         Log.debug("[ReasoningChain] Built \(sessionContexts.count) rotating contexts (first: \(sharedContext.count) chars, \(chunksPerSession) chunks/session, stride \(stride))", category: .retrieval)
 
-        if isUnlimitedMode {
-            Log.info("[ReasoningChain] UNLIMITED MODE: Will keep reasoning until \(Int(confidenceThreshold * 100))% confident or \(config.sessionCount) sessions max", category: .llm)
-        } else if isDeepThinkMode {
-            Log.info("[ReasoningChain] DEEP THINK MODE: Dynamic 4-8 sessions, targeting \(Int(confidenceThreshold * 100))% confidence", category: .llm)
+        if reasoningPolicy.isUnlimitedMode {
+            Log.info("[ReasoningChain] UNLIMITED MODE: Will keep reasoning until \(Int(reasoningPolicy.confidenceThreshold * 100))% confident or \(config.sessionCount) sessions max", category: .llm)
+        } else if reasoningPolicy.isDeepThinkMode {
+            Log.info("[ReasoningChain] DEEP THINK MODE: Dynamic 4-8 sessions, targeting \(Int(reasoningPolicy.confidenceThreshold * 100))% confidence", category: .llm)
         }
 
         for sessionIndex in 0..<effectiveMaxSessions {
             let sessionNum = sessionIndex + 1
             actualSessionCount = sessionNum
 
-            if isUnlimitedMode {
+            if reasoningPolicy.isUnlimitedMode {
                 Log.debug("[ReasoningChain] Session \(sessionNum) (unlimited mode, confidence: \(Int(cumulativeConfidence * 100))%)", category: .llm)
-            } else if isDeepThinkMode {
+            } else if reasoningPolicy.isDeepThinkMode {
                 Log.debug("[ReasoningChain] Session \(sessionNum)/4-8 (deep think, confidence: \(Int(cumulativeConfidence * 100))%)", category: .llm)
             } else {
                 Log.debug("[ReasoningChain] Session \(sessionNum)/\(config.sessionCount)", category: .llm)
@@ -3920,25 +3815,31 @@ extension AgenticOrchestrator {
             // - Maximum (unlimited): min 8 sessions, target 98%
             // - Deep Think: min 4 sessions, target 85%, max 8 sessions
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            if sessionIndex >= minSessionsBeforeEarlyStop {
-                if usesEvidenceDrivenStopping {
-                    let evidenceCoverageTarget: Float = evidenceTracker.subQuestions.count >= 4 ? 0.70 : 0.55
+            if sessionIndex >= reasoningPolicy.minSessionsBeforeEarlyStop {
+                if reasoningPolicy.usesEvidenceDrivenStopping {
+                    let evidenceCoverageTarget = reasoningPolicy.evidenceCoverageTarget(
+                        for: evidenceTracker.subQuestions.count
+                    )
                     let sourceCoverage = Float(usedWindowSources.count) / Float(max(allSources.count, 1))
-                    let noveltyExhausted = lowNoveltyStreak >= 2 || saturationStreak >= 2 || sourceCoverage >= 0.85
+                    let noveltyExhausted = reasoningPolicy.noveltyExhausted(
+                        lowNoveltyStreak: lowNoveltyStreak,
+                        saturationStreak: saturationStreak,
+                        sourceCoverage: sourceCoverage
+                    )
 
-                    if cumulativeConfidence >= confidenceThreshold,
+                    if cumulativeConfidence >= reasoningPolicy.confidenceThreshold,
                        evidenceTracker.subQuestionConfidence >= evidenceCoverageTarget,
                        noveltyExhausted {
-                        let modeName = isUnlimitedMode ? "Maximum" : "Deep Think"
+                        let modeName = reasoningPolicy.isUnlimitedMode ? "Maximum" : "Deep Think"
                         Log.info(
                             "[ReasoningChain] \(modeName) mode: stopping at \(Int(cumulativeConfidence * 100))% confidence, coverage=\(Int(evidenceTracker.subQuestionConfidence * 100))%, sourceCoverage=\(Int(sourceCoverage * 100))%, lowNovelty=\(lowNoveltyStreak), saturation=\(saturationStreak)",
                             category: .llm
                         )
                         break
                     }
-                } else if cumulativeConfidence >= confidenceThreshold {
-                    let modeName = isUnlimitedMode ? "Maximum" : "Deep Think"
-                    Log.info("[ReasoningChain] \(modeName) mode: Stopping at \(Int(cumulativeConfidence * 100))% confidence (threshold: \(Int(confidenceThreshold * 100))%)", category: .llm)
+                } else if cumulativeConfidence >= reasoningPolicy.confidenceThreshold {
+                    let modeName = reasoningPolicy.isUnlimitedMode ? "Maximum" : "Deep Think"
+                    Log.info("[ReasoningChain] \(modeName) mode: Stopping at \(Int(cumulativeConfidence * 100))% confidence (threshold: \(Int(reasoningPolicy.confidenceThreshold * 100))%)", category: .llm)
                     break
                 }
             }
@@ -3966,13 +3867,13 @@ extension AgenticOrchestrator {
             // Build session prompt based on position in chain
             // For unlimited/deep think mode, dynamically determine if this should be the "final" session
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            let effectiveSessionCount = (isUnlimitedMode || isDeepThinkMode) ? max(effectiveMaxSessions, sessionNum + 3) : config.sessionCount
+            let effectiveSessionCount = (reasoningPolicy.isUnlimitedMode || reasoningPolicy.isDeepThinkMode) ? max(effectiveMaxSessions, sessionNum + 3) : config.sessionCount
 
             // For unlimited mode, use sliding window of recent insights to prevent context overflow
             // Keep only the last 3 insights (each ~500 chars) to stay well under 4096 token limit
             // ALSO apply to Deep Think mode to prevent context overflow on 4-8 sessions
             let insightsForPrompt: [String]
-            if (isUnlimitedMode || isDeepThinkMode) && chainInsights.count > 3 {
+            if (reasoningPolicy.isUnlimitedMode || reasoningPolicy.isDeepThinkMode) && chainInsights.count > 3 {
                 // Condense older insights into a brief summary + keep recent 2
                 // FIXED: Was truncating to 100 chars each, losing most accumulated knowledge.
                 // Now keep 250 chars per older insight (2.5x more) and 800 char cap on condensed.
@@ -3983,12 +3884,12 @@ extension AgenticOrchestrator {
                         .map { String($0.prefix(250)) }
                         .joined(separator: " | ")
                 insightsForPrompt = [String(condensedOld.prefix(800))] + Array(chainInsights.suffix(2))
-                Log.debug("[ReasoningChain] \(isUnlimitedMode ? "Unlimited" : "Deep Think") mode: condensed \(chainInsights.count) insights to \(insightsForPrompt.count) for prompt", category: .llm)
+                Log.debug("[ReasoningChain] \(reasoningPolicy.isUnlimitedMode ? "Unlimited" : "Deep Think") mode: condensed \(chainInsights.count) insights to \(insightsForPrompt.count) for prompt", category: .llm)
             } else {
                 insightsForPrompt = chainInsights
             }
 
-            let sessionObjective = usesEvidenceDrivenStopping
+            let sessionObjective = reasoningPolicy.usesEvidenceDrivenStopping
                 ? buildSessionObjective(
                     query: query,
                     factBank: evidenceTracker,
@@ -4003,7 +3904,7 @@ extension AgenticOrchestrator {
                 query: query,
                 context: sessionContext,
                 previousInsights: insightsForPrompt,
-                maxInsightLength: isUnlimitedMode ? 600 : (isDeepThinkMode ? 800 : config.maxInsightLength),  // Shorter for multi-session modes
+                maxInsightLength: reasoningPolicy.isUnlimitedMode ? 600 : (reasoningPolicy.isDeepThinkMode ? 800 : config.maxInsightLength),
                 sessionObjective: sessionObjective
             )
 
@@ -4014,7 +3915,7 @@ extension AgenticOrchestrator {
             // FIXED: Reduce maxTokens to leave room for context within 4096 limit
             // Budget: system(100) + prompt+context+insights(~2500) + output(700) = ~3300 tokens
             // Increased from 500 to give sessions room for detailed prose instead of truncated bullets
-            let sessionMaxTokens = isUnlimitedMode ? 700 : (isDeepThinkMode ? 700 : 600)
+            let sessionMaxTokens = reasoningPolicy.isUnlimitedMode ? 700 : (reasoningPolicy.isDeepThinkMode ? 700 : 600)
 
             // FIXED: Disable tools for ALL sessions — multi-query retrieval already
             // gathered all needed chunks. Session 1 tool calls waste tokens on useless
@@ -4162,7 +4063,7 @@ extension AgenticOrchestrator {
             var evidenceNovelty: Float = 0
             var evidenceSaturation: Float = 0
 
-            if usesEvidenceDrivenStopping {
+            if reasoningPolicy.usesEvidenceDrivenStopping {
                 if contextIndex < sessionSourceSets.count {
                     usedWindowSources.formUnion(sessionSourceSets[contextIndex])
                 }
@@ -4171,29 +4072,30 @@ extension AgenticOrchestrator {
                 evidenceCoverage = evidenceTracker.subQuestionConfidence
                 evidenceNovelty = factUpdate.noveltyScore
 
-                if factUpdate.addedFacts == 0 || factUpdate.noveltyScore < 0.18 {
+                if factUpdate.addedFacts == 0 || factUpdate.noveltyScore < reasoningPolicy.lowNoveltyThreshold {
                     lowNoveltyStreak += 1
                 } else {
                     lowNoveltyStreak = 0
                 }
 
                 let usedSourceCoverage = Float(usedWindowSources.count) / Float(max(allSources.count, 1))
-                let (calculatedConfidence, saturationScore) = calculateRealConfidence(
-                    insight: insight,
+                let (calculatedConfidence, saturationScore) = AgenticPolicyService.calculateProgressConfidence(
                     allInsights: chainInsights + [insight],
                     query: query,
-                    totalSources: allSources.count,
                     sessionNum: sessionNum,
                     subQuestionConfidence: evidenceCoverage,
                     noveltyScore: factUpdate.noveltyScore,
-                    sourceCoverage: usedSourceCoverage
+                    sourceCoverage: usedSourceCoverage,
+                    maxConfidence: reasoningPolicy.maxConfidence
                 )
                 evidenceConfidence = calculatedConfidence
                 evidenceSaturation = saturationScore
 
-                if saturationScore > 0.85,
-                   factUpdate.noveltyScore < 0.18,
-                   factUpdate.newlyAnsweredSubQuestions == 0 {
+                if reasoningPolicy.shouldTreatAsSaturated(
+                    saturationScore: saturationScore,
+                    noveltyScore: factUpdate.noveltyScore,
+                    newlyAnsweredSubQuestions: factUpdate.newlyAnsweredSubQuestions
+                ) {
                     saturationStreak += 1
                 } else {
                     saturationStreak = 0
@@ -4204,20 +4106,18 @@ extension AgenticOrchestrator {
             // Do this BEFORE appending insight so we can compare with previous insights
             if let conf = parseConfidence(from: successResponse.text) {
                 if let evidenceConfidence {
-                    let confidenceCap: Float = isDeepThinkMode ? 0.90 : 0.99
-                    let blendedConfidence = min((evidenceConfidence * 0.8) + (conf * 0.2), confidenceCap)
+                    let blendedConfidence = min((evidenceConfidence * 0.8) + (conf * 0.2), reasoningPolicy.maxConfidence)
                     cumulativeConfidence = max(cumulativeConfidence, blendedConfidence)
                 } else {
                     cumulativeConfidence = (cumulativeConfidence + conf) / 2
                 }
             } else if let evidenceConfidence {
-                let confidenceCap: Float = isDeepThinkMode ? 0.90 : 0.99
-                cumulativeConfidence = max(cumulativeConfidence, min(evidenceConfidence, confidenceCap))
+                cumulativeConfidence = max(cumulativeConfidence, min(evidenceConfidence, reasoningPolicy.maxConfidence))
                 Log.info(
                     "[ReasoningChain] Evidence confidence: \(Int(cumulativeConfidence * 100))% (coverage: \(Int(evidenceCoverage * 100))%, novelty: \(Int(evidenceNovelty * 100))%, saturation: \(Int(evidenceSaturation * 100))%, lowNovelty=\(lowNoveltyStreak), saturationStreak=\(saturationStreak))",
                     category: .llm
                 )
-            } else if isUnlimitedMode || isDeepThinkMode {
+            } else if reasoningPolicy.isUnlimitedMode || reasoningPolicy.isDeepThinkMode {
                 // Heuristic confidence for Maximum mode:
                 // Designed to require 8-15+ sessions before hitting 98%
                 // Each component is conservative to ensure deep exploration
@@ -4226,7 +4126,7 @@ extension AgenticOrchestrator {
                 // DEEP THINK: 8% per session (4 sessions = 32%, 6 = 48%, 7 = 55% cap)
                 // MAXIMUM MODE: 3% per session for visible progress (more conservative for long runs)
                 // Deep Think needs 85% reachable: 55% session + 20% length + 10% citations = 85%
-                let sessionContributionRate: Float = isDeepThinkMode ? 0.08 : 0.03
+                let sessionContributionRate: Float = reasoningPolicy.isDeepThinkMode ? 0.08 : 0.03
                 let sessionContribution = min(sessionContributionRate * Float(sessionNum), 0.55)
 
                 // 2. Length contribution (up to 20%) - longer insights = more substance
@@ -4243,7 +4143,7 @@ extension AgenticOrchestrator {
                 var repetitionBonus: Float = 0
 
                 // Require more sessions before checking repetition in Maximum mode
-                let minSessionsForRepetitionCheck = isUnlimitedMode ? 8 : 4
+                let minSessionsForRepetitionCheck = reasoningPolicy.repetitionCheckStartSession
 
                 if chainInsights.count >= minSessionsForRepetitionCheck {
                     // Use more unique words (min 4 chars, take more words for better sampling)
@@ -4265,7 +4165,7 @@ extension AgenticOrchestrator {
                         maxOverlapRatio = max(maxOverlapRatio, overlapRatio)
 
                         // Higher threshold for Maximum mode (65% vs 50%)
-                        let similarityThreshold: Float = isUnlimitedMode ? 0.65 : 0.50
+                        let similarityThreshold = reasoningPolicy.repetitionSimilarityThreshold
                         if overlapRatio > similarityThreshold {
                             similarityCount += 1
                             if lastWasSimilar { consecutiveSimilar += 1 }
@@ -4277,9 +4177,9 @@ extension AgenticOrchestrator {
 
                     // MAXIMUM MODE: Require 3 consecutive similar OR 90%+ overlap before forcing termination
                     // Standard mode: 3+ similar OR 75%+ overlap
-                    let forceTerminationThreshold: Float = isUnlimitedMode ? 0.90 : 0.75
-                    let forceTerminationCount = isUnlimitedMode ? 3 : 3
-                    let requireConsecutive = isUnlimitedMode // Maximum mode requires consecutive hits
+                    let forceTerminationThreshold = reasoningPolicy.repetitionForceTerminationThreshold
+                    let forceTerminationCount = reasoningPolicy.repetitionForceTerminationCount
+                    let requireConsecutive = reasoningPolicy.repetitionRequiresConsecutive
 
                     let shouldForceTerminate = requireConsecutive
                         ? (consecutiveSimilar >= forceTerminationCount || maxOverlapRatio > forceTerminationThreshold)
@@ -4295,7 +4195,7 @@ extension AgenticOrchestrator {
                         // FIXED: Do NOT set confidence to threshold. That caused 85% confidence
                         // on wrong answers just because the LLM repeated itself.
                         // Instead, just break out of the session loop.
-                        let minSessionsBeforeForceStop = isUnlimitedMode ? 15 : 4
+                        let minSessionsBeforeForceStop = reasoningPolicy.minSessionsBeforeRepetitionStop
                         if sessionNum >= minSessionsBeforeForceStop {
                             Log.info("[ReasoningChain] Forcing early termination due to repetition loop (after \(sessionNum) sessions)", category: .llm)
                             // DON'T touch cumulativeConfidence — keep it at whatever it actually is
@@ -4317,9 +4217,7 @@ extension AgenticOrchestrator {
                 let exhaustionBonus: Float = sessionNum >= 15 ? 0.15 : (sessionNum >= 12 ? 0.10 : (sessionNum >= 10 ? 0.05 : 0))
 
                 // Only calculate confidence normally if we haven't forced termination
-                // DEEP THINK: Cap at 90% (threshold is 85%)
-                // MAXIMUM MODE: Cap at 99% (threshold is 98%)
-                let confidenceCap: Float = isDeepThinkMode ? 0.90 : 0.99
+                let confidenceCap = reasoningPolicy.maxConfidence
                 if cumulativeConfidence < confidenceCap {
                     let estimatedConfidence = sessionContribution + lengthContribution + citationBonus + repetitionBonus + exhaustionBonus
                     cumulativeConfidence = max(cumulativeConfidence, min(estimatedConfidence, confidenceCap))
@@ -4346,7 +4244,7 @@ extension AgenticOrchestrator {
                 tokensUsed: successResponse.tokensGenerated,
                 duration: 0.5,
                 timestamp: Date(),
-                confidence: shouldReportConfidence ? cumulativeConfidence : nil
+                confidence: reasoningPolicy.shouldReportConfidence ? cumulativeConfidence : nil
             )
             await onStep?(step)
 
@@ -4360,7 +4258,7 @@ extension AgenticOrchestrator {
         // For UNLIMITED MODE: Run a dedicated exhaustive synthesis pass
         // This ensures we get a comprehensive answer, not just the last insight
         let finalAnswer: String
-        if isUnlimitedMode, chainInsights.count >= 3 {
+        if reasoningPolicy.isUnlimitedMode, chainInsights.count >= 3 {
             Log.info("[ReasoningChain] Running exhaustive synthesis for Maximum mode (\(chainInsights.count) insights)...", category: .llm)
 
             // CRITICAL: Apple FM API enforces 4096 token limit for BOTH on-device AND PCC
@@ -4435,7 +4333,7 @@ extension AgenticOrchestrator {
                 Log.warning("[ReasoningChain] Exhaustive synthesis failed, using last insight: \(error)", category: .llm)
                 finalAnswer = cleanupFinalAnswer(chainInsights.last ?? "Unable to synthesize answer from reasoning chain.")
             }
-        } else if isDeepThinkMode, chainInsights.count >= 2 {
+        } else if reasoningPolicy.isDeepThinkMode, chainInsights.count >= 2 {
             // DEEP THINK MODE: Run a synthesis pass to combine all session findings.
             // Without this, the answer is just the last raw insight (which might be
             // "No new information found" if the last session had no new details).
@@ -4511,7 +4409,7 @@ extension AgenticOrchestrator {
             finalAnswer = cleanupFinalAnswer(chainInsights.last ?? "Unable to synthesize answer from reasoning chain.")
         }
 
-        if isUnlimitedMode {
+        if reasoningPolicy.isUnlimitedMode {
             Log.info("[ReasoningChain] UNLIMITED MODE completed: \(actualSessionCount) sessions, \(totalTokens) tokens, \(Int(cumulativeConfidence * 100))% confidence", category: .llm)
         } else {
             Log.info("[ReasoningChain] Completed \(actualSessionCount) sessions, \(totalTokens) total tokens", category: .llm)
@@ -5001,6 +4899,11 @@ extension AgenticOrchestrator {
             throw AgenticError.serviceUnavailable
         }
 
+        let unlimitedPolicy = AgenticPolicyService.unlimitedReasoningPolicy(
+            targetConfidence: targetConfidence,
+            maxSessions: maxSessions
+        )
+
         let startTime = Date()
         var totalTokens = 0
         var allInsights: [String] = []
@@ -5020,7 +4923,7 @@ extension AgenticOrchestrator {
         Log.info("[Unlimited] FactBank: QueryIntent=\(queryIntent.rawValue), \(factBank.subQuestions.count) sub-questions", category: .llm)
 
         var currentAnswer = ""
-        var confidence: Float = 0.05
+        var confidence: Float = unlimitedPolicy.initialConfidence
         var terminationReason: UnlimitedResult.TerminationReason = .maxSessionsReached
 
         // Track content saturation via semantic similarity
@@ -5055,9 +4958,15 @@ extension AgenticOrchestrator {
         // THE UNLIMITED LOOP - runs until confidence OR exhaustion
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         for sessionNum in 1...maxSessions {
-            let evidenceCoverageTarget: Float = factBank.subQuestions.count >= 4 ? 0.70 : 0.55
-            let noveltyExhausted = lowNoveltyStreak >= 2 || saturationStreak >= saturationThreshold
-                || usedChunkIds.count >= sortedChunks.count
+            let evidenceCoverageTarget = unlimitedPolicy.evidenceCoverageTarget(
+                for: factBank.subQuestions.count
+            )
+            let sourceCoverage = Float(usedChunkIds.count) / Float(max(sortedChunks.count, 1))
+            let noveltyExhausted = unlimitedPolicy.noveltyExhausted(
+                lowNoveltyStreak: lowNoveltyStreak,
+                saturationStreak: saturationStreak,
+                sourceCoverage: sourceCoverage
+            )
 
             // Stop only when confidence, evidence coverage, and novelty exhaustion all line up.
             if confidence >= targetConfidence,
@@ -5076,7 +4985,7 @@ extension AgenticOrchestrator {
             // ADAPTIVE RETRIEVAL: When saturated, expand chunk pool
             // This is the "truly unlimited" part - we fetch MORE data
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            if saturationStreak >= saturationThreshold {
+            if saturationStreak >= unlimitedPolicy.saturationStreakThreshold {
                 if expansionCount < maxExpansions {
                     // Generate new queries based on what FactBank has learned
                     let expansionQueries = generateExpansionQueries(
@@ -5094,7 +5003,7 @@ extension AgenticOrchestrator {
                         if let chunks = try? await ragService.executeFullRetrievalPipeline(
                             query: expQuery,
                             topK: 20,
-                            minSimilarity: 0.15, // Lower threshold for exploration
+                            minSimilarity: RetrievalPolicyService.agenticMinSimilarity(for: qualityMode, stage: .fallback),
                             qualityMode: qualityMode,
                             onDetailedEvent: detailedForwarder
                         ) {
@@ -5243,7 +5152,7 @@ extension AgenticOrchestrator {
             // This is the "alternator" that never overflows
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
             let factUpdate = factBank.addFacts(from: insight)
-            if factUpdate.addedFacts == 0 || factUpdate.noveltyScore < 0.18 {
+            if factUpdate.addedFacts == 0 || factUpdate.noveltyScore < unlimitedPolicy.lowNoveltyThreshold {
                 lowNoveltyStreak += 1
             } else {
                 lowNoveltyStreak = 0
@@ -5261,21 +5170,21 @@ extension AgenticOrchestrator {
             // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
             let usedSourceCoverage = Float(usedChunkIds.count) / Float(max(sortedChunks.count, 1))
             let (newConfidence, saturationScore) = calculateRealConfidence(
-                insight: insight,
                 allInsights: allInsights,
                 query: query,
-                totalSources: sortedChunks.count,
                 sessionNum: sessionNum,
                 subQuestionConfidence: factBank.subQuestionConfidence,
                 noveltyScore: factUpdate.noveltyScore,
-                sourceCoverage: usedSourceCoverage
+                sourceCoverage: usedSourceCoverage,
+                maxConfidence: unlimitedPolicy.maxConfidence
             )
 
             // Update saturation tracking
-            if saturationScore > 0.85,
-               factUpdate.noveltyScore < 0.18,
-               factUpdate.newlyAnsweredSubQuestions == 0
-            {
+            if unlimitedPolicy.shouldTreatAsSaturated(
+                saturationScore: saturationScore,
+                noveltyScore: factUpdate.noveltyScore,
+                newlyAnsweredSubQuestions: factUpdate.newlyAnsweredSubQuestions
+            ) {
                 saturationStreak += 1
                 Log.info("[Unlimited] Session \(sessionNum): High saturation (\(Int(saturationScore * 100))%), streak=\(saturationStreak)", category: .llm)
             } else {
@@ -5338,7 +5247,7 @@ extension AgenticOrchestrator {
             tokensUsed: 0,
             duration: 0.1,
             timestamp: Date(),
-            confidence: min(confidence + 0.02, 0.99)
+            confidence: min(confidence + 0.02, unlimitedPolicy.maxConfidence)
         )
         steps.append(synthesisStep)
         await onStep?(synthesisStep)
@@ -5382,54 +5291,23 @@ extension AgenticOrchestrator {
     /// Calculate REAL confidence based on multiple factors
     /// Balances sub-question coverage with session progress and content quality
     private func calculateRealConfidence(
-        insight: String,
         allInsights: [String],
         query: String,
-        totalSources: Int,
         sessionNum: Int,
         subQuestionConfidence: Float,
         noveltyScore: Float,
-        sourceCoverage: Float
+        sourceCoverage: Float,
+        maxConfidence: Float
     ) -> (confidence: Float, saturationScore: Float) {
-        // Factor 1: Session progress (0-0.68) - still matters, but no longer dominates.
-        let sessionProgress = min(0.68, log(Float(sessionNum) + 1) / log(50.0) * 0.68)
-
-        // Factor 2: Evidence coverage bonus (0-0.18)
-        let subQBonus = subQuestionConfidence * 0.18
-
-        // Factor 3: Source coverage bonus (0-0.05)
-        let sourceCoverageBonus = min(sourceCoverage, 1.0) * 0.05
-
-        // Factor 4: Content depth bonus (0-0.03)
-        let totalChars = allInsights.joined().count
-        let depthBonus = min(Float(totalChars) / 20000.0, 1.0) * 0.03
-
-        // Factor 5: Query term coverage (0-0.04)
-        let queryTerms = Set(query.lowercased().split(separator: " ").filter { $0.count > 3 })
-        let answerText = allInsights.joined().lowercased()
-        let termsFound = queryTerms.filter { answerText.contains($0) }.count
-        let queryBonus = Float(termsFound) / max(1, Float(queryTerms.count)) * 0.04
-
-        // Factor 6: Novelty bonus (0-0.05) - new evidence should increase confidence.
-        let noveltyBonus = min(0.05, max(0, noveltyScore) * 0.05)
-
-        // Calculate saturation (diminishing returns indicator)
-        var saturationScore: Float = 0
-        if allInsights.count > 2 {
-            let recentWords = Set(allInsights.suffix(2).joined().lowercased().split(separator: " ").filter { $0.count > 4 })
-            let previousWords = Set(allInsights.dropLast(2).joined().lowercased().split(separator: " ").filter { $0.count > 4 })
-            let overlap = recentWords.intersection(previousWords).count
-            saturationScore = Float(overlap) / max(1, Float(recentWords.count))
-        }
-
-        // Penalize saturation so repeated low-value passes do not inflate confidence.
-        let saturationPenalty = saturationScore * 0.10
-
-        // Combine all factors, cap at 98%
-        let rawConfidence = sessionProgress + subQBonus + sourceCoverageBonus + depthBonus + queryBonus + noveltyBonus - saturationPenalty
-        let finalConfidence = min(rawConfidence, 0.98)
-
-        return (max(0.05, finalConfidence), saturationScore)
+        AgenticPolicyService.calculateProgressConfidence(
+            allInsights: allInsights,
+            query: query,
+            sessionNum: sessionNum,
+            subQuestionConfidence: subQuestionConfidence,
+            noveltyScore: noveltyScore,
+            sourceCoverage: sourceCoverage,
+            maxConfidence: maxConfidence
+        )
     }
 
     /// Build prompt for unlimited session based on stage
@@ -6185,7 +6063,7 @@ extension AgenticOrchestrator {
         let broadChunks = try await ragService.executeFullRetrievalPipeline(
             query: query,
             topK: 50,
-            minSimilarity: 0.20, // Lower threshold to catch more relevant content
+            minSimilarity: RetrievalPolicyService.agenticMinSimilarity(for: qualityMode, stage: .coverageExpansion),
             qualityMode: qualityMode,
             onDetailedEvent: onDetailedEvent
         )
@@ -6206,7 +6084,7 @@ extension AgenticOrchestrator {
             let variantChunks = try await ragService.executeFullRetrievalPipeline(
                 query: variation,
                 topK: 20,
-                minSimilarity: 0.25,
+                minSimilarity: RetrievalPolicyService.agenticMinSimilarity(for: qualityMode, stage: .queryVariation),
                 qualityMode: qualityMode,
                 onDetailedEvent: onDetailedEvent
             )

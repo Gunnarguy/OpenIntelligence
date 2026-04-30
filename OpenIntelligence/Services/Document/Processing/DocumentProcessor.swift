@@ -27,6 +27,56 @@ class DocumentProcessor {
         let text: String
         let parentText: String?
         let metadata: ChunkMetadata
+
+        /// Optional structured table payload preserved only for downstream SQLite storage.
+        /// This keeps relational table shape available without bloating every persisted chunk path.
+        let structuredTable: StructuredTablePayload?
+
+        nonisolated init(
+            text: String,
+            parentText: String?,
+            metadata: ChunkMetadata,
+            structuredTable: StructuredTablePayload? = nil
+        ) {
+            self.text = text
+            self.parentText = parentText
+            self.metadata = metadata
+            self.structuredTable = structuredTable
+        }
+    }
+
+    struct StructuredTablePayload: Sendable, Codable {
+        let title: String
+        let headers: [String]
+        let rows: [[String]]
+
+        nonisolated init(title: String, headers: [String], rows: [[String]]) {
+            self.title = title
+            self.headers = headers
+            self.rows = rows
+        }
+
+        var rowCount: Int { rows.count }
+
+        var columnCount: Int {
+            max(headers.count, rows.map(\ .count).max() ?? 0)
+        }
+
+        var searchText: String {
+            var lines: [String] = []
+            lines.append(title)
+            if !headers.isEmpty {
+                lines.append(headers.joined(separator: " | "))
+            }
+            for row in rows.prefix(80) {
+                let normalized = row
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+                guard !normalized.isEmpty else { continue }
+                lines.append(normalized.joined(separator: " | "))
+            }
+            return lines.joined(separator: "\n")
+        }
     }
 
     // MARK: - Page Break Sentinel
@@ -2858,7 +2908,8 @@ class DocumentProcessor {
             entities: [String] = [],
             abbreviations: [String: String] = [:],
             tableTitle: String? = nil,
-            siblingGroupId: String? = nil
+            siblingGroupId: String? = nil,
+            structuredTable: StructuredTablePayload? = nil
         ) {
             let metadata = makeChunkMetadata(
                 chunkIndex: chunkIndex,
@@ -2877,7 +2928,12 @@ class DocumentProcessor {
                 tableTitle: tableTitle,
                 siblingGroupId: siblingGroupId
             )
-            chunks.append(ProcessedChunk(text: text, parentText: parentText, metadata: metadata))
+            chunks.append(ProcessedChunk(
+                text: text,
+                parentText: parentText,
+                metadata: metadata,
+                structuredTable: structuredTable
+            ))
             chunkIndex += 1
         }
 
@@ -2981,6 +3037,7 @@ class DocumentProcessor {
 
                 if element.elementType == "table", let tableData = element.tableData {
                     let tableTitle = resolveTableTitle(tableData: tableData, sectionTitle: currentSectionTitle)
+                    let structuredTable = structuredTablePayload(from: tableData, tableTitle: tableTitle)
                     let siblingGroupId = siblingGroupIdentifier(
                         prefix: "table",
                         pageNumber: element.pageNumber,
@@ -3019,6 +3076,7 @@ class DocumentProcessor {
                             element: element,
                             baseMetadata: baseMetadata,
                             parentText: currentSectionTitle,
+                            structuredTable: structuredTable,
                             maxWords: maxAtomicWords
                         )
                         chunks.append(contentsOf: splitChunks)
@@ -3037,7 +3095,8 @@ class DocumentProcessor {
                             sectionPath: currentSectionPath,
                             entities: element.detectedEntities.map(\ .value),
                             tableTitle: tableTitle,
-                            siblingGroupId: siblingGroupId
+                            siblingGroupId: siblingGroupId,
+                            structuredTable: structuredTable
                         )
                     }
 
@@ -3285,6 +3344,14 @@ class DocumentProcessor {
         return "Table"
     }
 
+    private func structuredTablePayload(from tableData: TableData, tableTitle: String) -> StructuredTablePayload {
+        StructuredTablePayload(
+            title: tableTitle,
+            headers: inferredHeaders(for: tableData),
+            rows: dataRows(for: tableData)
+        )
+    }
+
     private func siblingGroupIdentifier(prefix: String, pageNumber: Int, title: String) -> String {
         let normalizedTitle = title.lowercased()
             .replacingOccurrences(of: #"[^a-z0-9]+"#, with: "-", options: .regularExpression)
@@ -3507,6 +3574,7 @@ class DocumentProcessor {
         element: StructuredElementWrapper,
         baseMetadata: ChunkMetadata,
         parentText: String?,
+        structuredTable: StructuredTablePayload? = nil,
         maxWords: Int
     ) -> [ProcessedChunk] {
         var chunks: [ProcessedChunk] = []
@@ -3616,7 +3684,12 @@ class DocumentProcessor {
                     hasCrossReferences: baseMetadata.hasCrossReferences,
                     resolvedReferences: baseMetadata.resolvedReferences
                 )
-                chunks.append(ProcessedChunk(text: chunkContent, parentText: parentText, metadata: metadata))
+                chunks.append(ProcessedChunk(
+                    text: chunkContent,
+                    parentText: parentText,
+                    metadata: metadata,
+                    structuredTable: chunkNumber == 0 ? structuredTable : nil
+                ))
                 chunkNumber += 1
                 currentChunkLines = []
                 currentWordCount = 0
@@ -3666,7 +3739,12 @@ class DocumentProcessor {
                 hasCrossReferences: baseMetadata.hasCrossReferences,
                 resolvedReferences: baseMetadata.resolvedReferences
             )
-            chunks.append(ProcessedChunk(text: chunkContent, parentText: parentText, metadata: metadata))
+            chunks.append(ProcessedChunk(
+                text: chunkContent,
+                parentText: parentText,
+                metadata: metadata,
+                structuredTable: chunkNumber == 0 ? structuredTable : nil
+            ))
         }
 
         return chunks
@@ -3942,7 +4020,12 @@ class DocumentProcessor {
             hasCrossReferences: parent.metadata.hasCrossReferences,
             resolvedReferences: parent.metadata.resolvedReferences
         )
-        return ProcessedChunk(text: text, parentText: parent.parentText, metadata: metadata)
+        return ProcessedChunk(
+            text: text,
+            parentText: parent.parentText,
+            metadata: metadata,
+            structuredTable: index == 0 ? parent.structuredTable : nil
+        )
     }
 
     // MARK: - Content Coverage Verification

@@ -2,6 +2,13 @@
 
 This is the public version history for OpenIntelligence. It focuses on user-visible product changes and intentionally omits private engine tuning, thresholds, and internal implementation details.
 
+## 3.3 - April 2026
+
+- Preserved parsed table titles, headers, and rows in SQLite during ingestion so uploaded reference documents remain more inspectable and queryable instead of collapsing to flattened text only
+- Added a structured table fallback path for retrieval when exact values sit under table headings, schemas, or row data that ordinary chunk search can miss
+- Kept the exact-answer cleanup from the 3.2.5 corrective line in place so direct fact questions stay brief, grounded, and less citation-heavy across Standard, Deep Think, and Maximum
+- Tightened starter-question quality so suggested questions stay closer to what a single grounded passage can actually answer cleanly
+
 ## 3.2.5 - April 2026
 
 - Improved exact-value answers for table rows, specifications, measurements, counts, limits, dates, and prices when the source clearly contains the answer

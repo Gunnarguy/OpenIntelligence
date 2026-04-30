@@ -42,6 +42,20 @@ public struct FTS5PatternCount: Sendable {
 /// Replaces file-per-document FullTextStorageService with SQLite inverted index
 actor SQLiteFullTextService {
 
+    struct StructuredChunkMetadata: Sendable {
+        let chunkType: String?
+        let tableTitle: String?
+        let headers: [String]
+        let rows: [[String]]
+        let searchText: String
+
+        var rowCount: Int { rows.count }
+
+        var columnCount: Int {
+            max(headers.count, rows.map(\ .count).max() ?? 0)
+        }
+    }
+
     // MARK: - Singleton
 
     static let shared = SQLiteFullTextService()
@@ -51,6 +65,7 @@ actor SQLiteFullTextService {
     private var database: OpaquePointer?
     private var isInitialized = false
     private let fileManager = FileManager.default
+    private let jsonEncoder = JSONEncoder()
 
     /// Database file location
     private var databasePath: URL {
@@ -171,6 +186,51 @@ actor SQLiteFullTextService {
         if execute(sql: createChunkTableSQL) {
             Log.info("[SQLiteFTS5] Chunk-level FTS5 table initialized", category: .vectorDB)
         }
+
+        let createChunkStructuredSQL = """
+            CREATE TABLE IF NOT EXISTS chunk_structured (
+                chunk_id TEXT PRIMARY KEY,
+                document_id TEXT NOT NULL,
+                container_id TEXT NOT NULL,
+                chunk_index INTEGER NOT NULL,
+                page_number INTEGER,
+                section_title TEXT,
+                section_path TEXT,
+                structure_type TEXT,
+                chunk_type TEXT,
+                table_title TEXT,
+                table_headers_json TEXT,
+                table_rows_json TEXT,
+                table_row_count INTEGER NOT NULL DEFAULT 0,
+                table_column_count INTEGER NOT NULL DEFAULT 0,
+                search_text TEXT NOT NULL
+            )
+        """
+        _ = execute(sql: createChunkStructuredSQL)
+        _ = execute(sql: "CREATE INDEX IF NOT EXISTS idx_chunk_structured_container ON chunk_structured(container_id)")
+        _ = execute(sql: "CREATE INDEX IF NOT EXISTS idx_chunk_structured_document ON chunk_structured(document_id)")
+        _ = execute(sql: "CREATE INDEX IF NOT EXISTS idx_chunk_structured_type ON chunk_structured(structure_type)")
+        _ = execute(sql: "CREATE INDEX IF NOT EXISTS idx_chunk_structured_title ON chunk_structured(table_title)")
+
+        let createChunkTableRowsSQL = """
+            CREATE TABLE IF NOT EXISTS chunk_table_rows (
+                row_id TEXT PRIMARY KEY,
+                chunk_id TEXT NOT NULL,
+                document_id TEXT NOT NULL,
+                container_id TEXT NOT NULL,
+                chunk_index INTEGER NOT NULL,
+                page_number INTEGER,
+                table_title TEXT,
+                row_index INTEGER NOT NULL,
+                headers_json TEXT,
+                row_json TEXT NOT NULL,
+                row_text TEXT NOT NULL
+            )
+        """
+        _ = execute(sql: createChunkTableRowsSQL)
+        _ = execute(sql: "CREATE INDEX IF NOT EXISTS idx_chunk_table_rows_container ON chunk_table_rows(container_id)")
+        _ = execute(sql: "CREATE INDEX IF NOT EXISTS idx_chunk_table_rows_document ON chunk_table_rows(document_id)")
+        _ = execute(sql: "CREATE INDEX IF NOT EXISTS idx_chunk_table_rows_chunk ON chunk_table_rows(chunk_id)")
 
         // MARK: Page-Level FTS5 Table
         // Stores each PDF page as a separate row for page-level search and context isolation.
@@ -606,7 +666,8 @@ actor SQLiteFullTextService {
         sectionTitle: String?,
         sectionPath: String?,
         structureType: String?,
-        content: String
+        content: String,
+        structuredMetadata: StructuredChunkMetadata? = nil
     ) async {
         ensureInitialized()
         guard let db = database else { return }
@@ -642,6 +703,22 @@ actor SQLiteFullTextService {
         if sqlite3_step(statement) != SQLITE_DONE {
             let error = String(cString: sqlite3_errmsg(db))
             Log.error("[SQLiteFTS5] Chunk insert failed: \(error)", category: .vectorDB)
+            return
+        }
+
+        if let structuredMetadata {
+            persistStructuredChunkMetadata(
+                chunkId: chunkId,
+                documentId: documentId,
+                containerId: containerId,
+                chunkIndex: chunkIndex,
+                pageNumber: pageNumber,
+                sectionTitle: sectionTitle,
+                sectionPath: sectionPath,
+                structureType: structureType,
+                structuredMetadata: structuredMetadata,
+                using: db
+            )
         }
     }
 
@@ -650,7 +727,9 @@ actor SQLiteFullTextService {
         documentId: UUID,
         containerId: UUID,
         chunks: [(chunkIndex: Int, pageNumber: Int?, sectionTitle: String?,
-                  sectionPath: String?, structureType: String?, content: String)]
+                  sectionPath: String?, structureType: String?, chunkType: String?,
+                  tableTitle: String?, content: String,
+                  structuredMetadata: StructuredChunkMetadata?)]
     ) async {
         ensureInitialized()
         guard let db = database else { return }
@@ -688,6 +767,27 @@ actor SQLiteFullTextService {
 
             sqlite3_step(statement)
             sqlite3_finalize(statement)
+
+            if let structuredMetadata = chunk.structuredMetadata {
+                persistStructuredChunkMetadata(
+                    chunkId: chunkId,
+                    documentId: documentId,
+                    containerId: containerId,
+                    chunkIndex: chunk.chunkIndex,
+                    pageNumber: chunk.pageNumber,
+                    sectionTitle: chunk.sectionTitle,
+                    sectionPath: chunk.sectionPath,
+                    structureType: chunk.structureType,
+                    structuredMetadata: StructuredChunkMetadata(
+                        chunkType: chunk.chunkType ?? structuredMetadata.chunkType,
+                        tableTitle: chunk.tableTitle ?? structuredMetadata.tableTitle,
+                        headers: structuredMetadata.headers,
+                        rows: structuredMetadata.rows,
+                        searchText: structuredMetadata.searchText
+                    ),
+                    using: db
+                )
+            }
         }
 
         execute(sql: "COMMIT")
@@ -707,6 +807,8 @@ actor SQLiteFullTextService {
             sqlite3_step(statement)
             sqlite3_finalize(statement)
         }
+
+        deleteStructuredMetadata(documentId: documentId, using: db)
     }
 
     /// Delete all chunks for a container
@@ -722,6 +824,269 @@ actor SQLiteFullTextService {
             sqlite3_step(statement)
             sqlite3_finalize(statement)
         }
+
+        deleteStructuredMetadata(containerId: containerId, using: db)
+    }
+
+    private func persistStructuredChunkMetadata(
+        chunkId: String,
+        documentId: UUID,
+        containerId: UUID,
+        chunkIndex: Int,
+        pageNumber: Int?,
+        sectionTitle: String?,
+        sectionPath: String?,
+        structureType: String?,
+        structuredMetadata: StructuredChunkMetadata,
+        using db: OpaquePointer?
+    ) {
+        guard let db else { return }
+
+        let headersJSON = jsonString(for: structuredMetadata.headers)
+        let rowsJSON = jsonString(for: structuredMetadata.rows)
+        let insertStructuredSQL = """
+            INSERT OR REPLACE INTO chunk_structured (
+                chunk_id, document_id, container_id, chunk_index, page_number,
+                section_title, section_path, structure_type, chunk_type, table_title,
+                table_headers_json, table_rows_json, table_row_count, table_column_count, search_text
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+
+        var structuredStatement: OpaquePointer?
+        if sqlite3_prepare_v2(db, insertStructuredSQL, -1, &structuredStatement, nil) == SQLITE_OK {
+            defer { sqlite3_finalize(structuredStatement) }
+            sqlite3_bind_text(structuredStatement, 1, chunkId, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(structuredStatement, 2, documentId.uuidString, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(structuredStatement, 3, containerId.uuidString, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_int(structuredStatement, 4, Int32(chunkIndex))
+            if let pageNumber {
+                sqlite3_bind_int(structuredStatement, 5, Int32(pageNumber))
+            } else {
+                sqlite3_bind_null(structuredStatement, 5)
+            }
+            sqlite3_bind_text(structuredStatement, 6, sectionTitle ?? "", -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(structuredStatement, 7, sectionPath ?? "", -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(structuredStatement, 8, structureType ?? "", -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(structuredStatement, 9, structuredMetadata.chunkType ?? "", -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(structuredStatement, 10, structuredMetadata.tableTitle ?? "", -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(structuredStatement, 11, headersJSON, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(structuredStatement, 12, rowsJSON, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_int(structuredStatement, 13, Int32(structuredMetadata.rowCount))
+            sqlite3_bind_int(structuredStatement, 14, Int32(structuredMetadata.columnCount))
+            sqlite3_bind_text(structuredStatement, 15, structuredMetadata.searchText, -1, SQLITE_TRANSIENT)
+
+            if sqlite3_step(structuredStatement) != SQLITE_DONE {
+                let error = String(cString: sqlite3_errmsg(db))
+                Log.error("[SQLiteFTS5] Structured chunk metadata insert failed: \(error)", category: .vectorDB)
+            }
+        }
+
+        let insertRowSQL = """
+            INSERT OR REPLACE INTO chunk_table_rows (
+                row_id, chunk_id, document_id, container_id, chunk_index, page_number,
+                table_title, row_index, headers_json, row_json, row_text
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+
+        for (rowIndex, row) in structuredMetadata.rows.enumerated() {
+            var rowStatement: OpaquePointer?
+            guard sqlite3_prepare_v2(db, insertRowSQL, -1, &rowStatement, nil) == SQLITE_OK else { continue }
+            defer { sqlite3_finalize(rowStatement) }
+
+            let rowId = "\(chunkId)_row_\(rowIndex)"
+            let rowJSON = jsonString(for: row)
+            let rowText = rowText(headers: structuredMetadata.headers, row: row)
+
+            sqlite3_bind_text(rowStatement, 1, rowId, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(rowStatement, 2, chunkId, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(rowStatement, 3, documentId.uuidString, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(rowStatement, 4, containerId.uuidString, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_int(rowStatement, 5, Int32(chunkIndex))
+            if let pageNumber {
+                sqlite3_bind_int(rowStatement, 6, Int32(pageNumber))
+            } else {
+                sqlite3_bind_null(rowStatement, 6)
+            }
+            sqlite3_bind_text(rowStatement, 7, structuredMetadata.tableTitle ?? "", -1, SQLITE_TRANSIENT)
+            sqlite3_bind_int(rowStatement, 8, Int32(rowIndex))
+            sqlite3_bind_text(rowStatement, 9, headersJSON, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(rowStatement, 10, rowJSON, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(rowStatement, 11, rowText, -1, SQLITE_TRANSIENT)
+
+            if sqlite3_step(rowStatement) != SQLITE_DONE {
+                let error = String(cString: sqlite3_errmsg(db))
+                Log.error("[SQLiteFTS5] Structured table row insert failed: \(error)", category: .vectorDB)
+            }
+        }
+    }
+
+    private func deleteStructuredMetadata(documentId: UUID, using db: OpaquePointer?) {
+        guard let db else { return }
+        let deletes = [
+            "DELETE FROM chunk_structured WHERE document_id = ?",
+            "DELETE FROM chunk_table_rows WHERE document_id = ?"
+        ]
+
+        for sql in deletes {
+            var statement: OpaquePointer?
+            if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
+                sqlite3_bind_text(statement, 1, documentId.uuidString, -1, SQLITE_TRANSIENT)
+                sqlite3_step(statement)
+                sqlite3_finalize(statement)
+            }
+        }
+    }
+
+    private func deleteStructuredMetadata(containerId: UUID, using db: OpaquePointer?) {
+        guard let db else { return }
+        let deletes = [
+            "DELETE FROM chunk_structured WHERE container_id = ?",
+            "DELETE FROM chunk_table_rows WHERE container_id = ?"
+        ]
+
+        for sql in deletes {
+            var statement: OpaquePointer?
+            if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
+                sqlite3_bind_text(statement, 1, containerId.uuidString, -1, SQLITE_TRANSIENT)
+                sqlite3_step(statement)
+                sqlite3_finalize(statement)
+            }
+        }
+    }
+
+    private func jsonString<T: Encodable>(for value: T) -> String {
+        guard let data = try? jsonEncoder.encode(value),
+              let json = String(data: data, encoding: .utf8) else {
+            return "[]"
+        }
+        return json
+    }
+
+    private func rowText(headers: [String], row: [String]) -> String {
+        guard !row.isEmpty else { return "" }
+
+        let pairs = row.enumerated().compactMap { index, value -> String? in
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return nil }
+            let header = index < headers.count ? headers[index].trimmingCharacters(in: .whitespacesAndNewlines) : ""
+            if header.isEmpty {
+                return trimmed
+            }
+            return "\(header): \(trimmed)"
+        }
+
+        return pairs.joined(separator: " | ")
+    }
+
+    private func meaningfulStructuredSearchTerms(from query: String) -> [String] {
+        let stopWords: Set<String> = [
+            "a", "an", "the", "and", "or", "but", "if", "then", "else", "is", "are", "was", "were",
+            "do", "does", "did", "what", "which", "who", "when", "where", "why", "how", "can", "could",
+            "should", "would", "please", "show", "tell", "mean", "means", "meaning", "indicate", "indicates",
+            "signal", "signals", "about", "from", "with", "for", "into", "onto", "your", "their", "there",
+            "much", "many", "kind", "type", "listed"
+        ]
+
+        return query.lowercased()
+            .split(whereSeparator: { $0.isWhitespace || $0.isNewline })
+            .map { String($0).trimmingCharacters(in: .punctuationCharacters) }
+            .filter { $0.count >= 2 && !stopWords.contains($0) }
+    }
+
+    private func searchStructuredChunks(
+        query: String,
+        containerId: UUID?,
+        limit: Int
+    ) -> [ChunkSearchResult] {
+        guard let db = database else { return [] }
+
+        let terms = meaningfulStructuredSearchTerms(from: query)
+        guard !terms.isEmpty else { return [] }
+
+        let sql: String
+        if containerId != nil {
+            sql = """
+                SELECT chunk_id, document_id, container_id, chunk_index, page_number,
+                       section_title, section_path, table_title, search_text, table_row_count
+                FROM chunk_structured
+                WHERE structure_type = 'table' AND container_id = ?
+            """
+        } else {
+            sql = """
+                SELECT chunk_id, document_id, container_id, chunk_index, page_number,
+                       section_title, section_path, table_title, search_text, table_row_count
+                FROM chunk_structured
+                WHERE structure_type = 'table'
+            """
+        }
+
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
+            let error = String(cString: sqlite3_errmsg(db))
+            Log.error("[SQLiteFTS5] Structured chunk search prepare failed: \(error)", category: .retrieval)
+            return []
+        }
+
+        defer { sqlite3_finalize(statement) }
+
+        if let containerId {
+            sqlite3_bind_text(statement, 1, containerId.uuidString, -1, SQLITE_TRANSIENT)
+        }
+
+        var scoredResults: [(result: ChunkSearchResult, score: Double)] = []
+        while sqlite3_step(statement) == SQLITE_ROW {
+            guard let chunkIdPtr = sqlite3_column_text(statement, 0),
+                  let documentIdPtr = sqlite3_column_text(statement, 1),
+                  let containerIdPtr = sqlite3_column_text(statement, 2),
+                  let documentId = UUID(uuidString: String(cString: documentIdPtr)),
+                  let rowContainerId = UUID(uuidString: String(cString: containerIdPtr)) else {
+                continue
+            }
+
+            let chunkId = String(cString: chunkIdPtr)
+            let chunkIndex = Int(sqlite3_column_int(statement, 3))
+            let pageNumber: Int? = sqlite3_column_type(statement, 4) != SQLITE_NULL
+                ? Int(sqlite3_column_int(statement, 4)) : nil
+            let sectionTitle = sqlite3_column_text(statement, 5).map { String(cString: $0) }
+            let sectionPath = sqlite3_column_text(statement, 6).map { String(cString: $0) }
+            let tableTitle = sqlite3_column_text(statement, 7).map { String(cString: $0) } ?? ""
+            let searchText = sqlite3_column_text(statement, 8).map { String(cString: $0) } ?? ""
+            let rowCount = Int(sqlite3_column_int(statement, 9))
+
+            let titleLower = tableTitle.lowercased()
+            let searchLower = searchText.lowercased()
+            let titleHits = terms.filter { titleLower.contains($0) }.count
+            let searchHits = terms.filter { searchLower.contains($0) }.count
+            let minRequired = min(2, terms.count)
+            guard searchHits >= minRequired || titleHits > 0 else { continue }
+
+            let coverage = Double(searchHits + titleHits) / Double(max(1, terms.count))
+            let score = Double(titleHits) * 2.5 + Double(searchHits) * 1.2 + coverage * 2.0 + min(Double(rowCount), 12.0) * 0.03
+
+            let result = ChunkSearchResult(
+                chunkId: chunkId,
+                documentId: documentId,
+                containerId: rowContainerId,
+                chunkIndex: chunkIndex,
+                pageNumber: pageNumber,
+                sectionTitle: sectionTitle?.isEmpty == true ? nil : sectionTitle,
+                sectionPath: sectionPath?.isEmpty == true ? nil : sectionPath,
+                content: searchText,
+                bm25Score: score
+            )
+            scoredResults.append((result, score))
+        }
+
+        let results = scoredResults
+            .sorted { lhs, rhs in lhs.score > rhs.score }
+            .prefix(limit)
+            .map(\ .result)
+
+        if !results.isEmpty {
+            Log.debug("[SQLiteFTS5] Structured chunk search '\(query)' returned \(results.count) results", category: .retrieval)
+        }
+
+        return results
     }
 
     /// Search chunks with BM25 ranking.
@@ -742,85 +1107,103 @@ actor SQLiteFullTextService {
         ensureInitialized()
         guard let db = database else { return [] }
 
-        let escapedQuery = escapeFTS5Query(query)
-
-        // BM25 weights: section_title(10.0), section_path(5.0), content(1.0)
-        // This heavily boosts matches in section headings — "engine oil" matching
-        // a sectionTitle="Engine Oil" gets 10x the score of matching in body text.
-        var sql: String
-        if containerId != nil {
-            sql = """
-                SELECT chunk_id, document_id, container_id, chunk_index, page_number,
-                       section_title, section_path, content,
-                       bm25(chunks, 0, 0, 0, 0, 10.0, 5.0, 0, 1.0) as score
-                FROM chunks
-                WHERE chunks MATCH ? AND container_id = ?
-                ORDER BY bm25(chunks, 0, 0, 0, 0, 10.0, 5.0, 0, 1.0)
-                LIMIT ?
-            """
-        } else {
-            sql = """
-                SELECT chunk_id, document_id, container_id, chunk_index, page_number,
-                       section_title, section_path, content,
-                       bm25(chunks, 0, 0, 0, 0, 10.0, 5.0, 0, 1.0) as score
-                FROM chunks
-                WHERE chunks MATCH ?
-                ORDER BY bm25(chunks, 0, 0, 0, 0, 10.0, 5.0, 0, 1.0)
-                LIMIT ?
-            """
-        }
-
-        var statement: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
-            let error = String(cString: sqlite3_errmsg(db))
-            Log.error("[SQLiteFTS5] Chunk search prepare failed: \(error)", category: .retrieval)
-            return []
-        }
-
-        defer { sqlite3_finalize(statement) }
-
-        sqlite3_bind_text(statement, 1, escapedQuery, -1, SQLITE_TRANSIENT)
-        if let cId = containerId {
-            sqlite3_bind_text(statement, 2, cId.uuidString, -1, SQLITE_TRANSIENT)
-            sqlite3_bind_int(statement, 3, Int32(limit))
-        } else {
-            sqlite3_bind_int(statement, 2, Int32(limit))
-        }
-
-        var results: [ChunkSearchResult] = []
-
-        while sqlite3_step(statement) == SQLITE_ROW {
-            guard let chunkIdPtr = sqlite3_column_text(statement, 0),
-                  let docIdPtr = sqlite3_column_text(statement, 1),
-                  let containerIdPtr = sqlite3_column_text(statement, 2),
-                  let docId = UUID(uuidString: String(cString: docIdPtr)),
-                  let cId = UUID(uuidString: String(cString: containerIdPtr)) else {
-                continue
+        func executeChunkSearch(escapedQuery: String) -> [ChunkSearchResult] {
+            // BM25 weights: section_title(10.0), section_path(5.0), content(1.0)
+            // This heavily boosts matches in section headings — "engine oil" matching
+            // a sectionTitle="Engine Oil" gets 10x the score of matching in body text.
+            let sql: String
+            if containerId != nil {
+                sql = """
+                    SELECT chunk_id, document_id, container_id, chunk_index, page_number,
+                           section_title, section_path, content,
+                           bm25(chunks, 0, 0, 0, 0, 10.0, 5.0, 0, 1.0) as score
+                    FROM chunks
+                    WHERE chunks MATCH ? AND container_id = ?
+                    ORDER BY bm25(chunks, 0, 0, 0, 0, 10.0, 5.0, 0, 1.0)
+                    LIMIT ?
+                """
+            } else {
+                sql = """
+                    SELECT chunk_id, document_id, container_id, chunk_index, page_number,
+                           section_title, section_path, content,
+                           bm25(chunks, 0, 0, 0, 0, 10.0, 5.0, 0, 1.0) as score
+                    FROM chunks
+                    WHERE chunks MATCH ?
+                    ORDER BY bm25(chunks, 0, 0, 0, 0, 10.0, 5.0, 0, 1.0)
+                    LIMIT ?
+                """
             }
 
-            let chunkId = String(cString: chunkIdPtr)
-            let chunkIndex = Int(sqlite3_column_int(statement, 3))
-            let pageNumber: Int? = sqlite3_column_type(statement, 4) != SQLITE_NULL
-                ? Int(sqlite3_column_int(statement, 4)) : nil
-            let sectionTitle = sqlite3_column_text(statement, 5).map { String(cString: $0) }
-            let sectionPath = sqlite3_column_text(statement, 6).map { String(cString: $0) }
-            let content = sqlite3_column_text(statement, 7).map { String(cString: $0) } ?? ""
-            let score = sqlite3_column_double(statement, 8)
+            var statement: OpaquePointer?
+            guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
+                let error = String(cString: sqlite3_errmsg(db))
+                Log.error("[SQLiteFTS5] Chunk search prepare failed: \(error)", category: .retrieval)
+                return []
+            }
 
-            results.append(ChunkSearchResult(
-                chunkId: chunkId,
-                documentId: docId,
-                containerId: cId,
-                chunkIndex: chunkIndex,
-                pageNumber: pageNumber,
-                sectionTitle: sectionTitle?.isEmpty == true ? nil : sectionTitle,
-                sectionPath: sectionPath?.isEmpty == true ? nil : sectionPath,
-                content: content,
-                bm25Score: score
-            ))
+            defer { sqlite3_finalize(statement) }
+
+            sqlite3_bind_text(statement, 1, escapedQuery, -1, SQLITE_TRANSIENT)
+            if let cId = containerId {
+                sqlite3_bind_text(statement, 2, cId.uuidString, -1, SQLITE_TRANSIENT)
+                sqlite3_bind_int(statement, 3, Int32(limit))
+            } else {
+                sqlite3_bind_int(statement, 2, Int32(limit))
+            }
+
+            var results: [ChunkSearchResult] = []
+
+            while sqlite3_step(statement) == SQLITE_ROW {
+                guard let chunkIdPtr = sqlite3_column_text(statement, 0),
+                      let docIdPtr = sqlite3_column_text(statement, 1),
+                      let containerIdPtr = sqlite3_column_text(statement, 2),
+                      let docId = UUID(uuidString: String(cString: docIdPtr)),
+                      let cId = UUID(uuidString: String(cString: containerIdPtr)) else {
+                    continue
+                }
+
+                let chunkId = String(cString: chunkIdPtr)
+                let chunkIndex = Int(sqlite3_column_int(statement, 3))
+                let pageNumber: Int? = sqlite3_column_type(statement, 4) != SQLITE_NULL
+                    ? Int(sqlite3_column_int(statement, 4)) : nil
+                let sectionTitle = sqlite3_column_text(statement, 5).map { String(cString: $0) }
+                let sectionPath = sqlite3_column_text(statement, 6).map { String(cString: $0) }
+                let content = sqlite3_column_text(statement, 7).map { String(cString: $0) } ?? ""
+                let score = sqlite3_column_double(statement, 8)
+
+                results.append(ChunkSearchResult(
+                    chunkId: chunkId,
+                    documentId: docId,
+                    containerId: cId,
+                    chunkIndex: chunkIndex,
+                    pageNumber: pageNumber,
+                    sectionTitle: sectionTitle?.isEmpty == true ? nil : sectionTitle,
+                    sectionPath: sectionPath?.isEmpty == true ? nil : sectionPath,
+                    content: content,
+                    bm25Score: score
+                ))
+            }
+
+            return results
         }
 
-        Log.debug("[SQLiteFTS5] Chunk search '\(query)' returned \(results.count) results", category: .retrieval)
+        let preciseQuery = escapeFTS5Query(query)
+        var results = executeChunkSearch(escapedQuery: preciseQuery)
+        if !results.isEmpty {
+            Log.debug("[SQLiteFTS5] Chunk search '\(query)' returned \(results.count) results", category: .retrieval)
+            return results
+        }
+
+        let broadQuery = escapeFTS5QueryBroad(query)
+        results = executeChunkSearch(escapedQuery: broadQuery)
+        if !results.isEmpty {
+            Log.debug("[SQLiteFTS5] Chunk search '\(query)' needed OR fallback → \(results.count) results", category: .retrieval)
+        } else {
+            results = searchStructuredChunks(query: query, containerId: containerId, limit: limit)
+            if results.isEmpty {
+                Log.debug("[SQLiteFTS5] Chunk search '\(query)' returned 0 results", category: .retrieval)
+            }
+        }
         return results
     }
 
@@ -2381,13 +2764,15 @@ actor SQLiteFullTextService {
             "this", "that", "what", "which", "who", "how", "it", "its",
             "i", "me", "my", "we", "you", "your", "he", "she", "they",
             // Generic query-framing words (not domain-specific content words)
-            "kind", "type", "take", "use", "need", "much"
+            "kind", "type", "take", "use", "need", "much",
+            "mean", "means", "meaning", "indicate", "indicates", "signal", "signals",
+            "show", "shows", "tell", "tells"
         ]
 
         // Split into content words, escape each
         let words = trimmed.lowercased()
             .split(whereSeparator: { $0.isWhitespace || $0.isNewline })
-            .map { String($0).replacingOccurrences(of: "\"", with: "\"\"") }
+            .map { String($0).trimmingCharacters(in: .punctuationCharacters).replacingOccurrences(of: "\"", with: "\"\"") }
             .filter { $0.count >= 2 && !ftsStop.contains($0) }
 
         guard !words.isEmpty else {
@@ -2416,12 +2801,14 @@ actor SQLiteFullTextService {
             "to", "of", "in", "for", "on", "with", "at", "by", "from",
             "this", "that", "what", "which", "who", "how", "it", "its",
             "i", "me", "my", "we", "you", "your", "he", "she", "they",
-            "kind", "type", "take", "use", "need", "much"
+            "kind", "type", "take", "use", "need", "much",
+            "mean", "means", "meaning", "indicate", "indicates", "signal", "signals",
+            "show", "shows", "tell", "tells"
         ]
 
         let words = trimmed.lowercased()
             .split(whereSeparator: { $0.isWhitespace || $0.isNewline })
-            .map { String($0).replacingOccurrences(of: "\"", with: "\"\"") }
+            .map { String($0).trimmingCharacters(in: .punctuationCharacters).replacingOccurrences(of: "\"", with: "\"\"") }
             .filter { $0.count >= 2 && !ftsStop.contains($0) }
 
         guard !words.isEmpty else {

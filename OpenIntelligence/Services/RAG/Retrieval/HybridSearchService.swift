@@ -741,7 +741,21 @@ class HybridSearchService {
         )
 
         let vectorResults = try await vectorTask
-        let fts5ChunkResults = await fts5Task
+        var fts5ChunkResults = await fts5Task
+
+        if fts5ChunkResults.isEmpty,
+           query.caseInsensitiveCompare(originalQuery) != .orderedSame
+        {
+            let expandedFTSResults = await SQLiteFullTextService.shared.searchChunks(
+                query: query,
+                containerId: containerId,
+                limit: fts5Limit
+            )
+            if !expandedFTSResults.isEmpty {
+                Log.debug("[Hybrid] FTS5 fallback used expanded query terms after original query miss", category: .pipeline)
+                fts5ChunkResults = expandedFTSResults
+            }
+        }
 
         // ── CONVERT FTS5 RESULTS TO RANKED LIST ─────────────────────────
         // FTS5 returns ChunkSearchResult with native bm25Score. We need to convert

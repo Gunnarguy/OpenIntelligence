@@ -167,7 +167,7 @@ final class QueryEnhancementService {
     /// Corpus vocabulary for context-aware expansion (optional)
     private let corpusVocabulary: CorpusVocabulary?
 
-    init(corpusVocabulary: CorpusVocabulary? = nil) {
+    nonisolated init(corpusVocabulary: CorpusVocabulary? = nil) {
         self.corpusVocabulary = corpusVocabulary
     }
 
@@ -271,12 +271,13 @@ final class QueryEnhancementService {
         // These ask about function/behavior → strongly conceptual
         let firstWord = words.first ?? ""
         let lastWord = words.last ?? ""
+        let shortBehavioralWeight = words.count <= 8 ? 1 : 2
         if firstWord == "what" && (lastWord == "do" || lastWord == "does" || lastWord == "happen" || lastWord == "happens") {
-            conceptualSignals += 2
+            conceptualSignals += shortBehavioralWeight
         }
         // "how does X work", "what does X do" mid-sentence patterns
         if lower.contains("what does") || lower.contains("what do") || lower.contains("how does") || lower.contains("what happens") {
-            conceptualSignals += 2
+            conceptualSignals += shortBehavioralWeight
         }
 
         // Classify based on signal balance
@@ -312,7 +313,7 @@ final class QueryEnhancementService {
     /// 5. **summarize**: Overview/summary requests
     /// 6. **investigate**: Multi-hop research (factors, causes, effects)
     /// 7. **compute**: Numerical computation (total, sum, calculate)
-    func classifyAnswerIntent(_ query: String) -> AnswerIntent {
+    nonisolated func classifyAnswerIntent(_ query: String) -> AnswerIntent {
         let lower = query.lowercased()
         let words = lower.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).map(String.init)
 
@@ -391,8 +392,9 @@ final class QueryEnhancementService {
         // Priority 3: Procedure (step-by-step instructions)
         let procedurePatterns: [String] = [
             "how to", "how do i", "how can i", "steps to", "procedure for",
-            "instructions for", "guide to", "process for", "way to",
-            "method for", "directions for"
+            "steps for", "what are the steps for", "instructions for", "guide to", "process for", "way to",
+            "method for", "directions for", "what should you do if", "what do you do if",
+            "what must you do if", "what should be done if", "what action is required if"
         ]
         for pattern in procedurePatterns {
             if lower.contains(pattern) { return .procedure }
@@ -419,9 +421,11 @@ final class QueryEnhancementService {
             "happens if", "happens when",
             // "function of X", "purpose of X", "X is used for"
             "function of", "purpose of", "used for",
-            // Regex: "what does X do", "what's X do", "what will X do", "what can X do"
+            // Regex: "what does X do/mean/indicate/signal/show", etc.
             "what does .* do", "what will .* do", "what can .* do",
-            "what's .* do"
+            "what's .* do",
+            "what does .* mean", "what does .* indicate", "what does .* signal", "what does .* show",
+            "what's .* mean", "what's .* indicate", "what's .* signal", "what's .* show"
         ]
         for pattern in behavioralPatterns {
             if pattern.contains(".*"), let _ = lower.range(of: pattern, options: .regularExpression) {

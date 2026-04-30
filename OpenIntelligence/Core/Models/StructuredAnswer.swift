@@ -880,10 +880,7 @@ extension StructuredAnswer {
 
         switch answerIntent {
         case .lookup, .tableLookup, .compute:
-            if renderedClaims.count == 1 {
-                return renderedClaims[0]
-            }
-            return renderedClaims.map { "• \($0)" }.joined(separator: "\n")
+            return renderCompactFactAnswer(from: claims, fallback: fallback)
         case .procedure:
             return renderedClaims.enumerated().map { index, claim in
                 "\(index + 1). \(claim)"
@@ -894,6 +891,16 @@ extension StructuredAnswer {
     }
 
     nonisolated private static func renderedClaimText(_ claim: StructuredAnswerRenderableClaim) -> String {
+        let baseText = renderedClaimBody(claim)
+
+        guard !claim.citations.isEmpty else {
+            return baseText
+        }
+
+        return sentenceWithCitations(baseText, citations: claim.citations)
+    }
+
+    nonisolated private static func renderedClaimBody(_ claim: StructuredAnswerRenderableClaim) -> String {
         let baseText: String
         switch claim.verdict {
         case .partial:
@@ -902,11 +909,52 @@ extension StructuredAnswer {
             baseText = punctuatedSentence(claim.claim)
         }
 
-        guard !claim.citations.isEmpty else {
-            return baseText
+        return baseText
+    }
+
+    nonisolated private static func renderCompactFactAnswer(
+        from claims: [StructuredAnswerRenderableClaim],
+        fallback: String
+    ) -> String {
+        let fallbackTrimmed = fallback.trimmingCharacters(in: .whitespacesAndNewlines)
+        let selectedClaims = Array(claims.prefix(2))
+
+        let compactBodies = selectedClaims
+            .map(renderedClaimBody)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard !compactBodies.isEmpty else {
+            return fallbackTrimmed
         }
 
-        return sentenceWithCitations(baseText, citations: claim.citations)
+        let compactAnswer = compactBodies.joined(separator: " ")
+        let mergedCitations = mergedCitationLabels(from: selectedClaims)
+        return paragraphWithCitations(compactAnswer, citations: mergedCitations)
+    }
+
+    nonisolated private static func mergedCitationLabels(
+        from claims: [StructuredAnswerRenderableClaim]
+    ) -> [String] {
+        let labels = claims.flatMap(\.citations)
+        return Array(NSOrderedSet(array: labels)) as? [String] ?? labels
+    }
+
+    nonisolated private static func paragraphWithCitations(_ paragraph: String, citations: [String]) -> String {
+        let trimmed = paragraph.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return citations.joined(separator: " ")
+        }
+
+        guard !citations.isEmpty else {
+            return trimmed
+        }
+
+        if trimmed.contains("[S") || trimmed.contains("Sources:") {
+            return trimmed
+        }
+
+        return sentenceWithCitations(trimmed, citations: citations)
     }
 
     nonisolated private static func hedgedClaimText(_ claim: String) -> String {
