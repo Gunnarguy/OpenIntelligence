@@ -46,16 +46,23 @@ enum DocumentContentType: String, Sendable, CaseIterable {
                 ocrAccuracy: .high,
                 preserveLayout: true,
                 extractTables: true,
-                chunkingPreset: .technical
+                chunkingPreset: .default
             )
         case .receipt:
             return ProcessingHints(
                 ocrAccuracy: .high,
                 preserveLayout: true,
                 extractTables: true,
-                chunkingPreset: .technical
+                chunkingPreset: .default
             )
-        case .diagram, .technicalDrawing:
+        case .diagram:
+            return ProcessingHints(
+                ocrAccuracy: .high,
+                preserveLayout: true,
+                extractTables: false,
+                chunkingPreset: .default
+            )
+        case .technicalDrawing:
             return ProcessingHints(
                 ocrAccuracy: .high,
                 preserveLayout: true,
@@ -67,14 +74,14 @@ enum DocumentContentType: String, Sendable, CaseIterable {
                 ocrAccuracy: .high,
                 preserveLayout: true,
                 extractTables: true,
-                chunkingPreset: .technical
+                chunkingPreset: .default
             )
         case .spreadsheet:
             return ProcessingHints(
                 ocrAccuracy: .standard,
                 preserveLayout: true,
                 extractTables: true,
-                chunkingPreset: .technical
+                chunkingPreset: .default
             )
         case .photograph:
             return ProcessingHints(
@@ -145,10 +152,14 @@ struct DocumentClassificationResult: Sendable {
 actor CoreMLDocumentClassifier {
 
     static let shared = CoreMLDocumentClassifier()
+    private nonisolated static let visionRenderContext = CIContext(options: [.cacheIntermediates: false])
 
     // MARK: - Model State
 
-    private var model: VNCoreMLModel?
+    // Keep the backing Core ML model alive alongside the Vision wrapper.
+    // We've seen cooperative-queue teardown crashes when only the VNCoreMLModel is retained.
+    private var visionModel: VNCoreMLModel?
+    private var backingModel: MLModel?
     private var isModelLoaded = false
     private var modelLoadError: Error?
 
@@ -201,7 +212,7 @@ actor CoreMLDocumentClassifier {
         guard !isModelLoaded else { return }
 
         // Check if model file exists
-        guard let modelURL = Bundle.main.url(forResource: "FastViTT8F16", withExtension: "mlmodelc") else {
+        guard let modelURL = OpenIntelligenceResourceBundle.url(forResource: "FastViTT8F16", withExtension: "mlmodelc") else {
             // Model not bundled - use Vision fallback
             Log.info("[CoreMLDocumentClassifier] FastViT model not bundled, using Vision framework fallback", category: .initialization)
             throw ClassifierError.modelNotFound
@@ -212,7 +223,8 @@ actor CoreMLDocumentClassifier {
             config.computeUnits = .cpuAndNeuralEngine // Prefer ANE for efficiency
 
             let mlModel = try await MLModel.load(contentsOf: modelURL, configuration: config)
-            model = try VNCoreMLModel(for: mlModel)
+            backingModel = mlModel
+            visionModel = try VNCoreMLModel(for: mlModel)
             isModelLoaded = true
 
             Log.info("[CoreMLDocumentClassifier] ✓ FastViT T8 model loaded successfully", category: .initialization)
@@ -232,8 +244,8 @@ actor CoreMLDocumentClassifier {
         // Try CoreML model first
         do {
             try await loadModel()
-            if let model = model {
-                return try await classifyWithCoreML(image, model: model)
+            if let model = visionModel, let backingModel = backingModel {
+                return try await classifyWithCoreML(image, model: model, backingModel: backingModel)
             }
         } catch {
             // Fall through to Vision fallback
@@ -244,15 +256,17 @@ actor CoreMLDocumentClassifier {
     }
 
     /// Classify using FastViT CoreML model
-    private func classifyWithCoreML(_ image: CIImage, model: VNCoreMLModel) async throws -> DocumentClassificationResult {
+    private func classifyWithCoreML(_ image: CIImage, model: VNCoreMLModel, backingModel: MLModel) async throws -> DocumentClassificationResult {
         let request = VNCoreMLRequest(model: model)
         request.imageCropAndScaleOption = .centerCrop
 
         let handler = VNImageRequestHandler(ciImage: image, options: [:])
 
         // Limit concurrent Vision requests to prevent Metal race conditions
-        try VisionOCRThrottle.performSync {
-            try handler.perform([request])
+        try withExtendedLifetime(backingModel) {
+            try VisionOCRThrottle.performSync {
+                try handler.perform([request])
+            }
         }
 
         guard let results = request.results as? [VNClassificationObservation] else {
@@ -309,13 +323,23 @@ actor CoreMLDocumentClassifier {
 
     /// Fallback classification using Vision framework
     private func classifyWithVision(_ image: CIImage) async -> DocumentClassificationResult {
+        guard let cgImage = materializedCGImage(from: image) else {
+            Log.warning("[CoreMLDocumentClassifier] Failed to materialize image for Vision fallback", category: .ingestion)
+            return DocumentClassificationResult(
+                contentType: .textDocument,
+                confidence: 0.5,
+                allClassifications: [(.textDocument, 0.5)],
+                processingHints: Self.getProcessingHints(for: .textDocument)
+            )
+        }
+
         // Use built-in Vision classification
         if #available(iOS 18.0, *) {
             do {
                 let request = ClassifyImageRequest()
                 // Throttle Vision operations to prevent Metal GPU race conditions
                 let results = try await VisionOCRThrottle.performAsync {
-                    try await request.perform(on: image)
+                    try await request.perform(on: cgImage)
                 }
 
                 var typeScores: [DocumentContentType: Float] = [:]
@@ -380,6 +404,10 @@ actor CoreMLDocumentClassifier {
         )
     }
 
+    private nonisolated func materializedCGImage(from image: CIImage) -> CGImage? {
+        Self.visionRenderContext.createCGImage(image, from: image.extent)
+    }
+
     // MARK: - Helper
 
     /// Get processing hints for a content type (nonisolated to avoid actor isolation issues)
@@ -388,11 +416,13 @@ actor CoreMLDocumentClassifier {
         case .textDocument:
             return ProcessingHints(ocrAccuracy: .standard, preserveLayout: false, extractTables: false, chunkingPreset: .narrative)
         case .form, .receipt:
-            return ProcessingHints(ocrAccuracy: .high, preserveLayout: true, extractTables: true, chunkingPreset: .technical)
-        case .diagram, .technicalDrawing:
+            return ProcessingHints(ocrAccuracy: .high, preserveLayout: true, extractTables: true, chunkingPreset: .default)
+        case .diagram:
+            return ProcessingHints(ocrAccuracy: .high, preserveLayout: true, extractTables: false, chunkingPreset: .default)
+        case .technicalDrawing:
             return ProcessingHints(ocrAccuracy: .high, preserveLayout: true, extractTables: false, chunkingPreset: .technical)
         case .chart, .spreadsheet:
-            return ProcessingHints(ocrAccuracy: .high, preserveLayout: true, extractTables: true, chunkingPreset: .technical)
+            return ProcessingHints(ocrAccuracy: .high, preserveLayout: true, extractTables: true, chunkingPreset: .default)
         case .photograph:
             return ProcessingHints(ocrAccuracy: .standard, preserveLayout: false, extractTables: false, chunkingPreset: .narrative)
         case .presentation:

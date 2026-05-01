@@ -40,6 +40,7 @@ actor YOLODetectionService {
     // MARK: - State
 
     private var yoloModel: VNCoreMLModel?
+    private var yoloBackingModel: MLModel?
     private var isModelLoaded = false
     private var modelLoadError: Error?
 
@@ -73,17 +74,19 @@ actor YOLODetectionService {
         let modelNames = ["YOLOv3Tiny", "YOLOv3", "YOLOv3TinyInt8LUT", "YOLOv3Int8LUT"]
 
         for modelName in modelNames {
-            if let modelURL = Bundle.main.url(forResource: modelName, withExtension: "mlmodelc") {
+            if let modelURL = OpenIntelligenceResourceBundle.url(forResource: modelName, withExtension: "mlmodelc") {
                 do {
                     let config = MLModelConfiguration()
                     config.computeUnits = .all  // Use Neural Engine if available
 
                     let mlModel = try MLModel(contentsOf: modelURL, configuration: config)
+                    yoloBackingModel = mlModel
                     yoloModel = try VNCoreMLModel(for: mlModel)
                     isModelLoaded = true
                     Log.info("[YOLO] Loaded \(modelName) successfully", category: .ingestion)
                     return
                 } catch {
+                    modelLoadError = error
                     Log.warning("[YOLO] Failed to load \(modelName): \(error.localizedDescription)", category: .ingestion)
                 }
             }
@@ -96,8 +99,8 @@ actor YOLODetectionService {
 
     /// Detect objects in an image using YOLO (or Vision fallback)
     func detectObjects(in image: CGImage, confidenceThreshold: Float = 0.5) async -> [DetectedObject] {
-        if isModelLoaded, let model = yoloModel {
-            return await detectWithYOLO(image: image, model: model, threshold: confidenceThreshold)
+        if isModelLoaded, let model = yoloModel, let backingModel = yoloBackingModel {
+            return await detectWithYOLO(image: image, model: model, backingModel: backingModel, threshold: confidenceThreshold)
         } else {
             return await detectWithVisionFallback(image: image, threshold: confidenceThreshold)
         }
@@ -114,8 +117,8 @@ actor YOLODetectionService {
 
     /// Detect objects in a pixel buffer (for real-time camera frames)
     func detectObjects(in pixelBuffer: CVPixelBuffer, confidenceThreshold: Float = 0.5) async -> [DetectedObject] {
-        if isModelLoaded, let model = yoloModel {
-            return await detectWithYOLO(pixelBuffer: pixelBuffer, model: model, threshold: confidenceThreshold)
+        if isModelLoaded, let model = yoloModel, let backingModel = yoloBackingModel {
+            return await detectWithYOLO(pixelBuffer: pixelBuffer, model: model, backingModel: backingModel, threshold: confidenceThreshold)
         } else {
             return await detectWithVisionFallback(pixelBuffer: pixelBuffer, threshold: confidenceThreshold)
         }
@@ -123,17 +126,17 @@ actor YOLODetectionService {
 
     // MARK: - YOLO Detection
 
-    private func detectWithYOLO(image: CGImage, model: VNCoreMLModel, threshold: Float) async -> [DetectedObject] {
+    private func detectWithYOLO(image: CGImage, model: VNCoreMLModel, backingModel: MLModel, threshold: Float) async -> [DetectedObject] {
         let handler = VNImageRequestHandler(cgImage: image, options: [:])
-        return await performYOLORequest(handler: handler, model: model, threshold: threshold)
+        return await performYOLORequest(handler: handler, model: model, backingModel: backingModel, threshold: threshold)
     }
 
-    private func detectWithYOLO(pixelBuffer: CVPixelBuffer, model: VNCoreMLModel, threshold: Float) async -> [DetectedObject] {
+    private func detectWithYOLO(pixelBuffer: CVPixelBuffer, model: VNCoreMLModel, backingModel: MLModel, threshold: Float) async -> [DetectedObject] {
         let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, options: [:])
-        return await performYOLORequest(handler: handler, model: model, threshold: threshold)
+        return await performYOLORequest(handler: handler, model: model, backingModel: backingModel, threshold: threshold)
     }
 
-    private func performYOLORequest(handler: VNImageRequestHandler, model: VNCoreMLModel, threshold: Float) async -> [DetectedObject] {
+    private func performYOLORequest(handler: VNImageRequestHandler, model: VNCoreMLModel, backingModel: MLModel, threshold: Float) async -> [DetectedObject] {
         return await withCheckedContinuation { continuation in
             let request = VNCoreMLRequest(model: model) { request, error in
                 guard let results = request.results as? [VNRecognizedObjectObservation] else {
@@ -160,12 +163,14 @@ actor YOLODetectionService {
             request.imageCropAndScaleOption = .scaleFill
 
             // Limit concurrent Vision requests to prevent Metal race conditions
-            VisionOCRThrottle.performSync {
-                do {
-                    try handler.perform([request])
-                } catch {
-                    Log.error("[YOLO] Detection failed: \(error.localizedDescription)", category: .ingestion)
-                    continuation.resume(returning: [])
+            withExtendedLifetime(backingModel) {
+                VisionOCRThrottle.performSync {
+                    do {
+                        try handler.perform([request])
+                    } catch {
+                        Log.error("[YOLO] Detection failed: \(error.localizedDescription)", category: .ingestion)
+                        continuation.resume(returning: [])
+                    }
                 }
             }
         }

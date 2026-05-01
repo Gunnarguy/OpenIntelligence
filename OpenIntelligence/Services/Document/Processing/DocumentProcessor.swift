@@ -49,11 +49,24 @@ class DocumentProcessor {
         let title: String
         let headers: [String]
         let rows: [[String]]
+        let extractionQuality: Double
+        let extractionSource: String
+        let lowQualityRowIndices: [Int]
 
-        nonisolated init(title: String, headers: [String], rows: [[String]]) {
+        nonisolated init(
+            title: String,
+            headers: [String],
+            rows: [[String]],
+            extractionQuality: Double = 0,
+            extractionSource: String = "vision_document",
+            lowQualityRowIndices: [Int] = []
+        ) {
             self.title = title
             self.headers = headers
             self.rows = rows
+            self.extractionQuality = extractionQuality
+            self.extractionSource = extractionSource
+            self.lowQualityRowIndices = lowQualityRowIndices
         }
 
         var rowCount: Int { rows.count }
@@ -68,7 +81,8 @@ class DocumentProcessor {
             if !headers.isEmpty {
                 lines.append(headers.joined(separator: " | "))
             }
-            for row in rows.prefix(80) {
+            for (rowIndex, row) in rows.prefix(80).enumerated() {
+                guard !lowQualityRowIndices.contains(rowIndex) else { continue }
                 let normalized = row
                     .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                     .filter { !$0.isEmpty }
@@ -221,6 +235,41 @@ class DocumentProcessor {
         return 5.0
     }
 
+    private func shouldForceVisionForFidelity(
+        analysis: PageComplexityAnalysis?,
+        strategy: PageProcessingStrategy,
+        documentTextLayerGarbled: Bool
+    ) -> Bool {
+        if documentTextLayerGarbled {
+            return true
+        }
+
+        let fidelityMode = IngestionFidelityMode.current
+        guard let analysis else {
+            return fidelityMode == .maximum
+        }
+
+        switch fidelityMode {
+        case .balanced:
+            return false
+        case .high:
+            if strategy == .directText { return false }
+
+            return strategy == .spatialText && (
+                analysis.tablePresence > 0.08 ||
+                analysis.numericDensity > 0.10 ||
+                analysis.columnCount > 1 ||
+                analysis.layoutComplexity >= 0.18 ||
+                analysis.listPatternStrength >= 0.15 ||
+                analysis.headerPatternStrength >= 0.15 ||
+                analysis.textCoverage < 0.55 ||
+                analysis.fineTextRisk >= 0.35
+            )
+        case .maximum:
+            return strategy != .directText || analysis.textCoverage < 0.8 || analysis.columnCount > 1
+        }
+    }
+
     private func shouldPreferHighResolutionStructure(
         for analysis: PageComplexityAnalysis?,
         strategy: PageProcessingStrategy,
@@ -274,6 +323,8 @@ class DocumentProcessor {
         let detectedEntities: [(type: String, value: String)]  // Vision-detected entities (emails, phones, etc.)
         let tableData: TableData?
         let listItems: [String]?
+        let extractionSource: String?
+        let qualityScore: Double?
 
         nonisolated init(
             text: String,
@@ -282,7 +333,9 @@ class DocumentProcessor {
             isAtomicChunk: Bool,
             detectedEntities: [(type: String, value: String)] = [],
             tableData: TableData? = nil,
-            listItems: [String]? = nil
+            listItems: [String]? = nil,
+            extractionSource: String? = nil,
+            qualityScore: Double? = nil
         ) {
             self.text = text
             self.elementType = elementType
@@ -291,6 +344,30 @@ class DocumentProcessor {
             self.detectedEntities = detectedEntities
             self.tableData = tableData
             self.listItems = listItems
+            self.extractionSource = extractionSource
+            self.qualityScore = qualityScore
+        }
+    }
+
+    private struct RegionCropRescuePayload: Sendable {
+        let elements: [StructuredElementWrapper]
+        let pageText: String
+        let tableCount: Int
+        let listCount: Int
+        let figureCount: Int
+
+        nonisolated init(
+            elements: [StructuredElementWrapper],
+            pageText: String,
+            tableCount: Int,
+            listCount: Int,
+            figureCount: Int
+        ) {
+            self.elements = elements
+            self.pageText = pageText
+            self.tableCount = tableCount
+            self.listCount = listCount
+            self.figureCount = figureCount
         }
     }
 
@@ -589,6 +666,20 @@ class DocumentProcessor {
             let result = try await extractTextWithPageInfo(from: url, type: documentType)
             extractedText = result.text
             pageInfo = result.pageInfo
+
+            let inferredStructure = detectStructuredElementsInExtractedText(
+                result.text,
+                pageInfo: result.pageInfo,
+                documentType: documentType
+            )
+            structuredElements = inferredStructure.elements
+            usedStructuredParsing = inferredStructure.usedStructuredParsing
+
+            if usedStructuredParsing {
+                let tableCount = structuredElements.filter { $0.elementType == "table" }.count
+                let listCount = structuredElements.filter { $0.elementType == "list" }.count
+                Log.info("[DocumentProcessor] Inferred non-PDF structure: \(tableCount) tables, \(listCount) lists extracted", category: .ingestion)
+            }
         }
 
         pagesProcessed = pageInfo.totalPages
@@ -738,7 +829,7 @@ class DocumentProcessor {
             emitProgress(stage: "chunking", detail: "✅ Created \(processedChunks.count) chunks", page: nil, totalPages: nil)
             Log.info("[DocumentProcessor] Created \(processedChunks.count) structure-aware chunks", category: .ingestion)
         } else {
-            // Standard semantic chunking for non-PDF or iOS < 26
+            // Fallback semantic chunking when no reliable structure survived extraction
             // HUD telemetry: Chunking is CPU-intensive NaturalLanguage processing
             Task { @MainActor in
                 HardwareTelemetryState.shared.pulse(.textChunking, intensity: 0.75, duration: 0.4)
@@ -1032,6 +1123,1188 @@ class DocumentProcessor {
         }
 
         return (text, pageInfo)
+    }
+
+    private func detectStructuredElementsInExtractedText(
+        _ text: String,
+        pageInfo: PageInfo,
+        documentType: DocumentType
+    ) -> (elements: [StructuredElementWrapper], usedStructuredParsing: Bool) {
+        guard shouldInferStructureFromExtractedText(for: documentType) else {
+            return ([], false)
+        }
+
+        let pageTexts: [String]
+        if text.contains(Self.pageBreakSentinel) {
+            pageTexts = text
+                .components(separatedBy: Self.pageBreakSentinel)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+        } else {
+            pageTexts = [text]
+        }
+
+        var allElements: [StructuredElementWrapper] = []
+        var foundStructuredContent = false
+
+        for (index, pageText) in pageTexts.enumerated() {
+            let pageNumber: Int
+            if index < pageInfo.pageNumbers.count {
+                pageNumber = pageInfo.pageNumbers[index]
+            } else {
+                pageNumber = index + 1
+            }
+
+            let pageElements = detectStructuredElementsInPageText(pageText, pageNumber: pageNumber)
+            if pageElements.contains(where: { $0.elementType != "paragraph" }) {
+                foundStructuredContent = true
+            }
+            allElements.append(contentsOf: pageElements)
+        }
+
+        return (allElements, foundStructuredContent)
+    }
+
+    private func shouldInferStructureFromExtractedText(for documentType: DocumentType) -> Bool {
+        switch documentType {
+        case .pdf,
+             .swift, .python, .javascript, .typescript, .java, .cpp, .c, .objc,
+             .go, .rust, .ruby, .php, .html, .css, .json, .xml, .yaml, .sql, .shell, .code,
+             .audio, .video, .m4a, .mp3, .wav, .mp4, .mov:
+            return false
+        default:
+            return true
+        }
+    }
+
+    private nonisolated func detectStructuredElementsInPageText(_ pageText: String, pageNumber: Int) -> [StructuredElementWrapper] {
+        let lines = pageText.components(separatedBy: .newlines)
+        var elements: [StructuredElementWrapper] = []
+        var paragraphBuffer: [String] = []
+        var lineIndex = 0
+
+        func flushParagraphBuffer() {
+            guard !paragraphBuffer.isEmpty else { return }
+            let paragraphText = paragraphBuffer
+                .joined(separator: "\n")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if !paragraphText.isEmpty {
+                elements.append(StructuredElementWrapper(
+                    text: paragraphText,
+                    elementType: "paragraph",
+                    pageNumber: pageNumber,
+                    isAtomicChunk: false
+                ))
+            }
+            paragraphBuffer.removeAll()
+        }
+
+        while lineIndex < lines.count {
+            let line = lines[lineIndex]
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            if trimmed.isEmpty {
+                flushParagraphBuffer()
+                lineIndex += 1
+                continue
+            }
+
+            if trimmed == "[Table]" || trimmed == "[/Table]" {
+                flushParagraphBuffer()
+                lineIndex += 1
+                continue
+            }
+
+            if let tableEnd = markdownTableBlockEnd(in: lines, startIndex: lineIndex) {
+                var captionSource = paragraphBuffer
+                let caption = consumeCaptionCandidate(from: &captionSource)
+                paragraphBuffer = captionSource
+                flushParagraphBuffer()
+
+                let blockLines = Array(lines[lineIndex..<tableEnd])
+                if let tableData = parseMarkdownTable(lines: blockLines, pageNumber: pageNumber, caption: caption) {
+                    elements.append(StructuredElementWrapper(
+                        text: tableData.textRepresentation,
+                        elementType: "table",
+                        pageNumber: pageNumber,
+                        isAtomicChunk: true,
+                        detectedEntities: tableData.detectedEntities.map { ($0.type.rawValue, $0.value) },
+                        tableData: tableData,
+                        extractionSource: "text_inferred",
+                        qualityScore: tableQualityScore(tableData)
+                    ))
+                    lineIndex = tableEnd
+                    continue
+                }
+            }
+
+            if let blockEnd = keyValueBlockEnd(in: lines, startIndex: lineIndex) {
+                var captionSource = paragraphBuffer
+                let caption = consumeCaptionCandidate(from: &captionSource)
+                paragraphBuffer = captionSource
+                flushParagraphBuffer()
+
+                let blockLines = Array(lines[lineIndex..<blockEnd])
+                if let tableData = parseKeyValueTable(lines: blockLines, pageNumber: pageNumber, caption: caption) {
+                    elements.append(StructuredElementWrapper(
+                        text: tableData.textRepresentation,
+                        elementType: "table",
+                        pageNumber: pageNumber,
+                        isAtomicChunk: true,
+                        detectedEntities: tableData.detectedEntities.map { ($0.type.rawValue, $0.value) },
+                        tableData: tableData,
+                        extractionSource: "text_inferred",
+                        qualityScore: tableQualityScore(tableData)
+                    ))
+                    lineIndex = blockEnd
+                    continue
+                }
+            }
+
+            if let blockEnd = parallelListTableBlockEnd(in: lines, startIndex: lineIndex) {
+                var captionSource = paragraphBuffer
+                let caption = consumeCaptionCandidate(from: &captionSource)
+                paragraphBuffer = captionSource
+                flushParagraphBuffer()
+
+                let blockLines = Array(lines[lineIndex..<blockEnd])
+                if let tableData = parseParallelListTable(lines: blockLines, pageNumber: pageNumber, caption: caption) {
+                    elements.append(StructuredElementWrapper(
+                        text: tableData.textRepresentation,
+                        elementType: "table",
+                        pageNumber: pageNumber,
+                        isAtomicChunk: true,
+                        detectedEntities: tableData.detectedEntities.map { ($0.type.rawValue, $0.value) },
+                        tableData: tableData,
+                        extractionSource: "text_inferred",
+                        qualityScore: tableQualityScore(tableData)
+                    ))
+                    lineIndex = blockEnd
+                    continue
+                }
+            }
+
+            paragraphBuffer.append(line)
+            lineIndex += 1
+        }
+
+        flushParagraphBuffer()
+        return elements
+    }
+
+    private nonisolated func inferredStructuredElementsForPDFPageText(_ pageText: String, pageNumber: Int) -> [StructuredElementWrapper] {
+        let normalizedText = pageText
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !normalizedText.isEmpty else { return [] }
+
+        let inferredElements = detectStructuredElementsInPageText(normalizedText, pageNumber: pageNumber)
+        guard inferredElements.contains(where: { $0.elementType == "table" || $0.elementType == "list" }) else {
+            return []
+        }
+
+        return inferredElements
+    }
+
+    private nonisolated func structuredElementMetrics(in elements: [StructuredElementWrapper]) -> (tables: Int, lists: Int, headers: Int) {
+        (
+            tables: elements.filter { $0.elementType == "table" }.count,
+            lists: elements.filter { $0.elementType == "list" }.count,
+            headers: elements.filter { $0.elementType == "title" }.count
+        )
+    }
+
+    private nonisolated func preferredElementsWithLayoutTables(
+        existingElements: [StructuredElementWrapper],
+        layoutTables: [TableRegion],
+        pageNumber: Int
+    ) -> (elements: [StructuredElementWrapper], didPromote: Bool) {
+        let promotedTables = promotedLayoutTableElements(from: layoutTables, pageNumber: pageNumber)
+        guard !promotedTables.isEmpty else {
+            return (existingElements, false)
+        }
+
+        let existingTableData = existingElements.compactMap(\.tableData)
+        let bestExistingScore = existingTableData.map(tableQualityScore).max() ?? 0
+        let bestPromotedScore = promotedTables.compactMap(\.tableData).map(tableQualityScore).max() ?? 0
+
+        guard existingTableData.isEmpty || bestPromotedScore > bestExistingScore + 0.12 || bestExistingScore < 0.45 else {
+            return (existingElements, false)
+        }
+
+        let preservedElements = existingElements.filter { $0.elementType != "table" }
+        return (preservedElements + promotedTables, true)
+    }
+
+    private nonisolated func promotedLayoutTableElements(
+        from layoutTables: [TableRegion],
+        pageNumber: Int
+    ) -> [StructuredElementWrapper] {
+        layoutTables.compactMap { layoutTable in
+            let normalizedRows = layoutTable.rows.map { row in
+                row.map { OCRConfiguration.normalizeExtractedText($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            }
+
+            guard normalizedRows.count >= 2 else { return nil }
+            guard tableQualityScore(rows: normalizedRows) >= 0.45 else { return nil }
+
+            let headerRow = inferredHeaderRow(from: normalizedRows)
+            let tableData = TableData(
+                pageNumber: pageNumber,
+                rows: normalizedRows,
+                headerRow: headerRow,
+                caption: nil,
+                detectedEntities: []
+            )
+
+            return StructuredElementWrapper(
+                text: tableData.textRepresentation,
+                elementType: "table",
+                pageNumber: pageNumber,
+                isAtomicChunk: true,
+                detectedEntities: [],
+                tableData: tableData,
+                listItems: nil,
+                extractionSource: "layout_table",
+                qualityScore: tableQualityScore(tableData)
+            )
+        }
+    }
+
+    private nonisolated func inferredHeaderRow(from rows: [[String]]) -> [String]? {
+        guard let firstRow = rows.first, !firstRow.isEmpty else { return nil }
+
+        let visibleCells = firstRow.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        guard visibleCells.count >= 2 else { return nil }
+
+        let shortHeaderRatio = Double(visibleCells.filter { $0.count <= 32 }.count) / Double(visibleCells.count)
+        let digitRatio = Double(visibleCells.filter { $0.rangeOfCharacter(from: .decimalDigits) != nil }.count) / Double(visibleCells.count)
+        let punctuationHeavyRatio = Double(visibleCells.filter {
+            let punctuationCount = $0.unicodeScalars.filter { CharacterSet.punctuationCharacters.contains($0) }.count
+            return punctuationCount > max(2, $0.count / 3)
+        }.count) / Double(visibleCells.count)
+
+        if shortHeaderRatio >= 0.6 && digitRatio <= 0.4 && punctuationHeavyRatio <= 0.4 {
+            return firstRow
+        }
+
+        return nil
+    }
+
+    private nonisolated func tableQualityScore(_ tableData: TableData) -> Double {
+        tableQualityScore(rows: tableData.rows)
+    }
+
+    private nonisolated func tableQualityScore(rows: [[String]]) -> Double {
+        let normalizedRows = rows.map { row in
+            row.map { OCRConfiguration.normalizeExtractedText($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+        }
+        let nonEmptyCells = normalizedRows.flatMap { $0 }.filter { !$0.isEmpty }
+        guard !nonEmptyCells.isEmpty else { return 0 }
+
+        let rowCount = normalizedRows.count
+        let maxColumns = normalizedRows.map(\.count).max() ?? 0
+        let visibleCellCount = Double(nonEmptyCells.count)
+        let totalCellSlots = Double(max(1, rowCount * max(1, maxColumns)))
+        let fillRatio = visibleCellCount / totalCellSlots
+        let readableRatio = nonEmptyCells.map(tableCellReadabilityScore).reduce(0, +) / visibleCellCount
+
+        let headerBonus: Double = inferredHeaderRow(from: normalizedRows) == nil ? 0 : 0.10
+        let shapeBonus: Double = maxColumns >= 2 ? 0.15 : 0
+        let rowBonus = min(0.15, Double(rowCount) / 8.0 * 0.15)
+
+        let score = (readableRatio * 0.45) + (fillRatio * 0.15) + shapeBonus + rowBonus + headerBonus
+        return min(1.0, max(0.0, score))
+    }
+
+    private nonisolated func tableCellReadabilityScore(_ text: String) -> Double {
+        let trimmed = OCRConfiguration.normalizeExtractedText(text).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return 0 }
+
+        let scalarCount = trimmed.unicodeScalars.count
+        guard scalarCount > 0 else { return 0 }
+
+        let printableCount = trimmed.unicodeScalars.filter {
+            CharacterSet.alphanumerics.contains($0) ||
+            CharacterSet.whitespacesAndNewlines.contains($0) ||
+            CharacterSet.punctuationCharacters.contains($0) ||
+            CharacterSet.symbols.contains($0)
+        }.count
+        let printableRatio = Double(printableCount) / Double(scalarCount)
+
+        let letters = trimmed.unicodeScalars.filter { CharacterSet.letters.contains($0) }.count
+        let digits = trimmed.unicodeScalars.filter { CharacterSet.decimalDigits.contains($0) }.count
+        let alphaNumericRatio = Double(letters + digits) / Double(scalarCount)
+
+        var score = printableRatio * 0.45 + alphaNumericRatio * 0.25
+
+        if letters >= 8 {
+            let recognizer = NLLanguageRecognizer()
+            recognizer.processString(trimmed)
+            let confidence = recognizer.languageHypotheses(withMaximum: 1).values.max() ?? 0
+            score += min(0.20, confidence * 0.20)
+            if confidence < 0.15 {
+                score -= 0.20
+            }
+        } else if digits > 0 {
+            score += 0.10
+        }
+
+        return min(1.0, max(0.0, score))
+    }
+
+    private nonisolated func tableRowQualityScore(headers: [String], row: [String]) -> Double {
+        let normalizedCells = row.map {
+            OCRConfiguration.normalizeExtractedText($0).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        let visibleCells = normalizedCells.filter { !$0.isEmpty }
+        guard !visibleCells.isEmpty else { return 0 }
+
+        let readability = visibleCells.map(tableCellReadabilityScore).reduce(0, +) / Double(visibleCells.count)
+        let fillRatio = Double(visibleCells.count) / Double(max(1, max(headers.count, row.count)))
+        let longValueBonus = visibleCells.contains { $0.count >= 18 } ? 0.08 : 0
+        let repeatedNoisePenalty = visibleCells.contains {
+            $0.range(of: #"^[^A-Za-z0-9]{3,}$"#, options: .regularExpression) != nil
+        } ? 0.20 : 0
+
+        return min(1.0, max(0.0, readability * 0.70 + fillRatio * 0.22 + longValueBonus - repeatedNoisePenalty))
+    }
+
+    private nonisolated func lowQualityRowIndices(for tableData: TableData) -> [Int] {
+        let headers = inferredHeaders(for: tableData)
+        return dataRows(for: tableData).enumerated().compactMap { rowIndex, row in
+            let score = tableRowQualityScore(headers: headers, row: row)
+            return score < 0.38 ? rowIndex : nil
+        }
+    }
+
+    private nonisolated func shouldAttemptRegionCropRescue(
+        analysis: PageComplexityAnalysis?,
+        structuredContent: StructuredPageContent,
+        hasRecoveredStructure: Bool,
+        layoutTables: [TableRegion],
+        pageText: String
+    ) -> Bool {
+        let tableSignal = (analysis?.tablePresence ?? 0) > 0.14 || !layoutTables.isEmpty
+        let listSignal = (analysis?.listPatternStrength ?? 0) > 0.18
+        let visualSignal = (analysis?.figurePresence ?? 0) > 0.12
+            || (analysis?.chartPresence ?? 0) > 0.10
+            || (analysis?.imagePresence ?? 0) > 0.22
+        let degradedText = (analysis?.textQuality ?? 1.0) < 0.58 || (analysis?.fineTextRisk ?? 0) > 0.48
+        let sparseText = pageText.trimmingCharacters(in: .whitespacesAndNewlines).count < 180
+        let weakStructuredCapture = structuredContent.qualityScore < 0.68
+        let missingExpectedStructure = !hasRecoveredStructure && (tableSignal || listSignal || visualSignal)
+
+        return missingExpectedStructure
+            || (weakStructuredCapture && (tableSignal || listSignal || visualSignal))
+            || (degradedText && sparseText && (tableSignal || visualSignal))
+    }
+
+    private nonisolated func regionRescuePayload(
+        from rescue: RegionRescueResult,
+        pageNumber: Int
+    ) -> RegionCropRescuePayload? {
+        var elements: [StructuredElementWrapper] = []
+        var tableCount = 0
+        var listCount = 0
+        var figureCount = 0
+
+        for table in rescue.content.tables {
+            let normalizedRows = table.rows.map { row in
+                row.map { OCRConfiguration.normalizeExtractedText($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            }
+
+            guard normalizedRows.count >= 2 else { continue }
+            guard tableQualityScore(rows: normalizedRows) >= 0.42 else { continue }
+
+            let tableData = TableData(
+                pageNumber: pageNumber,
+                rows: normalizedRows,
+                headerRow: table.hasHeader ? inferredHeaderRow(from: normalizedRows) : nil,
+                caption: table.caption,
+                detectedEntities: []
+            )
+
+            elements.append(StructuredElementWrapper(
+                text: tableData.textRepresentation,
+                elementType: "table",
+                pageNumber: pageNumber,
+                isAtomicChunk: true,
+                detectedEntities: [],
+                tableData: tableData,
+                listItems: nil,
+                extractionSource: "crop_rescue",
+                qualityScore: tableQualityScore(tableData)
+            ))
+            tableCount += 1
+        }
+
+        for list in rescue.content.lists {
+            let normalizedItems = list.items
+                .map { OCRConfiguration.normalizeExtractedText($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+
+            guard normalizedItems.count >= 2 else { continue }
+
+            elements.append(StructuredElementWrapper(
+                text: normalizedItems.map { "• \($0)" }.joined(separator: "\n"),
+                elementType: "list",
+                pageNumber: pageNumber,
+                isAtomicChunk: true,
+                detectedEntities: [],
+                tableData: nil,
+                listItems: normalizedItems
+            ))
+            listCount += 1
+        }
+
+        for figure in rescue.content.figures {
+            var figureParts: [String] = []
+            if let caption = figure.caption?.trimmingCharacters(in: .whitespacesAndNewlines), !caption.isEmpty {
+                figureParts.append(caption)
+            }
+            if let classification = figure.classification?.trimmingCharacters(in: .whitespacesAndNewlines), !classification.isEmpty {
+                figureParts.append("Figure: \(classification)")
+            }
+            if let description = figure.description?.trimmingCharacters(in: .whitespacesAndNewlines), !description.isEmpty {
+                figureParts.append(description)
+            }
+
+            let figureText = figureParts.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !figureText.isEmpty else { continue }
+
+            elements.append(StructuredElementWrapper(
+                text: figureText,
+                elementType: "figure",
+                pageNumber: pageNumber,
+                isAtomicChunk: true,
+                detectedEntities: [],
+                tableData: nil,
+                listItems: nil
+            ))
+            figureCount += 1
+        }
+
+        let paragraphText = regionRescueParagraphText(from: rescue)
+        if !paragraphText.isEmpty {
+            elements.append(StructuredElementWrapper(
+                text: paragraphText,
+                elementType: "paragraph",
+                pageNumber: pageNumber,
+                isAtomicChunk: false,
+                detectedEntities: [],
+                tableData: nil,
+                listItems: nil
+            ))
+        }
+
+        let pageText = rescue.readingOrderText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !elements.isEmpty || !pageText.isEmpty else { return nil }
+
+        return RegionCropRescuePayload(
+            elements: elements,
+            pageText: pageText,
+            tableCount: tableCount,
+            listCount: listCount,
+            figureCount: figureCount
+        )
+    }
+
+    private nonisolated func regionRescueParagraphText(from rescue: RegionRescueResult) -> String {
+        rescue.content.textBlocks
+            .filter { !$0.isFooter }
+            .sorted { lhs, rhs in
+                if abs(lhs.boundingBox.maxY - rhs.boundingBox.maxY) > 0.03 {
+                    return lhs.boundingBox.maxY > rhs.boundingBox.maxY
+                }
+                return lhs.boundingBox.minX < rhs.boundingBox.minX
+            }
+            .map { OCRConfiguration.normalizeExtractedText($0.text).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n\n")
+    }
+
+    private nonisolated func regionTextQualityScore(_ text: String) -> Double {
+        let trimmed = OCRConfiguration.normalizeExtractedText(text).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return 0 }
+
+        let baseScore = tableCellReadabilityScore(trimmed)
+        let wordCount = trimmed.split(whereSeparator: \.isWhitespace).count
+        let lengthBonus = trimmed.count > 140 ? 0.10 : (trimmed.count > 70 ? 0.05 : 0)
+        let densityBonus = min(0.15, Double(wordCount) / 80.0 * 0.15)
+        let delimiterPenalty = trimmed.filter { $0 == "|" }.count > 8 ? 0.05 : 0
+
+        return min(1.0, max(0.0, baseScore + lengthBonus + densityBonus - delimiterPenalty))
+    }
+
+    private nonisolated func preferredElementsWithRegionCropRescue(
+        existingElements: [StructuredElementWrapper],
+        rescuePayload: RegionCropRescuePayload,
+        existingPageText: String,
+        pageNumber: Int
+    ) -> (elements: [StructuredElementWrapper], pageText: String?, didPromote: Bool) {
+        var mergedElements = existingElements
+        var didPromote = false
+
+        let rescueTables = rescuePayload.elements.filter { $0.elementType == "table" }
+        let rescueLists = rescuePayload.elements.filter { $0.elementType == "list" }
+        let rescueFigures = rescuePayload.elements.filter { $0.elementType == "figure" }
+        let rescueParagraphText = rescuePayload.elements.first { $0.elementType == "paragraph" }?.text ?? ""
+
+        let existingTables = mergedElements.filter { $0.elementType == "table" }
+        let existingLists = mergedElements.filter { $0.elementType == "list" }
+        let existingFigures = mergedElements.filter { $0.elementType == "figure" }
+
+        if !rescueTables.isEmpty {
+            let rescueBestScore = rescueTables.compactMap(\.tableData).map(tableQualityScore).max() ?? 0
+            let existingBestScore = existingTables.compactMap(\.tableData).map(tableQualityScore).max() ?? 0
+
+            if existingTables.isEmpty || rescueBestScore > existingBestScore + 0.08 || existingBestScore < 0.42 {
+                mergedElements.removeAll { $0.elementType == "table" }
+                mergedElements.append(contentsOf: rescueTables)
+                didPromote = true
+            }
+        }
+
+        if !rescueLists.isEmpty && existingLists.isEmpty {
+            mergedElements.append(contentsOf: rescueLists)
+            didPromote = true
+        }
+
+        if !rescueFigures.isEmpty && existingFigures.isEmpty {
+            mergedElements.append(contentsOf: rescueFigures)
+            didPromote = true
+        }
+
+        var pageTextOverride: String? = nil
+        if !rescueParagraphText.isEmpty {
+            let existingParagraphText = mergedElements
+                .filter { $0.elementType == "paragraph" }
+                .map(\.text)
+                .joined(separator: "\n\n")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+
+            let baselineText = existingParagraphText.isEmpty ? existingPageText : existingParagraphText
+            let rescueScore = regionTextQualityScore(rescueParagraphText)
+            let baselineScore = regionTextQualityScore(baselineText)
+
+            if baselineText.isEmpty || rescueScore > baselineScore + 0.12 {
+                mergedElements.removeAll { $0.elementType == "paragraph" }
+                mergedElements.append(StructuredElementWrapper(
+                    text: rescueParagraphText,
+                    elementType: "paragraph",
+                    pageNumber: pageNumber,
+                    isAtomicChunk: false,
+                    detectedEntities: [],
+                    tableData: nil,
+                    listItems: nil
+                ))
+                pageTextOverride = rescuePayload.pageText
+                didPromote = true
+            }
+        } else if didPromote && existingPageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            pageTextOverride = rescuePayload.pageText
+        }
+
+        return (mergedElements, pageTextOverride, didPromote)
+    }
+
+    private nonisolated func markdownTableBlockEnd(in lines: [String], startIndex: Int) -> Int? {
+        guard startIndex < lines.count, isPipeTableLine(lines[startIndex]) else { return nil }
+
+        var lineIndex = startIndex
+        var visibleLineCount = 0
+        var dataLineCount = 0
+
+        while lineIndex < lines.count {
+            let trimmed = lines[lineIndex].trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { break }
+            guard isPipeTableLine(trimmed) || isPipeTableSeparatorLine(trimmed) else { break }
+            visibleLineCount += 1
+            if !isPipeTableSeparatorLine(trimmed) {
+                dataLineCount += 1
+            }
+            lineIndex += 1
+        }
+
+        guard visibleLineCount >= 2, dataLineCount >= 2 else { return nil }
+        return lineIndex
+    }
+
+    private nonisolated func isPipeTableLine(_ line: String) -> Bool {
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        let pipeCount = trimmed.filter { $0 == "|" }.count
+        return pipeCount >= 2
+    }
+
+    private nonisolated func isPipeTableSeparatorLine(_ line: String) -> Bool {
+        let cells = splitPipeTableCells(line)
+        guard !cells.isEmpty else { return false }
+        return cells.allSatisfy { cell in
+            let trimmed = cell.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return false }
+            return trimmed.allSatisfy { character in
+                character == "-" || character == ":"
+            }
+        }
+    }
+
+    private nonisolated func splitPipeTableCells(_ line: String) -> [String] {
+        var trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("|") {
+            trimmed.removeFirst()
+        }
+        if trimmed.hasSuffix("|") {
+            trimmed.removeLast()
+        }
+
+        return trimmed
+            .components(separatedBy: "|")
+            .map { OCRConfiguration.normalizeExtractedText($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+    }
+
+    private nonisolated func parseMarkdownTable(lines: [String], pageNumber: Int, caption: String?) -> TableData? {
+        let normalizedLines = lines
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard normalizedLines.count >= 2 else { return nil }
+
+        var rows: [[String]] = []
+        var sawSeparator = false
+
+        for line in normalizedLines {
+            if isPipeTableSeparatorLine(line) {
+                sawSeparator = true
+                continue
+            }
+
+            let cells = splitPipeTableCells(line)
+            guard cells.count >= 2 else { continue }
+            rows.append(cells)
+        }
+
+        guard rows.count >= 2 else { return nil }
+
+        let headerRow = sawSeparator ? rows.first : nil
+        return TableData(
+            pageNumber: pageNumber,
+            rows: rows,
+            headerRow: headerRow,
+            caption: caption,
+            detectedEntities: []
+        )
+    }
+
+    private nonisolated func keyValueBlockEnd(in lines: [String], startIndex: Int) -> Int? {
+        guard startIndex < lines.count, isKeyValueTableLine(lines[startIndex]) else { return nil }
+
+        var lineIndex = startIndex
+        while lineIndex < lines.count {
+            let trimmed = lines[lineIndex].trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, isKeyValueTableLine(trimmed) else { break }
+            lineIndex += 1
+        }
+
+        guard lineIndex - startIndex >= 2 else { return nil }
+        return lineIndex
+    }
+
+    private nonisolated func isKeyValueTableLine(_ line: String) -> Bool {
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        guard !trimmed.contains("|") else { return false }
+
+        if trimmed.contains("\t") {
+            let cells = trimmed.components(separatedBy: "\t").filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            return cells.count >= 2
+        }
+
+        return trimmed.range(
+            of: #"^.{1,90}?(?:\s+-\s+|\s+[–—]\s+|:\s+).{1,}$"#,
+            options: .regularExpression
+        ) != nil
+    }
+
+    private nonisolated func parseKeyValueTable(lines: [String], pageNumber: Int, caption: String?) -> TableData? {
+        var rows: [[String]] = []
+
+        for line in lines {
+            guard let (key, value) = parseKeyValueLine(line) else { continue }
+            rows.append([key, value])
+        }
+
+        guard rows.count >= 2 else { return nil }
+        return TableData(
+            pageNumber: pageNumber,
+            rows: rows,
+            headerRow: nil,
+            caption: caption,
+            detectedEntities: []
+        )
+    }
+
+    private nonisolated func parseKeyValueLine(_ line: String) -> (key: String, value: String)? {
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        if trimmed.contains("\t") {
+            let cells = trimmed
+                .components(separatedBy: "\t")
+                .map { OCRConfiguration.normalizeExtractedText($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            guard cells.count >= 2 else { return nil }
+            return (cells[0], cells.dropFirst().joined(separator: " | "))
+        }
+
+        let separators = [" - ", " – ", " — ", ": "]
+        for separator in separators {
+            let parts = trimmed.components(separatedBy: separator)
+            guard parts.count >= 2 else { continue }
+
+            let key = OCRConfiguration.normalizeExtractedText(parts[0]).trimmingCharacters(in: .whitespacesAndNewlines)
+            let value = OCRConfiguration.normalizeExtractedText(parts.dropFirst().joined(separator: separator)).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !key.isEmpty, !value.isEmpty else { continue }
+            return (key, value)
+        }
+
+        return nil
+    }
+
+    private nonisolated func parallelListTableBlockEnd(in lines: [String], startIndex: Int) -> Int? {
+        guard startIndex < lines.count else { return nil }
+
+        let firstHeader = lines[startIndex].trimmingCharacters(in: .whitespacesAndNewlines)
+        guard isParallelListHeaderLine(firstHeader) else { return nil }
+
+        var lineIndex = startIndex + 1
+        var firstColumnLines: [String] = []
+
+        while lineIndex < lines.count {
+            let trimmed = lines[lineIndex].trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return nil }
+            guard !isDocumentSectionHeadingLine(trimmed) else { return nil }
+
+            if isParallelListHeaderLine(trimmed), firstColumnLines.count >= 2 {
+                break
+            }
+
+            firstColumnLines.append(trimmed)
+            lineIndex += 1
+        }
+
+        guard lineIndex < lines.count else { return nil }
+        let secondHeader = lines[lineIndex].trimmingCharacters(in: .whitespacesAndNewlines)
+        guard isParallelListHeaderLine(secondHeader), normalizeParallelListHeader(firstHeader) != normalizeParallelListHeader(secondHeader) else {
+            return nil
+        }
+
+        lineIndex += 1
+        var secondColumnLines: [String] = []
+
+        while lineIndex < lines.count {
+            let trimmed = lines[lineIndex].trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty || isDocumentSectionHeadingLine(trimmed) {
+                break
+            }
+
+            if isParallelListHeaderLine(trimmed), secondColumnLines.count >= 2 {
+                break
+            }
+
+            secondColumnLines.append(trimmed)
+            lineIndex += 1
+        }
+
+        let leftItems = collapseParallelListItems(firstColumnLines, preferStateLabels: true)
+        let rightItems = collapseParallelListItems(secondColumnLines, preferStateLabels: false)
+
+        guard leftItems.count >= 3, rightItems.count >= 3 else { return nil }
+        guard abs(leftItems.count - rightItems.count) <= 1 else { return nil }
+
+        return lineIndex
+    }
+
+    private nonisolated func parseParallelListTable(lines: [String], pageNumber: Int, caption: String?) -> TableData? {
+        let normalizedLines = lines
+            .map { OCRConfiguration.normalizeExtractedText($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard normalizedLines.count >= 8 else { return nil }
+        guard let splitIndex = parallelListSplitIndex(in: normalizedLines) else { return nil }
+
+        let firstHeader = normalizedLines[0]
+        let secondHeader = normalizedLines[splitIndex]
+        let leftItems = collapseParallelListItems(Array(normalizedLines[1..<splitIndex]), preferStateLabels: true)
+        let rightItems = collapseParallelListItems(Array(normalizedLines[(splitIndex + 1)...]), preferStateLabels: false)
+
+        let pairCount = min(leftItems.count, rightItems.count)
+        guard pairCount >= 3 else { return nil }
+
+        let rows = (0..<pairCount).map { index in
+            [leftItems[index], rightItems[index]]
+        }
+
+        return TableData(
+            pageNumber: pageNumber,
+            rows: rows,
+            headerRow: [firstHeader, secondHeader],
+            caption: caption,
+            detectedEntities: []
+        )
+    }
+
+    private nonisolated func parallelListSplitIndex(in lines: [String]) -> Int? {
+        guard lines.count >= 5 else { return nil }
+
+        for index in 2..<(lines.count - 2) {
+            let candidate = lines[index]
+            guard isParallelListHeaderLine(candidate) else { continue }
+
+            let leftItems = collapseParallelListItems(Array(lines[1..<index]), preferStateLabels: true)
+            let rightItems = collapseParallelListItems(Array(lines[(index + 1)...]), preferStateLabels: false)
+
+            guard leftItems.count >= 3, rightItems.count >= 3 else { continue }
+            guard abs(leftItems.count - rightItems.count) <= 1 else { continue }
+
+            return index
+        }
+
+        return nil
+    }
+
+    private nonisolated func collapseParallelListItems(_ lines: [String], preferStateLabels: Bool) -> [String] {
+        var items: [String] = []
+        var current = ""
+
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+
+            let startsNew = current.isEmpty || parallelListLineStartsNewItem(
+                trimmed,
+                currentItem: current,
+                preferStateLabels: preferStateLabels
+            )
+
+            if startsNew {
+                if !current.isEmpty {
+                    items.append(current.trimmingCharacters(in: .whitespacesAndNewlines))
+                }
+                current = trimmed
+            } else {
+                current += " " + trimmed
+            }
+        }
+
+        if !current.isEmpty {
+            items.append(current.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+
+        return items
+            .map { OCRConfiguration.normalizeExtractedText($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    private nonisolated func parallelListLineStartsNewItem(
+        _ line: String,
+        currentItem: String,
+        preferStateLabels: Bool
+    ) -> Bool {
+        if preferStateLabels,
+           line.range(of: #"^(?:Flashing|Solid|Blinking|Steady|Pulsing|Rapid|Slow)\b"#, options: [.regularExpression, .caseInsensitive]) != nil {
+            return true
+        }
+
+        if line.hasPrefix("•") || line.hasPrefix("-") || line.hasPrefix("*") {
+            return true
+        }
+
+        if currentItem.contains("(") && !currentItem.contains(")") {
+            return false
+        }
+
+        if let first = line.unicodeScalars.first,
+           CharacterSet.lowercaseLetters.contains(first) {
+            return false
+        }
+
+        if line.count <= 10 && currentItem.count <= 40 {
+            return false
+        }
+
+        if preferStateLabels {
+            return line.count <= 40
+        }
+
+        return line.count >= 6
+    }
+
+    private nonisolated func isParallelListHeaderLine(_ line: String) -> Bool {
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        guard trimmed.count >= 4, trimmed.count <= 40 else { return false }
+        guard !trimmed.contains("|") else { return false }
+        guard !trimmed.hasSuffix(".") else { return false }
+        guard trimmed.range(of: #"^\d+(?:\.\d+)*"#, options: .regularExpression) == nil else { return false }
+
+        let words = trimmed.split(whereSeparator: \.isWhitespace)
+        guard words.count >= 1, words.count <= 5 else { return false }
+
+        let hasLetters = trimmed.unicodeScalars.contains { CharacterSet.letters.contains($0) }
+        guard hasLetters else { return false }
+
+        let uppercaseRatio = Double(trimmed.filter(\.isUppercase).count) / Double(max(1, trimmed.filter(\.isLetter).count))
+        return uppercaseRatio >= 0.2 || trimmed == trimmed.uppercased()
+    }
+
+    private nonisolated func normalizeParallelListHeader(_ line: String) -> String {
+        OCRConfiguration.normalizeExtractedText(line)
+            .lowercased()
+            .replacingOccurrences(of: #"[^a-z0-9]+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private nonisolated func preferredElementsWithRecoveredIndicatorStateTable(
+        existingElements: [StructuredElementWrapper],
+        pageText: String,
+        pageNumber: Int
+    ) -> (elements: [StructuredElementWrapper], didPromote: Bool) {
+        guard let recoveredElement = recoveredIndicatorStateTableElement(from: pageText, pageNumber: pageNumber) else {
+            return (existingElements, false)
+        }
+
+        let candidateTables = existingElements.filter(looksLikeIndicatorStateTableCandidate)
+        let bestExistingScore = candidateTables.compactMap { element in
+            element.qualityScore ?? element.tableData.map(tableQualityScore)
+        }.max() ?? 0
+        let recoveredScore = recoveredElement.qualityScore ?? 0
+
+        guard candidateTables.isEmpty || recoveredScore > bestExistingScore + 0.08 || bestExistingScore < 0.72 else {
+            return (existingElements, false)
+        }
+
+        let preserved = existingElements.filter { !looksLikeIndicatorStateTableCandidate($0) }
+        return (preserved + [recoveredElement], true)
+    }
+
+    private nonisolated func recoveredIndicatorStateTableElement(from pageText: String, pageNumber: Int) -> StructuredElementWrapper? {
+        guard let tableData = recoveredIndicatorStateTable(from: pageText, pageNumber: pageNumber) else {
+            return nil
+        }
+
+        let quality = max(0.90, tableQualityScore(tableData))
+        return StructuredElementWrapper(
+            text: tableData.textRepresentation,
+            elementType: "table",
+            pageNumber: pageNumber,
+            isAtomicChunk: true,
+            detectedEntities: [],
+            tableData: tableData,
+            listItems: nil,
+            extractionSource: "state_list_recovery",
+            qualityScore: quality
+        )
+    }
+
+    private nonisolated func recoveredIndicatorStateTable(from pageText: String, pageNumber: Int) -> TableData? {
+        let normalizedLines = pageText
+            .components(separatedBy: .newlines)
+            .map { OCRConfiguration.normalizeExtractedText($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard normalizedLines.contains(where: { isIndicatorStateLabelHeaderLine($0) }) else {
+            return nil
+        }
+
+        guard let statusHeaderIndex = normalizedLines.firstIndex(where: isIndicatorStateValueHeaderLine(_:)) else {
+            return nil
+        }
+
+        let valuesStartIndex = normalizedLines.index(after: statusHeaderIndex)
+        let stopIndex = normalizedLines[valuesStartIndex...].firstIndex(where: isDocumentSectionHeadingLine(_:)) ?? normalizedLines.endIndex
+        let sectionLines = Array(normalizedLines[..<stopIndex])
+        let labels = orderedIndicatorStateLabels(in: sectionLines)
+        let values = collapseIndicatorStatusValues(Array(normalizedLines[valuesStartIndex..<stopIndex]))
+        let pairCount = min(labels.count, values.count)
+
+        guard pairCount >= 5 else { return nil }
+
+        let rows = (0..<pairCount).map { index in
+            [labels[index], values[index]]
+        }
+
+        return TableData(
+            pageNumber: pageNumber,
+            rows: rows,
+            headerRow: ["Color of Light", normalizedLines[statusHeaderIndex]],
+            caption: "Indicator Light",
+            detectedEntities: []
+        )
+    }
+
+    private nonisolated func orderedIndicatorStateLabels(in lines: [String]) -> [String] {
+        guard let regex = try? NSRegularExpression(
+            pattern: #"\b(Flashing|Solid|Blinking|Steady|Pulsing|Rapid|Slow)\s+([A-Za-z]+(?:-[A-Za-z]+)?)\b"#,
+            options: .caseInsensitive
+        ) else {
+            return []
+        }
+
+        var labels: [String] = []
+        var seen = Set<String>()
+
+        for line in lines {
+            let nsLine = line as NSString
+            let matches = regex.matches(in: line, range: NSRange(location: 0, length: nsLine.length))
+
+            for match in matches {
+                guard match.numberOfRanges >= 3 else { continue }
+                let state = canonicalIndicatorStateToken(nsLine.substring(with: match.range(at: 1)))
+                let color = nsLine.substring(with: match.range(at: 2)).capitalized
+                let label = "\(state) \(color)"
+                if seen.insert(label.lowercased()).inserted {
+                    labels.append(label)
+                }
+            }
+        }
+
+        return labels
+    }
+
+    private nonisolated func collapseIndicatorStatusValues(_ lines: [String]) -> [String] {
+        var items: [String] = []
+        var current = ""
+
+        for line in lines {
+            let cleaned = cleanedIndicatorStatusLine(line)
+            guard !cleaned.isEmpty else { continue }
+
+            let startsNew = current.isEmpty || indicatorStatusLineStartsNewItem(cleaned)
+            if startsNew {
+                if !current.isEmpty {
+                    items.append(current)
+                }
+                current = cleaned
+            } else {
+                current += " " + cleaned
+            }
+        }
+
+        if !current.isEmpty {
+            items.append(current)
+        }
+
+        return items
+            .map { OCRConfiguration.normalizeExtractedText($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    private nonisolated func cleanedIndicatorStatusLine(_ line: String) -> String {
+        let trimmed = OCRConfiguration.normalizeExtractedText(line).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+        guard !trimmed.hasPrefix("[") else { return "" }
+        guard !trimmed.hasPrefix("Table:") else { return "" }
+        guard !trimmed.hasPrefix("Row ") else { return "" }
+        guard !trimmed.hasPrefix("Cell ") else { return "" }
+        guard !trimmed.hasPrefix("|") else { return "" }
+
+        let stripped = trimmed
+            .replacingOccurrences(
+                of: #"^(?:Flashing|Solid|Blinking|Steady|Pulsing|Rapid|Slow)\s+[A-Za-z]+(?:-[A-Za-z]+)?(?:\s*\(\d+\s*(?:secs?|seconds?)?\)?)?\s*"#,
+                with: "",
+                options: [.regularExpression, .caseInsensitive]
+            )
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if stripped.lowercased() == "plaud status" {
+            return ""
+        }
+
+        return stripped
+    }
+
+    private nonisolated func indicatorStatusLineStartsNewItem(_ line: String) -> Bool {
+        guard let first = line.unicodeScalars.first else { return false }
+
+        if CharacterSet.lowercaseLetters.contains(first) || CharacterSet.punctuationCharacters.contains(first) {
+            return false
+        }
+
+        let lowered = line.lowercased()
+        let continuationPrefixes = ["and ", "or ", "to ", "for ", "with ", "without ", "of ", "the ", "over-", "under-"]
+        return !continuationPrefixes.contains(where: { lowered.hasPrefix($0) })
+    }
+
+    private nonisolated func isIndicatorStateLabelHeaderLine(_ line: String) -> Bool {
+        let normalized = line.lowercased()
+        return normalized.contains("color of light") || normalized.contains("indicator light")
+    }
+
+    private nonisolated func isIndicatorStateValueHeaderLine(_ line: String) -> Bool {
+        let normalized = line.lowercased()
+        return normalized.contains("status") || normalized.contains("meaning") || normalized.contains("signal") || normalized.contains("indicates")
+    }
+
+    private nonisolated func looksLikeIndicatorStateTableCandidate(_ element: StructuredElementWrapper) -> Bool {
+        guard element.elementType == "table" else { return false }
+
+        let tableText = [element.text, element.tableData?.textRepresentation ?? ""]
+            .joined(separator: "\n")
+            .lowercased()
+
+        if tableText.contains("color of light") || tableText.contains("plaud status") {
+            return true
+        }
+
+        return countIndicatorStateLabels(in: tableText) >= 3
+    }
+
+    private nonisolated func countIndicatorStateLabels(in text: String) -> Int {
+        guard let regex = try? NSRegularExpression(
+            pattern: #"\b(?:Flashing|Solid|Blinking|Steady|Pulsing|Rapid|Slow)\s+[A-Za-z]+(?:-[A-Za-z]+)?\b"#,
+            options: .caseInsensitive
+        ) else {
+            return 0
+        }
+
+        let nsText = text as NSString
+        return regex.matches(in: text, range: NSRange(location: 0, length: nsText.length)).count
+    }
+
+    private nonisolated func canonicalIndicatorStateToken(_ token: String) -> String {
+        let lower = token.lowercased()
+        if lower.hasPrefix("flash") { return "Flashing" }
+        if lower.hasPrefix("blink") { return "Blinking" }
+        if lower.hasPrefix("puls") { return "Pulsing" }
+        if lower == "solid" { return "Solid" }
+        if lower == "steady" { return "Steady" }
+        if lower == "rapid" { return "Rapid" }
+        if lower == "slow" { return "Slow" }
+        return token.capitalized
+    }
+
+    private nonisolated func isDocumentSectionHeadingLine(_ line: String) -> Bool {
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        return trimmed.range(of: #"^\d+(?:\.\d+)*\.?[A-Z]"#, options: .regularExpression) != nil
+            || trimmed.range(of: #"^\d+(?:\.\d+)*\.?\s"#, options: .regularExpression) != nil
+    }
+
+    private nonisolated func consumeCaptionCandidate(from paragraphBuffer: inout [String]) -> String? {
+        guard let last = paragraphBuffer.last else { return nil }
+        let trimmed = last.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        guard trimmed.count <= 90 else { return nil }
+        guard !trimmed.hasSuffix(".") else { return nil }
+        guard !trimmed.contains("|") else { return nil }
+        guard !trimmed.contains(":") else { return nil }
+        guard trimmed.range(of: #"[.!?]{2,}"#, options: .regularExpression) == nil else { return nil }
+
+        paragraphBuffer.removeLast()
+        return trimmed
     }
 
     // MARK: - Text Quality Validation
@@ -1645,6 +2918,11 @@ class DocumentProcessor {
                     let complexity = pageComplexity[pageNumber]
                     let strategy = complexity?.processingStrategy ?? .enhancedOCR  // Default to safe
                     let renderScale = preferredOCRRenderScale(for: complexity, documentTextLayerGarbled: documentTextLayerGarbled)
+                    let fidelityForcesVision = shouldForceVisionForFidelity(
+                        analysis: complexity,
+                        strategy: strategy,
+                        documentTextLayerGarbled: documentTextLayerGarbled
+                    )
 
                     let pageString = page.string
 
@@ -1660,7 +2938,7 @@ class DocumentProcessor {
                     // Simple pages (.directText, .spatialText) skip expensive image rendering entirely!
                     // EXCEPTION: If text layer is garbled (font substitution cipher), ALL pages need OCR
                     var pageImage: CIImage? = nil
-                    if documentTextLayerGarbled || strategy == .basicOCR || strategy == .enhancedOCR || strategy == .fullOCR {
+                    if documentTextLayerGarbled || fidelityForcesVision || strategy == .basicOCR || strategy == .enhancedOCR || strategy == .fullOCR {
                         // Complex page - render and preprocess image with adaptive strategy
                         if renderScale > 5.0 {
                             Log.info("[DocumentProcessor] Page \(pageNumber): fine text risk \(Int((complexity?.fineTextRisk ?? 0) * 100))% → rendering at \(Int(72 * renderScale)) DPI", category: .ingestion)
@@ -1687,11 +2965,11 @@ class DocumentProcessor {
 
                     traceIngestionDecision(
                         pageNumber: pageNumber,
-                        strategy: strategy.description,
+                        strategy: fidelityForcesVision && strategy == .spatialText ? "\(strategy.description)+fidelity" : strategy.description,
                         hasText: hasText,
                         textQualityOK: textQualityOK,
                         requiresTableOCR: requiresOCRForAccuracy,
-                        mode: "ocr-extraction"
+                        mode: fidelityForcesVision ? "ocr-extraction-fidelity" : "ocr-extraction"
                     )
 
                     // For pages with good text quality that DON'T have tables, try spatial extraction
@@ -2191,6 +3469,7 @@ class DocumentProcessor {
             let pageImage: CIImage?
             let plainText: String?
             let layoutText: String?  // Layout-aware extracted text
+            let layoutTables: [TableRegion]
             let preferHighResolutionStructure: Bool
         }
 
@@ -2239,8 +3518,16 @@ class DocumentProcessor {
             pageComplexity[analysis.pageNumber] = analysis
         }
 
-        // Count pages that can skip Vision
-        let skipVisionCount = complexityAnalyses.filter { $0.processingStrategy == .directText || $0.processingStrategy == .spatialText }.count
+        // Count pages that can skip Vision after fidelity overrides are applied.
+        let skipVisionCount = complexityAnalyses.filter { analysis in
+            let strategy = analysis.processingStrategy
+            let baseSkip = strategy == .directText || strategy == .spatialText
+            return baseSkip && !shouldForceVisionForFidelity(
+                analysis: analysis,
+                strategy: strategy,
+                documentTextLayerGarbled: documentTextLayerGarbled
+            )
+        }.count
         let visionRequired = pageCount - skipVisionCount
         Log.info("[DocumentProcessor] 🚀 ADAPTIVE: \(skipVisionCount) pages skip Vision OCR, \(visionRequired) need layout detection", category: .ingestion)
 
@@ -2293,7 +3580,7 @@ class DocumentProcessor {
             for pageIndex in subBatchIndices {
                 autoreleasepool {
                     guard let page = pdfDocument.page(at: pageIndex) else {
-                        batchRenderData.append(PageRenderData(pageIndex: pageIndex, pageImage: nil, plainText: nil, layoutText: nil, preferHighResolutionStructure: false))
+                        batchRenderData.append(PageRenderData(pageIndex: pageIndex, pageImage: nil, plainText: nil, layoutText: nil, layoutTables: [], preferHighResolutionStructure: false))
                         return
                     }
 
@@ -2301,8 +3588,13 @@ class DocumentProcessor {
                     let complexity = pageComplexity[pageNumber]
                     let strategy = complexity?.processingStrategy ?? .enhancedOCR  // Safe default
                     let renderScale = preferredOCRRenderScale(for: complexity, documentTextLayerGarbled: documentTextLayerGarbled)
+                    let fidelityForcesVision = shouldForceVisionForFidelity(
+                        analysis: complexity,
+                        strategy: strategy,
+                        documentTextLayerGarbled: documentTextLayerGarbled
+                    )
                     // PHASE -1 override: garbled text layer → ALL pages need Vision OCR
-                    let needsVision = documentTextLayerGarbled || strategy == .basicOCR || strategy == .enhancedOCR || strategy == .fullOCR
+                    let needsVision = documentTextLayerGarbled || fidelityForcesVision || strategy == .basicOCR || strategy == .enhancedOCR || strategy == .fullOCR
                     let plainText = page.string
                     let hasText = (plainText?.trimmingCharacters(in: .whitespacesAndNewlines).count ?? 0) > 0
                     let requiresTableOCR = (complexity?.tablePresence ?? 0) > 0.2 || (complexity?.numericDensity ?? 0) > 0.3
@@ -2314,11 +3606,15 @@ class DocumentProcessor {
 
                     traceIngestionDecision(
                         pageNumber: pageNumber,
-                        strategy: documentTextLayerGarbled ? "garbled-force-ocr" : strategy.description,
+                        strategy: documentTextLayerGarbled
+                            ? "garbled-force-ocr"
+                            : (fidelityForcesVision && strategy == .spatialText ? "\(strategy.description)+fidelity" : strategy.description),
                         hasText: hasText,
                         textQualityOK: !documentTextLayerGarbled && (complexity?.textQuality ?? 0) > 0.65,
                         requiresTableOCR: requiresTableOCR,
-                        mode: documentTextLayerGarbled ? "structured-garbled-ocr" : "structured-hybrid"
+                        mode: documentTextLayerGarbled
+                            ? "structured-garbled-ocr"
+                            : (fidelityForcesVision ? "structured-hybrid-fidelity" : "structured-hybrid")
                     )
 
                     // ADAPTIVE: Only render image if this page needs Vision layout detection
@@ -2359,6 +3655,7 @@ class DocumentProcessor {
                         pageImage: pageImage,
                         plainText: plainText,
                         layoutText: layoutText,
+                        layoutTables: [],
                         preferHighResolutionStructure: preferHighResolutionStructure
                     ))
                 }
@@ -2379,8 +3676,8 @@ class DocumentProcessor {
                     )
                 }
 
-                var layoutResults: [Int: String] = [:]
-                await withTaskGroup(of: (Int, String).self) { group in
+                var layoutResults: [Int: LayoutAnalysisResult] = [:]
+                await withTaskGroup(of: (Int, LayoutAnalysisResult?).self) { group in
                     for (batchOffset, pageIndex) in subBatchIndices.enumerated() {
                         let renderData = batchRenderData[batchOffset]
                         // ADAPTIVE: Skip pages that already have layoutText (PDFKit extraction)
@@ -2390,21 +3687,22 @@ class DocumentProcessor {
                         group.addTask {
                             let pageNumber = pageIndex + 1
                             do {
-                                let layoutText = try await layoutExtractor.extractForRAG(
+                                let layoutResult = try await layoutExtractor.extractWithLayout(
                                     from: pageImage,
-                                    nativeText: renderData.plainText,
                                     pageNumber: pageNumber
                                 )
-                                return (batchOffset, layoutText)
+                                return (batchOffset, layoutResult)
                             } catch {
                                 Log.warning("[DocumentProcessor] Layout extraction failed for page \(pageNumber): \(error.localizedDescription)", category: .ingestion)
-                                return (batchOffset, renderData.plainText ?? "")
+                                return (batchOffset, nil)
                             }
                         }
                     }
 
-                    for await (offset, text) in group {
-                        layoutResults[offset] = text
+                    for await (offset, result) in group {
+                        if let result {
+                            layoutResults[offset] = result
+                        }
                     }
                 }
 
@@ -2420,13 +3718,23 @@ class DocumentProcessor {
 
                 // Update batch render data with layout results
                 for i in batchRenderData.indices {
-                    if let layoutText = layoutResults[i] {
+                    if let layoutResult = layoutResults[i] {
                         let old = batchRenderData[i]
+                        let preferredLayoutText: String = {
+                            if !layoutResult.tables.isEmpty || layoutResult.isMultiColumn {
+                                return layoutResult.readingOrderText
+                            }
+                            if let plainText = old.plainText, !plainText.isEmpty {
+                                return plainText
+                            }
+                            return layoutResult.readingOrderText
+                        }()
                         batchRenderData[i] = PageRenderData(
                             pageIndex: old.pageIndex,
                             pageImage: old.pageImage,
                             plainText: old.plainText,
-                            layoutText: layoutText,
+                            layoutText: preferredLayoutText,
+                            layoutTables: layoutResult.tables,
                             preferHighResolutionStructure: old.preferHighResolutionStructure
                         )
                     }
@@ -2453,6 +3761,7 @@ class DocumentProcessor {
                     // the shared singleton clobbers vocabulary mid-parse for the first document.
                     // Capturing here binds this task to doc1's vocabulary regardless of doc2.
                     let capturedCustomWords = currentDocumentCustomWords
+                    let capturedComplexity = pageComplexity[pageIndex + 1]
 
                     group.addTask {
                         let pageNumber = pageIndex + 1
@@ -2576,7 +3885,9 @@ class DocumentProcessor {
                                     isAtomicChunk: isAtomic,
                                     detectedEntities: entities,
                                     tableData: tableData,
-                                    listItems: listItems
+                                    listItems: listItems,
+                                    extractionSource: tableData == nil ? nil : "vision_document",
+                                    qualityScore: tableData.map(self.tableQualityScore)
                                 ))
                             }
 
@@ -2593,6 +3904,67 @@ class DocumentProcessor {
                                 ))
                             }
 
+                            let preferredLayoutElements = self.preferredElementsWithLayoutTables(
+                                existingElements: elements,
+                                layoutTables: renderData.layoutTables,
+                                pageNumber: pageNumber
+                            )
+                            if preferredLayoutElements.didPromote {
+                                elements = preferredLayoutElements.elements
+                                let metrics = self.structuredElementMetrics(in: elements)
+                                pageTablesCount = metrics.tables
+                                pageListsCount = metrics.lists
+                                pageHeadersCount = max(pageHeadersCount, metrics.headers)
+
+                                Log.info(
+                                    "[DocumentProcessor] Page \(pageNumber): promoted \(pageTablesCount) layout-detected table(s) over weaker parser output",
+                                    category: .ingestion
+                                )
+                            }
+
+                            let recoveredPageText = (bestAvailableText ?? structuredContent.rawText)
+                                .trimmingCharacters(in: .whitespacesAndNewlines)
+                            let recoveredIndicatorElements = self.preferredElementsWithRecoveredIndicatorStateTable(
+                                existingElements: elements,
+                                pageText: recoveredPageText,
+                                pageNumber: pageNumber
+                            )
+                            if recoveredIndicatorElements.didPromote {
+                                elements = recoveredIndicatorElements.elements
+                                let metrics = self.structuredElementMetrics(in: elements)
+                                pageTablesCount = metrics.tables
+                                pageListsCount = metrics.lists
+                                pageHeadersCount = max(pageHeadersCount, metrics.headers)
+
+                                Log.info(
+                                    "[DocumentProcessor] Page \(pageNumber): rebuilt indicator/state table from page text to replace malformed row-column pairing",
+                                    category: .ingestion
+                                )
+                            }
+
+                            if pageTablesCount == 0 && pageListsCount == 0 {
+                                let inferenceSourceText = (layoutText ?? structuredContent.rawText)
+                                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                                let inferredElements = self.inferredStructuredElementsForPDFPageText(
+                                    inferenceSourceText,
+                                    pageNumber: pageNumber
+                                )
+
+                                if !inferredElements.isEmpty {
+                                    let preservedNonParagraphElements = elements.filter { $0.elementType != "paragraph" }
+                                    elements = preservedNonParagraphElements + inferredElements
+                                    let metrics = self.structuredElementMetrics(in: elements)
+                                    pageTablesCount = metrics.tables
+                                    pageListsCount = metrics.lists
+                                    pageHeadersCount = max(pageHeadersCount, metrics.headers)
+
+                                    Log.info(
+                                        "[DocumentProcessor] Page \(pageNumber): recovered \(pageTablesCount) table(s) from layout/OCR fallback text",
+                                        category: .ingestion
+                                    )
+                                }
+                            }
+
                             // Add figure references as searchable content
                             if !structuredContent.figureReferences.isEmpty {
                                 let figureText = "[Visual Content on Page \(pageNumber)]\n" + structuredContent.figureReferences.joined(separator: "\n")
@@ -2605,6 +3977,41 @@ class DocumentProcessor {
                                     tableData: nil,
                                     listItems: nil
                                 ))
+                            }
+
+                            let rescueSourceText = (bestAvailableText ?? structuredContent.rawText)
+                                .trimmingCharacters(in: .whitespacesAndNewlines)
+
+                            if self.shouldAttemptRegionCropRescue(
+                                analysis: capturedComplexity,
+                                structuredContent: structuredContent,
+                                hasRecoveredStructure: pageTablesCount > 0 || pageListsCount > 0 || !structuredContent.figureReferences.isEmpty,
+                                layoutTables: renderData.layoutTables,
+                                pageText: rescueSourceText
+                            ), let rescueResult = await IntelligentDocumentProcessor.shared.rescuePageRegions(
+                                from: pageImage,
+                                pageNumber: pageNumber,
+                                preferHighAccuracy: renderData.preferHighResolutionStructure
+                            ), let rescuePayload = self.regionRescuePayload(from: rescueResult, pageNumber: pageNumber) {
+                                let promotedRescue = self.preferredElementsWithRegionCropRescue(
+                                    existingElements: elements,
+                                    rescuePayload: rescuePayload,
+                                    existingPageText: rescueSourceText,
+                                    pageNumber: pageNumber
+                                )
+
+                                if promotedRescue.didPromote {
+                                    elements = promotedRescue.elements
+                                    let metrics = self.structuredElementMetrics(in: elements)
+                                    pageTablesCount = metrics.tables
+                                    pageListsCount = metrics.lists
+                                    pageHeadersCount = max(pageHeadersCount, metrics.headers)
+
+                                    Log.info(
+                                        "[DocumentProcessor] Page \(pageNumber): crop rescue promoted \(rescuePayload.tableCount) table(s), \(rescuePayload.listCount) list(s), \(rescuePayload.figureCount) figure region(s)",
+                                        category: .ingestion
+                                    )
+                                }
                             }
 
                             // Build structured pageText from elements with proper formatting
@@ -2636,6 +4043,12 @@ class DocumentProcessor {
                                 pageTextOutput = textParts.joined(separator: "\n\n")
                             } else if isHybridMode, let layout = layoutText, !layout.isEmpty {
                                 pageTextOutput = layout
+                            } else if let rescueResult = await IntelligentDocumentProcessor.shared.rescuePageRegions(
+                                from: pageImage,
+                                pageNumber: pageNumber,
+                                preferHighAccuracy: true
+                            ), let rescuePayload = self.regionRescuePayload(from: rescueResult, pageNumber: pageNumber), !rescuePayload.pageText.isEmpty {
+                                pageTextOutput = rescuePayload.pageText
                             } else {
                                 pageTextOutput = structuredContent.rawText
                             }
@@ -2655,7 +4068,7 @@ class DocumentProcessor {
                                 pageIndex: pageIndex,
                                 elements: elements,
                                 pageText: pageTextOutput,
-                                hasStructure: structuredContent.hasStructuredContent,
+                                hasStructure: structuredContent.hasStructuredContent || pageTablesCount > 0 || pageListsCount > 0,
                                 usedOCR: false,
                                 tablesFound: pageTablesCount,
                                 listsFound: pageListsCount,
@@ -2663,8 +4076,48 @@ class DocumentProcessor {
                             )
 
                         } catch StructuredParsingError.noDocumentDetected {
+                            if let rescueResult = await IntelligentDocumentProcessor.shared.rescuePageRegions(
+                                from: pageImage,
+                                pageNumber: pageNumber,
+                                preferHighAccuracy: renderData.preferHighResolutionStructure
+                            ), let rescuePayload = self.regionRescuePayload(from: rescueResult, pageNumber: pageNumber) {
+                                let metrics = self.structuredElementMetrics(in: rescuePayload.elements)
+                                self.traceIngestionOutcome(
+                                    pageNumber: pageNumber,
+                                    path: "structured-region-rescue",
+                                    chars: rescuePayload.pageText.count,
+                                    extra: [
+                                        ("tables", "\(rescuePayload.tableCount)"),
+                                        ("lists", "\(rescuePayload.listCount)"),
+                                        ("figures", "\(rescuePayload.figureCount)")
+                                    ]
+                                )
+                                return PageParseResult(
+                                    pageIndex: pageIndex,
+                                    elements: rescuePayload.elements,
+                                    pageText: rescuePayload.pageText,
+                                    hasStructure: metrics.tables > 0 || metrics.lists > 0,
+                                    usedOCR: true,
+                                    tablesFound: metrics.tables,
+                                    listsFound: metrics.lists,
+                                    headersFound: metrics.headers
+                                )
+                            }
+
                             // No document content - try OCR fallback
                             if let ocrText = try? await self.performOCR(on: pageImage), !ocrText.isEmpty {
+                                let inferredElements = self.inferredStructuredElementsForPDFPageText(ocrText, pageNumber: pageNumber)
+                                let fallbackElements = inferredElements.isEmpty
+                                    ? [StructuredElementWrapper(
+                                        text: ocrText,
+                                        elementType: "paragraph",
+                                        pageNumber: pageNumber,
+                                        isAtomicChunk: false,
+                                        tableData: nil,
+                                        listItems: nil
+                                    )]
+                                    : inferredElements
+                                let metrics = self.structuredElementMetrics(in: fallbackElements)
                                 self.traceIngestionOutcome(
                                     pageNumber: pageNumber,
                                     path: "structured-fallback-ocr",
@@ -2672,23 +4125,28 @@ class DocumentProcessor {
                                 )
                                 return PageParseResult(
                                     pageIndex: pageIndex,
-                                    elements: [StructuredElementWrapper(
-                                        text: ocrText,
+                                    elements: fallbackElements,
+                                    pageText: ocrText,
+                                    hasStructure: metrics.tables > 0 || metrics.lists > 0,
+                                    usedOCR: true,
+                                    tablesFound: metrics.tables,
+                                    listsFound: metrics.lists,
+                                    headersFound: metrics.headers
+                                )
+                            }
+                            if !isGarbled, let nativeText = bestAvailableText, !nativeText.isEmpty {
+                                let inferredElements = self.inferredStructuredElementsForPDFPageText(nativeText, pageNumber: pageNumber)
+                                let fallbackElements = inferredElements.isEmpty
+                                    ? [StructuredElementWrapper(
+                                        text: nativeText,
                                         elementType: "paragraph",
                                         pageNumber: pageNumber,
                                         isAtomicChunk: false,
                                         tableData: nil,
                                         listItems: nil
-                                    )],
-                                    pageText: ocrText,
-                                    hasStructure: false,
-                                    usedOCR: true,
-                                    tablesFound: 0,
-                                    listsFound: 0,
-                                    headersFound: 0
-                                )
-                            }
-                            if !isGarbled, let nativeText = bestAvailableText, !nativeText.isEmpty {
+                                    )]
+                                    : inferredElements
+                                let metrics = self.structuredElementMetrics(in: fallbackElements)
                                 self.traceIngestionOutcome(
                                     pageNumber: pageNumber,
                                     path: renderData.layoutText != nil ? "structured-no-document-layout" : "structured-no-document-native",
@@ -2696,20 +4154,13 @@ class DocumentProcessor {
                                 )
                                 return PageParseResult(
                                     pageIndex: pageIndex,
-                                    elements: [StructuredElementWrapper(
-                                        text: nativeText,
-                                        elementType: "paragraph",
-                                        pageNumber: pageNumber,
-                                        isAtomicChunk: false,
-                                        tableData: nil,
-                                        listItems: nil
-                                    )],
+                                    elements: fallbackElements,
                                     pageText: nativeText,
-                                    hasStructure: false,
+                                    hasStructure: metrics.tables > 0 || metrics.lists > 0,
                                     usedOCR: false,
-                                    tablesFound: 0,
-                                    listsFound: 0,
-                                    headersFound: 0
+                                    tablesFound: metrics.tables,
+                                    listsFound: metrics.lists,
+                                    headersFound: metrics.headers
                                 )
                             }
                             self.traceIngestionOutcome(
@@ -2721,8 +4172,49 @@ class DocumentProcessor {
 
                         } catch {
                             Log.warning("[DocumentProcessor] Structured parsing failed for page \(pageNumber): \(error.localizedDescription)", category: .ingestion)
+
+                            if let rescueResult = await IntelligentDocumentProcessor.shared.rescuePageRegions(
+                                from: pageImage,
+                                pageNumber: pageNumber,
+                                preferHighAccuracy: renderData.preferHighResolutionStructure
+                            ), let rescuePayload = self.regionRescuePayload(from: rescueResult, pageNumber: pageNumber) {
+                                let metrics = self.structuredElementMetrics(in: rescuePayload.elements)
+                                self.traceIngestionOutcome(
+                                    pageNumber: pageNumber,
+                                    path: "structured-error-region-rescue",
+                                    chars: rescuePayload.pageText.count,
+                                    extra: [
+                                        ("tables", "\(rescuePayload.tableCount)"),
+                                        ("lists", "\(rescuePayload.listCount)"),
+                                        ("figures", "\(rescuePayload.figureCount)")
+                                    ]
+                                )
+                                return PageParseResult(
+                                    pageIndex: pageIndex,
+                                    elements: rescuePayload.elements,
+                                    pageText: rescuePayload.pageText,
+                                    hasStructure: metrics.tables > 0 || metrics.lists > 0,
+                                    usedOCR: true,
+                                    tablesFound: metrics.tables,
+                                    listsFound: metrics.lists,
+                                    headersFound: metrics.headers
+                                )
+                            }
+
                             // Fallback to the best native/layout text — but NOT if text layer is garbled
                             if !isGarbled, let nativeText = bestAvailableText, !nativeText.isEmpty {
+                                let inferredElements = self.inferredStructuredElementsForPDFPageText(nativeText, pageNumber: pageNumber)
+                                let fallbackElements = inferredElements.isEmpty
+                                    ? [StructuredElementWrapper(
+                                        text: nativeText,
+                                        elementType: "paragraph",
+                                        pageNumber: pageNumber,
+                                        isAtomicChunk: false,
+                                        tableData: nil,
+                                        listItems: nil
+                                    )]
+                                    : inferredElements
+                                let metrics = self.structuredElementMetrics(in: fallbackElements)
                                 self.traceIngestionOutcome(
                                     pageNumber: pageNumber,
                                     path: renderData.layoutText != nil ? "structured-error-fallback-layout" : "structured-error-fallback-native",
@@ -2730,20 +4222,13 @@ class DocumentProcessor {
                                 )
                                 return PageParseResult(
                                     pageIndex: pageIndex,
-                                    elements: [StructuredElementWrapper(
-                                        text: nativeText,
-                                        elementType: "paragraph",
-                                        pageNumber: pageNumber,
-                                        isAtomicChunk: false,
-                                        tableData: nil,
-                                        listItems: nil
-                                    )],
+                                    elements: fallbackElements,
                                     pageText: nativeText,
-                                    hasStructure: false,
+                                    hasStructure: metrics.tables > 0 || metrics.lists > 0,
                                     usedOCR: false,
-                                    tablesFound: 0,
-                                    listsFound: 0,
-                                    headersFound: 0
+                                    tablesFound: metrics.tables,
+                                    listsFound: metrics.lists,
+                                    headersFound: metrics.headers
                                 )
                             }
                             self.traceIngestionOutcome(
@@ -3037,7 +4522,12 @@ class DocumentProcessor {
 
                 if element.elementType == "table", let tableData = element.tableData {
                     let tableTitle = resolveTableTitle(tableData: tableData, sectionTitle: currentSectionTitle)
-                    let structuredTable = structuredTablePayload(from: tableData, tableTitle: tableTitle)
+                    let structuredTable = structuredTablePayload(
+                        from: tableData,
+                        tableTitle: tableTitle,
+                        extractionQuality: element.qualityScore,
+                        extractionSource: element.extractionSource
+                    )
                     let siblingGroupId = siblingGroupIdentifier(
                         prefix: "table",
                         pageNumber: element.pageNumber,
@@ -3238,13 +4728,18 @@ class DocumentProcessor {
             scores[category, default: 0] += amount
         }
 
-        let technicalTerms = ["manual", "user guide", "owner", "instructions for use", "ifu", "installation", "troubleshooting", "specifications", "record button", "device", "charging", "indicator"]
+        let strongTechnicalTerms = ["manual", "user guide", "owner", "instructions for use", "ifu", "installation", "troubleshooting", "service manual", "operating instructions"]
+        let technicalTerms = ["specifications", "maintenance", "calibration", "setup", "configuration", "controls", "reference manual"]
         let scientificTerms = ["abstract", "introduction", "methods", "materials", "results", "discussion", "conclusion", "references", "doi", "p <", "confidence interval", "randomized", "study"]
         let regulatoryTerms = ["compliance", "regulatory", "iec", "fda", "emc", "warning", "contraindications", "adverse", "authorized representative", "labeling"]
         let referenceTerms = ["table", "specification", "capacity", "dimensions", "part number", "model number", "sku", "compatibility", "matrix", "requirements"]
 
+        for term in strongTechnicalTerms where sample.contains(term) || lowerFilename.contains(term) {
+            add(.technicalManual, lowerFilename.contains(term) ? 1.2 : 0.7)
+        }
+
         for term in technicalTerms where sample.contains(term) || lowerFilename.contains(term) {
-            add(.technicalManual, lowerFilename.contains(term) ? 1.5 : 0.8)
+            add(.technicalManual, lowerFilename.contains(term) ? 0.8 : 0.45)
         }
 
         for term in scientificTerms where sample.contains(term) || lowerFilename.contains(term) {
@@ -3259,36 +4754,43 @@ class DocumentProcessor {
             add(.referenceTable, lowerFilename.contains(term) ? 1.2 : 0.7)
         }
 
-        if documentType == .pdf {
-            add(.technicalManual, 0.2)
-        }
-
         let tableCount = structuredElements.filter { $0.elementType == "table" }.count
         let listCount = structuredElements.filter { $0.elementType == "list" }.count
         if tableCount >= 3 {
-            add(.referenceTable, 1.3)
-            add(.technicalManual, 0.4)
+            add(.referenceTable, 0.9)
         }
         if listCount >= 3 {
-            add(.technicalManual, 0.5)
-            add(.regulatory, 0.2)
+            add(.regulatory, 0.25)
         }
 
         let numericDensity = Double(sample.filter { $0.isNumber }.count) / Double(max(sample.count, 1))
         if numericDensity > 0.08 {
-            add(.referenceTable, 0.6)
-            add(.scientificPaper, 0.2)
+            add(.referenceTable, 0.35)
+            add(.scientificPaper, 0.15)
         }
 
         if sample.contains("table ") && sample.contains("figure ") {
-            add(.scientificPaper, 0.9)
+            add(.scientificPaper, 0.7)
         }
 
         if sample.contains("error code") || sample.contains("troubleshooting") {
-            add(.technicalManual, 0.8)
+            add(.technicalManual, 0.55)
         }
 
-        return scores.max(by: { $0.value < $1.value })?.key ?? .general
+        let rankedScores = scores.sorted { lhs, rhs in
+            if lhs.value == rhs.value {
+                return lhs.key.rawValue < rhs.key.rawValue
+            }
+            return lhs.value > rhs.value
+        }
+
+        guard let best = rankedScores.first else { return .general }
+        let runnerUp = rankedScores.dropFirst().first?.value ?? 0
+        guard best.value >= 0.9, (best.value - runnerUp) >= 0.2 else {
+            return .general
+        }
+
+        return best.key
     }
 
     private func makeChunkMetadata(
@@ -3344,11 +4846,20 @@ class DocumentProcessor {
         return "Table"
     }
 
-    private func structuredTablePayload(from tableData: TableData, tableTitle: String) -> StructuredTablePayload {
-        StructuredTablePayload(
+    private func structuredTablePayload(
+        from tableData: TableData,
+        tableTitle: String,
+        extractionQuality: Double? = nil,
+        extractionSource: String? = nil
+    ) -> StructuredTablePayload {
+        let lowQualityRows = lowQualityRowIndices(for: tableData)
+        return StructuredTablePayload(
             title: tableTitle,
             headers: inferredHeaders(for: tableData),
-            rows: dataRows(for: tableData)
+            rows: dataRows(for: tableData),
+            extractionQuality: extractionQuality ?? tableQualityScore(tableData),
+            extractionSource: extractionSource ?? "vision_document",
+            lowQualityRowIndices: lowQualityRows
         )
     }
 
@@ -3409,6 +4920,13 @@ class DocumentProcessor {
         for (index, row) in rows.enumerated() {
             let normalizedRow = normalizedRow(row, columnCount: headers.count)
             lines.append("ROW \(index + 1): \(normalizedRow.joined(separator: " | "))")
+        }
+
+        if let keyValuePairs = tableData.keyValuePairs, !keyValuePairs.isEmpty {
+            lines.append("[Specifications]")
+            for (key, value) in keyValuePairs {
+                lines.append("\(key): \(value)")
+            }
         }
 
         lines.append("SOURCE: \(filename), page \(tableData.pageNumber)")
@@ -3495,7 +5013,7 @@ class DocumentProcessor {
         }
     }
 
-    private func inferredHeaders(for tableData: TableData) -> [String] {
+    private nonisolated func inferredHeaders(for tableData: TableData) -> [String] {
         let columnCount = tableData.rows.map(\ .count).max() ?? 0
         guard columnCount > 0 else { return [] }
 
@@ -3512,7 +5030,7 @@ class DocumentProcessor {
         return (0..<columnCount).map { "Column \($0 + 1)" }
     }
 
-    private func dataRows(for tableData: TableData) -> [[String]] {
+    private nonisolated func dataRows(for tableData: TableData) -> [[String]] {
         if tableData.headerRow != nil && tableData.rows.count > 1 {
             return Array(tableData.rows.dropFirst())
         }
@@ -5641,29 +7159,12 @@ class DocumentProcessor {
             throw DocumentProcessingError.emptyDocument
         }
 
-        // Build structured text output
-        var structuredText = ""
-
-        // Header row
-        if let header = rows.first {
-            // Use parsed fields (handles quoted column names)
-            structuredText += "Table with columns: " + header.joined(separator: ", ") + "\n\n"
-        }
-
-        // Process ALL data rows - ZERO DATA LOSS policy
         let totalRows = rows.count - 1
         if totalRows > 1000 {
             Log.info("[DocumentProcessor] Processing large CSV: \(totalRows) rows", category: .ingestion)
         }
 
-        for i in 1..<rows.count {
-            let values = rows[i]
-            if !values.allSatisfy({ $0.trimmingCharacters(in: .whitespaces).isEmpty }) {
-                structuredText += "Row \(i): " + values.joined(separator: " | ") + "\n"
-            }
-        }
-
-        return structuredText
+        return formattedPipeTableText(from: rows)
     }
 
     /// Detect CSV delimiter by analyzing the first few lines
@@ -6242,16 +7743,32 @@ class DocumentProcessor {
             }
         }
 
-        // Format as pipe-separated table for better RAG readability
+        return formattedPipeTableText(from: rows)
+    }
+
+    private func formattedPipeTableText(from rows: [[String]]) -> String {
         guard !rows.isEmpty else { return "" }
-        var output = ""
-        for (i, row) in rows.enumerated() {
-            output += "| " + row.joined(separator: " | ") + " |\n"
-            if i == 0 {
-                output += "|" + row.map { _ in " --- " }.joined(separator: "|") + "|\n"
+        let columnCount = rows.map(\ .count).max() ?? 0
+
+        func normalizedRow(_ row: [String]) -> [String] {
+            var cells = row.map { OCRConfiguration.normalizeExtractedText($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            if cells.count < columnCount {
+                cells.append(contentsOf: Array(repeating: "", count: columnCount - cells.count))
+            }
+            return cells
+        }
+
+        var lines: [String] = []
+        for (index, row) in rows.enumerated() {
+            let cells = normalizedRow(row)
+            guard cells.contains(where: { !$0.isEmpty }) else { continue }
+            lines.append("| " + cells.joined(separator: " | ") + " |")
+            if index == 0 && rows.count > 1 {
+                lines.append("|" + Array(repeating: " --- ", count: columnCount).joined(separator: "|") + "|")
             }
         }
-        return output
+
+        return lines.joined(separator: "\n")
     }
 
     /// Extract text from PowerPoint slide XML with paragraph and table awareness

@@ -94,6 +94,16 @@ struct IntelligentProcessingMetrics: Sendable {
     let pagesProcessed: Int
 }
 
+struct RegionRescueResult: Sendable {
+    let pageNumber: Int
+    let detectedRegions: [DocumentDetectedRegion]
+    let content: StructuredDocumentContent
+    let readingOrderText: String
+    let averageConfidence: Float
+    let modelUsed: String
+    let processingTimeMs: Double
+}
+
 // MARK: - Intelligent Document Processor
 
 /// Orchestrates intelligent document processing using CoreML vision models
@@ -101,6 +111,7 @@ struct IntelligentProcessingMetrics: Sendable {
 actor IntelligentDocumentProcessor {
 
     static let shared = IntelligentDocumentProcessor()
+    private nonisolated static let visionRenderContext = CIContext(options: [.cacheIntermediates: false])
 
     // MARK: - Dependencies
 
@@ -184,7 +195,101 @@ actor IntelligentDocumentProcessor {
         )
     }
 
+    func rescuePageRegions(
+        from image: CIImage,
+        pageNumber: Int,
+        preferHighAccuracy: Bool = true
+    ) async -> RegionRescueResult? {
+        let detection = await regionDetector.detectRegions(in: image, pageNumber: pageNumber)
+        let candidateRegions = prioritizedRescueRegions(from: detection.sortedByReadingOrder)
+
+        guard !candidateRegions.isEmpty else { return nil }
+
+        let filteredDetection = RegionDetectionResult(
+            pageNumber: pageNumber,
+            regions: candidateRegions,
+            processingTimeMs: detection.processingTimeMs,
+            modelUsed: detection.modelUsed
+        )
+
+        let content = await extractStructuredContent(
+            from: image,
+            regions: filteredDetection,
+            preferHighAccuracy: preferHighAccuracy
+        )
+
+        guard content.metadata.textBlockCount > 0
+            || content.metadata.tableCount > 0
+            || content.metadata.figureCount > 0
+            || content.metadata.listCount > 0 else {
+            return nil
+        }
+
+        let readingOrderText = buildReadingOrderText(from: content)
+        let averageConfidence = candidateRegions.reduce(Float.zero) { $0 + $1.confidence } / Float(candidateRegions.count)
+
+        Log.info(
+            "[IntelligentProcessor] Page \(pageNumber): crop rescue kept \(candidateRegions.count) region(s) -> \(content.metadata.tableCount) table(s), \(content.metadata.listCount) list(s), \(content.metadata.textBlockCount) text block(s)",
+            category: .ingestion
+        )
+
+        return RegionRescueResult(
+            pageNumber: pageNumber,
+            detectedRegions: candidateRegions,
+            content: content,
+            readingOrderText: readingOrderText,
+            averageConfidence: averageConfidence,
+            modelUsed: detection.modelUsed,
+            processingTimeMs: detection.processingTimeMs
+        )
+    }
+
     // MARK: - Classification
+
+    private func prioritizedRescueRegions(from regions: [DocumentDetectedRegion]) -> [DocumentDetectedRegion] {
+        let filtered = regions.filter { region in
+            switch region.type {
+            case .table, .list, .caption, .figure, .chart, .formField, .handwriting, .equation, .codeBlock:
+                return region.confidence >= 0.30 && region.areaFraction >= 0.008
+            case .textBlock:
+                return region.confidence >= 0.55 && region.areaFraction >= 0.008 && region.areaFraction <= 0.45
+            case .header, .footer:
+                return region.confidence >= 0.60 && region.areaFraction <= 0.18
+            default:
+                return false
+            }
+        }
+
+        let prioritized = filtered.sorted { lhs, rhs in
+            let leftPriority = rescuePriority(for: lhs.type)
+            let rightPriority = rescuePriority(for: rhs.type)
+
+            if leftPriority != rightPriority {
+                return leftPriority > rightPriority
+            }
+
+            let yDelta = lhs.boundingBox.midY - rhs.boundingBox.midY
+            if abs(yDelta) > 0.03 {
+                return lhs.boundingBox.midY > rhs.boundingBox.midY
+            }
+
+            return lhs.boundingBox.minX < rhs.boundingBox.minX
+        }
+
+        return Array(prioritized.prefix(12))
+    }
+
+    private func rescuePriority(for type: DocumentRegionType) -> Int {
+        switch type {
+        case .table: return 6
+        case .list, .equation, .codeBlock: return 5
+        case .figure, .chart, .caption: return 4
+        case .formField, .handwriting: return 3
+        case .textBlock: return 2
+        case .header, .footer: return 1
+        default: return 0
+        }
+    }
 
     /// Classify document type based on first page(s)
     private func classifyDocument(_ pdf: PDFDocument, options: ProcessingOptions) async -> DocumentClassificationResult {
@@ -372,20 +477,239 @@ actor IntelligentDocumentProcessor {
         )
     }
 
+    private func extractStructuredContent(
+        from image: CIImage,
+        regions: RegionDetectionResult,
+        preferHighAccuracy: Bool
+    ) async -> StructuredDocumentContent {
+        var textBlocks: [ExtractedTextBlock] = []
+        var tables: [ExtractedTable] = []
+        var figures: [ExtractedFigure] = []
+        var lists: [ExtractedList] = []
+        var estimatedWords = 0
+        var contentTypes: Set<DocumentContentType> = []
+
+        for region in regions.sortedByReadingOrder {
+            switch region.type {
+            case .textBlock, .header, .footer, .caption, .codeBlock, .equation:
+                let highAccuracy = preferHighAccuracy || region.boundingBox.height < 0.08 || region.type == .equation
+                let text = await extractText(
+                    from: image,
+                    region: region.boundingBox,
+                    highAccuracy: highAccuracy,
+                    paddingFraction: region.type == .caption ? 0.025 : 0.018
+                )
+                if !text.isEmpty {
+                    textBlocks.append(ExtractedTextBlock(
+                        pageNumber: region.pageNumber,
+                        text: text,
+                        boundingBox: region.boundingBox,
+                        isHeader: region.type == .header,
+                        isFooter: region.type == .footer,
+                        confidence: region.confidence
+                    ))
+                    estimatedWords += text.split(separator: " ").count
+                    contentTypes.insert(.textDocument)
+                }
+
+            case .table:
+                let tableData = await extractTable(
+                    from: image,
+                    region: region.boundingBox,
+                    highAccuracy: preferHighAccuracy
+                )
+                if !tableData.isEmpty {
+                    tables.append(ExtractedTable(
+                        pageNumber: region.pageNumber,
+                        rows: tableData,
+                        boundingBox: region.boundingBox,
+                        hasHeader: true,
+                        caption: findNearbyCaption(for: region, in: regions.regions)
+                    ))
+                    contentTypes.insert(.spreadsheet)
+                }
+
+            case .figure, .chart, .logo:
+                let classification = region.metadata["classification"] ?? region.type.rawValue
+                let embeddedText = await extractText(
+                    from: image,
+                    region: region.boundingBox,
+                    highAccuracy: preferHighAccuracy,
+                    paddingFraction: 0.03
+                )
+                figures.append(ExtractedFigure(
+                    pageNumber: region.pageNumber,
+                    boundingBox: region.boundingBox,
+                    caption: findNearbyCaption(for: region, in: regions.regions),
+                    classification: classification,
+                    description: embeddedText.isEmpty ? nil : embeddedText
+                ))
+                contentTypes.insert(region.type == .chart ? .chart : .diagram)
+
+            case .list:
+                let text = await extractText(
+                    from: image,
+                    region: region.boundingBox,
+                    highAccuracy: preferHighAccuracy,
+                    paddingFraction: 0.025
+                )
+                let items = parseListItems(text)
+                if !items.isEmpty {
+                    lists.append(ExtractedList(
+                        pageNumber: region.pageNumber,
+                        items: items,
+                        isNumbered: text.contains(where: { $0.isNumber }),
+                        boundingBox: region.boundingBox
+                    ))
+                    estimatedWords += items.joined(separator: " ").split(separator: " ").count
+                }
+
+            case .formField:
+                contentTypes.insert(.form)
+                let text = await extractText(
+                    from: image,
+                    region: region.boundingBox,
+                    highAccuracy: true,
+                    paddingFraction: 0.02
+                )
+                if !text.isEmpty {
+                    textBlocks.append(ExtractedTextBlock(
+                        pageNumber: region.pageNumber,
+                        text: text,
+                        boundingBox: region.boundingBox,
+                        isHeader: false,
+                        isFooter: false,
+                        confidence: region.confidence
+                    ))
+                }
+
+            case .handwriting:
+                contentTypes.insert(.handwritten)
+                let text = await extractText(
+                    from: image,
+                    region: region.boundingBox,
+                    highAccuracy: true,
+                    paddingFraction: 0.02
+                )
+                if !text.isEmpty {
+                    textBlocks.append(ExtractedTextBlock(
+                        pageNumber: region.pageNumber,
+                        text: text,
+                        boundingBox: region.boundingBox,
+                        isHeader: false,
+                        isFooter: false,
+                        confidence: region.confidence * 0.7
+                    ))
+                }
+
+            default:
+                break
+            }
+        }
+
+        let metadata = DocumentStructureMetadata(
+            totalPages: 1,
+            textBlockCount: textBlocks.count,
+            tableCount: tables.count,
+            figureCount: figures.count,
+            listCount: lists.count,
+            estimatedWordCount: estimatedWords,
+            primaryLanguage: detectPrimaryLanguage(textBlocks),
+            contentTypes: Array(contentTypes)
+        )
+
+        return StructuredDocumentContent(
+            textBlocks: textBlocks,
+            tables: tables,
+            figures: figures,
+            lists: lists,
+            metadata: metadata
+        )
+    }
+
+    private func buildReadingOrderText(from content: StructuredDocumentContent) -> String {
+        var readingElements: [(topY: CGFloat, minX: CGFloat, text: String)] = []
+
+        for block in content.textBlocks {
+            let trimmed = block.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            readingElements.append((block.boundingBox.maxY, block.boundingBox.minX, trimmed))
+        }
+
+        for table in content.tables {
+            let rows = table.rows
+                .map { row in row.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }.joined(separator: " | ") }
+                .filter { !$0.isEmpty }
+            guard !rows.isEmpty else { continue }
+            let text = ([table.caption].compactMap { $0 } + rows).joined(separator: "\n")
+            readingElements.append((table.boundingBox.maxY, table.boundingBox.minX, text))
+        }
+
+        for list in content.lists {
+            let items = list.items
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            guard !items.isEmpty else { continue }
+            readingElements.append((
+                list.boundingBox.maxY,
+                list.boundingBox.minX,
+                items.map { "• \($0)" }.joined(separator: "\n")
+            ))
+        }
+
+        for figure in content.figures {
+            var parts: [String] = []
+            if let caption = figure.caption?.trimmingCharacters(in: .whitespacesAndNewlines), !caption.isEmpty {
+                parts.append(caption)
+            }
+            if let classification = figure.classification?.trimmingCharacters(in: .whitespacesAndNewlines), !classification.isEmpty {
+                parts.append("Figure: \(classification)")
+            }
+            if let description = figure.description?.trimmingCharacters(in: .whitespacesAndNewlines), !description.isEmpty {
+                parts.append(description)
+            }
+            guard !parts.isEmpty else { continue }
+            readingElements.append((figure.boundingBox.maxY, figure.boundingBox.minX, parts.joined(separator: "\n")))
+        }
+
+        return readingElements
+            .sorted { lhs, rhs in
+                if abs(lhs.topY - rhs.topY) > 0.03 {
+                    return lhs.topY > rhs.topY
+                }
+                return lhs.minX < rhs.minX
+            }
+            .map(\.text)
+            .joined(separator: "\n\n")
+    }
+
     // MARK: - OCR Helpers
 
     /// Extract text from a region of an image
-    private func extractText(from image: CIImage, region: CGRect, highAccuracy: Bool = false) async -> String {
-        // Crop to region
-        let imageExtent = image.extent
-        let cropRect = CGRect(
-            x: region.minX * imageExtent.width,
-            y: region.minY * imageExtent.height,
-            width: region.width * imageExtent.width,
-            height: region.height * imageExtent.height
+    private func extractText(
+        from image: CIImage,
+        region: CGRect,
+        highAccuracy: Bool = false,
+        paddingFraction: CGFloat = 0.018
+    ) async -> String {
+        let croppedImage = preparedRegionImage(
+            from: image,
+            region: region,
+            paddingFraction: paddingFraction,
+            minimumScale: highAccuracy ? 1.5 : 1.0,
+            forceUpscale: highAccuracy
         )
 
-        let croppedImage = image.cropped(to: cropRect)
+        return await recognizeText(in: croppedImage, highAccuracy: highAccuracy)
+    }
+
+    private func recognizeText(in image: CIImage, highAccuracy: Bool = false) async -> String {
+        let imageExtent = image.extent
+        guard imageExtent.width > 0, imageExtent.height > 0 else { return "" }
+        guard let cgImage = materializedCGImage(from: image) else {
+            Log.warning("[IntelligentProcessor] Failed to materialize region image for OCR", category: .ingestion)
+            return ""
+        }
 
         var extractedText = ""
 
@@ -403,11 +727,9 @@ actor IntelligentDocumentProcessor {
             extractedText = sorted.compactMap { $0.topCandidates(1).first?.string }.joined(separator: " ")
         }
 
-        request.recognitionLevel = highAccuracy ? .accurate : .fast
-        request.usesLanguageCorrection = true
-        request.recognitionLanguages = ["en-US", "en-GB", "de-DE", "fr-FR", "es-ES"]
+        OCRConfiguration.configureRequest(request)
 
-        let handler = VNImageRequestHandler(ciImage: croppedImage, options: [:])
+        let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
 
         // Limit concurrent Vision OCR to prevent Metal race conditions
         VisionOCRThrottle.performSync {
@@ -417,21 +739,27 @@ actor IntelligentDocumentProcessor {
         return extractedText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// Extract table data from a region
-    private func extractTable(from image: CIImage, region: CGRect) async -> [[String]] {
-        // Use iOS 26 RecognizeDocumentsRequest for tables if available
-        if #available(iOS 26.0, *) {
-            return await extractTableWithVision26(from: image, region: region)
-        }
-
-        // Fallback: Extract text and try to parse as table
-        let text = await extractText(from: image, region: region)
-        return parseTextAsTable(text)
+    private nonisolated func materializedCGImage(from image: CIImage) -> CGImage? {
+        Self.visionRenderContext.createCGImage(image, from: image.extent)
     }
 
     @available(iOS 26.0, *)
-    private func extractTableWithVision26(from image: CIImage, region: CGRect) async -> [[String]] {
-        // Crop to region
+    private nonisolated func materializedImageData(from image: CIImage) -> Data? {
+        Self.visionRenderContext.pngRepresentation(
+            of: image,
+            format: .RGBA8,
+            colorSpace: CGColorSpaceCreateDeviceRGB(),
+            options: [:]
+        )
+    }
+
+    private func preparedRegionImage(
+        from image: CIImage,
+        region: CGRect,
+        paddingFraction: CGFloat,
+        minimumScale: CGFloat,
+        forceUpscale: Bool
+    ) -> CIImage {
         let imageExtent = image.extent
         let cropRect = CGRect(
             x: region.minX * imageExtent.width,
@@ -439,7 +767,81 @@ actor IntelligentDocumentProcessor {
             width: region.width * imageExtent.width,
             height: region.height * imageExtent.height
         )
-        let croppedImage = image.cropped(to: cropRect)
+
+        guard cropRect.width > 0, cropRect.height > 0 else { return image }
+
+        let padX = max(imageExtent.width * 0.012, cropRect.width * paddingFraction)
+        let padY = max(imageExtent.height * 0.012, cropRect.height * paddingFraction)
+        let paddedRect = cropRect.insetBy(dx: -padX, dy: -padY).intersection(imageExtent)
+
+        let cropped = image.cropped(to: paddedRect)
+        let scale = regionUpscaleFactor(
+            for: paddedRect,
+            within: imageExtent,
+            minimumScale: minimumScale,
+            forceUpscale: forceUpscale
+        )
+
+        guard scale > 1.01 else { return cropped }
+        return cropped.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+    }
+
+    private func regionUpscaleFactor(
+        for cropRect: CGRect,
+        within imageExtent: CGRect,
+        minimumScale: CGFloat,
+        forceUpscale: Bool
+    ) -> CGFloat {
+        let relativeWidth = cropRect.width / max(1, imageExtent.width)
+        let relativeHeight = cropRect.height / max(1, imageExtent.height)
+        let minRelativeDimension = min(relativeWidth, relativeHeight)
+
+        var scale = minimumScale
+        if minRelativeDimension < 0.10 {
+            scale = max(scale, 2.2)
+        } else if minRelativeDimension < 0.18 {
+            scale = max(scale, 1.8)
+        } else if minRelativeDimension < 0.28 {
+            scale = max(scale, 1.35)
+        }
+
+        if forceUpscale {
+            scale = max(scale, 1.5)
+        }
+
+        return scale
+    }
+
+    /// Extract table data from a region
+    private func extractTable(
+        from image: CIImage,
+        region: CGRect,
+        highAccuracy: Bool = true
+    ) async -> [[String]] {
+        let croppedImage = preparedRegionImage(
+            from: image,
+            region: region,
+            paddingFraction: 0.035,
+            minimumScale: highAccuracy ? 1.8 : 1.3,
+            forceUpscale: true
+        )
+
+        // Use iOS 26 RecognizeDocumentsRequest for tables if available
+        if #available(iOS 26.0, *) {
+            return await extractTableWithVision26(from: croppedImage)
+        }
+
+        // Fallback: Extract text and try to parse as table
+        let text = await recognizeText(in: croppedImage, highAccuracy: highAccuracy)
+        return parseTextAsTable(text)
+    }
+
+    @available(iOS 26.0, *)
+    private func extractTableWithVision26(from croppedImage: CIImage) async -> [[String]] {
+        guard let imageData = materializedImageData(from: croppedImage) else {
+            Log.warning("[IntelligentProcessor] Failed to materialize cropped table image for Vision", category: .ingestion)
+            return []
+        }
 
         do {
             var request = RecognizeDocumentsRequest()
@@ -453,7 +855,7 @@ actor IntelligentDocumentProcessor {
             // Throttle Vision operations to prevent Metal GPU race conditions
             let configuredRequest = request
             let observations = try await VisionOCRThrottle.performAsync {
-                try await configuredRequest.perform(on: croppedImage)
+                try await configuredRequest.perform(on: imageData)
             }
 
             // Get the document from the first observation

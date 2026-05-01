@@ -84,6 +84,7 @@ struct TableRegion: Sendable {
 actor LayoutAwareExtractor {
 
     static let shared = LayoutAwareExtractor()
+    private nonisolated static let visionRenderContext = CIContext(options: [.cacheIntermediates: false])
 
     private init() {}
 
@@ -212,6 +213,13 @@ actor LayoutAwareExtractor {
     private func recognizeTextBlocks(in image: CIImage, pageNumber: Int) async throws -> [TextBlock] {
         // Capture actor-isolated value before entering nonisolated context
         let minConf = self.minConfidence
+        guard let cgImage = Self.visionRenderContext.createCGImage(image, from: image.extent) else {
+            throw NSError(
+                domain: "LayoutAwareExtractor",
+                code: -1,
+                userInfo: [NSLocalizedDescriptionKey: "Failed to materialize page image for layout OCR"]
+            )
+        }
 
         // Use actor-based async throttle to avoid priority inversion warnings
         // VisionOCRThrottle.perform uses AsyncSemaphore internally
@@ -229,7 +237,7 @@ actor LayoutAwareExtractor {
                 request.recognitionLanguages = ["en-US", "en-GB", "es-ES", "fr-FR", "de-DE"]
                 request.minimumTextHeight = 0.0
 
-                let handler = VNImageRequestHandler(ciImage: image, options: [:])
+                let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
                 try handler.perform([request])
 
                 guard let observations = request.results else {
@@ -777,6 +785,14 @@ extension LayoutAwareExtractor {
         let layoutResult = try await extractWithLayout(from: image, pageNumber: pageNumber)
 
         Log.debug("[LayoutAwareExtractor] Page \(pageNumber): \(layoutResult.rawBlocks.count) blocks, \(layoutResult.columnCount) columns detected", category: .ingestion)
+
+        if !layoutResult.tables.isEmpty {
+            Log.info(
+                "[LayoutAwareExtractor] Page \(pageNumber): detected \(layoutResult.tables.count) table region(s), preserving layout-aware table reconstruction",
+                category: .ingestion
+            )
+            return layoutResult.readingOrderText
+        }
 
         // If we detected multiple columns, use our reading order
         if layoutResult.isMultiColumn {

@@ -302,37 +302,28 @@ struct RetrievalConfig: Codable, Equatable, Sendable {
         guard !types.isEmpty else { return .default }
 
         // Count document categories
-        var technicalCount = 0
         var codeCount = 0
+        var structuredDataCount = 0
         var narrativeCount = 0
 
         for type in types {
             switch type {
-            case .pdf:
-                // PDFs are often technical manuals, specs, or reports
-                technicalCount += 1
-
             case .swift, .python, .javascript, .typescript, .java,
                  .cpp, .c, .objc, .go, .rust, .ruby, .php, .html,
                  .css, .json, .xml, .yaml, .sql, .shell, .code:
                 // Code files benefit from exact keyword matching
                 codeCount += 1
 
-            case .markdown, .text, .rtf:
-                // Could be narrative or technical, count as balanced
+            case .csv, .excel, .numbers:
+                // True structured data corpora benefit from stronger lexical matching.
+                structuredDataCount += 1
+
+            case .pdf, .markdown, .text, .rtf,
+                 .word, .powerpoint, .pages, .keynote,
+                 .image, .png, .jpeg, .heic, .tiff, .gif:
+                // Treat these as semantically mixed by default.
+                // File format alone should not force technical-manual behavior.
                 narrativeCount += 1
-
-            case .word, .excel, .powerpoint, .pages, .numbers, .keynote:
-                // Office docs are often reports/presentations
-                narrativeCount += 1
-
-            case .image, .png, .jpeg, .heic, .tiff, .gif:
-                // OCR'd images - treat as potentially technical
-                technicalCount += 1
-
-            case .csv:
-                // CSV data files benefit from exact keyword matching
-                technicalCount += 1
 
             case .audio, .video, .m4a, .mp3, .wav, .mp4, .mov:
                 // Transcribed audio/video - treat as narrative
@@ -353,14 +344,14 @@ struct RetrievalConfig: Codable, Equatable, Sendable {
                 category: .retrieval
             )
             return .technicalManual
-        } else if technicalCount > total / 2 {
-            // Majority technical: use technical manual preset
+        } else if structuredDataCount >= 2 && structuredDataCount * 3 >= total * 2 {
+            // Strongly structured data corpus: use technical/manual preset.
             Log.debug(
-                "[RetrievalConfig] Auto-recommended: technicalManual (technical corpus: \(technicalCount)/\(total))",
+                "[RetrievalConfig] Auto-recommended: technicalManual (structured data corpus: \(structuredDataCount)/\(total))",
                 category: .retrieval
             )
             return .technicalManual
-        } else if narrativeCount > total * 2 / 3 {
+        } else if narrativeCount >= total / 2 {
             // Mostly narrative: use default balanced
             Log.debug(
                 "[RetrievalConfig] Auto-recommended: default (narrative corpus: \(narrativeCount)/\(total))",

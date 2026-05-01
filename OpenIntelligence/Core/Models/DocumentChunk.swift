@@ -94,9 +94,9 @@ enum DocumentSemanticCategory: String, Codable, Sendable, CaseIterable {
 
     var isSpecificationHeavy: Bool {
         switch self {
-        case .technicalManual, .referenceTable, .regulatory:
+        case .technicalManual, .referenceTable:
             return true
-        case .scientificPaper, .general:
+        case .scientificPaper, .regulatory, .general:
             return false
         }
     }

@@ -16,6 +16,7 @@
 //
 
 import Foundation
+import NaturalLanguage
 import SQLite3
 
 // MARK: - FTS5 Search Result
@@ -48,6 +49,9 @@ actor SQLiteFullTextService {
         let headers: [String]
         let rows: [[String]]
         let searchText: String
+        let extractionQuality: Double
+        let extractionSource: String
+        let lowQualityRowIndices: [Int]
 
         var rowCount: Int { rows.count }
 
@@ -203,6 +207,8 @@ actor SQLiteFullTextService {
                 table_rows_json TEXT,
                 table_row_count INTEGER NOT NULL DEFAULT 0,
                 table_column_count INTEGER NOT NULL DEFAULT 0,
+                extraction_quality REAL NOT NULL DEFAULT 0,
+                extraction_source TEXT NOT NULL DEFAULT '',
                 search_text TEXT NOT NULL
             )
         """
@@ -224,13 +230,24 @@ actor SQLiteFullTextService {
                 row_index INTEGER NOT NULL,
                 headers_json TEXT,
                 row_json TEXT NOT NULL,
-                row_text TEXT NOT NULL
+                row_text TEXT NOT NULL,
+                row_quality REAL NOT NULL DEFAULT 0,
+                is_low_quality INTEGER NOT NULL DEFAULT 0,
+                extraction_quality REAL NOT NULL DEFAULT 0,
+                extraction_source TEXT NOT NULL DEFAULT ''
             )
         """
         _ = execute(sql: createChunkTableRowsSQL)
         _ = execute(sql: "CREATE INDEX IF NOT EXISTS idx_chunk_table_rows_container ON chunk_table_rows(container_id)")
         _ = execute(sql: "CREATE INDEX IF NOT EXISTS idx_chunk_table_rows_document ON chunk_table_rows(document_id)")
         _ = execute(sql: "CREATE INDEX IF NOT EXISTS idx_chunk_table_rows_chunk ON chunk_table_rows(chunk_id)")
+
+        ensureColumnExists(table: "chunk_structured", column: "extraction_quality", definition: "REAL NOT NULL DEFAULT 0")
+        ensureColumnExists(table: "chunk_structured", column: "extraction_source", definition: "TEXT NOT NULL DEFAULT ''")
+        ensureColumnExists(table: "chunk_table_rows", column: "row_quality", definition: "REAL NOT NULL DEFAULT 0")
+        ensureColumnExists(table: "chunk_table_rows", column: "is_low_quality", definition: "INTEGER NOT NULL DEFAULT 0")
+        ensureColumnExists(table: "chunk_table_rows", column: "extraction_quality", definition: "REAL NOT NULL DEFAULT 0")
+        ensureColumnExists(table: "chunk_table_rows", column: "extraction_source", definition: "TEXT NOT NULL DEFAULT ''")
 
         // MARK: Page-Level FTS5 Table
         // Stores each PDF page as a separate row for page-level search and context isolation.
@@ -783,7 +800,10 @@ actor SQLiteFullTextService {
                         tableTitle: chunk.tableTitle ?? structuredMetadata.tableTitle,
                         headers: structuredMetadata.headers,
                         rows: structuredMetadata.rows,
-                        searchText: structuredMetadata.searchText
+                        searchText: structuredMetadata.searchText,
+                        extractionQuality: structuredMetadata.extractionQuality,
+                        extractionSource: structuredMetadata.extractionSource,
+                        lowQualityRowIndices: structuredMetadata.lowQualityRowIndices
                     ),
                     using: db
                 )
@@ -848,8 +868,9 @@ actor SQLiteFullTextService {
             INSERT OR REPLACE INTO chunk_structured (
                 chunk_id, document_id, container_id, chunk_index, page_number,
                 section_title, section_path, structure_type, chunk_type, table_title,
-                table_headers_json, table_rows_json, table_row_count, table_column_count, search_text
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                table_headers_json, table_rows_json, table_row_count, table_column_count,
+                extraction_quality, extraction_source, search_text
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
 
         var structuredStatement: OpaquePointer?
@@ -873,7 +894,9 @@ actor SQLiteFullTextService {
             sqlite3_bind_text(structuredStatement, 12, rowsJSON, -1, SQLITE_TRANSIENT)
             sqlite3_bind_int(structuredStatement, 13, Int32(structuredMetadata.rowCount))
             sqlite3_bind_int(structuredStatement, 14, Int32(structuredMetadata.columnCount))
-            sqlite3_bind_text(structuredStatement, 15, structuredMetadata.searchText, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_double(structuredStatement, 15, structuredMetadata.extractionQuality)
+            sqlite3_bind_text(structuredStatement, 16, structuredMetadata.extractionSource, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(structuredStatement, 17, structuredMetadata.searchText, -1, SQLITE_TRANSIENT)
 
             if sqlite3_step(structuredStatement) != SQLITE_DONE {
                 let error = String(cString: sqlite3_errmsg(db))
@@ -884,11 +907,15 @@ actor SQLiteFullTextService {
         let insertRowSQL = """
             INSERT OR REPLACE INTO chunk_table_rows (
                 row_id, chunk_id, document_id, container_id, chunk_index, page_number,
-                table_title, row_index, headers_json, row_json, row_text
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                table_title, row_index, headers_json, row_json, row_text,
+                row_quality, is_low_quality, extraction_quality, extraction_source
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
 
         for (rowIndex, row) in structuredMetadata.rows.enumerated() {
+            let rowQuality = structuredRowQualityScore(headers: structuredMetadata.headers, row: row)
+            let isLowQuality = structuredMetadata.lowQualityRowIndices.contains(rowIndex) || rowQuality < 0.38
+
             var rowStatement: OpaquePointer?
             guard sqlite3_prepare_v2(db, insertRowSQL, -1, &rowStatement, nil) == SQLITE_OK else { continue }
             defer { sqlite3_finalize(rowStatement) }
@@ -896,6 +923,10 @@ actor SQLiteFullTextService {
             let rowId = "\(chunkId)_row_\(rowIndex)"
             let rowJSON = jsonString(for: row)
             let rowText = rowText(headers: structuredMetadata.headers, row: row)
+            guard !rowText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
+            if isLowQuality && rowQuality < 0.28 {
+                continue
+            }
 
             sqlite3_bind_text(rowStatement, 1, rowId, -1, SQLITE_TRANSIENT)
             sqlite3_bind_text(rowStatement, 2, chunkId, -1, SQLITE_TRANSIENT)
@@ -912,6 +943,10 @@ actor SQLiteFullTextService {
             sqlite3_bind_text(rowStatement, 9, headersJSON, -1, SQLITE_TRANSIENT)
             sqlite3_bind_text(rowStatement, 10, rowJSON, -1, SQLITE_TRANSIENT)
             sqlite3_bind_text(rowStatement, 11, rowText, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_double(rowStatement, 12, rowQuality)
+            sqlite3_bind_int(rowStatement, 13, isLowQuality ? 1 : 0)
+            sqlite3_bind_double(rowStatement, 14, structuredMetadata.extractionQuality)
+            sqlite3_bind_text(rowStatement, 15, structuredMetadata.extractionSource, -1, SQLITE_TRANSIENT)
 
             if sqlite3_step(rowStatement) != SQLITE_DONE {
                 let error = String(cString: sqlite3_errmsg(db))
@@ -984,7 +1019,7 @@ actor SQLiteFullTextService {
             "do", "does", "did", "what", "which", "who", "when", "where", "why", "how", "can", "could",
             "should", "would", "please", "show", "tell", "mean", "means", "meaning", "indicate", "indicates",
             "signal", "signals", "about", "from", "with", "for", "into", "onto", "your", "their", "there",
-            "much", "many", "kind", "type", "listed"
+            "much", "many", "kind", "type", "listed", "light", "lights", "indicator", "indicators", "led"
         ]
 
         return query.lowercased()
@@ -1007,14 +1042,16 @@ actor SQLiteFullTextService {
         if containerId != nil {
             sql = """
                 SELECT chunk_id, document_id, container_id, chunk_index, page_number,
-                       section_title, section_path, table_title, search_text, table_row_count
+                       section_title, section_path, table_title, search_text, table_row_count,
+                       extraction_quality, extraction_source
                 FROM chunk_structured
                 WHERE structure_type = 'table' AND container_id = ?
             """
         } else {
             sql = """
                 SELECT chunk_id, document_id, container_id, chunk_index, page_number,
-                       section_title, section_path, table_title, search_text, table_row_count
+                       section_title, section_path, table_title, search_text, table_row_count,
+                       extraction_quality, extraction_source
                 FROM chunk_structured
                 WHERE structure_type = 'table'
             """
@@ -1052,6 +1089,10 @@ actor SQLiteFullTextService {
             let tableTitle = sqlite3_column_text(statement, 7).map { String(cString: $0) } ?? ""
             let searchText = sqlite3_column_text(statement, 8).map { String(cString: $0) } ?? ""
             let rowCount = Int(sqlite3_column_int(statement, 9))
+            let extractionQuality = sqlite3_column_double(statement, 10)
+            let extractionSource = sqlite3_column_text(statement, 11).map { String(cString: $0) } ?? ""
+
+            guard extractionQuality >= 0.26 else { continue }
 
             let titleLower = tableTitle.lowercased()
             let searchLower = searchText.lowercased()
@@ -1061,7 +1102,8 @@ actor SQLiteFullTextService {
             guard searchHits >= minRequired || titleHits > 0 else { continue }
 
             let coverage = Double(searchHits + titleHits) / Double(max(1, terms.count))
-            let score = Double(titleHits) * 2.5 + Double(searchHits) * 1.2 + coverage * 2.0 + min(Double(rowCount), 12.0) * 0.03
+            let qualityFactor = 0.55 + min(1.0, max(0.0, extractionQuality)) * 0.45
+            let score = (Double(titleHits) * 2.5 + Double(searchHits) * 1.2 + coverage * 2.0 + min(Double(rowCount), 12.0) * 0.03) * qualityFactor + structuredSourceBonus(extractionSource)
 
             let result = ChunkSearchResult(
                 chunkId: chunkId,
@@ -1087,6 +1129,135 @@ actor SQLiteFullTextService {
         }
 
         return results
+    }
+
+    private func searchStructuredTableRowsInternal(
+        query: String,
+        containerId: UUID?,
+        limit: Int
+    ) -> [ChunkSearchResult] {
+        guard let db = database else { return [] }
+
+        let terms = meaningfulStructuredSearchTerms(from: query)
+        guard !terms.isEmpty else { return [] }
+
+        let sql: String
+        if containerId != nil {
+            sql = """
+                SELECT chunk_id, document_id, container_id, chunk_index, page_number,
+                       table_title, headers_json, row_text, row_quality, is_low_quality,
+                       extraction_quality, extraction_source
+                FROM chunk_table_rows
+                WHERE container_id = ?
+            """
+        } else {
+            sql = """
+                SELECT chunk_id, document_id, container_id, chunk_index, page_number,
+                       table_title, headers_json, row_text, row_quality, is_low_quality,
+                       extraction_quality, extraction_source
+                FROM chunk_table_rows
+            """
+        }
+
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
+            let error = String(cString: sqlite3_errmsg(db))
+            Log.error("[SQLiteFTS5] Structured row search prepare failed: \(error)", category: .retrieval)
+            return []
+        }
+
+        defer { sqlite3_finalize(statement) }
+
+        if let containerId {
+            sqlite3_bind_text(statement, 1, containerId.uuidString, -1, SQLITE_TRANSIENT)
+        }
+
+        var scoredResults: [(result: ChunkSearchResult, score: Double)] = []
+        while sqlite3_step(statement) == SQLITE_ROW {
+            guard let chunkIdPtr = sqlite3_column_text(statement, 0),
+                  let documentIdPtr = sqlite3_column_text(statement, 1),
+                  let containerIdPtr = sqlite3_column_text(statement, 2),
+                  let documentId = UUID(uuidString: String(cString: documentIdPtr)),
+                  let rowContainerId = UUID(uuidString: String(cString: containerIdPtr)) else {
+                continue
+            }
+
+            let chunkId = String(cString: chunkIdPtr)
+            let chunkIndex = Int(sqlite3_column_int(statement, 3))
+            let pageNumber: Int? = sqlite3_column_type(statement, 4) != SQLITE_NULL
+                ? Int(sqlite3_column_int(statement, 4)) : nil
+            let tableTitle = sqlite3_column_text(statement, 5).map { String(cString: $0) } ?? ""
+            let headersJSON = sqlite3_column_text(statement, 6).map { String(cString: $0) } ?? ""
+            let rowText = sqlite3_column_text(statement, 7).map { String(cString: $0) } ?? ""
+            let rowQuality = sqlite3_column_double(statement, 8)
+            let isLowQuality = sqlite3_column_int(statement, 9) != 0
+            let extractionQuality = sqlite3_column_double(statement, 10)
+            let extractionSource = sqlite3_column_text(statement, 11).map { String(cString: $0) } ?? ""
+
+            guard !isLowQuality else { continue }
+            guard rowQuality >= 0.38 else { continue }
+
+            let titleLower = tableTitle.lowercased()
+            let headerLower = headersJSON.lowercased()
+            let rowLower = rowText.lowercased()
+
+            var uniqueHits = Set<String>()
+            let titleHits = terms.filter { term in
+                let matched = titleLower.contains(term)
+                if matched { uniqueHits.insert(term) }
+                return matched
+            }.count
+            let headerHits = terms.filter { term in
+                let matched = headerLower.contains(term)
+                if matched { uniqueHits.insert(term) }
+                return matched
+            }.count
+            let rowHits = terms.filter { term in
+                let matched = rowLower.contains(term)
+                if matched { uniqueHits.insert(term) }
+                return matched
+            }.count
+
+            let minRequired = min(2, terms.count)
+            guard uniqueHits.count >= minRequired else { continue }
+
+            let coverage = Double(uniqueHits.count) / Double(max(1, terms.count))
+            let qualityFactor = (0.60 + min(1.0, max(0.0, rowQuality)) * 0.30) * (0.80 + min(1.0, max(0.0, extractionQuality)) * 0.20)
+            let score = (Double(rowHits) * 1.8 + Double(headerHits) * 1.5 + Double(titleHits) * 1.1 + coverage * 2.2) * qualityFactor + structuredSourceBonus(extractionSource)
+
+            let result = ChunkSearchResult(
+                chunkId: chunkId,
+                documentId: documentId,
+                containerId: rowContainerId,
+                chunkIndex: chunkIndex,
+                pageNumber: pageNumber,
+                sectionTitle: tableTitle.isEmpty ? nil : tableTitle,
+                sectionPath: nil,
+                content: rowText,
+                bm25Score: score
+            )
+            scoredResults.append((result, score))
+        }
+
+        let results = scoredResults
+            .sorted { lhs, rhs in lhs.score > rhs.score }
+            .prefix(limit)
+            .map(\.result)
+
+        if !results.isEmpty {
+            Log.debug("[SQLiteFTS5] Structured row search '\(query)' returned \(results.count) results", category: .retrieval)
+        }
+
+        return results
+    }
+
+    func searchStructuredRows(
+        query: String,
+        containerId: UUID? = nil,
+        limit: Int = 20
+    ) async -> [ChunkSearchResult] {
+        ensureInitialized()
+        return searchStructuredTableRowsInternal(query: query, containerId: containerId, limit: limit)
     }
 
     /// Search chunks with BM25 ranking.
@@ -2744,6 +2915,87 @@ actor SQLiteFullTextService {
         }
 
         return true
+    }
+
+    private func ensureColumnExists(table: String, column: String, definition: String) {
+        guard let db = database else { return }
+
+        let pragmaSQL = "PRAGMA table_info(\(table))"
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(db, pragmaSQL, -1, &statement, nil) == SQLITE_OK else { return }
+        defer { sqlite3_finalize(statement) }
+
+        while sqlite3_step(statement) == SQLITE_ROW {
+            if let namePtr = sqlite3_column_text(statement, 1), String(cString: namePtr) == column {
+                return
+            }
+        }
+
+        _ = execute(sql: "ALTER TABLE \(table) ADD COLUMN \(column) \(definition)")
+    }
+
+    private func structuredTextQualityScore(_ text: String) -> Double {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return 0 }
+
+        let scalarCount = trimmed.unicodeScalars.count
+        guard scalarCount > 0 else { return 0 }
+
+        let printableCount = trimmed.unicodeScalars.filter {
+            CharacterSet.alphanumerics.contains($0)
+            || CharacterSet.whitespacesAndNewlines.contains($0)
+            || CharacterSet.punctuationCharacters.contains($0)
+            || CharacterSet.symbols.contains($0)
+        }.count
+        let printableRatio = Double(printableCount) / Double(scalarCount)
+
+        let letters = trimmed.unicodeScalars.filter { CharacterSet.letters.contains($0) }.count
+        let digits = trimmed.unicodeScalars.filter { CharacterSet.decimalDigits.contains($0) }.count
+        let alphaNumericRatio = Double(letters + digits) / Double(scalarCount)
+
+        var score = printableRatio * 0.48 + alphaNumericRatio * 0.26
+
+        if letters >= 8 {
+            let recognizer = NLLanguageRecognizer()
+            recognizer.processString(trimmed)
+            let confidence = recognizer.languageHypotheses(withMaximum: 1).values.max() ?? 0
+            score += min(0.18, confidence * 0.18)
+            if confidence < 0.15 {
+                score -= 0.20
+            }
+        } else if digits > 0 {
+            score += 0.08
+        }
+
+        return min(1.0, max(0.0, score))
+    }
+
+    private func structuredRowQualityScore(headers: [String], row: [String]) -> Double {
+        let visibleCells = row.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        guard !visibleCells.isEmpty else { return 0 }
+
+        let readability = visibleCells.map(structuredTextQualityScore).reduce(0, +) / Double(visibleCells.count)
+        let fillRatio = Double(visibleCells.count) / Double(max(1, max(headers.count, row.count)))
+        let informativeBonus = visibleCells.contains { $0.count >= 16 } ? 0.08 : 0
+
+        return min(1.0, max(0.0, readability * 0.72 + fillRatio * 0.20 + informativeBonus))
+    }
+
+    private func structuredSourceBonus(_ source: String) -> Double {
+        switch source {
+        case "crop_rescue":
+            return 0.16
+        case "state_list_recovery":
+            return 0.14
+        case "vision_document":
+            return 0.10
+        case "layout_table":
+            return 0.06
+        case "text_inferred":
+            return -0.08
+        default:
+            return 0
+        }
     }
 
     /// Escape and construct FTS5 query from natural language input.

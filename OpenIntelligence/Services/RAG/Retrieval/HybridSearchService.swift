@@ -726,6 +726,9 @@ class HybridSearchService {
         Log.debug("[Hybrid] True parallel hybrid search starting (vector + FTS5)", category: .pipeline)
 
         let startTime = CFAbsoluteTimeGetCurrent()
+        let queryLower = originalQuery.lowercased()
+        let useStructuredRowSearch = EvidenceScoringPolicyService.isStateLookupQuery(queryLower)
+            || detectSpecificationQuery(queryLower)
 
         // ── PARALLEL SEARCH ──────────────────────────────────────────────
         // Run vector search and FTS5 search concurrently as two independent ranked lists.
@@ -739,9 +742,17 @@ class HybridSearchService {
             containerId: containerId,
             limit: fts5Limit
         )
+        async let structuredRowTask: [SQLiteFullTextService.ChunkSearchResult] = useStructuredRowSearch
+            ? SQLiteFullTextService.shared.searchStructuredRows(
+                query: originalQuery,
+                containerId: containerId,
+                limit: min(topK * 3, 36)
+            )
+            : []
 
         let vectorResults = try await vectorTask
         var fts5ChunkResults = await fts5Task
+        let structuredRowResults = await structuredRowTask
 
         if fts5ChunkResults.isEmpty,
            query.caseInsensitiveCompare(originalQuery) != .orderedSame
@@ -764,7 +775,7 @@ class HybridSearchService {
         // to construct RetrievedChunk. Look up from cached chunks or vector DB.
         var fts5KeywordResults: [(chunk: RetrievedChunk, score: Float)] = []
 
-        if !fts5ChunkResults.isEmpty {
+        if !fts5ChunkResults.isEmpty || !structuredRowResults.isEmpty {
             // Build lookup for chunks already found by vector search
             let vectorChunkLookup: [String: RetrievedChunk] = {
                 var dict = [String: RetrievedChunk]()
@@ -797,7 +808,9 @@ class HybridSearchService {
                 allChunkLookup = [:]
             }
 
+            var lexicalHitsByChunkId: [String: (chunk: RetrievedChunk, score: Float)] = [:]
             var fts5OnlyCount = 0
+            var structuredRowOnlyCount = 0
             for fts5Hit in fts5ChunkResults {
                 // FTS5 bm25() returns negative scores (lower = better match in SQLite).
                 // Negate to get positive scores for RRF ranking.
@@ -805,7 +818,7 @@ class HybridSearchService {
 
                 if let existingChunk = vectorChunkLookup[fts5Hit.chunkId] {
                     // Chunk found by both vector and FTS5 — use the full RetrievedChunk
-                    fts5KeywordResults.append((chunk: existingChunk, score: bm25Score))
+                    lexicalHitsByChunkId[fts5Hit.chunkId] = (chunk: existingChunk, score: bm25Score)
                 } else if let docChunk = allChunkLookup[fts5Hit.chunkId] {
                     // FTS5-only hit: construct RetrievedChunk from DocumentChunk
                     let retrieved = RetrievedChunk(
@@ -815,14 +828,52 @@ class HybridSearchService {
                         sourceDocument: fts5Hit.sectionTitle ?? "Unknown",
                         pageNumber: fts5Hit.pageNumber
                     )
-                    fts5KeywordResults.append((chunk: retrieved, score: bm25Score))
+                    lexicalHitsByChunkId[fts5Hit.chunkId] = (chunk: retrieved, score: bm25Score)
                     fts5OnlyCount += 1
                 }
                 // else: FTS5 hit doesn't match any known chunk — skip (stale index)
             }
 
+            for rowHit in structuredRowResults {
+                if EvidenceScoringPolicyService.isStateLookupQuery(queryLower),
+                   !EvidenceScoringPolicyService.satisfiesStateLookupAnchors(query: queryLower, content: rowHit.content)
+                {
+                    continue
+                }
+
+                let rowScore = rowHit.bm25Score < 0 ? Float(-rowHit.bm25Score) : Float(rowHit.bm25Score)
+                let mergedScore = rowScore + 0.10
+
+                if let existingChunk = vectorChunkLookup[rowHit.chunkId] {
+                    let existing = lexicalHitsByChunkId[rowHit.chunkId]
+                    if existing == nil || existing!.score < mergedScore {
+                        lexicalHitsByChunkId[rowHit.chunkId] = (chunk: existingChunk, score: mergedScore)
+                    }
+                } else if let docChunk = allChunkLookup[rowHit.chunkId] {
+                    let retrieved = RetrievedChunk(
+                        chunk: docChunk,
+                        similarityScore: 0,
+                        rank: 0,
+                        sourceDocument: rowHit.sectionTitle ?? "Unknown",
+                        pageNumber: rowHit.pageNumber
+                    )
+                    let existing = lexicalHitsByChunkId[rowHit.chunkId]
+                    if existing == nil || existing!.score < mergedScore {
+                        lexicalHitsByChunkId[rowHit.chunkId] = (chunk: retrieved, score: mergedScore)
+                    }
+                    structuredRowOnlyCount += 1
+                }
+            }
+
+            fts5KeywordResults = lexicalHitsByChunkId.values
+                .sorted { $0.score > $1.score }
+                .map { ($0.chunk, $0.score) }
+
             if fts5OnlyCount > 0 {
                 Log.info("[Hybrid] FTS5 found \(fts5OnlyCount) chunks missed by vector search (true hybrid gain)", category: .pipeline)
+            }
+            if structuredRowOnlyCount > 0 {
+                Log.info("[Hybrid] Structured row search found \(structuredRowOnlyCount) row-backed chunks", category: .pipeline)
             }
         }
 
@@ -843,16 +894,39 @@ class HybridSearchService {
         // ── BOOSTS ──────────────────────────────────────────────────────
         let boostedResults = applyKeywordMatchBoost(query: originalQuery, results: fusedResults)
         let structureBoostedResults = applyStructureTypeBoost(query: originalQuery, results: boostedResults)
+        let anchorAdjustedResults = applyStateLookupAnchorBoost(query: originalQuery, results: structureBoostedResults)
 
         let elapsed = CFAbsoluteTimeGetCurrent() - startTime
         let fts5OnlyHits = fts5KeywordResults.filter { r in !vectorResults.contains(where: { $0.chunk.id == r.chunk.chunk.id }) }.count
         Log.debug(
             "[Hybrid] True parallel search completed in \(String(format: "%.1f", elapsed * 1000))ms — " +
-            "\(vectorResults.count) vector + \(fts5ChunkResults.count) FTS5 (\(fts5OnlyHits) FTS5-only)",
+            "\(vectorResults.count) vector + \(fts5ChunkResults.count) FTS5 + \(structuredRowResults.count) row hits (\(fts5OnlyHits) lexical-only)",
             category: .pipeline
         )
 
-        return reindex(Array(structureBoostedResults.prefix(topK)))
+        return reindex(Array(anchorAdjustedResults.prefix(topK)))
+    }
+
+    private func applyStateLookupAnchorBoost(query: String, results: [RetrievedChunk]) -> [RetrievedChunk] {
+        guard EvidenceScoringPolicyService.isStateLookupQuery(query), !results.isEmpty else { return results }
+
+        let adjusted = results.map { result -> RetrievedChunk in
+            let content = result.chunk.parentContent ?? result.chunk.content
+            let adjustment = EvidenceScoringPolicyService.stateLookupAnchorAdjustment(
+                query: query,
+                content: content,
+                structureType: result.chunk.metadata.structureType
+            )
+            return RetrievedChunk(
+                chunk: result.chunk,
+                similarityScore: max(0.01, result.similarityScore + adjustment),
+                rank: result.rank,
+                sourceDocument: result.sourceDocument,
+                pageNumber: result.pageNumber
+            )
+        }
+
+        return adjusted.sorted { $0.similarityScore > $1.similarityScore }
     }
 
 }

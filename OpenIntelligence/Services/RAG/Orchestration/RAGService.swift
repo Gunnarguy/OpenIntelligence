@@ -3651,7 +3651,10 @@ class RAGService: ObservableObject {
                             tableTitle: table.title,
                             headers: table.headers,
                             rows: table.rows,
-                            searchText: table.searchText
+                            searchText: table.searchText,
+                            extractionQuality: table.extractionQuality,
+                            extractionSource: table.extractionSource,
+                            lowQualityRowIndices: table.lowQualityRowIndices
                         )
                     }
                     return (
@@ -6610,7 +6613,6 @@ class RAGService: ObservableObject {
                     lenient: lenient,
                     metrics: filteringMetrics
                 )
-                let baseMin = filteringDecision.baseMinSimilarity
                 let dynamicMin = filteringDecision.dynamicMinSimilarity
                 let vocabularyMismatch = filteringDecision.vocabularyMismatch
 
@@ -7713,6 +7715,7 @@ class RAGService: ObservableObject {
                         containerId: selectedId,
                         allChunks: cachedAllChunks,
                         existingCandidates: contextCandidates,
+                        answerIntent: answerIntent,
                         targetCount: max(effectiveTopK, 4)
                     )
 
@@ -11717,11 +11720,18 @@ class RAGService: ObservableObject {
             return nil
         }
 
+        let preserveAbstention = isStateLookupQuery(query) || isPrecisionValueQuery(query)
+
         // Keep this conservative for user-facing quality.
         // Use source-only when it strengthens a grounded lookup answer, not when it
         // downgrades a plausible answer into a brittle abstention or ultra-thin rewrite.
-        guard !outcome.shouldAbstain else { return nil }
-        guard outcome.supportedClaims.count > 0 else { return nil }
+        if outcome.shouldAbstain {
+            return preserveAbstention ? outcome : nil
+        }
+
+        guard outcome.supportedClaims.count > 0 else {
+            return preserveAbstention ? outcome : nil
+        }
         guard outcome.fidelityScore >= 0.72 else { return nil }
 
         return outcome
@@ -12388,6 +12398,10 @@ class RAGService: ObservableObject {
             .filter { !$0.isEmpty && dedupedSeen.insert($0).inserted }
     }
 
+    private nonisolated func isStateLookupQuery(_ query: String) -> Bool {
+        EvidenceScoringPolicyService.isStateLookupQuery(query)
+    }
+
     private func looksTableLike(text: String, structureType: String?) -> Bool {
         EvidenceScoringPolicyService.isStructuredEvidence(text: text, structureType: structureType)
     }
@@ -12411,6 +12425,7 @@ class RAGService: ObservableObject {
         containerId: UUID,
         allChunks: [DocumentChunk]?,
         existingCandidates: [RetrievedChunk],
+        answerIntent: AnswerIntent,
         targetCount: Int
     ) async -> [RetrievedChunk] {
         var seenTerms = Set<String>()
@@ -12418,6 +12433,8 @@ class RAGService: ObservableObject {
         guard !queryTerms.isEmpty else { return [] }
 
         let queryVariants = buildCorrectiveRetrievalQueries(from: query)
+        let useStateAnchorGuard = isStateLookupQuery(query)
+        let useStructuredRowRescue = answerIntent.isExtractiveFirst || isPrecisionValueQuery(query)
         let chunkLookup: [String: DocumentChunk] = {
             guard let allChunks else { return [:] }
             var lookup: [String: DocumentChunk] = [:]
@@ -12446,12 +12463,19 @@ class RAGService: ObservableObject {
                 let lookupKey = "\(hit.documentId.uuidString)_\(hit.chunkIndex)"
                 guard let docChunk = chunkLookup[lookupKey], !seenChunkIds.contains(docChunk.id) else { continue }
 
-                let score = correctiveRetrievalScore(
+                var score = correctiveRetrievalScore(
                     content: docChunk.content,
                     queryTerms: queryTerms,
                     structureType: docChunk.metadata.structureType,
                     baseScore: 0.50
                 )
+                if useStateAnchorGuard {
+                    score += EvidenceScoringPolicyService.stateLookupAnchorAdjustment(
+                        query: query,
+                        content: docChunk.content,
+                        structureType: docChunk.metadata.structureType
+                    )
+                }
                 guard score >= 0.48 else { continue }
 
                 let docName = await documentName(for: docChunk.documentId)
@@ -12488,12 +12512,19 @@ class RAGService: ObservableObject {
                 guard !snippet.isEmpty else { continue }
 
                 let structureType = looksTableLike(text: hit.content, structureType: nil) ? "table" : nil
-                let score = correctiveRetrievalScore(
+                var score = correctiveRetrievalScore(
                     content: snippet,
                     queryTerms: queryTerms,
                     structureType: structureType,
                     baseScore: 0.56
                 )
+                if useStateAnchorGuard {
+                    score += EvidenceScoringPolicyService.stateLookupAnchorAdjustment(
+                        query: query,
+                        content: snippet,
+                        structureType: structureType
+                    )
+                }
                 guard score >= 0.50 else { continue }
 
                 let syntheticChunk = DocumentChunk(
@@ -12526,6 +12557,81 @@ class RAGService: ObservableObject {
                     score: score,
                     structured: structureType == "table"
                 ))
+            }
+        }
+
+        if useStructuredRowRescue {
+            let rowHits = await SQLiteFullTextService.shared.searchStructuredRows(
+                query: query,
+                containerId: containerId,
+                limit: max(6, targetCount * 2)
+            )
+
+            for hit in rowHits {
+                if useStateAnchorGuard,
+                   !EvidenceScoringPolicyService.satisfiesStateLookupAnchors(query: query, content: hit.content)
+                {
+                    continue
+                }
+
+                let lookupKey = "\(hit.documentId.uuidString)_\(hit.chunkIndex)"
+                let contentForScore = hit.content.isEmpty ? (chunkLookup[lookupKey]?.content ?? "") : hit.content
+                var score = correctiveRetrievalScore(
+                    content: contentForScore,
+                    queryTerms: queryTerms,
+                    structureType: "table",
+                    baseScore: 0.64
+                )
+                if useStateAnchorGuard {
+                    score += EvidenceScoringPolicyService.stateLookupAnchorAdjustment(
+                        query: query,
+                        content: contentForScore,
+                        structureType: "table"
+                    )
+                }
+                guard score >= 0.56 else { continue }
+
+                let docName = await documentName(for: hit.documentId)
+
+                if let docChunk = chunkLookup[lookupKey] {
+                    guard !seenChunkIds.contains(docChunk.id) else { continue }
+
+                    let retrieved = RetrievedChunk(
+                        chunk: docChunk,
+                        similarityScore: score,
+                        rank: scoredHits.count,
+                        sourceDocument: docName,
+                        pageNumber: docChunk.metadata.pageNumber
+                    )
+                    scoredHits.append((chunk: retrieved, score: score, structured: true))
+                    seenChunkIds.insert(docChunk.id)
+                } else {
+                    let syntheticChunk = DocumentChunk(
+                        documentId: hit.documentId,
+                        content: hit.content,
+                        parentContent: nil,
+                        contextualPrefix: nil,
+                        embedding: [],
+                        metadata: ChunkMetadata(
+                            chunkIndex: hit.chunkIndex,
+                            pageNumber: hit.pageNumber,
+                            keywords: queryTerms,
+                            hasNumericData: hit.content.rangeOfCharacter(from: .decimalDigits) != nil,
+                            wordCount: wordCount(of: hit.content),
+                            characterCount: hit.content.count,
+                            structureType: "table"
+                        )
+                    )
+
+                    let retrieved = RetrievedChunk(
+                        chunk: syntheticChunk,
+                        similarityScore: score,
+                        rank: scoredHits.count,
+                        sourceDocument: docName,
+                        pageNumber: hit.pageNumber
+                    )
+                    scoredHits.append((chunk: retrieved, score: score, structured: true))
+                }
             }
         }
 

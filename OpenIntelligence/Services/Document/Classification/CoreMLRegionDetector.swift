@@ -78,7 +78,7 @@ struct DocumentDetectedRegion: Sendable, Identifiable {
     }
 
     /// Calculate area as fraction of page
-    var areaFraction: CGFloat {
+    nonisolated var areaFraction: CGFloat {
         boundingBox.width * boundingBox.height
     }
 }
@@ -91,7 +91,7 @@ struct RegionDetectionResult: Sendable {
     let modelUsed: String // "DETR" or "Vision" fallback
 
     /// Regions sorted by reading order (top-to-bottom, left-to-right)
-    var sortedByReadingOrder: [DocumentDetectedRegion] {
+    nonisolated var sortedByReadingOrder: [DocumentDetectedRegion] {
         regions.sorted { a, b in
             // Primary: top-to-bottom (higher Y first in normalized coords)
             let yDiff = b.boundingBox.midY - a.boundingBox.midY
@@ -127,10 +127,12 @@ struct RegionDetectionResult: Sendable {
 actor CoreMLRegionDetector {
 
     static let shared = CoreMLRegionDetector()
+    private nonisolated static let visionRenderContext = CIContext(options: [.cacheIntermediates: false])
 
     // MARK: - Model State
 
     private var detrModel: VNCoreMLModel?
+    private var detrBackingModel: MLModel?
     private var isModelLoaded = false
 
     /// COCO class labels mapped to document region types
@@ -162,7 +164,7 @@ actor CoreMLRegionDetector {
         guard !isModelLoaded else { return }
 
         // Check for DETR semantic segmentation model
-        guard let modelURL = Bundle.main.url(forResource: "DETRResnet50SemanticSegmentationF16", withExtension: "mlmodelc") else {
+        guard let modelURL = OpenIntelligenceResourceBundle.url(forResource: "DETRResnet50SemanticSegmentationF16", withExtension: "mlmodelc") else {
             Log.info("[CoreMLRegionDetector] DETR model not bundled, using Vision framework fallback", category: .initialization)
             throw DetectorError.modelNotFound
         }
@@ -172,6 +174,7 @@ actor CoreMLRegionDetector {
             config.computeUnits = .all // Use all available compute
 
             let mlModel = try await MLModel.load(contentsOf: modelURL, configuration: config)
+            detrBackingModel = mlModel
             detrModel = try VNCoreMLModel(for: mlModel)
             isModelLoaded = true
 
@@ -195,8 +198,8 @@ actor CoreMLRegionDetector {
         // Try DETR model first
         do {
             try await loadModel()
-            if let model = detrModel {
-                let regions = try await detectWithDETR(image, model: model, pageNumber: pageNumber)
+            if let model = detrModel, let backingModel = detrBackingModel {
+                let regions = try await detectWithDETR(image, model: model, backingModel: backingModel, pageNumber: pageNumber)
                 let elapsed = (CFAbsoluteTimeGetCurrent() - startTime) * 1000
                 return RegionDetectionResult(
                     pageNumber: pageNumber,
@@ -222,15 +225,17 @@ actor CoreMLRegionDetector {
     }
 
     /// Detect using DETR CoreML model (semantic segmentation)
-    private func detectWithDETR(_ image: CIImage, model: VNCoreMLModel, pageNumber: Int) async throws -> [DocumentDetectedRegion] {
+    private func detectWithDETR(_ image: CIImage, model: VNCoreMLModel, backingModel: MLModel, pageNumber: Int) async throws -> [DocumentDetectedRegion] {
         let request = VNCoreMLRequest(model: model)
         request.imageCropAndScaleOption = .scaleFill
 
         let handler = VNImageRequestHandler(ciImage: image, options: [:])
 
         // Limit concurrent Vision requests to prevent Metal race conditions
-        try VisionOCRThrottle.performSync {
-            try handler.perform([request])
+        try withExtendedLifetime(backingModel) {
+            try VisionOCRThrottle.performSync {
+                try handler.perform([request])
+            }
         }
 
         // DETR returns segmentation masks - convert to regions
@@ -323,6 +328,10 @@ actor CoreMLRegionDetector {
     /// Detect text block regions using Vision
     private func detectTextRegions(_ image: CIImage, pageNumber: Int) async -> [DocumentDetectedRegion] {
         var regions: [DocumentDetectedRegion] = []
+        guard let cgImage = materializedCGImage(from: image) else {
+            Log.warning("[CoreMLRegionDetector] Failed to materialize page image for text region detection", category: .ingestion)
+            return regions
+        }
 
         let request = VNRecognizeTextRequest { request, error in
             guard let observations = request.results as? [VNRecognizedTextObservation] else { return }
@@ -344,7 +353,7 @@ actor CoreMLRegionDetector {
         request.recognitionLevel = .fast // Fast for region detection
         request.usesLanguageCorrection = false
 
-        let handler = VNImageRequestHandler(ciImage: image, options: [:])
+        let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
 
         // Limit concurrent Vision OCR to prevent Metal race conditions
         VisionOCRThrottle.performSync {
@@ -408,6 +417,10 @@ actor CoreMLRegionDetector {
     @available(iOS 26.0, *)
     private func detectDocumentStructure(_ image: CIImage, pageNumber: Int) async -> [DocumentDetectedRegion] {
         var regions: [DocumentDetectedRegion] = []
+        guard let imageData = materializedImageData(from: image) else {
+            Log.warning("[CoreMLRegionDetector] Failed to materialize page image for document structure detection", category: .ingestion)
+            return regions
+        }
 
         do {
             var request = RecognizeDocumentsRequest()
@@ -421,7 +434,7 @@ actor CoreMLRegionDetector {
             // Throttle Vision operations to prevent Metal GPU race conditions
             let configuredRequest = request
             let observations = try await VisionOCRThrottle.performAsync {
-                try await configuredRequest.perform(on: image)
+                try await configuredRequest.perform(on: imageData)
             }
 
             // Get the document from the first observation
@@ -477,6 +490,20 @@ actor CoreMLRegionDetector {
         }
 
         return regions
+    }
+
+    private nonisolated func materializedCGImage(from image: CIImage) -> CGImage? {
+        Self.visionRenderContext.createCGImage(image, from: image.extent)
+    }
+
+    @available(iOS 26.0, *)
+    private nonisolated func materializedImageData(from image: CIImage) -> Data? {
+        Self.visionRenderContext.pngRepresentation(
+            of: image,
+            format: .RGBA8,
+            colorSpace: CGColorSpaceCreateDeviceRGB(),
+            options: [:]
+        )
     }
 
     /// Cluster nearby text regions into larger blocks

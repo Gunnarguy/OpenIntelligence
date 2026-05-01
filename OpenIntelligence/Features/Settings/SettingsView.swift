@@ -1043,7 +1043,7 @@ Text(deviceService.chipName)
                         .clipShape(Capsule())
                 }
 
-                Text("This controls how aggressively PDFs stay full-resolution during OCR and structured parsing. It is separate from Standard, Deep Think, and Maximum answer modes.")
+                Text("This controls how aggressively PDFs stay full-resolution during OCR and structured parsing. Lower modes can skip heavier recovery passes on pages heuristics mark safe. If fidelity matters more than speed, use Maximum. This only affects new ingests and re-ingests.")
                     .font(.caption)
                     .foregroundColor(.secondary)
 

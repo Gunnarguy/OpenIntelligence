@@ -26,11 +26,11 @@ enum IngestionFidelityMode: String, CaseIterable, Identifiable, Sendable {
     var shortDescription: String {
         switch self {
         case .balanced:
-            return "Adaptive heuristics with full-res escalation only on high-risk pages"
+            return "Adaptive heuristics; can skip heavier vision recovery on pages marked low-risk"
         case .high:
             return "More aggressive full-res parsing for small text, tables, and columns"
         case .maximum:
-            return "Bias toward maximum source preservation before chunking and retrieval"
+            return "Recommended for manuals and tables when fidelity matters more than ingest speed"
         }
     }
 
@@ -57,6 +57,6 @@ enum IngestionFidelityMode: String, CaseIterable, Identifiable, Sendable {
             return mode
         }
 
-        return .balanced
+        return .maximum
     }
 }

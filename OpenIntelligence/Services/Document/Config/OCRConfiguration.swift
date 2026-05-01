@@ -458,7 +458,7 @@ enum OCRConfiguration {
     /// This is the SINGLE normalization gate between raw extraction and the
     /// chunking/embedding pipeline.  Every document — PDF, image, Office,
     /// audio transcript — passes through here exactly once.
-    static func normalizeExtractedText(_ text: String) -> String {
+    nonisolated static func normalizeExtractedText(_ text: String) -> String {
         guard !text.isEmpty else { return text }
 
         // 1. Unicode NFKC: decomposes compatibility forms + recomposes canonical.
@@ -581,7 +581,7 @@ enum OCRConfiguration {
 
     /// Replaces isolated CJK ideographs used as bullet markers in Latin-dominant text.
     /// Only triggers when >85% of the text is Latin/ASCII — safe for actual CJK documents.
-    private static func replaceCJKBulletArtifacts(_ text: String) -> String {
+    private nonisolated static func replaceCJKBulletArtifacts(_ text: String) -> String {
         // Quick exit: if text is short, skip analysis
         guard text.count > 200 else { return text }
 
@@ -645,7 +645,7 @@ enum OCRConfiguration {
     ///
     /// This method first DETECTS the pattern (requiring ≥3 unambiguous indicators),
     /// then applies a curated word list where single-l is NEVER a valid English word.
-    private static func repairLLLigature(_ text: String) -> String {
+    private nonisolated static func repairLLLigature(_ text: String) -> String {
         guard text.count > 100 else { return text }
 
         // Phase 1: Detect if document has the systematic ll→l issue
@@ -898,7 +898,7 @@ enum OCRConfiguration {
     ///
     /// Only removes entire lines — never modifies partial lines. This ensures
     /// no real content is accidentally stripped.
-    private static func stripDocumentNoise(_ text: String) -> String {
+    private nonisolated static func stripDocumentNoise(_ text: String) -> String {
         let lines = text.components(separatedBy: "\n")
         let cleaned = lines.compactMap { line -> String? in
             let trimmed = line.trimmingCharacters(in: .whitespaces)
@@ -951,7 +951,7 @@ enum OCRConfiguration {
     /// Detects standalone internal asset/figure reference codes.
     /// These are alphanumeric codes used by publishers as image tags (e.g., ONQ5011001N).
     /// Only matches lines consisting SOLELY of the code (no other words).
-    private static func isStandaloneAssetCode(_ trimmed: String) -> Bool {
+    private nonisolated static func isStandaloneAssetCode(_ trimmed: String) -> Bool {
         // Strip optional leading "* " annotation marker
         let clean = trimmed.hasPrefix("* ") ? String(trimmed.dropFirst(2)) : trimmed
 
@@ -975,7 +975,7 @@ enum OCRConfiguration {
 
     /// Detects orphan page number annotations — structural pagination artifacts from PDFs.
     /// These are standalone lines consisting only of page indicators.
-    private static func isOrphanPageAnnotation(_ trimmed: String) -> Bool {
+    private nonisolated static func isOrphanPageAnnotation(_ trimmed: String) -> Bool {
         // Must be very short — page numbers are never long
         guard trimmed.count <= 12 else { return false }
 
@@ -1000,7 +1000,7 @@ enum OCRConfiguration {
     /// Detects standalone cross-reference page clusters.
     /// Lines like "4-38", "4-93, 8-54" where every comma-separated
     /// element is a section-page reference.
-    private static func isCrossReferenceCluster(_ trimmed: String) -> Bool {
+    private nonisolated static func isCrossReferenceCluster(_ trimmed: String) -> Bool {
         // Length guard: cross-ref clusters are short-to-medium
         guard trimmed.count >= 3, trimmed.count <= 60 else { return false }
 

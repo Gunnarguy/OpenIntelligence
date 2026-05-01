@@ -29,8 +29,93 @@ enum EvidenceScoringPolicyService {
         "specified in", "provided in"
     ]
 
+    private static let stateIndicatorTerms = [
+        "light", "lights", "indicator", "indicators", "led", "status", "signal"
+    ]
+
+    private static let stateTerms = [
+        "solid", "flashing", "flash", "blink", "blinking", "steady", "pulsing", "rapid", "slow"
+    ]
+
+    private static let stateColors = [
+        "red", "green", "blue", "yellow", "amber", "orange", "purple", "white", "cyan", "magenta"
+    ]
+
     static func precisionLockThreshold(forceExtractiveAttempt: Bool) -> Float {
         forceExtractiveAttempt ? 0.90 : 0.82
+    }
+
+    static func isStateLookupQuery(_ query: String) -> Bool {
+        let lower = query.lowercased()
+        let hasIndicatorTerm = stateIndicatorTerms.contains { lower.contains($0) }
+        let hasStateTerm = stateTerms.contains { lower.contains($0) }
+        let hasColor = stateColors.contains { color in
+            lower.range(of: #"\b\#(color)\b"#, options: .regularExpression) != nil
+        }
+
+        return hasIndicatorTerm && (hasStateTerm || hasColor)
+    }
+
+    static func stateLookupAnchors(from query: String) -> (colors: [String], states: [String]) {
+        let lower = query.lowercased()
+        let colors = stateColors.filter { color in
+            lower.range(of: #"\b\#(color)\b"#, options: .regularExpression) != nil
+        }
+        let states = stateTerms.filter { lower.contains($0) }
+        return (colors, states)
+    }
+
+    static func satisfiesStateLookupAnchors(query: String, content: String) -> Bool {
+        let anchors = stateLookupAnchors(from: query)
+        let lowerContent = content.lowercased()
+
+        if !anchors.colors.isEmpty && !anchors.colors.contains(where: { lowerContent.contains($0) }) {
+            return false
+        }
+
+        if !anchors.states.isEmpty && !anchors.states.contains(where: { lowerContent.contains($0) }) {
+            return false
+        }
+
+        return true
+    }
+
+    static func stateLookupAnchorAdjustment(
+        query: String,
+        content: String,
+        structureType: String?
+    ) -> Float {
+        guard isStateLookupQuery(query) else { return 0 }
+
+        let anchors = stateLookupAnchors(from: query)
+        let lowerContent = content.lowercased()
+        var adjustment: Float = 0
+
+        if !anchors.colors.isEmpty {
+            if anchors.colors.contains(where: { lowerContent.contains($0) }) {
+                adjustment += 0.16
+            } else {
+                adjustment -= 0.18
+            }
+        }
+
+        if !anchors.states.isEmpty {
+            if anchors.states.contains(where: { lowerContent.contains($0) }) {
+                adjustment += 0.08
+            } else {
+                adjustment -= 0.08
+            }
+        }
+
+        if isStructuredEvidence(text: content, structureType: structureType) {
+            adjustment += 0.05
+        }
+
+        if stateIndicatorTerms.contains(where: { lowerContent.contains($0) }) {
+            adjustment += 0.03
+        }
+
+        return adjustment
     }
 
     nonisolated static func hasQuantitativeSignal(_ text: String) -> Bool {

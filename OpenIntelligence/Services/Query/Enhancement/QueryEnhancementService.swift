@@ -183,6 +183,11 @@ final class QueryEnhancementService {
         let lower = query.lowercased()
         let rawWords = lower.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).map(String.init)
 
+        if isIndicatorStateLookupQuery(lower) {
+            Log.debug("[QueryEnhancement] Intent: keyword (indicator/state lookup)", category: .retrieval)
+            return .keyword
+        }
+
         // Normalize words: strip punctuation, expand contractions
         // "what's" → "what", "do?" → "do", "it's" → "it"
         let words = rawWords.map { word -> String in
@@ -316,6 +321,11 @@ final class QueryEnhancementService {
     nonisolated func classifyAnswerIntent(_ query: String) -> AnswerIntent {
         let lower = query.lowercased()
         let words = lower.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).map(String.init)
+
+        if isIndicatorStateLookupQuery(lower) {
+            Log.debug("[QueryEnhancement] Indicator/state query → lookup", category: .retrieval)
+            return .lookup
+        }
 
         // Priority 0: FINDINGS (GOD MODE) - author/research discovery queries
         // These need document-level context, not just detail chunks
@@ -566,6 +576,19 @@ final class QueryEnhancementService {
 
         // For longer conceptual queries, default to investigate
         return .investigate
+    }
+
+    private nonisolated func isIndicatorStateLookupQuery(_ lower: String) -> Bool {
+        let signalTokens = ["indicator", "light", "lights", "led", "status", "signal"]
+        let stateTokens = ["solid", "flashing", "flash", "blinking", "blink", "steady", "pulsing", "pulse"]
+        let colorTokens = ["red", "green", "blue", "yellow", "amber", "orange", "purple", "white", "cyan", "cyan-blue"]
+        let lookupTokens = ["what does", "what is", "what's", "mean", "meaning", "indicate", "indicates", "signal", "signals"]
+
+        let hasSignalToken = signalTokens.contains { lower.contains($0) }
+        let hasStateOrColor = stateTokens.contains { lower.contains($0) } || colorTokens.contains { lower.contains($0) }
+        let hasLookupCue = lookupTokens.contains { lower.contains($0) }
+
+        return hasSignalToken && hasStateOrColor && hasLookupCue
     }
 
     /// Produces a small set of query variants for keyword-heavy retrieval (BM25).

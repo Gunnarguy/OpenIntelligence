@@ -179,7 +179,7 @@ actor SpecificationExtractor {
         var allCandidates: [AnswerCandidate] = []
 
         for chunk in chunks {
-            let content = chunk.chunk.parentContent ?? chunk.chunk.content
+            let content = extractionContent(for: chunk)
             let candidates = findCandidates(
                 in: content,
                 chunk: chunk,
@@ -312,7 +312,7 @@ actor SpecificationExtractor {
                         Log.debug("[ExtractiveQA] Entity override: '\(entityCandidate.value)' contains entity, replacing best", category: .retrieval)
                         let context = extractSurroundingContext(
                             for: entityCandidate.value,
-                            in: entityCandidate.chunk.chunk.parentContent ?? entityCandidate.chunk.chunk.content
+                            in: extractionContent(for: entityCandidate.chunk)
                         )
                         return .success(SpecificationExtractionResult(
                             answerSpan: entityCandidate.value,
@@ -343,7 +343,7 @@ actor SpecificationExtractor {
         // Step 5: Build the extraction result
         let context = extractSurroundingContext(
             for: bestCandidate.value,
-            in: bestCandidate.chunk.chunk.parentContent ?? bestCandidate.chunk.chunk.content
+            in: extractionContent(for: bestCandidate.chunk)
         )
 
         let result = SpecificationExtractionResult(
@@ -619,6 +619,29 @@ actor SpecificationExtractor {
         return false
     }
 
+    private func extractionContent(for chunk: RetrievedChunk) -> String {
+        let content = chunk.chunk.content.trimmingCharacters(in: .whitespacesAndNewlines)
+        let parent = (chunk.chunk.parentContent ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !parent.isEmpty else { return content }
+        guard !content.isEmpty else { return parent }
+
+        if content.contains(parent) {
+            return content
+        }
+
+        if let structureType = chunk.chunk.metadata.structureType,
+           structureType == "table" || structureType == "list" {
+            return content + "\n" + parent
+        }
+
+        if parent.count > content.count {
+            return parent + "\n" + content
+        }
+
+        return content + "\n" + parent
+    }
+
     // MARK: - Proximity-Based Extraction
 
     private func extractFromStateMappings(
@@ -632,7 +655,7 @@ actor SpecificationExtractor {
         var bestMatch: (label: String, value: String, score: Float, chunk: RetrievedChunk)?
 
         for chunk in chunks {
-            let content = chunk.chunk.parentContent ?? chunk.chunk.content
+            let content = extractionContent(for: chunk)
             let mappings = parseStateMappings(in: content)
 
             for mapping in mappings {
@@ -690,7 +713,21 @@ actor SpecificationExtractor {
             return "\(state) \(color)"
         }
 
-        return Array(Set(labels))
+        var normalizedLabels = Set(labels)
+        let lowerQuery = query.lowercased()
+        let indicatorTerms = ["indicator", "light", "lights", "led", "status", "signal"]
+        let colorPattern = #"\b(red|green|blue|yellow|amber|orange|purple|white|cyan(?:-blue)?|cyan|magenta)\b"#
+
+        if indicatorTerms.contains(where: { lowerQuery.contains($0) }),
+           let colorRegex = try? NSRegularExpression(pattern: colorPattern, options: .caseInsensitive) {
+            let colorMatches = colorRegex.matches(in: query, range: NSRange(location: 0, length: nsQuery.length))
+            for match in colorMatches {
+                guard let colorRange = Range(match.range(at: 1), in: query) else { continue }
+                normalizedLabels.insert(String(query[colorRange]).capitalized)
+            }
+        }
+
+        return Array(normalizedLabels)
     }
 
     private func canonicalStateToken(_ token: String) -> String {
@@ -761,31 +798,195 @@ actor SpecificationExtractor {
         let nsContent = flattened as NSString
         let matches = regex.matches(in: flattened, range: NSRange(location: 0, length: nsContent.length))
 
-        var seen = Set<String>()
         var results: [(label: String, value: String)] = []
+        var seen = Set<String>()
+
+        func appendResult(label: String, value: String) {
+            let cleanedLabel = normalizeStateLabel(label)
+            let cleanedValue = cleanupStateMappingValue(value)
+            guard !cleanedLabel.isEmpty, !cleanedValue.isEmpty else { return }
+            let dedupeKey = "\(cleanedLabel.lowercased())::\(cleanedValue.lowercased())"
+            if seen.insert(dedupeKey).inserted {
+                results.append((cleanedLabel, cleanedValue))
+            }
+        }
 
         for match in matches {
             guard match.numberOfRanges >= 3 else { continue }
             let label = nsContent.substring(with: match.range(at: 1)).trimmingCharacters(in: .whitespacesAndNewlines)
             let rawValue = nsContent.substring(with: match.range(at: 2))
-            let value = cleanupStateMappingValue(rawValue)
-            guard !value.isEmpty else { continue }
+            appendResult(label: label, value: rawValue)
+        }
 
-            let dedupeKey = "\(label.lowercased())::\(value.lowercased())"
-            if seen.insert(dedupeKey).inserted {
-                results.append((label: label, value: value))
-            }
+        for mapping in parseDirectStateMappingLines(in: content) {
+            appendResult(label: mapping.label, value: mapping.value)
+        }
+
+        for mapping in parseParallelStateMappings(in: content) {
+            appendResult(label: mapping.label, value: mapping.value)
         }
 
         return results
     }
 
+    private func parseDirectStateMappingLines(in content: String) -> [(label: String, value: String)] {
+        let lines = content.components(separatedBy: .newlines)
+        var mappings: [(label: String, value: String)] = []
+
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+
+            if let mapping = parseRowStructuredStateMapping(from: trimmed) {
+                mappings.append(mapping)
+                continue
+            }
+
+            guard let regex = try? NSRegularExpression(
+                pattern: #"((?:Flashing|Solid|Blinking|Steady|Pulsing|Rapid|Slow)\s+[A-Za-z][A-Za-z-]*(?:\s*\([^)]*\))?)\s*[:=|-]\s*(.+)"#,
+                options: .caseInsensitive
+            ) else {
+                continue
+            }
+
+            let nsLine = trimmed as NSString
+            let matches = regex.matches(in: trimmed, range: NSRange(location: 0, length: nsLine.length))
+            for match in matches {
+                guard match.numberOfRanges >= 3 else { continue }
+                let label = nsLine.substring(with: match.range(at: 1))
+                let value = nsLine.substring(with: match.range(at: 2))
+                mappings.append((normalizeStateLabel(label), cleanupStateMappingValue(value)))
+            }
+        }
+
+        return mappings.filter { !$0.label.isEmpty && !$0.value.isEmpty }
+    }
+
+    private func parseRowStructuredStateMapping(from line: String) -> (label: String, value: String)? {
+        guard line.contains("=") else { return nil }
+
+        let segments = line
+            .replacingOccurrences(of: #"^Row\s+\d+\s*:\s*"#, with: "", options: .regularExpression)
+            .split(separator: ";")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+        var stateLabel: String?
+        var stateValue: String?
+
+        for segment in segments {
+            let parts = segment.split(separator: "=", maxSplits: 1).map(String.init)
+            guard parts.count == 2 else { continue }
+            let key = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
+            let value = parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
+
+            if isStateLabel(value) {
+                stateLabel = normalizeStateLabel(value)
+                continue
+            }
+
+            let lowerKey = key.lowercased()
+            if lowerKey.contains("status") || lowerKey.contains("meaning") || lowerKey.contains("indicat") || lowerKey.contains("signal") {
+                stateValue = value
+            }
+        }
+
+        if let stateLabel, let stateValue {
+            return (stateLabel, cleanupStateMappingValue(stateValue))
+        }
+
+        return nil
+    }
+
+    private func parseParallelStateMappings(in content: String) -> [(label: String, value: String)] {
+        let normalizedLines = content
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard let labelHeaderIndex = normalizedLines.firstIndex(where: isStateLabelHeaderLine(_:)) else { return [] }
+        guard let valueHeaderIndex = normalizedLines[(labelHeaderIndex + 1)...].firstIndex(where: isStateValueHeaderLine(_:)) else { return [] }
+
+        let labelLines = Array(normalizedLines[(labelHeaderIndex + 1)..<valueHeaderIndex])
+        let valueLines = Array(normalizedLines[(valueHeaderIndex + 1)...].prefix(32))
+        let labels = collapseStateColumnItems(labelLines, preferStateLabels: true)
+        let values = collapseStateColumnItems(valueLines, preferStateLabels: false)
+        let pairCount = min(labels.count, values.count)
+
+        guard pairCount >= 3 else { return [] }
+
+        return (0..<pairCount).map { index in
+            (normalizeStateLabel(labels[index]), cleanupStateMappingValue(values[index]))
+        }
+    }
+
+    private func collapseStateColumnItems(_ lines: [String], preferStateLabels: Bool) -> [String] {
+        var items: [String] = []
+        var current = ""
+
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+
+            let startsNew: Bool
+            if current.isEmpty {
+                startsNew = true
+            } else if preferStateLabels && isStateLabel(trimmed) {
+                startsNew = true
+            } else if current.contains("(") && !current.contains(")") {
+                startsNew = false
+            } else if let first = trimmed.unicodeScalars.first, CharacterSet.lowercaseLetters.contains(first) {
+                startsNew = false
+            } else if trimmed.count <= 10 && current.count <= 40 {
+                startsNew = false
+            } else {
+                startsNew = true
+            }
+
+            if startsNew {
+                if !current.isEmpty {
+                    items.append(current)
+                }
+                current = trimmed
+            } else {
+                current += " " + trimmed
+            }
+        }
+
+        if !current.isEmpty {
+            items.append(current)
+        }
+
+        return items
+            .map { cleanupStateMappingValue($0) }
+            .filter { !$0.isEmpty }
+    }
+
+    private func isStateLabelHeaderLine(_ line: String) -> Bool {
+        let normalized = line.lowercased()
+        return normalized.contains("color") || normalized.contains("light") || normalized.contains("indicator")
+    }
+
+    private func isStateValueHeaderLine(_ line: String) -> Bool {
+        let normalized = line.lowercased()
+        return normalized.contains("status") || normalized.contains("meaning") || normalized.contains("signal") || normalized.contains("indicates")
+    }
+
+    private func isStateLabel(_ value: String) -> Bool {
+        value.range(of: #"^(?:Flashing|Solid|Blinking|Steady|Pulsing|Rapid|Slow)\s+[A-Za-z][A-Za-z-]*(?:\s*\([^)]*\))?$"#, options: [.regularExpression, .caseInsensitive]) != nil
+    }
+
+    private func normalizeStateLabel(_ label: String) -> String {
+        cleanupStateMappingValue(label)
+            .replacingOccurrences(of: #"\s*\(([^)]*)$"#, with: " ($1", options: .regularExpression)
+    }
+
     private func cleanupStateMappingValue(_ rawValue: String) -> String {
         rawValue
+            .replacingOccurrences(of: #"\bROW\s+\d+\s*:\s*"#, with: "", options: .regularExpression)
             .replacingOccurrences(of: #"^\(\d+\s*"#, with: "", options: .regularExpression)
             .replacingOccurrences(of: #"^\d+\s+"#, with: "", options: .regularExpression)
             .replacingOccurrences(of: #"\bsecs?\)"#, with: "", options: .regularExpression)
-            .replacingOccurrences(of: #"^[-:]+\s*"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"^[|\-:]+\s*"#, with: "", options: .regularExpression)
             .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
             .trimmingCharacters(in: CharacterSet(charactersIn: " -:\t\n()"))
     }
@@ -815,7 +1016,7 @@ actor SpecificationExtractor {
         var bestMatch: (value: String, score: Float, context: String, chunk: RetrievedChunk)?
 
         for chunk in chunks {
-            let content = chunk.chunk.parentContent ?? chunk.chunk.content
+            let content = extractionContent(for: chunk)
             let nsContent = content as NSString
 
             // Find all part numbers in this chunk

@@ -481,8 +481,8 @@ final class SettingsStore: ObservableObject {
         {
             ingestionFidelityMode = mode
         } else {
-            ingestionFidelityMode = .balanced
-            defaults.set(IngestionFidelityMode.balanced.rawValue, forKey: Keys.ingestionFidelityMode)
+            ingestionFidelityMode = .maximum
+            defaults.set(IngestionFidelityMode.maximum.rawValue, forKey: Keys.ingestionFidelityMode)
         }
         lenientRetrievalMode = false
         defaults.set(false, forKey: Keys.lenient)

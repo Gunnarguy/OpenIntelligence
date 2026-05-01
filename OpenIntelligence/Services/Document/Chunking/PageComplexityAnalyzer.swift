@@ -660,6 +660,14 @@ final class PageComplexityAnalyzer: @unchecked Sendable {
             tableSignature += min(0.4, Double(alignedNumericLines) / 20.0)
         }
 
+        // Flattened two-column / label-value tables from PDF text layers.
+        // These often appear in manuals as stacked short labels plus wrapped value prose,
+        // and they are easy to miss because numeric density is low.
+        let flattenedStructuredSignal = detectFlattenedTableSignal(in: lines)
+        if flattenedStructuredSignal > 0 {
+            tableSignature += flattenedStructuredSignal
+        }
+
         // ═══════════════════════════════════════════════════════════════════
         // CHART/GRAPH DETECTION
         // ═══════════════════════════════════════════════════════════════════
@@ -721,6 +729,107 @@ final class PageComplexityAnalyzer: @unchecked Sendable {
             whitespaceRatio: whitespaceRatio,
             layoutComplexity: min(1.0, layoutComplexity)
         )
+    }
+
+    private func detectFlattenedTableSignal(in lines: [String]) -> Double {
+        let nonEmptyLines = lines
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard nonEmptyLines.count >= 8 else { return 0 }
+
+        let headerCandidates = nonEmptyLines.filter(isStructuredHeaderCandidate)
+        let shortStructuredLines = nonEmptyLines.filter(isShortStructuredValueLine)
+        let continuationLines = nonEmptyLines.filter(looksLikeWrappedStructuredContinuation)
+        let sectionHeadingLines = nonEmptyLines.filter(isSectionHeadingLine)
+
+        let shortLineRatio = Double(shortStructuredLines.count) / Double(nonEmptyLines.count)
+        let continuationRatio = Double(continuationLines.count) / Double(nonEmptyLines.count)
+
+        var signal = 0.0
+
+        if headerCandidates.count >= 2 && shortStructuredLines.count >= 6 {
+            signal += 0.22
+        }
+
+        if shortLineRatio >= 0.45 {
+            signal += 0.10
+        }
+
+        if continuationLines.count >= 2 && continuationRatio >= 0.10 {
+            signal += 0.12
+        }
+
+        // A section heading near many short lines is common when PDF text layers flatten
+        // a table followed by surrounding prose in reading-order order.
+        if sectionHeadingLines.count >= 1 && headerCandidates.count >= 2 && shortStructuredLines.count >= 8 {
+            signal += 0.08
+        }
+
+        return min(0.4, signal)
+    }
+
+    private func isStructuredHeaderCandidate(_ line: String) -> Bool {
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        guard !isSectionHeadingLine(trimmed) else { return false }
+        guard trimmed.count >= 4, trimmed.count <= 40 else { return false }
+        guard !trimmed.hasSuffix(".") else { return false }
+
+        let words = trimmed.split(whereSeparator: \.isWhitespace)
+        guard words.count >= 1, words.count <= 5 else { return false }
+
+        let letterCount = trimmed.unicodeScalars.filter { CharacterSet.letters.contains($0) }.count
+        guard letterCount >= max(3, trimmed.count / 3) else { return false }
+
+        guard let firstScalar = trimmed.unicodeScalars.first,
+              CharacterSet.uppercaseLetters.contains(firstScalar) else {
+            return false
+        }
+
+        return true
+    }
+
+    private func isShortStructuredValueLine(_ line: String) -> Bool {
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        guard !isSectionHeadingLine(trimmed) else { return false }
+
+        let words = trimmed.split(whereSeparator: \.isWhitespace)
+        guard words.count >= 1, words.count <= 6 else { return false }
+
+        return trimmed.count <= 42
+    }
+
+    private func looksLikeWrappedStructuredContinuation(_ line: String) -> Bool {
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        guard !isSectionHeadingLine(trimmed) else { return false }
+
+        if let firstScalar = trimmed.unicodeScalars.first {
+            if CharacterSet.lowercaseLetters.contains(firstScalar) || CharacterSet.punctuationCharacters.contains(firstScalar) {
+                return true
+            }
+        }
+
+        let lowered = trimmed.lowercased()
+        let continuationPrefixes = [
+            "and ", "or ", "to ", "for ", "with ", "without ", "of ", "the ",
+            "secs", "sec", "mins", "min", "hours", "firmware", "over-", "under-"
+        ]
+
+        return continuationPrefixes.contains { lowered.hasPrefix($0) }
+    }
+
+    private func isSectionHeadingLine(_ line: String) -> Bool {
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+
+        if trimmed.range(of: #"^\d+(?:\.\d+)*\s*[\.:]"#, options: .regularExpression) != nil {
+            return true
+        }
+
+        return trimmed.count <= 90 && trimmed.hasSuffix(":")
     }
 
     // MARK: - Vision-Based Analysis

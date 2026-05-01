@@ -771,7 +771,7 @@ actor StructuredDocumentParser {
         for row in table.rows {
             var cellTexts: [String] = []
             for cell in row {
-                var text = cell.content.text.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+                var text = normalizeTableCellText(cell.content.text.transcript)
                 totalCellCount += 1
 
                 if !text.isEmpty {
@@ -800,6 +800,8 @@ actor StructuredDocumentParser {
             }
             rows.append(cellTexts)
         }
+
+        rows = mergeWrappedContinuationRows(in: rows, pageNumber: pageNumber)
 
         // Quality gate: if majority of cells are garbled, log warning
         if totalCellCount > 0 {
@@ -870,6 +872,196 @@ actor StructuredDocumentParser {
             caption: caption,
             detectedEntities: uniqueEntities
         )
+    }
+
+    private func normalizeTableCellText(_ text: String) -> String {
+        text
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func mergeWrappedContinuationRows(in rows: [[String]], pageNumber: Int) -> [[String]] {
+        guard !rows.isEmpty else { return [] }
+
+        var mergedRows: [[String]] = []
+        var mergeCount = 0
+
+        for row in rows {
+            let normalizedRow = row.map(normalizeTableCellText)
+            guard normalizedRow.contains(where: { !$0.isEmpty }) else { continue }
+
+            guard let previousRow = mergedRows.last,
+                  shouldMergeContinuationRow(previous: previousRow, current: normalizedRow) else {
+                mergedRows.append(normalizedRow)
+                continue
+            }
+
+            mergedRows[mergedRows.count - 1] = mergeTableRows(previous: previousRow, continuation: normalizedRow)
+            mergeCount += 1
+        }
+
+        if mergeCount > 0 {
+            Log.info("[StructuredDocumentParser] Merged \(mergeCount) OCR continuation row(s) on page \(pageNumber)", category: .ingestion)
+        }
+
+        return mergedRows
+    }
+
+    private func shouldMergeContinuationRow(previous: [String], current: [String]) -> Bool {
+        let columnCount = max(previous.count, current.count)
+        let paddedPrevious = padTableRow(previous, to: columnCount)
+        let paddedCurrent = padTableRow(current, to: columnCount)
+
+        let previousNonEmptyColumns = nonEmptyColumnIndices(in: paddedPrevious)
+        let currentNonEmptyColumns = nonEmptyColumnIndices(in: paddedCurrent)
+
+        guard !previousNonEmptyColumns.isEmpty, !currentNonEmptyColumns.isEmpty else { return false }
+
+        let maxContinuationColumns = max(1, Int(ceil(Double(columnCount) / 3.0)))
+        guard currentNonEmptyColumns.count <= maxContinuationColumns else { return false }
+        guard Set(currentNonEmptyColumns).isSubset(of: Set(previousNonEmptyColumns)) else { return false }
+
+        var score = 0
+        var hasStrongContinuationSignal = false
+
+        if currentNonEmptyColumns.count == 1 {
+            score += 2
+        }
+
+        if let firstColumn = currentNonEmptyColumns.first, firstColumn > 0 {
+            score += 2
+        }
+
+        if columnCount > 1,
+           paddedCurrent.first?.isEmpty == true,
+           paddedPrevious.first?.isEmpty == false {
+            score += 2
+        }
+
+        for columnIndex in currentNonEmptyColumns {
+            let previousCell = paddedPrevious[columnIndex]
+            let currentCell = paddedCurrent[columnIndex]
+            guard !previousCell.isEmpty else { return false }
+
+            if previousCell.hasSuffix("-") {
+                score += 3
+                hasStrongContinuationSignal = true
+            }
+
+            if looksLikeContinuationFragment(currentCell) {
+                score += 2
+                hasStrongContinuationSignal = true
+            }
+
+            if !previousCellHasTerminalStop(previousCell),
+               currentCell.split(whereSeparator: \.isWhitespace).count <= 6 {
+                score += 1
+            }
+        }
+
+        if currentNonEmptyColumns.contains(0),
+           let firstCell = paddedCurrent.first,
+           looksLikeStandaloneLeadingLabel(firstCell),
+           previousNonEmptyColumns.count > currentNonEmptyColumns.count {
+            score -= 3
+        }
+
+        return score >= 5 && hasStrongContinuationSignal
+    }
+
+    private func mergeTableRows(previous: [String], continuation: [String]) -> [String] {
+        let columnCount = max(previous.count, continuation.count)
+        var mergedRow = padTableRow(previous, to: columnCount)
+        let paddedContinuation = padTableRow(continuation, to: columnCount)
+
+        for columnIndex in 0..<columnCount {
+            let continuationCell = paddedContinuation[columnIndex]
+            guard !continuationCell.isEmpty else { continue }
+
+            let previousCell = mergedRow[columnIndex]
+            if previousCell.isEmpty {
+                mergedRow[columnIndex] = continuationCell
+            } else {
+                mergedRow[columnIndex] = normalizeTableCellText(joinTableCellText(previousCell, continuationCell))
+            }
+        }
+
+        return mergedRow
+    }
+
+    private func padTableRow(_ row: [String], to columnCount: Int) -> [String] {
+        guard row.count < columnCount else { return row }
+        return row + Array(repeating: "", count: columnCount - row.count)
+    }
+
+    private func nonEmptyColumnIndices(in row: [String]) -> [Int] {
+        row.enumerated().compactMap { index, cell in
+            cell.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : index
+        }
+    }
+
+    private func looksLikeContinuationFragment(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+
+        if let firstScalar = trimmed.unicodeScalars.first {
+            if CharacterSet.lowercaseLetters.contains(firstScalar) || CharacterSet.punctuationCharacters.contains(firstScalar) {
+                return true
+            }
+        }
+
+        let lowered = trimmed.lowercased()
+        let continuationWords = [
+            "and", "or", "to", "for", "with", "without", "of", "the", "a", "an",
+            "is", "are", "was", "were", "be", "being", "been", "has", "have", "had",
+            "in", "on", "at", "by", "from", "into", "over", "under"
+        ]
+
+        return continuationWords.contains { word in
+            lowered == word || lowered.hasPrefix(word + " ")
+        }
+    }
+
+    private func previousCellHasTerminalStop(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let lastCharacter = trimmed.last else { return false }
+        return [".", "!", "?"].contains(String(lastCharacter))
+    }
+
+    private func looksLikeStandaloneLeadingLabel(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        guard !looksLikeContinuationFragment(trimmed) else { return false }
+
+        if let firstScalar = trimmed.unicodeScalars.first,
+           CharacterSet.uppercaseLetters.contains(firstScalar) || CharacterSet.decimalDigits.contains(firstScalar) {
+            return trimmed.split(whereSeparator: \.isWhitespace).count <= 6
+        }
+
+        return false
+    }
+
+    private func joinTableCellText(_ previous: String, _ continuation: String) -> String {
+        let left = previous.trimmingCharacters(in: .whitespacesAndNewlines)
+        let right = continuation.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !left.isEmpty else { return right }
+        guard !right.isEmpty else { return left }
+
+        if left.hasSuffix("-") {
+            return left + right
+        }
+
+        if let firstCharacter = right.first,
+           [",", ".", ";", ":", ")", "%"].contains(String(firstCharacter)) {
+            return left + right
+        }
+
+        return left + " " + right
     }
 
     private func parseList(_ list: DocumentObservation.Container.List) -> [String] {

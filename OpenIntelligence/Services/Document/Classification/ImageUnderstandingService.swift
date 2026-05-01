@@ -115,6 +115,7 @@ enum ColumnLayout: String, Codable, Sendable {
 @MainActor
 class ImageUnderstandingService {
     static let shared = ImageUnderstandingService()
+    private nonisolated static let visionRenderContext = CIContext(options: [.cacheIntermediates: false])
 
     private init() {}
 
@@ -134,12 +135,17 @@ class ImageUnderstandingService {
 
     @available(iOS 18.0, *)
     private func classifyImageModern(_ image: CIImage) async throws -> [ImageClassification] {
+        guard let cgImage = materializedCGImage(from: image) else {
+            Log.warning("[ImageUnderstanding] Failed to materialize image for Vision classification", category: .ingestion)
+            return []
+        }
+
         let request = ClassifyImageRequest()
 
         do {
             // Throttle Vision operations to prevent Metal GPU race conditions
             let results = try await VisionOCRThrottle.performAsync {
-                try await request.perform(on: image)
+                try await request.perform(on: cgImage)
             }
 
             // Filter to high-confidence classifications
@@ -152,6 +158,10 @@ class ImageUnderstandingService {
             Log.warning("[ImageUnderstanding] Classification failed: \(error.localizedDescription)", category: .ingestion)
             return []
         }
+    }
+
+    private nonisolated func materializedCGImage(from image: CIImage) -> CGImage? {
+        Self.visionRenderContext.createCGImage(image, from: image.extent)
     }
 
     private func classifyImageLegacy(_ image: CIImage) async throws -> [ImageClassification] {
